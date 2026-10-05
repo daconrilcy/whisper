@@ -1,0 +1,160 @@
+# ARCH-D18-FINAL v1 — contribution originale de l’architecte
+
+Cette contribution est mon apport final original. Elle supplante mes propositions intermédiaires ARCH-D18 v1 à v5 et ma note complémentaire `rusty_mp3`. Elle ne prétend pas reproduire ces messages verbatim.
+
+Acteur et auteur : `/root/arch_d18`, rôle `rust_architect`. Date : 2026-10-05. Autorité : mission de conception technique déléguée par le coordinateur `/root`, dans les invariants du pack `rust-predev/2` et le besoin V1 accepté. J’assume les choix techniques ci-dessous ; je ne ferme aucun finding indépendant.
+
+Base intellectuelle : D-WHISPER-17, digest `04d24ce0443e6f1e1bfe967acdfd6a8c11dae6ac8620e2c770e87b2a0a7b9d5a`.
+
+Base documentaire actuellement persistée : D-WHISPER-18, digest `56742d959a8ca3d9c563c9975371dd11d459d0aa0e30508fe1191c7a77230997`, manifeste SHA256 `6517d352263fc10015af05640550060c28a779e94eea530ba913b0a311fc21c8`. J’ai personnellement exécuté `predev_control.py verify-manifest` sur cette base : PASS. J’ai également lu les documents D18 `49_TECHNICAL_EVIDENCE_D18.md` et `50_ARCH_DECISIONS_D18.md`.
+
+Mon activité est restée en lecture seule : aucun fichier modifié, aucun banc réalisé, aucun code produit créé. Les essais sont attribués à l’hôte `/root` ; mes conclusions reposent sur leurs sources, lockfiles, rapports et logs examinés. TRANSPORT et reçu de cette contribution restent à créer par l’hôte avant la revue.
+
+## Entrées et décisions sous ma responsabilité
+
+Propriétaire des choix : rust_architect. Entrées concernées : architecture/ports `08`, faisabilité `09`, choix techniques et risques ciblés de `10`, matrice `33`, railguard proposé `11`, et synthèse D18 `50`. Le coordinateur possède la fusion et l’état partagé ; les mutations doivent rester ciblées par entrée.
+
+Les décisions suivantes sont de nature `decision`, approval `accepted` par mon autorité technique déléguée. Cette acceptation fixe la conception ; elle ne transforme pas un essai incomplet en réussite, n’accepte aucun changement produit et n’active pas le railguard.
+
+| ID/version | Décision et options examinées |
+|---|---|
+| TECH-D18-01 v1 | Retenir deux workers CPU/GPU distincts. Options examinées : EXE unique dépendant CUDA, chargement GPU facultatif, EXE distincts. La séparation est retenue pour que CPU forcé et Auto→CPU ne dépendent pas des imports CUDA du worker GPU. |
+| TECH-D18-02 v2 | Retenir acquisition installateur Rust WinHTTP/windows-sys 0.61.2, staging, SHA256 complet et Ready en dernier ; modèle fixé par commit ; VC Redist x64 compatible comme prérequis explicite. Options examinées : paquet supposé autonome, prérequis explicites, CRT statique. La pile réellement éprouvée utilise le runtime dynamique. |
+| TECH-D18-03 v1 | Retenir attestation versionnée du backend effectif à rejet fermé ; GPU strict sans bascule CPU implicite ; Auto invalidant génération puis relançant le worker CPU distinct. Demande `use_gpu` et détection CUDA seules sont rejetées comme attestation suffisante. |
+| TECH-D18-04 v1 | Retenir processus enfant supervisé pour appels moteur/codec bloquants, ownership exclusif du contexte natif et contrôle indépendant du flux audio. Options examinées : FFI dans UI, thread partagé, processus isolé. |
+| TECH-D18-05 v1 | Retenir rusty_mp3 0.8.0 pour la conception de l’archive et l’horloge PCM originale comme axe canonique. Rejeter durée MP3 décodée ou compensation empirique fixe comme fondement des offsets de groupe. |
+| TECH-D18-06 v1 | Retenir pending durable, assets immuables, générations TXT/SRT/manifeste, marqueur/pointeur final et réconciliation vérifiée. Rejeter une prétention d’atomicité entre plusieurs fichiers. |
+| TECH-D18-07 v1 | Retenir webrtc-vad 0.4.0, mode WebRTC 1, mono PCM16 à 16 kHz, trames de 20 ms. |
+| TECH-D18-08 v1 | Retenir frontières obligatoires domain/application/adapters/ui/composition root, avec disposition physique assurant l’absence de Whisper/CUDA dans desktop et installateur. Le regroupement des packages reste adaptable avec contrôle équivalent. |
+
+## Pile, installation et modèle
+
+Pile native retenue pour la conception : Rust/Cargo 1.98.1, édition 2024, cible `x86_64-pc-windows-msvc`, whisper-rs 0.16.0, whisper-rs-sys 0.15.0. Arbre embarqué whisper.cpp annoncé 1.8.3, digest `3ef69c4da0449ee55c06f558821a0a518fbcfe39f8af324c27ac3aa57c8555d9`, wrapper Git `7558e1b72f54f2f22a53589afb77e65681834c36`.
+
+L’hôte testé utilise GTX 1080 Ti, capacité 6.1, pilote 581.29 ; build CUDA 12.8.0/nvcc 12.8.61 avec CMake/Ninja et MSVC Build Tools 2019. Ces outils de compilation ne sont pas des dépendances d’exécution.
+
+Le paquet comprend deux EXE distincts. Le répertoire privé GPU contient cudart64_12.dll, cublas64_12.dll et cublasLt64_12.dll. `nvcuda.dll` appartient au pilote installé ; elle ne doit pas être copiée depuis le poste de développement. Le parent desktop et l’installateur ne chargent pas Whisper/CUDA. Le worker CPU ne comporte pas d’import CUDA, contrairement au worker GPU.
+
+Les deux EXE importent MSVCP140.dll, VCRUNTIME140.dll et VCRUNTIME140_1.dll. Le build natif consigne MSVC 19.29.30159 et VC Tools 14.29.30133. Le poste cible possède VC Redist x64 v14.51.36247.00 et les trois DLL sont présentes/hashées. Le prérequis doit être compatible avec le toolset 14.29 de ces builds ; une recompilation avec un toolset supérieur révise ce minimum. La version 14.51 du poste ne devient pas arbitrairement le minimum produit. Microsoft documente qu’un runtime compatible au moins aussi récent que le toolset doit accompagner l’application. [Source primaire Microsoft](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170), consultée le 2026-10-05.
+
+Absence, incompatibilité, refus ou échec d’installation du prérequis maintiennent un état explicite sans Ready. Une installation nécessitant redémarrage reste en attente. La branche runtime absent n’a pas été éprouvée. L’inventaire de présence ne prouve pas le chemin exact des modules effectivement chargés.
+
+Modèle retenu : ggml-large-v3-turbo.bin, dépôt ggerganov/whisper.cpp, commit `6034871ec87c84e342efab769d4c5c06cd126db3`, taille 1 624 555 275 octets, SHA256 `1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69`. La fiche de livraison utilise une URL fixée par commit, jamais `main/latest`.
+
+L’installateur télécharge en staging, par buffers bornés. Le SHA complet et la taille approuvés constituent le contrôle final ; un ETag reste une identité HTTP opaque distincte. Sur reprise, 206 requiert Content-Range exact et identité cohérente ; 200 ne doit jamais être concaténé au partial ; 416, partial excessif ou identité modifiée entraînent une reprise contrôlée ou erreur. Hash faux, troncature, interruption ou erreur de synchronisation ne produisent pas Ready.
+
+WinHTTP est appelé par l’adaptateur installation hors UI, avec handles possédés RAII et unsafe encapsulé. La pile utilise windows-sys 0.61.2, features Win32_Foundation et Win32_Networking_WinHttp, avec sha2 0.11.0. Dépendances OS : winhttp.dll/Schannel. Ne pas désactiver les validations de certificat ; ne pas partager un handle avec un appel réentrant. [WinHTTP](https://learn.microsoft.com/en-us/windows/win32/winhttp/about-winhttp) et [en-têtes HTTP](https://learn.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpaddrequestheaders), consultés le 2026-10-05.
+
+Ready est publié en dernier après vérification du modèle, des fichiers et des prérequis. Le premier usage charge un modèle local vérifié ; aucun téléchargement silencieux par le moteur.
+
+Les notices et sources relevées comprennent whisper.cpp MIT, les licences de crates identifiées et CUDA 12.8. L’Attachment A de l’EULA CUDA liste les composants runtime/BLAS pertinents sous ses conditions. Ce relevé ne constitue pas un avis juridique complet ; signature, version, hash, notices et autorité de redistribution doivent être contrôlés avant publication. [EULA CUDA 12.8](https://docs.nvidia.com/cuda/archive/12.8.0/eula/index.html), consultée le 2026-10-05.
+
+## Backend, arrêt et concurrence
+
+Le précontrôle cudaGetDeviceCount atteste seulement la visibilité d’un device. Une demande GPU n’atteste pas son emploi effectif.
+
+Le worker versionné fournit une attestation après initialisation native réussie : identité du worker/build/arbre natif/modèle, job/génération et signaux natifs de contexte/allocations CPU ou CUDA0. Le parsing est lié à la version, isolé des logs locaux et rejette une attestation absente ou ambiguë. Les stderr de plusieurs jobs ne sont pas mélangés. Aucun affichage « GPU actif » ne découle de la demande seule.
+
+GPU strict : device absent, initialisation échouée, backend CPU effectif ou panne worker donnent arrêt/récupérable ; aucune relance CPU automatique. Auto : invalider génération g, créer g+1, lancer l’EXE CPU distinct et rejouer la fenêtre originale au dernier offset confirmé durable. Rejeter l’ancien résultat avant stockage/confirmation. Les identités job/segment/range empêchent doublons et déplacement d’offset. Un audio non confirmé indisponible produit une perte explicite.
+
+Le contexte Whisper et l’encodeur appartiennent exclusivement au processus enfant. Le parent possède scheduler, identité/génération/configuration et état durable. Les IO pipes sont hors UI ; Stop/Quitter disposent d’un contrôle indépendant du flux audio. Le callback capture ne bloque pas sur send, disque ou sync.
+
+Chaque étage possède capacité en éléments et taille maximale : capture→spool, backlog transcription sur audio durable, IPC queue/writer/pipe OS, résultats et vues UI. Une fenêtre d’inférence bornée est en vol. Plein, déconnexion ou espace insuffisant entraînent cessation d’entrée et diagnostic ; aucune perte silencieuse. Le retard CPU peut persister sur disque et doit être visible.
+
+Stop coupe d’abord l’entrée puis draine/finalise ce qui peut l’être. Un blocage arbitraire FFI/IO ne permet pas de promettre un join ou une sortie bornée. Quitter reste ouvert jusqu’à résolution ou action manuelle conformément à Q-06. Le kill de nettoyage du banc E5 n’est pas la politique produit.
+
+Silence normal et absence de texte ne valent pas panne. Santé worker, progression du spool, ACK/sequence et entrée capture sont distingués ; détails des temporisations Q-04 à fixer avant le lot concerné sans inventer un arrêt au seul temps.
+
+## Archives, durabilité et récupération
+
+L’horloge PCM originale fait foi : plages d’échantillons, fréquence, offsets du passage et du groupe, et pause persistée. Les silences restent dans l’archive. TXT/SRT cumulés sont reconstruits des fragments confirmés ; les pauses proviennent de l’horloge de capture, pas d’une durée MP3 décodée ni d’une horloge système réajustable.
+
+Un MP3 immuable est produit par passage. Le profil éprouvé est 16 kHz mono s16, 64 kbps dans la fixture ; le bitrate final est un détail codec à qualifier. Aucune synchronisation sample-exact avec un lecteur MP3 tiers n’est revendiquée.
+
+La source rusty_mp3 0.8.0 examinée établit que next_packet retourne paquet/Again/Eof. Les erreurs de push et d’IO restent à propager. `finish` place Xing/Info dans sa queue finale ; un writer ayant déjà drainé les paquets l’écrit après ceux déjà écrits. Le banc n’atteste pas un header gapless correct. Si ces métadonnées sont nécessaires au produit, assembler le fichier final avec Info en tête depuis le staging, en mémoire bornée. La voie reservoir est limitée au MPEG-1 ; ne pas extrapoler les propriétés du profil 16 kHz MPEG-2 à d’autres profils.
+
+Le pending d’un passage est durable avant acquisition/encodage. Les assets MP3 et générations TXT/SRT/manifeste sont immuables ; le marqueur/pointeur courant est publié en dernier. Un snapshot N−1 reste lisible pendant pending N, mais le groupe courant est Recoverable jusqu’à réconciliation. Le scan examine pending, staging/orphelins, manifeste, artefacts requis, tailles et hashes. Marqueur absent/invalide ou fichier absent/corrompu empêche Complete. Double scan ne crée aucun nouvel ID ni doublon.
+
+L’ACK de fragment requiert synchronisation audio puis record contenant texte/identité/range/checksum, validation et confirmation. Au redémarrage : préfixe cohérent de records, rejet de dernier record incomplet, audio sans texte traité comme non confirmé/rejouable, déduplication et mesure de plage non confirmée. Un succès moteur ou une présence en UI ne confirme pas la durabilité.
+
+Les primitives retenues sont write_all, BufWriter.flush si présent, File.sync_all, fermeture et fs::rename de fichier individuel sur le même volume. Erreurs disque/accès/partage/hash/sync/rename propagées. Elles ne forment pas une transaction atomique entre fichiers. Les essais d’arrêt de processus ne prouvent pas durabilité des noms/répertoires, cache matériel et coupure électrique universelle. Sources primaires consultées le 2026-10-05 : [Rust File](https://doc.rust-lang.org/std/fs/struct.File.html#method.sync_all), [Rust rename](https://doc.rust-lang.org/std/fs/fn.rename.html), [FlushFileBuffers](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers), [MoveFileExW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw).
+
+La file durable est distincte de l’historique : ID, ordre monotone FIFO, identité/chemin source, état et configuration versionnés. ACK après persistance vérifiée. Après crash, Queued est présenté en attente de choix et Running devient Interrupted ; aucun redémarrage automatique. Retirer affecte l’entrée seulement. Avant Traiter, revalider la source ; aucun MP3 copié pour import et aucune suppression de source.
+
+## Frontières et ports vérifiables
+
+Disposition proposée adaptable : whisper-core/domain/application/ports ; whisper-adapters/capture/storage/os/codec/worker_ipc ; whisper-worker/root/native_engine/probe ; whisper-desktop/ui/root ; bootstrap installation. Les native dependencies sont confinées au worker.
+
+| Consommateur | Autorisé | Interdit et contrôle |
+|---|---|---|
+| domain | std et types purs justifiés | application/adapters/UI/OS/IO/native ; imports et forbid unsafe |
+| application | domain et ports possédés | adaptateurs concrets/UI/native ; compilation core seul |
+| adapters | contrats core et infrastructure nécessaire | UI/composition root ; revue imports et contrats |
+| worker natif | contrats core, Whisper/codec/probe | UI ; ownership enfant et contrôle unsafe |
+| UI | façade application/vues/types purs | adapters, fichiers/micro/moteur directs ; visibilité/imports |
+| composition roots | assemblage des couches | règles métier parallèles ; revue wiring |
+
+Contrôles futurs : cargo metadata et dépendances/features par package, liste blanche, core sans adaptateurs, API publiques contrôlées, inspection de chaque unsafe, builds CPU/GPU séparés pour éviter unification de features et contrôle PE. Les commandes/tests produit restent proposés avant code.
+
+| Port, owner du contrat | Préconditions, sortie, erreurs et effets |
+|---|---|
+| CapturePort/application | Pending durable, scheduler libre/config validée ; frames avec seq/range/rate/horloge ; erreurs device/permission/unplug/format/full. Handle détenu par adaptateur ; Stop idempotent coupe entrée ; aucun callback IO bloquant. |
+| EnginePort/application | Modèle vérifié et audio valide ; attestation puis segments portant job/génération/range ; erreurs backend/OOM/unattested/protocol/exit. Contexte unique enfant ; aucun effet d’archive ; stale rejeté parent. |
+| SessionJournal/application | Batch audio+texte+IDs/ranges ; DurableAck après toutes sync/validation ; erreurs IO/hash/sequence/stale. Writer séquentiel hors UI, recovery idempotent. |
+| ArchiveStore/application | Pending et fragments confirmés ; publication snapshot/manifeste/pointeur ; erreurs espace/accès/partage/hash/sync/rename. Annulation garde précédent/pending ; aucun faux Complete. |
+| QueueStore/application | Identité/ordre/source/état ; ACK durable, restore awaiting choice ; erreurs source changée/absente/corruption/sync. Aucune suppression source ni exécution restaurée automatique. |
+| WorkerPort/application | Handshake protocol/build/model/job/génération ; events ordonnés et erreurs typées ; contrôle indépendant data ; parent jamais bloqué sous lock scheduler sur pipe. |
+| InstallerPort/application installation | Source/version/taille/SHA/licences/prérequis ; ReadyManifest ou staged error. Streaming borné hors UI, cancel ferme réseau et conserve partial synchronisé ; erreurs TLS/réseau/hash/runtime/espace/permissions. |
+| OSAdapter/application | Tray/hotkey/autostart/single instance vers scheduler ; erreurs conflits/permissions ; boucle Windows non bloquante, handles libérés à sortie réelle, aucun Start implicite. |
+| SettingsStore/application | Configuration versionnée validée ; snapshot par job ; erreur de commit conserve ancienne valeur. |
+| VadPort/application | PCM16 mono16k, frames20ms et état par passage ; erreur init/frame/rate explicite ; silence archivé inchangé, intervalles bornés et seuils DEC-35. |
+
+## Preuves lues et portée
+
+Sources D18 : `evidence/d18`, sources/locks/rapports/logs associés ; E0 inventaire/provenance/licences ; E1 staging/HTTP/intégrité/imports/runtime/WinHTTP ; E2 contrôleur ; E3 encodage/reprise/intégré/alignement ; E4 archive/file/spool ; E5 contrôle ; E6 VAD.
+
+- E1 : modèle exact acquis/repris sur HTTP loopback Python ; client Rust WinHTTP éprouvé séparément sur 8 MiB, interruption à 1 MiB, reprise 206, validation taille/SHA puis Ready ; partial corrompu, hash attendu faux et troncature refusés. Lancement local CPU/GPU sur même PC avec PATH réduit et proxy injoignable. Ce n’est pas une acquisition Rust du modèle entier ni une preuve de réseau réellement coupé.
+- E2 : deux EXE distincts, strict absent refusé, strict en échec injecté sans CPU/publication, Auto CUDA→CPU avec génération invalide et vieux résultat rejeté. Trois ranges 0–14460,15960–22500,24000–30000 ms. Injection ≠ panne physique pilote.
+- E3 : encoder rusty_mp3 et publisher intégrés dans un même processus Rust ; coupure passage2 Recoverable puis reprise génération3 Complete ; trois MP3 décodables/hashes conservés. Dix frontières de publication sont une autre campagne, pas dix coupures de la branche intégrée. Texte oracle, qualité humaine absente ; padding/décalages observés ne prouvent pas compensation.
+- E4 : archive réelle avec marqueur dernier et corruption/absence détectées ; file unique avec ACK/restauration/retry ; spool de trois trames WAV réelles, sync audio+record avant ACK, quatre coupures au fragment2, prefixe cohérent/retry/corruption. Aucun résultat capture longue, perte500ms, latence produit ou powerloss.
+- E5 : source indépendante, capacités locales finies et plein explicite ; blocages injectés worker/encodeur, slow et Stop. Diagnostics290/320/380ms, Stop90ms. Stress10× ; peak9 exclut pipe OS et rejet1 n’est pas perte totale.
+- E6 : Rust webrtc-vad0.4.0 reproduit les comptes Python sur26WAV. Total TP7968 FP1498 FN327 TN1976, P=.8417 R=.9606 ; FRFLEURS P=.8215 R=1 ; ENFLEURS P=.8873 R=.9107 ; microFR P=.8346 R=.9953 ; ENpublic P=.6963 R=1. Seuils DEC-35 satisfaits dans ce corpus seulement.
+
+Empreintes importantes relues :
+
+| Artefact d’origine | SHA256 |
+|---|---|
+| E2 source/log | `44149b105d40736fed7f1aa13fb44d4abb00981ee336da236e6e4ba9c72b45d5` / `c3f1d7f395dcf23ea78dd50defea538fee5376f057ca0710e0515ac6727a4bf2` |
+| E3 source/lock/intégré | `3c25e8e128d16dd11a312159bb286117367b846d9eefd4c4f6a18595a9e35fe5` / `b3225e668a52ad740f75ea725025ee126c5d36033bd49bec0f5ba16bd716c7a6` / `756504467c15e5c35f5a32be51432782a668b85b63709244e90a980aa4aee50a` |
+| E5 source/log | `d4d47d1e8c82731984126a6a72c25fbce4e270ca94fb74ea2bfd4dc036050749` / `506acc95140203391d5f42ddc4c348daa2aa3a0516b6c427e60ea8ac038e34ac` |
+| E1 WinHTTP source/lock/rapport | `2437ede1393dcad4cd6c43ace9179c0606cbf478a0b55a41dab503e292d74586` / `878b1fcb1232aae20efc9801915c599b5790bc3164dff481ca98db87770ef2c4` / `bfcd6a613c19e379e7f87ae7a65c0a3d6bda52bd3ba2c995bd4b9a1ff3a68c5f` |
+| E4 spool source/lock/rapport | `77df7718d93c879b599f835872f1b4bb3cae067bd44155be6a8f067c5da7804f` / `f4c5a56b3a8f8c88641f8f3f6f0e2cb4eb03f7b6fe672f2d12f94ebdcdc8e059` / `91225250207bbb35dadcc1f6c8c29fd82306e3209ca22d0859e4f4adb7b6b0db` |
+| E1 runtime | `bba488b8b89b471a2f0ced003283beabaf3dabaabbb988a0bc09cf1572f4d594` |
+
+## Risques, restant et railguard
+
+RISK-T-D18-01/runtime-redistribution, owner architecture/release : prérequis explicite et provenance ; branche runtime absent et package final à qualifier.
+
+RISK-T-D18-02/backend, owner moteur : parsing/version et fallback silencieux ; attestation à rejet fermé, deuxEXE et génération ; panne physique future.
+
+RISK-T-D18-03/publication, owner stockage : pending/marqueur/corruption/metadata ; générations et scans vérifiés ; powerloss/cache non prouvés.
+
+RISK-T-D18-04/nonconfirmé, owner capture/stockage : bornes de tous buffers et plage acquise non durable ; mécanisme spool prouvé, instrumentation intégrée et limites physiques futures.
+
+RISK-T-D18-05/MP3, owner codec : padding/header/qualité ; axePCM décidé, pas de garantie lecteurs tiers ; profils et qualité à qualifier.
+
+RISK-T-D18-06/acquisition, owner installateur : WinHTTP éprouvé en loopback, HTTPS externe/redirect et modèle entier par clientRust non éprouvés.
+
+RISK-T-D18-07/VAD, owner qualité : gate26WAV accepté ; microEN/bruit et produit intégré futurs.
+
+Q-10 reçoit les choix techniques décidés sans réduction duGPUV1. La suffisance des preuves INSTALL reste à faire juger indépendamment : acquisition externe/TLS/redirect et lancement véritablement offline ne sont pas démontrés par E1. Les mécanismes MODES, ARCHIVES, DURABILITY, CONTROL et VAD disposent maintenant de preuves Rust bornées à transmettre, sans fermeture de008 par leur auteur.
+
+Si le reviewer exige un complément structurel, SPIKE complémentaire proposé, sans exécution par cet architecte : espace temp, PC cible, modèle/WAV existants, budget1h30 et≤2Go additionnels ; essai clientWinHTTP retenu avec identitésHTTP/TLS/redirect pertinents et lancement offline/relevé modules. Critère : aucun Ready faux, modèle auSHA approuvé, workers fidèles au package/prérequis ; conserver sources/locks/commandes/logs/hashes et limites. Échec garde GAP ou demande changement du besoin si nécessaire. La proposition seule ne ferme aucune faisabilité.
+
+Deltas railguard : RG01 matrice/Cargo/imports ; RG03 audio+texte avantACK et bornes de chaque étage ; RG05 pending/générations/scan ; RG06 deuxworkers/backend strict/Auto ; RG07 contrôle indépendant/unsafe/Quitter ; RG08 réseau installer seulement ; RG09 versions/imports/prérequis/notices. Responsables et contrôles sont ceux des contrats précédents. Exceptions aux frontières non permises tacitement ; modification structurante via CHANGE, autorité compétente et revue exacte.
+
+Chemin cible futur `C:\dev\whisper\RAILGUARD.md`. Proposition non active ; activation utilisateur/gouvernance explicitement autorisée avec hashpropositionrevue/hashactif/date/attestation d’effet. Préflight : manifest/CLEAN exacts, autorisation de coder distincte, activation applicable, décisions/prérequis du lot et checkout vérifiés.
+
+Qualification du produit final : UI réel, capture physique→texte→rendu, microsFR/EN/bruit courant, sessions longues, PCpropre différé et panne physique restent NOT RUN. Aucun plan ni implémentation produit autorisés par cet apport.
+
+**Statut final : contribution originale DRAFT complète remise au coordinateur pour TRANSPORT exact. Le reviewer indépendant décide de la fermeture008 ; le coordinateur déduit ensuite la readiness du candidat exact. Aucun DESIGN READY déclaré par moi.**

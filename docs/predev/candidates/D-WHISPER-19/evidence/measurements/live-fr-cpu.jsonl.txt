@@ -1,0 +1,3 @@
+{"mode":"cpu","language":"fr","seq":0,"samples":80000,"queue_wait_ms":0,"inference_ms":13491,"first_callback_ms":13491,"visible_proxy_ms":13491,"segments":1,"ok":true}
+{"mode":"cpu","language":"fr","seq":1,"samples":80000,"queue_wait_ms":8492,"inference_ms":13560,"first_callback_ms":22052,"visible_proxy_ms":22052,"segments":1,"ok":true}
+{"mode":"cpu","language":"fr","seq":2,"samples":73472,"queue_wait_ms":17452,"inference_ms":13491,"first_callback_ms":30943,"visible_proxy_ms":30943,"segments":1,"ok":true}

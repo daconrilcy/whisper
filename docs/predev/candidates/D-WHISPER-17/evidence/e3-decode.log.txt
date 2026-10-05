@@ -1,0 +1,3 @@
+C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\e3-output\passage-1.mp3 rate=16000 channels=1 frames=231552 packets=402 duration_ms=14472
+C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\e3-output\passage-2.mp3 rate=16000 channels=1 frames=104832 packets=182 duration_ms=6552
+C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\e3-output\passage-3.mp3 rate=16000 channels=1 frames=96192 packets=167 duration_ms=6012

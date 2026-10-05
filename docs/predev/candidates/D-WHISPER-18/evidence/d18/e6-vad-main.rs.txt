@@ -1,0 +1,62 @@
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
+use webrtc_vad::{SampleRate, Vad, VadMode};
+
+#[derive(Default, Clone, Copy)]
+struct Counts { clips: u32, tp: u64, fp: u64, fn_: u64, tn: u64 }
+impl Counts {
+    fn add(&mut self, other: Self) {
+        self.clips += other.clips;
+        self.tp += other.tp;
+        self.fp += other.fp;
+        self.fn_ += other.fn_;
+        self.tn += other.tn;
+    }
+    fn precision(self) -> f64 { self.tp as f64 / (self.tp + self.fp) as f64 }
+    fn recall(self) -> f64 { self.tp as f64 / (self.tp + self.fn_) as f64 }
+}
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 3 { return Err("usage: vad-rust ANNOTATIONS_JSON RAW_PCM_DIR".into()); }
+    let doc: serde_json::Value = serde_json::from_slice(&fs::read(&args[1])?)?;
+    let records = doc["files"].as_array().ok_or("files missing")?;
+    let mut summary = BTreeMap::<String, Counts>::new();
+    for rec in records {
+        let name = rec["file"].as_str().ok_or("file missing")?;
+        let language = rec["language"].as_str().ok_or("language missing")?;
+        if rec["verified"] != true { return Err("unverified file".into()); }
+        let intervals = rec["intervals_s"].as_array().ok_or("intervals missing")?;
+        let pcm_path = Path::new(&args[2]).join(format!("{name}.s16le"));
+        let bytes = fs::read(pcm_path)?;
+        if bytes.len() % 640 != 0 && bytes.len() % 2 != 0 { return Err("bad PCM bytes".into()); }
+        let mut vad = Vad::new_with_rate_and_mode(SampleRate::Rate16kHz, VadMode::LowBitrate);
+        let mut row = Counts { clips: 1, ..Counts::default() };
+        for (i, frame) in bytes.chunks_exact(640).enumerate() {
+            let mut samples = [0i16; 320];
+            for (dst, pair) in samples.iter_mut().zip(frame.chunks_exact(2)) {
+                *dst = i16::from_le_bytes([pair[0], pair[1]]);
+            }
+            let speech = vad.is_voice_segment(&samples).map_err(|_| "bad VAD frame")?;
+            let midpoint = (i as f64 + 0.5) * 0.02;
+            let truth = intervals.iter().any(|range| {
+                let a = range[0].as_f64().unwrap();
+                let b = range[1].as_f64().unwrap();
+                a <= midpoint && midpoint < b
+            });
+            match (truth, speech) {
+                (true, true) => row.tp += 1,
+                (false, true) => row.fp += 1,
+                (true, false) => row.fn_ += 1,
+                (false, false) => row.tn += 1,
+            }
+        }
+        println!("file={name} group={language} frames={} tp={} fp={} fn={} tn={}", row.tp+row.fp+row.fn_+row.tn,row.tp,row.fp,row.fn_,row.tn);
+        summary.entry(language.to_string()).or_default().add(row);
+        summary.entry("all".to_string()).or_default().add(row);
+    }
+    for (group, row) in summary {
+        println!("summary={group} clips={} precision={:.4} recall={:.4} tp={} fp={} fn={} tn={}", row.clips, row.precision(), row.recall(), row.tp, row.fp, row.fn_, row.tn);
+    }
+    Ok(())
+}

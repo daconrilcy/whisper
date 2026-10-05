@@ -1,0 +1,4 @@
+Bundled native source: whisper-rs-sys 0.15.0 / whisper.cpp 1.8.3.
+Model repository and MIT metadata: https://huggingface.co/ggerganov/whisper.cpp
+CUDA 12.8.0 EULA: https://docs.nvidia.com/cuda/archive/12.8.0/eula/index.html
+This is a feasibility fixture, not a completed distribution compliance review.

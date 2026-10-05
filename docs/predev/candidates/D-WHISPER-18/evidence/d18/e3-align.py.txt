@@ -1,0 +1,39 @@
+from pathlib import Path
+from array import array
+import json, subprocess, hashlib
+
+root=Path(__file__).parent
+sources=Path.home()/'AppData/Local/Temp/whisper-spikes/fleurs-small'
+names=['fr_fr-000','en_us-000','fr_fr-001']
+def pcm(path):
+    p=subprocess.run(['ffmpeg','-v','error','-i',str(path),'-ar','16000','-ac','1','-f','s16le','pipe:1'],capture_output=True,check=True)
+    a=array('h'); a.frombytes(p.stdout); return a
+rows=[]
+for i,name in enumerate(names,1):
+    source=pcm(sources/f'{name}.wav')
+    output=pcm(root/'e3-output'/f'passage-{i}.mp3')
+    # Compare a sparse 2s window away from the initial frame; find the offset
+    # maximizing normalized cross-correlation. This is a measurement, not a
+    # decoder-independent guarantee of audible alignment.
+    lo=min(16000,len(source)//4)
+    count=min(32000,len(source)-lo-1024)
+    stride=16
+    xs=source[lo:lo+count:stride]
+    mx=sum(xs)/len(xs)
+    x=[v-mx for v in xs]
+    xx=sum(v*v for v in x)
+    best=(-2.0,None)
+    for offset in range(-1024,1025):
+        begin=lo+offset
+        if begin<0 or begin+count>len(output): continue
+        ys=output[begin:begin+count:stride]
+        my=sum(ys)/len(ys)
+        y=[v-my for v in ys]
+        yy=sum(v*v for v in y)
+        if yy==0: continue
+        score=sum(a*b for a,b in zip(x,y))/(xx*yy)**0.5
+        if score>best[0]: best=(score,offset)
+    rows.append({'passage':i,'source_samples':len(source),'decoded_samples_ffmpeg':len(output),'decoded_excess_samples':len(output)-len(source),'best_offset_samples':best[1],'best_offset_ms':round(best[1]/16,3),'correlation':round(best[0],5),'mp3_sha256':hashlib.sha256((root/'e3-output'/f'passage-{i}.mp3').read_bytes()).hexdigest()})
+report={'schema':'whisper-e3-alignment/1','sample_rate':16000,'method':'sparse normalized cross-correlation, source vs FFmpeg PCM decode','rows':rows,'limits':['decoder-specific padding','lossy waveform; score depends on source segment','no human audio quality verdict','SRT is indexed on original PCM capture clock']}
+(root/'e3-alignment.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps(report,indent=2))

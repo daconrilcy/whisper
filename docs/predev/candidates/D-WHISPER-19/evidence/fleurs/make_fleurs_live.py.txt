@@ -1,0 +1,24 @@
+from pathlib import Path
+from array import array
+import hashlib,json,subprocess,wave
+root=Path(__file__).parent/'fleurs-small'
+meta=json.loads((root/'sample-metadata.json').read_text(encoding='utf-8'))
+out=[]
+for lang in ('fr_fr','en_us'):
+ records=[x for x in meta['records'] if x['language']==lang]
+ pcm=array('h')
+ for i,r in enumerate(records):
+  data=subprocess.check_output(['ffmpeg','-v','error','-i',str(root/r['file']),'-ar','16000','-ac','1',
+                                '-f','s16le','-acodec','pcm_s16le','pipe:1'])
+  clip=array('h');clip.frombytes(data);pcm.extend(clip)
+  if i<len(records)-1:pcm.extend([0]*8000)
+ target=root/f'{lang}-12clips-live.wav'
+ with wave.open(str(target),'wb') as w:
+  w.setnchannels(1);w.setsampwidth(2);w.setframerate(16000);w.writeframes(pcm.tobytes())
+ out.append({'language':lang,'clips':len(records),'pause_ms':500,'duration_s':len(pcm)/16000,
+             'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'file':target.name,
+             'sample_ids':[x['id'] for x in records]})
+(root/'live-fixtures.json').write_text(json.dumps({'schema':'whisper-fleurs-live-fixtures/1',
+ 'source_metadata_sha256':hashlib.sha256((root/'sample-metadata.json').read_bytes()).hexdigest(),
+ 'fixtures':out},indent=2)+'\n',encoding='utf-8')
+print(out)

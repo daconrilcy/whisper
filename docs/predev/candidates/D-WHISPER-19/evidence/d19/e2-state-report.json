@@ -1,0 +1,51 @@
+{
+  "schema": "whisper-mode-state-bench/2",
+  "files": {
+    "controller_source": {
+      "sha256": "9d04f19cd92c5132c85c7e2f3a66b109554278718fec1c4fc23c7ebcfcb9dcf3",
+      "bytes": 6377
+    },
+    "controller_lock": {
+      "sha256": "12f999546eda95669628785493dc40e9408343336b906ac6cf9fa51da482cae5",
+      "bytes": 818
+    },
+    "controller_log": {
+      "sha256": "483cf856d0272861e0ae72a44e0118cd236e45dde4ae661cfbef9c06075e4d50",
+      "bytes": 1502
+    },
+    "worker_source": {
+      "sha256": "c79976410ebb727d9275bdb915d83042105d131cfee2ebfa44d4a980cb35265c",
+      "bytes": 3303
+    },
+    "worker_lock": {
+      "sha256": "6edd53c67cd9d9290668d2e512a1de3700fd659f1c1ec304c55bd89217e5728d",
+      "bytes": 7875
+    },
+    "gpu_worker": {
+      "sha256": "ba48a7893843cb2d7304bb29f786e8812a400308d25f0ca5ea99490c987a70d7",
+      "bytes": 137590784
+    },
+    "cpu_worker": {
+      "sha256": "3f194e4379a23571ae16dd4dad4bcab87c3dee90165ac3299d43254e79402f14",
+      "bytes": 1358848
+    },
+    "gpu_success_log": {
+      "sha256": "849986179e25d887277223ab18c81dcb39138e767f346a519f19c68cb6b5c50b",
+      "bytes": 364
+    },
+    "cpu_success_log": {
+      "sha256": "6bc40041e07a9784e272661c640260da2c981a81fa5b9e702d234e56e97ef00e",
+      "bytes": 362
+    },
+    "gpu_absent_log": {
+      "sha256": "4b634732920ae80f6f427c0022edc5d64dbf65f87e4fdb76b136f45237cf3a5e",
+      "bytes": 390
+    }
+  },
+  "strict_absent": "GPU_WORKER_REJECTED_BEFORE_FULL",
+  "strict_worker_exit73": "STOPPED_NO_CPU_RETRY_NO_PUBLISH",
+  "auto_worker_exit73": "GENERATION_1_INVALIDATED_CPU_REPLAY_SAME_RANGE",
+  "stale_delivery": "SAME_RECEIVER_REJECTED_BEFORE_COMMITTED_VECTOR",
+  "backend_attestation": "Whisper log callback observed native context/create_state before state.full; versioned markers CPU/CUDA0, fail closed",
+  "limits": "Injected exit73 after real inference, not a physical GPU driver failure. Three finite WAVs, in-memory commit vector; product archive/UI, long session and hardware outage not tested."
+}

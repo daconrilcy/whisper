@@ -1,0 +1,71 @@
+use sha2::{Digest,Sha256};
+use std::env;
+use std::fs::{self,File};
+use std::io::{Read,Write};
+use std::path::Path;
+
+fn hash(path:&Path)->Result<String,Box<dyn std::error::Error>>{
+    let mut f=File::open(path)?;let mut h=Sha256::new();let mut b=[0u8;65536];
+    loop{let n=f.read(&mut b)?;if n==0{break}h.update(&b[..n]);}
+    Ok(h.finalize().iter().map(|v|format!("{v:02x}")).collect())
+}
+fn expected(root:&Path,seq:usize)->Result<String,Box<dyn std::error::Error>>{
+    let audio=root.join(format!("audio-{seq}.pcm"));
+    Ok(format!("fragment-v1\t{seq}\t{}\t{}\t{}\tFragment {seq}\n",(seq-1)*320,seq*320,hash(&audio)?))
+}
+fn scan(root:&Path)->Result<(usize,usize,bool),Box<dyn std::error::Error>>{
+    let mut confirmed=0;let mut unconfirmed=0;let mut corrupt=false;
+    for seq in 1..=3{
+        let audio=root.join(format!("audio-{seq}.pcm"));
+        let record=root.join(format!("record-{seq}.txt"));
+        if record.exists(){
+            if !audio.exists()||fs::metadata(&audio)?.len()!=640||fs::read_to_string(&record)?!=expected(root,seq)?{corrupt=true;break}
+            if seq!=confirmed+1{corrupt=true;break}
+            confirmed+=1;
+        }else if audio.exists(){unconfirmed+=1;}
+    }
+    Ok((confirmed,unconfirmed,corrupt))
+}
+fn append(root:&Path,wav:&Path,seq:usize,cut:usize)->Result<(),Box<dyn std::error::Error>>{
+    if !(1..=3).contains(&seq){return Err("seq 1..3".into())}
+    fs::create_dir_all(root)?;
+    let (prior,_,corrupt)=scan(root)?;
+    if corrupt{return Err("corrupt spool".into())}
+    if prior==seq{println!("ACK seq={seq} idempotent=true");return Ok(())}
+    if prior!=seq-1{return Err("noncontiguous seq".into())}
+    let mut reader=hound::WavReader::open(wav)?;
+    let spec=reader.spec();if spec.sample_rate!=16000||spec.channels!=1{return Err("format".into())}
+    let source:Vec<i16>=match(spec.sample_format,spec.bits_per_sample){
+        (hound::SampleFormat::Float,32)=>reader.samples::<f32>().map(|r|r.map(|v|(v.clamp(-1.0,1.0)*32767.0).round() as i16)).collect::<Result<_,_>>()?,
+        (hound::SampleFormat::Int,16)=>reader.samples::<i16>().collect::<Result<_,_>>()?,
+        _=>return Err("sample type".into()),
+    };
+    let samples=&source[(seq-1)*320..seq*320];
+    let partial=root.join(format!("audio-{seq}.partial"));
+    let mut audio=File::create(&partial)?;
+    for value in samples{audio.write_all(&value.to_le_bytes())?;}
+    if cut==0{std::process::exit(91)}
+    audio.sync_all()?;drop(audio);
+    fs::rename(partial,root.join(format!("audio-{seq}.pcm")))?;
+    if cut==1{std::process::exit(91)}
+    let content=expected(root,seq)?;
+    let partial=root.join(format!("record-{seq}.partial"));
+    let mut record=File::create(&partial)?;
+    record.write_all(content.as_bytes())?;
+    if cut==2{std::process::exit(91)}
+    record.sync_all()?;drop(record);
+    fs::rename(partial,root.join(format!("record-{seq}.txt")))?;
+    if cut==3{std::process::exit(91)}
+    let (confirmed,_,corrupt)=scan(root)?;
+    if corrupt||confirmed!=seq{return Err("ack validation failed".into())}
+    println!("ACK seq={seq} confirmed_end_sample={} after_audio_and_record_sync=true",seq*320);
+    Ok(())
+}
+fn main()->Result<(),Box<dyn std::error::Error>>{
+    let args:Vec<String>=env::args().collect();
+    match args.as_slice(){
+        [_,mode,root,wav,seq,cut] if mode=="append"=>append(Path::new(root),Path::new(wav),seq.parse()?,cut.parse()?),
+        [_,mode,root] if mode=="scan"=>{let(c,u,x)=scan(Path::new(root))?;println!("confirmed={c} unconfirmed_audio={u} corrupt={x}");Ok(())},
+        _=>Err("usage: e4-spool append ROOT WAV SEQ CUT | scan ROOT".into()),
+    }
+}

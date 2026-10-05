@@ -1,0 +1,12 @@
+{
+  "schema": "whisper-specialist-raw/1",
+  "actor": "/root/arch_d18",
+  "role": "rust_architect",
+  "base_candidate_id": "D-WHISPER-17",
+  "target_candidate_id": "D-WHISPER-18",
+  "source_session": "rollout-2026-10-05T18-41-00-01a10cf0-a4e1-7421-9994-2db6c107d62c.jsonl",
+  "source_phase": "final_answer",
+  "raw_sha256": "5690e50c6f287c2415ff840ab80ef8410083710dae974c3ff5d55bc80639e9b5",
+  "raw_bytes": 24270,
+  "note": "Final original specialist contribution superseding intermediate drafts, as expressly stated by its author. No claim of verbatim capture of those drafts."
+}

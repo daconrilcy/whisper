@@ -1,0 +1,32 @@
+from pathlib import Path
+import hashlib,json,subprocess,urllib.request
+root=Path(__file__).parent/'fleurs-small'
+root.mkdir(exist_ok=True)
+records=[]
+for lang in ('fr_fr','en_us'):
+ url=f'https://datasets-server.huggingface.co/first-rows?dataset=google/fleurs&config={lang}&split=validation'
+ req=urllib.request.Request(url,headers={'User-Agent':'whisper-predev-measurement/1'})
+ with urllib.request.urlopen(req,timeout=30) as r: data=json.load(r)
+ selected=[]
+ for gender in (0,1):
+  selected += [v for v in data['rows'] if v['row']['gender']==gender][:6]
+ for entry in selected:
+  row=entry['row'];idx=entry['row_idx'];out=root/f'{lang}-{idx:03d}.wav'
+  audio=row['audio'][0]['src']
+  if not out.exists():
+   req=urllib.request.Request(audio,headers={'User-Agent':'whisper-predev-measurement/1'})
+   with urllib.request.urlopen(req,timeout=30) as r:out.write_bytes(r.read())
+  probe=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_entries',
+       'stream=sample_rate,channels,codec_name,duration','-of','json',str(out)]))['streams'][0]
+  info={'rate':int(probe['sample_rate']),'channels':probe['channels'],
+        'codec':probe['codec_name'],'duration_s':float(probe['duration'])}
+  records.append({'language':lang,'validation_row_idx':idx,'id':row['id'],'gender_code':row['gender'],
+                  'num_samples':row['num_samples'],'file':out.name,'sha256':hashlib.sha256(out.read_bytes()).hexdigest(),
+                  **info})
+report={'schema':'whisper-fleurs-sample/1','source':'https://huggingface.co/datasets/google/fleurs',
+        'license':'CC BY 4.0','split':'validation','selection':'first 6 rows per gender code 0/1 in first-rows API, each language',
+        'records':records}
+(root/'sample-metadata.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print('downloaded',len(records))
+print({lang:sum(1 for x in records if x['language']==lang) for lang in ('fr_fr','en_us')})
+print(records[0])

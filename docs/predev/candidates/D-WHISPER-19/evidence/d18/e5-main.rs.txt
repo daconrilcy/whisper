@@ -1,0 +1,98 @@
+use std::env;
+use std::io::{Read, Write};
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{mpsc, Arc};
+use std::thread;
+use std::time::{Duration, Instant};
+
+const CAPACITY: usize = 8;
+const FRAME_BYTES: usize = 3200;
+
+fn worker(mode: &str) -> std::io::Result<()> {
+    if mode == "blocked_worker" { thread::sleep(Duration::from_secs(10)); return Ok(()); }
+    let mut input = std::io::stdin().lock();
+    let mut frame = [0_u8; FRAME_BYTES];
+    let mut received = 0_usize;
+    loop {
+        match input.read_exact(&mut frame) {
+            Ok(()) => {
+                received += 1;
+                if mode == "blocked_encoder" && received == 3 { thread::sleep(Duration::from_secs(10)); }
+                if mode == "slow" { thread::sleep(Duration::from_millis(75)); }
+            },
+            Err(_) => return Ok(()),
+        }
+    }
+}
+
+fn parent(mode: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let self_path = env::current_exe()?;
+    let mut child = Command::new(self_path).args(["worker", mode])
+        .stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
+    let mut pipe = child.stdin.take().ok_or("no child pipe")?;
+    let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(CAPACITY);
+    let queued = Arc::new(AtomicUsize::new(0));
+    let peak = Arc::new(AtomicUsize::new(0));
+    let queued_writer = Arc::clone(&queued);
+    let writer = thread::spawn(move || {
+        while let Ok(frame) = receiver.recv() {
+            if pipe.write_all(&frame).is_err() { break; }
+            queued_writer.fetch_sub(1, Ordering::AcqRel);
+        }
+    });
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_capture = Arc::clone(&stop);
+    let queued_capture = Arc::clone(&queued);
+    let peak_capture = Arc::clone(&peak);
+    let (diagnostic_tx, diagnostic_rx) = mpsc::channel();
+    let capture = thread::spawn(move || {
+        let started = Instant::now();
+        let mut accepted = 0_usize;
+        let mut loss = 0_usize;
+        let mut cause = "STOP";
+        for tick in 0..100_usize {
+            let due = started + Duration::from_millis((tick * 10) as u64);
+            if let Some(delay) = due.checked_duration_since(Instant::now()) { thread::sleep(delay); }
+            if stop_capture.load(Ordering::Acquire) { break; }
+            let n = queued_capture.fetch_add(1, Ordering::AcqRel) + 1;
+            match sender.try_send(vec![tick as u8; FRAME_BYTES]) {
+                Ok(()) => {
+                    accepted += 1;
+                    peak_capture.fetch_max(n, Ordering::AcqRel);
+                },
+                Err(mpsc::TrySendError::Full(_)) => { queued_capture.fetch_sub(1, Ordering::AcqRel); loss += 1; cause = "QUEUE_FULL_STOP_INPUT"; break; },
+                Err(mpsc::TrySendError::Disconnected(_)) => { queued_capture.fetch_sub(1, Ordering::AcqRel); loss += 1; cause = "WORKER_DISCONNECTED_STOP_INPUT"; break; },
+            }
+        }
+        diagnostic_tx.send((cause, accepted, loss, started.elapsed())).ok();
+    });
+    // Separate control path: Stop/Quitter never waits on the data channel.
+    if mode == "manual_stop" {
+        thread::sleep(Duration::from_millis(80));
+        stop.store(true, Ordering::Release);
+    }
+    let (cause, accepted, loss, elapsed) = diagnostic_rx.recv_timeout(Duration::from_secs(2))?;
+    assert!(elapsed < Duration::from_secs(2));
+    assert!(peak.load(Ordering::Acquire) <= CAPACITY + 1); // includes one frame held by writer
+    assert!(loss <= 1 && (loss == 0 || cause.contains("STOP_INPUT")));
+    assert!(mode != "manual_stop" || cause == "STOP");
+    let quit_state = "PARENT_OPEN_AWAITING_MANUAL_ACTION";
+    println!("mode={mode} cause={cause} accepted={accepted} rejected={loss} peak_including_writer={} diagnosis_ms={} quitter={quit_state}", peak.load(Ordering::Acquire), elapsed.as_millis());
+    child.kill().ok();
+    child.wait().ok();
+    capture.join().map_err(|_| "capture panic")?;
+    // A writer blocked on the child pipe is owned by this disposable process.
+    // The product design must terminate/reap its child without joining this path.
+    drop(writer);
+    Ok(())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().collect();
+    match args.as_slice() {
+        [_, command, mode] if command == "worker" => { worker(mode)?; Ok(()) },
+        [_, command, mode] if command == "parent" => parent(mode),
+        _ => Err("usage: e5-control parent slow|blocked_worker|blocked_encoder|manual_stop".into()),
+    }
+}

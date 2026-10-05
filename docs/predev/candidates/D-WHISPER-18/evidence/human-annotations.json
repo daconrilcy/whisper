@@ -1,0 +1,742 @@
+{
+  "schema": "whisper-human-annotations/1",
+  "source_sha256": [
+    [
+      "fr_fr-000.wav",
+      "8bb53b14f4cc695c54a136a5db57e534344a225d81a6b5314ca6cdb0a12c7005"
+    ],
+    [
+      "fr_fr-001.wav",
+      "a9f2f1630034aae5bbe5273a25166d9ed1e92bedf4d613c7398fbda92b65ed12"
+    ],
+    [
+      "fr_fr-004.wav",
+      "c17b380f42a02a804c4f6fc17c0cefb06c5566b5a300f8a46090a71060e31ed4"
+    ],
+    [
+      "fr_fr-006.wav",
+      "dc67d95e571180a3e76bdbd5bbe8eba3b3e43d07905f0210a32c2a57392fc2bd"
+    ],
+    [
+      "fr_fr-008.wav",
+      "d2c9a9184315037a66ce22fba65f50139677fc143551dfa829731e5aa358131f"
+    ],
+    [
+      "fr_fr-010.wav",
+      "c3f25fd72ffa7d8ba39fa6c3aa26e404cbbfc0d35e954665d76373fb888d2c79"
+    ],
+    [
+      "fr_fr-002.wav",
+      "7ac22b8b7a8335b9ad7e794e4d03e757e0a646ef9cb930f9760667e82ab465f5"
+    ],
+    [
+      "fr_fr-003.wav",
+      "3561eaebe0d9ebce49e68a090b162faca85af0eb04a224e1e3887ee0d8fee55e"
+    ],
+    [
+      "fr_fr-005.wav",
+      "1d990dc3d83c8165e6212b67949db10a404073d04984bed62fb538a24c6e5068"
+    ],
+    [
+      "fr_fr-007.wav",
+      "fdac0677319ecc28522faac98c7314db5eebac2e4cc971af76fe28b3a8ac83a9"
+    ],
+    [
+      "fr_fr-009.wav",
+      "a7bb871cae23ad1ce4c4d37c86a72fe507958688e1f624be314c8549582b10fa"
+    ],
+    [
+      "fr_fr-013.wav",
+      "b5b1b0ed62d805101ee69957e9a8a664e93128bf9e383b90b47e33d1bbe2e778"
+    ],
+    [
+      "en_us-000.wav",
+      "048169439c0328b758349af74aeb54a82a7a476e309709eb791dced06db25d48"
+    ],
+    [
+      "en_us-002.wav",
+      "e5664ae10a6273fbe0009068e512f4c416cccbeff19d3d2d11e5fb8d72d03fb7"
+    ],
+    [
+      "en_us-006.wav",
+      "d03181782ddc8d02a19653dd605fe416db520db60325888e908974df034bd3f5"
+    ],
+    [
+      "en_us-008.wav",
+      "97c91f17d0fac2f617510489c1f149371234a16990c1e0b8945ea91611a74c4c"
+    ],
+    [
+      "en_us-013.wav",
+      "431d013d01d25cbf8d42587f4a14df57d09dbe9cbc2af4ea91ba93f9bd290ec4"
+    ],
+    [
+      "en_us-014.wav",
+      "22dae0b08439877c6a24253e24e3aa09bdb0c29b788ab6b51ba6c2b8fe64a1ff"
+    ],
+    [
+      "en_us-001.wav",
+      "5fefdcd12d4c136762cc7841b084126fc60c6d6410f983cc9f82b6cfc45737a2"
+    ],
+    [
+      "en_us-003.wav",
+      "7172cc6e8a7b006a8175c57df13bb69db0c6249dc09d7b015c98722d5af9734c"
+    ],
+    [
+      "en_us-004.wav",
+      "a7bd6d6d116c534c0d18bfe6eacd83a5616e3024f64c68b878fd6334755e245a"
+    ],
+    [
+      "en_us-005.wav",
+      "0e442fc0aa37a2f0b0a1847bcab7b0cb1ac0d4e9daf600422583da65ae5e474e"
+    ],
+    [
+      "en_us-007.wav",
+      "39097469197371ff2e4eb4450f3b7b86b65e79b3962c5e8c4eadc77786f4204d"
+    ],
+    [
+      "en_us-009.wav",
+      "d77ccca833f1077b3d0394a701e9cc0be11d5f73b36e60d6449ae1f426c194b9"
+    ],
+    [
+      "micro_test.wav",
+      "716e788c790b600fe472d0ebb868094c9d9b97fdf1d581133dd3df46a30de467"
+    ],
+    [
+      "jfk.wav",
+      "59dfb9a4acb36fe2a2affc14bacbee2920ff435cb13cc314a08c13f66ba7860e"
+    ]
+  ],
+  "reviewed_at": "2026-10-05T15:38:05.113Z",
+  "files": [
+    {
+      "file": "fr_fr-000.wav",
+      "language": "fr_fr",
+      "sha256": "8bb53b14f4cc695c54a136a5db57e534344a225d81a6b5314ca6cdb0a12c7005",
+      "duration_s": 14.46,
+      "intervals_s": [
+        [
+          0.8,
+          5.24
+        ],
+        [
+          5.66,
+          8.38
+        ],
+        [
+          8.8,
+          11.34
+        ],
+        [
+          11.58,
+          12.22
+        ],
+        [
+          12.64,
+          13.84
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "fr_fr-001.wav",
+      "language": "fr_fr",
+      "sha256": "a9f2f1630034aae5bbe5273a25166d9ed1e92bedf4d613c7398fbda92b65ed12",
+      "duration_s": 6,
+      "intervals_s": [
+        [
+          0.9,
+          5.46
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "fr_fr-004.wav",
+      "language": "fr_fr",
+      "sha256": "c17b380f42a02a804c4f6fc17c0cefb06c5566b5a300f8a46090a71060e31ed4",
+      "duration_s": 8.52,
+      "intervals_s": [
+        [
+          2.46,
+          4.28
+        ],
+        [
+          4.48,
+          6.1
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "fr_fr-006.wav",
+      "language": "fr_fr",
+      "sha256": "dc67d95e571180a3e76bdbd5bbe8eba3b3e43d07905f0210a32c2a57392fc2bd",
+      "duration_s": 12,
+      "intervals_s": [
+        [
+          1.1,
+          4.76
+        ],
+        [
+          5.2,
+          6.5
+        ],
+        [
+          6.88,
+          8.26
+        ],
+        [
+          8.74,
+          11.44
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "fr_fr-008.wav",
+      "language": "fr_fr",
+      "sha256": "d2c9a9184315037a66ce22fba65f50139677fc143551dfa829731e5aa358131f",
+      "duration_s": 10.5,
+      "intervals_s": [
+        [
+          2.44,
+          3.98
+        ],
+        [
+          4.24,
+          5.08
+        ],
+        [
+          5.4,
+          7.54
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "fr_fr-010.wav",
+      "language": "fr_fr",
+      "sha256": "c3f25fd72ffa7d8ba39fa6c3aa26e404cbbfc0d35e954665d76373fb888d2c79",
+      "duration_s": 7.44,
+      "intervals_s": [
+        [
+          2.38,
+          5.82
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "fr_fr-002.wav",
+      "language": "fr_fr",
+      "sha256": "7ac22b8b7a8335b9ad7e794e4d03e757e0a646ef9cb930f9760667e82ab465f5",
+      "duration_s": 15.36,
+      "intervals_s": [
+        [
+          0.14,
+          0.54
+        ],
+        [
+          0.74,
+          2.96
+        ],
+        [
+          3.36,
+          4.06
+        ],
+        [
+          4.22,
+          6.22
+        ],
+        [
+          6.64,
+          9.06
+        ],
+        [
+          9.4,
+          11.9
+        ],
+        [
+          12.06,
+          12.8
+        ],
+        [
+          13.24,
+          14.88
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "fr_fr-003.wav",
+      "language": "fr_fr",
+      "sha256": "3561eaebe0d9ebce49e68a090b162faca85af0eb04a224e1e3887ee0d8fee55e",
+      "duration_s": 7.86,
+      "intervals_s": [
+        [
+          0.42,
+          1.64
+        ],
+        [
+          1.82,
+          2.26
+        ],
+        [
+          2.76,
+          5.04
+        ],
+        [
+          5.18,
+          6.06
+        ],
+        [
+          6.2,
+          7.48
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "fr_fr-005.wav",
+      "language": "fr_fr",
+      "sha256": "1d990dc3d83c8165e6212b67949db10a404073d04984bed62fb538a24c6e5068",
+      "duration_s": 7.38,
+      "intervals_s": [
+        [
+          0.18,
+          3.82
+        ],
+        [
+          4,
+          5.02
+        ],
+        [
+          5.38,
+          6
+        ],
+        [
+          6.18,
+          6.44
+        ],
+        [
+          6.88,
+          6.96
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "fr_fr-007.wav",
+      "language": "fr_fr",
+      "sha256": "fdac0677319ecc28522faac98c7314db5eebac2e4cc971af76fe28b3a8ac83a9",
+      "duration_s": 6.9,
+      "intervals_s": [
+        [
+          0.94,
+          4.56
+        ],
+        [
+          4.7,
+          6.26
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "fr_fr-009.wav",
+      "language": "fr_fr",
+      "sha256": "a7bb871cae23ad1ce4c4d37c86a72fe507958688e1f624be314c8549582b10fa",
+      "duration_s": 8.4,
+      "intervals_s": [
+        [
+          0.2,
+          4.22
+        ],
+        [
+          4.62,
+          5.34
+        ],
+        [
+          5.48,
+          6
+        ],
+        [
+          6.36,
+          7.64
+        ],
+        [
+          7.9,
+          8.02
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "fr_fr-013.wav",
+      "language": "fr_fr",
+      "sha256": "b5b1b0ed62d805101ee69957e9a8a664e93128bf9e383b90b47e33d1bbe2e778",
+      "duration_s": 7.38,
+      "intervals_s": [
+        [
+          0.16,
+          1.54
+        ],
+        [
+          1.72,
+          3.22
+        ],
+        [
+          3.42,
+          4.34
+        ],
+        [
+          4.52,
+          5.62
+        ],
+        [
+          5.96,
+          6.12
+        ],
+        [
+          6.88,
+          6.98
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-000.wav",
+      "language": "en_us",
+      "sha256": "048169439c0328b758349af74aeb54a82a7a476e309709eb791dced06db25d48",
+      "duration_s": 6.54,
+      "intervals_s": [
+        [
+          1.14,
+          3.92
+        ],
+        [
+          4.3,
+          5.64
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-002.wav",
+      "language": "en_us",
+      "sha256": "e5664ae10a6273fbe0009068e512f4c416cccbeff19d3d2d11e5fb8d72d03fb7",
+      "duration_s": 7.92,
+      "intervals_s": [
+        [
+          0.82,
+          1.78
+        ],
+        [
+          1.94,
+          7.32
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-006.wav",
+      "language": "en_us",
+      "sha256": "d03181782ddc8d02a19653dd605fe416db520db60325888e908974df034bd3f5",
+      "duration_s": 6.84,
+      "intervals_s": [
+        [
+          0.36,
+          3.42
+        ],
+        [
+          3.76,
+          6.18
+        ],
+        [
+          6.56,
+          6.72
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-008.wav",
+      "language": "en_us",
+      "sha256": "97c91f17d0fac2f617510489c1f149371234a16990c1e0b8945ea91611a74c4c",
+      "duration_s": 9.32,
+      "intervals_s": [
+        [
+          0.22,
+          2.32
+        ],
+        [
+          2.46,
+          5.68
+        ],
+        [
+          5.82,
+          5.94
+        ],
+        [
+          6.46,
+          7.28
+        ],
+        [
+          7.44,
+          8.42
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-013.wav",
+      "language": "en_us",
+      "sha256": "431d013d01d25cbf8d42587f4a14df57d09dbe9cbc2af4ea91ba93f9bd290ec4",
+      "duration_s": 7.54,
+      "intervals_s": [
+        [
+          1.34,
+          4.92
+        ],
+        [
+          5.42,
+          6.52
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-014.wav",
+      "language": "en_us",
+      "sha256": "22dae0b08439877c6a24253e24e3aa09bdb0c29b788ab6b51ba6c2b8fe64a1ff",
+      "duration_s": 10.06,
+      "intervals_s": [
+        [
+          0.3,
+          0.46
+        ],
+        [
+          0.86,
+          3.42
+        ],
+        [
+          3.62,
+          4.58
+        ],
+        [
+          5.16,
+          6.88
+        ],
+        [
+          7.04,
+          8.36
+        ],
+        [
+          8.52,
+          8.68
+        ],
+        [
+          8.88,
+          9.26
+        ],
+        [
+          9.4,
+          10.02
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-001.wav",
+      "language": "en_us",
+      "sha256": "5fefdcd12d4c136762cc7841b084126fc60c6d6410f983cc9f82b6cfc45737a2",
+      "duration_s": 16.38,
+      "intervals_s": [
+        [
+          0.5,
+          2.94
+        ],
+        [
+          3.16,
+          6.34
+        ],
+        [
+          6.58,
+          7.8
+        ],
+        [
+          8.08,
+          9.28
+        ],
+        [
+          9.42,
+          10.32
+        ],
+        [
+          10.66,
+          11.1
+        ],
+        [
+          11.32,
+          15
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-003.wav",
+      "language": "en_us",
+      "sha256": "7172cc6e8a7b006a8175c57df13bb69db0c6249dc09d7b015c98722d5af9734c",
+      "duration_s": 4.14,
+      "intervals_s": [
+        [
+          0.38,
+          2.62
+        ],
+        [
+          3.08,
+          3.8
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-004.wav",
+      "language": "en_us",
+      "sha256": "a7bd6d6d116c534c0d18bfe6eacd83a5616e3024f64c68b878fd6334755e245a",
+      "duration_s": 4.92,
+      "intervals_s": [
+        [
+          0.74,
+          3.56
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-005.wav",
+      "language": "en_us",
+      "sha256": "0e442fc0aa37a2f0b0a1847bcab7b0cb1ac0d4e9daf600422583da65ae5e474e",
+      "duration_s": 4.44,
+      "intervals_s": [
+        [
+          0.1,
+          4.02
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-007.wav",
+      "language": "en_us",
+      "sha256": "39097469197371ff2e4eb4450f3b7b86b65e79b3962c5e8c4eadc77786f4204d",
+      "duration_s": 10.02,
+      "intervals_s": [
+        [
+          0.54,
+          0.84
+        ],
+        [
+          1.18,
+          5.7
+        ],
+        [
+          6.06,
+          9
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "en_us-009.wav",
+      "language": "en_us",
+      "sha256": "d77ccca833f1077b3d0394a701e9cc0be11d5f73b36e60d6449ae1f426c194b9",
+      "duration_s": 9.48,
+      "intervals_s": [
+        [
+          0.84,
+          3.66
+        ],
+        [
+          4.52,
+          5.12
+        ],
+        [
+          5.32,
+          8.12
+        ],
+        [
+          8.92,
+          9.04
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "micro_test.wav",
+      "language": "fr_micro",
+      "sha256": "716e788c790b600fe472d0ebb868094c9d9b97fdf1d581133dd3df46a30de467",
+      "duration_s": 14.592,
+      "intervals_s": [
+        [
+          3.26,
+          3.98
+        ],
+        [
+          4.48,
+          4.92
+        ],
+        [
+          5.08,
+          7.2
+        ],
+        [
+          8.28,
+          13.52
+        ]
+      ],
+      "verified": true
+    },
+    {
+      "file": "jfk.wav",
+      "language": "en_public",
+      "sha256": "59dfb9a4acb36fe2a2affc14bacbee2920ff435cb13cc314a08c13f66ba7860e",
+      "duration_s": 11,
+      "intervals_s": [
+        [
+          0.32,
+          2.12
+        ],
+        [
+          3.28,
+          3.7
+        ],
+        [
+          4,
+          4.3
+        ],
+        [
+          5.42,
+          7.54
+        ],
+        [
+          8.18,
+          8.5
+        ],
+        [
+          8.64,
+          8.76
+        ],
+        [
+          8.9,
+          10.36
+        ],
+        [
+          10.8,
+          11
+        ]
+      ],
+      "verified": true
+    }
+  ]
+}

@@ -1,0 +1,211 @@
+```json
+{
+  "schema": "whisper-design-review/1",
+  "review_id": "R-WHISPER-DESIGN-17",
+  "version": "1.0",
+  "scope": "DESIGN",
+  "candidate_id": "D-WHISPER-17",
+  "base_candidate_id": "D-WHISPER-16",
+  "perimeter_version": 2,
+  "manifest_digest": "04d24ce0443e6f1e1bfe967acdfd6a8c11dae6ac8620e2c770e87b2a0a7b9d5a",
+  "manifest_sha256": "1107f9397861b1dc9edc38f9480a7fd73ec128993001935742242d11f0c87a39",
+  "verdict": "FINDINGS",
+  "reviewer": "/root/review_d17",
+  "independence": {
+    "declaration": "Je n'ai participé ni à la rédaction ni à la correction de D17 ou de ses preuves. Aucun fichier modifié, aucune correction, aucun sous-agent. Mes opérations ont lu les sources, contrôlé les empreintes et recalculé les mesures VAD en mémoire.",
+    "basis": "D17 est attribué à PREDEV-COORDINATOR dans proposal.json et receipt.json. Le brut architecture est attribué à /root/architect_008 et vérifié contre son message source. Je suis un nouvel acteur de revue distinct de ces auteurs et de l'hôte. L'indépendance repose sur cette séparation effective des opérations, pas sur le seul nom d'un profil.",
+    "replacement": "Remplacement pour cette revue de /root/design_review_d10, avec reprise du résultat brut R-WHISPER-DESIGN-16 et des IDs existants. Le coordinateur doit conserver la nomination et cette déclaration dans le transport du présent résultat."
+  },
+  "checks": {
+    "manifest_before_after": "PASS : canonicalisation, digest, scope DESIGN, candidate_id et 133 empreintes contrôlés personnellement avant et après revue ; candidat inchangé.",
+    "verify_manifest": "PASS avant et après.",
+    "check_state": "PASS mécanique ; ne vaut pas validation des rubriques.",
+    "state_sha256": "8f5737d50258dec048596eb6f3936f4dc0667749820925678bb1e4ba32ff8550",
+    "transports": "PASS : 29 transports du checkpoint, digests canoniques, 144 fichiers, contenu des propositions et bases/attributions des reçus contrôlés.",
+    "effective_rules": "PASS : les 21 fichiers du snapshot des règles égalent les sources centrales actuelles.",
+    "architecture_raw": {
+      "source_thread": "01a10c6f-3f2d-7673-a95f-890f6e5587dc",
+      "source_message": "msg_04c16a2573becd2f016ac3b8f8a25887d295cf1767300822c0",
+      "source_characters": 15801,
+      "source_utf8_bytes": 16198,
+      "sha256": "150bc1c455ca23abb5be432183c10b29f4e011e0b6f9ad2625f10654a5eea0ee",
+      "result": "PASS : message source relu dans le journal de session ; copie 45 exacte ; transport EXACT exact. Base intellectuelle D13 distinguée de la base de transport D15."
+    },
+    "human_annotations": {
+      "sha256": "422955209e88dbcf628e38d0859e20b7fe7c47f3195b121d240f7fb684931607",
+      "files": 26,
+      "intervals": 99,
+      "all_verified": true,
+      "changed_files": 0,
+      "result": "PASS : copie D17 identique au fichier Downloads ; 26 WAV présents et réellement hashés ; intervalles ordonnés, bornés et identiques aux propositions. L'écoute reste une attestation humaine explicite DEC-33."
+    },
+    "vad_reproduction": "PASS : décodage FFmpeg en mémoire, trames PCM16 mono 16 kHz de 20 ms, webrtcvad-wheels 2.0.14 du bench existant. Les 104 lignes et 20 agrégats reproduits égalent le rapport manifesté ; aucune sortie écrite.",
+    "excluded_new_evidence": "Le bench Rust webrtc-vad annoncé par le coordinateur hors manifeste D17 n'a pas été utilisé pour juger ce candidat.",
+    "plans": "Aucun candidat PLANS revu ; aucune readiness PLANS ni autorisation de coding."
+  },
+  "vad_mode_1": {
+    "aggregate": {
+      "precision": 0.8417,
+      "recall": 0.9606,
+      "minimum_precision": 0.80,
+      "minimum_recall": 0.95,
+      "status": "PASS"
+    },
+    "groups": [
+      {"group":"fr_fr","clips":12,"precision":0.8215,"recall":1.0,"status":"PASS"},
+      {"group":"en_us","clips":12,"precision":0.8873,"recall":0.9107,"status":"PASS"},
+      {"group":"fr_micro","clips":1,"precision":0.8346,"recall":0.9953,"status":"PASS"},
+      {"group":"en_public","clips":1,"precision":0.6963,"recall":1.0,"status":"PASS"}
+    ],
+    "group_minima": {"precision":0.65,"recall":0.90},
+    "scope": "Corpus et méthode acceptés par DEC-34/35 pour le gate DESIGN. Aucune extrapolation aux micros EN, au bruit courant réel ou au produit Rust."
+  },
+  "questions": [
+    {
+      "id": "Q-08",
+      "status": "ANSWERED_FOR_DESIGN_GATE",
+      "evidence": ["47_USER_VALIDATION_D17.md:7","47_USER_VALIDATION_D17.md:8","47_USER_VALIDATION_D17.md:9","48_VAD_HUMAN_RESULT.md"],
+      "assessment": "Annotation humaine attestée, corpus borné accepté et seuils VAD explicites satisfaits. Les plafonds perte/GPU de DEC-29 restent bornés à leurs fixtures. La qualification cible DEC-26 est conservée comme future."
+    },
+    {
+      "id": "Q-10",
+      "status": "OPEN",
+      "assessment": "Le fonctionnement CPU/CUDA sur un échantillon ne résout pas les choix de livraison ni les garanties GPU strict/Auto. Aucune réduction de V1 ni acceptation de ce risque n'a été donnée par DEC-34/35."
+    }
+  ],
+  "coverage": {
+    "brief_to_REQ_UC_AC": "PASS documentaire : live/import, langue, modes Auto/CPU/GPU, Stop/Reprise, compteurs et AutoStop, archives/historique/suppression, file durable, fermeture/Quitter, installation, autostart, réglages, raccourci et dossier sont couverts par REQ-01..25 et UC/AC-01..20, avec les règles de confidentialité/logs dans Q-09 et RG-08. PC propre différé par CHANGE-001 ; qualification représentative future explicitée par DEC-34.",
+    "requirements_to_domain_architecture_risks_acceptance": "PASS documentaire : matrice 07, états/owners/transitions/ports 08, risques 10 et railguard 11 relient les exigences aux responsabilités et aux méthodes d'acceptation. Les garanties techniques encore proposées ne sont pas comptées comme démontrées.",
+    "scope_added": "Aucun ajout produit ou plan implicite détecté. DEC-34 borne la preuve VAD ; elle ne retire ni installation locale ni modes de calcul de V1.",
+    "provenance_limits": "Le manque historique d'apports bruts de D1/D2 est déclaré dans 06/16 et n'est pas remplacé par une contribution inventée. Les apports architecture invoqués actuellement sont accessibles, attribués, hashés et présents dans checkpoint.raw_contributions."
+  },
+  "findings": [
+    {
+      "id": "WHISPER-DESIGN-001",
+      "classification": "REQUIRED",
+      "severity": "High",
+      "status": "CLOSED",
+      "closure": "Fermeture antérieure maintenue : sources, snapshots et règles fondatrices sont inchangés ; leurs empreintes et les règles centrales actuelles ont été contrôlées."
+    },
+    {
+      "id": "WHISPER-DESIGN-014",
+      "classification": "REQUIRED",
+      "severity": "Medium",
+      "status": "CLOSED",
+      "closure": "Fermeture D16 maintenue : message détaillé source relu, octets identiques à 45 et au transport EXACT, base intellectuelle/transport distinguées, attribution et checkpoint vérifiés."
+    },
+    {
+      "id": "WHISPER-DESIGN-008",
+      "classification": "REQUIRED",
+      "severity": "High",
+      "status": "OPEN",
+      "scope": "DESIGN",
+      "candidate_id": "D-WHISPER-17",
+      "finding": "D17 ferme le manque d'annotation/corpus/seuil VAD pour le gate, mais n'apporte pas les preuves restantes des garanties structurantes de livraison, backend, archives et concurrence. E0/E3 restent PARTIAL ; le protocole E1..E6 proposé ne constitue pas son exécution.",
+      "consequence": "Les rubriques persistence, concurrency, platform et risks restent GAP. Q-10 reste structurante ouverte. DESIGN READY ne peut pas être déclaré sur ce manifeste.",
+      "evidence": [
+        "33_CLOSURE_MATRIX_008.md:7",
+        "33_CLOSURE_MATRIX_008.md:8",
+        "33_CLOSURE_MATRIX_008.md:10",
+        "41_ARCH_008_PROTOCOL.md:7",
+        "41_ARCH_008_PROTOCOL.md:19",
+        "41_ARCH_008_PROTOCOL.md:20",
+        "41_ARCH_008_PROTOCOL.md:21",
+        "41_ARCH_008_PROTOCOL.md:22",
+        "41_ARCH_008_PROTOCOL.md:23",
+        "41_ARCH_008_PROTOCOL.md:24",
+        "42_TECHNICAL_FOLLOWUP.md:7",
+        "42_TECHNICAL_FOLLOWUP.md:21",
+        "48_VAD_HUMAN_RESULT.md:23",
+        "45_ARCH_008_RAW.md"
+      ],
+      "closure_required": [
+        {
+          "id": "WHISPER-DESIGN-008-INSTALL",
+          "requirement": "Identifier la pile native et les octets livrables, figer la stratégie locale CPU/GPU et d'acquisition du modèle, conserver les sources/licences pertinentes, puis démontrer sur le PC cible une acquisition interrompue ou invalide sans faux Ready et un lancement local offline fidèle au packaging retenu.",
+          "limits": "Ni installateur final du produit ni PC propre exigés avant DESIGN. Un paquet portable avec PATH réduit ne clôt pas à lui seul acquisition, redistribution et dépendances runtime."
+        },
+        {
+          "id": "WHISPER-DESIGN-008-MODES",
+          "requirement": "Retenir une attestation fiable du backend effectif et démontrer dans un banc fidèle GPU strict absent/en échec sans bascule automatique, Auto→CPU en cours de job, reprise cohérente des offsets et rejet des anciennes générations.",
+          "limits": "Une panne injectée peut prouver l'orchestration sans prétendre reproduire une panne réelle de pilote. Le seul use_gpu(true) observé avec fallback silencieux ne satisfait pas le contrat."
+        },
+        {
+          "id": "WHISPER-DESIGN-008-ARCHIVES",
+          "requirement": "Retenir l'encodeur et les règles d'alignement ; montrer que les MP3 par passage et TXT/SRT cumulés préservent la chronologie et les passages précédents, puis démontrer interruption/publication/marqueur et récupération idempotente avec les artefacts réels.",
+          "limits": "La décodabilité des trois MP3 et des offsets synthétiques est acquise. Le padding divergent entre décodeurs n'est pas une preuve d'alignement corrigé. Une nouvelle valeur produit nécessaire doit être décidée par son autorité, pas inventée par le reviewer."
+        },
+        {
+          "id": "WHISPER-DESIGN-008-DURABILITY",
+          "requirement": "Justifier les primitives et points de confirmation de la pile Rust/Windows retenue et apporter une preuve bornée des frontières critiques : sync avant accusé, publication cohérente, corruption/absence d'artefact, restauration de file et absence de faux Complete.",
+          "limits": "Les essais Python avec MP3 fictif soutiennent le protocole ; ils ne prouvent pas son interaction avec le writer/encodeur Rust réel. La coupure électrique physique n'est pas exigée comme test du produit avant sa création ; les limites de garantie doivent rester explicites."
+        },
+        {
+          "id": "WHISPER-DESIGN-008-CONTROL",
+          "requirement": "Choisir et justifier l'isolation/ownership du worker ; démontrer sur source cadencée indépendamment des consommateurs des capacités finies, un plein de file sans croissance illimitée ni perte silencieuse, une cessation d'entrée et un diagnostic accessibles lorsque worker/encodeur bloque ; Quitter respecte le maintien ouvert sans action manuelle.",
+          "limits": "Aucune campagne produit de deux heures exigée avant DESIGN. Le replay historique qui ralentit sa source sur tx.send plein ne démontre pas cette propriété. Ne pas promettre un join borné face à un blocage arbitraire."
+        },
+        {
+          "id": "WHISPER-DESIGN-008-VAD-RUST",
+          "requirement": "Identifier/versionner le VAD Rust retenu et justifier sa compatibilité avec l'algorithme, les trames et le mode acceptés par une preuve primaire précise ou un rejeu fidèle des mêmes WAV.",
+          "limits": "D17 démontre les mesures Python sur annotations acceptées. Les nouvelles mesures Rust non manifestées ne ferment pas ce point sur D17. Aucun nouveau micro/corpus requis pour le gate accepté."
+        },
+        {
+          "id": "WHISPER-DESIGN-008-CANDIDATE",
+          "requirement": "Relier décisions techniques et résultats bruts avec leurs limites, attributions, reçus/checkpoint à un nouveau candidat exact ; résoudre Q-10 et soumettre ce candidat à une nouvelle revue indépendante.",
+          "limits": "Les auteurs ne ferment pas 008 ; le reviewer ferme seulement après contrôle du nouveau corpus."
+        }
+      ],
+      "product_tests_future_not_run": [
+        "Qualification de l'application finale et de ses vrais widgets/consommateurs, backend et retard CPU visibles.",
+        "Mesure physique microphone→texte→frame présentée dans le produit final.",
+        "Qualification sur micros réels FR/EN et bruit courant de DEC-26.",
+        "Sessions longues et comportement du produit intégré.",
+        "Qualification sur PC propre différée par CHANGE-001.",
+        "Panne électrique physique et limites matérielles de persistance."
+      ],
+      "future_test_assessment": "Ces tests futurs ne bloquent pas à eux seuls DESIGN. Les garanties de faisabilité, les décisions nécessaires et leurs preuves restent requises. Un harness UI peut étayer un choix technique ou une assertion de rendu ; il ne remplace pas la qualification UI finale et n'est pas imposé ici comme simple preuve d'affichage de deux valeurs."
+    }
+  ],
+  "rubrics": {
+    "scope": "PASS",
+    "use_cases": "PASS documentaire",
+    "errors": "PASS documentaire",
+    "domain": "PASS documentaire",
+    "dependencies": "PASS documentaire",
+    "persistence": "GAP 008",
+    "concurrency": "GAP 008",
+    "platform": "GAP 008",
+    "acceptance": "PASS documentaire pour couverture, méthodes et seuils bornés acceptés ; la suffisance technique reste évaluée dans les GAP 008. Aucun PASS des tests produit.",
+    "risks": "GAP 008",
+    "railguard": "PASS documentaire : proposition contrôlable, owners et voie d'activation présents ; non active.",
+    "not_applicable": "Aucune rubrique DESIGN non applicable : toutes portent une obligation effective dans ce produit."
+  },
+  "advisory": [
+    {
+      "id": "WHISPER-DESIGN-A-D17-01",
+      "classification": "ADVISORY",
+      "finding": "Consolider les formulations héritées Q-08/AC-08/33/38 et les anciens titres D13 pour que les décisions D17 apparaissent immédiatement. Les addenda actuels indiquent suffisamment leur portée ; cette consolidation ne bloque pas CLEAN."
+    },
+    {
+      "id": "WHISPER-DESIGN-A-D16-01",
+      "classification": "ADVISORY",
+      "status": "UNCHANGED",
+      "finding": "Clarifier les anciennes références de base dans 43 ; le transport EXACT vérifié et l'addendum D16 permettent déjà de distinguer la capture antérieure et les octets exacts."
+    }
+  ],
+  "gate": "DRAFT ; FINDINGS sur D17. Q-08 résolue pour le gate borné ; 001/014 restent fermés ; 008 et Q-10 restent ouverts. Aucun DESIGN READY.",
+  "raw_persistence": "Résultat brut retourné au coordinateur pour persistance fidèle hors du corpus D17 ; aucun fichier écrit par le reviewer."
+}
+```
+
+<oai-mem-citation>
+<citation_entries>
+MEMORY.md:134-139|note=[review gates and raw contribution continuity checked against current files]
+MEMORY.md:26-32|note=[Whisper product guarantees and limits of prototype evidence]
+</citation_entries>
+<rollout_ids>
+01a10b44-3030-7da3-89f3-0d664e3bbf8d
+01a10a6a-418e-7cd2-ab69-162ffe16db34
+</rollout_ids>
+</oai-mem-citation>

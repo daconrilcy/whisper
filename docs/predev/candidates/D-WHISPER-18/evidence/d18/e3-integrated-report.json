@@ -1,0 +1,35 @@
+{
+  "schema": "whisper-e3-integrated/1",
+  "source": "existing three FLEURS WAV; rusty_mp3 0.8.0 encoder and durable Rust publisher in same process",
+  "cut_during_second": "generation=1 status=RECOVERABLE_PENDING_PASSAGE",
+  "final": "generation=3 status=COMPLETE",
+  "rows": [
+    {
+      "passage": 1,
+      "bytes": 116064,
+      "sha256": "17230d063c3646b608f2a82ca3dc80bc4e0bbf5cdc1cf214c6f20e0ebc144e79",
+      "same_as_e3_smoke": true,
+      "ffmpeg_decodable": true
+    },
+    {
+      "passage": 2,
+      "bytes": 52704,
+      "sha256": "5919a1eeed9dc14606304eb3ca6eeadf2655b9800aac3f81f81fcffe43af242e",
+      "same_as_e3_smoke": true,
+      "ffmpeg_decodable": true
+    },
+    {
+      "passage": 3,
+      "bytes": 48384,
+      "sha256": "e98ebaef28195b8aeb980fb0e9e8a93372125f04b2cd5826961f19da7ebb912b",
+      "same_as_e3_smoke": true,
+      "ffmpeg_decodable": true
+    }
+  ],
+  "limits": [
+    "synthetic TXT/SRT oracle, not ASR text",
+    "process exit, not physical power loss",
+    "no human MP3 quality verdict",
+    "FFmpeg decoding and PCM source clock only; no third-party player sample-exact sync guarantee"
+  ]
+}

@@ -1,0 +1,47 @@
+use std::env;
+use std::fs::{self, File};
+use std::io::Write;
+use std::path::Path;
+
+fn scan(root:&Path)->Result<String,Box<dyn std::error::Error>> {
+    let mut ids=Vec::new();
+    if !root.exists(){return Ok("RESTORED 0".into())}
+    for entry in fs::read_dir(root)? {
+        let entry=entry?;
+        let name=entry.file_name().to_string_lossy().into_owned();
+        if !name.ends_with(".job"){continue}
+        let id=name.strip_suffix(".job").ok_or("bad filename")?;
+        let body=fs::read_to_string(entry.path())?;
+        if body!=format!("job-v1\t{id}\n"){return Ok(format!("CORRUPT {id}"))}
+        ids.push(id.to_string());
+    }
+    ids.sort();
+    Ok(format!("RESTORED {} {}",ids.len(),ids.join(",")))
+}
+fn enqueue(root:&Path,id:&str,cut:usize)->Result<(),Box<dyn std::error::Error>> {
+    if id.is_empty() || !id.bytes().all(|b|b.is_ascii_alphanumeric() || b==b'-'){return Err("bad id".into())}
+    fs::create_dir_all(root)?;
+    let dest=root.join(format!("{id}.job"));
+    if dest.exists(){
+        if scan(root)?.contains(&format!("CORRUPT {id}")){return Err("existing job corrupt".into())}
+        println!("ACK id={id} idempotent=true after_sync=true");return Ok(())
+    }
+    let partial=root.join(format!("{id}.partial"));
+    let mut f=File::create(&partial)?;
+    f.write_all(format!("job-v1\t{id}\n").as_bytes())?;
+    if cut==0{std::process::exit(91)}
+    f.sync_all()?; drop(f);
+    if cut==1{std::process::exit(91)}
+    fs::rename(partial,dest)?;
+    if cut==2{std::process::exit(91)}
+    println!("ACK id={id} idempotent=false after_sync=true");
+    Ok(())
+}
+fn main()->Result<(),Box<dyn std::error::Error>> {
+    let args:Vec<String>=env::args().collect();
+    match args.as_slice(){
+        [_,mode,root,id,cut] if mode=="enqueue"=>enqueue(Path::new(root),id,cut.parse()?),
+        [_,mode,root] if mode=="scan"=>{println!("{}",scan(Path::new(root))?);Ok(())},
+        _=>Err("usage: queue enqueue ROOT ID CUT | scan ROOT".into())
+    }
+}
