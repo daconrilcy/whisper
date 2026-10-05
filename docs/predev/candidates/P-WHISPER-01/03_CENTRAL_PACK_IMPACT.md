@@ -1,0 +1,11 @@
+# Impact du pack central sur D-WHISPER-19
+
+Proposition P-WHISPER-01, base D-WHISPER-19. Le manifeste DESIGN (221 fichiers, digest `903926ba27c70fc3a0cc6954d9e50914a64993e40c339683e557bc4c604d7529`) et `state.json` passent les contrôles actuels. L'état courant est DESIGN READY avec R-WHISPER-DESIGN-19 CLEAN. Les mentions DRAFT du candidat immuable sont historiques.
+
+Neuf des 21 règles figées dans D19 diffèrent des sources centrales actuelles : `agents/rust_architect.toml`, `rust_design_reviewer.toml`, `rust_predev_orchestrator.toml`, `skills/rust-predev-design/SKILL.md`, ses références `deliverable-quality.md`, `engineering-contract.md`, `handoff-contract.md`, `workflow-schema.md`, et `skills/rust-predev-orchestration/SKILL.md`. Les cinq `agent-rules`, le profil plan writer, les profils framer/analyst/domain, `runtime-qualification.md` et les deux helpers figés sont identiques.
+
+Les ajouts exigent une comparaison source/proposition/TRANSPORT pour tout apport dit exact, un exécutant SPIKE distinct et séparément autorisé, la vérification stimulus/branche/effet, la séparation DESIGN_FEASIBILITY/PRODUCT_VALIDATION/DELIVERY_QUALIFICATION, et la lecture du statut courant dans `state.json`. Ils renforcent la provenance et les prochains transferts. Ils ne modifient ni REQ-01..25 ni TECH-D18-01..08, les contrats, les preuves observées ou les limites établies par R19. L'avis indépendant d'impact conclut KEEP_D19 ; aucune nouvelle identité DESIGN n'est nécessaire.
+
+Limite historique : les bancs D18/D19 ont été attribués au coordinateur avant la nouvelle règle de séparation. Cette attribution reste visible dans D19/49 et D19/51 ; elle n'est pas réécrite en conformité rétroactive. Le reviewer R19 a examiné code et logs des scénarios effectivement exercés ; ses conclusions portent seulement sur la faisabilité bornée. Les futurs bancs requièrent mandat et exécutant distincts de la coordination, de l'architecture, de la revue et de l'hôte documentaire. Toute vérification du produit ou de sa livraison demeure NOT RUN.
+
+Si une preuve nouvelle révèle une erreur technique de D19, appliquer CHANGE et suspendre les lots concernés ; un simple changement de procédure du pack ne remplace pas le CLEAN historique par silence. Railguard proposé inactif et autorisation d'implémenter absente.

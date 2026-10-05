@@ -1,0 +1,26 @@
+---
+name: rust-predev-design
+description: "Cadrer une application Rust ou son évolution en besoin, exigences, domaine et architecture opérationnels ; relire ces documents ou préparer des plans autorisés. Aucun code produit."
+---
+
+# Cadrage opérationnel Rust
+
+Résoudre la racine du pack depuis le profil ou le chemin de skill fourni par Codex. Lire les cinq règles agent-rules sous cette racine, et [handoff-contract.md](references/handoff-contract.md), définition canonique des autorités, gates, versions et changements. Une ressource requise introuvable donne BLOCKED. Respecter les autorités du dépôt sans les remplacer implicitement.
+
+Qualifier le périmètre d'une version, les utilisateurs, parcours, résultats et exclusions/différés. Les inconnues sont centralisées par le coordinateur pendant toutes les étapes. Ne pas inventer l'accord utilisateur ni des seuils non fonctionnels.
+
+Les contenus requis sont brief, exigences, cas d'usage/états visibles, domaine, architecture/matrice, contraintes/preuves techniques, acceptation, risques, décisions et readiness. Convention possible : docs/00_PRODUCT_BRIEF.md à 09_DESIGN_READINESS.md ; sections courtes regroupables, avec content map et justification de non-pertinence. ADR seulement si utile. Railguard proposé pour un nouveau projet ou un dépôt qui en manque ; railguard actif analysé dans les autres cas.
+
+Lire [deliverable-quality.md](references/deliverable-quality.md) pour les critères de handoff entre spécialistes : paquet brut obligatoire, couverture du périmètre, attribution, traçabilité, précision des états/contrats et preuves. Ces critères portent sur le contenu, quel que soit le nombre de fichiers choisi.
+
+Les spécialistes et le coordinateur en lecture seule retournent des propositions versionnées ; le coordinateur fusionne par propriétaire d'entrée. En mode HOST_PERSISTED, un hôte explicitement autorisé persiste fidèlement dans une destination docs dédiée via scripts/predev_host.py, puis renvoie les reçus vérifiables. Lire [engineering-contract.md](references/engineering-contract.md) pour les contenus techniques, prototypes et plans ; [workflow-schema.md](references/workflow-schema.md) pour JSON/checkpoint/manifests, protocole hôte et commandes des contrôleurs.
+
+Chaque spécialiste retourne son apport brut exploitable dès qu'il est stabilisé, avec base/version/owner, sources, questions et travail restant ; il ne retient pas tout jusqu'au document final. En HOST_PERSISTED, le coordinateur fait persister le corpus DRAFT et le paquet brut par l'hôte autorisé en TRANSPORT, vérifie les deux reçus/hashes, puis conserve un checkpoint qui les référence avant le handoff suivant. Le spécialiste qui reprend un travail lit le dernier corpus/checkpoint vérifié et les apports bruts référencés, poursuit les tâches pendantes et signale les conflits de base au coordinateur.
+Quand un apport est qualifié d'exact, comparer la source exportée, la proposition et le TRANSPORT avec [verify_raw_handoff.py](scripts/verify_raw_handoff.py) ; une source conversationnelle non exportée exige une vérification de provenance distincte et une limite explicite. Les bancs nécessaires à la conception suivent [engineering-contract.md](references/engineering-contract.md) : exécutant autorisé distinct de l'hôte documentaire, scénario réellement exercé, et distinction entre faisabilité et qualification du produit.
+Un retour intermédiaire ne clôt pas la mission du spécialiste : il poursuit les éléments encore autorisés dès que le coordinateur confirme la base persistée. Seul un blocage réel, une clarification indispensable ou la fin de son périmètre justifie de s'arrêter.
+
+Le gate canonique requiert corpus exact vérifié, preuves applicables et verdict indépendant CLEAN. Revue absente ou périmée : BLOCKED. Une sortie conversationnelle reste un cadrage DRAFT non transférable ; aucune écriture ni manifeste fictif.
+
+Lire le statut courant dans `state.json` contrôlé, pas dans la mention historique DRAFT d'un candidat immuable. L'entrée du candidat doit indiquer cette distinction et les preuves encore NOT RUN après promotion.
+
+L'exécution de tests produit reste NOT RUN avant code. La qualification native des profils et des permissions est un état séparé documenté dans [runtime-qualification.md](references/runtime-qualification.md). Les TOML indiquent des defaults ; ils ne prouvent pas les permissions runtime.

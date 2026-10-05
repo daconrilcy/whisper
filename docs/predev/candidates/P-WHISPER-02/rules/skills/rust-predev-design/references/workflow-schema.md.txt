@@ -1,0 +1,532 @@
+# Contrôles documentaires rust-predev/2
+
+Ce schéma relie les décisions, revues et passages de phase à des fichiers réels.
+`scripts/predev_control.py` utilise exclusivement la bibliothèque standard Python
+(Python 3.9 ou supérieur). Il ne crée ni moteur de workflow, ni dépôt Rust, ni
+configuration globale. Le besoin fonctionnel et la vérité des déclarations
+restent du ressort des personnes et agents autorisés.
+
+## Conventions communes
+
+`--root` désigne la racine du dossier de travail documentaire, y compris `docs/predev` ou un dossier projet direct `docs/predev/<projet>` dans un dépôt Git. Un `file_ref` est
+exactement `{"path":"relative/file.md","sha256":"64 caractères hexadécimaux minuscules"}`.
+Chaque fichier référencé doit exister sous cette racine, après résolution des
+liens, et son SHA256 est calculé sur ses **octets bruts**. Un fichier à créer dans
+un lot est seulement un chemin de périmètre, sans `file_ref` avant sa création.
+
+Les chemins sont relatifs, utilisent `/`, sont normalisés Unicode NFC et n'ont
+ni préfixe absolu/lecteur, ni segment vide, `.` ou `..`. Les listes de chemins
+sont triées par points de code Unicode. Doublons, collisions après `casefold` et
+collisions après normalisation sont refusés. Les IDs sont des chaînes non vides
+et uniques dans tout l'état, y compris candidats, revues et rubriques. Les
+références sont des tableaux d'IDs existants, sans doublons.
+
+Les décisions humaines ne deviennent pas vraies parce qu'un fichier existe ou
+qu'un acteur porte un nom distinct. Les contrôles vérifient la présence, les
+hashs et les liens des déclarations d'autorité/délégation/indépendance ; le
+reviewer doit lire leurs sources et confirmer leur portée réelle.
+
+## Manifestes de candidats
+
+Un manifest comporte exactement ces clés :
+
+```json
+{"schema":"rust-predev/2","scope":"DESIGN","candidate_id":"D-1","files":[{"path":"design.md","sha256":"..."}],"digest":"..."}
+```
+
+Pour `PLANS`, `design_candidate_id` est également obligatoire ; il est interdit
+pour `DESIGN`. Les deux IDs diffèrent. `files` est une liste non vide de
+`file_ref`. Le corpus PLANS doit **inclure le fichier manifest DESIGN parent**,
+en plus de ses propres documents. Ainsi la relation porte aussi sur les octets
+du parent ; réutiliser son ID après une modification ne masque pas un plan
+périmé. `check-state` vérifie les deux corpus réels et cette liaison.
+
+Le format canonique est UTF-8 sans BOM, JSON compact, clés d'objets triées,
+`ensure_ascii=False`, pas de nombres non finis, puis un unique LF final.
+`digest` est le SHA256 de cette même sérialisation canonique du payload privé
+du champ `digest` (LF final inclus). Les hash des fichiers restent indépendants
+de leur encodage ou de leurs fins de ligne. Le lecteur refuse également les
+clés JSON dupliquées. Un manifest remanié, non canonique, incohérent ou dont un
+fichier a changé est refusé.
+
+Le manifest est une preuve d'intégrité, pas une signature d'identité. Celui qui
+peut réécrire tout le dossier peut recalculer des hashes. Une revue doit être
+sourcée, liée au digest et réalisée par le reviewer déclaré ; le script ne
+peut authentifier seul cette activité humaine.
+
+## État JSON
+
+Les clés de premier niveau requises sont `schema`, `authorities`, `perimeter`,
+`candidates`, `elements`, `questions`, `findings`, `gates`, `lots`, `checkpoint`.
+Les collections sont des tableaux, même vides. `candidates` est un objet avec
+`DESIGN` obligatoire et `PLANS` optionnel. Les extensions documentaires ne sont
+pas interprétées comme de nouveaux contrôles ; ne leur attribuer aucun effet
+de gate sans modifier et tester explicitement le script.
+
+### Autorités et périmètre
+
+`perimeter={"version":1}` : entier positif. Toute modification du périmètre
+requiert une version nouvelle et une confirmation humaine sourcée.
+
+Une authority comporte `id`, `role`, `actor`, `sources:[file_ref,...]`, avec au
+moins une source. Rôles : `user`, `product`, `technical`, `governance`, `author`,
+`reviewer`, `implementer`, `coordinator`. Le rôle `user` représente la source
+directe du mandat humain, pas le nom d'un agent.
+
+Les rôles délégués `product`, `technical`, `governance`, `implementer` portent obligatoirement
+`delegated_by` (ID d'une authority `user`), `delegation_source:file_ref` et
+`scope={"version":1,"natures":["decision"]}`. La source doit définir le mandat
+réel ; la liste des natures ne suffit pas à autoriser une décision hors besoin
+fonctionnel. Les décisions techniques courantes peuvent être approuvées par
+`technical` dans ce mandat. `requirement`, `use_case`, `acceptance`, `exclusion`
+et `structural_assumption` exigent `user` ou `product` explicitement délégué.
+Le propriétaire d'un élément n'est pas automatiquement son approbateur. Une
+autorité governance/implementer qui autorise des lots ajoute `scope.paths` et
+`scope.lot_ids` ; sa délégation humaine doit couvrir ces chemins exacts et lots.
+
+Un reviewer indique `independent_from:[IDs de tous les contributors,...]` et
+`independence_source:file_ref`. Le script impose un ID d'autorité distinct de
+l'ensemble des auteurs et correcteurs, le rôle reviewer et une déclaration sourcée ; la revue humaine
+confirme que la séparation de responsabilité a effectivement été respectée.
+Le reviewer ne peut lui-même figurer dans contributors, même s'il se déclare
+indépendant de sa propre autorité. Cette exclusion s'applique aux revues et
+aux findings initiaux comme aux reviewers de remplacement.
+
+### Candidats et revues
+
+Chaque candidat contient `id`, `author` (authority ID), `contributors:[authority ID,...]`
+(auteur inclus, plus tous les correcteurs), `status` (`DRAFT`, `READY`, `BLOCKED`,
+`STALE`), `perimeter_version`, `manifest` (chemin relatif), `reviews` (tableau).
+PLANS ajoute `design_candidate_id`, égal au candidat DESIGN courant. Le
+manifest doit correspondre exactement à son scope, ID et parent. BLOCKED et
+STALE sont non transférables. STALE exige `staleness={"reason":"cause observée",
+"evidence":[file_ref,...]}` : l'intégrité du manifest reste vérifiée et le
+résultat `observed_drift` nomme ses fichiers divergents ; il ne devient jamais
+READY. Les phases aval continuent d'exiger les candidats amont READY.
+
+Chaque revue active contient `id`, `scope`, `candidate_id`, `verdict` (`CLEAN`
+ou `FINDINGS`), `reviewer` (authority ID), `manifest_digest`, `evidence:[file_ref,...]`
+non vide. PLANS ajoute `design_candidate_id`, DESIGN interdit ce champ. Le
+digest doit être celui du corpus **revérifié sur disque**. Le reviewer doit
+lancer `verify-manifest`, lire les fichiers réels et produire son rapport ;
+copier le digest depuis un handoff ne remplace pas ces actions. Les revues
+supersédées restent dans l'historique documentaire externe ; `reviews` ne
+contient que les revues revendiquées actives sur ce candidat.
+
+### Éléments, questions et findings
+
+Un élément contient `id`, `nature`, `approval`, `owner` (authority ID),
+`version`, `refs:[ID,...]`. Natures : `decision`, `constraint`, `exclusion`,
+`invariant`, `requirement`, `use_case`, `acceptance`, `structural_assumption`,
+`reversible_detail`, `task`. Approbations : `proposed`, `accepted`, `rejected`,
+`superseded` ; `validated` est réservé aux hypothèses structurantes. Tout
+élément vivant porte la version courante ; les éléments historiques rejetés
+ou supersédés peuvent porter une version antérieure.
+
+`accepted` et `validated` exigent `approval_by` avec l'autorité requise et son
+mandat. `evidence:[file_ref,...]` est optionnel sauf pour la validation d'une
+hypothèse structurante, qui exige une preuve non vide. `replaces:[ID,...]`,
+`source_authority` et `justification` sont optionnels. Un invariant exige
+`source_authority` issu du cadrage `user`, ou `product`/`governance` délégué et
+scopé sur les invariants. Une DEC ne peut pas remplacer un invariant, même
+acceptée ; le reviewer détecte aussi les dérogations sémantiques que de simples
+références ne peuvent révéler. `replaces` préserve l'histoire, sans supprimer
+les éléments précédents.
+
+Une question contient `id`, `classification` (`blocking`, `structural`,
+`reversible_detail`), `status` (`open`, `answered`), `owner`, `deadline`
+(chaîne non vide indiquant l'échéance), `impacted_lots:[lot ID,...]`, `refs`.
+Une réponse porte `evidence:[file_ref,...]` non vide. L'échéance peut être une
+date ou `before:LOT-ID` ; le script vérifie sa présence, pas le respect d'une
+date ou la qualité de la classification. Le reviewer vérifie que la question
+est classée selon son impact réel et que les lots concernés sont exhaustifs.
+
+Un finding contient `id`, `kind` (`required`, `suggestion`), `scope`,
+`candidate_id`, `status` (`open`, `closed`), `author` (auteur du candidat),
+`reviewer`, `refs`, `severity` (`Critical`, `High`, `Medium`, `Low`). PLANS ajoute
+le parent `design_candidate_id`. `disposition` vaut `ACTION_REQUIRED` par défaut,
+ou `DISPUTED`/`RISK_ACCEPTED`. Une réévaluation DISPUTED peut être fermée par le
+reviewer indépendant avec preuve de réévaluation, sans consentement humain.
+RISK_ACCEPTED exige `risk_nature` et `confirmed_by` authority user ou déléguée
+compétente sur cette nature, avec `confirmation_source:file_ref`, plus la
+confirmation indépendante du reviewer ; aucune référence à un invariant ne
+peut être contournée par cette disposition.
+Une fermeture exige `closed_by` reviewer indépendant de tous les contributors
+et `closure_evidence:[file_ref,...]` non vide. S'il remplace l'assigné initial,
+`replacement_source:file_ref` documente sa nomination. La correction
+par l'auteur seule ne clôt pas un finding. Une suggestion ouverte ne bloque
+pas une gate ; son reclassement en `required` doit être décidé et sourcé dans
+la revue, pas utilisé pour contourner une correction nécessaire.
+
+### Gates et rubriques
+
+Une gate comporte `id`, `scope` et `rubrics` non vide. Chaque rubrique contient
+`id` (unique globalement), `key` (type canonique), `applicability`
+(`applicable`, `not_applicable`), `status` (`PASS`, `GAP`),
+`evidence:[file_ref,...]` non vide. `not_applicable` exige également `reason`.
+Une non-applicabilité documentée peut être `PASS` ; un trou inexpliqué reste
+`GAP`. `scope` et `railguard` restent toujours applicables. Les sept rubriques
+PLANS sont toutes obligatoirement applicables ; aucune dispense N/A.
+
+READY impose exactement une occurrence de chacune des clés, sur l'ensemble
+des gates du scope : DESIGN = `scope`, `use_cases`, `errors`, `domain`,
+`dependencies`, `persistence`, `concurrency`, `platform`, `acceptance`, `risks`,
+`railguard` ; PLANS = `coverage`, `dependencies`, `preflight`, `verification`,
+`authorization`, `railguard`, `handoff`. Le script contrôle l'inventaire ; le
+reviewer vérifie le contenu, son exhaustivité et la pertinence des preuves.
+
+Authorization PLANS documente statut et source du mandat, y compris
+`NOT_REQUESTED` pour coder, et le contrat de préflight futur. Readiness
+documentaire n'exige pas déjà l'autorisation d'exécution. Railguard PLANS peut
+prouver la proposition revue et sa voie d'activation ; avant le lot,
+activation et autorisation effective deviennent obligatoires.
+
+DESIGN READY exige ses revues actives CLEAN et actuelles, une gate dont toutes
+les rubriques passent, aucun finding required ouvert, aucune question
+blocking/structural ouverte, aucune hypothèse structurante vivante non validée.
+PLANS READY exige aussi DESIGN READY, son propre scope de revue lié aux deux
+IDs, les gates PLANS PASS et la couverture/validation des exigences acceptées.
+
+### Lots et traçabilité
+
+Un lot contient `id`, `needs`, `covers`, `verifies`, `paths`, `prerequisites`,
+`tasks`. Les cinq collections d'IDs sont des tableaux ; `paths` est un tableau
+de chemins exacts canoniques et triés, éventuellement à créer. `needs` désigne
+des besoins/décisions/contraintes/invariants/UC/AC/hypothèses acceptés ou
+validés. `covers` désigne des exigences acceptées. `verifies` désigne des AC
+(`nature=acceptance`, accepted) dont `refs` relient les REQ vérifiées, ou des
+REQ avec `acceptance_ids:[AC-ID,...]` explicitement renseigné et approuvé.
+`prerequisites` forme un DAG d'IDs de lots, sans cycle. Chaque task de l'état
+PLANS READY appartient à un seul lot et porte dans ses `refs` soit un besoin
+de `lot.needs`, soit un lot préalable de `lot.prerequisites` avec une
+`justification` non vide. Une tâche sans besoin ou préalable justifié échoue.
+Toute requirement acceptée est couverte et vérifiée par au moins un lot.
+`dependency_kinds` type exhaustivement chaque prérequis, par exemple
+`{"L-0":{"kind":"EXECUTION","expected":"campagne après code, NOT RUN","evidence":[]}}`.
+kind vaut DOCUMENT, CODE ou EXECUTION. En readiness documentaire, une preuve
+future peut rester NOT RUN : `expected` décrit alors le résultat attendu et
+evidence reste vide. Au préflight seulement, DOCUMENT exige le contrat/proof
+disponible, CODE exige evidence et `outputs:[file_ref,...]` décrivant l'output
+ou API disponible, EXECUTION exige evidence et lot fournisseur completed avec
+preuve de completion. DOCUMENT/CODE n'exigent pas que tout le fournisseur
+soit completed. Ne pas inventer une dépendance d'exécution quand une relation
+documentaire suffit.
+
+`requires_details:[element/question ID,...]` est optionnel. Un détail
+réversible ouvert ne bloque pas globalement DESIGN ou PLANS READY. Il bloque
+uniquement le préflight du lot qui l'exige explicitement ; le reviewer confirme que la
+dépendance n'a pas été omise. `status` est `planned` par défaut ou `completed` ;
+un lot completed exige `completion_evidence:[file_ref,...]` non vide.
+Avant un lot, ses prérequis doivent être disponibles selon leur type.
+Les tâches rejected/superseded historiques gardent leurs IDs et références,
+sans devoir appartenir à un lot courant ; leur rattachement ou exécution dans
+un lot/checkpoint courant est interdit.
+
+### Checkpoint et préconditions d'un lot
+
+`checkpoint` contient `phase` (`DESIGN`, `PLANS`, `IMPLEMENTATION`), `next_actor`
+(authority ID), `pending_tasks:[task ID,...]`. En HOST_PERSISTED, ajouter
+`raw_contributions:[file_ref,...]` trié, avec les références des
+`transports/<ID>/transport-manifest.json` des apports bruts nécessaires à la
+reprise. `check-state` vérifie chemins, unicité et hashes de cette liste ;
+l'hôte revérifie les contenus des TRANSPORT au moyen de son audit. L'absence
+de cette liste dans un ancien état ne prouve pas que les contributions ont été
+conservées ; le coordinateur ne revendique pas un handoff complet sans elle.
+PLANS requiert DESIGN READY ;
+IMPLEMENTATION requiert PLANS READY. Le checkpoint n'accorde aucune permission
+externe : il rend explicites le prochain acteur et le travail en attente.
+
+Pour `check-state --lot LOT-ID`, la phase doit être IMPLEMENTATION et le lot
+doit porter :
+
+```json
+{
+  "preconditions": {
+    "railguard": {
+      "activation": "active",
+      "ref": {"path":"RAILGUARD.md","sha256":"..."},
+      "hashes": [{"path":"baseline.json","sha256":"..."}]
+    },
+    "authorization": {
+      "authority": "USER",
+      "source": {"path":"authorization.md","sha256":"..."},
+      "lot_id": "LOT-ID",
+      "paths": ["src/main.rs"]
+    },
+    "drift": {
+      "classification": "none",
+      "previous_lots": [],
+      "evidence": [{"path":"preflight.md","sha256":"..."}]
+    },
+    "repository_evidence": [],
+    "code_state": {"baseline":[],"ledger":[],"current":[]}
+  }
+}
+```
+
+Une railguard `active` exige des hashes courants non vides et la référence du
+contrat ; `not_applicable` est interdit avant un lot. L'autorisation vient
+d'une authority user ou governance/implementer explicitement déléguée,
+possède une source et un lot_id exact ; tous les paths du lot doivent être
+dans ses paths autorisés. Les préconditions documentées du dépôt peuvent
+ajouter des preuves à `repository_evidence:[file_ref,...]`, sans les remplacer
+par la simple réussite de ce contrôle documentaire.
+
+`drift.classification` distingue `none` (previous_lots vide) et
+`expected_previous_lots` (liste non vide de prérequis). Les preuves décrivent
+le drift observé et pourquoi il provient du travail autorisé déjà réalisé.
+Le script contrôle ces références et hashes courants ; il ne calcule pas un
+diff Git et n'accepte pas automatiquement un drift inconnu. Aucun reset Git.
+Les preuves de préflight sont contrôlées au lancement du lot concerné ; elles
+ne doivent pas faire passer une baseline ancienne pour la baseline courante.
+
+Les corpus documentaires et snapshots D0 restent figés. L'évolution autorisée
+du code après chaque lot ne requiert pas une nouvelle revue du design figé :
+elle est contrôlée séparément par `preconditions.code_state` :
+
+```json
+{
+  "baseline": [{"path":"src/main.rs","sha256":"...",
+    "snapshot":{"path":"snapshots/D0/main.rs","sha256":"..."},
+    "revision":"révision Git ou identité explicite de D0","dirty_hash":"..."}],
+  "ledger": [{"path":"src/main.rs","sha256":"...","lot_id":"L-0",
+    "evidence":[{"path":"completed/L-0.md","sha256":"..."}]}],
+  "current": [{"path":"src/main.rs","sha256":"..."}]
+}
+```
+
+Chaque baseline désigne son chemin original, sa révision et le hash de l'état
+dirty documenté ; le hash de contenu doit égaler celui du snapshot immuable,
+lui-même inclus dans le manifest DESIGN. Le script ne calcule pas l'identité
+Git : les preuves de dépôt la confirment. Le ledger, dans l'ordre des lots,
+porte uniquement les outputs de lots ancêtres completed, chacun dans ses
+paths autorisés et avec preuve de sortie. Des outputs successifs sur le même
+chemin doivent suivre l'ordre de dépendance des lots. current contient les
+fichiers actuels du périmètre audité, triés/uniques, hashes réellement vérifiés.
+Son inventaire doit égaler baseline plus nouveaux chemins du ledger ; chaque
+hash actuel doit égaler baseline ou le dernier output autorisé du ledger.
+Les sources modifiées sont donc comparées à la progression attendue, jamais
+présentées comme D0 inchangé. Un drift imprévu suspend le préflight ; aucun
+reset automatique. L'exhaustivité du périmètre et la vérité des preuves de
+sortie restent à confirmer par le reviewer et les contrôles du dépôt.
+
+Si une **source vivante** est directement incluse dans un manifest et change,
+`verify-manifest` échoue. Utiliser les snapshots D0 avec leur provenance pour
+la revue initiale et code_state pour le courant. Un snapshot ne prouve jamais
+l'état courant du dépôt. Les manifests et preuves documentaires eux-mêmes ne
+peuvent diverger silencieusement, même lorsque le code progresse comme prévu.
+
+## Commandes et promotion atomique
+
+`--files-list` est le chemin d'un fichier JSON contenant un tableau de chemins
+relatifs, pas une commande shell ni une chaîne de chemins séparés.
+
+```powershell
+python scripts/predev_control.py create-manifest --root DOSSIER --scope DESIGN --candidate-id D-1 --files-list design-files.json --output DOSSIER/design.manifest.json
+python scripts/predev_control.py create-manifest --root DOSSIER --scope PLANS --candidate-id P-1 --design-candidate-id D-1 --files-list plan-files.json --output DOSSIER/plans.manifest.json
+python scripts/predev_control.py verify-manifest --root DOSSIER --manifest DOSSIER/design.manifest.json
+python scripts/predev_control.py check-state --root DOSSIER --state DOSSIER/pending.json
+python scripts/predev_control.py check-state --root DOSSIER --state DOSSIER/current.json --lot LOT-ID
+python scripts/predev_control.py promote-checkpoint --root DOSSIER --pending DOSSIER/pending.json --current DOSSIER/current.json
+```
+
+Les chemins des options de fichiers CLI sont des chemins système, résolus
+depuis le cwd ; les chemins internes aux JSON restent relatifs à --root.
+Les commandes renvoient un petit JSON et exit 0 en réussite ; un diagnostic
+sur stderr et exit 1 en cas d'échec du contrôle (argparse utilise exit 2).
+
+`promote-checkpoint` vérifie pending et ses corpus/proofs avant toute mutation,
+vérifie que pending n'a pas changé pendant le contrôle, écrit un temporaire
+dans le répertoire de current, flush/fsync, puis `os.replace` atomique. Elle
+conserve current préexistant si le contrôle échoue. Elle ne réécrit pas pending
+et refuse de cibler un fichier de corpus, de manifest ou de preuve. current
+et les outputs manifest doivent rester sous root. Elle ne verrouille pas le
+dossier : garder corpus et pending stables pendant l'opération ; une mutation
+concurrente ultérieure est détectée au contrôle suivant.
+
+Le contrôle ne lance aucun Cargo, aucune commande dépôt, aucun outil natif.
+Une qualification d'interface exige toujours une preuve du widget rendu dans
+son conteneur réel. Un profil `readOnly` ou un actor distinct n'est pas une
+preuve de qualification ou d'indépendance effective.
+
+Les fixtures temporaires et cas positifs/négatifs reproductibles sont dans
+`scripts/test_predev_control.py` :
+
+```powershell
+python -m unittest discover -s scripts -p test_predev_control.py -v
+```
+
+`test_predev_control.write_positive_fixture(root)` exporte dans un dossier de
+test isolé les fichiers, manifests et `state.json` positifs complets. Ces
+verdicts et sources sont **synthétiques**, destinés à comprendre et tester le
+schéma ; ils ne sont jamais une revue réelle ni une preuve de qualification.
+Exemple depuis le répertoire scripts, avec un dossier de test réservé :
+
+```powershell
+python -c "from test_predev_control import write_positive_fixture; write_positive_fixture('C:/temp/predev-fixture')"
+python predev_control.py check-state --root C:/temp/predev-fixture --state C:/temp/predev-fixture/state.json --lot L-1
+```
+
+## HOST_PERSISTED : persistance par l'hôte autorisé
+
+Lorsque l'orchestrateur natif readOnly ne peut pas écrire ses documents,
+il produit une proposition JSON attribuée. L'hôte autorisé utilise
+`scripts/predev_host.py` pour l'auditer puis la persister dans une racine
+documentaire exacte. Cette séparation ne suppose pas qu'un profil readOnly
+soit techniquement étanche : elle exige les permissions réellement observées
+et conserve les résultats bruts de qualification. Le helper ne lance aucun
+sous-processus, réseau, secret, code produit, commande dépôt ou configuration.
+
+Le protocole `rust-predev-host/1` est :
+
+```json
+{
+  "schema":"rust-predev-host/1",
+  "scope":"DESIGN",
+  "proposal_id":"PROPOSAL-D1",
+  "actor":"ORCHESTRATOR-READONLY",
+  "base_candidate_id":null,
+  "target_candidate_id":"D-1",
+  "pack_digest":"...",
+  "files":[{"path":"design.md","content":"texte exact reçu\n","base_sha256":null}]
+}
+```
+
+scope vaut DESIGN, PLANS ou TRANSPORT. PLANS ajoute `design_candidate_id`
+obligatoire ; les autres scopes interdisent ce champ. proposal_id et les IDs
+de versions utilisent ASCII lettres/chiffres/tiret/underscore, commencent par
+une lettre ou chiffre, et ont au plus 96 caractères ; noms appareils Windows
+refusés. Un proposal_id déjà persisté et un target ID déjà existant sont
+refusés. Un candidat nouveau ne réutilise jamais l'ID du précédent.
+
+Les files représentent le **corpus complet** de la nouvelle version ; chaque
+content est enregistré en UTF-8 sans modification de ses fins de ligne. Les
+paths sont locaux à cette version (par exemple `design.md`, pas
+`candidates/D-1/design.md`). Slash/NFC, casefold et collisions fichier/dossier
+sont contrôlés ; aucune traversée, chemin appareil/glob, source Rust, script,
+configuration ou chemin hors allowlist. Extensions documentaires admises :
+md/json/txt/csv/tsv. Les noms racine proposal.json/receipt.json/manifest.json/
+transport-manifest.json sont réservés aux métadonnées hôte.
+
+L'hôte fournit séparément une policy sourcée :
+
+```json
+{
+  "schema":"rust-predev-host/1",
+  "host_actor":"AUTHORIZED-HOST",
+  "proposal_actor":"ORCHESTRATOR-READONLY",
+  "roots":["C:/docs/predev-run"],
+  "paths":["design.md","pending.json","plans.md","raw-review.json"],
+  "source":{"path":"human-authorization.md","sha256":"..."}
+}
+```
+
+source est une autorisation humaine existante, hashée, sous cette racine ;
+elle définit le mandat réel de l'hôte, l'acteur proposant, la racine et les
+chemins exacts. Les deux acteurs sont distincts. Ce contrôle de déclaration
+sourcée n'authentifie pas une identité à partir de son nom. Le caller autorisé
+doit fournir la policy réelle ; l'orchestrateur readOnly ne s'accorde pas le
+mandat hôte en fabriquant une policy. La racine doit déjà exister, être dans
+l'allowlist absolue et être dédiée aux documents. Dans un dépôt Git, seule la
+racine `docs/predev` ou un dossier projet direct `docs/predev/<projet>` est
+admise ; la policy doit allowlister cette racine exacte et les chemins de
+documents exacts. Aucun lien/junction interne, fichier produit, .git,
+Cargo.toml, Cargo.lock, .codex, config ou memory ; aucune autre destination à
+l'intérieur d'un dépôt Git/Cargo ou des sources skills/agents/plugins/config/
+memory n'est acceptée. Un dossier documentaire dédié sous le central `.codex`
+est admis : aucun fichier global n'est touché.
+
+`--pack-manifest` est un manifest canonique rust-predev/2 de **freeze du pack**
+créé avec `predev_control.create_manifest(PACK_ROOT,"DESIGN","PACK-ID",paths)`.
+Le scope DESIGN de ce freeze sert au format de contrôle de fichiers et ne
+constitue aucune gate produit. `pack_digest` est son champ digest canonique,
+pas le SHA du fichier manifest entier. Tous ses fichiers réels sont
+revérifiés ; il doit inclure exactement un predev_host.py et un
+predev_control.py dont les octets égalent les helpers exécutés. Le freeze
+natifs doit couvrir aussi les profils/skills réellement utilisés.
+
+DESIGN/PLANS utilisent des lignées séparées. La première version d'un scope
+porte base_candidate_id null ; la suivante cite la dernière version de ce
+même scope. Chaque base est revérifiée sur son corpus réel. base_sha256 doit
+égaler le hash brut de chaque fichier existant dans cette base, ou null pour
+un fichier nouveau. PLANS cite la dernière version DESIGN : exemple D-1,
+puis D-2(base D-1), puis P-1(base null, design_candidate_id D-2). Toute base
+périmée, changée, mauvaise portée ou parent périmé est refusé.
+
+Les versions sont publiées sous `root/candidates/ID/`, avec proposal.json,
+receipt.json et manifest.json. Le helper appelle le contrôleur pour créer
+le manifest au **vrai scope** ; le corpus PLANS inclut automatiquement
+`candidates/DESIGN-ID/manifest.json`. Le reçu contient hashes, IDs, génération,
+pack digest, source d'autorité, actor proposant et persisted_by hôte. Il ne
+contient aucun gate, READY ou verdict : l'hôte ne fabrique pas CLEAN.
+
+TRANSPORT persiste un apport brut de spécialiste, un résultat de revue, un état
+ou un verdict réellement fourni dans
+`root/transports/ID/`, en citant une base candidate existante et actuelle.
+base_sha256 est null. Son transport-manifest.json utilise
+`rust-predev-transport/1` et ne constitue pas un manifest DESIGN/PLANS ni une
+gate. Ainsi un résultat reviewer conserve son contenu exact **hors du corpus
+qu'il a relu**, sans recalculer son verdict ou modifier la source auteur.
+L'orchestrateur et l'hôte attachent ensuite le vrai résultat à l'état de gate
+par le processus de revue/contrôle prévu ; le reçu transport seul n'est pas
+une autorisation de transfert. Les transports déjà persistés sont revérifiés.
+Si l'apport est revendiqué comme copie exacte d'une source exportable, comparer
+ses octets UTF-8 avant et après persistance, sans normaliser les fins de ligne :
+
+```text
+python scripts/verify_raw_handoff.py --source SOURCE.txt --proposal PROPOSITION.json --proposal-file raw.txt
+python scripts/verify_raw_handoff.py --source SOURCE.txt --proposal PROPOSITION.json --proposal-file raw.txt --transport ROOT/transports/T-1/raw.txt
+```
+
+Le résultat donne le SHA-256 et la taille de la source sans afficher son contenu.
+Ce contrôle détecte notamment un LF ajouté ou une conversion CRLF/LF ; il ne
+prouve ni l'identité de l'auteur ni que l'export vient du message indiqué.
+Le coordinateur et le reviewer vérifient ces points, la base intellectuelle,
+les versions/IDs et la base technique du transport séparément.
+Pour un apport de spécialiste reçu avant le premier candidat, l'hôte persiste
+d'abord un candidat DESIGN DRAFT, puis le TRANSPORT lié à ce candidat. Après
+chaque apport, le coordinateur vérifie le reçu et le transport-manifest, ajoute
+sa référence dans `checkpoint.raw_contributions`, et ne passe au rôle suivant
+qu'après promotion du checkpoint. Le fichier brut conserve acteur/rôle,
+base/versions, IDs/owners, sources/statuts, contenu proposé, questions et
+travail restant sans reformulation par l'hôte. Une nouvelle version du corpus
+n'efface pas les transports historiques ; le checkpoint courant cite ceux qui
+restent nécessaires à la provenance et à la reprise.
+
+Audit est une opération sans écriture. Apply refait audit, acquiert un lock
+de writer hôte exclusif, revérifie ses entrées, écrit un staging contrôlé sous
+root avec flush/fsync, puis refait audit avant un rename atomique de dossier.
+Le staging possède un nom UUID créé exclusivement via mkdir(mode=0o777) sous
+root, pour hériter de son ACL documentaire autorisée. Il n'utilise pas
+tempfile.mkdtemp : sous Windows Python 3.13, le mode 0o700 de cette API crée
+une ACL privée qui reste attachée au dossier après son rename et empêche les
+rôles sandbox readOnly de lire les documents publiés. Aucun chmod, grant,
+icacls ou changement d'ACL globale. Vérification du 2026-10-04 : sources
+[os.mkdir Python 3.13](https://docs.python.org/3.13/library/os.html#os.mkdir) et
+[tempfile.mkdtemp](https://docs.python.org/3.13/library/tempfile.html#tempfile.mkdtemp),
+plus comparaison native ACL root/D1 et refus de lecture réels. Un test Windows
+lit les DACL filesystem via ctypes et contrôle les ACE hérités du dossier
+publié et de son payload ; la qualification native doit ensuite prouver la
+lecture effective depuis les rôles sandbox, sans leur accorder d'écriture.
+Toute source/proposal/policy/base/pack changée provoque un refus. Les versions
+préexistantes restent inchangées ; staging et lock sont retirés en échec
+ordinaire. Un lock existant n'est jamais supprimé automatiquement. Aucun
+checkpoint current n'est promu implicitement. Garder le dossier stable contre
+d'autres writers externes pendant l'opération ; le lock coordonne ces helpers,
+pas tous les processus du système. Après crash dur, qualifier le staging/lock
+avant nettoyage manuel. La promotion atomique du dossier est testée sur
+Windows ; elle ne promet pas une transaction contre des modifications
+concurrentes arbitraires faites hors helper.
+
+```powershell
+python -B scripts/predev_host.py audit --root C:/docs/predev-run --proposal C:/docs/predev-run/proposal-input.json --policy C:/docs/predev-run/policy.json --pack-root C:/Users/cyril/.codex --pack-manifest C:/docs/predev-run/pack.manifest.json
+python -B scripts/predev_host.py apply --root C:/docs/predev-run --proposal C:/docs/predev-run/proposal-input.json --policy C:/docs/predev-run/policy.json --pack-root C:/Users/cyril/.codex --pack-manifest C:/docs/predev-run/pack.manifest.json
+python -B -m unittest discover -s scripts -p test_predev_host.py -v
+```
+
+Exit 0 renvoie un reçu JSON sans réimprimer les contents ; exit 1 signale un
+refus sur stderr, argparse utilise exit 2. L'audit et le reçu de persistance
+ne remplacent jamais la revue indépendante ni la qualification native.
+Utiliser Python -B aussi pour les runners qui importent ces helpers, afin de
+ne pas créer de __pycache__ dans le pack installé. Le helper CLI désactive
+également l'écriture des caches de ses imports pour son propre processus.
