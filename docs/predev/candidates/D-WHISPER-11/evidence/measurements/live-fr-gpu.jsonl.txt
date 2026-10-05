@@ -1,0 +1,10 @@
+{"mode":"gpu","language":"fr","seq":0,"samples":80000,"queue_wait_ms":0,"inference_ms":647,"first_callback_ms":647,"visible_proxy_ms":647,"segments":1,"ok":true}
+{"mode":"gpu","language":"fr","seq":1,"samples":80000,"queue_wait_ms":0,"inference_ms":558,"first_callback_ms":558,"visible_proxy_ms":558,"segments":1,"ok":true}
+{"mode":"gpu","language":"fr","seq":2,"samples":80000,"queue_wait_ms":0,"inference_ms":553,"first_callback_ms":553,"visible_proxy_ms":553,"segments":1,"ok":true}
+{"mode":"gpu","language":"fr","seq":3,"samples":80000,"queue_wait_ms":0,"inference_ms":501,"first_callback_ms":501,"visible_proxy_ms":501,"segments":1,"ok":true}
+{"mode":"gpu","language":"fr","seq":4,"samples":80000,"queue_wait_ms":0,"inference_ms":545,"first_callback_ms":546,"visible_proxy_ms":546,"segments":1,"ok":true}
+{"mode":"gpu","language":"fr","seq":5,"samples":80000,"queue_wait_ms":0,"inference_ms":555,"first_callback_ms":555,"visible_proxy_ms":555,"segments":1,"ok":true}
+{"mode":"gpu","language":"fr","seq":6,"samples":80000,"queue_wait_ms":0,"inference_ms":514,"first_callback_ms":515,"visible_proxy_ms":515,"segments":1,"ok":true}
+{"mode":"gpu","language":"fr","seq":7,"samples":80000,"queue_wait_ms":0,"inference_ms":502,"first_callback_ms":502,"visible_proxy_ms":502,"segments":1,"ok":true}
+{"mode":"gpu","language":"fr","seq":8,"samples":80000,"queue_wait_ms":0,"inference_ms":571,"first_callback_ms":572,"visible_proxy_ms":572,"segments":1,"ok":true}
+{"mode":"gpu","language":"fr","seq":9,"samples":76416,"queue_wait_ms":0,"inference_ms":552,"first_callback_ms":552,"visible_proxy_ms":552,"segments":1,"ok":true}

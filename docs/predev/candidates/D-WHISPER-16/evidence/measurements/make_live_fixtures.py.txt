@@ -1,0 +1,21 @@
+import hashlib, json, wave
+from pathlib import Path
+
+root=Path(__file__).parent
+inputs={'fr':Path(r'C:\WhisperLive\micro_test.wav'),'en':root/'jfk.wav'}
+report={}
+for lang,path in inputs.items():
+    with wave.open(str(path),'rb') as w:
+        assert w.getframerate()==16000 and w.getnchannels()==1 and w.getsampwidth()==2
+        frames=w.readframes(w.getnframes())
+    silence=b'\0\0'*(16000*3)
+    output=frames+silence+frames+silence+frames
+    dst=root/(lang+'-live-3x.wav')
+    with wave.open(str(dst),'wb') as w:
+        w.setnchannels(1);w.setsampwidth(2);w.setframerate(16000);w.writeframes(output)
+    report[lang]={'source_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
+                  'fixture_sha256':hashlib.sha256(dst.read_bytes()).hexdigest(),
+                  'fixture_duration_ms':round(len(output)/2/16),
+                  'repetitions':3,'gap_ms':3000}
+(root/'live-fixtures.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps(report))

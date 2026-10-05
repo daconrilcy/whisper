@@ -1,0 +1,50 @@
+{
+  "schema": "whisper-fleurs-live-fixtures/1",
+  "source_metadata_sha256": "f6e1c24de6f4916474fa5a3276664740a3002dad926a7945520cd75c799c9d44",
+  "fixtures": [
+    {
+      "language": "fr_fr",
+      "clips": 12,
+      "pause_ms": 500,
+      "duration_s": 117.7,
+      "sha256": "89fec331a8164bf613a6fadb64419996daf09ed9759dcdb0b32749594f12e136",
+      "file": "fr_fr-12clips-live.wav",
+      "sample_ids": [
+        1524,
+        1570,
+        1652,
+        1616,
+        1523,
+        1656,
+        1620,
+        1533,
+        1640,
+        1553,
+        1558,
+        1581
+      ]
+    },
+    {
+      "language": "en_us",
+      "clips": 12,
+      "pause_ms": 500,
+      "duration_s": 103.1,
+      "sha256": "b8d37157a3e30f6f1c16c30510149b3cba3337f3bd633fb485865189d176d7f7",
+      "file": "en_us-12clips-live.wav",
+      "sample_ids": [
+        1548,
+        1510,
+        1528,
+        1559,
+        1598,
+        1549,
+        1620,
+        1578,
+        1652,
+        1531,
+        1595,
+        1633
+      ]
+    }
+  ]
+}

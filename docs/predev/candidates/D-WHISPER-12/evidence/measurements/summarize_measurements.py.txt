@@ -1,0 +1,16 @@
+import json, math, statistics
+from pathlib import Path
+
+root=Path(__file__).parent
+out={}
+for name in ('live-fr-gpu','live-en-gpu','live-fr-cpu'):
+    rows=[json.loads(x) for x in (root/(name+'.jsonl')).read_text().splitlines() if x.startswith('{')]
+    vals=sorted(x['visible_proxy_ms'] for x in rows)
+    n=len(vals)
+    out[name]={'jobs':n,'all_ok':all(x['ok'] for x in rows),'first_callbacks':sum(x['first_callback_ms'] is not None for x in rows),
+               'post_chunk_median_ms':statistics.median(vals),'post_chunk_p95_nearest_rank_ms':vals[math.ceil(.95*n)-1],
+               'post_chunk_max_ms':vals[-1],'queue_wait_max_ms':max(x['queue_wait_ms'] for x in rows),
+               'inference_median_ms':statistics.median(x['inference_ms'] for x in rows),
+               'chunk_start_to_output_max_ms':max(round(x['samples']/16)+x['visible_proxy_ms'] for x in rows)}
+(root/'live-summary.json').write_text(json.dumps({'schema':'whisper-live-spike/1','chunk_ms':5000,'results':out},indent=2)+'\n',encoding='utf-8')
+print(json.dumps(out,indent=2))

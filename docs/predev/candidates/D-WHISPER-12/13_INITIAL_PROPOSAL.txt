@@ -1,0 +1,852 @@
+Oui. Je cadrerais le produit comme une **application Windows résidente de transcription locale**, pensée pour être disponible en permanence mais quasiment invisible tant qu’on ne l’utilise pas.
+
+Le choix Rust + `whisper.cpp` est cohérent : `whisper-rs` expose les bindings Rust de `whisper.cpp` et peut être compilé avec le backend CUDA ; `whisper.cpp` dispose en plus d’un paramètre `use_gpu` permettant d’activer ou désactiver le GPU à l’exécution. Cela permet donc bien d’envisager **un même moteur avec bascule CPU/GPU**, plutôt que deux applications différentes. ([GitHub][1])
+
+# Plan fonctionnel et technique
+
+## 1. Objectif du produit
+
+Créer une application Windows autonome de transcription audio locale avec deux usages principaux :
+
+1. **Transcription live depuis un microphone**
+2. **Transcription d’un fichier audio existant**
+
+L’application fonctionne entièrement en local, sans serveur Python, sans cloud et sans envoi des données audio vers l’extérieur.
+
+Elle démarre avec Windows, reste en arrière-plan dans la **zone de notification Windows** et peut être sollicitée instantanément par :
+
+* clic sur l’icône ;
+* menu contextuel de l’icône ;
+* raccourci clavier global.
+
+**Hors périmètre initial :**
+
+* capture Teams ;
+* capture du son système ;
+* intégration Zoom/Meet ;
+* bot de réunion ;
+* diarisation avancée des participants.
+
+---
+
+# 2. Expérience utilisateur générale
+
+Au démarrage de Windows :
+
+```text
+Windows
+   ↓
+Transcript App
+   ↓
+pas de fenêtre affichée
+   ↓
+icône dans la zone de notification
+```
+
+L’application reste inactive et consomme très peu de ressources.
+
+Le modèle Whisper **ne doit pas nécessairement être chargé en mémoire dès le démarrage**. Il peut être chargé lors de la première transcription afin d’éviter de monopoliser 2–4 Go de RAM/VRAM en permanence.
+
+### États de l’icône
+
+Prévoir des états visuels simples :
+
+```text
+○ Idle
+● Listening
+◉ Transcribing
+✓ Completed
+! Error
+```
+
+L’état `Listening` doit être immédiatement identifiable pour éviter d’enregistrer involontairement.
+
+---
+
+# 3. Icône de zone de notification
+
+Utilisation de `tray-icon`, conçu précisément pour créer des icônes de zone de notification depuis Rust et compatible Windows. ([GitHub][2])
+
+### Clic gauche
+
+Ouvre l’interface principale.
+
+### Clic droit
+
+Menu rapide :
+
+```text
+Start live transcription
+Stop transcription
+────────────────────
+Transcribe audio file…
+Open last transcript
+────────────────────
+Settings
+Quit
+```
+
+Cela permet de réaliser les opérations courantes sans ouvrir toute l’interface.
+
+---
+
+# 4. Raccourci clavier global
+
+Prévoir un raccourci configurable, par exemple :
+
+```text
+Ctrl + Alt + T
+```
+
+Comportement :
+
+```text
+Idle
+  ↓ raccourci
+Start Live
+
+Live
+  ↓ raccourci
+Stop
+```
+
+Donc le même raccourci agit comme un **toggle Start/Stop**.
+
+La crate `global-hotkey` fournit précisément l’enregistrement de raccourcis globaux sous Windows. ([GitHub][3])
+
+Il faudra prévoir dans les paramètres :
+
+```text
+Global shortcut
+[ Ctrl ] + [ Alt ] + [ T ]
+
+☑ Enable global shortcut
+```
+
+avec détection des conflits.
+
+---
+
+# 5. Mode Live
+
+## Écran principal
+
+Je verrais quelque chose de volontairement très simple :
+
+```text
+┌──────────────────────────────────────────────┐
+│ Transcript                                   │
+│                                              │
+│ Microphone                                   │
+│ [ Jabra EVOLVE 20 MS                  ▼ ]   │
+│                                              │
+│ Language        Engine                       │
+│ [ French ▼ ]    [ GPU - GTX 1080 Ti ▼ ]    │
+│                                              │
+│ Model                                        │
+│ [ Large V3 Turbo                      ▼ ]    │
+│                                              │
+│         ● Start live transcription           │
+│                                              │
+├──────────────────────────────────────────────┤
+│ Transcript                                   │
+│                                              │
+│ 13:42:04 Bonjour, ceci est un test...        │
+│ 13:42:09 Nous allons regarder le sujet...    │
+│                                              │
+└──────────────────────────────────────────────┘
+```
+
+Une fois démarré :
+
+```text
+● LIVE       00:12:37
+
+[ Stop ]
+```
+
+### Fonctionnement live
+
+Pipeline :
+
+```text
+Microphone
+    ↓
+capture audio
+    ↓
+resampling 16 kHz mono
+    ↓
+VAD
+    ↓
+buffers audio
+    ↓
+Whisper
+    ↓
+partial transcript
+    ↓
+confirmed transcript
+    ↓
+UI + fichiers
+```
+
+Le projet `whisper.cpp` contient déjà des exemples de capture microphone et de transcription streaming, ce qui constitue une bonne référence d’implémentation plutôt que de partir de zéro. ([GitHub][4])
+
+---
+
+# 6. Transcription partielle et définitive
+
+Il faut distinguer deux états.
+
+### Texte provisoire
+
+Pendant que l’utilisateur parle :
+
+```text
+… nous allons maintenant regarder les conditions contractuelles
+```
+
+Texte visuellement atténué.
+
+### Texte confirmé
+
+Une fois le segment stabilisé :
+
+```text
+13:47:18  Nous allons maintenant regarder
+          les conditions contractuelles.
+```
+
+Le texte confirmé est immédiatement écrit sur disque.
+
+Cela évite de perdre une réunion en cas de crash.
+
+---
+
+# 7. Transcription d’un fichier
+
+Deux méthodes.
+
+### Depuis l’interface
+
+```text
+Transcribe file
+```
+
+puis sélection :
+
+```text
+meeting.wav
+meeting.mp3
+meeting.m4a
+...
+```
+
+### Drag & Drop
+
+On dépose directement :
+
+```text
+meeting.mp3
+```
+
+dans la fenêtre.
+
+L’application affiche ensuite :
+
+```text
+meeting.mp3
+
+Duration       01:14:37
+Language       Auto
+Model          Large V3 Turbo
+Compute        GPU
+
+████████████████░░░░░░  73 %
+
+00:54:22 / 01:14:37
+```
+
+---
+
+# 8. Gestion CPU / GPU
+
+C’est une fonctionnalité à prévoir dès l’architecture initiale.
+
+Dans les paramètres :
+
+```text
+Compute device
+
+● Auto
+○ GPU
+○ CPU
+```
+
+### Auto
+
+Comportement recommandé :
+
+```text
+GPU disponible
+      ↓
+GPU
+
+sinon
+      ↓
+CPU
+```
+
+### GPU
+
+Pour la première version Windows :
+
+```text
+NVIDIA CUDA
+```
+
+Ta GTX 1080 Ti sera donc utilisée.
+
+### CPU
+
+Force :
+
+```text
+use_gpu = false
+```
+
+Whisper.cpp expose explicitement ce choix ; son exemple benchmark possède d’ailleurs une option `--no-gpu`, reposant sur ce même paramètre de contexte. ([GitHub][5])
+
+Cela donne une architecture propre :
+
+```rust
+enum ComputeDevice {
+    Auto,
+    Cpu,
+    Gpu,
+}
+```
+
+et non une logique GPU dispersée dans le programme.
+
+---
+
+# 9. Informations matérielles
+
+L’interface doit indiquer clairement ce qui est utilisé :
+
+```text
+Compute
+
+GPU
+NVIDIA GeForce GTX 1080 Ti
+11 GB
+
+Backend
+CUDA
+
+Model
+Large V3 Turbo
+```
+
+En CPU :
+
+```text
+CPU
+Intel / AMD ...
+
+Threads
+[ 12 ▼ ]
+```
+
+### Auto
+
+L’application pourrait afficher :
+
+```text
+Auto → NVIDIA GeForce GTX 1080 Ti
+```
+
+pour éviter toute ambiguïté.
+
+---
+
+# 10. Gestion des modèles
+
+Prévoir un écran :
+
+```text
+Models
+────────────────────────────────
+
+Large V3 Turbo
+Installed                  1.6 GB
+[ Default ] [ Delete ]
+
+Medium
+Not installed
+[ Download ]
+
+Small
+Not installed
+[ Download ]
+```
+
+Le modèle par défaut serait :
+
+**Large V3 Turbo**
+
+Le format utilisé par `whisper.cpp` embarque dans un seul fichier les poids, le vocabulaire et les données nécessaires au modèle, ce qui facilite énormément le packaging et la gestion locale. ([GitHub][6])
+
+Dossier recommandé :
+
+```text
+%LOCALAPPDATA%\Transcript\models\
+```
+
+---
+
+# 11. Paramètres
+
+Organisation fonctionnelle.
+
+### General
+
+```text
+☑ Start with Windows
+☑ Start minimized in system tray
+
+Language
+[ Auto ]
+
+Default mode
+[ Live transcription ]
+
+Global shortcut
+[ Ctrl + Alt + T ]
+```
+
+La gestion automatique du démarrage peut être faite depuis Rust ; `auto-launch`, par exemple, supporte explicitement Windows. ([Docs.rs][7])
+
+### Audio
+
+```text
+Microphone
+[ Jabra EVOLVE 20 MS ]
+
+Sample rate
+Auto
+
+☑ Voice Activity Detection
+```
+
+### Transcription
+
+```text
+Model
+[ Large V3 Turbo ]
+
+Language
+[ Auto ]
+
+☑ Timestamps
+☑ Save source audio for live transcription
+```
+
+### Performance
+
+```text
+Compute device
+[ Auto ]
+
+GPU
+NVIDIA GeForce GTX 1080 Ti
+
+CPU threads
+[ Auto ]
+
+Advanced
+[ ... ]
+```
+
+### Output
+
+```text
+Transcript folder
+C:\Users\Cyril\Documents\Transcripts
+
+☑ TXT
+☑ SRT
+☐ VTT
+☐ JSON
+```
+
+---
+
+# 12. Enregistrement des sessions
+
+Chaque transcription crée une session.
+
+Par exemple :
+
+```text
+Transcripts\
+└── 2026-10-04 14-32-18\
+     ├── audio.wav
+     ├── transcript.txt
+     ├── transcript.srt
+     └── session.json
+```
+
+`session.json` conserverait :
+
+```text
+date
+duration
+model
+language
+microphone
+CPU/GPU
+Whisper parameters
+application version
+```
+
+Cela permet de retraiter ultérieurement un fichier dans de meilleures conditions.
+
+---
+
+# 13. Historique
+
+Pas indispensable pour le tout premier prototype, mais je le mettrais rapidement.
+
+```text
+History
+
+Today
+────────────────────────────────
+14:32   Meeting                42 min
+11:17   Live transcription      8 min
+
+Yesterday
+────────────────────────────────
+16:04   customer_call.wav      31 min
+```
+
+Actions :
+
+```text
+Open transcript
+Open folder
+Retranscribe
+Delete
+```
+
+---
+
+# 14. Architecture Rust
+
+Je séparerais fortement l’UI du moteur.
+
+```text
+src/
+│
+├── app/
+│   ├── state.rs
+│   ├── commands.rs
+│   └── settings.rs
+│
+├── ui/
+│   ├── main_window.rs
+│   ├── settings.rs
+│   ├── history.rs
+│   └── tray.rs
+│
+├── audio/
+│   ├── capture.rs
+│   ├── devices.rs
+│   ├── resample.rs
+│   └── wav_writer.rs
+│
+├── transcription/
+│   ├── engine.rs
+│   ├── whisper.rs
+│   ├── streaming.rs
+│   ├── file.rs
+│   └── vad.rs
+│
+├── models/
+│   ├── manager.rs
+│   └── downloader.rs
+│
+├── output/
+│   ├── txt.rs
+│   ├── srt.rs
+│   └── session.rs
+│
+├── platform/
+│   ├── hotkey.rs
+│   ├── autostart.rs
+│   └── single_instance.rs
+│
+└── main.rs
+```
+
+C’est important : **le moteur de transcription ne doit rien connaître de l’UI**.
+
+---
+
+# 15. Stack proposée
+
+| Fonction        | Technologie                 |
+| --------------- | --------------------------- |
+| Langage         | Rust                        |
+| UI              | `egui` / `eframe`           |
+| Whisper         | `whisper.cpp`               |
+| Rust binding    | `whisper-rs`                |
+| GPU V1          | CUDA                        |
+| Audio capture   | `cpal`                      |
+| Resampling      | `rubato`                    |
+| Tray            | `tray-icon`                 |
+| Global shortcut | `global-hotkey`             |
+| Settings        | `serde` + TOML/JSON         |
+| Async/tasks     | threads Rust ou Tokio ciblé |
+| WAV             | `hound` ou writer maison    |
+
+`whisper-rs` propose actuellement des features de compilation pour CUDA, Vulkan, Metal et d’autres backends, ce qui laisse aussi une porte ouverte à une abstraction GPU plus large ultérieurement. ([GitHub][1])
+
+---
+
+# 16. Threading
+
+Il ne faut surtout pas faire tourner Whisper sur le thread UI.
+
+Architecture :
+
+```text
+MAIN THREAD
+UI + Windows event loop
+      │
+      ├── tray
+      ├── hotkeys
+      └── UI events
+             │
+             ▼
+       command channel
+             │
+             ▼
+AUDIO THREAD
+capture microphone
+             │
+             ▼
+audio channel
+             │
+             ▼
+TRANSCRIPTION WORKER
+Whisper CPU/GPU
+             │
+             ▼
+result channel
+             │
+             ▼
+UI
+```
+
+Le tray et les global hotkeys nécessitent d’ailleurs un event loop Windows actif, ce qui va dans le sens de cette architecture. ([GitHub][3])
+
+---
+
+# 17. États internes
+
+Je créerais dès le début une vraie machine à états :
+
+```text
+Idle
+│
+├─→ Initializing
+│
+├─→ Listening
+│
+├─→ TranscribingFile
+│
+├─→ Stopping
+│
+├─→ Error
+│
+└─→ Idle
+```
+
+Cela évitera beaucoup de bugs du genre :
+
+* double lancement ;
+* deux microphones ouverts ;
+* modèle déchargé pendant une transcription ;
+* raccourci pressé pendant le chargement ;
+* fermeture de l’application pendant l’écriture.
+
+---
+
+# 18. Gestion du chargement du modèle
+
+Je ne chargerais pas Turbo au démarrage de Windows.
+
+Au démarrage :
+
+```text
+RAM ≈ application uniquement
+VRAM = 0
+```
+
+Au premier :
+
+```text
+Start transcription
+```
+
+on fait :
+
+```text
+Load model
+↓
+Transcribe
+```
+
+Puis le modèle reste chargé pendant une période configurable, par exemple tant que l’application reste active.
+
+Option future :
+
+```text
+Unload model after
+[ 15 minutes ▼ ]
+```
+
+Cela permet de libérer la VRAM lorsque l’outil n’est pas utilisé.
+
+---
+
+# 19. Priorisation des versions
+
+## MVP — V0.1
+
+Objectif : valider le moteur.
+
+* application Rust ;
+* choix micro ;
+* Whisper Turbo ;
+* CPU/GPU ;
+* Start / Stop ;
+* texte live ;
+* WAV ;
+* TXT ;
+* SRT.
+
+Pas encore de tray sophistiqué.
+
+---
+
+## V0.2 — Application résidente
+
+Ajout :
+
+* tray Windows ;
+* ouverture/fermeture de fenêtre ;
+* raccourci global ;
+* démarrage Windows ;
+* démarrage minimisé ;
+* icône indiquant Idle/Recording ;
+* configuration persistante.
+
+C’est là que le produit devient réellement utilisable au quotidien.
+
+---
+
+## V0.3 — Fichiers
+
+Ajout :
+
+* Open Audio File ;
+* drag & drop ;
+* progression ;
+* annulation ;
+* TXT/SRT ;
+* retranscription.
+
+---
+
+## V0.4 — Productisation
+
+Ajout :
+
+* gestion des modèles ;
+* téléchargement automatique ;
+* historique ;
+* diagnostics CPU/GPU ;
+* gestion des erreurs ;
+* notifications ;
+* updater ;
+* installer Windows.
+
+---
+
+# 20. Périmètre explicitement repoussé
+
+Je garderais hors architecture MVP :
+
+```text
+Teams
+Zoom
+Google Meet
+Windows audio loopback
+speaker diarization
+LLM summaries
+cloud synchronization
+account/login
+```
+
+L’idée est d’éviter de transformer immédiatement un **excellent outil de transcription locale** en plateforme de meeting assistant.
+
+---
+
+## Principe directeur
+
+Le produit devrait donner l’impression suivante :
+
+> **Il est toujours disponible, mais jamais dans le chemin.**
+
+Tu démarres Windows : rien ne s’ouvre.
+
+Tu veux enregistrer :
+
+```text
+Ctrl + Alt + T
+```
+
+Un petit signal indique :
+
+```text
+● Recording
+```
+
+Tu repars sur ton travail.
+
+À la fin :
+
+```text
+Ctrl + Alt + T
+```
+
+et tu obtiens immédiatement :
+
+```text
+audio.wav
+transcript.txt
+transcript.srt
+```
+
+Pour moi, c’est ce comportement qui doit guider toute l’architecture. Le **tray, le raccourci global et le chargement à la demande du modèle** sont presque plus importants pour l’expérience utilisateur que la fenêtre principale elle-même.
+
+[1]: https://github.com/screenpipe/whisper-rs?utm_source=chatgpt.com "GitHub - screenpipe/whisper-rs: Fork of whisper-rs with Windows ARM64 support · GitHub"
+[2]: https://github.com/tauri-apps/tray-icon?utm_source=chatgpt.com "GitHub - tauri-apps/tray-icon: Tray icons for Desktop Applications in Rust. · GitHub"
+[3]: https://github.com/tauri-apps/global-hotkey?utm_source=chatgpt.com "GitHub - tauri-apps/global-hotkey: Global hotkeys for Desktop Applications. · GitHub"
+[4]: https://github.com/ggml-org/whisper.cpp/blob/master/examples/command/command.cpp?utm_source=chatgpt.com "whisper.cpp/examples/command/command.cpp at master · ggml-org/whisper.cpp · GitHub"
+[5]: https://github.com/ggml-org/whisper.cpp/blob/master/src/whisper.cpp?utm_source=chatgpt.com "whisper.cpp/src/whisper.cpp at master · ggml-org/whisper.cpp · GitHub"
+[6]: https://github.com/alexrenda/whisper.cpp?utm_source=chatgpt.com "GitHub - alexrenda/whisper.cpp · GitHub"
+[7]: https://docs.rs/auto-launch/latest/auto_launch/?utm_source=chatgpt.com "auto_launch - Rust"

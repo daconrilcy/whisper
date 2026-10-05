@@ -1,0 +1,7 @@
+# Correction des copies fondatrices après R-WHISPER-DESIGN-10
+
+Base : D-WHISPER-10, digest `9dedb8b5f354463ecb9c5342e312457ad20a836b24f11bfe4fadaed19fbea9ab` ; verdict FINDINGS, 001 rouvert et 008 maintenu. Le rapport structure de D10 est conserve dans `36_REVIEW_RAW_D10.json` et dans le TRANSPORT `T-WHISPER-REVIEW-10`.
+
+La préparation de la proposition D10 a lu les fichiers avec normalisation de fins de ligne. Son manifeste prouvait les octets publiés, mais 13 copies de règles et 7 preuves FLEURS ne correspondaient plus aux originaux/indices. D11 restitue à partir de D9 les octets exacts de tous les fichiers inchangés, en particulier les 21 règles et les preuves FLEURS. La source initiale `13_INITIAL_PROPOSAL.txt` est remplacée par les octets exacts de la pièce jointe utilisateur, SHA-256 `c6e750d6b46af206d22db3f84f0cb695540c53ed2243fce96be56b72e57508aa`. `17_AUTHORIZATION.md` est remplacé par les octets exacts de `authorization.md`, SHA-256 `bbe954936ff6e4108c11024301f3edb68fa1c3499a44096552794a9ef353b771`. Les fichiers D9/D10 demeurent intacts et consultables.
+
+Le présent document expose la correction proposée, pas la fermeture de 001 : le reviewer doit vérifier les correspondances et statuer sur le manifeste D11 exact. 008 reste ouvert pour les preuves d'intégration et décisions détaillées dans `33_CLOSURE_MATRIX_008.md`.

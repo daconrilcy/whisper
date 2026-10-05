@@ -1,0 +1,58 @@
+{
+  "schema": "whisper-fleurs-live/1",
+  "chunk_ms": 5000,
+  "model_sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+  "gpu_binary_sha256": "6d02d28d85f9596853d8d4ef5aa12889cc57fd19028d903bb3b835d86a339e33",
+  "cpu_binary_sha256": "cefdbeb8f8375ca636987987e15d46a0c192e6ab325795ea5745c3fbf090a75b",
+  "method": "model preloaded; 20ms paced WAV replay of 12 concatenated FLEURS validation clips per language with 500ms silence between clips; 5s windows sent to separate GPU worker; first segment callback and stdout after inference measured relative to end of captured window. No microphone or final UI.",
+  "results": {
+    "live-fr-gpu": {
+      "jobs": 24,
+      "all_ok": true,
+      "first_callbacks": 24,
+      "post_chunk_median_ms": 608.0,
+      "post_chunk_p95_nearest_rank_ms": 715,
+      "post_chunk_max_ms": 804,
+      "queue_wait_max_ms": 0,
+      "inference_median_ms": 608.0,
+      "chunk_start_to_output_max_ms": 5804,
+      "fixture_duration_s": 117.7,
+      "fixture_sha256": "89fec331a8164bf613a6fadb64419996daf09ed9759dcdb0b32749594f12e136",
+      "log_sha256": "df795305224aa448e299b37d2a12eaa104a885f695fe9d38d218cac08927e750"
+    },
+    "live-en-gpu": {
+      "jobs": 21,
+      "all_ok": true,
+      "first_callbacks": 21,
+      "post_chunk_median_ms": 562,
+      "post_chunk_p95_nearest_rank_ms": 634,
+      "post_chunk_max_ms": 672,
+      "queue_wait_max_ms": 0,
+      "inference_median_ms": 562,
+      "chunk_start_to_output_max_ms": 5672,
+      "fixture_duration_s": 103.1,
+      "fixture_sha256": "b8d37157a3e30f6f1c16c30510149b3cba3337f3bd633fb485865189d176d7f7",
+      "log_sha256": "28c3c728bb6825eb3338d4540f5ed016183bdace854732ed5ce4d3c50c00e4ee"
+    },
+    "combined_gpu": {
+      "jobs": 45,
+      "all_ok": true,
+      "first_callbacks": 45,
+      "post_chunk_median_ms": 585,
+      "post_chunk_p95_nearest_rank_ms": 704,
+      "post_chunk_max_ms": 804,
+      "queue_wait_max_ms": 0
+    },
+    "live-en-cpu": {
+      "jobs": 4,
+      "all_ok": true,
+      "first_callbacks": 4,
+      "post_chunk_median_ms": 26694.0,
+      "post_chunk_p95_nearest_rank_ms": 43167,
+      "post_chunk_max_ms": 43167,
+      "queue_wait_max_ms": 29618,
+      "fixture_sha256": "6fc70f79c53975af135d2927b158f72b2d19842041ae95ec91e682e2b60c5f08",
+      "log_sha256": "7a0a43b3822661eb230d1a1d9bc5c57692c5f245ee4ecb65dae06ab8fcb9d37e"
+    }
+  }
+}

@@ -1,0 +1,339 @@
+#!/usr/bin/env python3
+"""Persist attributed readOnly proposals in explicitly allowed documentation roots."""
+import argparse
+import hashlib
+import os
+from pathlib import Path
+import re
+import shutil
+import sys
+import uuid
+
+# CLI persistence must not leave interpreter cache files in the installed pack.
+sys.dont_write_bytecode = True
+import predev_control as pc
+
+SCHEMA = "rust-predev-host/1"
+SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,95}\Z")
+DOC_EXTENSIONS = {".md", ".json", ".txt", ".csv", ".tsv"}
+FORBIDDEN = {".git", ".codex", "cargo.toml", "cargo.lock", "config.toml", "memory", "memories", "config"}
+RESERVED = {"proposal.json", "receipt.json", "manifest.json", "transport-manifest.json"}
+
+
+def safe_id(value, label):
+    pc.require(isinstance(value, str) and SAFE_ID.fullmatch(value), label + " must be a safe immutable version ID")
+    pc.require(value.upper() not in {"CON", "PRN", "AUX", "NUL", *("COM" + str(i) for i in range(1, 10)), *("LPT" + str(i) for i in range(1, 10))}, "reserved Windows version ID forbidden")
+    return value
+
+
+def sha_bytes(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def _link(path):
+    return path.is_symlink() or getattr(path, "is_junction", lambda: False)()
+
+
+def docs_root(root):
+    raw = Path(root).absolute()
+    pc.require(raw.is_dir() and not _link(raw), "documentation root must exist and must not be a symlink/junction")
+    base = raw.resolve()
+    pc.require(base.name.casefold() not in FORBIDDEN, "root is a protected configuration/memory/repository directory")
+    repo_docs_root = None
+    for ancestor in [base, *base.parents]:
+        pc.require(ancestor.name.casefold() not in {"memory", "memories", "config", "configuration", "skills", "agents", "plugins"}, "documentation root must stay outside configuration/memory/pack sources")
+        if (ancestor / ".git").exists() or (ancestor / "Cargo.toml").exists():
+            repo_docs_root = ancestor
+            break
+    if repo_docs_root is not None:
+        # Permit the shared docs/predev root for compatibility, or one
+        # project-specific directory directly below it. The policy still
+        # allowlists this exact root and exact document paths.
+        docs = repo_docs_root / "docs"
+        predev = docs / "predev"
+        shared_root = base == predev
+        project_root = base.parent == predev and base.name.casefold() not in FORBIDDEN
+        pc.require(shared_root or project_root, "repository documentation root must be exactly docs/predev or docs/predev/<project>")
+        pc.require((repo_docs_root / ".git").exists(), "repository documentation root must be under a Git repository")
+    for path in base.rglob("*"):
+        pc.require(not _link(path), "symlink/junction forbidden in documentation root: " + str(path.relative_to(base)))
+        pc.require(path.name.casefold() not in FORBIDDEN, "protected entry in documentation root: " + str(path.relative_to(base)))
+        if path.is_file():
+            pc.require(path.suffix.casefold() in DOC_EXTENSIONS, "non-document file in documentation root: " + str(path.relative_to(base)))
+    return base
+
+
+def doc_path(value):
+    path = pc.normalized_path(value)
+    pc.require(not any(part.casefold() in FORBIDDEN for part in path.split("/")), "protected path forbidden")
+    pc.require(Path(path).suffix.casefold() in DOC_EXTENSIONS, "proposal accepts documentation files only")
+    pc.require(not any(char in path for char in '<>"|?*'), "Windows path alias/glob forbidden")
+    for part in path.split("/"):
+        pc.require(part == part.rstrip(" ."), "trailing dot/space path alias forbidden")
+        stem = part.split(".")[0].upper()
+        pc.require(stem not in {"CON", "PRN", "AUX", "NUL", *("COM" + str(i) for i in range(1, 10)), *("LPT" + str(i) for i in range(1, 10))}, "reserved Windows path forbidden")
+    return path
+
+
+def _read_snapshot(path):
+    raw = Path(path).read_bytes()
+    value = pc.read_json(path)
+    pc.require(Path(path).read_bytes() == raw, "input changed while being read")
+    return value, sha_bytes(raw)
+
+
+def _pack(pack_root, manifest_path):
+    manifest = pc.verify_manifest(pack_root, manifest_path)
+    for filename in ("predev_host.py", "predev_control.py"):
+        matches = [entry for entry in manifest["files"] if Path(entry["path"]).name == filename]
+        pc.require(len(matches) == 1, "pack must bind exactly one " + filename)
+        runtime = Path(__file__).with_name(filename)
+        pc.require(pc.file_hash(runtime) == matches[0]["sha256"], "pack differs from running helper/controller: " + filename)
+    return manifest
+
+
+def _catalogue(root):
+    result = {}
+    folder = root / "candidates"
+    if not folder.exists():
+        return result
+    pc.require(folder.is_dir(), "candidates must be a directory")
+    for directory in sorted(folder.iterdir()):
+        pc.require(directory.is_dir(), "unexpected candidate entry")
+        key = safe_id(directory.name, "stored candidate")
+        receipt = pc.read_json(directory / "receipt.json")
+        manifest = pc.verify_manifest(root, directory / "manifest.json")
+        pc.require(receipt.get("kind") == "HOST_PERSISTED" and receipt.get("scope") in ("DESIGN", "PLANS"), "invalid stored receipt")
+        pc.require(receipt.get("target_candidate_id") == key == manifest["candidate_id"] and receipt["scope"] == manifest["scope"], "stored candidate identity mismatch")
+        pc.require(type(receipt.get("generation")) is int and receipt["generation"] > 0, "stored generation invalid")
+        paths = {entry["path"] for entry in manifest["files"]}
+        pc.require({"candidates/" + key + "/receipt.json", "candidates/" + key + "/proposal.json"} <= paths, "stored receipt/proposal must be bound to manifest")
+        pc.require(key.casefold() not in {name.casefold() for name in result}, "candidate ID case collision")
+        result[key] = {"receipt": receipt, "manifest": manifest}
+    for key, item in result.items():
+        receipt = item["receipt"]
+        parent = receipt["base_candidate_id"]
+        if parent is None:
+            pc.require(receipt["generation"] == 1, "initial candidate generation mismatch")
+        else:
+            pc.require(parent in result and result[parent]["receipt"]["scope"] == receipt["scope"], "stored base scope missing/mismatch")
+            pc.require(receipt["generation"] == result[parent]["receipt"]["generation"] + 1, "stored candidate generation mismatch")
+    for scope in ("DESIGN", "PLANS"):
+        generations = [v["receipt"]["generation"] for v in result.values() if v["receipt"]["scope"] == scope]
+        pc.require(len(generations) == len(set(generations)), "candidate history fork detected")
+    return result
+
+
+def _transports(root, catalogue):
+    folder = root / "transports"
+    if not folder.exists():
+        return {}
+    pc.require(folder.is_dir(), "transports must be a directory")
+    result = {}
+    for directory in sorted(folder.iterdir()):
+        pc.require(directory.is_dir(), "unexpected transport entry")
+        key = safe_id(directory.name, "transport ID")
+        manifest_path = directory / "transport-manifest.json"
+        manifest = pc.read_json(manifest_path)
+        pc.require(isinstance(manifest, dict) and set(manifest) == {"schema", "transport_id", "base_candidate_id", "files", "digest"}, "invalid transport manifest")
+        pc.require(manifest_path.read_bytes() == pc.canonical(manifest), "transport manifest must be canonical")
+        pc.require(manifest["schema"] == "rust-predev-transport/1" and manifest["transport_id"] == key and manifest["base_candidate_id"] in catalogue, "transport identity/base mismatch")
+        pc.require(manifest["digest"] == pc.payload_digest({k: v for k, v in manifest.items() if k != "digest"}), "transport digest mismatch")
+        pc.proofs(root, manifest["files"], "transport files", nonempty=True)
+        paths = [entry["path"] for entry in manifest["files"]]
+        pc.require(paths == pc.unique_paths(paths, canonical_input=True) and all(p.startswith("transports/" + key + "/") for p in paths), "transport corpus outside its immutable version")
+        pc.require({"transports/" + key + "/receipt.json", "transports/" + key + "/proposal.json"} <= set(paths), "transport receipt/proposal not bound")
+        receipt = pc.read_json(directory / "receipt.json")
+        pc.require(receipt.get("target_candidate_id") == key and receipt.get("scope") == "TRANSPORT", "transport receipt mismatch")
+        result[key] = receipt
+    return result
+
+
+def _head(catalogue, scope):
+    values = [(v["receipt"]["generation"], key) for key, v in catalogue.items() if v["receipt"]["scope"] == scope]
+    return max(values)[1] if values else None
+
+
+def audit(root, proposal_path, policy_path, pack_root, pack_manifest):
+    root = docs_root(root)
+    proposal, proposal_hash = _read_snapshot(proposal_path)
+    policy, policy_hash = _read_snapshot(policy_path)
+    pc.require(isinstance(policy, dict) and policy.get("schema") == SCHEMA, "invalid host policy schema")
+    pc.identifier(policy.get("host_actor"), "policy.host_actor")
+    pc.identifier(policy.get("proposal_actor"), "policy.proposal_actor")
+    pc.require(policy["host_actor"] != policy["proposal_actor"], "host and readOnly proposal actors must be distinct")
+    roots = policy.get("roots")
+    pc.require(isinstance(roots, list) and roots and all(isinstance(p, str) and Path(p).is_absolute() for p in roots), "policy roots must be an explicit absolute allowlist")
+    pc.require(root in [Path(p).resolve() for p in roots], "documentation root is not allowlisted")
+    allowed = pc.unique_paths(policy.get("paths"), canonical_input=True)
+    for path in allowed:
+        doc_path(path)
+    pc.proof(root, policy.get("source"), "host authorization source")
+    pc.require(isinstance(proposal, dict) and proposal.get("schema") == SCHEMA, "invalid host proposal schema")
+    scope = proposal.get("scope")
+    pc.require(scope in ("DESIGN", "PLANS", "TRANSPORT"), "host proposal scope invalid")
+    keys = {"schema", "scope", "proposal_id", "actor", "base_candidate_id", "target_candidate_id", "pack_digest", "files"}
+    if scope == "PLANS":
+        keys.add("design_candidate_id")
+    pc.require(set(proposal) == keys, "proposal fields or scope/parent mismatch")
+    safe_id(proposal["proposal_id"], "proposal_id")
+    target = safe_id(proposal["target_candidate_id"], "target_candidate_id")
+    base = proposal["base_candidate_id"]
+    if base is not None:
+        safe_id(base, "base_candidate_id")
+    pc.require(target != base, "target candidate must be new")
+    pc.require(proposal["actor"] == policy["proposal_actor"], "proposal actor not authorized by policy")
+    pack = _pack(pack_root, pack_manifest)
+    pc.require(proposal["pack_digest"] == pack["digest"], "proposal pack digest stale/mismatch")
+    catalogue = _catalogue(root)
+    transports = _transports(root, catalogue)
+    used = [*catalogue, *transports]
+    pc.require(target.casefold() not in {p.casefold() for p in used}, "immutable target already exists or collides")
+    receipts = [entry["receipt"] for entry in catalogue.values()] + list(transports.values())
+    pc.require(proposal["proposal_id"] not in {r["proposal_id"] for r in receipts}, "proposal_id already persisted")
+    if scope == "TRANSPORT":
+        pc.require(base in catalogue and base == _head(catalogue, catalogue[base]["receipt"]["scope"]), "transport base candidate missing/stale")
+    else:
+        pc.require(base == _head(catalogue, scope), "base candidate stale or wrong scope")
+    if scope == "PLANS":
+        design = safe_id(proposal["design_candidate_id"], "design_candidate_id")
+        pc.require(design == _head(catalogue, "DESIGN") and design is not None, "PLANS parent DESIGN missing/stale")
+        pc.require(target != design, "PLANS ID must differ from DESIGN parent")
+    files = proposal["files"]
+    pc.require(isinstance(files, list) and files, "proposal files must be nonempty array")
+    contents, normalized = {}, []
+    for entry in files:
+        pc.require(isinstance(entry, dict) and set(entry) == {"path", "content", "base_sha256"}, "proposal file must be {path,content,base_sha256}")
+        path = doc_path(entry["path"])
+        normalized.append(path)
+        pc.require(path in allowed and path.casefold() not in RESERVED, "proposal path outside exact documentation allowlist or reserved")
+        pc.require(isinstance(entry["content"], str), "proposal content must be UTF-8 text")
+        content = entry["content"].encode("utf-8")
+        expected_base = None
+        if base is not None and scope != "TRANSPORT":
+            candidate_path = root / "candidates" / base / path
+            if candidate_path.exists():
+                pc.require(candidate_path.is_file(), "base path must be file")
+                expected_base = pc.file_hash(candidate_path)
+                corpus_paths = {f["path"] for f in catalogue[base]["manifest"]["files"]}
+                pc.require(candidate_path.relative_to(root).as_posix() in corpus_paths, "base file not bound to its manifest")
+        pc.require(entry["base_sha256"] == expected_base, "base file SHA256 missing/stale: " + path)
+        contents[path] = content
+    sorted_paths = pc.unique_paths(normalized, canonical_input=True)
+    for path in sorted_paths:
+        pc.require(not any(other.casefold().startswith(path.casefold() + "/") for other in sorted_paths if other != path), "file/directory path collision")
+    folder = "transports" if scope == "TRANSPORT" else "candidates"
+    destination = root / folder / target
+    pc.require(not destination.exists(), "immutable destination already exists")
+    generation = 1 if base is None or scope == "TRANSPORT" else catalogue[base]["receipt"]["generation"] + 1
+    return {"ok": True, "mode": "AUDIT", "root": str(root), "destination": str(destination),
+            "proposal": proposal, "proposal_sha256": proposal_hash, "policy_sha256": policy_hash,
+            "generation": generation, "pack_digest": pack["digest"], "host_actor": policy["host_actor"],
+            "authority_source": policy["source"], "files": [{"path": p, "sha256": sha_bytes(contents[p])} for p in sorted_paths]}
+
+
+def _write(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("xb") as stream:
+        stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def apply(root, proposal_path, policy_path, pack_root, pack_manifest):
+    checked = audit(root, proposal_path, policy_path, pack_root, pack_manifest)
+    root = Path(checked["root"])
+    lock = root / ".predev-host-lock"
+    try:
+        lock.mkdir()
+    except FileExistsError as exc:
+        raise pc.ControlError("another host writer is active; inspect existing lock without deleting it automatically") from exc
+    try:
+        pc.require(audit(root, proposal_path, policy_path, pack_root, pack_manifest) == checked, "inputs changed while acquiring host lock")
+        return _apply_checked(root, proposal_path, policy_path, pack_root, pack_manifest, checked)
+    finally:
+        lock.rmdir()
+
+
+def _apply_checked(root, proposal_path, policy_path, pack_root, pack_manifest, checked):
+    proposal = checked["proposal"]
+    # Windows Python 3.13 treats 0700 as a private ACL; inherit the already
+    # authorized documentation-root ACL instead of publishing private temp ACLs.
+    stage = root / (".predev-stage-" + uuid.uuid4().hex)
+    stage.mkdir(mode=0o777, exist_ok=False)
+    destination = Path(checked["destination"])
+    parent_created = False
+    try:
+        for entry in proposal["files"]:
+            _write(stage / doc_path(entry["path"]), entry["content"].encode("utf-8"))
+        receipt = {"schema": SCHEMA, "kind": "HOST_PERSISTED", "scope": proposal["scope"],
+                   "proposal_id": proposal["proposal_id"], "actor": proposal["actor"], "persisted_by": checked["host_actor"],
+                   "base_candidate_id": proposal["base_candidate_id"], "target_candidate_id": proposal["target_candidate_id"],
+                   "generation": checked["generation"], "proposal_sha256": checked["proposal_sha256"],
+                   "policy_sha256": checked["policy_sha256"], "pack_digest": checked["pack_digest"],
+                   "authority_source": checked["authority_source"], "files": checked["files"]}
+        if proposal["scope"] == "PLANS":
+            receipt["design_candidate_id"] = proposal["design_candidate_id"]
+        _write(stage / "proposal.json", pc.canonical(proposal))
+        _write(stage / "receipt.json", pc.canonical(receipt))
+        local_paths = [entry["path"] for entry in checked["files"]] + ["proposal.json", "receipt.json"]
+        prefix = destination.relative_to(root).as_posix()
+        corpus = [{"path": prefix + "/" + p, "sha256": pc.file_hash(stage / p)} for p in local_paths]
+        if proposal["scope"] == "TRANSPORT":
+            payload = {"schema": "rust-predev-transport/1", "transport_id": proposal["target_candidate_id"],
+                       "base_candidate_id": proposal["base_candidate_id"], "files": sorted(corpus, key=lambda p: p["path"])}
+            manifest = dict(payload, digest=pc.payload_digest(payload))
+            manifest_name = "transport-manifest.json"
+        else:
+            # Use controller to hash the actual staged corpus, then map to final immutable paths.
+            manifest = pc.create_manifest(stage, proposal["scope"], proposal["target_candidate_id"], local_paths,
+                                          proposal.get("design_candidate_id"))
+            manifest["files"] = corpus
+            if proposal["scope"] == "PLANS":
+                parent = "candidates/" + proposal["design_candidate_id"] + "/manifest.json"
+                manifest["files"].append({"path": parent, "sha256": pc.file_hash(pc.rooted(root, parent))})
+            manifest["files"].sort(key=lambda p: p["path"])
+            manifest["digest"] = pc.payload_digest({k: v for k, v in manifest.items() if k != "digest"})
+            manifest_name = "manifest.json"
+        _write(stage / manifest_name, pc.canonical(manifest))
+        rechecked = audit(root, proposal_path, policy_path, pack_root, pack_manifest)
+        pc.require(rechecked == checked, "proposal/policy/source/base/pack changed before promotion")
+        if not destination.parent.exists():
+            destination.parent.mkdir()
+            parent_created = True
+        pc.require(not destination.exists(), "immutable target appeared during promotion")
+        os.rename(stage, destination)
+        return {"ok": True, "mode": "HOST_PERSISTED", "scope": proposal["scope"],
+                "destination": str(destination), "receipt": str(destination / "receipt.json"),
+                "manifest_digest": manifest["digest"], "files": checked["files"],
+                "actor": proposal["actor"], "persisted_by": checked["host_actor"]}
+    finally:
+        if stage.exists():
+            pc.require(stage.parent == root and stage.name.startswith(".predev-stage-") and not _link(stage), "unsafe staging cleanup refused")
+            shutil.rmtree(stage)
+        if parent_created and destination.parent.exists() and not any(destination.parent.iterdir()):
+            destination.parent.rmdir()
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    for name in ("audit", "apply"):
+        item = sub.add_parser(name)
+        for option in ("root", "proposal", "policy", "pack-root", "pack-manifest"):
+            item.add_argument("--" + option, required=True)
+    args = parser.parse_args(argv)
+    try:
+        function = audit if args.command == "audit" else apply
+        result = function(args.root, args.proposal, args.policy, args.pack_root, args.pack_manifest)
+        if args.command == "audit":
+            result = {k: v for k, v in result.items() if k != "proposal"}
+        sys.stdout.buffer.write(pc.canonical(result))
+        return 0
+    except (pc.ControlError, OSError, UnicodeError, TypeError, KeyError) as exc:
+        sys.stderr.write("predev-host: " + str(exc) + "\n")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

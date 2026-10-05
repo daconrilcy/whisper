@@ -1,0 +1,26 @@
+from pathlib import Path
+from array import array
+import hashlib,json,subprocess,statistics
+import webrtcvad
+root=Path.home()/'AppData/Local/Temp/whisper-spikes'
+ann=json.loads((root/'annotation-candidates.json').read_text(encoding='utf-8'))
+rows=[]
+for rec in ann['files']:
+ name=rec['file'];path=(root/'fleurs-small'/name) if (root/'fleurs-small'/name).is_file() else (Path(r'C:\WhisperLive')/name if name=='micro_test.wav' else root/name)
+ assert path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest()==rec['sha256']
+ data=subprocess.check_output(['ffmpeg','-v','error','-i',str(path),'-ar','16000','-ac','1','-f','s16le','-acodec','pcm_s16le','pipe:1'])
+ frames=len(data)//640;truth=[]
+ for i in range(frames):
+  t=(i+.5)*.02;truth.append(any(a<=t<b for a,b in rec['candidate_intervals_s']))
+ for mode in range(4):
+  vad=webrtcvad.Vad(mode);flags=[bool(vad.is_speech(data[i*640:(i+1)*640],16000)) for i in range(frames)]
+  tp=sum(a and b for a,b in zip(truth,flags));fp=sum(not a and b for a,b in zip(truth,flags));fn=sum(a and not b for a,b in zip(truth,flags));tn=frames-tp-fp-fn
+  rows.append({'file':name,'language':rec['language'],'mode':mode,'frames':frames,'tp':tp,'fp':fp,'fn':fn,'tn':tn,'precision_proxy':round(tp/(tp+fp),4) if tp+fp else None,'recall_proxy':round(tp/(tp+fn),4) if tp+fn else None})
+summary=[]
+for lang in ('fr_fr','en_us','fr_micro','en_public'):
+ for mode in range(4):
+  subset=[r for r in rows if r['language']==lang and r['mode']==mode];tp=sum(r['tp'] for r in subset);fp=sum(r['fp'] for r in subset);fn=sum(r['fn'] for r in subset)
+  summary.append({'language':lang,'mode':mode,'clips':len(subset),'precision_proxy':round(tp/(tp+fp),4) if tp+fp else None,'recall_proxy':round(tp/(tp+fn),4) if tp+fn else None,'tp':tp,'fp':fp,'fn':fn})
+report={'schema':'whisper-vad-vs-automatic-activity/1','status':'PROVISIONAL_AUTOMATIC_LABELS_UNVERIFIED','annotation_sha256':hashlib.sha256((root/'annotation-candidates.json').read_bytes()).hexdigest(),'method':'Clean WAV only. 20ms WebRTC VAD vs automatically generated RMS acoustic-activity candidate intervals. These reference intervals are not verified speech/silence truth, so precision_proxy and recall_proxy are not VAD precision/recall.','rows':rows,'summary':summary}
+out=root/'vad-automatic-comparison.json';out.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+for s in summary:print(s)

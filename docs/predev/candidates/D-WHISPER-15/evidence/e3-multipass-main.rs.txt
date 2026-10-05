@@ -1,0 +1,65 @@
+use std::fs::{self, File};
+use std::io::{BufWriter, Write};
+use std::path::{Path, PathBuf};
+use rusty_mp3::{Mp3Encoder, Mp3EncoderConfig};
+
+fn hms(ms: u64) -> String {
+    format!("{:02}:{:02}:{:02},{:03}", ms / 3_600_000, (ms / 60_000) % 60, (ms / 1000) % 60, ms % 1000)
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 5 {
+        return Err("usage: e3-multipass OUT WAV1 WAV2 WAV3".into());
+    }
+    let out = PathBuf::from(&args[1]);
+    fs::create_dir_all(&out)?;
+    let mut srt = String::new();
+    let mut txt = String::new();
+    let mut group_ms = 0_u64;
+    for (i, source) in args[2..].iter().enumerate() {
+        let mut reader = hound::WavReader::open(source)?;
+        let spec = reader.spec();
+        if spec.sample_rate != 16000 || spec.channels != 1 {
+            return Err(format!("unsupported fixture {}", source).into());
+        }
+        let pcm: Vec<i16> = match (spec.sample_format, spec.bits_per_sample) {
+            (hound::SampleFormat::Int, 16) => reader.samples::<i16>().collect::<Result<_, _>>()?,
+            (hound::SampleFormat::Float, 32) => reader.samples::<f32>()
+                .map(|v| v.map(|x| (x.clamp(-1.0, 1.0) * 32767.0).round() as i16))
+                .collect::<Result<_, _>>()?,
+            _ => return Err(format!("unsupported fixture {}", source).into()),
+        };
+        let duration_ms = pcm.len() as u64 * 1000 / u64::from(spec.sample_rate);
+        let file_name = format!("passage-{}.mp3", i + 1);
+        let path = out.join(&file_name);
+        let mut enc = Mp3Encoder::new(Mp3EncoderConfig { bitrate_kbps: 64, vbr_quality: None });
+        let mut writer = BufWriter::new(File::create(&path)?);
+        let mut packets = 0_u64;
+        for chunk in pcm.chunks(8000) {
+            enc.push_pcm_s16(chunk, spec.channels, spec.sample_rate)?;
+            while let Ok(packet) = enc.next_packet() {
+                writer.write_all(&packet)?;
+                packets += 1;
+            }
+        }
+        enc.finish();
+        while let Ok(packet) = enc.next_packet() {
+            writer.write_all(&packet)?;
+            packets += 1;
+        }
+        writer.flush()?;
+        writer.get_ref().sync_all()?;
+        txt.push_str(&format!("Passage {} fixture {}\n", i + 1, Path::new(source).file_name().unwrap().to_string_lossy()));
+        srt.push_str(&format!("{}\n{} --> {}\nPassage {} fixture\n\n", i + 1, hms(group_ms), hms(group_ms + duration_ms), i + 1));
+        println!("passage={} source={} samples={} duration_ms={} packets={} mp3_bytes={} group_start_ms={}",
+            i + 1, source, pcm.len(), duration_ms, packets, fs::metadata(&path)?.len(), group_ms);
+        group_ms += duration_ms + 1500;
+    }
+    for (name, body) in [("cumulative.txt", txt), ("cumulative.srt", srt)] {
+        let mut file = File::create(out.join(name))?;
+        file.write_all(body.as_bytes())?;
+        file.sync_all()?;
+    }
+    Ok(())
+}

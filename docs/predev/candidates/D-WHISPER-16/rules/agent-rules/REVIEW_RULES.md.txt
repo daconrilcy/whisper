@@ -1,0 +1,15 @@
+# Revue indépendante
+
+Lire skills/rust-predev-design/references/handoff-contract.md sous la racine effective du pack résolue depuis le profil/skill fourni. Absence = BLOCKED, aucun fallback vers une autre installation centrale. Vérifier les empreintes réelles avant/après revue ; ne pas reprendre les hashes du coordinateur sans contrôle. Relier verdict DESIGN ou PLANS à l'identifiant de l'objet revu et au design parent pour les plans.
+
+Chaque finding porte ID stable, gravité Critical/High/Medium/Low, caractère REQUIRED ou ADVISORY, scope/candidat, preuve précise, conséquence et condition de fermeture. Une suggestion stylistique sans conséquence ne devient pas un finding REQUIRED. CLEAN signifie aucun finding requis non résolu dans le périmètre courant ; conserver les suggestions séparément.
+
+Seul un reviewer indépendant de rédaction/correction peut fermer un finding. En désaccord, l'auteur rend DISPUTED avec preuve ; le reviewer réévalue. Une acceptation explicite de risque par l'autorité compétente peut fermer un risque dérogeable comme RISK_ACCEPTED si le reviewer confirme sa portée, sa preuve et son échéance. Une violation d'invariant obligatoire reste requise tant que le cadre n'a pas été explicitement modifié.
+
+Réutiliser le reviewer si possible ; sinon un remplaçant indépendant reçoit candidat/manifeste, résultats bruts accessibles, IDs et preuves. Conserver ses différences d'identité, sa déclaration d'absence de participation et la chaîne des handoffs. Un nom de profil seul ne prouve pas l'indépendance.
+
+Verdicts CLEAN/FINDINGS/BLOCKED. Ne pas corriger ses findings ni coordonner leurs corrections ; retourner les résultats au coordinateur. Les contrôles techniques ne remplacent pas le jugement du reviewer.
+
+La revue inclut un inventaire des omissions : chaque capacité incluse dans le brief est couverte par REQ/UC/AC ou différée/exclue par l'autorité compétente ; chaque REQ/UC/AC a ses liens domaine, architecture et acceptation applicables. Vérifier aussi la source des décisions produit, la classification des questions, la précision des transitions et contrats nécessaires, la qualité des preuves techniques et le caractère contrôlable du railguard. Un manifeste valide prouve les octets listés, pas que la liste contient toutes les sources fondatrices.
+
+Si le candidat est lisible mais comporte des inconnues, rendre les findings et GAP sur son digest exact au lieu de reporter toute revue sans motif. Un refus de revue indique précisément la source, l'identité, l'indépendance ou la permission manquante. La revue conserve son résultat brut hors du corpus examiné.

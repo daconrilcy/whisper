@@ -1,0 +1,75 @@
+use std::{io::Write, sync::{mpsc, Arc, Mutex}, thread, time::{Duration, Instant}};
+use whisper_rs::{FullParams, SamplingStrategy, SegmentCallbackData, WhisperContext, WhisperContextParameters};
+
+const RATE: usize = 16000;
+const FRAME: usize = 320;
+const CHUNK_FRAMES: usize = 250; // 5 s
+
+struct Job { seq: usize, samples: Vec<f32>, captured_end: Instant }
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 5 { return Err("usage: live_measure MODEL WAV cpu|gpu fr|en".into()); }
+    let use_gpu = match args[3].as_str() { "cpu"=>false,"gpu"=>true,_=>return Err("mode".into()) };
+    let language = args[4].clone();
+    if language != "fr" && language != "en" { return Err("language".into()); }
+    let mut reader=hound::WavReader::open(&args[2])?;
+    let spec=reader.spec();
+    if spec.sample_rate != RATE as u32 || spec.channels != 1 || spec.bits_per_sample != 16 { return Err("expected mono 16 kHz s16".into()); }
+    let pcm: Vec<f32>=reader.samples::<i16>().map(|x|x.map(|v|v as f32/32768.0)).collect::<Result<_,_>>()?;
+    let (tx,rx)=mpsc::sync_channel::<Job>(8);
+    let (ready_tx,ready_rx)=mpsc::channel::<Result<(),String>>();
+    let model=args[1].clone();let mode=args[3].clone();
+    let worker=thread::spawn(move || {
+        let mut cp=WhisperContextParameters::default();cp.use_gpu(use_gpu);
+        let context=match WhisperContext::new_with_params(&model,cp) {
+            Ok(c)=>c,Err(e)=>{let _=ready_tx.send(Err(e.to_string()));return;}
+        };
+        let mut state=match context.create_state() {
+            Ok(s)=>s,Err(e)=>{let _=ready_tx.send(Err(e.to_string()));return;}
+        };
+        let _=ready_tx.send(Ok(()));
+        for job in rx {
+            let first=Arc::new(Mutex::new(None::<u64>));
+            let first_callback=Arc::clone(&first);
+            let captured_end=job.captured_end;
+            let mut params=FullParams::new(SamplingStrategy::Greedy{best_of:1});
+            params.set_language(Some(&language));
+            params.set_no_context(true);
+            params.set_print_special(false);params.set_print_progress(false);
+            params.set_print_realtime(false);params.set_print_timestamps(false);
+            params.set_segment_callback_safe(move |_data: SegmentCallbackData| {
+                let mut lock=first_callback.lock().unwrap();
+                if lock.is_none() {*lock=Some(captured_end.elapsed().as_millis() as u64);}
+            });
+            let infer_start=Instant::now();
+            let result=state.full(params,&job.samples);
+            let infer_ms=infer_start.elapsed().as_millis();
+            let visible_proxy_ms=job.captured_end.elapsed().as_millis();
+            let callback_ms=*first.lock().unwrap();
+            let count=state.as_iter().count();
+            println!("{{\"mode\":\"{}\",\"language\":\"{}\",\"seq\":{},\"samples\":{},\"queue_wait_ms\":{},\"inference_ms\":{},\"first_callback_ms\":{},\"visible_proxy_ms\":{},\"segments\":{},\"ok\":{}}}",
+                mode,language,job.seq,job.samples.len(),infer_start.duration_since(job.captured_end).as_millis(),infer_ms,
+                callback_ms.map_or("null".to_string(),|v|v.to_string()),visible_proxy_ms,count,result.is_ok());
+            let _=std::io::stdout().flush();
+        }
+    });
+    ready_rx.recv().map_err(|e|e.to_string())??;
+    let start=Instant::now();
+    let mut buffer=Vec::with_capacity(RATE*5);
+    let mut seq=0;
+    for (index,frame) in pcm.chunks(FRAME).enumerate() {
+        let target=Duration::from_millis(((index+1)*20) as u64);
+        let elapsed=start.elapsed();
+        if target>elapsed {thread::sleep(target-elapsed);}
+        buffer.extend_from_slice(frame);
+        if (index+1)%CHUNK_FRAMES==0 || (index+1)*FRAME>=pcm.len() {
+            tx.send(Job{seq,samples:std::mem::take(&mut buffer),captured_end:Instant::now()})?;
+            seq+=1;
+        }
+    }
+    drop(tx);
+    worker.join().map_err(|_|"worker panic")?;
+    eprintln!("fixture_ms={} jobs={} capture_wall_ms={}",pcm.len()*1000/RATE,seq,start.elapsed().as_millis());
+    Ok(())
+}

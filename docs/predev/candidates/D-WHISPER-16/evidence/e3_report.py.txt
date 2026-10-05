@@ -1,0 +1,56 @@
+import hashlib
+import json
+import wave
+from pathlib import Path
+
+base = Path(__file__).resolve().parent
+source = base.parent / 'fleurs-small'
+output = base / 'e3-output'
+src_names = ['fr_fr-000.wav', 'en_us-000.wav', 'fr_fr-001.wav']
+expected_samples = [231360, 104640, 96000]
+decoded_samples = [231552, 104832, 96192]
+start_ms = [0, 15960, 24000]
+
+def sha256(path):
+    h = hashlib.sha256()
+    with path.open('rb') as f:
+        for b in iter(lambda: f.read(1024 * 1024), b''):
+            h.update(b)
+    return h.hexdigest()
+
+passages = []
+for i, name in enumerate(src_names, 1):
+    inp = source / name
+    mp3 = output / f'passage-{i}.mp3'
+    passages.append({
+        'id': i,
+        'source': name,
+        'source_sha256': sha256(inp),
+        'source_samples_16k': expected_samples[i-1],
+        'source_duration_ms': expected_samples[i-1] * 1000 // 16000,
+        'group_start_ms': start_ms[i-1],
+        'mp3_sha256': sha256(mp3),
+        'mp3_bytes': mp3.stat().st_size,
+        'decoded_samples_symphonia': decoded_samples[i-1],
+        'decoded_excess_samples': decoded_samples[i-1] - expected_samples[i-1],
+        'decoded_excess_ms': (decoded_samples[i-1] - expected_samples[i-1]) * 1000 / 16000,
+    })
+
+report = {
+    'schema': 'whisper-spike-e3/1',
+    'status': 'PARTIAL',
+    'encoder': 'rusty_mp3 0.8.0 from Cargo.lock; 64 kb/s mono 16 kHz',
+    'decoder': 'symphonia 0.5.5 from prior formats bench',
+    'fixture': 'Three existing FLEURS WAV; 1500 ms group pause; synthetic text oracle',
+    'passages': passages,
+    'cumulative_srt_sha256': sha256(output/'cumulative.srt'),
+    'cumulative_txt_sha256': sha256(output/'cumulative.txt'),
+    'limitations': [
+        'No process stop, crash, double scan, manifest or recovery tested',
+        'No original speech quality or MP3 padding correction evaluated',
+        'No Whisper transcription used for cumulative text',
+        'No application integration, installer or live capture tested',
+    ],
+}
+(base/'e3-report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+print('passages', len(passages), 'decoded excess ms', [x['decoded_excess_ms'] for x in passages])

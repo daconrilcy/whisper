@@ -1,0 +1,78 @@
+import hashlib, json, os, random, statistics, struct, subprocess, sys, time, wave
+from pathlib import Path
+
+ROOT=Path(__file__).parent
+RATE=16000
+FRAME=320
+SOURCE=Path(r'C:\WhisperLive\micro_test.wav')
+FIXTURES=ROOT/'loss-fixture'
+FIXTURES.mkdir(exist_ok=True)
+
+def source_pcm():
+    with wave.open(str(SOURCE),'rb') as w:
+        assert w.getframerate()==RATE and w.getnchannels()==1 and w.getsampwidth()==2
+        return w.readframes(w.getnframes())
+
+def sync_write(path,data):
+    with path.open('wb') as f:
+        f.write(data);f.flush();os.fsync(f.fileno())
+
+def worker(case_dir,stop_frame,chunk_frames):
+    pcm=source_pcm();frame_bytes=FRAME*2
+    open_data=bytearray();chunk_no=0
+    for i in range(stop_frame):
+        offset=(i*frame_bytes)%len(pcm)
+        open_data.extend((pcm+pcm[:frame_bytes])[offset:offset+frame_bytes])
+        if len(open_data)//frame_bytes==chunk_frames:
+            audio=bytes(open_data)
+            audio_part=case_dir/f'{chunk_no:04d}.pcm.part'
+            meta_part=case_dir/f'{chunk_no:04d}.json.part'
+            sync_write(audio_part,audio)
+            sync_write(meta_part,json.dumps({'frames':chunk_frames,'sha256':hashlib.sha256(audio).hexdigest()}).encode())
+            os.replace(audio_part,case_dir/f'{chunk_no:04d}.pcm')
+            os.replace(meta_part,case_dir/f'{chunk_no:04d}.json')
+            open_data.clear();chunk_no+=1
+    # Deterministic abrupt exit at this captured frame, leaving the open fragment unconfirmed.
+    os._exit(42)
+
+def recover(case_dir):
+    t=time.perf_counter_ns();frames=0;bad=0
+    for meta in sorted(case_dir.glob('*.json')):
+        try:
+            m=json.loads(meta.read_text())
+            audio=meta.with_suffix('.pcm').read_bytes()
+            if hashlib.sha256(audio).hexdigest()!=m['sha256'] or len(audio)!=m['frames']*FRAME*2:
+                bad+=1;continue
+            frames+=m['frames']
+        except Exception:bad+=1
+    return frames,bad,(time.perf_counter_ns()-t)/1e6
+
+if len(sys.argv)>1 and sys.argv[1]=='child':
+    worker(Path(sys.argv[2]),int(sys.argv[3]),int(sys.argv[4]))
+
+rng=random.Random(20261005)
+cases=[]
+for chunk_frames in (25,50): # 0.5 s and 1.0 s confirmation cadence
+    stops=[1,chunk_frames-1,chunk_frames,chunk_frames+1,3*chunk_frames-1,3*chunk_frames]
+    stops += [rng.randint(1,5*chunk_frames) for _ in range(44)]
+    for idx,stop in enumerate(stops):
+        case_dir=FIXTURES/f'chunk{chunk_frames}-case{idx:03d}'
+        case_dir.mkdir(exist_ok=False)
+        child=subprocess.run([sys.executable,__file__,'child',str(case_dir),str(stop),str(chunk_frames)],capture_output=True)
+        confirmed,bad,recovery_ms=recover(case_dir)
+        assert child.returncode==42 and bad==0 and confirmed<=stop
+        cases.append({'chunk_ms':chunk_frames*20,'case':idx,'captured_ms':stop*20,'confirmed_ms':confirmed*20,
+                      'lost_open_ms':(stop-confirmed)*20,'recovery_ms':round(recovery_ms,3),'exit_code':child.returncode})
+
+groups={}
+for chunk_ms in (500,1000):
+    rows=[c for c in cases if c['chunk_ms']==chunk_ms]
+    loss=sorted(c['lost_open_ms'] for c in rows)
+    groups[str(chunk_ms)]={'count':len(rows),'lost_min_ms':loss[0],'lost_median_ms':statistics.median(loss),
+                           'lost_p95_ms':loss[(95*len(loss)+99)//100-1], 'lost_max_ms':loss[-1],
+                           'recovery_max_ms':max(c['recovery_ms'] for c in rows)}
+report={'schema':'whisper-loss-spike/1','source_sha256':hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
+        'method':'100 independent child process exits after simulated 20 ms frames buffered in memory; confirm only synced+renamed whole audio chunks; recover by hash-verified metadata. Median is average of two central observations for even n; P95 is nearest rank (rank ceil(0.95*n)). Median is average of two central observations for even n; P95 is nearest rank (rank ceil(0.95*n)). No actual capture/engine/UI, no power loss or directory fsync.',
+        'seed':20261005,'groups':groups,'cases':cases}
+(ROOT/'loss-results.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps(groups,indent=2))

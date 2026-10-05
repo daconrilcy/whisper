@@ -1,0 +1,16 @@
+{
+  "fr": {
+    "source_sha256": "716e788c790b600fe472d0ebb868094c9d9b97fdf1d581133dd3df46a30de467",
+    "fixture_sha256": "08e44af576377a6cb452c62cf637881d0a97373209fb7e8bf86095abd587a37c",
+    "fixture_duration_ms": 49776,
+    "repetitions": 3,
+    "gap_ms": 3000
+  },
+  "en": {
+    "source_sha256": "59dfb9a4acb36fe2a2affc14bacbee2920ff435cb13cc314a08c13f66ba7860e",
+    "fixture_sha256": "aa2729818d27a31139a4a499cdae404980cb2a919c5c19a0c3af214ac84b09f6",
+    "fixture_duration_ms": 39000,
+    "repetitions": 3,
+    "gap_ms": 3000
+  }
+}

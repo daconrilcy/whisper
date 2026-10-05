@@ -1,0 +1,23 @@
+# Constitution d'architecture Rust
+
+## Invariants obligatoires
+
+Le langage produit est Rust. Les responsabilités domain, application, adapters, ui et composition root sont séparées, y compris pour une CLI (ui = présentation et traduction des interactions). Ces frontières ne peuvent être supprimées ou inversées par une décision DEC. Une exception exige une modification explicite du cadre, autorisée par l'utilisateur et revue avant son application. Un conflit avec les autorités d'un dépôt existant doit être résolu et tracé ; aucune règle centrale ne permet de les écraser.
+
+| Couche consommatrice | Dépendances autorisées | Dépendances interdites |
+| --- | --- | --- |
+| domain | std/core et bibliothèques pures justifiées sans effets d'infrastructure | application, adapters, ui, composition root, OS/IO/DB/HTTP/framework UI |
+| application | domain, ports qu'elle possède, bibliothèques pures nécessaires | adapters concrets, ui, composition root |
+| adapters | application et domain pour implémenter les ports ; infrastructure nécessaire | ui, composition root |
+| ui | API de application et types publics purs requis par ses contrats | adaptateurs concrets, infrastructure contournant application, composition root |
+| composition root | toutes les couches pour assembler les implémentations | règles métier propres et état métier parallèle |
+
+Les couches internes possèdent les ports nécessaires, sans abstractions spéculatives. Le domaine possède les invariants métier ; l'application coordonne les effets ; l'interface possède l'état de présentation. La composition root injecte les implémentations concrètes.
+
+## Choix adaptables
+
+Un crate ou plusieurs, le nombre de modules, les bibliothèques et la disposition des fichiers sont des décisions techniques justifiées par le besoin présent. Ils ne changent pas les frontières logiques. SOLID, KISS, YAGNI, DRY et séparation des responsabilités guident les choix ; une ressemblance accidentelle ne justifie pas une abstraction.
+
+## Preuve des frontières
+
+L'architecte produit la matrice propre au projet, ses exceptions autorisées et les vérifications correspondantes. Pour un workspace : dépendances Cargo/features/cibles et API publiques. Pour un crate : visibilité, imports et revue ciblée des consommateurs, avec contrôle architectural si la complexité le justifie. Un simple dossier domain ou un diagramme ne prouve pas l'absence de ui -> adapters ou domain -> application. Les contrôles envisagés avant code restent proposés ; les preuves du code seront recueillies pendant l'implémentation.

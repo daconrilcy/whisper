@@ -1,0 +1,41 @@
+# Installation et qualification native
+
+## Racine et découverte
+
+Installation centrale actuelle : C:/Users/cyril/.codex/agents et C:/Users/cyril/.codex/skills ; la session desktop courante expose les deux skills. Cette exposition ne prouve pas encore la découverte de tous les profils natifs ni leur chargement dans une autre version.
+
+La documentation actuelle prévoit ~/.codex/agents et ~/.agents/skills, et suit les liens de skills. Tester skills/list et les profils disponibles dans le runtime effectif avant toute migration. Ne pas dupliquer les skills ni changer la configuration globale pour compenser un problème de découverte sans preuve. Le pack résout sa racine depuis le profil/skill fourni et vérifie règles/references/scripts ; absence = BLOCKED.
+
+Sources consultées le 4 octobre 2026 :
+- https://learn.chatgpt.com/docs/agent-configuration/subagents
+- https://learn.chatgpt.com/docs/build-skills
+
+## Permissions effectives
+
+sandbox_mode dans un TOML est un défaut. Les surcharges runtime du parent sont réappliquées aux enfants ; une session --yolo ou une permission élargie ne permet pas de prétendre que les spécialistes sont isolés. Les instructions imposent toujours lecture seule aux spécialistes et allowlist documentaire au coordinateur, y compris pour les outils connectés ; l'isolation doit en plus être prouvée dans la topologie utilisée.
+
+Préparation : CLI app 0.160.0, CLI npm 0.157.1. Sous Windows, un probe minimal readOnly a permis une écriture : FAILED conservé. Avec configuration Windows sandbox=unelevated isolée, lecture permise et écriture refusée. Un app-server lancé réellement dans fixture/docs avec workspaceWrite écrit docs et refuse ../src ; déplacer seulement le cwd d'une commande ne retire pas la racine du serveur.
+
+Le smoke natif workspace-write a découvert les sept profils, mais les six spécialistes ont réussi leur tentative d'écriture malgré leurs TOML read-only. Cette topologie est FAILED et ne doit pas être réutilisée comme isolation qualifiée. Le profil coordinateur est donc aussi read-only. La topologie à qualifier utilise un parent natif read-only et les sept agents read-only, puis HOST_PERSISTED : un hôte extérieur explicitement autorisé applique les propositions documentaires avec le helper allowlist predev_host.py, sans rédiger ni rendre de verdict à leur place. Le statut de cette nouvelle topologie dépend exclusivement du rapport de campagne lié au pack exact.
+
+Ne jamais prendre danger-full-access ou un fallback après erreur comme preuve de restriction. Configurer la session avant délégation, contrôler les permissions du parent/enfants et conserver les résultats de tentatives autorisées/interdites dans une fixture. Refuser de qualifier un périmètre élargi ou non testable ; garder le checkpoint et un BLOCKED précis.
+
+## Campagne requise
+
+Le rapport natif versionné vit dans agent-reviews/2026-10-04-predev-v2/native sous la racine centrale. Le statut final doit indiquer l'exécutable/version, profiles/hashs, root/cwd, configuration sans secrets, découverte/résolution, permissions effectives, IDs des threads, scopes/candidats et résultats bruts.
+
+Les probes décrites ci-dessus sont l'état de préparation avant la campagne. Le statut actualisé et les limites de qualification sont consignés dans native/QUALIFICATION.md ; son absence signifie NOT RUN pour le flux complet. Ce rapport est une preuve externe au pack, liée à ses empreintes, afin qu'un changement de statut de campagne ne modifie pas les instructions qualifiées.
+
+Parcours positif : besoin qualifié -> spécialistes natifs -> corpus/manifeste -> revue indépendante -> correction -> nouvelle revue CLEAN -> plans -> revue PLANS. Tester la topologie de délégation réellement choisie ; un appel générique qui lit un profil n'est pas son exécution native.
+
+Refus : reviewer absent, source modifiée, hypothèse structurante non validée, conflit d'autorité, railguard manquant, parent des plans différent et permission élargie. Tester reprise/checkpoint sur état incomplet.
+
+Les résultats documentaires, tests du contrôleur, probes de sandbox et qualification du flux natif sont des états séparés. Tant que les profils et le flux complet n'ont pas été exécutés, operational_qualified=false. Ne pas fabriquer CLEAN pour fermer un point d'exécution.
+
+## Connecteurs et données
+
+Le pack ne requiert aucun connecteur. La fixture native utilise une configuration isolée sans serveur MCP explicitement configuré. Cela ne prouve pas l'absence des serveurs ou outils intégrés : inventorier séparément les serveurs chargés, les outils réellement exposés aux rôles et les appels observés. Un serveur READY, une table mcp_servers vide et l'absence d'appel ne sont pas des preuves interchangeables.
+
+Pour qualifier un périmètre sans Apps, désactiver features.apps dans la configuration isolée avant la session, puis vérifier la surface effective du parent et des enfants. Le sandbox de commandes read-only ne contrôle pas les mutations via Apps/MCP. Tout outil de mutation externe encore disponible reste hors qualification d'isolation jusqu'à preuve de restriction propre à cet outil ; ne pas tenter une mutation d'un service réel pour produire cette preuve. Une disponibilité ou restriction non vérifiable doit rester explicitement NOT QUALIFIED. Le rapport lie chaque résultat à la configuration effectivement exécutée, sans le transférer silencieusement à une autre topologie. [Référence officielle des configurations, consultée le 2026-10-04](https://learn.chatgpt.com/docs/config-file/config-reference).
+
+Ne pas invoquer un connecteur par effet de bord. L'authentification Codex existante peut être réutilisée pour exécuter le runtime demandé sans afficher/capturer les secrets, sans création de clé API ni changement de connexion globale.

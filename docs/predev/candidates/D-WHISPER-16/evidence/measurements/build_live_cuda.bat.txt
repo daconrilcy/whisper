@@ -1,0 +1,10 @@
+@echo off
+call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul
+set "CUDA_PATH=C:\Users\cyril\AppData\Local\Temp\whisper-spikes\cuda-12.8"
+set "CUDACXX=C:\Users\cyril\AppData\Local\Temp\whisper-spikes\cuda-12.8\bin\nvcc.exe"
+set "LIBCLANG_PATH=C:\Users\cyril\AppData\Local\Temp\whisper-spikes\pyenv\Lib\site-packages\clang\native"
+set "CMAKE_GENERATOR=Ninja"
+set "CMAKE_CUDA_ARCHITECTURES=61"
+set "PATH=%CUDA_PATH%\bin;C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;%PATH%"
+cd /d C:\Users\cyril\AppData\Local\Temp\whisper-spikes\engine
+cargo build --release --features whisper-rs/cuda --bin live_measure --target-dir C:\Users\cyril\AppData\Local\Temp\whisper-spikes\engine\target-cuda-ninja
