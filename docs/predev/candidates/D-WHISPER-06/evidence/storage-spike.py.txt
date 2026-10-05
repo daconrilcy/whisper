@@ -1,0 +1,123 @@
+"""Disposable Windows crash-boundary probe; not product implementation."""
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).parent / "storage-fixture"
+ORIGINAL = Path(r"C:\WhisperLive\micro_test.wav")
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def sync_write(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as file:
+        file.write(data)
+        file.flush()
+        os.fsync(file.fileno())
+
+
+def artifact_set(kind):
+    if kind == "live":
+        return {"passage-1.mp3": b"MP3-demo", "transcript.txt": b"texte", "transcript.srt": b"1\n00:00:00,000 --> 00:00:01,000\ntexte\n"}
+    return {"transcript.txt": b"texte", "transcript.srt": b"1\n00:00:00,000 --> 00:00:01,000\ntexte\n"}
+
+
+def publish(folder, kind, crash_at):
+    artifacts = artifact_set(kind)
+    folder.mkdir(parents=True, exist_ok=True)
+    if crash_at == 0:
+        os._exit(42)
+    for index, (name, data) in enumerate(artifacts.items(), 1):
+        sync_write(folder / (name + ".pending"), data)
+        if crash_at == index:
+            os._exit(42)
+    for index, name in enumerate(artifacts, 1):
+        os.replace(folder / (name + ".pending"), folder / name)
+        if crash_at == len(artifacts) + index:
+            os._exit(42)
+    marker = {
+        "kind": kind,
+        "artifacts": {name: digest(data) for name, data in artifacts.items()},
+        "source": str(ORIGINAL) if kind == "import" else None,
+    }
+    sync_write(folder / "complete.json.pending", json.dumps(marker, sort_keys=True).encode())
+    if crash_at == len(artifacts) * 2 + 1:
+        os._exit(42)
+    os.replace(folder / "complete.json.pending", folder / "complete.json")
+    if crash_at == len(artifacts) * 2 + 2:
+        os._exit(42)
+
+
+def recover(folder):
+    marker_path = folder / "complete.json"
+    if not marker_path.exists():
+        return "Recoverable"
+    try:
+        marker = json.loads(marker_path.read_bytes())
+        required = set(artifact_set(marker["kind"]))
+        if set(marker["artifacts"]) != required:
+            return "Recoverable"
+        if marker["kind"] == "import" and marker["source"] != str(ORIGINAL):
+            return "Recoverable"
+        if any(not (folder / name).is_file() or digest((folder / name).read_bytes()) != sha for name, sha in marker["artifacts"].items()):
+            return "Recoverable"
+        return "Complete"
+    except (OSError, ValueError, KeyError, TypeError):
+        return "Recoverable"
+
+
+def queue(folder, phase):
+    folder.mkdir(parents=True, exist_ok=True)
+    entry = {"id": "import-1", "source": str(ORIGINAL), "status": "queued", "order": 1}
+    sync_write(folder / "queue.json.pending", json.dumps(entry, sort_keys=True).encode())
+    if phase == 1:
+        os._exit(42)
+    os.replace(folder / "queue.json.pending", folder / "queue.json")
+    if phase == 2:
+        os._exit(42)
+
+
+def main():
+    if len(sys.argv) == 5 and sys.argv[1] == "child":
+        folder = Path(sys.argv[3])
+        phase = int(sys.argv[4])
+        if sys.argv[2] == "queue":
+            queue(folder, phase)
+        else:
+            publish(folder, sys.argv[2], phase)
+        return
+    source_before = digest(ORIGINAL.read_bytes())
+    results = []
+    for kind in ("live", "import"):
+        count = len(artifact_set(kind))
+        for phase in range(0, count * 2 + 4):
+            folder = ROOT / f"{kind}-{phase}"
+            child = subprocess.run([sys.executable, __file__, "child", kind, str(folder), str(phase)], check=False)
+            state = recover(folder)
+            expect = "Complete" if phase >= count * 2 + 2 else "Recoverable"
+            assert state == expect, (kind, phase, state, expect)
+            results.append({"kind": kind, "phase": phase, "exit": child.returncode, "state": state})
+    folder = ROOT / "tamper"
+    publish(folder, "live", -1)
+    assert recover(folder) == "Complete"
+    (folder / "transcript.txt").write_bytes(b"tampered")
+    assert recover(folder) == "Recoverable"
+    for phase in (1, 2, 3):
+        folder = ROOT / f"queue-{phase}"
+        child = subprocess.run([sys.executable, __file__, "child", "queue", str(folder), str(phase)], check=False)
+        exists = (folder / "queue.json").exists()
+        assert exists == (phase != 1)
+        results.append({"kind": "queue", "phase": phase, "exit": child.returncode, "durable_entry": exists})
+    assert source_before == digest(ORIGINAL.read_bytes())
+    print(json.dumps({"schema": "whisper-storage-spike/1", "python": sys.version, "os": os.name, "source_sha256": source_before, "cases": results, "tamper": "Recoverable", "source_unchanged": True, "limitation": "Process exit injection, not physical power loss; no directory fsync on Windows"}, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

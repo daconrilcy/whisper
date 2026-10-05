@@ -1,0 +1,67 @@
+import array, hashlib, json, math, random, struct, sys, wave
+from pathlib import Path
+import webrtcvad
+
+ROOT = Path(__file__).parent
+RATE = 16000
+FRAME = 320  # 20 ms
+SEED = 20261005
+random.seed(SEED)
+
+def wav_samples(path):
+    with wave.open(str(path), 'rb') as w:
+        assert w.getnchannels() == 1 and w.getframerate() == RATE and w.getsampwidth() == 2
+        raw = w.readframes(w.getnframes())
+    return list(struct.unpack('<' + 'h' * (len(raw) // 2), raw))
+
+def hash_file(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+def noise(seconds, dbfs):
+    n = round(seconds * RATE)
+    rms = 32768.0 * 10 ** (dbfs / 20)
+    return [max(-32768, min(32767, round(random.gauss(0, rms)))) for _ in range(n)]
+
+def gain(samples, db):
+    f = 10 ** (db / 20)
+    return [max(-32768, min(32767, round(x * f))) for x in samples]
+
+def mix_noise(samples, dbfs):
+    ns = noise(len(samples) / RATE, dbfs)
+    return [max(-32768, min(32767, x + y)) for x, y in zip(samples, ns)]
+
+def make_cases(name, source):
+    raw = wav_samples(source)
+    return [
+        (name + '-clean', raw, 'speech-containing'),
+        (name + '-quiet-12db', gain(raw, -12), 'speech-containing'),
+        (name + '-noise-minus30db', mix_noise(raw, -30), 'speech-containing'),
+        (name + '-silence', [0] * (RATE * 5), 'non-speech'),
+        (name + '-noise-minus30db-only', noise(5, -30), 'non-speech'),
+    ]
+
+sources = {'fr': Path(r'C:\WhisperLive\micro_test.wav'), 'en': ROOT / 'jfk.wav'}
+out = {'schema':'whisper-vad-probe/1','algorithm':'WebRTC VAD via webrtcvad-wheels 2.0.14','rate_hz':RATE,'frame_ms':20,'seed':SEED,
+       'source_sha256':{name:hash_file(path) for name,path in sources.items()},'cases':[]}
+
+for name, source in sources.items():
+    for case_name, samples, label in make_cases(name, source):
+        full_frames = len(samples) // FRAME
+        data = struct.pack('<' + 'h' * (full_frames * FRAME), *samples[:full_frames * FRAME])
+        for mode in range(4):
+            vad = webrtcvad.Vad(mode)
+            flags = [vad.is_speech(data[i*FRAME*2:(i+1)*FRAME*2], RATE) for i in range(full_frames)]
+            count = sum(flags)
+            intervals=[];start=None
+            for i,v in enumerate(flags+[False]):
+                if v and start is None:start=i
+                if not v and start is not None:
+                    intervals.append([round(start*.02,3),round(i*.02,3)])
+                    start=None
+            out['cases'].append({'case':case_name,'label':label,'duration_ms':round(full_frames*20),
+                'mode':mode,'speech_frames':count,'speech_ratio':round(count/full_frames,4),
+                'detected_speech_ms':count*20,'intervals':intervals})
+
+(ROOT/'vad-results.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+for row in out['cases']:
+    print(row['case'],row['mode'],row['speech_ratio'],row['detected_speech_ms'])

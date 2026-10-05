@@ -1,0 +1,130 @@
+# Contrat canonique rust-predev/2
+
+Ce fichier est l'unique définition des gates et transitions. Les profils et règles renvoient ici ; workflow-schema.md définit la représentation JSON et les contrôles mécaniques. engineering-contract.md précise les contenus techniques et les plans. La revue humaine/agent indépendante reste nécessaire après les contrôles.
+
+## 1. Racine, destination et modes
+
+La racine du pack est le parent du dossier agents contenant les sept profils. Les skills centraux sont résolus dans skills/rust-predev-design et skills/rust-predev-orchestration sous cette racine, ou depuis les chemins explicitement fournis par Codex. Vérifier chaque fichier requis avant lecture ; une référence introuvable donne BLOCKED avec son chemin résolu. Ne jamais migrer ou dupliquer automatiquement une installation.
+
+La destination documentaire est celle autorisée pour la tâche. Sinon utiliser une fixture propre à la tâche sous la racine du pack/tmp/rust-predev, uniquement si l'utilisateur autorise une sortie persistée. Aucun dépôt produit n'est implicitement autorisé. Une demande explicite de l'utilisateur peut autoriser un corpus dédié `docs/predev` ou `docs/predev/<projet>` dans le dépôt courant ; l'hôte n'écrit alors que les fichiers allowlistés de cette racine exacte. Ne pas écrire dans les mémoires.
+
+Mode HOST_PERSISTED : sources, documents, état JSON, manifests et résultats bruts sont accessibles avec références stables. Les sept agents natifs restent en lecture seule dans une session parent également restreinte. Le coordinateur possède logiquement l'état et propose les mutations ; un hôte extérieur à cette délégation, explicitement autorisé sur la seule destination docs, les applique via scripts/predev_host.py. Il conserve l'attribution, vérifie les bases et la racine, persiste de nouvelles versions immuables et renvoie reçus/hashes au coordinateur. Les décisions, corrections et verdicts viennent des acteurs compétents ; l'hôte n'en invente aucun. Les contrôles/manifests et la promotion atomique sont exécutés par cet hôte sur demande, puis vérifiés par le coordinateur et le reviewer. Un outil de chat avec permissions élargies n'est pas qualifié comme hôte restreint par simple déclaration ; utiliser le helper allowlist et conserver les preuves.
+
+Mode CONVERSATION : produire les contenus et questions dans la conversation, sans prétendre avoir écrit docs/*.md ; aucun fichier discret ni manifeste fictif. Sans hôte autorisé, rester dans ce mode. Ce mode reste DRAFT, non transférable, tant qu'une persistance identifiable et sa revue n'ont pas été autorisées et réalisées.
+
+## 2. Autorités et acceptations
+
+Conserver authorities dans l'état : id, rôle, acteur, sources et portée de l'autorisation/délégation. Une source utilisateur peut être une capture fidèle autorisée du message avec référence stable ; ne pas inventer la réponse.
+
+| Domaine | Autorité par défaut | Délégation et limite |
+| --- | --- | --- |
+| Objectif, utilisateurs, périmètre/version, exclusions/différés, hypothèses produit structurantes | utilisateur | représentant produit seulement si explicitement délégué ; les inconnues structurantes ne sont jamais acceptées par silence |
+| Choix techniques dans les invariants et le besoin accepté | architecte Rust | la mission de conception délègue ces choix justifiés ; citer cette mission, demander uniquement une réponse qui change le produit, le risque accepté ou le cadre |
+| Modification du cadre/invariant et activation d'un railguard dans un dépôt | utilisateur ou autorité de gouvernance désignée par AGENTS | délégation explicite avec périmètre ; réutiliser une délégation déjà présente |
+| Fermeture des findings et verdict CLEAN | reviewer indépendant | aucune acceptation de périmètre, aucune autorisation de coder |
+| Readiness documentaire | coordinateur | déduite des contrôles et verdicts exacts, jamais un nouveau consentement |
+| Implémentation/publication | utilisateur ou autorité désignée avec autorisation applicable | conserver source/portée ; readiness ne l'accorde pas |
+
+Une nature n'est pas un statut : decision, constraint, exclusion, invariant, requirement, use_case, acceptance, structural_assumption, reversible_detail ou task. Cycle d'approbation : proposed, accepted, rejected, superseded (validated peut représenter une hypothèse confirmée, selon le schéma). Chaque élément indique owner, version, source d'autorité, preuves d'acceptation et liens de remplacement. Un invariant hérite de la constitution vérifiée ; l'appeler invariant ne le valide pas. Aucun DEC n'autorise une violation de frontière.
+
+## 3. Contenu et ownership
+
+La version courante indique périmètre livré, exclusions et différés avec condition/version cible. Le content map relie les contenus requis à documents/sections ; les sections courtes peuvent être regroupées. Un contenu requis absent ne disparaît pas parce qu'un fichier facultatif n'a pas été créé.
+
+Les spécialistes retournent une proposition brute avec base_candidate_id et versions d'entrées, owner, IDs concernés, contenu proposé et références. Le coordinateur prépare la fusion des changements compatibles et fait persister par l'hôte les nouvelles versions. Après le candidat DRAFT, l'hôte persiste l'apport brut exact en TRANSPORT sur ce candidat ; le coordinateur vérifie reçu/hash, lie la référence dans le checkpoint et la synthèse, puis seulement effectue le handoff suivant. En absence de transport vérifié, la proposition reste non persistée et le handoff incomplet. Si la base a changé ou deux auteurs touchent la même entrée, retourner le conflit aux propriétaires ; aucun last-write-wins.
+
+Le contrôle de qualité d'un handoff est détaillé dans deliverable-quality.md. Avant de passer au spécialiste suivant, confronter les capacités du brief aux entrées produites et enregistrer les manques comme tâches/questions attribuées. Conserver les sorties brutes des spécialistes avec leurs bases et références ; un document de synthèse ne remplace ni leur provenance ni les statuts d'approbation.
+
+| Rôle | Propriété de contenu |
+| --- | --- |
+| product framer | brief, parcours structurants, questions produit |
+| requirements analyst | REQ/UC/AC, états visibles, risques fonctionnels RISK-F |
+| domain architect | concepts, responsabilités, états/invariants métier |
+| rust architect | architecture/contraintes, risques techniques RISK-T, décisions techniques et railguard |
+| design reviewer | findings et verdicts bruts, sans contenu de remplacement |
+| plan writer | lots et index ; aucune décision structurante implicite |
+| coordinateur | sources/réponses utilisateur, état, fusion par ID, persistance, manifests, checkpoints et rapports de gate |
+
+Dans un registre partagé de risques, chaque entrée garde son owner et sa version ; fusionner les entrées distinctes, demander aux auteurs de résoudre les collisions. La fermeture d'un finding n'appartient qu'au reviewer.
+
+## 4. Questions, détails et progression
+
+Les analystes, architectes et reviewer peuvent retourner des questions à toute étape. Le coordinateur centralise ID, classification, alternatives/conséquences, source/réponse, décision touchée, échéance et lots impactés ; il réutilise les réponses et pose de petits groupes. Les spécialistes ne relancent pas l'interview chacun de leur côté.
+
+Une question BLOCKING ou STRUCTURING sans réponse suffisante bloque la partie de conception qui en dépend. Un DETAIL réversible peut rester ouvert avec owner, échéance et périmètre borné. Un lot ne bloque sur une décision de détail que s'il l'inscrit comme nécessaire à son entrée (requires_details) ; une couleur de bouton laissée au lot UI ne suspend pas les autres lots. Une décision de migration essentielle est nécessaire avant le lot de migration.
+
+Flux : cadrage -> clarifications -> exigences -> domaine -> Rust/risques/railguard -> revue DESIGN -> corrections d'auteur -> nouvelle revue -> design gate -> plans autorisés -> revue PLANS -> corrections -> plan gate -> preflight de chaque lot. Les inconnues nouvelles réouvrent la clarification ; le plan writer retourne DESIGN_CHANGE_REQUIRED si une décision structurante manque ou contredit le design.
+
+## 5. Manifeste et identité
+
+Utiliser scripts/predev_control.py pour générer et vérifier les manifests ; workflow-schema.md documente ses commandes et champs exacts. Le manifeste porte scope DESIGN ou PLANS, candidate_id de l'objet réellement revu, et design_candidate_id obligatoire pour PLANS.
+
+Canonicalisation commune : chemins relatifs slash normalisés NFC, sans absolu ni .. ni collision insensible à la casse ; tri des chemins par codepoint. SHA-256 lower des octets exacts des fichiers (ne pas normaliser les fins de ligne du contenu). Payload JSON UTF-8, clés triées, compact, ensure_ascii=False, LF final ; digest calculé sur le payload sans digest. Le même outil calcule toutes les empreintes agrégées.
+
+Inclure les sources utilisateur autorisées, règles effectives, contenu du périmètre et du railguard, documents/sections utiles, et code/configuration existants qui fondent réellement les décisions, y compris modifications locales pertinentes. Pour des faits issus de recherches, conserver source, date et résultat vérifiable. Lister les fichiers exacts, pas une référence vague à HEAD lorsque le working tree diffère. Le rapport de gate et les résultats bruts de revue attestent ce corpus et n'en font pas partie.
+
+Pour le code destiné à évoluer entre lots, conserver une source initiale immutable (snapshot ou révision avec chemins et hashes des modifications locales) et sa provenance vérifiée par comparaison au dépôt lors de capture/revue. Le manifeste atteste les octets de cette source initiale ; le preflight compare le code courant aux sorties attendues et aux preuves du ledger d'exécution. Les modifications prévues d'un lot ne réécrivent pas le snapshot ni n'invalident automatiquement tout le design. Une divergence imprévue ou un changement de source de conception exige réévaluation et nouvelle identité selon son impact.
+
+Le reviewer vérifie indépendamment digest et hashes des fichiers avant et après revue. Le coordinateur les revérifie avant promotion et transfert. Toute différence d'octets exige un nouveau candidat et une nouvelle revue ; une retouche non sémantique peut être revue de façon allégée mais ne recycle pas silencieusement CLEAN. Le périmètre de revue reste explicite.
+
+Un résultat de revue porte scope, candidate_id (= objet revu), design_candidate_id pour PLANS, manifest_digest, reviewer, source de sa déclaration d'indépendance et résultat brut accessible. Le contrôle refuse qu'un CLEAN DESIGN fasse office de CLEAN PLANS, ou que PLANS de D1 soient utilisés avec D2. L'identité et la déclaration ne suffisent pas à prouver l'indépendance : conserver la provenance des auteurs/correcteurs et des handoffs.
+
+## 6. Gate de conception
+
+DESIGN READY exige un manifeste DESIGN vérifié actuel ; une revue indépendante CLEAN exacte ; aucun finding REQUIRED ouvert ; aucune décision/hypothèse structurante manquante ; et toutes les rubriques applicables PASS. Un N/A (applicability=not_applicable dans l'état) exige un motif fondé sur le périmètre et des preuves ; aucune obligation réelle ne peut être supprimée ainsi.
+
+| Rubrique | Applicabilité et preuve minimale |
+| --- | --- |
+| scope | toujours : version, utilisateurs/résultats, exclusions/différés et autorité produit |
+| use_cases | parcours du périmètre avec nominal/erreurs/interruptions applicables, interfaces CLI/GUI identifiées |
+| errors | erreurs possibles et réponses visibles/domain/application ; N/A seulement absence d'erreur démontrée |
+| domain | responsabilités, transitions/invariants liés aux besoins ; pas seulement une liste de types |
+| dependencies | matrice autorisée/interdite et contrôles du projet ; preuve pré-code documentaire, contrôle du code prévu |
+| persistence | stratégie/atomicité/migration si état durable ; N/A si aucune donnée persistée ni migration attendue |
+| concurrency | ownership/arrêt/bornes si travaux concurrents ; N/A si parcours effectivement séquentiel |
+| platform | cible/matériel et preuves de compatibilité structurantes selon le périmètre |
+| acceptance | REQ/UC/AC couverts et seuils nécessaires définis ; tests produit futurs peuvent être NOT RUN |
+| risks | faisabilités structurantes démontrées, ou réduction de périmètre/risque dérogeable accepté avec preuve ; lister un risque critique ne le résout pas |
+| railguard | toujours : proposition revue ou actif adéquat avec voie d'activation compatible |
+
+Le contrôleur vérifie la cohérence des champs, pas la vérité de PASS/N/A ; le reviewer juge les preuves et l'applicabilité. Tests de produit non exécutables avant code restent NOT RUN sans bloquer le design à eux seuls. Une faisabilité structurante non prouvée demande une recherche ou un SPIKE séparément autorisé : le gate reste BLOCKED jusqu'à sa preuve.
+
+Sans reviewer indépendant, source requise introuvable, preuve périmée ou rubrique GAP : DESIGN BLOCKED, sans plan writer. Un candidat ancien invalidé est STALE, non transférable. Conserver le cadrage utile.
+
+## 7. Railguard : proposition et activation
+
+Nouveau projet : proposer le railguard. Dépôt existant avec railguard : inventorier ses autorités, vérifier adéquation, conflits et deltas. Dépôt existant sans railguard : inventorier AGENTS/architecture/contribution/validation présentes, produire une proposition compatible et identifier l'autorité qui peut l'activer. Aucun railguard actif n'est inventé ; la proposition peut être revue et permettre la planification avant activation.
+
+Minimum : autorités/périmètre, matrice des frontières, invariants/owners, changements et versions, tests/vérifications, limites des rôles et préflight des lots. Les mesures VectoPict restent locales.
+
+L'activation est un acte de gouvernance attesté : source/autorité/portée, chemin cible, hash de la proposition revue, hash du fichier actif, date et contrôles d'adéquation des autorités. Une copie exacte dans le chemin prévu avec effet normatif identique est un événement d'activation, pas un nouveau design : conserver une attestation versionnée hors du manifeste du design et revérifier les deux hashes avant chaque lot. Si le texte, ses imports/règles ou son effet normatif changent, créer un delta, nouvelle identité et revue concernée. Ne pas exiger une boucle de revue pour une activation prouvée équivalente.
+
+## 8. Revue et remplacement
+
+Conserver chaque résultat brut dans une référence accessible au prochain acteur. findings REQUIRED et suggestions ADVISORY sont distincts ; CLEAN ne requiert pas de réaliser les suggestions. Le reviewer seul ferme avec preuve, y compris après DISPUTED. Une acceptation de risque dérogeable documentée par l'autorité peut être confirmée RISK_ACCEPTED par le reviewer ; un invariant obligatoire n'est pas reclassable sans modification autorisée du cadre.
+
+Réutiliser le reviewer ; s'il est indisponible, le remplacer par un acteur indépendant avec corpus courant, ledger IDs, résultats bruts et preuves de fermeture. Enregistrer ses auteurs/correcteurs exclus et sa déclaration sourcée. Le coordinateur ne requalifie pas les findings.
+
+Budget configurable par tâche, par défaut max_review_cycles=4 et max_agent_calls=24 ; un cycle = revue/correction/revue. Si une limite est atteinte ou deux corrections ne font aucun progrès, checkpoint et BLOCKED avec IDs/preuves/prochain acteur, jamais CLEAN par épuisement. Fermer les threads terminés si l'outil existe ; sinon ne pas les réutiliser hors de leur rôle et consigner la limite du runtime. Ne pas créer de rôles supplémentaires automatiquement.
+
+## 9. Changements et plans
+
+CHANGE couvre ajout/retrait d'exigence, correction de critère, remplacement de décision et découverte technique ; origin_DEC est optionnel/N/A motivé. Garder raison, impact, modules, migration/compatibilité (N/A motivé), IDs/versions touchés, autorité, échéance et historique, sans supprimer les éléments remplacés.
+
+Exploration : comparer une variante dans un espace proposé, sans suspendre la référence acceptée. Demande de remplacement destinée à exécution : suspendre uniquement les lots concernés après analyse d'impact. Preuve nouvelle d'un défaut du design : invalider immédiatement ses preuves et lots concernés, même avant le choix d'une solution. La nouvelle décision reste proposée jusqu'à son acceptation. Après rejet, rétablir la référence seulement si son corpus et ses preuves sont encore valides.
+
+PLANS READY / READY FOR IMPLEMENTATION exige DESIGN toujours READY et CLEAN PLANS exact sur son propre candidat et son design parent, couverture complète du périmètre accepté, graphe de lots valide et absence de question nécessaire aux lots transférés. Les sept rubriques PLANS requises sont coverage (traçabilité deux sens), dependencies (DAG/prérequis/conflits), preflight (identité et dépôt), verification (commandes et preuves comportementales), authorization (statut et sources connus, contrôle obligatoire avant code), railguard (voie d'activation revue), handoff (scope, owners et sorties). Toutes sont applicables et PASS. Authorization peut indiquer que coder reste NOT_REQUESTED : cela n'empêche pas la readiness des plans, mais interdit le démarrage d'un lot. Railguard peut être proposé au gate PLANS ; il doit être actif au preflight. Un détail réversible explicitement délégué ne bloque pas globalement. Pour une découverte structurante, retourner DESIGN_CHANGE_REQUIRED puis revoir la conception avant régénération des plans concernés.
+
+Avant chaque lot, utiliser le preflight décrit dans engineering-contract.md et les contrôles du schéma. La readiness documentaire et une autorisation déjà donnée sont conservées séparément.
+
+## 10. Persistance et reprise
+
+Persister un checkpoint minimal : phase DESIGN/PLANS/IMPLEMENTATION, next_actor, pending_tasks, candidates, questions, findings, sources et autorisations. Préparer les documents dans un dossier versionné provisoire ; ne jamais modifier directement un ancien corpus READY. Générer/verifier le manifeste et contrôler l'état avant promotion atomique du checkpoint avec promote-checkpoint.
+
+En HOST_PERSISTED, publier une nouvelle version DRAFT du corpus complet dès qu'une étape apporte du contenu ou une décision réutilisable, sans attendre la fin du cadrage : brief, REQ/UC/AC, domaine, architecture, questions et réponses, corrections, puis plans. Chaque version cite sa base et contient les contributions déjà établies ; l'hôte retourne reçu et hashes. Persister séparément chaque retour brut en TRANSPORT avant le checkpoint ; celui-ci référence les transports nécessaires à la reprise via `raw_contributions`, avec le travail terminé, les IDs encore ouverts, next_actor et pending_tasks. Le checkpoint ne devient courant qu'après contrôle ; si sa promotion échoue, conserver le précédent et signaler précisément ce qui n'est pas sauvé. Un DRAFT persistant ne vaut ni CLEAN ni READY.
+
+Un arrêt avant revue indique sa cause vérifiée dans l'état de reprise. Si un candidat est disponible et la revue indépendante autorisée et accessible, le coordinateur le soumet ; les GAP de contenu ou de faisabilité sont alors examinés par le reviewer et ne justifient pas à eux seuls l'absence de revue. Une revue BLOCKED demeure possible si son identité, ses sources ou son indépendance ne peuvent pas être établies.
+
+Le coordinateur continue les étapes autorisées après un checkpoint et attend les acteurs déjà lancés ; une mise à jour de progression ne termine pas la mission. Seule une décision ou donnée indispensable, une autorisation manquante, un blocage vérifié, une limite contractuelle ou une interruption effective justifie l'arrêt avant le gate demandé. Le checkpoint de cet arrêt indique l'action concrète de reprise. Un arrêt du runtime ne peut pas être empêché par le contrat ; la nouvelle session reprend depuis l'état vérifié.
+
+À la reprise, vérifier les manifests, versions d'entrées, résultats bruts, état du dépôt, tâches terminées et autorisations applicables. Un travail interrompu ou un mélange de versions reste DRAFT/BLOCKED ; conserver le dernier checkpoint valide sans lui attribuer les nouveaux fichiers. Le contrôleur refuse de promouvoir un état invalide. Ne pas reconstituer CLEAN à partir d'une mémoire de conversation.

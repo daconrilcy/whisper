@@ -1,0 +1,39 @@
+{
+  "schema": "whisper-live-spike/1",
+  "chunk_ms": 5000,
+  "results": {
+    "live-fr-gpu": {
+      "jobs": 10,
+      "all_ok": true,
+      "first_callbacks": 10,
+      "post_chunk_median_ms": 552.5,
+      "post_chunk_p95_nearest_rank_ms": 647,
+      "post_chunk_max_ms": 647,
+      "queue_wait_max_ms": 0,
+      "inference_median_ms": 552.5,
+      "chunk_start_to_output_max_ms": 5647
+    },
+    "live-en-gpu": {
+      "jobs": 8,
+      "all_ok": true,
+      "first_callbacks": 8,
+      "post_chunk_median_ms": 549.0,
+      "post_chunk_p95_nearest_rank_ms": 652,
+      "post_chunk_max_ms": 652,
+      "queue_wait_max_ms": 0,
+      "inference_median_ms": 549.0,
+      "chunk_start_to_output_max_ms": 5652
+    },
+    "live-fr-cpu": {
+      "jobs": 3,
+      "all_ok": true,
+      "first_callbacks": 3,
+      "post_chunk_median_ms": 22052,
+      "post_chunk_p95_nearest_rank_ms": 30943,
+      "post_chunk_max_ms": 30943,
+      "queue_wait_max_ms": 17452,
+      "inference_median_ms": 13491,
+      "chunk_start_to_output_max_ms": 35535
+    }
+  }
+}

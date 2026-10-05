@@ -1,0 +1,46 @@
+from pathlib import Path
+import hashlib,json,math,statistics
+root=Path(__file__).parent/'fleurs-small'
+fixtures=json.loads((root/'live-fixtures.json').read_text(encoding='utf-8'))['fixtures']
+results={};combined=[]
+for lang,series in [('fr_fr','live-fr-gpu'),('en_us','live-en-gpu')]:
+ path=root/(series+'.jsonl')
+ rows=[json.loads(v) for v in path.read_text(encoding='utf-8').splitlines()]
+ assert all(x['ok'] and x['first_callback_ms'] is not None for x in rows)
+ assert all(x['mode']=='gpu' and x['language']==('fr' if lang=='fr_fr' else 'en') for x in rows)
+ values=sorted(x['visible_proxy_ms'] for x in rows)
+ fixture=next(x for x in fixtures if x['language']==lang)
+ results[series]={'jobs':len(rows),'all_ok':True,'first_callbacks':len(rows),
+  'post_chunk_median_ms':statistics.median(values),
+  'post_chunk_p95_nearest_rank_ms':values[math.ceil(.95*len(values))-1],
+  'post_chunk_max_ms':max(values),'queue_wait_max_ms':max(x['queue_wait_ms'] for x in rows),
+  'inference_median_ms':statistics.median(x['inference_ms'] for x in rows),
+  'chunk_start_to_output_max_ms':max(x['visible_proxy_ms']+min(5000,x['samples']/16) for x in rows),
+  'fixture_duration_s':fixture['duration_s'],'fixture_sha256':fixture['sha256'],
+  'log_sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+ combined.extend(rows)
+values=sorted(x['visible_proxy_ms'] for x in combined)
+results['combined_gpu']={'jobs':len(combined),'all_ok':True,'first_callbacks':len(combined),
+ 'post_chunk_median_ms':statistics.median(values),
+ 'post_chunk_p95_nearest_rank_ms':values[math.ceil(.95*len(values))-1],
+ 'post_chunk_max_ms':max(values),'queue_wait_max_ms':max(x['queue_wait_ms'] for x in combined)}
+cpu_log=root/'live-en-cpu.jsonl'
+if cpu_log.exists():
+ cpu=[json.loads(v) for v in cpu_log.read_text(encoding='utf-8').splitlines()]
+ assert all(x['mode']=='cpu' and x['language']=='en' and x['ok'] for x in cpu)
+ cv=sorted(x['visible_proxy_ms'] for x in cpu)
+ results['live-en-cpu']={'jobs':len(cpu),'all_ok':True,
+  'first_callbacks':sum(x['first_callback_ms'] is not None for x in cpu),
+  'post_chunk_median_ms':statistics.median(cv),
+  'post_chunk_p95_nearest_rank_ms':cv[math.ceil(.95*len(cv))-1],
+  'post_chunk_max_ms':max(cv),'queue_wait_max_ms':max(x['queue_wait_ms'] for x in cpu),
+  'fixture_sha256':hashlib.sha256((root/'en_us-001-s16.wav').read_bytes()).hexdigest(),
+  'log_sha256':hashlib.sha256(cpu_log.read_bytes()).hexdigest()}
+report={'schema':'whisper-fleurs-live/1','chunk_ms':5000,
+ 'model_sha256':'1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69',
+ 'gpu_binary_sha256':'6d02d28d85f9596853d8d4ef5aa12889cc57fd19028d903bb3b835d86a339e33',
+ 'cpu_binary_sha256':'cefdbeb8f8375ca636987987e15d46a0c192e6ab325795ea5745c3fbf090a75b',
+ 'method':'model preloaded; 20ms paced WAV replay of 12 concatenated FLEURS validation clips per language with 500ms silence between clips; 5s windows sent to separate GPU worker; first segment callback and stdout after inference measured relative to end of captured window. No microphone or final UI.',
+ 'results':results}
+(root/'live-fleurs-summary.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps(results,indent=2))

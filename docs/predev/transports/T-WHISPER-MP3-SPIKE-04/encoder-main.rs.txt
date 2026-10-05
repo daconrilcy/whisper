@@ -1,0 +1,28 @@
+use std::{fs::File, io::Write};
+use rusty_mp3::{Mp3Encoder, Mp3EncoderConfig};
+
+fn main() {
+    let wav = std::env::args().nth(1).expect("wav");
+    let out = std::env::args().nth(2).expect("mp3");
+    let mut reader = hound::WavReader::open(&wav).unwrap();
+    let spec = reader.spec();
+    assert_eq!(spec.bits_per_sample, 16);
+    let pcm: Vec<i16> = reader.samples::<i16>().map(Result::unwrap).collect();
+    let mut enc = Mp3Encoder::new(Mp3EncoderConfig { bitrate_kbps: 64, vbr_quality: None });
+    let mut file = File::create(&out).unwrap();
+    let mut packets = 0usize;
+    for chunk in pcm.chunks((spec.sample_rate as usize / 2) * spec.channels as usize) {
+        enc.push_pcm_s16(chunk, spec.channels, spec.sample_rate).unwrap();
+        while let Ok(packet) = enc.next_packet() {
+            file.write_all(&packet).unwrap();
+            packets += 1;
+        }
+    }
+    enc.finish();
+    while let Ok(packet) = enc.next_packet() {
+        file.write_all(&packet).unwrap();
+        packets += 1;
+    }
+    file.flush().unwrap();
+    println!("rate={} channels={} pcm_samples={} packets={} bytes={}", spec.sample_rate, spec.channels, pcm.len(), packets, file.metadata().unwrap().len());
+}

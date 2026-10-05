@@ -1,0 +1,637 @@
+#!/usr/bin/env python3
+"""Small, offline document controls for rust-predev/2; Python stdlib only."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import sys
+import tempfile
+import unicodedata
+
+SCHEMA = "rust-predev/2"
+HEX = re.compile(r"[0-9a-f]{64}\Z")
+NATURES = {"requirement", "decision", "constraint", "exclusion", "invariant",
+           "use_case", "acceptance", "structural_assumption", "reversible_detail", "task"}
+RUBRICS = {
+    "DESIGN": {"scope", "use_cases", "errors", "domain", "dependencies", "persistence",
+               "concurrency", "platform", "acceptance", "risks", "railguard"},
+    "PLANS": {"coverage", "dependencies", "preflight", "verification", "authorization", "railguard", "handoff"},
+}
+
+
+class ControlError(ValueError):
+    pass
+
+
+def require(condition, message):
+    if not condition:
+        raise ControlError(message)
+
+
+def canonical(value):
+    return (json.dumps(value, ensure_ascii=False, sort_keys=True,
+                       separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+
+
+def _pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, "duplicate JSON key: " + key)
+        result[key] = value
+    return result
+
+
+def read_json(path):
+    try:
+        return json.loads(Path(path).read_bytes().decode("utf-8"), object_pairs_hook=_pairs,
+                          parse_constant=lambda s: (_ for _ in ()).throw(ControlError("invalid JSON number: " + s)))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ControlError(f"cannot read JSON {path}: {exc}") from exc
+
+
+def normalized_path(value):
+    require(isinstance(value, str) and value, "file path must be a nonempty string")
+    value = unicodedata.normalize("NFC", value.replace("\\", "/"))
+    require(not value.startswith("/") and ":" not in value,
+            "absolute or drive-qualified path forbidden: " + value)
+    require(all(part not in ("", ".", "..") for part in value.split("/")),
+            "empty, dot or parent path segment forbidden: " + value)
+    require(not any(ord(char) < 32 for char in value), "control character in path")
+    return value
+
+
+def resolved_path(root, value):
+    rel = normalized_path(value)
+    base = Path(root).resolve()
+    target = (base / rel).resolve()
+    require(target.is_relative_to(base), "path escapes root: " + rel)
+    return target
+
+
+def rooted(root, value):
+    target = resolved_path(root, value)
+    require(target.is_file(), "file missing: " + value)
+    return target
+
+
+def unique_paths(values, canonical_input=False):
+    require(isinstance(values, list), "paths must be a JSON array")
+    result, seen = [], set()
+    for value in values:
+        path = normalized_path(value)
+        require(not canonical_input or path == value, "path is not slash/NFC canonical: " + str(value))
+        require(path.casefold() not in seen, "duplicate or casefold-colliding path: " + path)
+        seen.add(path.casefold())
+        result.append(path)
+    return sorted(result)
+
+
+def file_hash(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def payload_digest(payload):
+    return hashlib.sha256(canonical(payload)).hexdigest()
+
+
+def identifier(value, label):
+    require(isinstance(value, str) and bool(value.strip()), label + " must be a nonempty ID")
+    return value
+
+
+def create_manifest(root, scope, candidate_id, files, design_candidate_id=None):
+    require(scope in ("DESIGN", "PLANS"), "invalid manifest scope")
+    identifier(candidate_id, "candidate_id")
+    require((scope == "PLANS") == (design_candidate_id is not None),
+            "only PLANS requires design_candidate_id")
+    if design_candidate_id is not None:
+        identifier(design_candidate_id, "design_candidate_id")
+        require(candidate_id != design_candidate_id, "DESIGN and PLANS candidate IDs must differ")
+    paths = unique_paths(files)
+    require(paths, "manifest corpus must not be empty")
+    payload = {"schema": SCHEMA, "scope": scope, "candidate_id": candidate_id,
+               "files": [{"path": path, "sha256": file_hash(rooted(root, path))} for path in paths]}
+    if design_candidate_id is not None:
+        payload["design_candidate_id"] = design_candidate_id
+    return dict(payload, digest=payload_digest(payload))
+
+
+def verify_manifest(root, manifest, check_corpus=True):
+    path = Path(manifest)
+    value = read_json(path)
+    require(isinstance(value, dict), "manifest must be an object")
+    require(path.read_bytes() == canonical(value), "manifest bytes are not canonical UTF-8 JSON with final LF")
+    scope = value.get("scope")
+    require(scope in ("DESIGN", "PLANS"), "invalid manifest scope")
+    expected = {"schema", "scope", "candidate_id", "files", "digest"}
+    if scope == "PLANS":
+        expected.add("design_candidate_id")
+    require(set(value) == expected, "manifest keys or scope/parent mismatch")
+    require(value["schema"] == SCHEMA, "unsupported manifest schema")
+    identifier(value["candidate_id"], "candidate_id")
+    if scope == "PLANS":
+        identifier(value["design_candidate_id"], "design_candidate_id")
+        require(value["candidate_id"] != value["design_candidate_id"], "candidate IDs must differ")
+    require(isinstance(value["files"], list) and value["files"], "manifest corpus must not be empty")
+    for entry in value["files"]:
+        require(isinstance(entry, dict) and set(entry) == {"path", "sha256"}, "invalid manifest file entry")
+        require(isinstance(entry["sha256"], str) and HEX.fullmatch(entry["sha256"]), "invalid SHA256")
+    paths = [entry["path"] for entry in value["files"]]
+    require(paths == unique_paths(paths, canonical_input=True), "manifest files are not sorted by codepoint")
+    digest = value["digest"]
+    require(isinstance(digest, str) and HEX.fullmatch(digest), "invalid manifest digest")
+    payload = {key: val for key, val in value.items() if key != "digest"}
+    require(digest == payload_digest(payload), "manifest payload digest mismatch")
+    if check_corpus:
+        for entry in value["files"]:
+            require(file_hash(rooted(root, entry["path"])) == entry["sha256"],
+                    "corpus changed: " + entry["path"])
+    return value
+
+
+def proof(root, value, label):
+    require(isinstance(value, dict) and set(value) == {"path", "sha256"}, label + " must be {path,sha256}")
+    path = normalized_path(value["path"])
+    require(path == value["path"], label + " path must be canonical")
+    require(isinstance(value["sha256"], str) and HEX.fullmatch(value["sha256"]), label + " invalid SHA256")
+    require(file_hash(rooted(root, path)) == value["sha256"], label + " missing or stale proof: " + path)
+
+
+def proofs(root, values, label, nonempty=False):
+    require(isinstance(values, list) and (values or not nonempty), label + " must be an array" + (" with evidence" if nonempty else ""))
+    for value in values:
+        proof(root, value, label)
+
+
+def index(values, label, all_ids):
+    require(isinstance(values, list), label + " must be an array")
+    result = {}
+    for value in values:
+        require(isinstance(value, dict), label + " entry must be an object")
+        key = identifier(value.get("id"), label + ".id")
+        require(key not in all_ids, "duplicate ID: " + key)
+        all_ids.add(key)
+        result[key] = value
+    return result
+
+
+def refs(values, known, label):
+    require(isinstance(values, list), label + " must be an ID array")
+    require(all(isinstance(value, str) for value in values), label + " must contain strings")
+    require(len(values) == len(set(values)), label + " contains duplicates")
+    for value in values:
+        require(isinstance(value, str) and value in known, label + " unknown reference: " + str(value))
+
+
+def check_state(root, state, lot_id=None):
+    """Validate references/integrity and declared gates; never infer human truth."""
+    s = read_json(state) if not isinstance(state, dict) else state
+    require(isinstance(s, dict) and s.get("schema") == SCHEMA, "unsupported state schema")
+    require(isinstance(s.get("perimeter"), dict), "perimeter missing")
+    version = s["perimeter"].get("version")
+    require(type(version) is int and version > 0, "perimeter.version must be positive integer")
+    all_ids = set()
+    authorities = index(s.get("authorities"), "authorities", all_ids)
+    elements = index(s.get("elements"), "elements", all_ids)
+    questions = index(s.get("questions"), "questions", all_ids)
+    findings = index(s.get("findings"), "findings", all_ids)
+    gates = index(s.get("gates"), "gates", all_ids)
+    lots = index(s.get("lots"), "lots", all_ids)
+    candidates = s.get("candidates")
+    require(isinstance(candidates, dict) and "DESIGN" in candidates and set(candidates) <= {"DESIGN", "PLANS"}, "candidates must contain DESIGN and optional PLANS")
+    manifests, review_indexes, rubric_indexes, observed_drift = {}, {}, {}, {}
+    for scope, candidate in candidates.items():
+        require(isinstance(candidate, dict), "candidate must be object")
+        key = identifier(candidate.get("id"), scope + ".id")
+        require(key not in all_ids, "duplicate ID: " + key)
+        all_ids.add(key)
+        require(candidate.get("status") in ("DRAFT", "READY", "BLOCKED", "STALE"), "invalid candidate status")
+        require(candidate.get("perimeter_version") == version, "candidate perimeter version mismatch")
+        require(candidate.get("author") in authorities, "candidate author authority missing")
+        refs(candidate.get("contributors"), authorities, "candidate.contributors")
+        require(candidate["author"] in candidate["contributors"], "contributors must include author and all correctors")
+        manifest_path = normalized_path(candidate.get("manifest"))
+        require(manifest_path == candidate["manifest"], "candidate manifest path not canonical")
+        m = verify_manifest(root, rooted(root, manifest_path), check_corpus=candidate["status"] != "STALE")
+        if candidate["status"] == "STALE":
+            stale = candidate.get("staleness")
+            require(isinstance(stale, dict), "STALE requires staleness declaration")
+            identifier(stale.get("reason"), "staleness.reason")
+            proofs(root, stale.get("evidence"), "staleness.evidence", nonempty=True)
+            observed_drift[scope] = [entry["path"] for entry in m["files"]
+                                     if not resolved_path(root, entry["path"]).is_file()
+                                     or file_hash(rooted(root, entry["path"])) != entry["sha256"]]
+        require(m["scope"] == scope and m["candidate_id"] == key, "candidate manifest scope/ID mismatch")
+        if scope == "PLANS":
+            parent = candidates["DESIGN"].get("id")
+            require(candidate.get("design_candidate_id") == parent == m.get("design_candidate_id"), "PLANS parent DESIGN mismatch")
+        else:
+            require("design_candidate_id" not in candidate, "DESIGN candidate cannot have parent")
+        manifests[scope] = m
+    if "PLANS" in candidates:
+        parent_path = candidates["DESIGN"]["manifest"]
+        require(any(entry["path"] == parent_path for entry in manifests["PLANS"]["files"]),
+                "PLANS corpus must include parent DESIGN manifest")
+    for scope, candidate in candidates.items():
+        review_indexes[scope] = index(candidate.get("reviews"), "candidate.reviews", all_ids)
+    for key, gate in gates.items():
+        rubric_indexes[key] = index(gate.get("rubrics"), "gate.rubrics", all_ids)
+    for auth in authorities.values():
+        require(auth.get("role") in ("user", "product", "technical", "governance", "author", "reviewer", "implementer", "coordinator"), "invalid authority role")
+        identifier(auth.get("actor"), "authority.actor")
+        proofs(root, auth.get("sources"), "authority.sources", nonempty=True)
+        refs(auth.get("independent_from", []), authorities, "authority.independent_from")
+        if auth.get("independent_from"):
+            proof(root, auth.get("independence_source"), "authority.independence_source")
+        if auth["role"] in ("product", "technical", "governance", "implementer"):
+            require(authorities.get(auth.get("delegated_by"), {}).get("role") == "user", "delegated authority requires user delegated_by")
+            proof(root, auth.get("delegation_source"), "authority.delegation_source")
+            scope = auth.get("scope")
+            require(isinstance(scope, dict) and scope.get("version") == version, "delegated authority scope version mismatch")
+            refs(scope.get("natures", []), NATURES, "authority.scope.natures")
+            if auth["role"] in ("governance", "implementer"):
+                require(scope.get("paths", []) == unique_paths(scope.get("paths", []), canonical_input=True), "authority.scope.paths must be canonical/sorted")
+                refs(scope.get("lot_ids", []), lots, "authority.scope.lot_ids")
+    def can_approve(authority_id, nature):
+        authority = authorities.get(authority_id, {})
+        role = authority.get("role")
+        if role == "user":
+            return True
+        if nature in ("requirement", "use_case", "acceptance", "exclusion", "structural_assumption") and role != "product":
+            return False
+        return role in ("product", "technical", "governance") and nature in authority.get("scope", {}).get("natures", [])
+    for element in elements.values():
+        nature = element.get("nature")
+        require(nature in NATURES, "invalid element nature")
+        require(element.get("approval") in ("proposed", "accepted", "validated", "rejected", "superseded"), "invalid element approval")
+        require(element["approval"] != "validated" or nature == "structural_assumption", "validated is only for structural assumptions")
+        require(element.get("owner") in authorities, "element owner authority missing")
+        require(type(element.get("version")) is int and 0 < element["version"] <= version, "invalid element version")
+        require(element["approval"] in ("rejected", "superseded") or element["version"] == version, "stale element version: " + element["id"])
+        refs(element.get("refs"), all_ids, "element.refs")
+        refs(element.get("replaces", []), elements, "element.replaces")
+        refs(element.get("acceptance_ids", []), elements, "element.acceptance_ids")
+        require(element["id"] not in element.get("replaces", []), "element cannot replace itself")
+        if nature == "decision":
+            require(not any(elements[key]["nature"] == "invariant" for key in element.get("replaces", [])), "decision cannot override invariant")
+        if "source_authority" in element:
+            require(element["source_authority"] in authorities, "element source_authority unknown")
+        if nature == "invariant":
+            require(can_approve(element.get("source_authority"), nature), "invariant requires sourced framing authority")
+            require(authorities[element["source_authority"]]["role"] in ("user", "governance", "product"), "invariant framing must derive from user")
+        proofs(root, element.get("evidence", []), "element.evidence")
+        if element["approval"] in ("accepted", "validated"):
+            require(can_approve(element.get("approval_by"), nature), "element approval_by lacks scoped authority")
+        if nature == "structural_assumption" and element["approval"] == "validated":
+            proofs(root, element.get("evidence"), "structural assumption validation", nonempty=True)
+    for question in questions.values():
+        require(question.get("classification") in ("blocking", "structural", "reversible_detail"), "invalid question classification")
+        require(question.get("status") in ("open", "answered"), "invalid question status")
+        require(question.get("owner") in authorities, "question owner authority missing")
+        identifier(question.get("deadline"), "question.deadline")
+        refs(question.get("impacted_lots"), lots, "question.impacted_lots")
+        refs(question.get("refs"), all_ids, "question.refs")
+        proofs(root, question.get("evidence", []), "question.evidence", nonempty=question["status"] == "answered")
+    for finding in findings.values():
+        scope = finding.get("scope")
+        require(scope in candidates and finding.get("candidate_id") == candidates[scope]["id"], "finding candidate/scope mismatch")
+        if scope == "PLANS":
+            require(finding.get("design_candidate_id") == candidates[scope]["design_candidate_id"], "finding parent DESIGN mismatch")
+        else:
+            require("design_candidate_id" not in finding, "DESIGN finding cannot carry PLANS parent")
+        require(finding.get("kind") in ("required", "suggestion"), "invalid finding kind")
+        require(finding.get("severity") in ("Critical", "High", "Medium", "Low"), "finding severity missing/invalid")
+        require(finding.get("disposition", "ACTION_REQUIRED") in ("ACTION_REQUIRED", "DISPUTED", "RISK_ACCEPTED"), "invalid finding disposition")
+        require(finding.get("status") in ("open", "closed"), "invalid finding status")
+        require(finding.get("author") == candidates[scope]["author"], "finding author mismatch")
+        require(authorities.get(finding.get("reviewer"), {}).get("role") == "reviewer", "finding reviewer authority missing")
+        require(finding["reviewer"] not in candidates[scope]["contributors"], "finding reviewer cannot be a contributor")
+        require(set(candidates[scope]["contributors"]) <= set(authorities[finding["reviewer"]].get("independent_from", [])), "finding reviewer lacks independence from contributors")
+        refs(finding.get("refs"), all_ids, "finding.refs")
+        if finding["status"] == "closed":
+            closer = authorities.get(finding.get("closed_by"), {})
+            require(closer.get("role") == "reviewer" and finding["closed_by"] not in candidates[scope]["contributors"]
+                    and set(candidates[scope]["contributors"]) <= set(closer.get("independent_from", [])), "finding closure must be confirmed by an independent reviewer")
+            if finding["closed_by"] != finding["reviewer"]:
+                proof(root, finding.get("replacement_source"), "finding.replacement_source")
+            proofs(root, finding.get("closure_evidence"), "finding.closure_evidence", nonempty=True)
+            if finding.get("disposition") == "RISK_ACCEPTED":
+                require(finding.get("risk_nature") in NATURES and can_approve(finding.get("confirmed_by"), finding["risk_nature"]), "risk acceptance requires competent scoped authority")
+                require(not any(elements[key]["nature"] == "invariant" for key in finding["refs"] if key in elements), "risk acceptance cannot override invariant")
+                proof(root, finding.get("confirmation_source"), "finding.confirmation_source")
+    for gate in gates.values():
+        require(gate.get("scope") in candidates, "gate scope missing")
+        rubrics = rubric_indexes[gate["id"]]
+        require(rubrics, "gate requires rubrics")
+        for rubric in rubrics.values():
+            require(rubric.get("key") in RUBRICS[gate["scope"]], "unknown canonical rubric key")
+            require(rubric.get("applicability") in ("applicable", "not_applicable"), "invalid rubric applicability")
+            require(rubric.get("status") in ("PASS", "GAP"), "invalid rubric status")
+            proofs(root, rubric.get("evidence"), "rubric.evidence", nonempty=True)
+            if rubric["applicability"] == "not_applicable":
+                identifier(rubric.get("reason"), "not_applicable.reason")
+                require(rubric["key"] not in ("scope", "railguard"), "scope/railguard rubrics must always apply")
+                require(gate["scope"] != "PLANS", "all PLANS rubrics must apply")
+    for lot in lots.values():
+        require(lot.get("status", "planned") in ("planned", "completed"), "invalid lot status")
+        if lot.get("status") == "completed":
+            proofs(root, lot.get("completion_evidence"), "lot.completion_evidence", nonempty=True)
+        for field in ("needs", "covers", "verifies"):
+            refs(lot.get(field), elements, "lot." + field)
+        refs(lot.get("prerequisites"), lots, "lot.prerequisites")
+        kinds = lot.get("dependency_kinds", {})
+        require(isinstance(kinds, dict) and set(kinds) == set(lot["prerequisites"]), "dependency_kinds must map every prerequisite")
+        for dependency in kinds.values():
+            require(isinstance(dependency, dict) and dependency.get("kind") in ("DOCUMENT", "CODE", "EXECUTION"), "invalid dependency kind")
+            proofs(root, dependency.get("evidence", []), "dependency evidence")
+            if not dependency.get("evidence"):
+                identifier(dependency.get("expected"), "planned dependency.expected")
+            if dependency["kind"] == "CODE":
+                proofs(root, dependency.get("outputs", []), "CODE dependency outputs/API")
+        refs(lot.get("tasks"), elements, "lot.tasks")
+        refs(lot.get("requires_details", []), set(elements) | set(questions), "lot.requires_details")
+        require(lot.get("paths") == unique_paths(lot.get("paths"), canonical_input=True), "lot paths must be canonical/sorted")
+        for task in lot["tasks"]:
+            require(elements[task]["nature"] == "task", "lot.tasks must reference tasks")
+            require(elements[task]["approval"] not in ("rejected", "superseded") and elements[task]["version"] == version, "lot.tasks cannot execute historical task")
+        for need in lot["needs"]:
+            require(elements[need]["nature"] in ("requirement", "decision", "constraint", "invariant", "use_case", "acceptance", "structural_assumption") and elements[need]["approval"] in ("accepted", "validated"), "lot need must be accepted/validated")
+        for covered in lot["covers"]:
+            require(elements[covered]["nature"] == "requirement" and elements[covered]["approval"] == "accepted", "covers must reference accepted requirements")
+        for verified in lot["verifies"]:
+            element = elements[verified]
+            require(element["approval"] == "accepted" and element["nature"] in ("requirement", "acceptance"), "verifies must reference accepted AC or mapped REQ")
+            if element["nature"] == "requirement":
+                require(element.get("acceptance_ids"), "verified REQ requires explicit acceptance_ids")
+        for element in elements.values():
+            for ac in element.get("acceptance_ids", []):
+                require(elements[ac]["nature"] == "acceptance" and elements[ac]["approval"] == "accepted", "acceptance_ids must map accepted AC")
+    visiting, visited = set(), set()
+    def visit(key):
+        require(key not in visiting, "lot dependency cycle at " + key)
+        if key in visited:
+            return
+        visiting.add(key)
+        for dependency in lots[key]["prerequisites"]:
+            visit(dependency)
+        visiting.remove(key)
+        visited.add(key)
+    for key in lots:
+        visit(key)
+    for scope, candidate in candidates.items():
+        records = review_indexes[scope]
+        for review in records.values():
+            require(review.get("scope") == scope and review.get("candidate_id") == candidate["id"], "review scope/candidate mismatch")
+            if scope == "PLANS":
+                require(review.get("design_candidate_id") == candidate["design_candidate_id"], "review parent DESIGN mismatch")
+            else:
+                require("design_candidate_id" not in review, "DESIGN review has PLANS parent")
+            require(review.get("verdict") in ("CLEAN", "FINDINGS"), "review verdict invalid")
+            reviewer = authorities.get(review.get("reviewer"), {})
+            require(reviewer.get("role") == "reviewer" and review.get("reviewer") != candidate["author"], "reviewer must be a different reviewer authority")
+            require(review["reviewer"] not in candidate["contributors"], "reviewer cannot be a contributor")
+            require(set(candidate["contributors"]) <= set(reviewer.get("independent_from", [])), "reviewer requires sourced independence from contributors")
+            require(review.get("manifest_digest") == manifests[scope]["digest"], "stale review manifest digest")
+            proofs(root, review.get("evidence"), "review.evidence", nonempty=True)
+        if candidate["status"] == "READY":
+            require(records and all(r["verdict"] == "CLEAN" for r in records.values()), scope + " READY requires current CLEAN reviews")
+            require(any(g["scope"] == scope for g in gates.values()), scope + " READY requires a gate")
+            keys = [r["key"] for g in gates.values() if g["scope"] == scope for r in g["rubrics"]]
+            require(len(keys) == len(set(keys)) and set(keys) == RUBRICS[scope], scope + " READY requires exact canonical rubric inventory")
+            require(all(r["status"] == "PASS" for g in gates.values() if g["scope"] == scope for r in g["rubrics"]), scope + " READY gate contains GAP")
+            require(not any(f["scope"] == scope and f["kind"] == "required" and f["status"] != "closed" for f in findings.values()), scope + " READY has open required finding")
+    if candidates["DESIGN"]["status"] == "READY":
+        require(not any(e["nature"] == "structural_assumption" and e["approval"] not in ("validated", "rejected", "superseded") for e in elements.values()), "DESIGN READY has unvalidated structural assumption")
+        require(not any(q["status"] == "open" and q["classification"] in ("blocking", "structural") for q in questions.values()), "DESIGN READY has blocking/structural question")
+    if "PLANS" in candidates and candidates["PLANS"]["status"] == "READY":
+        require(candidates["DESIGN"]["status"] == "READY", "PLANS READY requires DESIGN READY")
+        for element in elements.values():
+            if element["nature"] == "requirement" and element["approval"] == "accepted":
+                require(any(element["id"] in lot["covers"] for lot in lots.values()), "accepted requirement uncovered: " + element["id"])
+                verified = any(element["id"] in lot["verifies"] or any(
+                    elements[ac]["nature"] == "acceptance" and element["id"] in elements[ac]["refs"]
+                    for ac in lot["verifies"]) for lot in lots.values())
+                require(verified, "accepted requirement without verification: " + element["id"])
+            if element["nature"] == "task" and element["approval"] not in ("rejected", "superseded"):
+                owners = [lot for lot in lots.values() if element["id"] in lot["tasks"]]
+                require(len(owners) == 1, "task must belong to one lot: " + element["id"])
+                lot = owners[0]
+                need_link = bool(set(element["refs"]) & set(lot["needs"]))
+                prior_link = bool(set(element["refs"]) & set(lot["prerequisites"])) and bool(element.get("justification", "").strip())
+                require(need_link or prior_link, "task without need or justified prerequisite: " + element["id"])
+    checkpoint = s.get("checkpoint")
+    require(isinstance(checkpoint, dict), "checkpoint missing")
+    require(checkpoint.get("phase") in ("DESIGN", "PLANS", "IMPLEMENTATION"), "invalid checkpoint phase")
+    require(checkpoint.get("next_actor") in authorities, "checkpoint next_actor authority missing")
+    refs(checkpoint.get("pending_tasks"), elements, "checkpoint.pending_tasks")
+    require(all(elements[key]["nature"] == "task" for key in checkpoint["pending_tasks"]), "checkpoint pending_tasks must be tasks")
+    require(all(elements[key]["approval"] not in ("rejected", "superseded") and elements[key]["version"] == version for key in checkpoint["pending_tasks"]), "checkpoint cannot execute historical task")
+    if "raw_contributions" in checkpoint:
+        proofs(root, checkpoint["raw_contributions"], "checkpoint.raw_contributions")
+        paths = [entry["path"] for entry in checkpoint["raw_contributions"]]
+        require(paths == unique_paths(paths, canonical_input=True), "checkpoint.raw_contributions must be unique and sorted")
+        require(all(re.fullmatch(r"transports/[^/]+/transport-manifest\.json", path) for path in paths),
+                "checkpoint.raw_contributions must cite transport manifests")
+    if checkpoint["phase"] in ("PLANS", "IMPLEMENTATION"):
+        require(candidates["DESIGN"]["status"] == "READY", "checkpoint phase requires DESIGN READY")
+    if checkpoint["phase"] == "IMPLEMENTATION":
+        require(candidates.get("PLANS", {}).get("status") == "READY", "implementation checkpoint requires PLANS READY")
+    if lot_id is not None:
+        require(checkpoint["phase"] == "IMPLEMENTATION", "lot preflight requires implementation checkpoint")
+        require(lot_id in lots, "unknown lot: " + lot_id)
+        check_lot(root, lots[lot_id], lots, elements, questions, authorities, manifests["DESIGN"])
+    return {"ok": True, "schema": SCHEMA, "phase": checkpoint["phase"], "lot": lot_id,
+            "candidate_digests": {scope: m["digest"] for scope, m in manifests.items()}, "observed_drift": observed_drift}
+
+
+def check_details(lot, elements, questions):
+    for key in lot.get("requires_details", []):
+        if key in questions:
+            require(questions[key]["status"] == "answered", "lot requires unresolved detail: " + key)
+        else:
+            require(elements[key]["approval"] in ("accepted", "validated"), "lot requires unapproved detail: " + key)
+
+
+def check_lot(root, lot, lots, elements, questions, authorities, design_manifest):
+    check_details(lot, elements, questions)
+    for key in lot["prerequisites"]:
+        dependency = lot["dependency_kinds"][key]
+        proofs(root, dependency.get("evidence"), "available dependency evidence", nonempty=True)
+        if dependency["kind"] == "CODE":
+            proofs(root, dependency.get("outputs"), "available CODE outputs/API", nonempty=True)
+        if dependency["kind"] == "EXECUTION":
+            require(lots[key].get("status") == "completed", "EXECUTION prerequisite not completed: " + key)
+    pre = lot.get("preconditions")
+    require(isinstance(pre, dict), "lot preconditions missing")
+    guard = pre.get("railguard")
+    require(isinstance(guard, dict) and guard.get("activation") == "active", "lot requires active railguard")
+    proof(root, guard.get("ref"), "railguard.ref")
+    proofs(root, guard.get("hashes"), "railguard.hashes", nonempty=guard["activation"] == "active")
+    auth = pre.get("authorization")
+    require(isinstance(auth, dict), "scoped authorization missing")
+    granting = authorities.get(auth.get("authority"), {})
+    require(granting.get("role") in ("user", "governance", "implementer"), "scoped authorization authority missing")
+    require(auth.get("lot_id") == lot["id"], "authorization lot mismatch")
+    proof(root, auth.get("source"), "authorization.source")
+    allowed = unique_paths(auth.get("paths"), canonical_input=True)
+    require(set(lot["paths"]) <= set(allowed), "lot paths exceed authorization")
+    if granting["role"] != "user":
+        require(lot["id"] in granting["scope"].get("lot_ids", []) and set(allowed) <= set(granting["scope"].get("paths", [])), "authorization exceeds delegated lot/path scope")
+    drift = pre.get("drift")
+    require(isinstance(drift, dict) and drift.get("classification") in ("none", "expected_previous_lots"), "preflight drift classification missing")
+    refs(drift.get("previous_lots"), lots, "drift.previous_lots")
+    require(set(drift["previous_lots"]) <= set(lot["prerequisites"]), "drift references non-prerequisite lots")
+    if drift["classification"] == "none":
+        require(not drift["previous_lots"], "none drift cannot name previous lots")
+    else:
+        require(drift["previous_lots"], "expected drift requires previous lots")
+    proofs(root, drift.get("evidence"), "drift.evidence", nonempty=True)
+    proofs(root, pre.get("repository_evidence", []), "repository preconditions evidence")
+    check_ledger(root, lot, lots, pre.get("code_state"), design_manifest)
+
+
+def check_ledger(root, lot, lots, state, design_manifest):
+    """Compare scoped raw current bytes against declared baseline + completed outputs."""
+    require(isinstance(state, dict), "lot code_state baseline/current/ledger missing")
+    current = state.get("current")
+    proofs(root, current, "code_state.current")
+    require([p["path"] for p in current] == unique_paths([p["path"] for p in current], canonical_input=True), "code current paths must be sorted/unique")
+    baseline = state.get("baseline")
+    ledger = state.get("ledger")
+    require(isinstance(baseline, list) and isinstance(ledger, list), "code baseline/ledger must be arrays")
+    expected = {}
+    bound_snapshots = {entry["path"]: entry["sha256"] for entry in design_manifest["files"]}
+    for entry in baseline:
+        require(isinstance(entry, dict), "invalid code baseline")
+        path = normalized_path(entry.get("path"))
+        require(path == entry["path"] and path not in expected, "duplicate/noncanonical baseline path")
+        proof(root, entry.get("snapshot"), "code baseline.snapshot")
+        require(bound_snapshots.get(entry["snapshot"]["path"]) == entry["snapshot"]["sha256"], "D0 snapshot must be bound to DESIGN manifest")
+        require(entry.get("sha256") == entry["snapshot"]["sha256"], "baseline bytes must equal snapshot bytes")
+        identifier(entry.get("revision"), "baseline.revision")
+        require(isinstance(entry.get("dirty_hash"), str) and HEX.fullmatch(entry["dirty_hash"]), "baseline dirty_hash missing/invalid")
+        expected[path] = entry["sha256"]
+    ancestors = set()
+    def collect(key):
+        for parent in lots[key]["prerequisites"]:
+            if parent not in ancestors:
+                ancestors.add(parent)
+                collect(parent)
+    collect(lot["id"])
+    prior_seen, last_producer = set(), {}
+    for entry in ledger:
+        require(isinstance(entry, dict), "invalid ledger entry")
+        producer = entry.get("lot_id")
+        require(producer in ancestors and lots[producer].get("status") == "completed", "ledger output must belong to completed ancestor lot")
+        path = normalized_path(entry.get("path"))
+        require(path == entry["path"] and path in lots[producer]["paths"], "ledger output outside producer scope")
+        require((producer, path) not in prior_seen, "duplicate ledger output")
+        prior_seen.add((producer, path))
+        if path in last_producer:
+            earlier = last_producer[path]
+            producer_ancestors = set()
+            def previous(key):
+                for parent in lots[key]["prerequisites"]:
+                    if parent not in producer_ancestors:
+                        producer_ancestors.add(parent)
+                        previous(parent)
+            previous(producer)
+            require(earlier in producer_ancestors, "ledger overlapping outputs must follow dependency order")
+        last_producer[path] = producer
+        require(isinstance(entry.get("sha256"), str) and HEX.fullmatch(entry["sha256"]), "ledger SHA256 invalid")
+        proofs(root, entry.get("evidence"), "ledger.evidence", nonempty=True)
+        expected[path] = entry["sha256"]
+    require(set(expected) == {p["path"] for p in current}, "code current inventory differs from baseline/ledger")
+    for entry in current:
+        require(entry["sha256"] == expected[entry["path"]], "unexpected current code drift: " + entry["path"])
+
+
+def promote_checkpoint(root, pending, current):
+    # Validate exactly the bytes being promoted before touching an existing checkpoint.
+    pending_bytes = Path(pending).read_bytes()
+    value = read_json(pending)
+    check_state(root, value)
+    require(Path(pending).read_bytes() == pending_bytes, "pending checkpoint changed during validation")
+    target = Path(current).resolve()
+    base = Path(root).resolve()
+    require(target.is_relative_to(base), "current checkpoint must stay within root")
+    protected = set()
+    def protect_refs(obj):
+        if isinstance(obj, dict):
+            if set(obj) == {"path", "sha256"}:
+                protected.add(rooted(root, obj["path"]))
+            for child in obj.values():
+                protect_refs(child)
+        elif isinstance(obj, list):
+            for child in obj:
+                protect_refs(child)
+    protect_refs(value)
+    for candidate in value["candidates"].values():
+        manifest_path = rooted(root, candidate["manifest"])
+        protected.add(manifest_path)
+        for entry in verify_manifest(root, manifest_path, check_corpus=candidate["status"] != "STALE")["files"]:
+            protected.add(resolved_path(root, entry["path"]))
+    require(target not in protected, "current checkpoint would overwrite corpus/manifest/evidence")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=".predev-", suffix=".json", dir=target.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(canonical(value))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp, target)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+    return {"ok": True, "current": str(target)}
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    create = sub.add_parser("create-manifest")
+    create.add_argument("--root", required=True)
+    create.add_argument("--scope", choices=("DESIGN", "PLANS"), required=True)
+    create.add_argument("--candidate-id", required=True)
+    create.add_argument("--design-candidate-id")
+    create.add_argument("--files-list", required=True, help="path to a JSON array of relative paths")
+    create.add_argument("--output", required=True)
+    verify = sub.add_parser("verify-manifest")
+    verify.add_argument("--root", required=True)
+    verify.add_argument("--manifest", required=True)
+    check = sub.add_parser("check-state")
+    check.add_argument("--root", required=True)
+    check.add_argument("--state", required=True)
+    check.add_argument("--lot")
+    promote = sub.add_parser("promote-checkpoint")
+    promote.add_argument("--root", required=True)
+    promote.add_argument("--pending", required=True)
+    promote.add_argument("--current", required=True)
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "create-manifest":
+            value = create_manifest(args.root, args.scope, args.candidate_id, read_json(args.files_list), args.design_candidate_id)
+            target = Path(args.output).resolve()
+            require(target.is_relative_to(Path(args.root).resolve()), "manifest output must stay within root")
+            require(target not in [rooted(args.root, entry["path"]) for entry in value["files"]], "manifest output cannot overwrite corpus file")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(canonical(value))
+            result = {"ok": True, "digest": value["digest"], "output": str(target)}
+        elif args.command == "verify-manifest":
+            value = verify_manifest(args.root, args.manifest)
+            result = {"ok": True, "scope": value["scope"], "candidate_id": value["candidate_id"], "digest": value["digest"]}
+        elif args.command == "check-state":
+            result = check_state(args.root, args.state, args.lot)
+        else:
+            result = promote_checkpoint(args.root, args.pending, args.current)
+        sys.stdout.buffer.write(canonical(result))
+        return 0
+    except (ControlError, OSError, TypeError, KeyError) as exc:
+        sys.stderr.write("predev-control: " + str(exc) + "\n")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

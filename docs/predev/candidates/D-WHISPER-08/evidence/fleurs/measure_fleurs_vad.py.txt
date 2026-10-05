@@ -1,0 +1,70 @@
+from pathlib import Path
+from array import array
+import hashlib,json,math,random,statistics,subprocess,sys
+import webrtcvad
+
+root=Path(__file__).parent/'fleurs-small'
+metadata=json.loads((root/'sample-metadata.json').read_text(encoding='utf-8'))
+rate=16000;frame=320;pad_frames=50
+rows=[]
+def decode(path):
+ data=subprocess.check_output(['ffmpeg','-v','error','-i',str(path),'-ar','16000','-ac','1',
+                               '-f','s16le','-acodec','pcm_s16le','pipe:1'])
+ values=array('h');values.frombytes(data)
+ return values
+def detector(values,mode):
+ vad=webrtcvad.Vad(mode)
+ return [bool(vad.is_speech(values[i:i+frame].tobytes(),rate))
+         for i in range(0,len(values)-frame+1,frame)]
+def clipped(v):return max(-32768,min(32767,round(v)))
+for meta in metadata['records']:
+ source=decode(root/meta['file'])
+ assert len(source)>0
+ speech_frames=len(source)//frame
+ source=array('h',source[:speech_frames*frame])
+ rng=random.Random(20261005+meta['id'])
+ noise=array('h',(clipped(rng.gauss(0,32767*10**(-30/20))) for _ in range(len(source))))
+ conditions={'clean':source,
+             'attenuated_12db':array('h',(clipped(x*10**(-12/20)) for x in source)),
+             'white_noise_30dbfs':array('h',(clipped(x+y) for x,y in zip(source,noise)))}
+ for condition,signal in conditions.items():
+  padded=array('h',[0]*(pad_frames*frame));padded.extend(signal);padded.extend([0]*(pad_frames*frame))
+  for mode in range(4):
+   flags=detector(padded,mode)
+   assert len(flags)==speech_frames+2*pad_frames
+   rows.append({'language':meta['language'],'id':meta['id'],'row_idx':meta['validation_row_idx'],
+                'gender_code':meta['gender_code'],'condition':condition,'mode':mode,
+                'speech_block_ms':speech_frames*20,
+                'speech_flagged_ms':sum(flags[pad_frames:pad_frames+speech_frames])*20,
+                'leading_silence_flagged_ms':sum(flags[:pad_frames])*20,
+                'trailing_silence_flagged_ms':sum(flags[pad_frames+speech_frames:])*20})
+
+controls=[]
+for kind in ('digital_silence','white_noise_30dbfs'):
+ rng=random.Random(20261005)
+ signal=array('h',[0]*rate*5) if kind=='digital_silence' else array('h',(
+   clipped(rng.gauss(0,32767*10**(-30/20))) for _ in range(rate*5)))
+ for mode in range(4):
+  flags=detector(signal,mode)
+  controls.append({'kind':kind,'mode':mode,'duration_ms':len(flags)*20,'flagged_ms':sum(flags)*20})
+
+summary=[]
+for lang in ('fr_fr','en_us'):
+ for condition in ('clean','attenuated_12db','white_noise_30dbfs'):
+  for mode in range(4):
+   subset=[x for x in rows if x['language']==lang and x['condition']==condition and x['mode']==mode]
+   ratios=[x['speech_flagged_ms']/x['speech_block_ms'] for x in subset]
+   summary.append({'language':lang,'condition':condition,'mode':mode,'clips':len(subset),
+                   'block_coverage_median':round(statistics.median(ratios),4),
+                   'block_coverage_min':round(min(ratios),4),
+                   'block_coverage_max':round(max(ratios),4),
+                   'block_coverage_pooled':round(sum(x['speech_flagged_ms'] for x in subset)/sum(x['speech_block_ms'] for x in subset),4),
+                   'trailing_silence_flagged_median_ms':statistics.median(x['trailing_silence_flagged_ms'] for x in subset)})
+report={'schema':'whisper-fleurs-vad/1','source_metadata_sha256':hashlib.sha256((root/'sample-metadata.json').read_bytes()).hexdigest(),
+        'method':'24 FLEURS validation clips, 12 each fr_fr/en_us (first 6 per gender code from first 100 rows), 16k mono PCM16 decoded from source float WAV; 20ms WebRTC VAD frames; modes 0-3; clean, -12dB and additive synthetic white noise -30dBFS with fixed seeds; one second digital silence each side. Whole clip is an approximate speech block, not human time-aligned labels. Median is clip-level.',
+        'rows':rows,'controls':controls,'summary':summary}
+(root/'vad-fleurs-results.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print('clips',len(metadata['records']),'rows',len(rows))
+for item in summary:
+ if item['mode'] in (1,2):print(item)
+print('controls',controls)

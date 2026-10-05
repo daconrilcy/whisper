@@ -1,0 +1,24 @@
+$ErrorActionPreference = 'Stop'
+$root = Join-Path $env:TEMP 'whisper-spikes'
+$manifest = Get-Content -LiteralPath (Join-Path $root 'cuda-redist-12.8.0.json') -Raw | ConvertFrom-Json
+$names = @('cuda_nvcc','cuda_cudart','libcublas','cuda_nvrtc','cuda_cccl','cuda_profiler_api','cuda_nvtx')
+$archives = Join-Path $root 'cuda-archives'
+$parts = Join-Path $root 'cuda-parts'
+New-Item -ItemType Directory -Path $archives,$parts -Force | Out-Null
+foreach ($name in $names) {
+    $entry = $manifest.$name.'windows-x86_64'
+    if (-not $entry) { throw "missing component $name" }
+    $url = 'https://developer.download.nvidia.com/compute/cuda/redist/' + $entry.relative_path
+    $zip = Join-Path $archives ([IO.Path]::GetFileName($entry.relative_path))
+    if (-not (Test-Path -LiteralPath $zip)) {
+        & curl.exe -L --fail --retry 2 --silent --show-error --output $zip $url
+        if ($LASTEXITCODE -ne 0) { throw "download failed $name" }
+    }
+    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+    if ($actual -ne $entry.sha256) { throw "hash mismatch $name" }
+    $dest = Join-Path $parts $name
+    if (-not (Test-Path -LiteralPath $dest)) {
+        Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
+    }
+    Write-Output "$name $actual $dest"
+}

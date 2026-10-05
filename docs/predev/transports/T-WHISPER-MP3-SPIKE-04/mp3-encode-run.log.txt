@@ -1,0 +1,1 @@
+rate=16000 channels=1 pcm_samples=233472 packets=407 bytes=117216
