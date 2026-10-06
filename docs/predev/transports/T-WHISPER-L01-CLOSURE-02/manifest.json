@@ -1,0 +1,81 @@
+{
+  "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+  "files": [
+    {
+      "path": "00_SUMMARY.md",
+      "sha256": "a64ed1dafdeee347d1b2b648b8448356fe844e1de6dbd18732200513e41b1078",
+      "size": 1808
+    },
+    {
+      "path": "memory-adapter.jsonl",
+      "sha256": "e024bbfa95b7ecf9296fd6c2eecacb6b2839792271a221e6692bb4c414749b3d",
+      "size": 8492
+    },
+    {
+      "path": "memory-long-adapter.jsonl",
+      "sha256": "d1c87f04ecc9fed640ced7abe96c3cf2800ddd1d1c583e69e3f5726d11b85402",
+      "size": 16605
+    },
+    {
+      "path": "memory-long-analysis.json",
+      "sha256": "d463c29d14ea96664b28208286f7880499b03aa9d1677856aefee806dd19d30d",
+      "size": 4665
+    },
+    {
+      "path": "memory-long-process-samples.jsonl",
+      "sha256": "109268ba97829479df7e0051ed75932052088ff181011c0bebe0eaa0df9101b2",
+      "size": 24799
+    },
+    {
+      "path": "memory-long-worker.jsonl",
+      "sha256": "e7ba9b64f08006a10e60a0e65fb2decb5bc300e9f77a2c9d71e0999e82ef76b8",
+      "size": 297578
+    },
+    {
+      "path": "memory-observation.csv",
+      "sha256": "719acfb987c56de10a327541173704b070a7e81f5d43d3e1b0e2c7a051c06b14",
+      "size": 8592
+    },
+    {
+      "path": "memory-process-samples.jsonl",
+      "sha256": "316f473c2f59d9a086944a51e144150e7868545f9c48de02ae8f735a6334c513",
+      "size": 212213
+    },
+    {
+      "path": "memory-stage-analysis.json",
+      "sha256": "30625e0c2dbe95b846f200e71a9327225219bc644378e71ec2ddda189efb2211",
+      "size": 5759
+    },
+    {
+      "path": "memory-worker.jsonl",
+      "sha256": "baa902aa80b36cd958f48a0734977a7301650cb084900c17a4631d41810a63ed",
+      "size": 105326
+    },
+    {
+      "path": "review.md",
+      "sha256": "ca46eb0fe83059aaddc0a6da443c62c3653538997b1f8d82c51f37436e4af840",
+      "size": 1344
+    },
+    {
+      "path": "ui-cancel.png",
+      "sha256": "df61f5ac1b387bf75bf34b8f7932238e63601b59ade3762dbc09eb3a5f8533c2",
+      "size": 36717
+    },
+    {
+      "path": "ui-error.png",
+      "sha256": "4c38edae0006c4a9403f92f8c0eb62a926baf159d58a1422a63acde5dad974fe",
+      "size": 47346
+    },
+    {
+      "path": "ui-memory-observation.csv",
+      "sha256": "efb3eadb763bed095c22e8d9a4497aee2d8e4e2f938ebc44ae1cb2fbcf9405bf",
+      "size": 5217
+    },
+    {
+      "path": "validation.md",
+      "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692",
+      "size": 4873
+    }
+  ],
+  "schema": "whisper-l01-closure-evidence/1"
+}

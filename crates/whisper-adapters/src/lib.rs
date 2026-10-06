@@ -1,4 +1,6 @@
+pub mod archive;
 pub mod decoder;
+pub mod worker_ipc;
 
 /// Transport boundary supplied by the composition root in a later lot.
 pub trait WorkerTransport {

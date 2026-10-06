@@ -7,8 +7,13 @@ pub mod ports;
 
 pub use application::{
     AppCommand, AppFacade, AppView, Application, ApplicationError, CommandIdentity,
+    ImportApplication,
 };
-pub use domain::{Generation, JobConfig, JobId, JobState, SegmentId, SourceRange, TransitionError};
+pub use domain::{
+    ComputeChoice, Generation, JobConfig, JobId, JobState, LanguageChoice, SegmentId, SourceRange,
+    TransitionError,
+};
 pub use ports::{
-    Clock, DecodeRequest, DecodedPcmBlock, DecoderPort, JobRepository, SourceIdentity, WorkerPort,
+    ArchiveHistoryItem, Clock, DecodeRequest, DecodedPcmBlock, DecoderPort, ImportEffect,
+    ImportEvent, ImportIoPort, ImportRequest, JobRepository, SourceIdentity, WorkerPort,
 };

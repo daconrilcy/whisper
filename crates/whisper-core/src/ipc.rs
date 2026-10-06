@@ -2,7 +2,7 @@ use crate::domain::{Generation, JobConfig, JobId, SegmentId, SourceRange};
 use crate::ports::{DecodeRequest, DecodedPcmBlock, PortError, WorkerSegment};
 use serde::{Deserialize, Serialize};
 
-pub const IPC_PROTOCOL_VERSION: u16 = 1;
+pub const IPC_PROTOCOL_VERSION: u16 = 2;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IpcEnvelope<T> {
@@ -25,6 +25,17 @@ impl<T> IpcEnvelope<T> {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum WorkerCommand {
+    StartImport {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        source_path: String,
+        source_sha256: [u8; 32],
+        expected_source_samples: u64,
+        model_path: String,
+        model_sha256: [u8; 32],
+        config: JobConfig,
+    },
     CreateState {
         model_path: String,
         config: JobConfig,
@@ -49,6 +60,9 @@ pub enum WorkerCommand {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum WorkerEvent {
     Ready {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
         backend: BackendKind,
     },
     Segment(WorkerSegmentDto),
@@ -59,8 +73,26 @@ pub enum WorkerEvent {
     Stopped {
         job_id: JobId,
         generation: Generation,
+        instance_id: u64,
+    },
+    Progress {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        completed_samples: u64,
+        total_samples: u64,
+    },
+    End {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        last_sequence: u64,
+        last_offset: u64,
     },
     Failed {
+        job_id: Option<JobId>,
+        generation: Option<Generation>,
+        instance_id: Option<u64>,
         code: WorkerErrorCode,
         message: String,
     },
@@ -75,9 +107,19 @@ pub enum BackendKind {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum WorkerErrorCode {
     UnsupportedProtocol,
+    ProtocolMismatch,
     InvalidRequest,
     ModelUnavailable,
+    ModelHashMismatch,
+    SourceMissing,
+    SourceChanged,
+    UnsupportedLanguage,
+    UnsupportedFormat,
     BackendUnavailable,
+    BackendMismatch,
+    StorageUnavailable,
+    WorkerExited,
+    Saturated,
     DecodeFailed,
     StaleResponse,
     InferenceFailed,
@@ -89,6 +131,7 @@ pub enum WorkerErrorCode {
 pub struct WorkerSegmentDto {
     pub job_id: JobId,
     pub generation: Generation,
+    pub instance_id: u64,
     pub segment_id: SegmentId,
     pub range: SourceRange,
     pub text: String,
@@ -99,6 +142,7 @@ impl From<WorkerSegment> for WorkerSegmentDto {
         Self {
             job_id: value.job_id,
             generation: value.generation,
+            instance_id: value.instance_id,
             segment_id: value.segment_id,
             range: value.range,
             text: value.text,
@@ -112,6 +156,7 @@ impl From<PortError> for WorkerErrorCode {
             PortError::Unavailable => Self::BackendUnavailable,
             PortError::InvalidInput => Self::InvalidRequest,
             PortError::StaleResponse => Self::StaleResponse,
+            PortError::Committing => Self::Internal,
             PortError::Failed(_) => Self::Internal,
         }
     }
@@ -127,7 +172,7 @@ mod tests {
         assert!(envelope.is_supported());
         assert!(
             !IpcEnvelope {
-                version: IPC_PROTOCOL_VERSION + 1,
+                version: 1,
                 message: WorkerCommand::Shutdown
             }
             .is_supported()

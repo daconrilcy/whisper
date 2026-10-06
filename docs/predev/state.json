@@ -352,6 +352,69 @@
           "sha256": "88b5fa0843e320a0f411ddfd143265b83653bcea56850200fc6ff45f6945c419"
         }
       ]
+    },
+    {
+      "actor": "/root/l01_r7_correction",
+      "delegated_by": "AUTH-USER",
+      "delegation_source": {
+        "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/user-authorization-21-paths.md",
+        "sha256": "1521a7eed34d07ba3d0812da074759fb0145540540e1d7e05ef6ca0900599f66"
+      },
+      "id": "AUTH-IMPLEMENTER-L01",
+      "role": "implementer",
+      "scope": {
+        "lot_ids": [
+          "L-WHISPER-01"
+        ],
+        "paths": [
+          "Cargo.lock",
+          "crates/whisper-adapters/Cargo.toml",
+          "crates/whisper-adapters/src/archive.rs",
+          "crates/whisper-adapters/src/decoder.rs",
+          "crates/whisper-adapters/src/lib.rs",
+          "crates/whisper-adapters/src/worker_ipc.rs",
+          "crates/whisper-adapters/tests/import_cpu.rs",
+          "crates/whisper-core/src/application.rs",
+          "crates/whisper-core/src/ipc.rs",
+          "crates/whisper-core/src/lib.rs",
+          "crates/whisper-core/src/ports.rs",
+          "crates/whisper-core/tests/import_contract.rs",
+          "crates/whisper-desktop/Cargo.toml",
+          "crates/whisper-desktop/src/main.rs",
+          "crates/whisper-desktop/src/root.rs",
+          "crates/whisper-desktop/src/ui.rs",
+          "crates/whisper-worker-cpu/Cargo.toml",
+          "crates/whisper-worker-cpu/src/decoder.rs",
+          "crates/whisper-worker-cpu/src/ipc.rs",
+          "crates/whisper-worker-cpu/src/main.rs",
+          "crates/whisper-worker-cpu/src/native_engine.rs"
+        ],
+        "version": 2
+      },
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/user-authorization-21-paths.md",
+          "sha256": "1521a7eed34d07ba3d0812da074759fb0145540540e1d7e05ef6ca0900599f66"
+        }
+      ]
+    },
+    {
+      "actor": "/root/l01_review",
+      "id": "AUTH-REVIEWER-L01",
+      "independence_source": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/review.md",
+        "sha256": "ca46eb0fe83059aaddc0a6da443c62c3653538997b1f8d82c51f37436e4af840"
+      },
+      "independent_from": [
+        "AUTH-IMPLEMENTER-L01"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-L01-CLOSURE-02/review.md",
+          "sha256": "ca46eb0fe83059aaddc0a6da443c62c3653538997b1f8d82c51f37436e4af840"
+        }
+      ]
     }
   ],
   "authorization": {
@@ -475,7 +538,8 @@
     },
     "next_actor": "AUTH-COORD",
     "pending_tasks": [
-      "TASK-P01"
+      "TASK-P02",
+      "TASK-P02-MP3"
     ],
     "phase": "IMPLEMENTATION",
     "raw_contributions": [
@@ -2720,6 +2784,12 @@
       "verifies": []
     },
     {
+      "completion_evidence": [
+        {
+          "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+          "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+        }
+      ],
       "covers": [
         "REQ-03",
         "REQ-06",
@@ -3009,7 +3079,7 @@
         "Q-05",
         "Q-L01-BOUNDS-01"
       ],
-      "status": "planned",
+      "status": "completed",
       "tasks": [
         "TASK-P01"
       ],
@@ -3034,7 +3104,12 @@
       ],
       "dependency_kinds": {
         "L-WHISPER-01": {
-          "evidence": [],
+          "evidence": [
+            {
+              "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+              "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+            }
+          ],
           "expected": "Sorties et preuve du lot fournisseur après code ; NOT RUN.",
           "kind": "EXECUTION"
         }
