@@ -1,6 +1,7 @@
 use crate::domain::{Generation, JobConfig, JobId, JobState};
 use crate::ports::{
-    ArchiveHistoryItem, ImportEffect, ImportEvent, ImportIoPort, ImportRequest, PortError,
+    ArchiveHistoryItem, ImportEffect, ImportEvent, ImportIoPort, ImportQueueEntry, ImportRequest,
+    PortError,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -14,6 +15,16 @@ pub enum AppCommand {
     Refresh,
     StartImport {
         request: ImportRequest,
+    },
+    EnqueueImport {
+        request: ImportRequest,
+    },
+    ProcessQueued {
+        request: ImportRequest,
+    },
+    RemoveQueued {
+        job_id: JobId,
+        generation: Generation,
     },
     StartLive {
         job_id: JobId,
@@ -45,9 +56,19 @@ impl AppCommand {
                 job_id: *job_id,
                 generation: *generation,
             }),
-            Self::StartImport { request } => Some(CommandIdentity {
+            Self::StartImport { request } | Self::EnqueueImport { request } => {
+                Some(CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                })
+            }
+            Self::ProcessQueued { request } => Some(CommandIdentity {
                 job_id: request.job_id,
                 generation: request.generation,
+            }),
+            Self::RemoveQueued { job_id, generation } => Some(CommandIdentity {
+                job_id: *job_id,
+                generation: *generation,
             }),
             Self::ScanHistory { .. } => None,
         }
@@ -66,9 +87,10 @@ pub struct AppView {
     pub progress: Option<(u64, u64)>,
     pub last_result: Option<String>,
     pub history: Vec<ArchiveHistoryItem>,
+    pub queue: Vec<ImportQueueEntry>,
 }
 
-/// Owns admission and lifecycle for the first WAV import. Adapters only execute effects.
+/// Owns queue admission and import lifecycle. Adapters only execute effects.
 pub struct ImportApplication<P> {
     io: P,
     view: AppView,
@@ -107,9 +129,17 @@ impl<P: ImportIoPort> ImportApplication<P> {
         let Some(event) = self.io.poll().map_err(|e| self.fail(e))? else {
             return Ok(());
         };
-        if let ImportEvent::History(history) = event {
-            self.view.history = history;
-            return Ok(());
+        match &event {
+            ImportEvent::History(history) => {
+                self.view.history = history.clone();
+                return Ok(());
+            }
+            ImportEvent::Queue(queue) => {
+                self.view.queued_jobs = queue.len();
+                self.view.queue = queue.clone();
+                return Ok(());
+            }
+            _ => {}
         }
         let (job_id, generation) = event.identity();
         let identity = CommandIdentity { job_id, generation };
@@ -123,8 +153,9 @@ impl<P: ImportIoPort> ImportApplication<P> {
         }
         match event {
             ImportEvent::History(_) => {
-                unreachable!("history events are handled before job admission")
+                unreachable!("non-lifecycle events are handled before job admission")
             }
+            ImportEvent::Queue(_) => unreachable!("queue events are handled before job admission"),
             ImportEvent::Prepared(request) => {
                 if request.source_sha256.is_none()
                     || request.source_samples.is_none_or(|samples| samples == 0)
@@ -144,6 +175,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 self.io
                     .submit(ImportEffect::StartWorker(request))
                     .map_err(|e| self.fail(e))?;
+                self.view.active_job = Some((job_id, JobState::Preparing));
                 self.view.message = Some("Source vérifiée ; démarrage du moteur CPU…".into());
             }
             ImportEvent::Ready { backend, .. } => {
@@ -280,7 +312,30 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
             AppCommand::Refresh => self.poll_once()?,
             AppCommand::ScanHistory { destination } => {
                 self.io
-                    .submit(ImportEffect::ScanHistory { destination })
+                    .submit(ImportEffect::ScanHistory {
+                        destination: destination.clone(),
+                    })
+                    .map_err(|e| self.fail(e))?;
+                self.io
+                    .submit(ImportEffect::ScanQueue { destination })
+                    .map_err(|e| self.fail(e))?;
+            }
+            AppCommand::RemoveQueued { job_id, generation } => {
+                self.io
+                    .submit(ImportEffect::RemoveQueued {
+                        job_id,
+                        generation,
+                        destination: self
+                            .view
+                            .queue
+                            .iter()
+                            .find(|item| {
+                                item.request.job_id == job_id
+                                    && item.request.generation == generation
+                            })
+                            .map(|item| item.request.destination.clone())
+                            .ok_or(ApplicationError::InvalidCommand)?,
+                    })
                     .map_err(|e| self.fail(e))?;
             }
             AppCommand::StartImport { request } => {
@@ -291,11 +346,10 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     job_id: request.job_id,
                     generation: request.generation,
                 };
-                let snapshot = request.clone();
                 self.io
-                    .submit(ImportEffect::Prepare(request))
+                    .submit(ImportEffect::Prepare(request.clone()))
                     .map_err(|e| self.fail(e))?;
-                self.request = Some(snapshot);
+                self.request = Some(request);
                 self.active = Some(identity);
                 self.stopping = None;
                 self.next_sequence = 1;
@@ -306,6 +360,37 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.progress = None;
                 self.view.active_job = Some((identity.job_id, JobState::Preparing));
                 self.view.message = Some("Vérification de la source et du modèle…".into());
+            }
+            AppCommand::EnqueueImport { request } => {
+                self.io
+                    .submit(ImportEffect::Enqueue(request))
+                    .map_err(|e| self.fail(e))?;
+                self.view.message = Some(
+                    "Import ajouté à la file durable. Choisissez Traiter pour le démarrer.".into(),
+                );
+            }
+            AppCommand::ProcessQueued { request } => {
+                if self.active.is_some() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let identity = CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                };
+                self.io
+                    .submit(ImportEffect::ProcessQueued(request.clone()))
+                    .map_err(|e| self.fail(e))?;
+                self.request = Some(request);
+                self.active = Some(identity);
+                self.stopping = None;
+                self.next_sequence = 1;
+                self.pending_persistence = 0;
+                self.ended_at = None;
+                self.max_segment_offset = 0;
+                self.final_source_samples = None;
+                self.view.progress = None;
+                self.view.active_job = Some((identity.job_id, JobState::Queued));
+                self.view.message = Some("Vérification du choix explicite et préparation…".into());
             }
             AppCommand::Stop { job_id, generation } => {
                 if self.active != Some(CommandIdentity { job_id, generation }) {
@@ -363,7 +448,7 @@ impl ImportEvent {
             }
             | Self::Stopped { job_id, generation } => (*job_id, *generation),
             Self::Prepared(request) => (request.job_id, request.generation),
-            Self::History(_) => (JobId(0), Generation::first()),
+            Self::History(_) | Self::Queue(_) => (JobId(0), Generation::first()),
             Self::Segment(segment) => (segment.job_id, segment.generation),
         }
     }
@@ -440,6 +525,32 @@ mod tests {
         };
         let commands = [
             AppCommand::StartImport {
+                request: ImportRequest {
+                    job_id,
+                    generation,
+                    source_path: "source.wav".into(),
+                    source_sha256: None,
+                    source_samples: None,
+                    model_path: "model.bin".into(),
+                    model_sha256: [0; 32],
+                    destination: "archive".into(),
+                    config: config.clone(),
+                },
+            },
+            AppCommand::ProcessQueued {
+                request: ImportRequest {
+                    job_id,
+                    generation,
+                    source_path: "source.wav".into(),
+                    source_sha256: None,
+                    source_samples: None,
+                    model_path: "model.bin".into(),
+                    model_sha256: [0; 32],
+                    destination: "archive".into(),
+                    config: config.clone(),
+                },
+            },
+            AppCommand::EnqueueImport {
                 request: ImportRequest {
                     job_id,
                     generation,

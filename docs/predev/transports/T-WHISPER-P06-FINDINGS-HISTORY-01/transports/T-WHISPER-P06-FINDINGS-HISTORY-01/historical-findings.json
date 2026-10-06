@@ -1,0 +1,151 @@
+{
+  "schema": "rust-predev-historical-findings/1",
+  "source_state_sha256": "6b3b7d8fe2b8aaf14a2abb5cca32bf20e99fd1d243c4263a14d22a9cb81dbf6b",
+  "note": "P06 PLANS findings archived when current active PLANS binding moves to P09. Original reviewer evidence remains referenced by each entry.",
+  "findings": [
+    {
+      "author": "AUTH-AUTHOR",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
+      "closure_evidence": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+        },
+        {
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+        }
+      ],
+      "design_candidate_id": "D-WHISPER-19",
+      "disposition": "ACTION_REQUIRED",
+      "id": "WHISPER-PLANS-004",
+      "kind": "required",
+      "refs": [],
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
+      "scope": "PLANS",
+      "severity": "High",
+      "status": "closed"
+    },
+    {
+      "author": "AUTH-AUTHOR",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
+      "closure_evidence": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+        },
+        {
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+        }
+      ],
+      "design_candidate_id": "D-WHISPER-19",
+      "disposition": "ACTION_REQUIRED",
+      "id": "WHISPER-PLANS-005",
+      "kind": "required",
+      "refs": [],
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
+      "scope": "PLANS",
+      "severity": "High",
+      "status": "closed"
+    },
+    {
+      "author": "AUTH-AUTHOR",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
+      "closure_evidence": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+        },
+        {
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+        }
+      ],
+      "design_candidate_id": "D-WHISPER-19",
+      "disposition": "ACTION_REQUIRED",
+      "id": "WHISPER-PLANS-006",
+      "kind": "required",
+      "refs": [],
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
+      "scope": "PLANS",
+      "severity": "High",
+      "status": "closed"
+    },
+    {
+      "author": "AUTH-AUTHOR",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
+      "closure_evidence": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+        },
+        {
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+        }
+      ],
+      "design_candidate_id": "D-WHISPER-19",
+      "disposition": "ACTION_REQUIRED",
+      "id": "WHISPER-PLANS-007",
+      "kind": "required",
+      "refs": [],
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
+      "scope": "PLANS",
+      "severity": "Medium",
+      "status": "closed"
+    },
+    {
+      "author": "AUTH-AUTHOR",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
+      "closure_evidence": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+        },
+        {
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+        }
+      ],
+      "design_candidate_id": "D-WHISPER-19",
+      "disposition": "ACTION_REQUIRED",
+      "id": "WHISPER-PLANS-008",
+      "kind": "required",
+      "refs": [],
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
+      "scope": "PLANS",
+      "severity": "Medium",
+      "status": "closed"
+    },
+    {
+      "author": "AUTH-AUTHOR",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
+      "closure_evidence": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+        },
+        {
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+        }
+      ],
+      "design_candidate_id": "D-WHISPER-19",
+      "disposition": "ACTION_REQUIRED",
+      "id": "WHISPER-PLANS-009",
+      "kind": "required",
+      "refs": [],
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
+      "scope": "PLANS",
+      "severity": "Low",
+      "status": "closed"
+    }
+  ]
+}

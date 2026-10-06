@@ -67,7 +67,7 @@ impl<A: Application> DesktopApp<A> {
             compute: ComputeChoice::Cpu,
         };
         self.active_identity = Some((job_id, generation));
-        self.dispatch(AppCommand::StartImport {
+        self.dispatch(AppCommand::EnqueueImport {
             request: ImportRequest {
                 job_id,
                 generation,
@@ -102,6 +102,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             matches!(
                 state,
                 JobState::Preparing
+                    | JobState::Queued
                     | JobState::Running
                     | JobState::Cancelling
                     | JobState::Finalizing
@@ -111,11 +112,11 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             self.active_identity = None;
         }
         ui.heading("Whisper — transcription locale");
-        ui.label("Import WAV sur le worker CPU avec le modèle D19 approuvé.");
+        ui.label("Import WAV ou MP3 sur le worker CPU avec le modèle D19 approuvé.");
 
         ui.add_enabled_ui(!busy, |ui| {
             ui.horizontal(|ui| {
-                ui.label("Fichier WAV");
+                ui.label("Fichier audio (WAV ou MP3)");
                 ui.text_edit_singleline(&mut self.source_path);
             });
             ui.horizontal(|ui| {
@@ -177,6 +178,37 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         }
         if let Some(result) = &self.view.last_result {
             ui.colored_label(egui::Color32::LIGHT_GREEN, result);
+        }
+
+        ui.separator();
+        ui.heading(format!(
+            "File d’import — {} élément(s)",
+            self.view.queue.len()
+        ));
+        let queued = self.view.queue.clone();
+        for entry in queued {
+            ui.horizontal(|ui| {
+                ui.label(format!(
+                    "{:?} — {}",
+                    entry.status, entry.request.source_path
+                ));
+                if matches!(
+                    entry.status,
+                    whisper_core::ports::ImportQueueStatus::Queued
+                        | whisper_core::ports::ImportQueueStatus::AwaitingChoice
+                ) && ui.button("Traiter").clicked()
+                {
+                    self.dispatch(AppCommand::ProcessQueued {
+                        request: entry.request.clone(),
+                    });
+                }
+                if ui.button("Retirer").clicked() {
+                    self.dispatch(AppCommand::RemoveQueued {
+                        job_id: entry.request.job_id,
+                        generation: entry.request.generation,
+                    });
+                }
+            });
         }
 
         if self.scanned_destination.as_deref() != Some(self.destination.trim())

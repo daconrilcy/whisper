@@ -1,0 +1,100 @@
+# Preuves d'exécution Rust
+
+Ce format commun relie l'implémentation, les commandes, les sorties, la revue et la validation à un seul candidat. Le contrôleur vérifie les hashes et références; il ne peut pas authentifier à lui seul une affirmation humaine contenue dans un rapport.
+
+## Matrice d'environnement
+
+Créer un JSON `rust-predev-build-env/1` avant le lot :
+
+```json
+{
+  "schema": "rust-predev-build-env/1",
+  "checks": [
+    {"id":"RUSTC","kind":"executable","name":"rustc","required":true,"version_pattern":"1\\.8[0-9]"},
+    {"id":"LIBCLANG","kind":"env","name":"LIBCLANG_PATH","path_type":"directory","required":true},
+    {"id":"CUDA","kind":"executable","name":"nvcc","required":true}
+  ]
+}
+```
+
+Les probes permises sont `executable` (liste bornée d'outils connus et leur option de version), `path` relatif à la racine de code, et `env` (présence; `path_type` facultatif pour confirmer une cible fichier/dossier). Le contrôleur n'exécute pas de commande arbitraire du JSON, ne lance pas Cargo build/test et ne retourne jamais les valeurs des variables d'environnement. `version_pattern` est une regex Python appliquée au texte du probe d'outil. Les statuts sont `READY`, `MISSING`, `NOT CHECKED` et `NOT REQUIRED`; toute dépendance obligatoire non `READY` bloque le lot.
+
+```powershell
+python scripts/predev_control.py check-build-environment --root REPO --matrix build-environment.json
+```
+
+## Paquet d'exécution
+
+Persister le paquet comme document immuable (typiquement via un TRANSPORT fondé sur le PLANS courant) sous la racine documentaire. Les chemins des preuves de logs, revue et validation sont relatifs à cette racine; ceux de `outputs` sont relatifs à la racine du dépôt.
+
+```json
+{
+  "schema":"rust-predev-execution/1",
+  "lot_id":"L-1",
+  "candidate_digests":{"DESIGN":"<sha256>","PLANS":"<sha256>"},
+  "candidate_fingerprint":"<sha256>",
+  "outputs":[{"path":"crates/app/src/main.rs","sha256":"<sha256>"}],
+  "artifacts":[{"path":"target/release/app.exe","sha256":"<sha256>"}],
+  "environment_matrix":{"schema":"rust-predev-build-env/1","checks":[{"id":"CARGO","kind":"executable","name":"cargo","required":true}]},
+  "environment_result":{"ok":true,"schema":"rust-predev-build-env/1","status":"PASS","root":"<resolved code root>","checks":[{"id":"CARGO","kind":"executable","required":true,"status":"READY","name":"cargo","path":"<resolved cargo executable>","version_line":"cargo 1.8x.x","probe_exit":0}]},
+  "commands":[{
+    "id":"BUILD-CPU","argv":["cargo","build","--locked","--release"],
+    "cwd":"<repository root>","target":"x86_64-pc-windows-msvc","features":[],
+    "required":true,"status":"PASS","exit_code":0,
+    "candidate_fingerprint":"<sha256>","log":{"path":"transports/E-1/build.log","sha256":"<sha256>"}
+  }],
+  "review":{"authority":"REVIEWER","verdict":"CLEAN","candidate_fingerprint":"<sha256>","evidence":{"path":"transports/R-1/report.md","sha256":"<sha256>"}},
+  "validation":{"status":"CHECKS_PASSED","candidate_fingerprint":"<sha256>","evidence":[{"path":"transports/V-1/report.md","sha256":"<sha256>"}]}
+}
+```
+
+`candidate_fingerprint` est `SHA-256` du JSON canonique de `outputs` (UTF-8, clés triées, séparateurs compacts, LF final), dont les entrées sont triées par chemin et limitées aux chemins du lot. `artifacts` contient les binaires/logs générés conservés sous la racine de code; leurs chemins et hashes sont vérifiés, mais ils ne sont pas ajoutés au ledger des sources autorisées. Le même fingerprint apparaît sur chaque commande exécutée, la revue et la validation. Chaque commande exécutée a un code retour cohérent avec PASS/FAIL et un log hashé. `NOT RUN` exige `exit_code:null` et `log:null`; une obligation de commande ne peut pas être NOT RUN pour fermer le lot. L'état doit déclarer l'autorité d'implémentation déléguée pour ce lot et ses chemins, puis un reviewer indépendant de cette autorité; sinon la clôture est refusée. La revue doit porter sur ce fingerprint et son rapport est hashé. La validation de clôture doit déclarer `CHECKS_PASSED` et référencer ses preuves. Les vérifications ou qualifications non affectées restent déclarées dans les rapports et ne sont pas implicitement PASS.
+
+## Préparer et promouvoir la clôture
+
+L'hôte autorisé génère un checkpoint pending, sans écraser l'état actuel :
+
+```powershell
+python scripts/predev_control.py prepare-lot-completion --root DOCS --code-root REPO --state DOCS/state.json --packet DOCS/transports/E-1/execution-evidence.json --pending DOCS/state.pending.json
+python scripts/predev_control.py check-state --root DOCS --code-root REPO --state DOCS/state.pending.json --lot NEXT-LOT
+python scripts/predev_control.py promote-checkpoint --root DOCS --code-root REPO --pending DOCS/state.pending.json --current DOCS/state.json
+python scripts/predev_control.py check-state --root DOCS --code-root REPO --state DOCS/state.json --lot NEXT-LOT
+```
+
+`prepare-lot-completion` exige que le paquet soit sous DOCS, vérifie son empreinte et ses preuves, marque le lot terminé dans le pending, lie le ledger de sortie et les preuves aux lots dépendants, puis contrôle l'état documentaire. Il refuse une sortie manquante, un candidat divergent, une review ou validation absente, ou un prérequis de code-state incohérent. `check-state --lot NEXT-LOT` peut encore échouer sur une autorisation, un détail ou un railguard à traiter : le lot précédent reste alors terminé, mais NEXT-LOT n'est pas transférable. La promotion est une étape distincte; le fichier `state.json` courant n'est jamais remplacé par la préparation.
+
+## Mesurer l'effet du workflow
+
+Persister un JSON `rust-predev-flow-metrics/1` après le gate suivant :
+
+```json
+{
+  "schema":"rust-predev-flow-metrics/1",
+  "lot_id":"L-1",
+  "baseline_status":"BASELINE NOT AVAILABLE",
+  "baseline_refs":[],
+  "timestamps":{
+    "handoff":"2026-10-05T10:00:00+02:00",
+    "first_edit":"2026-10-05T10:12:00+02:00",
+    "implementation_done":"2026-10-05T12:00:00+02:00",
+    "next_gate":"2026-10-05T12:18:00+02:00"
+  },
+  "counts":{
+    "human_round_trips":1,
+    "repeated_questions":0,
+    "late_environment_blockers":0,
+    "manual_state_reconciliations":0
+  },
+  "evidence_refs":[{"path":"transports/L-1/execution-evidence.json","sha256":"<sha256>"}]
+}
+```
+
+Définitions : un `human_round_trip` est une réponse utilisateur nécessaire après le handoff initial pour rendre le lot exécutable; `repeated_questions` recompte une question déjà répondue/persistée; `late_environment_blockers` compte les dépendances obligatoires découvertes après la première modification; `manual_state_reconciliations` compte les corrections manuelles des liens ledger/state/checkpoint ou toute vue temporaire ajoutée hors commandes documentées. Les durées sont calculées des timestamps (secondes). Comparer uniquement aux chats/ledgers antérieurs recomptables avec ces mêmes définitions; sinon garder `BASELINE NOT AVAILABLE`. Le contrôleur ne déduit pas une amélioration à partir de ces métriques.
+
+Valider les références, l'ordre des dates, les compteurs et obtenir les durées comparables :
+
+```powershell
+python scripts/predev_control.py check-flow-metrics --root DOCS --metrics DOCS/transports/L-1/flow-metrics.json
+```
+
+La commande produit les deux durées et les compteurs; l'analyse du gain reste une comparaison humaine des mesures liées à leurs sources.

@@ -1,5 +1,8 @@
 pub mod archive;
 pub mod decoder;
+pub mod journal;
+pub mod queue_store;
+pub mod recovery;
 pub mod worker_ipc;
 
 /// Transport boundary supplied by the composition root in a later lot.

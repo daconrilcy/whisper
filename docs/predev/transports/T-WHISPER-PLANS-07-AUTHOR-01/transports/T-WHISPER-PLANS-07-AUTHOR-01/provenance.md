@@ -1,0 +1,1 @@
+Coordinator transcription of final response from /root/plans_l02_scope, 2026-10-06. Platform did not provide raw export bytes; this is attributed, not byte-exact. Base P06 5759cb207f39fe62fee921321dd90275a67a8d687133cf6fd23afd6ac09e3a93; P07 d929d3b13efb4a213dfbfac3e0ae23415fb4433a8692a0fd37d968465a2f070d; D19 903926ba27c70fc3a0cc6954d9e50914a64993e40c339683e557bc4c604d7529.

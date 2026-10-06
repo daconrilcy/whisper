@@ -1,0 +1,7 @@
+Contribution PLANS-L02-P09-CORRECTIONS. Owner /root/plans_l02_scope, rust_plan_writer, lecture seule. Base P08 digest d79bec1ab10a13e37adee551fe05cf834e43447617abccebdef6ca1460346e6f; parent D19 digest 903926ba27c70fc3a0cc6954d9e50914a64993e40c339683e557bc4c604d7529; IDs L02/TASK-P02/TASK-P02-MP3.
+
+Recommandation de construction : inclure full corpus P07 (aucune inheritance implicite depuis receipt), corrections P08 et sources/preuves. Remplacer complètement 00 index et 02 preflight afin que seules identités/revue/gate P09 soient normatives. Inclure `build-environment-L01.json` exact SHA baf6c8a0afbcde35aaf9fae0266576b40ac3ab8941186e931ddc2bead1ea267d. Remplacer aussi source index pour documenter corpus, hashes, L01 evidence, règle de base et historique. Six chemins futurs restent absents.
+
+P09 doit nommer P08 comme base, D19 parent, exiger le verdict PLANS exact P09 et le preflight L02 sur 15 chemins. P06/P07/P08 demeurent antériorités. Autorisation user 15 chemins reste applicable après les gates. Aucun changement requirements/design, plafonds mémoire ou GPU. Les campagnes demeurent NOT RUN.
+
+Le coordinateur a matérialisé un P09 complet (95 fichiers texte proposés plus manifest parent), avec l’ensemble P07 puis P08, puis corrections P09. Cette capture de la contribution est une synthèse attribuée, non export byte-exact de la plateforme; le candidat exact fait foi pour review.

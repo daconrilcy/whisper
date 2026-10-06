@@ -61,8 +61,9 @@ pub fn decode_wav_windows(
 ) -> Result<(u64, u64), String> {
     let file = File::open(path).map_err(|e| format!("source open failed: {e}"))?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
-    let mut hint = Hint::new();
-    hint.with_extension("wav");
+    // Probe the file contents instead of trusting its extension. Q-07 admits WAV
+    // and MP3 profiles and explicitly rejects extension-only classification.
+    let hint = Hint::new();
     let probed = symphonia::default::get_probe()
         .format(
             &hint,
@@ -70,7 +71,7 @@ pub fn decode_wav_windows(
             &FormatOptions::default(),
             &MetadataOptions::default(),
         )
-        .map_err(|e| format!("UnsupportedFormat: WAV probe failed: {e}"))?;
+        .map_err(|e| format!("UnsupportedFormat: audio probe failed: {e}"))?;
     let mut format = probed.format;
     let track = format
         .default_track()
@@ -100,7 +101,7 @@ pub fn decode_wav_windows(
     );
     let mut decoder = symphonia::default::get_codecs()
         .make(&track.codec_params, &DecoderOptions::default())
-        .map_err(|e| format!("WAV decoder init failed: {e}"))?;
+        .map_err(|e| format!("audio decoder init failed: {e}"))?;
     let mut window = Vec::with_capacity(MAX_WINDOW_SAMPLES);
     let mut decoded_frames = 0_u64;
     let mut output_samples = 0_u64;
@@ -115,7 +116,7 @@ pub fn decode_wav_windows(
         let packet = match format.next_packet() {
             Ok(p) => p,
             Err(Error::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
-            Err(e) => return Err(format!("WAV packet read failed: {e}")),
+            Err(e) => return Err(format!("audio packet read failed: {e}")),
         };
         #[cfg(feature = "l01-memory-qualification")]
         {
@@ -135,7 +136,7 @@ pub fn decode_wav_windows(
         }
         let decoded = decoder
             .decode(&packet)
-            .map_err(|e| format!("WAV decode failed: {e}"))?;
+            .map_err(|e| format!("audio decode failed: {e}"))?;
         #[cfg(feature = "l01-memory-qualification")]
         let decoded_frame_capacity = decoded.capacity();
         #[cfg(feature = "l01-memory-qualification")]

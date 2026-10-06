@@ -327,6 +327,70 @@ impl ImportRuntime {
     }
     fn effect(&mut self, effect: ImportEffect, events: &mut VecDeque<ImportEvent>) {
         let result = match effect {
+            ImportEffect::Enqueue(request) => {
+                let id = (request.job_id, request.generation);
+                match crate::queue_store::QueueStore::open(&request.destination).and_then(
+                    |mut queue| {
+                        queue.enqueue(request)?;
+                        Ok(queue.entries())
+                    },
+                ) {
+                    Ok(queue) => {
+                        events.push_back(ImportEvent::Queue(queue));
+                        Ok(())
+                    }
+                    Err(error) => Err((id.0, id.1, error)),
+                }
+            }
+            ImportEffect::RemoveQueued {
+                job_id,
+                generation,
+                destination,
+            } => {
+                match crate::queue_store::QueueStore::open(&destination).and_then(|mut queue| {
+                    queue.remove(job_id, generation)?;
+                    Ok(queue.entries())
+                }) {
+                    Ok(queue) => {
+                        events.push_back(ImportEvent::Queue(queue));
+                        Ok(())
+                    }
+                    Err(error) => Err((job_id, generation, error)),
+                }
+            }
+            ImportEffect::ProcessQueued(request) => {
+                let id = (request.job_id, request.generation);
+                let result = crate::queue_store::QueueStore::open(&request.destination)
+                    .and_then(|mut queue| {
+                        let entries = queue.entries();
+                        let first = entries.first().map(|entry| (entry.request.job_id, entry.request.generation));
+                        let entry = entries.into_iter().find(|entry| {
+                            entry.request.job_id == id.0 && entry.request.generation == id.1
+                        }).ok_or_else(|| "InvalidInput: queue entry no longer exists".to_owned())?;
+                        if first != Some(id) {
+                            return Err("InvalidInput: process queued jobs in FIFO order".into());
+                        }
+                        if !matches!(entry.status, crate::queue_store::QueueStatus::Queued | crate::queue_store::QueueStatus::AwaitingChoice) {
+                            return Err("InvalidInput: interrupted jobs require an explicit verified resume".into());
+                        }
+                        queue.set_status(id.0, id.1, crate::queue_store::QueueStatus::Running)?;
+                        events.push_back(ImportEvent::Queue(queue.entries()));
+                        Ok(())
+                    });
+                match result {
+                    Ok(()) => self.prepare(request, events),
+                    Err(error) => Err((id.0, id.1, error)),
+                }
+            }
+            ImportEffect::ScanQueue { destination } => {
+                match crate::recovery::scan(Path::new(&destination)) {
+                    Ok(snapshot) => {
+                        events.push_back(ImportEvent::Queue(snapshot.queue));
+                        Ok(())
+                    }
+                    Err(error) => Err((JobId(0), Generation::first(), error)),
+                }
+            }
             ImportEffect::Prepare(request) => self.prepare(request, events),
             ImportEffect::StartWorker(request) => self.start_worker(request),
             ImportEffect::ScanHistory { destination } => {
@@ -483,6 +547,11 @@ impl ImportRuntime {
             .commit(|| self.archive.commit_publish(job, generation))
             .map_err(|e| (job, generation, e))?;
         let root = self.archive_root();
+        if let Ok(mut queue) = crate::queue_store::QueueStore::open(&root) {
+            if queue.remove(job, generation).is_ok() {
+                events.push_back(ImportEvent::Queue(queue.entries()));
+            }
+        }
         let first = ArchiveStore::scan(&root).map_err(|e| (job, generation, e))?;
         let second = ArchiveStore::scan(&root).map_err(|e| (job, generation, e))?;
         if first != second
@@ -763,8 +832,13 @@ impl ImportIoPort for AsyncImportIo {
                 }
             }
         } else {
-            if let ImportEffect::Prepare(request) = &effect {
-                let identity = (request.job_id, request.generation);
+            let active_identity = match &effect {
+                ImportEffect::Prepare(request) | ImportEffect::ProcessQueued(request) => {
+                    Some((request.job_id, request.generation))
+                }
+                _ => None,
+            };
+            if let Some(identity) = active_identity {
                 self.effects.try_send(effect).map_err(|e| match e {
                     TrySendError::Full(_) | TrySendError::Disconnected(_) => PortError::Unavailable,
                 })?;

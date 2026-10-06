@@ -1,0 +1,1 @@
+Capture attribuée au retour final de /root/review_p09, 2026-10-06. Le client ne fournit pas d’export octet par octet du message ; le texte est une synthèse fidèle attribuée. Le candidat revu est fixé par digest.

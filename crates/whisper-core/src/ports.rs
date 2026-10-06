@@ -92,8 +92,33 @@ pub struct ImportRequest {
     pub config: JobConfig,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ImportQueueStatus {
+    Queued,
+    AwaitingChoice,
+    Running,
+    Interrupted,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImportQueueEntry {
+    pub sequence: u64,
+    pub request: ImportRequest,
+    pub status: ImportQueueStatus,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEffect {
+    Enqueue(ImportRequest),
+    RemoveQueued {
+        job_id: JobId,
+        generation: Generation,
+        destination: String,
+    },
+    ProcessQueued(ImportRequest),
+    ScanQueue {
+        destination: String,
+    },
     Prepare(ImportRequest),
     StartWorker(ImportRequest),
     ScanHistory {
@@ -113,6 +138,7 @@ pub enum ImportEffect {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEvent {
+    Queue(Vec<ImportQueueEntry>),
     Prepared(ImportRequest),
     History(Vec<ArchiveHistoryItem>),
     Ready {

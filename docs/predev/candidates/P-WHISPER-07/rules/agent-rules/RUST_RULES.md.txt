@@ -1,0 +1,15 @@
+# Contrats de conception Rust
+
+Respecter ARCHITECTURE_CONSTITUTION.md : frontières obligatoires et choix physiques adaptables. Partir des exigences et du domaine avant les crates. L'architecte rend une matrice des dépendances et la méthode de contrôle (Cargo/features ou visibilité/imports/revue pour un crate unique).
+
+Chaque frontière pertinente décrit entrées/sorties, préconditions, invariants, erreurs, effets et propriétaire des états/données. Selon les risques réels : annulation et arrêt, appels bloquants, bornes/backpressure des files, Send/Sync, atomicité et migration, isolation FFI et justification/encapsulation de unsafe. Ne pas inventer runtime async, traits ou verrous sans besoin.
+
+Ne pas remplacer ces contrats par une liste de couches ou d'états. Quand interruption et reprise font partie du besoin, préciser les points de confirmation, la portée de l'atomicité, les effets durables, la réconciliation et le traitement des résultats rejoués ou obsolètes. Les contrôles futurs de dépendances sont nommés pour la disposition physique choisie.
+
+Pour une dépendance structurante, consigner version Rust/Cargo/édition et cible OS/architecture pertinentes, crate/version/features, dépendances natives, limites, source primaire et date de vérification. Examiner redistribution/packaging lorsque cela conditionne la livraison. Une option inconnue reste proposée et ne devient pas un prérequis établi de plan.
+
+Enregistrer chaque choix structurant comme décision ou hypothèse identifiée : options examinées, justification, statut, preuve et effet sur la livraison. Les noms de sites ou de bibliothèques seuls ne sont pas des sources vérifiées. Séparer explicitement un essai rapporté d'une autre pile, une vérification documentaire et un essai du candidat Rust.
+
+Une faisabilité critique non démontrable par documentation demande un SPIKE borné : hypothèse, environnement isolé, périmètre, acteur séparément autorisé, critère de succès, durée/coût, preuves et nettoyage limité. Les agents de cadrage n'implémentent pas le produit. Le risque bloque la conception ou le lot concerné jusqu'au résultat ; le besoin validé détermine si ce risque est structurant.
+
+Distinguer revue documentaire, preuve technique préalable et tests produit futurs. NOT RUN est exact pour les tests à exécuter après code, mais n'est pas une preuve d'une faisabilité structurante. Lire engineering-contract.md et le gate canonique dans handoff-contract.md pour ces distinctions.

@@ -1,0 +1,190 @@
+{
+  "sample_counts": {
+    "worker": 581,
+    "host": 735
+  },
+  "peak": {
+    "private_bytes": 2583625728,
+    "working_set_bytes": 2062041088,
+    "peak_working_set_bytes": 2065653760
+  },
+  "stages": [
+    {
+      "stage": "model_context.load.begin",
+      "elapsed_unix_us": 1791282687736500,
+      "nearest_sample_delta_ms": 0.021,
+      "private_bytes": 1638440960,
+      "working_set_bytes": 29966336,
+      "details": {
+        "model_context_native_bytes": "opaque; process counters characterize total",
+        "model_path_bytes": 1624555275
+      }
+    },
+    {
+      "stage": "native.context.create.complete",
+      "elapsed_unix_us": 1791282688821355,
+      "nearest_sample_delta_ms": 0.052,
+      "private_bytes": 1638440960,
+      "working_set_bytes": 1593745408,
+      "details": {
+        "elapsed_us": 1084180,
+        "initial_state_retained": false,
+        "model_path_bytes": 1624555275,
+        "native_context_allocation_bytes": "opaque; see process memory samples"
+      }
+    },
+    {
+      "stage": "model_context.load.complete",
+      "elapsed_unix_us": 1791282688821446,
+      "nearest_sample_delta_ms": 0.052,
+      "private_bytes": 1638440960,
+      "working_set_bytes": 1593745408,
+      "details": {
+        "model_path_bytes": 1624555275,
+        "native_context_and_initial_state_bytes": "opaque; included in worker process counters"
+      }
+    },
+    {
+      "stage": "codec.ready",
+      "elapsed_unix_us": 1791282688821612,
+      "nearest_sample_delta_ms": 0.053,
+      "private_bytes": 1638440960,
+      "working_set_bytes": 1593745408,
+      "details": {
+        "channels": 1,
+        "sample_rate_hz": 16000,
+        "wav_pcm_max_frames_per_packet": 1152,
+        "window_max_samples": 80000
+      }
+    },
+    {
+      "stage": "codec.sample_buffer.live",
+      "elapsed_unix_us": 1791282688821761,
+      "nearest_sample_delta_ms": 0.053,
+      "private_bytes": 1638440960,
+      "working_set_bytes": 1593745408,
+      "details": {
+        "channel_count": 1,
+        "decoded_frame_capacity": 1152,
+        "decoded_frames": 1152,
+        "packet_index": 1,
+        "packet_payload_bytes": 2304,
+        "sample_buffer_capacity_bytes": 4608,
+        "sample_buffer_capacity_samples": 1152,
+        "sample_buffer_initialized_samples": 1152
+      }
+    },
+    {
+      "stage": "pcm.window.callback.begin",
+      "elapsed_unix_us": 1791282688830113,
+      "nearest_sample_delta_ms": 0.061,
+      "private_bytes": 1638440960,
+      "working_set_bytes": 1593745408,
+      "details": {
+        "codec_packet_payload_bytes_still_live": 2304,
+        "codec_sample_buffer_capacity_bytes_still_live": 4608,
+        "outgoing_window_capacity": 80000,
+        "outgoing_window_len": 80000,
+        "replacement_window_capacity": 80000,
+        "replacement_window_len": 0,
+        "simultaneous_pcm_window_capacity_bytes": 640000,
+        "source_sample_count_total": 80000,
+        "source_start_sample": 0,
+        "window_index": 1
+      }
+    },
+    {
+      "stage": "codec.complete",
+      "elapsed_unix_us": 1791282726235863,
+      "nearest_sample_delta_ms": 0.025,
+      "private_bytes": 2411606016,
+      "working_set_bytes": 1964642304,
+      "details": {
+        "decoded_frames": 233472,
+        "output_samples": 233472,
+        "packet_count": 203,
+        "retained_full_source_pcm_samples": 0,
+        "window_count": 3
+      }
+    },
+    {
+      "stage": "inference.begin",
+      "elapsed_unix_us": 1791282688830134,
+      "nearest_sample_delta_ms": 0.061,
+      "private_bytes": 1638440960,
+      "working_set_bytes": 1593745408,
+      "details": {
+        "active_inference_windows": 1,
+        "native_context_bytes": "opaque; process counters characterize total",
+        "pcm_capacity_bytes": 320000,
+        "pcm_capacity_samples": 80000,
+        "pcm_samples": 80000,
+        "source_start_sample": 0
+      }
+    },
+    {
+      "stage": "native.inference.complete",
+      "elapsed_unix_us": 1791282701126710,
+      "nearest_sample_delta_ms": 0.023,
+      "private_bytes": 1689563136,
+      "working_set_bytes": 1687633920,
+      "details": {
+        "elapsed_us": 12285003,
+        "native_state_bytes": "opaque; see process memory samples",
+        "pcm_samples": 80000,
+        "segment_count": 1,
+        "segment_object_bytes": 160,
+        "segment_text_capacity_bytes": 8,
+        "segment_vec_capacity": 4
+      }
+    },
+    {
+      "stage": "ipc.serialize.buffer",
+      "elapsed_unix_us": 1791282688821471,
+      "nearest_sample_delta_ms": 0.052,
+      "private_bytes": 1638440960,
+      "working_set_bytes": 1593745408,
+      "details": {
+        "frame_len_with_newline_bytes": 118,
+        "frame_limit_bytes": 1048576,
+        "serialized_payload_len_bytes": 117,
+        "serialized_vec_capacity_bytes": 128
+      }
+    },
+    {
+      "stage": "worker.finalized",
+      "elapsed_unix_us": 1791282743813424,
+      "nearest_sample_delta_ms": 0.03,
+      "private_bytes": 1638293504,
+      "working_set_bytes": 1641582592,
+      "details": {
+        "decoded_frames": 233472,
+        "last_sequence": 3,
+        "output_samples": 233472,
+        "retained_full_source_pcm_samples": 0,
+        "window_limit_samples": 80000
+      }
+    }
+  ],
+  "kernel_pipes": [
+    {
+      "pipe": "stdin_pipe_handle",
+      "query_succeeded": false,
+      "output_buffer_bytes": 0,
+      "input_buffer_bytes": 0,
+      "win32_error": 5
+    },
+    {
+      "pipe": "stdout_pipe_handle",
+      "query_succeeded": true,
+      "output_buffer_bytes": 65536,
+      "input_buffer_bytes": 65536,
+      "win32_error": 0
+    }
+  ],
+  "trace_counts": {
+    "worker": 443,
+    "adapter": 49
+  },
+  "test": "V-IMPORT real WAV D19; CPU attested; TXT 114 bytes, SRT 211 bytes; 96887ms; feature=l01-memory-qualification"
+}

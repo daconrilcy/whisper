@@ -1,0 +1,11 @@
+Contribution: PLANS-L02-P08-CORRECTIONS-v8
+Owner: /root/plans_l02_scope, rust_plan_writer, lecture seule
+Base: P-WHISPER-07 digest d929d3b13efb4a213dfbfac3e0ae23415fb4433a8692a0fd37d968465a2f070d
+Proposition: P-WHISPER-08 DRAFT, parent D-WHISPER-19 digest 903926ba27c70fc3a0cc6954d9e50914a64993e40c339683e557bc4c604d7529
+IDs: L-WHISPER-02, TASK-P02, TASK-P02-MP3. Aucun changement DESIGN établi.
+
+Recommandations de correction : P06/P07 restent immuables et contrôles historiques ; P08 a une revue/gate/préflight propres. Remplacer l’instruction héritée « manifests/features decoder » par une prescription limitée à la allowlist de quinze chemins ; les features Symphonia wav/pcm/mp3 sont déjà présentes, tout besoin de hors-périmètre revient au coordinateur. Ajouter snapshots byte-exacts sources présentes avec hash et baseline Git, marquer six fichiers futurs comme FUTURE_ABSENT sans hash. Incorporer références/proofs L01-CLOSURE-02 avec hashes, qui restent preuves historiques, pas revue P08 ni exécution L02. Remplacer contrôles normatifs P06 par les commandes et préflight P08 exacts. Les sources de code actuelles ne doivent pas être décrites comme futures sorties. GPU hors L02, bornes mémoire inchangées, Q-07 appliqué au vrai worker CPU et parcours MP3, tests produit NOT RUN.
+
+Baseline observée par l’agent : HEAD 5fee290b8e74205fca94d4d2b478d430680132d4 ; neuf chemins L02 présents, six futurs absents ; les neuf hashes présents concordent avec outputs L01-CLOSURE. L’agent a proposé snapshots de support pour justifier états/domain/lib, toolchain/features et point d’appel wrapper. Les dix-sept preuves L01 ont leur mapping/hash fourni ; les captures UI PNG restent référencées à la preuve source si une policy refuse les binaires.
+
+Cette entrée est une transcription condensée du retour final de l’agent, pas un export byte-exact plateforme. Le coordinateur a appliqué un sous-ensemble fidèle à ses trois axes de correction dans P08 ; le reviewer doit juger le candidat exact.

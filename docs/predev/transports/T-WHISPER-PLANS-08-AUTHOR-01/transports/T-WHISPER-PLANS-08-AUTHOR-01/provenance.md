@@ -1,0 +1,1 @@
+Capture attribuée par le coordinateur, 2026-10-06, depuis le retour final conversationnel de /root/plans_l02_scope. Ce résumé n’est pas une exportation brute byte-exact. L’intégralité du retour était une proposition de fichiers/transformations déterministes ; le P08 manifeste et soumis à review fait foi pour les octets candidats.

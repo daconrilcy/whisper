@@ -94,13 +94,7 @@ impl ArchiveStore {
         }
         let source = Path::new(&request.source_path);
         if !source.is_file() {
-            return Err("SourceMissing: selected WAV does not exist".into());
-        }
-        if !source
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("wav"))
-        {
-            return Err("UnsupportedFormat: L01 accepts WAV only".into());
+            return Err("SourceMissing: selected audio source does not exist".into());
         }
         let source_sha = sha256_file(source)?;
         if request
@@ -109,9 +103,11 @@ impl ArchiveStore {
         {
             return Err("SourceChanged: source hash differs from the accepted identity".into());
         }
-        let source_samples = wav_output_samples(source)?;
+        let source_samples = source_output_samples(source)?;
         if sha256_file(source)? != source_sha {
-            return Err("SourceChanged: WAV changed while its duration was inspected".into());
+            return Err(
+                "SourceChanged: audio source changed while its duration was inspected".into(),
+            );
         }
         let model_meta =
             fs::metadata(&request.model_path).map_err(|e| format!("ModelMissing: {e}"))?;
@@ -547,11 +543,10 @@ pub fn sha256_file(path: &Path) -> Result<[u8; 32], String> {
     Ok(hash.finalize().into())
 }
 
-fn wav_output_samples(path: &Path) -> Result<u64, String> {
+fn source_output_samples(path: &Path) -> Result<u64, String> {
     let file = File::open(path).map_err(|e| format!("SourceMissing: {e}"))?;
     let source = MediaSourceStream::new(Box::new(file), Default::default());
-    let mut hint = Hint::new();
-    hint.with_extension("wav");
+    let hint = Hint::new();
     let probed = symphonia::default::get_probe()
         .format(
             &hint,
@@ -559,30 +554,30 @@ fn wav_output_samples(path: &Path) -> Result<u64, String> {
             &FormatOptions::default(),
             &MetadataOptions::default(),
         )
-        .map_err(|e| format!("UnsupportedFormat: WAV probe failed: {e}"))?;
+        .map_err(|e| format!("UnsupportedFormat: audio probe failed: {e}"))?;
     let track = probed
         .format
         .default_track()
-        .ok_or_else(|| "UnsupportedFormat: WAV has no audio track".to_owned())?;
+        .ok_or_else(|| "UnsupportedFormat: audio has no track".to_owned())?;
     let frames = track
         .codec_params
         .n_frames
-        .ok_or_else(|| "UnsupportedFormat: WAV duration is unavailable".to_owned())?;
+        .ok_or_else(|| "UnsupportedFormat: audio duration is unavailable".to_owned())?;
     let input_rate = u64::from(
         track
             .codec_params
             .sample_rate
             .filter(|rate| *rate > 0)
-            .ok_or_else(|| "UnsupportedFormat: WAV sample rate is unavailable".to_owned())?,
+            .ok_or_else(|| "UnsupportedFormat: audio sample rate is unavailable".to_owned())?,
     );
     if frames == 0 {
-        return Err("UnsupportedFormat: WAV contains no audio samples".into());
+        return Err("UnsupportedFormat: audio contains no samples".into());
     }
     frames
         .saturating_sub(1)
         .checked_mul(16_000)
         .map(|scaled| scaled / input_rate + 1)
-        .ok_or_else(|| "UnsupportedFormat: WAV duration exceeds supported range".into())
+        .ok_or_else(|| "UnsupportedFormat: audio duration exceeds supported range".into())
 }
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
