@@ -218,6 +218,10 @@
           "sha256": "cf23a575972101ca331359a8bba70952cee078df9cb3b483982805afc2f91a7f"
         },
         {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/user-authorization-21-paths.md",
+          "sha256": "1521a7eed34d07ba3d0812da074759fb0145540540e1d7e05ef6ca0900599f66"
+        },
+        {
           "path": "transports/T-WHISPER-Q05-ANSWER-01/transport-manifest.json",
           "sha256": "77c6bc223694fafc8c2ecaabc1b891d500ce744279f8d14417c512e76e0d7aae"
         }
@@ -325,6 +329,29 @@
           "sha256": "e7c1a7a489f3a8b840cde771762199eeaa33eaa1d57e7bcf7045b9dfa74055d8"
         }
       ]
+    },
+    {
+      "actor": "/root/review_p03",
+      "id": "AUTH-REVIEWER-PLANS-06",
+      "independence_source": {
+        "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+        "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+      },
+      "independent_from": [
+        "AUTH-AUTHOR",
+        "AUTH-PLAN-WRITER"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+        },
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/transport-manifest.json",
+          "sha256": "88b5fa0843e320a0f411ddfd143265b83653bcea56850200fc6ff45f6945c419"
+        }
+      ]
     }
   ],
   "authorization": {
@@ -389,22 +416,22 @@
         "AUTH-PLAN-WRITER"
       ],
       "design_candidate_id": "D-WHISPER-19",
-      "id": "P-WHISPER-02",
-      "manifest": "candidates/P-WHISPER-02/manifest.json",
+      "id": "P-WHISPER-06",
+      "manifest": "candidates/P-WHISPER-06/manifest.json",
       "perimeter_version": 2,
       "reviews": [
         {
-          "candidate_id": "P-WHISPER-02",
+          "candidate_id": "P-WHISPER-06",
           "design_candidate_id": "D-WHISPER-19",
           "evidence": [
             {
-              "path": "transports/T-WHISPER-PLANS-REVIEW-02/transport-manifest.json",
-              "sha256": "acc5e6f47a363175c90adb8fae4665a691cd3328fe41ba2e0ee371c052aaffda"
+              "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/transport-manifest.json",
+              "sha256": "88b5fa0843e320a0f411ddfd143265b83653bcea56850200fc6ff45f6945c419"
             }
           ],
-          "id": "R-WHISPER-PLANS-02",
-          "manifest_digest": "8113649a38976e0c14e1c82a10ed1a04dff7c1022aaff5587962a0d94b8b2bad",
-          "reviewer": "AUTH-REVIEWER-PLANS-01",
+          "id": "R-WHISPER-PLANS-06",
+          "manifest_digest": "5759cb207f39fe62fee921321dd90275a67a8d687133cf6fd23afd6ac09e3a93",
+          "reviewer": "AUTH-REVIEWER-PLANS-06",
           "scope": "PLANS",
           "verdict": "CLEAN"
         }
@@ -430,19 +457,19 @@
         "verdict": "CLEAN"
       },
       "PLANS": {
-        "candidate_id": "P-WHISPER-02",
+        "candidate_id": "P-WHISPER-06",
         "design_candidate_id": "D-WHISPER-19",
         "manifest": {
-          "path": "candidates/P-WHISPER-02/manifest.json",
-          "sha256": "7ae618d2b1149d5856ae9e080296af5470a509327d732ecec276eda77d3e96e9"
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
         },
-        "manifest_digest": "8113649a38976e0c14e1c82a10ed1a04dff7c1022aaff5587962a0d94b8b2bad",
-        "review_id": "R-WHISPER-PLANS-02",
+        "manifest_digest": "5759cb207f39fe62fee921321dd90275a67a8d687133cf6fd23afd6ac09e3a93",
+        "review_id": "R-WHISPER-PLANS-06",
         "review_transport": {
-          "path": "transports/T-WHISPER-PLANS-REVIEW-02/transport-manifest.json",
-          "sha256": "acc5e6f47a363175c90adb8fae4665a691cd3328fe41ba2e0ee371c052aaffda"
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/transport-manifest.json",
+          "sha256": "88b5fa0843e320a0f411ddfd143265b83653bcea56850200fc6ff45f6945c419"
         },
-        "reviewer": "AUTH-REVIEWER-PLANS-01",
+        "reviewer": "AUTH-REVIEWER-PLANS-06",
         "verdict": "CLEAN"
       }
     },
@@ -533,12 +560,20 @@
         "sha256": "04c070fbaf8877dd5099854154f34d0ba39db1a7db9bc9f3c95f58d63d8b26a3"
       },
       {
+        "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/transport-manifest.json",
+        "sha256": "88b5fa0843e320a0f411ddfd143265b83653bcea56850200fc6ff45f6945c419"
+      },
+      {
         "path": "transports/T-WHISPER-PLANS-REVIEW-01/transport-manifest.json",
         "sha256": "7282a63459dea3d3456690e1b0bf29b27162da84d767720caa353b23eafbd6a5"
       },
       {
         "path": "transports/T-WHISPER-PLANS-REVIEW-02/transport-manifest.json",
         "sha256": "acc5e6f47a363175c90adb8fae4665a691cd3328fe41ba2e0ee371c052aaffda"
+      },
+      {
+        "path": "transports/T-WHISPER-PW-P04-CORRECTIONS-01/transport-manifest.json",
+        "sha256": "1bcc750d801064b6f21ed70cabad769ea67ff46e3f1a6edb6e26e442aeea158c"
       },
       {
         "path": "transports/T-WHISPER-Q05-ANSWER-01/transport-manifest.json",
@@ -618,8 +653,8 @@
       }
     ],
     "repository_identity": {
-      "head": "e0f055e649bf4c4905130a244290d458ae3a76c1",
       "code_state": "L-WHISPER-00 code outputs committed at HEAD; build artifacts under target/ are local and untracked.",
+      "head": "e0f055e649bf4c4905130a244290d458ae3a76c1",
       "worktree_evidence": {
         "path": "L01_IMPLEMENTATION_PREFLIGHT.md",
         "sha256": "d821a76109e211b5483a990fe6d2c04bf54ecad9e55f865195cee8fe4f0fffac"
@@ -1975,110 +2010,146 @@
     },
     {
       "author": "AUTH-AUTHOR",
-      "candidate_id": "P-WHISPER-02",
-      "closed_by": "AUTH-REVIEWER-PLANS-01",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
       "closure_evidence": [
         {
-          "path": "transports/T-WHISPER-PLANS-REVIEW-02/R-WHISPER-PLANS-02-raw.md",
-          "sha256": "65b0d5256cff71b431145d673d84f81ad4887bf4a64b5f1355b9b8db1f4ed810"
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
         },
         {
-          "path": "candidates/P-WHISPER-02/00_PLANS_INDEX.md",
-          "sha256": "b0ede121b49d1876aa16a38586403e8203f15ed6d266e636796fb78ba0581662"
-        },
-        {
-          "path": "candidates/P-WHISPER-02/01_LOTS.md",
-          "sha256": "c9e1b6ef5dfa2e46ecf7b306f587fec603b83322f103753809f1530f2c08b4d5"
-        },
-        {
-          "path": "candidates/P-WHISPER-02/04_OPEN_DETAILS.md",
-          "sha256": "a84f4072893c4426d9fc0acbe4ed41e1ba5c9caa7b7571402f7a8dfe200c4fa2"
-        },
-        {
-          "path": "candidates/P-WHISPER-02/05_SOURCE_AND_RULE_INDEX.md",
-          "sha256": "7d9e787eb7c22bbcfcfbae9f5589f38c28598f1cc2402ca8578b5c7e7ea77734"
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
         }
       ],
       "design_candidate_id": "D-WHISPER-19",
       "disposition": "ACTION_REQUIRED",
-      "id": "WHISPER-PLANS-001",
+      "id": "WHISPER-PLANS-004",
       "kind": "required",
       "refs": [],
-      "reviewer": "AUTH-REVIEWER-PLANS-01",
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
       "scope": "PLANS",
       "severity": "High",
       "status": "closed"
     },
     {
       "author": "AUTH-AUTHOR",
-      "candidate_id": "P-WHISPER-02",
-      "closed_by": "AUTH-REVIEWER-PLANS-01",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
       "closure_evidence": [
         {
-          "path": "transports/T-WHISPER-PLANS-REVIEW-02/R-WHISPER-PLANS-02-raw.md",
-          "sha256": "65b0d5256cff71b431145d673d84f81ad4887bf4a64b5f1355b9b8db1f4ed810"
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
         },
         {
-          "path": "candidates/P-WHISPER-02/00_PLANS_INDEX.md",
-          "sha256": "b0ede121b49d1876aa16a38586403e8203f15ed6d266e636796fb78ba0581662"
-        },
-        {
-          "path": "candidates/P-WHISPER-02/01_LOTS.md",
-          "sha256": "c9e1b6ef5dfa2e46ecf7b306f587fec603b83322f103753809f1530f2c08b4d5"
-        },
-        {
-          "path": "candidates/P-WHISPER-02/04_OPEN_DETAILS.md",
-          "sha256": "a84f4072893c4426d9fc0acbe4ed41e1ba5c9caa7b7571402f7a8dfe200c4fa2"
-        },
-        {
-          "path": "candidates/P-WHISPER-02/05_SOURCE_AND_RULE_INDEX.md",
-          "sha256": "7d9e787eb7c22bbcfcfbae9f5589f38c28598f1cc2402ca8578b5c7e7ea77734"
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
         }
       ],
       "design_candidate_id": "D-WHISPER-19",
       "disposition": "ACTION_REQUIRED",
-      "id": "WHISPER-PLANS-002",
+      "id": "WHISPER-PLANS-005",
       "kind": "required",
       "refs": [],
-      "reviewer": "AUTH-REVIEWER-PLANS-01",
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
+      "scope": "PLANS",
+      "severity": "High",
+      "status": "closed"
+    },
+    {
+      "author": "AUTH-AUTHOR",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
+      "closure_evidence": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+        },
+        {
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+        }
+      ],
+      "design_candidate_id": "D-WHISPER-19",
+      "disposition": "ACTION_REQUIRED",
+      "id": "WHISPER-PLANS-006",
+      "kind": "required",
+      "refs": [],
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
+      "scope": "PLANS",
+      "severity": "High",
+      "status": "closed"
+    },
+    {
+      "author": "AUTH-AUTHOR",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
+      "closure_evidence": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+        },
+        {
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+        }
+      ],
+      "design_candidate_id": "D-WHISPER-19",
+      "disposition": "ACTION_REQUIRED",
+      "id": "WHISPER-PLANS-007",
+      "kind": "required",
+      "refs": [],
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
       "scope": "PLANS",
       "severity": "Medium",
       "status": "closed"
     },
     {
       "author": "AUTH-AUTHOR",
-      "candidate_id": "P-WHISPER-02",
-      "closed_by": "AUTH-REVIEWER-PLANS-01",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
       "closure_evidence": [
         {
-          "path": "transports/T-WHISPER-PLANS-REVIEW-02/R-WHISPER-PLANS-02-raw.md",
-          "sha256": "65b0d5256cff71b431145d673d84f81ad4887bf4a64b5f1355b9b8db1f4ed810"
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
         },
         {
-          "path": "candidates/P-WHISPER-02/00_PLANS_INDEX.md",
-          "sha256": "b0ede121b49d1876aa16a38586403e8203f15ed6d266e636796fb78ba0581662"
-        },
-        {
-          "path": "candidates/P-WHISPER-02/01_LOTS.md",
-          "sha256": "c9e1b6ef5dfa2e46ecf7b306f587fec603b83322f103753809f1530f2c08b4d5"
-        },
-        {
-          "path": "candidates/P-WHISPER-02/04_OPEN_DETAILS.md",
-          "sha256": "a84f4072893c4426d9fc0acbe4ed41e1ba5c9caa7b7571402f7a8dfe200c4fa2"
-        },
-        {
-          "path": "candidates/P-WHISPER-02/05_SOURCE_AND_RULE_INDEX.md",
-          "sha256": "7d9e787eb7c22bbcfcfbae9f5589f38c28598f1cc2402ca8578b5c7e7ea77734"
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
         }
       ],
       "design_candidate_id": "D-WHISPER-19",
       "disposition": "ACTION_REQUIRED",
-      "id": "WHISPER-PLANS-003",
+      "id": "WHISPER-PLANS-008",
       "kind": "required",
       "refs": [],
-      "reviewer": "AUTH-REVIEWER-PLANS-01",
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
       "scope": "PLANS",
       "severity": "Medium",
+      "status": "closed"
+    },
+    {
+      "author": "AUTH-AUTHOR",
+      "candidate_id": "P-WHISPER-06",
+      "closed_by": "AUTH-REVIEWER-PLANS-06",
+      "closure_evidence": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+        },
+        {
+          "path": "candidates/P-WHISPER-06/manifest.json",
+          "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+        }
+      ],
+      "design_candidate_id": "D-WHISPER-19",
+      "disposition": "ACTION_REQUIRED",
+      "id": "WHISPER-PLANS-009",
+      "kind": "required",
+      "refs": [],
+      "reviewer": "AUTH-REVIEWER-PLANS-06",
+      "scope": "PLANS",
+      "severity": "Low",
       "status": "closed"
     }
   ],
@@ -2272,20 +2343,32 @@
           "applicability": "applicable",
           "evidence": [
             {
-              "path": "candidates/P-WHISPER-02/00_PLANS_INDEX.md",
-              "sha256": "b0ede121b49d1876aa16a38586403e8203f15ed6d266e636796fb78ba0581662"
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
             },
             {
-              "path": "candidates/P-WHISPER-02/01_LOTS.md",
-              "sha256": "c9e1b6ef5dfa2e46ecf7b306f587fec603b83322f103753809f1530f2c08b4d5"
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
             },
             {
-              "path": "candidates/P-WHISPER-02/04_OPEN_DETAILS.md",
-              "sha256": "a84f4072893c4426d9fc0acbe4ed41e1ba5c9caa7b7571402f7a8dfe200c4fa2"
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
             },
             {
-              "path": "candidates/P-WHISPER-02/05_SOURCE_AND_RULE_INDEX.md",
-              "sha256": "7d9e787eb7c22bbcfcfbae9f5589f38c28598f1cc2402ca8578b5c7e7ea77734"
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
             }
           ],
           "id": "RUBRIC-P01-COVERAGE",
@@ -2296,20 +2379,32 @@
           "applicability": "applicable",
           "evidence": [
             {
-              "path": "candidates/P-WHISPER-02/00_PLANS_INDEX.md",
-              "sha256": "b0ede121b49d1876aa16a38586403e8203f15ed6d266e636796fb78ba0581662"
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
             },
             {
-              "path": "candidates/P-WHISPER-02/01_LOTS.md",
-              "sha256": "c9e1b6ef5dfa2e46ecf7b306f587fec603b83322f103753809f1530f2c08b4d5"
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
             },
             {
-              "path": "candidates/P-WHISPER-02/04_OPEN_DETAILS.md",
-              "sha256": "a84f4072893c4426d9fc0acbe4ed41e1ba5c9caa7b7571402f7a8dfe200c4fa2"
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
             },
             {
-              "path": "candidates/P-WHISPER-02/05_SOURCE_AND_RULE_INDEX.md",
-              "sha256": "7d9e787eb7c22bbcfcfbae9f5589f38c28598f1cc2402ca8578b5c7e7ea77734"
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
             }
           ],
           "id": "RUBRIC-P01-DEPENDENCIES",
@@ -2320,20 +2415,32 @@
           "applicability": "applicable",
           "evidence": [
             {
-              "path": "candidates/P-WHISPER-02/00_PLANS_INDEX.md",
-              "sha256": "b0ede121b49d1876aa16a38586403e8203f15ed6d266e636796fb78ba0581662"
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
             },
             {
-              "path": "candidates/P-WHISPER-02/01_LOTS.md",
-              "sha256": "c9e1b6ef5dfa2e46ecf7b306f587fec603b83322f103753809f1530f2c08b4d5"
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
             },
             {
-              "path": "candidates/P-WHISPER-02/04_OPEN_DETAILS.md",
-              "sha256": "a84f4072893c4426d9fc0acbe4ed41e1ba5c9caa7b7571402f7a8dfe200c4fa2"
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
             },
             {
-              "path": "candidates/P-WHISPER-02/05_SOURCE_AND_RULE_INDEX.md",
-              "sha256": "7d9e787eb7c22bbcfcfbae9f5589f38c28598f1cc2402ca8578b5c7e7ea77734"
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
             }
           ],
           "id": "RUBRIC-P01-PREFLIGHT",
@@ -2344,20 +2451,32 @@
           "applicability": "applicable",
           "evidence": [
             {
-              "path": "candidates/P-WHISPER-02/00_PLANS_INDEX.md",
-              "sha256": "b0ede121b49d1876aa16a38586403e8203f15ed6d266e636796fb78ba0581662"
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
             },
             {
-              "path": "candidates/P-WHISPER-02/01_LOTS.md",
-              "sha256": "c9e1b6ef5dfa2e46ecf7b306f587fec603b83322f103753809f1530f2c08b4d5"
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
             },
             {
-              "path": "candidates/P-WHISPER-02/04_OPEN_DETAILS.md",
-              "sha256": "a84f4072893c4426d9fc0acbe4ed41e1ba5c9caa7b7571402f7a8dfe200c4fa2"
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
             },
             {
-              "path": "candidates/P-WHISPER-02/05_SOURCE_AND_RULE_INDEX.md",
-              "sha256": "7d9e787eb7c22bbcfcfbae9f5589f38c28598f1cc2402ca8578b5c7e7ea77734"
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
             }
           ],
           "id": "RUBRIC-P01-VERIFICATION",
@@ -2368,20 +2487,32 @@
           "applicability": "applicable",
           "evidence": [
             {
-              "path": "candidates/P-WHISPER-02/00_PLANS_INDEX.md",
-              "sha256": "b0ede121b49d1876aa16a38586403e8203f15ed6d266e636796fb78ba0581662"
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
             },
             {
-              "path": "candidates/P-WHISPER-02/01_LOTS.md",
-              "sha256": "c9e1b6ef5dfa2e46ecf7b306f587fec603b83322f103753809f1530f2c08b4d5"
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
             },
             {
-              "path": "candidates/P-WHISPER-02/04_OPEN_DETAILS.md",
-              "sha256": "a84f4072893c4426d9fc0acbe4ed41e1ba5c9caa7b7571402f7a8dfe200c4fa2"
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
             },
             {
-              "path": "candidates/P-WHISPER-02/05_SOURCE_AND_RULE_INDEX.md",
-              "sha256": "7d9e787eb7c22bbcfcfbae9f5589f38c28598f1cc2402ca8578b5c7e7ea77734"
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
             }
           ],
           "id": "RUBRIC-P01-AUTHORIZATION",
@@ -2392,20 +2523,32 @@
           "applicability": "applicable",
           "evidence": [
             {
-              "path": "candidates/P-WHISPER-02/00_PLANS_INDEX.md",
-              "sha256": "b0ede121b49d1876aa16a38586403e8203f15ed6d266e636796fb78ba0581662"
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
             },
             {
-              "path": "candidates/P-WHISPER-02/01_LOTS.md",
-              "sha256": "c9e1b6ef5dfa2e46ecf7b306f587fec603b83322f103753809f1530f2c08b4d5"
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
             },
             {
-              "path": "candidates/P-WHISPER-02/04_OPEN_DETAILS.md",
-              "sha256": "a84f4072893c4426d9fc0acbe4ed41e1ba5c9caa7b7571402f7a8dfe200c4fa2"
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
             },
             {
-              "path": "candidates/P-WHISPER-02/05_SOURCE_AND_RULE_INDEX.md",
-              "sha256": "7d9e787eb7c22bbcfcfbae9f5589f38c28598f1cc2402ca8578b5c7e7ea77734"
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
             }
           ],
           "id": "RUBRIC-P01-RAILGUARD",
@@ -2416,20 +2559,32 @@
           "applicability": "applicable",
           "evidence": [
             {
-              "path": "candidates/P-WHISPER-02/00_PLANS_INDEX.md",
-              "sha256": "b0ede121b49d1876aa16a38586403e8203f15ed6d266e636796fb78ba0581662"
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
             },
             {
-              "path": "candidates/P-WHISPER-02/01_LOTS.md",
-              "sha256": "c9e1b6ef5dfa2e46ecf7b306f587fec603b83322f103753809f1530f2c08b4d5"
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
             },
             {
-              "path": "candidates/P-WHISPER-02/04_OPEN_DETAILS.md",
-              "sha256": "a84f4072893c4426d9fc0acbe4ed41e1ba5c9caa7b7571402f7a8dfe200c4fa2"
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
             },
             {
-              "path": "candidates/P-WHISPER-02/05_SOURCE_AND_RULE_INDEX.md",
-              "sha256": "7d9e787eb7c22bbcfcfbae9f5589f38c28598f1cc2402ca8578b5c7e7ea77734"
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
             }
           ],
           "id": "RUBRIC-P01-HANDOFF",
@@ -2442,6 +2597,12 @@
   ],
   "lots": [
     {
+      "completion_evidence": [
+        {
+          "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+          "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+        }
+      ],
       "covers": [],
       "dependency_kinds": {},
       "id": "L-WHISPER-00",
@@ -2552,13 +2713,7 @@
       "tasks": [
         "TASK-P00"
       ],
-      "verifies": [],
-      "completion_evidence": [
-        {
-          "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
-          "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
-        }
-      ]
+      "verifies": []
     },
     {
       "covers": [
@@ -2679,137 +2834,63 @@
         "REQ-03"
       ],
       "paths": [
+        "Cargo.lock",
+        "crates/whisper-adapters/Cargo.toml",
         "crates/whisper-adapters/src/archive.rs",
         "crates/whisper-adapters/src/decoder.rs",
+        "crates/whisper-adapters/src/lib.rs",
         "crates/whisper-adapters/src/worker_ipc.rs",
         "crates/whisper-adapters/tests/import_cpu.rs",
+        "crates/whisper-core/src/application.rs",
+        "crates/whisper-core/src/ipc.rs",
+        "crates/whisper-core/src/lib.rs",
+        "crates/whisper-core/src/ports.rs",
         "crates/whisper-core/tests/import_contract.rs",
+        "crates/whisper-desktop/Cargo.toml",
+        "crates/whisper-desktop/src/main.rs",
+        "crates/whisper-desktop/src/root.rs",
         "crates/whisper-desktop/src/ui.rs",
-        "crates/whisper-worker-cpu/**"
-      ],
-      "prerequisites": [
-        "L-WHISPER-00"
-      ],
-      "requires_details": [
-        "DETAIL-P01",
-        "Q-05"
-      ],
-      "status": "planned",
-      "tasks": [
-        "TASK-P01"
-      ],
-      "verifies": [
-        "AC-03",
-        "AC-06",
-        "AC-10",
-        "AC-19"
+        "crates/whisper-worker-cpu/Cargo.toml",
+        "crates/whisper-worker-cpu/src/decoder.rs",
+        "crates/whisper-worker-cpu/src/ipc.rs",
+        "crates/whisper-worker-cpu/src/main.rs",
+        "crates/whisper-worker-cpu/src/native_engine.rs"
       ],
       "preconditions": {
-        "railguard": {
-          "activation": "active",
-          "ref": {
-            "path": "RAILGUARD-active.md",
-            "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
-          },
-          "hashes": [
-            {
-              "path": "RAILGUARD-active.md",
-              "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
-            },
-            {
-              "path": "railguard-activation-L00.md",
-              "sha256": "c3604579bac645b35166a3bd0f469d9e59e9b09efc3d339b36b5120c373b9164"
-            },
-            {
-              "path": "candidates/D-WHISPER-19/11_RAILGUARD_PROPOSAL.md",
-              "sha256": "c59b913296117ee949f66349db8e821e2921a663589c3be743b31a2a757b8a01"
-            }
-          ]
-        },
         "authorization": {
           "authority": "AUTH-USER",
-          "source": {
-            "path": "USER_AUTHORIZATION_L01.md",
-            "sha256": "b6088b12a1e8aa221db1f1b4ca9e29a5e867fce35590f217ff82164548cc3151"
-          },
+          "explicit": true,
           "lot_id": "L-WHISPER-01",
           "paths": [
+            "Cargo.lock",
+            "crates/whisper-adapters/Cargo.toml",
             "crates/whisper-adapters/src/archive.rs",
             "crates/whisper-adapters/src/decoder.rs",
+            "crates/whisper-adapters/src/lib.rs",
             "crates/whisper-adapters/src/worker_ipc.rs",
             "crates/whisper-adapters/tests/import_cpu.rs",
+            "crates/whisper-core/src/application.rs",
+            "crates/whisper-core/src/ipc.rs",
+            "crates/whisper-core/src/lib.rs",
+            "crates/whisper-core/src/ports.rs",
             "crates/whisper-core/tests/import_contract.rs",
+            "crates/whisper-desktop/Cargo.toml",
+            "crates/whisper-desktop/src/main.rs",
+            "crates/whisper-desktop/src/root.rs",
             "crates/whisper-desktop/src/ui.rs",
-            "crates/whisper-worker-cpu/**"
-          ]
-        },
-        "drift": {
-          "classification": "expected_previous_lots",
-          "previous_lots": [
-            "L-WHISPER-00"
+            "crates/whisper-worker-cpu/Cargo.toml",
+            "crates/whisper-worker-cpu/src/decoder.rs",
+            "crates/whisper-worker-cpu/src/ipc.rs",
+            "crates/whisper-worker-cpu/src/main.rs",
+            "crates/whisper-worker-cpu/src/native_engine.rs"
           ],
-          "evidence": [
-            {
-              "path": "L01_IMPLEMENTATION_PREFLIGHT.md",
-              "sha256": "d821a76109e211b5483a990fe6d2c04bf54ecad9e55f865195cee8fe4f0fffac"
-            },
-            {
-              "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
-              "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
-            }
-          ]
-        },
-        "repository_evidence": [
-          {
-            "path": "L01_IMPLEMENTATION_PREFLIGHT.md",
-            "sha256": "d821a76109e211b5483a990fe6d2c04bf54ecad9e55f865195cee8fe4f0fffac"
-          },
-          {
-            "path": "USER_AUTHORIZATION_L01.md",
-            "sha256": "b6088b12a1e8aa221db1f1b4ca9e29a5e867fce35590f217ff82164548cc3151"
-          },
-          {
-            "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
-            "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+          "source": {
+            "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/user-authorization-21-paths.md",
+            "sha256": "1521a7eed34d07ba3d0812da074759fb0145540540e1d7e05ef6ca0900599f66"
           }
-        ],
+        },
         "code_state": {
           "baseline": [],
-          "ledger": [
-            {
-              "path": "crates/whisper-adapters/src/decoder.rs",
-              "sha256": "ea7564ca660951d1b763633dab92875340e0897b0c5e505fdf7f6cec31be3506",
-              "lot_id": "L-WHISPER-00",
-              "evidence": [
-                {
-                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
-                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
-                }
-              ]
-            },
-            {
-              "path": "crates/whisper-desktop/src/ui.rs",
-              "sha256": "9317b88831780f53cc69aefdc8fb0b3c5d196fa7c9729233a8840c5b5064e4c8",
-              "lot_id": "L-WHISPER-00",
-              "evidence": [
-                {
-                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
-                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
-                }
-              ]
-            },
-            {
-              "path": "crates/whisper-worker-cpu/src/main.rs",
-              "sha256": "047430149342e5fec4e77d8b9009ee377af8c0b3c50a9c96b3fb52536d96f953",
-              "lot_id": "L-WHISPER-00",
-              "evidence": [
-                {
-                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
-                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
-                }
-              ]
-            }
-          ],
           "current": [
             {
               "path": "crates/whisper-adapters/src/decoder.rs",
@@ -2823,9 +2904,117 @@
               "path": "crates/whisper-worker-cpu/src/main.rs",
               "sha256": "047430149342e5fec4e77d8b9009ee377af8c0b3c50a9c96b3fb52536d96f953"
             }
+          ],
+          "ledger": [
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-adapters/src/decoder.rs",
+              "sha256": "ea7564ca660951d1b763633dab92875340e0897b0c5e505fdf7f6cec31be3506"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-desktop/src/ui.rs",
+              "sha256": "9317b88831780f53cc69aefdc8fb0b3c5d196fa7c9729233a8840c5b5064e4c8"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-worker-cpu/src/main.rs",
+              "sha256": "047430149342e5fec4e77d8b9009ee377af8c0b3c50a9c96b3fb52536d96f953"
+            }
           ]
-        }
-      }
+        },
+        "drift": {
+          "classification": "expected_previous_lots",
+          "evidence": [
+            {
+              "path": "L01_IMPLEMENTATION_PREFLIGHT.md",
+              "sha256": "d821a76109e211b5483a990fe6d2c04bf54ecad9e55f865195cee8fe4f0fffac"
+            },
+            {
+              "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+              "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+            }
+          ],
+          "previous_lots": [
+            "L-WHISPER-00"
+          ]
+        },
+        "railguard": {
+          "activation": "active",
+          "hashes": [
+            {
+              "path": "RAILGUARD-active.md",
+              "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
+            },
+            {
+              "path": "railguard-activation-L00.md",
+              "sha256": "c3604579bac645b35166a3bd0f469d9e59e9b09efc3d339b36b5120c373b9164"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/11_RAILGUARD_PROPOSAL.md",
+              "sha256": "c59b913296117ee949f66349db8e821e2921a663589c3be743b31a2a757b8a01"
+            }
+          ],
+          "ref": {
+            "path": "RAILGUARD-active.md",
+            "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
+          }
+        },
+        "repository_evidence": [
+          {
+            "path": "L01_PREFLIGHT_21PATHS_2026-10-06.md",
+            "sha256": "7cb39adc7b00becf0e64a363be5478bb9dd5ec738e379fb81ab166e733a819b8"
+          },
+          {
+            "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+            "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+          },
+          {
+            "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/transport-manifest.json",
+            "sha256": "88b5fa0843e320a0f411ddfd143265b83653bcea56850200fc6ff45f6945c419"
+          },
+          {
+            "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/user-authorization-21-paths.md",
+            "sha256": "1521a7eed34d07ba3d0812da074759fb0145540540e1d7e05ef6ca0900599f66"
+          }
+        ]
+      },
+      "prerequisites": [
+        "L-WHISPER-00"
+      ],
+      "requires_details": [
+        "DETAIL-P01",
+        "Q-05",
+        "Q-L01-BOUNDS-01"
+      ],
+      "status": "planned",
+      "tasks": [
+        "TASK-P01"
+      ],
+      "verifies": [
+        "AC-03",
+        "AC-06",
+        "AC-10",
+        "AC-19"
+      ]
     },
     {
       "covers": [
@@ -3306,8 +3495,26 @@
       "status": "open"
     },
     {
+      "answer_ref": {
+        "path": "transports/T-WHISPER-Q05-ANSWER-01/Q-05-answer-raw.md",
+        "sha256": "89538c0beebfe221883bb9e260d415818a992e58273bb870ba5dbaddea0f45c6"
+      },
+      "answer_verdict": "ANSWERED_DETAIL",
+      "answer_version": 1,
+      "answered_by": "AUTH-USER",
+      "approval": "accepted",
       "classification": "reversible_detail",
       "deadline": "before:L-WHISPER-01",
+      "evidence": [
+        {
+          "path": "transports/T-WHISPER-Q05-ANSWER-01/Q-05-answer-raw.md",
+          "sha256": "89538c0beebfe221883bb9e260d415818a992e58273bb870ba5dbaddea0f45c6"
+        },
+        {
+          "path": "transports/T-WHISPER-Q05-ANSWER-01/transport-manifest.json",
+          "sha256": "77c6bc223694fafc8c2ecaabc1b891d500ce744279f8d14417c512e76e0d7aae"
+        }
+      ],
       "id": "Q-05",
       "impacted_lots": [
         "L-WHISPER-01",
@@ -3321,28 +3528,10 @@
         "REQ-23"
       ],
       "status": "answered",
-      "answer_verdict": "ANSWERED_DETAIL",
-      "answer_version": 1,
-      "answered_by": "AUTH-USER",
-      "approval": "accepted",
-      "answer_ref": {
-        "path": "transports/T-WHISPER-Q05-ANSWER-01/Q-05-answer-raw.md",
-        "sha256": "89538c0beebfe221883bb9e260d415818a992e58273bb870ba5dbaddea0f45c6"
-      },
       "transport_ref": {
         "path": "transports/T-WHISPER-Q05-ANSWER-01/transport-manifest.json",
         "sha256": "77c6bc223694fafc8c2ecaabc1b891d500ce744279f8d14417c512e76e0d7aae"
-      },
-      "evidence": [
-        {
-          "path": "transports/T-WHISPER-Q05-ANSWER-01/Q-05-answer-raw.md",
-          "sha256": "89538c0beebfe221883bb9e260d415818a992e58273bb870ba5dbaddea0f45c6"
-        },
-        {
-          "path": "transports/T-WHISPER-Q05-ANSWER-01/transport-manifest.json",
-          "sha256": "77c6bc223694fafc8c2ecaabc1b891d500ce744279f8d14417c512e76e0d7aae"
-        }
-      ]
+      }
     },
     {
       "classification": "reversible_detail",
@@ -3389,6 +3578,27 @@
         "REQ-20"
       ],
       "status": "open"
+    },
+    {
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-01",
+      "evidence": [
+        {
+          "path": "transports/T-WHISPER-ARCH-L01-BOUNDS-01/ARCH-L01-BOUNDS-raw.md",
+          "sha256": "fee3f0dbcb5ecdbc9f70082aba311bca3daa34bf5efaa12d6b90b71a10f2efce"
+        },
+        {
+          "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+          "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+        }
+      ],
+      "id": "Q-L01-BOUNDS-01",
+      "impacted_lots": [
+        "L-WHISPER-01"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [],
+      "status": "answered"
     }
   ],
   "rails": {

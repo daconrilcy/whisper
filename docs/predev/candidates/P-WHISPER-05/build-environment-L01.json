@@ -1,0 +1,52 @@
+{
+  "schema": "rust-predev-build-env/1",
+  "checks": [
+    {
+      "id": "RUSTC",
+      "kind": "executable",
+      "name": "rustc",
+      "required": true,
+      "version_pattern": "^rustc 1\\.98\\.1(?:\\s|$)"
+    },
+    {
+      "id": "CARGO",
+      "kind": "executable",
+      "name": "cargo",
+      "required": true,
+      "version_pattern": "^cargo 1\\.98\\.1(?:\\s|$)"
+    },
+    {
+      "id": "MSVC",
+      "kind": "executable",
+      "name": "cl",
+      "required": true
+    },
+    {
+      "id": "CMAKE",
+      "kind": "executable",
+      "name": "cmake",
+      "required": true
+    },
+    {
+      "id": "LIBCLANG",
+      "kind": "env",
+      "name": "LIBCLANG_PATH",
+      "path_type": "directory",
+      "required": true
+    },
+    {
+      "id": "TOOLCHAIN",
+      "kind": "path",
+      "path": "rust-toolchain.toml",
+      "entry_type": "file",
+      "required": true
+    },
+    {
+      "id": "LOCKFILE",
+      "kind": "path",
+      "path": "Cargo.lock",
+      "entry_type": "file",
+      "required": true
+    }
+  ]
+}
