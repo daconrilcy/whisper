@@ -1,7 +1,7 @@
 use std::{fs::File, path::Path};
 use symphonia::core::{
-    audio::{AudioBufferRef, SampleBuffer},
-    codecs::DecoderOptions,
+    audio::{AudioBufferRef, Channels, SampleBuffer},
+    codecs::{CODEC_TYPE_MP3, DecoderOptions},
     errors::Error,
     formats::FormatOptions,
     io::MediaSourceStream,
@@ -68,7 +68,10 @@ pub fn decode_wav_windows(
         .format(
             &hint,
             mss,
-            &FormatOptions::default(),
+            &FormatOptions {
+                enable_gapless: true,
+                ..Default::default()
+            },
             &MetadataOptions::default(),
         )
         .map_err(|e| format!("UnsupportedFormat: audio probe failed: {e}"))?;
@@ -77,6 +80,7 @@ pub fn decode_wav_windows(
         .default_track()
         .ok_or_else(|| "WAV has no default audio track".to_owned())?;
     let track_id = track.id;
+    let codec = track.codec_params.codec;
     let sample_rate = track
         .codec_params
         .sample_rate
@@ -88,6 +92,19 @@ pub fn decode_wav_windows(
         .count();
     if sample_rate == 0 || channels == 0 || channels > 32 {
         return Err("UnsupportedFormat: unsupported WAV audio layout".into());
+    }
+    let channel_mask = track.codec_params.channels;
+    let stereo = Channels::FRONT_LEFT | Channels::FRONT_RIGHT;
+    let supported_mp3_layout =
+        channel_mask == Some(Channels::FRONT_LEFT) || channel_mask == Some(stereo);
+    if track.codec_params.codec == CODEC_TYPE_MP3
+        && (!matches!(
+            sample_rate,
+            8_000 | 11_025 | 12_000 | 16_000 | 22_050 | 24_000 | 32_000 | 44_100 | 48_000
+        ) || !supported_mp3_layout
+            || track.codec_params.n_frames.is_none())
+    {
+        return Err("UnsupportedFormat: MP3 profile or duration metadata is outside Q-07".into());
     }
     #[cfg(feature = "l01-memory-qualification")]
     crate::memory_qualification::record(
@@ -137,6 +154,11 @@ pub fn decode_wav_windows(
         let decoded = decoder
             .decode(&packet)
             .map_err(|e| format!("audio decode failed: {e}"))?;
+        if codec == CODEC_TYPE_MP3
+            && (decoded.spec().rate != sample_rate || Some(decoded.spec().channels) != channel_mask)
+        {
+            return Err("UnsupportedFormat: MP3 profile changes within the source".into());
+        }
         #[cfg(feature = "l01-memory-qualification")]
         let decoded_frame_capacity = decoded.capacity();
         #[cfg(feature = "l01-memory-qualification")]
@@ -160,6 +182,9 @@ pub fn decode_wav_windows(
         );
         let count = interleaved.len() / channels;
         for frame in 0..count {
+            let timeline_index = input_index;
+            input_index += 1;
+            decoded_frames += 1;
             let current = interleaved[frame * channels..(frame + 1) * channels]
                 .iter()
                 .copied()
@@ -167,12 +192,12 @@ pub fn decode_wav_windows(
                 / channels as f32;
             if let Some(prev) = previous {
                 while next_output.saturating_mul(u64::from(sample_rate))
-                    <= input_index.saturating_mul(u64::from(OUTPUT_RATE))
+                    <= timeline_index.saturating_mul(u64::from(OUTPUT_RATE))
                 {
                     let numerator = next_output.saturating_mul(u64::from(sample_rate));
                     let base = numerator / u64::from(OUTPUT_RATE);
                     let frac = (numerator % u64::from(OUTPUT_RATE)) as f32 / OUTPUT_RATE as f32;
-                    let value = if base == input_index {
+                    let value = if base == timeline_index {
                         current
                     } else {
                         prev + (current - prev) * frac
@@ -222,8 +247,6 @@ pub fn decode_wav_windows(
                 next_output = 1;
             }
             previous = Some(current);
-            input_index += 1;
-            decoded_frames += 1;
         }
     }
     if !window.is_empty() {
@@ -283,7 +306,7 @@ fn _audio_buffer_ref_is_supported(buffer: &AudioBufferRef<'_>) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{fs::File, io::Write, time::SystemTime};
+    use std::{fs::File, io::Write, path::PathBuf, time::SystemTime};
     use whisper_core::{
         Generation, JobId, SourceRange,
         ports::{DecodeRequest, SourceIdentity},
@@ -340,6 +363,58 @@ mod tests {
         assert_eq!(bounded.len(), MAX_WINDOW_SAMPLES);
         drop(bounded);
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn lame_gapless_delay_and_padding_are_trimmed_once() {
+        let Some(path) = std::env::var_os("WHISPER_L02_GAPLESS_MP3").map(PathBuf::from) else {
+            eprintln!("V-IMPORT-MP3 decoder proof NOT RUN: set WHISPER_L02_GAPLESS_MP3");
+            return;
+        };
+        let file = File::open(&path).unwrap();
+        let stream = MediaSourceStream::new(Box::new(file), Default::default());
+        let probed = symphonia::default::get_probe()
+            .format(
+                &Hint::new(),
+                stream,
+                &FormatOptions {
+                    enable_gapless: true,
+                    ..Default::default()
+                },
+                &MetadataOptions::default(),
+            )
+            .unwrap();
+        let (rate, frame_count) = {
+            let track = probed.format.default_track().unwrap();
+            let params = &track.codec_params;
+            assert_eq!(params.codec, CODEC_TYPE_MP3);
+            assert!(params.delay.unwrap_or_default() > 0);
+            assert!(params.padding.unwrap_or_default() > 0);
+            (
+                u64::from(params.sample_rate.unwrap()),
+                params.n_frames.unwrap(),
+            )
+        };
+        let expected_output = frame_count
+            .saturating_sub(1)
+            .saturating_mul(u64::from(OUTPUT_RATE))
+            / rate
+            + 1;
+        drop(probed);
+
+        let (decoded_frames, output_samples) = decode_wav_windows(&path, |_, window| {
+            assert!(!window.is_empty());
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(
+            decoded_frames, frame_count,
+            "MP3 delay/padding trimmed once"
+        );
+        assert_eq!(
+            output_samples, expected_output,
+            "source timeline duration retained"
+        );
     }
 
     fn write_silence_wav(path: &Path, samples: u32) {

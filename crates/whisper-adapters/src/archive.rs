@@ -2,9 +2,11 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File, OpenOptions},
-    io::{BufRead, Read, Write},
+    io::{BufRead, BufReader, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
+use symphonia::core::audio::Channels;
+use symphonia::core::codecs::CODEC_TYPE_MP3;
 use symphonia::core::{
     formats::FormatOptions, io::MediaSourceStream, meta::MetadataOptions, probe::Hint,
 };
@@ -88,6 +90,22 @@ impl ArchiveStore {
         self.root.clone()
     }
 
+    /// Captures the source identity at durable queue admission without creating an archive.
+    pub fn identify_source(request: &mut ImportRequest) -> Result<(), String> {
+        let source = Path::new(&request.source_path);
+        if !source.is_file() {
+            return Err("SourceMissing: selected audio source does not exist".into());
+        }
+        let source_sha = sha256_file(source)?;
+        let source_samples = source_output_samples(source)?;
+        if sha256_file(source)? != source_sha {
+            return Err("SourceChanged: source changed while its identity was inspected".into());
+        }
+        request.source_sha256 = Some(source_sha);
+        request.source_samples = Some(source_samples);
+        Ok(())
+    }
+
     pub fn prepare(&mut self, mut request: ImportRequest) -> Result<ImportRequest, String> {
         if self.current.is_some() {
             return Err("Busy: an import is already active".into());
@@ -104,6 +122,12 @@ impl ArchiveStore {
             return Err("SourceChanged: source hash differs from the accepted identity".into());
         }
         let source_samples = source_output_samples(source)?;
+        if request
+            .source_samples
+            .is_some_and(|expected| expected != source_samples)
+        {
+            return Err("SourceChanged: source duration differs from the accepted identity".into());
+        }
         if sha256_file(source)? != source_sha {
             return Err(
                 "SourceChanged: audio source changed while its duration was inspected".into(),
@@ -136,10 +160,7 @@ impl ArchiveStore {
             model_sha256: hex(&model_hash),
             model_size: model_meta.len(),
         };
-        write_new_synced(
-            &directory.join("pending.json"),
-            &serde_json::to_vec(&pending).map_err(|e| e.to_string())?,
-        )?;
+        let expected_sequence = initialize_pending(&directory, &pending)?;
         request.source_sha256 = Some(source_sha);
         request.source_samples = Some(source_samples);
         self.current = Some(ActiveArchive {
@@ -148,9 +169,93 @@ impl ArchiveStore {
             directory,
             source_sha256: source_sha,
             source_samples,
-            expected_sequence: 1,
+            expected_sequence,
         });
         Ok(request)
+    }
+
+    /// Starts the next generation by copying only the previously confirmed prefix.
+    pub fn resume_from(
+        &mut self,
+        previous: &ImportRequest,
+        mut request: ImportRequest,
+    ) -> Result<(ImportRequest, Vec<SegmentRecord>), String> {
+        if request.job_id != previous.job_id
+            || previous.generation.next() != Some(request.generation)
+        {
+            return Err("InvalidInput: resume generation is not the next generation".into());
+        }
+        let previous_dir = PathBuf::from(&previous.destination)
+            .join("transcriptions")
+            .join(format!("{:032x}", previous.job_id.0))
+            .join(previous.generation.get().to_string());
+        let pending: PendingRecord = serde_json::from_slice(
+            &fs::read(previous_dir.join("pending.json"))
+                .map_err(|e| format!("StorageCorrupt: resume checkpoint is unavailable: {e}"))?,
+        )
+        .map_err(|e| format!("StorageCorrupt: resume checkpoint: {e}"))?;
+        validate_pending(&pending, previous.job_id, previous.generation.get())?;
+        if pending.source_path != previous.source_path
+            || Some(pending.source_sha256.as_str())
+                != previous.source_sha256.map(|sha| hex(&sha)).as_deref()
+            || Some(pending.source_samples) != previous.source_samples
+            || pending.model_path != previous.model_path
+            || pending.model_sha256 != hex(&previous.model_sha256)
+        {
+            return Err(
+                "SourceChanged: resume checkpoint identity differs from the queued request".into(),
+            );
+        }
+        let prefix = read_segments(&previous_dir.join("segments.jsonl"))?;
+        if prefix.iter().enumerate().any(|(index, segment)| {
+            segment.sequence != index as u64 + 1
+                || segment.range.sample_rate_hz != 16_000
+                || segment.range.start_sample >= segment.range.end_sample
+                || segment.range.end_sample > pending.source_samples
+                || segment.text.trim().is_empty()
+        }) || prefix
+            .windows(2)
+            .any(|pair| pair[1].range.start_sample < pair[0].range.end_sample)
+        {
+            return Err(
+                "StorageCorrupt: confirmed resume prefix is not a valid ordered checkpoint".into(),
+            );
+        }
+        let prepared = self.prepare(request.clone())?;
+        self.copy_resume_prefix(&prepared, &prefix)?;
+        request = prepared.clone();
+        Ok((request, prefix))
+    }
+
+    fn copy_resume_prefix(
+        &mut self,
+        request: &ImportRequest,
+        prefix: &[SegmentRecord],
+    ) -> Result<(), String> {
+        let target_dir = PathBuf::from(&request.destination)
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string());
+        let existing = read_segments(&target_dir.join("segments.jsonl"))?;
+        if existing.len() > prefix.len()
+            || existing
+                .iter()
+                .zip(prefix)
+                .any(|(stored, expected)| stored != expected)
+        {
+            return Err("StorageCorrupt: resumed generation contains a divergent prefix".into());
+        }
+        for segment in prefix.iter().skip(existing.len()) {
+            self.persist_segment(&WorkerSegment {
+                job_id: request.job_id,
+                generation: request.generation,
+                instance_id: 0,
+                segment_id: whisper_core::SegmentId(segment.sequence),
+                range: segment.range,
+                text: segment.text.clone(),
+            })?;
+        }
+        Ok(())
     }
 
     pub fn persist_segment(&mut self, segment: &WorkerSegment) -> Result<u64, String> {
@@ -295,6 +400,11 @@ impl ArchiveStore {
                     continue;
                 }
             };
+            // The durable FIFO journal shares this parent with per-job directories.
+            // It is not an archive and must not be reported as a corrupt JobId(0).
+            if job.file_name() == "queue.jsonl" {
+                continue;
+            }
             let generations = match fs::read_dir(job.path()) {
                 Ok(generations) => generations,
                 Err(error) => {
@@ -449,6 +559,29 @@ fn validate_pending(pending: &PendingRecord, job_id: JobId, generation: u64) -> 
     Ok(())
 }
 
+fn initialize_pending(directory: &Path, pending: &PendingRecord) -> Result<u64, String> {
+    let pending_path = directory.join("pending.json");
+    if pending_path.exists() {
+        if directory.join("CURRENT").exists() {
+            return Err("InvalidInput: generation is already published".into());
+        }
+        let existing: PendingRecord = serde_json::from_slice(
+            &fs::read(&pending_path).map_err(|e| format!("StorageCorrupt: pending record: {e}"))?,
+        )
+        .map_err(|e| format!("StorageCorrupt: pending record: {e}"))?;
+        if existing != *pending {
+            return Err("SourceChanged: existing pending generation has another identity".into());
+        }
+        Ok(read_segments(&directory.join("segments.jsonl"))?.len() as u64 + 1)
+    } else {
+        write_new_synced(
+            &pending_path,
+            &serde_json::to_vec(pending).map_err(|e| e.to_string())?,
+        )?;
+        Ok(1)
+    }
+}
+
 fn is_sha256(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
@@ -471,14 +604,59 @@ fn read_segments(path: &Path) -> Result<Vec<SegmentRecord>, String> {
     if !path.exists() {
         return Ok(Vec::new());
     }
-    let file = File::open(path).map_err(|e| e.to_string())?;
-    std::io::BufReader::new(file)
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .map_err(|e| format!("StorageCorrupt: segment journal: {e}"))?;
+    repair_uncommitted_segment_tail(&mut file)?;
+    file.seek(SeekFrom::Start(0))
+        .map_err(|e| format!("StorageCorrupt: segment seek: {e}"))?;
+    BufReader::new(file)
         .lines()
         .map(|line| {
-            let line = line.map_err(|e| e.to_string())?;
+            let line = line.map_err(|e| format!("StorageCorrupt: segment: {e}"))?;
             serde_json::from_str(&line).map_err(|e| format!("StorageCorrupt: segment: {e}"))
         })
         .collect()
+}
+
+fn repair_uncommitted_segment_tail(file: &mut File) -> Result<(), String> {
+    const SCAN_BYTES: usize = 8 * 1024;
+    let length = file
+        .metadata()
+        .map_err(|e| format!("StorageCorrupt: segment metadata: {e}"))?
+        .len();
+    if length == 0 {
+        return Ok(());
+    }
+    file.seek(SeekFrom::End(-1))
+        .map_err(|e| format!("StorageCorrupt: segment seek: {e}"))?;
+    let mut last = [0_u8; 1];
+    file.read_exact(&mut last)
+        .map_err(|e| format!("StorageCorrupt: segment read: {e}"))?;
+    if last[0] == b'\n' {
+        return Ok(());
+    }
+    let mut end = length;
+    let mut valid_len = 0_u64;
+    let mut chunk = vec![0_u8; SCAN_BYTES];
+    while end > 0 {
+        let start = end.saturating_sub(SCAN_BYTES as u64);
+        let count = (end - start) as usize;
+        file.seek(SeekFrom::Start(start))
+            .map_err(|e| format!("StorageCorrupt: segment tail scan: {e}"))?;
+        file.read_exact(&mut chunk[..count])
+            .map_err(|e| format!("StorageCorrupt: segment tail scan: {e}"))?;
+        if let Some(index) = chunk[..count].iter().rposition(|byte| *byte == b'\n') {
+            valid_len = start + index as u64 + 1;
+            break;
+        }
+        end = start;
+    }
+    file.set_len(valid_len)
+        .and_then(|()| file.sync_all())
+        .map_err(|e| format!("StorageUnavailable: segment tail repair failed: {e}"))
 }
 fn write_new_synced(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let mut file = OpenOptions::new()
@@ -551,7 +729,10 @@ fn source_output_samples(path: &Path) -> Result<u64, String> {
         .format(
             &hint,
             source,
-            &FormatOptions::default(),
+            &FormatOptions {
+                enable_gapless: true,
+                ..Default::default()
+            },
             &MetadataOptions::default(),
         )
         .map_err(|e| format!("UnsupportedFormat: audio probe failed: {e}"))?;
@@ -559,6 +740,28 @@ fn source_output_samples(path: &Path) -> Result<u64, String> {
         .format
         .default_track()
         .ok_or_else(|| "UnsupportedFormat: audio has no track".to_owned())?;
+    if track.codec_params.codec == CODEC_TYPE_MP3
+        && (track.codec_params.channels.is_none()
+            || track.codec_params.sample_rate.is_none()
+            || track.codec_params.n_frames.is_none())
+    {
+        return Err("UnsupportedFormat: MP3 profile or duration metadata is incomplete".into());
+    }
+    if track.codec_params.codec == CODEC_TYPE_MP3 {
+        let sample_rate = track.codec_params.sample_rate.unwrap_or_default();
+        let channels = track.codec_params.channels;
+        let stereo = Channels::FRONT_LEFT | Channels::FRONT_RIGHT;
+        let supported_layout = channels == Some(Channels::FRONT_LEFT) || channels == Some(stereo);
+        if !matches!(
+            sample_rate,
+            8_000 | 11_025 | 12_000 | 16_000 | 22_050 | 24_000 | 32_000 | 44_100 | 48_000
+        ) || !supported_layout
+        {
+            return Err(
+                "UnsupportedFormat: MP3 sample rate or channel layout is outside Q-07".into(),
+            );
+        }
+    }
     let frames = track
         .codec_params
         .n_frames
@@ -597,6 +800,30 @@ fn timestamp(sample: u64) -> String {
 mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn segment_recovery_keeps_synced_prefix_and_drops_only_a_partial_tail() {
+        let path = std::env::temp_dir().join(format!(
+            "whisper-segments-{}-{}.jsonl",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let record = SegmentRecord {
+            sequence: 1,
+            range: SourceRange::new(0, 160, 16_000).unwrap(),
+            text: "confirmed".into(),
+        };
+        let mut contents = serde_json::to_vec(&record).unwrap();
+        contents.extend_from_slice(b"\n{\"sequence\":");
+        fs::write(&path, contents).unwrap();
+
+        assert_eq!(read_segments(&path).unwrap(), vec![record]);
+        assert!(fs::read(&path).unwrap().ends_with(b"\n"));
+        fs::remove_file(path).unwrap();
+    }
 
     #[test]
     fn scan_preserves_healthy_entries_and_reports_each_corrupt_generation() {
@@ -733,12 +960,21 @@ mod tests {
             b"not a job directory",
         )
         .unwrap();
+        fs::write(
+            root.join("transcriptions").join("queue.jsonl"),
+            b"durable queue journal",
+        )
+        .unwrap();
 
         let first = ArchiveStore::scan(&root).unwrap();
         let second = ArchiveStore::scan(&root).unwrap();
         assert_eq!(
             first, second,
             "corruption diagnostics are stable across scans"
+        );
+        assert!(
+            !first.iter().any(|item| item.job_id == JobId(0)),
+            "non-directory queue journal is not a synthetic corrupt job"
         );
         assert!(
             first
@@ -772,5 +1008,225 @@ mod tests {
                     .any(|item| item.job_id == job_id && item.complete)
             );
         }
+    }
+
+    #[test]
+    fn published_running_row_is_removed_durably_and_recovery_scans_are_stable() {
+        use crate::queue_store::{QueueStatus, QueueStore};
+        use whisper_core::SegmentId;
+
+        let root = std::env::temp_dir().join(format!(
+            "whisper-publish-queue-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let request = ImportRequest {
+            job_id: JobId(71),
+            generation: Generation::first(),
+            source_path: "source.wav".into(),
+            source_sha256: Some([0; 32]),
+            source_samples: Some(160),
+            model_path: "model.bin".into(),
+            model_sha256: [0; 32],
+            destination: root.to_string_lossy().into_owned(),
+            config: whisper_core::JobConfig {
+                language: whisper_core::LanguageChoice::Manual("fr".into()),
+                compute: whisper_core::ComputeChoice::Cpu,
+            },
+        };
+        let mut other = request.clone();
+        other.job_id = JobId(72);
+        let mut queue = QueueStore::open(&root).unwrap();
+        queue.enqueue(request.clone()).unwrap();
+        queue.enqueue(other.clone()).unwrap();
+        queue
+            .set_status(request.job_id, request.generation, QueueStatus::Running)
+            .unwrap();
+
+        let directory = root
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string());
+        fs::create_dir_all(&directory).unwrap();
+        let pending = PendingRecord {
+            version: 1,
+            job_id: request.job_id,
+            generation: request.generation,
+            source_path: request.source_path.clone(),
+            source_sha256: hex(&[0; 32]),
+            source_samples: 160,
+            model_path: request.model_path.clone(),
+            model_sha256: APPROVED_MODEL_SHA256.into(),
+            model_size: APPROVED_MODEL_SIZE,
+        };
+        fs::write(
+            directory.join("pending.json"),
+            serde_json::to_vec(&pending).unwrap(),
+        )
+        .unwrap();
+        let mut archive = ArchiveStore::new(&root);
+        archive.current = Some(ActiveArchive {
+            job_id: request.job_id,
+            generation: request.generation,
+            directory,
+            source_sha256: [0; 32],
+            source_samples: 160,
+            expected_sequence: 1,
+        });
+        archive
+            .persist_segment(&WorkerSegment {
+                job_id: request.job_id,
+                generation: request.generation,
+                instance_id: 1,
+                segment_id: SegmentId(1),
+                range: SourceRange::new(0, 160, 16_000).unwrap(),
+                text: "confirmed".into(),
+            })
+            .unwrap();
+        archive
+            .publish(request.job_id, request.generation, 1)
+            .unwrap();
+
+        let mut reopened = QueueStore::open(&root).unwrap();
+        reopened.remove(request.job_id, request.generation).unwrap();
+        drop(reopened);
+        let first = crate::recovery::scan(&root).unwrap();
+        let second = crate::recovery::scan(&root).unwrap();
+        assert_eq!(
+            first, second,
+            "recovery is stable after publication cleanup"
+        );
+        assert_eq!(first.queue.len(), 1);
+        assert_eq!(first.queue[0].request.job_id, other.job_id);
+        assert!(ArchiveStore::scan(&root).unwrap().iter().any(|entry| {
+            entry.job_id == request.job_id
+                && entry.generation == request.generation
+                && entry.complete
+        }));
+        assert!(
+            !QueueStore::open(&root)
+                .unwrap()
+                .entries()
+                .iter()
+                .any(|entry| entry.request.job_id == request.job_id)
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn resumed_prefix_copy_retries_after_pending_creation_without_duplication() {
+        use whisper_core::SegmentId;
+
+        let root = std::env::temp_dir().join(format!(
+            "whisper-resume-copy-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let request = ImportRequest {
+            job_id: JobId(81),
+            generation: Generation::first().next().unwrap(),
+            source_path: "source.wav".into(),
+            source_sha256: Some([0; 32]),
+            source_samples: Some(320),
+            model_path: "model.bin".into(),
+            model_sha256: [0; 32],
+            destination: root.to_string_lossy().into_owned(),
+            config: whisper_core::JobConfig {
+                language: whisper_core::LanguageChoice::Manual("fr".into()),
+                compute: whisper_core::ComputeChoice::Cpu,
+            },
+        };
+        let target = root
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string());
+        fs::create_dir_all(&target).unwrap();
+        let pending = PendingRecord {
+            version: 1,
+            job_id: request.job_id,
+            generation: request.generation,
+            source_path: request.source_path.clone(),
+            source_sha256: hex(&[0; 32]),
+            source_samples: 320,
+            model_path: request.model_path.clone(),
+            model_sha256: APPROVED_MODEL_SHA256.into(),
+            model_size: APPROVED_MODEL_SIZE,
+        };
+        assert_eq!(initialize_pending(&target, &pending).unwrap(), 1);
+        let prefix = vec![
+            SegmentRecord {
+                sequence: 1,
+                range: SourceRange::new(0, 160, 16_000).unwrap(),
+                text: "one".into(),
+            },
+            SegmentRecord {
+                sequence: 2,
+                range: SourceRange::new(160, 320, 16_000).unwrap(),
+                text: "two".into(),
+            },
+        ];
+        let mut interrupted_archive = ArchiveStore::new(&root);
+        interrupted_archive.current = Some(ActiveArchive {
+            job_id: request.job_id,
+            generation: request.generation,
+            directory: target.clone(),
+            source_sha256: [0; 32],
+            source_samples: 320,
+            expected_sequence: 1,
+        });
+        interrupted_archive
+            .persist_segment(&WorkerSegment {
+                job_id: request.job_id,
+                generation: request.generation,
+                instance_id: 0,
+                segment_id: SegmentId(1),
+                range: prefix[0].range,
+                text: prefix[0].text.clone(),
+            })
+            .unwrap();
+
+        let mut retried_archive = ArchiveStore::new(&root);
+        let expected_sequence = initialize_pending(&target, &pending).unwrap();
+        assert_eq!(
+            expected_sequence, 2,
+            "reopened pending preserves the partial prefix"
+        );
+        retried_archive.current = Some(ActiveArchive {
+            job_id: request.job_id,
+            generation: request.generation,
+            directory: target.clone(),
+            source_sha256: [0; 32],
+            source_samples: 320,
+            expected_sequence,
+        });
+        retried_archive
+            .copy_resume_prefix(&request, &prefix)
+            .unwrap();
+        let mut second_retry = ArchiveStore::new(&root);
+        let expected_sequence = initialize_pending(&target, &pending).unwrap();
+        assert_eq!(
+            expected_sequence, 3,
+            "retry sees the complete copied prefix"
+        );
+        second_retry.current = Some(ActiveArchive {
+            job_id: request.job_id,
+            generation: request.generation,
+            directory: target.clone(),
+            source_sha256: [0; 32],
+            source_samples: 320,
+            expected_sequence,
+        });
+        second_retry.copy_resume_prefix(&request, &prefix).unwrap();
+        assert_eq!(
+            read_segments(&target.join("segments.jsonl")).unwrap(),
+            prefix
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 }

@@ -9,6 +9,202 @@ use whisper_core::{
 };
 
 #[test]
+fn source_changed_after_queue_admission_is_refused_without_worker_launch() {
+    let Some(fixture) = std::env::var_os("WHISPER_L02_MP3_FIXTURE").map(PathBuf::from) else {
+        eprintln!("V-IMPORT-MP3 NOT RUN: set WHISPER_L02_MP3_FIXTURE to a Q-07 profile fixture");
+        return;
+    };
+    assert!(fixture.is_file());
+    let root = std::env::temp_dir().join(format!(
+        "whisper-l02-changed-mp3-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    let source = root.join("queued.mp3");
+    std::fs::copy(fixture, &source).unwrap();
+    let destination = root.join("out");
+    let request = ImportRequest {
+        job_id: JobId(((std::process::id() as u128) << 64) | 3),
+        generation: Generation::first(),
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: root.join("unused-model.bin").to_string_lossy().into_owned(),
+        model_sha256: [0; 32],
+        destination: destination.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Manual("fr".into()),
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let mut app = ImportApplication::new(AsyncImportIo::start(root.join("no-worker.exe")));
+    app.dispatch(AppCommand::EnqueueImport { request }).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let queued = loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if let Some(entry) = view.queue.first() {
+            break entry.request.clone();
+        }
+        assert!(
+            Instant::now() < deadline,
+            "durable queue acknowledgment timed out"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    let mut changed = std::fs::read(&source).unwrap();
+    changed.push(0);
+    std::fs::write(&source, &changed).unwrap();
+    app.dispatch(AppCommand::ProcessQueued {
+        request: queued.clone(),
+    })
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if view
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("SourceChanged"))
+        {
+            assert!(
+                view.active_job
+                    .is_some_and(|(_, state)| state == JobState::Recoverable)
+            );
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "source change was not reported: {:?}",
+            view.message
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(std::fs::read(&source).unwrap(), changed);
+    let history = whisper_adapters::archive::ArchiveStore::scan(&destination).unwrap();
+    assert!(history.iter().all(|entry| !entry.complete));
+    app.dispatch(AppCommand::RemoveQueued {
+        job_id: queued.job_id,
+        generation: queued.generation,
+    })
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if app.dispatch(AppCommand::Refresh).unwrap().queue.is_empty() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "a preparation failure leaves the admitted row removable"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn failed_preparation_keeps_durable_row_actionable() {
+    let root = std::env::temp_dir().join(format!(
+        "whisper-l02-prepare-failure-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    let source = root.join("source.wav");
+    let samples = vec![0_u8; 32_000];
+    let mut wav = Vec::with_capacity(44 + samples.len());
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36_u32 + samples.len() as u32).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16_u32.to_le_bytes());
+    wav.extend_from_slice(&1_u16.to_le_bytes());
+    wav.extend_from_slice(&1_u16.to_le_bytes());
+    wav.extend_from_slice(&16_000_u32.to_le_bytes());
+    wav.extend_from_slice(&32_000_u32.to_le_bytes());
+    wav.extend_from_slice(&2_u16.to_le_bytes());
+    wav.extend_from_slice(&16_u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&(samples.len() as u32).to_le_bytes());
+    wav.extend_from_slice(&samples);
+    std::fs::write(&source, wav).unwrap();
+    let destination = root.join("out");
+    let request = ImportRequest {
+        job_id: JobId(((std::process::id() as u128) << 64) | 4),
+        generation: Generation::first(),
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: root
+            .join("missing-model.bin")
+            .to_string_lossy()
+            .into_owned(),
+        model_sha256: [0; 32],
+        destination: destination.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Manual("fr".into()),
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let mut app = ImportApplication::new(AsyncImportIo::start(root.join("no-worker.exe")));
+    app.dispatch(AppCommand::EnqueueImport { request }).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let queued = loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if let Some(entry) = view.queue.first() {
+            break entry.request.clone();
+        }
+        assert!(
+            Instant::now() < deadline,
+            "durable queue admission timed out"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    app.dispatch(AppCommand::ProcessQueued {
+        request: queued.clone(),
+    })
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if view
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("ModelMissing"))
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "preparation failure was not reported"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    app.dispatch(AppCommand::RemoveQueued {
+        job_id: queued.job_id,
+        generation: queued.generation,
+    })
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if app.dispatch(AppCommand::Refresh).unwrap().queue.is_empty() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "preparation-failed row was not removable"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn real_mp3_runs_through_durable_choice_cpu_worker_and_txt_srt_archive() {
     let Some(source) = std::env::var_os("WHISPER_L02_MP3_FIXTURE").map(PathBuf::from) else {
         eprintln!("V-IMPORT-MP3 NOT RUN: set WHISPER_L02_MP3_FIXTURE to a Q-07 profile fixture");

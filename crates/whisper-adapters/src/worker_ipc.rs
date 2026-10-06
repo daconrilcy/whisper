@@ -308,6 +308,7 @@ struct ImportRuntime {
     active: Option<ImportRequestState>,
     transport: Option<ChildWorkerTransport>,
     publication_gate: Arc<PublicationGate>,
+    resume_prefix: VecDeque<crate::journal::SegmentRecord>,
 }
 struct ImportRequestState {
     job_id: JobId,
@@ -323,18 +324,20 @@ impl ImportRuntime {
             active: None,
             transport: None,
             publication_gate,
+            resume_prefix: VecDeque::new(),
         }
     }
     fn effect(&mut self, effect: ImportEffect, events: &mut VecDeque<ImportEvent>) {
         let result = match effect {
-            ImportEffect::Enqueue(request) => {
+            ImportEffect::Enqueue(mut request) => {
                 let id = (request.job_id, request.generation);
-                match crate::queue_store::QueueStore::open(&request.destination).and_then(
-                    |mut queue| {
+                let result = crate::archive::ArchiveStore::identify_source(&mut request)
+                    .and_then(|()| crate::queue_store::QueueStore::open(&request.destination))
+                    .and_then(|mut queue| {
                         queue.enqueue(request)?;
                         Ok(queue.entries())
-                    },
-                ) {
+                    });
+                match result {
                     Ok(queue) => {
                         events.push_back(ImportEvent::Queue(queue));
                         Ok(())
@@ -361,7 +364,7 @@ impl ImportRuntime {
             ImportEffect::ProcessQueued(request) => {
                 let id = (request.job_id, request.generation);
                 let result = crate::queue_store::QueueStore::open(&request.destination)
-                    .and_then(|mut queue| {
+                    .and_then(|queue| {
                         let entries = queue.entries();
                         let first = entries.first().map(|entry| (entry.request.job_id, entry.request.generation));
                         let entry = entries.into_iter().find(|entry| {
@@ -370,15 +373,92 @@ impl ImportRuntime {
                         if first != Some(id) {
                             return Err("InvalidInput: process queued jobs in FIFO order".into());
                         }
+                        if entry.request != request {
+                            return Err("SourceChanged: queued request identity differs from the durable entry".into());
+                        }
                         if !matches!(entry.status, crate::queue_store::QueueStatus::Queued | crate::queue_store::QueueStatus::AwaitingChoice) {
                             return Err("InvalidInput: interrupted jobs require an explicit verified resume".into());
                         }
-                        queue.set_status(id.0, id.1, crate::queue_store::QueueStatus::Running)?;
-                        events.push_back(ImportEvent::Queue(queue.entries()));
-                        Ok(())
+                        Ok(entry.request)
                     });
                 match result {
-                    Ok(()) => self.prepare(request, events),
+                    Ok(durable_request) => {
+                        let mut archive = ArchiveStore::new(&durable_request.destination);
+                        match archive.prepare(durable_request) {
+                            Ok(prepared) => {
+                                let queue_result =
+                                    crate::queue_store::QueueStore::open(&prepared.destination)
+                                        .and_then(|mut queue| {
+                                            queue.set_status(
+                                                id.0,
+                                                id.1,
+                                                crate::queue_store::QueueStatus::Running,
+                                            )?;
+                                            Ok(queue.entries())
+                                        });
+                                match queue_result {
+                                    Ok(queue) => {
+                                        self.archive = archive;
+                                        events.push_back(ImportEvent::Queue(queue));
+                                        events.push_back(ImportEvent::Prepared(prepared));
+                                        Ok(())
+                                    }
+                                    Err(error) => Err((id.0, id.1, error)),
+                                }
+                            }
+                            Err(message) => Err((id.0, id.1, message)),
+                        }
+                    }
+                    Err(error) => Err((id.0, id.1, error)),
+                }
+            }
+            ImportEffect::ResumeInterrupted { previous, request } => {
+                let id = (request.job_id, request.generation);
+                let queue_validation = crate::queue_store::QueueStore::open(&request.destination)
+                    .and_then(|queue| {
+                        queue.validate_resume(previous.job_id, previous.generation, &request)
+                    });
+                if let Err(error) = queue_validation {
+                    events.push_back(ImportEvent::Failed {
+                        job_id: id.0,
+                        generation: id.1,
+                        message: error,
+                    });
+                    return;
+                }
+                let mut archive = ArchiveStore::new(&request.destination);
+                let result =
+                    archive
+                        .resume_from(&previous, request)
+                        .and_then(|(prepared, prefix)| {
+                            crate::queue_store::QueueStore::open(&prepared.destination).and_then(
+                                |mut queue| {
+                                    queue.resume_interrupted(
+                                        previous.job_id,
+                                        previous.generation,
+                                        prepared.clone(),
+                                    )?;
+                                    Ok((prepared, prefix, queue.entries()))
+                                },
+                            )
+                        });
+                match result {
+                    Ok((prepared, prefix, queue)) => {
+                        let confirmed_segments = prefix.len() as u64;
+                        let confirmed_offset =
+                            prefix.last().map_or(0, |segment| segment.range.end_sample);
+                        self.archive = archive;
+                        self.resume_prefix = prefix.into();
+                        events.push_back(ImportEvent::Queue(queue));
+                        events.push_back(ImportEvent::ResumeCheckpoint {
+                            job_id: id.0,
+                            generation: id.1,
+                            confirmed_segments,
+                            confirmed_offset,
+                        });
+                        events.push_back(ImportEvent::Prepared(prepared));
+                        Ok(())
+                    }
                     Err(error) => Err((id.0, id.1, error)),
                 }
             }
@@ -638,6 +718,34 @@ impl ImportRuntime {
         let active = self.active.as_ref()?;
         let (job_id, generation, instance_id) =
             (active.job_id, active.generation, active.instance_id);
+        if let WorkerEvent::Segment(dto) = &event
+            && let Some(expected) = self.resume_prefix.pop_front()
+        {
+            if dto.segment_id.0 != expected.sequence
+                || dto.range != expected.range
+                || dto.text != expected.text
+            {
+                self.transport = None;
+                self.active = None;
+                self.resume_prefix.clear();
+                return Some(Err((
+                    job_id,
+                    generation,
+                    "ResumeMismatch: recomputed segment differs from the confirmed prefix".into(),
+                )));
+            }
+            return None;
+        }
+        if matches!(event, WorkerEvent::End { .. }) && !self.resume_prefix.is_empty() {
+            self.transport = None;
+            self.active = None;
+            self.resume_prefix.clear();
+            return Some(Err((
+                job_id,
+                generation,
+                "ResumeMismatch: worker ended before reproducing the confirmed prefix".into(),
+            )));
+        }
         let result = match event {
             WorkerEvent::Ready {
                 job_id: j,
@@ -834,6 +942,9 @@ impl ImportIoPort for AsyncImportIo {
         } else {
             let active_identity = match &effect {
                 ImportEffect::Prepare(request) | ImportEffect::ProcessQueued(request) => {
+                    Some((request.job_id, request.generation))
+                }
+                ImportEffect::ResumeInterrupted { request, .. } => {
                     Some((request.job_id, request.generation))
                 }
                 _ => None,

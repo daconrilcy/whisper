@@ -74,3 +74,80 @@ fn admission_and_restoration_never_start_a_worker_without_user_choice() {
         Some(ImportEffect::ProcessQueued(_))
     ));
 }
+
+#[test]
+fn enqueue_is_acknowledged_only_after_the_durable_queue_event() {
+    let io = Fake::default();
+    let mut app = ImportApplication::new(io.clone());
+    let queued = request();
+    let view = app
+        .dispatch(AppCommand::EnqueueImport {
+            request: queued.clone(),
+        })
+        .unwrap();
+    assert!(view.queue.is_empty());
+    assert!(view.message.as_deref().unwrap().contains("en cours"));
+
+    io.0.borrow_mut()
+        .events
+        .push_back(ImportEvent::Queue(vec![ImportQueueEntry {
+            sequence: 1,
+            request: queued,
+            status: ImportQueueStatus::Queued,
+        }]));
+    let acknowledged = app.dispatch(AppCommand::Refresh).unwrap();
+    assert_eq!(acknowledged.queue.len(), 1);
+    assert!(
+        acknowledged
+            .message
+            .as_deref()
+            .unwrap()
+            .contains("file durable")
+    );
+    assert!(
+        io.0.borrow()
+            .effects
+            .iter()
+            .all(|effect| { !matches!(effect, ImportEffect::ProcessQueued(_)) })
+    );
+}
+
+#[test]
+fn enqueue_failure_is_visible_without_marking_a_job_active() {
+    let io = Fake::default();
+    let mut app = ImportApplication::new(io.clone());
+    let request = request();
+    let identity = (request.job_id, request.generation);
+    app.dispatch(AppCommand::EnqueueImport { request }).unwrap();
+    io.0.borrow_mut().events.push_back(ImportEvent::Failed {
+        job_id: identity.0,
+        generation: identity.1,
+        message: "SourceMissing: selected audio source does not exist".into(),
+    });
+    let failed = app.dispatch(AppCommand::Refresh).unwrap();
+    assert_eq!(failed.active_job, None);
+    assert!(failed.message.as_deref().unwrap().contains("SourceMissing"));
+}
+
+#[test]
+fn interrupted_resume_requires_an_explicit_command_and_advances_generation() {
+    let io = Fake::default();
+    let mut app = ImportApplication::new(io.clone());
+    let previous = request();
+    app.dispatch(AppCommand::ResumeInterrupted {
+        request: previous.clone(),
+    })
+    .unwrap();
+    let effects = io.0.borrow().effects.clone();
+    let Some(ImportEffect::ResumeInterrupted {
+        previous: actual,
+        request: resumed,
+    }) = effects.last()
+    else {
+        panic!("resume must go through the durable resume effect");
+    };
+    assert_eq!(actual, &previous);
+    assert_eq!(resumed.job_id, previous.job_id);
+    assert_eq!(resumed.generation, previous.generation.next().unwrap());
+    assert_eq!(effects.len(), 1);
+}

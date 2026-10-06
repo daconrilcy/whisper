@@ -116,6 +116,10 @@ pub enum ImportEffect {
         destination: String,
     },
     ProcessQueued(ImportRequest),
+    ResumeInterrupted {
+        previous: ImportRequest,
+        request: ImportRequest,
+    },
     ScanQueue {
         destination: String,
     },
@@ -139,6 +143,12 @@ pub enum ImportEffect {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEvent {
     Queue(Vec<ImportQueueEntry>),
+    ResumeCheckpoint {
+        job_id: JobId,
+        generation: Generation,
+        confirmed_segments: u64,
+        confirmed_offset: u64,
+    },
     Prepared(ImportRequest),
     History(Vec<ArchiveHistoryItem>),
     Ready {

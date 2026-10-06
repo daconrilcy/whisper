@@ -20,6 +20,7 @@ pub struct DesktopApp<A> {
     active_identity: Option<(JobId, Generation)>,
     scanned_destination: Option<String>,
     observed_job_state: Option<JobState>,
+    resume_confirmation: Option<(JobId, Generation)>,
 }
 
 impl<A: Application> DesktopApp<A> {
@@ -43,6 +44,7 @@ impl<A: Application> DesktopApp<A> {
             active_identity: None,
             scanned_destination: None,
             observed_job_state: None,
+            resume_confirmation: None,
         }
     }
 
@@ -108,6 +110,21 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     | JobState::Finalizing
             )
         });
+        let destination = self.destination.trim().to_owned();
+        let destination_scan_pending = !destination.is_empty()
+            && self.scanned_destination.as_deref() != Some(destination.as_str());
+        // Refresh consumes asynchronous scan and lifecycle events. Schedule a
+        // wake for the initial destination scan too: it is submitted later in
+        // this frame, while the first-frame queue view is still empty.
+        if busy
+            || !self.view.queue.is_empty()
+            || destination_scan_pending
+            || self.view.history_scan_pending
+            || self.view.queue_scan_pending
+        {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(33));
+        }
         if !busy {
             self.active_identity = None;
         }
@@ -187,6 +204,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         ));
         let queued = self.view.queue.clone();
         for entry in queued {
+            let identity = (entry.request.job_id, entry.request.generation);
             ui.horizontal(|ui| {
                 ui.label(format!(
                     "{:?} — {}",
@@ -202,22 +220,50 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         request: entry.request.clone(),
                     });
                 }
-                if ui.button("Retirer").clicked() {
+                if entry.status == whisper_core::ports::ImportQueueStatus::Interrupted {
+                    if self.resume_confirmation == Some(identity) {
+                        if ui.button("Confirmer la reprise").clicked() {
+                            self.active_identity = Some((
+                                entry.request.job_id,
+                                entry
+                                    .request
+                                    .generation
+                                    .next()
+                                    .unwrap_or(entry.request.generation),
+                            ));
+                            self.resume_confirmation = None;
+                            self.dispatch(AppCommand::ResumeInterrupted {
+                                request: entry.request.clone(),
+                            });
+                        }
+                        if ui.button("Annuler").clicked() {
+                            self.resume_confirmation = None;
+                        }
+                    } else if ui.button("Reprendre…").clicked() {
+                        self.resume_confirmation = Some(identity);
+                    }
+                }
+                let removable = entry.status != whisper_core::ports::ImportQueueStatus::Running;
+                if ui
+                    .add_enabled(removable, egui::Button::new("Retirer"))
+                    .clicked()
+                {
                     self.dispatch(AppCommand::RemoveQueued {
                         job_id: entry.request.job_id,
                         generation: entry.request.generation,
                     });
                 }
             });
+            if self.resume_confirmation == Some(identity) {
+                ui.label(
+                    "Le calcul repart du début et vérifie chaque segment déjà confirmé avant de continuer.",
+                );
+            }
         }
 
-        if self.scanned_destination.as_deref() != Some(self.destination.trim())
-            && !self.destination.trim().is_empty()
-        {
-            self.scanned_destination = Some(self.destination.trim().to_owned());
-            self.dispatch(AppCommand::ScanHistory {
-                destination: self.destination.trim().to_owned(),
-            });
+        if destination_scan_pending {
+            self.scanned_destination = Some(destination.clone());
+            self.dispatch(AppCommand::ScanHistory { destination });
         }
         ui.separator();
         ui.heading("Historique local");

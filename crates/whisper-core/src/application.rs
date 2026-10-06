@@ -22,6 +22,9 @@ pub enum AppCommand {
     ProcessQueued {
         request: ImportRequest,
     },
+    ResumeInterrupted {
+        request: ImportRequest,
+    },
     RemoveQueued {
         job_id: JobId,
         generation: Generation,
@@ -62,10 +65,12 @@ impl AppCommand {
                     generation: request.generation,
                 })
             }
-            Self::ProcessQueued { request } => Some(CommandIdentity {
-                job_id: request.job_id,
-                generation: request.generation,
-            }),
+            Self::ProcessQueued { request } | Self::ResumeInterrupted { request } => {
+                Some(CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                })
+            }
             Self::RemoveQueued { job_id, generation } => Some(CommandIdentity {
                 job_id: *job_id,
                 generation: *generation,
@@ -88,6 +93,8 @@ pub struct AppView {
     pub last_result: Option<String>,
     pub history: Vec<ArchiveHistoryItem>,
     pub queue: Vec<ImportQueueEntry>,
+    pub history_scan_pending: bool,
+    pub queue_scan_pending: bool,
 }
 
 /// Owns queue admission and import lifecycle. Adapters only execute effects.
@@ -98,6 +105,7 @@ pub struct ImportApplication<P> {
     request: Option<ImportRequest>,
     next_sequence: u64,
     pending_persistence: usize,
+    pending_enqueues: Vec<CommandIdentity>,
     ended_at: Option<u64>,
     stopping: Option<CommandIdentity>,
     max_segment_offset: u64,
@@ -113,6 +121,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
             request: None,
             next_sequence: 0,
             pending_persistence: 0,
+            pending_enqueues: Vec::new(),
             ended_at: None,
             stopping: None,
             max_segment_offset: 0,
@@ -132,22 +141,57 @@ impl<P: ImportIoPort> ImportApplication<P> {
         match &event {
             ImportEvent::History(history) => {
                 self.view.history = history.clone();
+                self.view.history_scan_pending = false;
                 return Ok(());
             }
             ImportEvent::Queue(queue) => {
+                self.view.queue_scan_pending = false;
+                let acknowledged = self
+                    .pending_enqueues
+                    .iter()
+                    .filter(|identity| {
+                        queue.iter().any(|entry| {
+                            entry.request.job_id == identity.job_id
+                                && entry.request.generation == identity.generation
+                        })
+                    })
+                    .count();
+                self.pending_enqueues.retain(|identity| {
+                    !queue.iter().any(|entry| {
+                        entry.request.job_id == identity.job_id
+                            && entry.request.generation == identity.generation
+                    })
+                });
+                if acknowledged > 0 {
+                    self.view.message = Some(format!(
+                        "{acknowledged} import(s) ajouté(s) à la file durable. Choisissez Traiter pour les démarrer."
+                    ));
+                }
                 self.view.queued_jobs = queue.len();
                 self.view.queue = queue.clone();
+                return Ok(());
+            }
+            ImportEvent::Failed {
+                job_id, message, ..
+            } if *job_id == JobId(0) && self.view.queue_scan_pending => {
+                self.view.queue_scan_pending = false;
+                self.view.message = Some(format!("File durable indisponible : {message}"));
                 return Ok(());
             }
             _ => {}
         }
         let (job_id, generation) = event.identity();
         let identity = CommandIdentity { job_id, generation };
+        let enqueue_failed = matches!(
+            &event,
+            ImportEvent::Failed { .. } if self.pending_enqueues.contains(&identity)
+        );
         if self.active != Some(identity)
             && !(matches!(
                 event,
                 ImportEvent::Stopped { .. } | ImportEvent::Failed { .. }
             ) && self.stopping == Some(identity))
+            && !enqueue_failed
         {
             return Ok(());
         }
@@ -156,6 +200,16 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 unreachable!("non-lifecycle events are handled before job admission")
             }
             ImportEvent::Queue(_) => unreachable!("queue events are handled before job admission"),
+            ImportEvent::ResumeCheckpoint {
+                confirmed_segments,
+                confirmed_offset,
+                ..
+            } => {
+                self.next_sequence = confirmed_segments
+                    .checked_add(1)
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                self.max_segment_offset = confirmed_offset;
+            }
             ImportEvent::Prepared(request) => {
                 if request.source_sha256.is_none()
                     || request.source_samples.is_none_or(|samples| samples == 0)
@@ -259,7 +313,10 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 self.active = None;
             }
             ImportEvent::Failed { message, .. } => {
-                if self.stopping == Some(identity) {
+                if self.pending_enqueues.contains(&identity) {
+                    self.pending_enqueues.retain(|pending| *pending != identity);
+                    self.view.message = Some(message);
+                } else if self.stopping == Some(identity) {
                     self.view.active_job = Some((job_id, JobState::Cancelled));
                     self.view.message =
                         Some(format!("Arrêt confirmé; archive conservée ({message})."));
@@ -319,6 +376,8 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.io
                     .submit(ImportEffect::ScanQueue { destination })
                     .map_err(|e| self.fail(e))?;
+                self.view.history_scan_pending = true;
+                self.view.queue_scan_pending = true;
             }
             AppCommand::RemoveQueued { job_id, generation } => {
                 self.io
@@ -362,12 +421,16 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.message = Some("Vérification de la source et du modèle…".into());
             }
             AppCommand::EnqueueImport { request } => {
+                let identity = CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                };
                 self.io
                     .submit(ImportEffect::Enqueue(request))
                     .map_err(|e| self.fail(e))?;
-                self.view.message = Some(
-                    "Import ajouté à la file durable. Choisissez Traiter pour le démarrer.".into(),
-                );
+                self.pending_enqueues.push(identity);
+                self.view.message =
+                    Some("Vérification de la source et ajout à la file durable en cours…".into());
             }
             AppCommand::ProcessQueued { request } => {
                 if self.active.is_some() {
@@ -391,6 +454,40 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.progress = None;
                 self.view.active_job = Some((identity.job_id, JobState::Queued));
                 self.view.message = Some("Vérification du choix explicite et préparation…".into());
+            }
+            AppCommand::ResumeInterrupted { request } => {
+                if self.active.is_some() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let previous = request;
+                let mut resumed = previous.clone();
+                resumed.generation = previous
+                    .generation
+                    .next()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                let identity = CommandIdentity {
+                    job_id: resumed.job_id,
+                    generation: resumed.generation,
+                };
+                self.io
+                    .submit(ImportEffect::ResumeInterrupted {
+                        previous,
+                        request: resumed.clone(),
+                    })
+                    .map_err(|e| self.fail(e))?;
+                self.request = Some(resumed);
+                self.active = Some(identity);
+                self.stopping = None;
+                self.next_sequence = 1;
+                self.pending_persistence = 0;
+                self.ended_at = None;
+                self.max_segment_offset = 0;
+                self.final_source_samples = None;
+                self.view.progress = None;
+                self.view.active_job = Some((identity.job_id, JobState::Queued));
+                self.view.message = Some(
+                    "Reprise confirmée : vérification du préfixe durable avant recalcul…".into(),
+                );
             }
             AppCommand::Stop { job_id, generation } => {
                 if self.active != Some(CommandIdentity { job_id, generation }) {
@@ -447,6 +544,9 @@ impl ImportEvent {
                 job_id, generation, ..
             }
             | Self::Stopped { job_id, generation } => (*job_id, *generation),
+            Self::ResumeCheckpoint {
+                job_id, generation, ..
+            } => (*job_id, *generation),
             Self::Prepared(request) => (request.job_id, request.generation),
             Self::History(_) | Self::Queue(_) => (JobId(0), Generation::first()),
             Self::Segment(segment) => (segment.job_id, segment.generation),
@@ -489,6 +589,70 @@ impl<A: Application> AppFacade<A> {
 mod tests {
     use super::*;
     use crate::domain::{ComputeChoice, LanguageChoice};
+    use std::collections::VecDeque;
+
+    #[derive(Default)]
+    struct ScanTestIo {
+        effects: Vec<ImportEffect>,
+        events: VecDeque<ImportEvent>,
+    }
+
+    impl ImportIoPort for ScanTestIo {
+        fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
+            self.effects.push(effect);
+            Ok(())
+        }
+
+        fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
+            Ok(self.events.pop_front())
+        }
+    }
+
+    #[test]
+    fn destination_scan_stays_pending_until_history_and_queue_are_consumed() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let view = app
+            .dispatch(AppCommand::ScanHistory {
+                destination: "archive".into(),
+            })
+            .unwrap();
+        assert!(view.history_scan_pending);
+        assert!(view.queue_scan_pending);
+
+        app.io.events.push_back(ImportEvent::History(Vec::new()));
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(!view.history_scan_pending);
+        assert!(view.queue_scan_pending);
+
+        app.io.events.push_back(ImportEvent::Queue(Vec::new()));
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(!view.history_scan_pending);
+        assert!(!view.queue_scan_pending);
+    }
+
+    #[test]
+    fn queue_scan_failure_clears_pending_state_and_is_visible() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::ScanHistory {
+            destination: "missing-or-invalid".into(),
+        })
+        .unwrap();
+        app.io.events.push_back(ImportEvent::History(Vec::new()));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.io.events.push_back(ImportEvent::Failed {
+            job_id: JobId(0),
+            generation: Generation::first(),
+            message: "StorageCorrupt: destination is not a directory".into(),
+        });
+
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(!view.queue_scan_pending);
+        assert!(
+            view.message
+                .as_deref()
+                .is_some_and(|message| message.contains("destination is not a directory"))
+        );
+    }
 
     #[test]
     fn repeated_start_is_identifiable_and_stale_stop_does_not_target_new_generation() {

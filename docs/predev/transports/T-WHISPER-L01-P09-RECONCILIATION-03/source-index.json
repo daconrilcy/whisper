@@ -1,0 +1,144 @@
+{
+  "schema": "whisper-code-output-snapshot/1",
+  "source_commit": "c7ca091",
+  "outputs": [
+    {
+      "logical_output": "Cargo.lock",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/Cargo.lock.txt",
+      "sha256": "447abf23220b0a3cb5c58ea2222f0e04355acb5f2d179c33aacc771c8ba616b8"
+    },
+    {
+      "logical_output": "Cargo.toml",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/Cargo.toml.txt",
+      "sha256": "2eb2d87c3dfb102362f31d84d8a80d8da41c0e41eee76798a24262529729e202"
+    },
+    {
+      "logical_output": "crates/whisper-adapters/Cargo.toml",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-adapters/Cargo.toml.txt",
+      "sha256": "812d0dbc03e1359dc1bd19f5576d03a91dcaa0878022380e2f7e61901c75f344"
+    },
+    {
+      "logical_output": "crates/whisper-adapters/src/decoder.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-adapters/src/decoder.rs.txt",
+      "sha256": "ea7564ca660951d1b763633dab92875340e0897b0c5e505fdf7f6cec31be3506"
+    },
+    {
+      "logical_output": "crates/whisper-adapters/src/lib.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-adapters/src/lib.rs.txt",
+      "sha256": "6329856cb79a1ca8712dc6f549ce7d003abbc1ed7452a89be496b01d0750fbff"
+    },
+    {
+      "logical_output": "crates/whisper-adapters/tests/decoder_proxy.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-adapters/tests/decoder_proxy.rs.txt",
+      "sha256": "3db4824f266bb72a46b813847e1febbe6c6379699164e7e07b3f51d0e47da4a7"
+    },
+    {
+      "logical_output": "crates/whisper-bootstrap/Cargo.toml",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-bootstrap/Cargo.toml.txt",
+      "sha256": "f1d1761581e871cfcce30ed50bcbb48570fbdbe5073b3dc1d25f43882b2c0265"
+    },
+    {
+      "logical_output": "crates/whisper-bootstrap/src/main.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-bootstrap/src/main.rs.txt",
+      "sha256": "bda42429e2243b4a734148cf995f2a335496b314288d0f010012943813531481"
+    },
+    {
+      "logical_output": "crates/whisper-core/Cargo.toml",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/Cargo.toml.txt",
+      "sha256": "03e6fa9e6a5a20027924351b7b45012b21ce0d36727e4d1c7691b1f3151aaca3"
+    },
+    {
+      "logical_output": "crates/whisper-core/src/application.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/src/application.rs.txt",
+      "sha256": "f9aa136fccebe741f4ff8e3bb1c0f2a04c0562d1e9d8fedd09115c79f6e88cb0"
+    },
+    {
+      "logical_output": "crates/whisper-core/src/domain.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/src/domain.rs.txt",
+      "sha256": "3b45f9852965311d58b4aa3b53ec6db8a5936b3a8933e27dd46ee76a754f7acd"
+    },
+    {
+      "logical_output": "crates/whisper-core/src/ipc.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/src/ipc.rs.txt",
+      "sha256": "9c64a6af41a1fb5fe22ffb8624441fb9e530e5c11b06328ffb2b8f6269d22e10"
+    },
+    {
+      "logical_output": "crates/whisper-core/src/lib.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/src/lib.rs.txt",
+      "sha256": "64c5ba268ba38316e2baca0a943cc064da3a6b04b5570e129964a706225aa0f5"
+    },
+    {
+      "logical_output": "crates/whisper-core/src/ports.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/src/ports.rs.txt",
+      "sha256": "03fdef88124b4cc7c4cb7a65d76c3cc92cf067be774026b88b162469401d9b03"
+    },
+    {
+      "logical_output": "crates/whisper-desktop/Cargo.toml",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-desktop/Cargo.toml.txt",
+      "sha256": "0528886e5b8575b30ada28910a50dbfe9519a7c364d33043161e046de9121d15"
+    },
+    {
+      "logical_output": "crates/whisper-desktop/src/lib.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-desktop/src/lib.rs.txt",
+      "sha256": "193360385cfea082ead338bf441ddf8ada5155b1d5113908fecd6988dd1c2db6"
+    },
+    {
+      "logical_output": "crates/whisper-desktop/src/main.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-desktop/src/main.rs.txt",
+      "sha256": "04818ef9fdc8d37d0166b71b989da8d63b69a8b372af480c425e24f2aff7e38b"
+    },
+    {
+      "logical_output": "crates/whisper-desktop/src/ui.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-desktop/src/ui.rs.txt",
+      "sha256": "9317b88831780f53cc69aefdc8fb0b3c5d196fa7c9729233a8840c5b5064e4c8"
+    },
+    {
+      "logical_output": "crates/whisper-worker-cpu/Cargo.toml",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-worker-cpu/Cargo.toml.txt",
+      "sha256": "3fc393931d7d16f705b7d37fee9b0821b21f48cd3b696af2394960c3aa159bb9"
+    },
+    {
+      "logical_output": "crates/whisper-worker-cpu/src/main.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-worker-cpu/src/main.rs.txt",
+      "sha256": "047430149342e5fec4e77d8b9009ee377af8c0b3c50a9c96b3fb52536d96f953"
+    },
+    {
+      "logical_output": "crates/whisper-worker-gpu/Cargo.toml",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-worker-gpu/Cargo.toml.txt",
+      "sha256": "5ef21c0437965d8ea28c01bdd33f5c5d3ec867e2498ab4329b3a24ad54553b89"
+    },
+    {
+      "logical_output": "crates/whisper-worker-gpu/src/main.rs",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-worker-gpu/src/main.rs.txt",
+      "sha256": "047430149342e5fec4e77d8b9009ee377af8c0b3c50a9c96b3fb52536d96f953"
+    },
+    {
+      "logical_output": "rust-toolchain.toml",
+      "source_commit": "c7ca091",
+      "snapshot_path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/rust-toolchain.toml.txt",
+      "sha256": "6a0855ab5a6b75bd9449e9ac8363a52eacb9ae8b3a7c80bfce0378d013cb16db"
+    }
+  ]
+}
