@@ -548,6 +548,10 @@
         "sha256": "5bf29a2fa4d7c974e97b0cce03c0a7251d6a65e2b7218211031f39bfaa0c0f6c"
       },
       {
+        "path": "transports/T-WHISPER-L01-CHECKPOINT-RECONCILIATION-01/transport-manifest.json",
+        "sha256": "8fb5d02669c85587ce2362ee4d0dc43fc245ec3373f0bc6332a038e237de34d2"
+      },
+      {
         "path": "transports/T-WHISPER-MEASURES-05/transport-manifest.json",
         "sha256": "d46da9b11f48fa2d0b03d09637a346195d6031d33dc6378e315b76c1149338a0"
       },
@@ -653,11 +657,11 @@
       }
     ],
     "repository_identity": {
-      "code_state": "L-WHISPER-00 code outputs committed at HEAD; build artifacts under target/ are local and untracked.",
-      "head": "e0f055e649bf4c4905130a244290d458ae3a76c1",
+      "code_state": "L00 code outputs retain the ledger hashes. Repository documentation now contains the L01 preflight reconciliation transport and report update; no code paths were changed.",
+      "head": "c0f9f631cb2a51f7778913953f80203c79e97bca",
       "worktree_evidence": {
-        "path": "L01_IMPLEMENTATION_PREFLIGHT.md",
-        "sha256": "d821a76109e211b5483a990fe6d2c04bf54ecad9e55f865195cee8fe4f0fffac"
+        "path": "L01_PREFLIGHT_21PATHS_2026-10-06.md",
+        "sha256": "e419c4d450d3f585de8aae1bf06d5a5decdb038699eb3f7c370dee49760deb8b"
       }
     }
   },
@@ -2981,7 +2985,7 @@
         "repository_evidence": [
           {
             "path": "L01_PREFLIGHT_21PATHS_2026-10-06.md",
-            "sha256": "7cb39adc7b00becf0e64a363be5478bb9dd5ec738e379fb81ab166e733a819b8"
+            "sha256": "e419c4d450d3f585de8aae1bf06d5a5decdb038699eb3f7c370dee49760deb8b"
           },
           {
             "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",

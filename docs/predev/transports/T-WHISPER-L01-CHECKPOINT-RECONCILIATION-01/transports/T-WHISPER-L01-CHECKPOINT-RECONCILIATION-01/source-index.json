@@ -1,0 +1,43 @@
+{
+  "actor": "/root/whisper_checkpoint_reconciliation",
+  "base_candidate_id": "P-WHISPER-06",
+  "base_state_sha256": "711985486f195f2a2a77dc2edb72e995b35d5f7e8d6b2838594799683c1c65dd",
+  "source_root": "C:/dev/whisper/docs/predev",
+  "documentation_refs": [
+    {
+      "path": "authorization.md",
+      "sha256": "bbe954936ff6e4108c11024301f3edb68fa1c3499a44096552794a9ef353b771"
+    },
+    {
+      "path": "candidates/D-WHISPER-19/manifest.json",
+      "sha256": "7f6465f9254611d432da50ab64034c7ae92b088351396f2c3eb3249c71866cb7"
+    },
+    {
+      "path": "candidates/P-WHISPER-06/manifest.json",
+      "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+    },
+    {
+      "path": "L01_PREFLIGHT_21PATHS_2026-10-06.md",
+      "sha256": "7cb39adc7b00becf0e64a363be5478bb9dd5ec738e379fb81ab166e733a819b8"
+    },
+    {
+      "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/user-authorization-21-paths.md",
+      "sha256": "1521a7eed34d07ba3d0812da074759fb0145540540e1d7e05ef6ca0900599f66"
+    },
+    {
+      "path": "transports/T-WHISPER-Q05-ANSWER-01/transport-manifest.json",
+      "sha256": "77c6bc223694fafc8c2ecaabc1b891d500ce744279f8d14417c512e76e0d7aae"
+    }
+  ],
+  "external_observations": [
+    {
+      "absolute_path": "C:/Users/cyril/.codex/tmp/whisper-l01-gate-20261006/view-manifest.json",
+      "sha256": "2a93e2690faa564623892e3b8e2d1710b54e0142a208166ec5265ebbbbe9c2d2",
+      "status": "HISTORICAL_PENDING_VIEW"
+    },
+    {
+      "absolute_path": "C:/Users/cyril/.codex/skills/rust-predev-design/scripts/predev_control.py",
+      "sha256": "2fe0d71e151fb35d86551808a6b9db491fa1f6f4b59f4e67f491db5828d3b485"
+    }
+  ]
+}
