@@ -1,0 +1,3 @@
+# Provenance de R-WHISPER-PLANS-05
+
+Transcription persistée par le coordinateur depuis le message du reviewer `/root/review_p03` reçu le 2026-10-06 dans ce fil. Le reviewer n’a pas pu produire un fichier export source. Le hash du fichier P06 atteste les octets de cette transcription conservée ; l’égalité à un export brut du message n’est pas démontrée. Auteur du verdict : reviewer identifié ; auteur de la transcription/persistance : `/root`, coordinateur. Référence conversationnelle : réponse finale de `/root/review_p03`, R-WHISPER-PLANS-05 v1.0, dans cette conversation. Cette preuve est historique et ne constitue pas une revue de P06.

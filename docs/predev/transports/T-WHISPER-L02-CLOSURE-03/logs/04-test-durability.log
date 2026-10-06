@@ -1,0 +1,15 @@
+COMMAND=cargo test --locked -p whisper-adapters --target x86_64-pc-windows-msvc --test durability -- --nocapture
+CWD=C:\dev\whisper
+TARGET=x86_64-pc-windows-msvc
+FEATURES=default
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running tests\durability.rs (target\x86_64-pc-windows-msvc\debug\deps\durability-e341205d583a234e.exe)
+
+running 2 tests
+test resume_validation_rejects_later_fifo_row_without_advancing_any_generation ... ok
+test queue_ack_replays_fifo_and_running_work_recovers_without_launch ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+EXIT_CODE=0

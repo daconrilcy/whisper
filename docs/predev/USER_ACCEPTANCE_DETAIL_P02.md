@@ -1,0 +1,1 @@
+Source directe : réponse utilisateur du 2026-10-06 au choix architectural DETAIL-P02 : « Accepter la proposition et élargir/revoir le plan L03 ». Elle autorise l’élargissement documentaire et sa revue indépendante ; aucune autorisation d’implémenter les 28 chemins L03.

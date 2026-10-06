@@ -1,0 +1,6 @@
+COMMAND=git diff --check
+CWD=C:\dev\whisper
+TARGET=working-tree candidate
+FEATURES=not applicable
+
+EXIT_CODE=0

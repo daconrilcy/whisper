@@ -1,0 +1,6 @@
+COMMAND=cargo fmt --all -- --check
+CWD=C:\dev\whisper
+TARGET=x86_64-pc-windows-msvc
+FEATURES=default
+
+EXIT_CODE=0

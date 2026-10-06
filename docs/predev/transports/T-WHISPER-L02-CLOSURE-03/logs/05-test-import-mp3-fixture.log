@@ -1,0 +1,20 @@
+COMMAND=cargo test --locked -p whisper-adapters --target x86_64-pc-windows-msvc --test import_mp3 -- --nocapture
+CWD=C:\dev\whisper
+TARGET=x86_64-pc-windows-msvc
+FEATURES=default
+WHISPER_L02_MP3_FIXTURE=C:\Users\cyril\AppData\Local\Temp\whisper-l02-lame-gapless.mp3 (process-local)
+WHISPER_L01_MODEL=NOT SET; model-backed case NOT RUN
+
+   Compiling whisper-adapters v0.1.0 (C:\dev\whisper\crates\whisper-adapters)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.70s
+     Running tests\import_mp3.rs (target\x86_64-pc-windows-msvc\debug\deps\import_mp3-b813448d61fb6b7e.exe)
+
+running 3 tests
+V-IMPORT-MP3 NOT RUN: set WHISPER_L01_MODEL to the approved D19 model
+test real_mp3_runs_through_durable_choice_cpu_worker_and_txt_srt_archive ... ok
+test failed_preparation_keeps_durable_row_actionable ... ok
+test source_changed_after_queue_admission_is_refused_without_worker_launch ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+EXIT_CODE=0

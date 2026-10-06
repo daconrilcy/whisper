@@ -16,7 +16,7 @@ pub use whisper_core::ports::{ImportQueueEntry as QueueEntry, ImportQueueStatus 
 enum QueueRecord {
     Upsert {
         version: u32,
-        entry: QueueEntry,
+        entry: Box<QueueEntry>,
     },
     Remove {
         version: u32,
@@ -46,7 +46,7 @@ impl Serialize for QueueRecord {
             Self::Upsert { version, entry } => QueueRecordWire {
                 op: "upsert".into(),
                 version: *version,
-                entry: Some(entry.clone()),
+                entry: Some((**entry).clone()),
                 job_id: None,
                 generation: None,
             },
@@ -77,7 +77,7 @@ impl<'de> Deserialize<'de> for QueueRecord {
                 .entry
                 .map(|entry| Self::Upsert {
                     version: wire.version,
-                    entry,
+                    entry: Box::new(entry),
                 })
                 .ok_or_else(|| serde::de::Error::missing_field("entry")),
             "remove" => match (wire.job_id, wire.generation) {
@@ -143,7 +143,7 @@ impl QueueStore {
         };
         self.append(QueueRecord::Upsert {
             version: QUEUE_SCHEMA,
-            entry: entry.clone(),
+            entry: Box::new(entry.clone()),
         })?;
         self.next_sequence = next_sequence;
         self.entries.insert(sequence, entry.clone());
@@ -165,7 +165,7 @@ impl QueueStore {
         entry.status = status;
         self.append(QueueRecord::Upsert {
             version: QUEUE_SCHEMA,
-            entry: entry.clone(),
+            entry: Box::new(entry.clone()),
         })?;
         self.entries.insert(entry.sequence, entry.clone());
         Ok(entry)
@@ -191,7 +191,7 @@ impl QueueStore {
         entry.status = QueueStatus::Running;
         self.append(QueueRecord::Upsert {
             version: QUEUE_SCHEMA,
-            entry: entry.clone(),
+            entry: Box::new(entry.clone()),
         })?;
         self.entries.insert(entry.sequence, entry.clone());
         Ok(entry)
@@ -312,7 +312,7 @@ impl QueueStore {
                     if version == QUEUE_SCHEMA && entry.sequence > 0 =>
                 {
                     self.next_sequence = self.next_sequence.max(entry.sequence.saturating_add(1));
-                    self.entries.insert(entry.sequence, entry);
+                    self.entries.insert(entry.sequence, *entry);
                 }
                 QueueRecord::Remove {
                     version,

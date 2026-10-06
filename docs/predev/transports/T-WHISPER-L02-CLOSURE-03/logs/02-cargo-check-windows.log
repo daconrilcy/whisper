@@ -1,0 +1,11 @@
+COMMAND=cargo check --locked -p whisper-core -p whisper-adapters -p whisper-worker-cpu -p whisper-desktop --target x86_64-pc-windows-msvc
+CWD=C:\dev\whisper
+TARGET=x86_64-pc-windows-msvc
+FEATURES=default
+LIBCLANG_PATH=C:\Users\cyril\AppData\Local\Programs\WhisperBuildDeps\libclang-22.1.8\runtimes\win-x64\native (process-local)
+PATH prepend=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin (process-local)
+
+    Checking whisper-adapters v0.1.0 (C:\dev\whisper\crates\whisper-adapters)
+    Checking whisper-desktop v0.1.0 (C:\dev\whisper\crates\whisper-desktop)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.68s
+EXIT_CODE=0

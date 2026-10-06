@@ -1,0 +1,17 @@
+COMMAND=cargo test --locked -p whisper-core --target x86_64-pc-windows-msvc --test scheduler_contract -- --nocapture
+CWD=C:\dev\whisper
+TARGET=x86_64-pc-windows-msvc
+FEATURES=default
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running tests\scheduler_contract.rs (target\x86_64-pc-windows-msvc\debug\deps\scheduler_contract-74dc9a70fb312415.exe)
+
+running 4 tests
+test admission_and_restoration_never_start_a_worker_without_user_choice ... ok
+test enqueue_failure_is_visible_without_marking_a_job_active ... ok
+test enqueue_is_acknowledged_only_after_the_durable_queue_event ... ok
+test interrupted_resume_requires_an_explicit_command_and_advances_generation ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+EXIT_CODE=0

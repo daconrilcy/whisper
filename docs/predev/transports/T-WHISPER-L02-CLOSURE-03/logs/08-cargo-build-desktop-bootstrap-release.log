@@ -1,0 +1,13 @@
+COMMAND=cargo build --locked --release -p whisper-desktop -p whisper-bootstrap --target x86_64-pc-windows-msvc --target-dir target/desktop
+CWD=C:\dev\whisper
+TARGET=x86_64-pc-windows-msvc
+FEATURES=default
+LIBCLANG_PATH=C:\Users\cyril\AppData\Local\Programs\WhisperBuildDeps\libclang-22.1.8\runtimes\win-x64\native (process-local)
+PATH prepend=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin (process-local)
+
+   Compiling whisper-core v0.1.0 (C:\dev\whisper\crates\whisper-core)
+   Compiling whisper-adapters v0.1.0 (C:\dev\whisper\crates\whisper-adapters)
+   Compiling whisper-desktop v0.1.0 (C:\dev\whisper\crates\whisper-desktop)
+   Compiling whisper-bootstrap v0.1.0 (C:\dev\whisper\crates\whisper-bootstrap)
+    Finished `release` profile [optimized] target(s) in 4.25s
+EXIT_CODE=0

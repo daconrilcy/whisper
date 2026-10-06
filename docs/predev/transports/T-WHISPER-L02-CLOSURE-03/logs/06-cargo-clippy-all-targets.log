@@ -1,0 +1,9 @@
+COMMAND=cargo clippy --locked -p whisper-core -p whisper-adapters -p whisper-worker-cpu -p whisper-desktop -p whisper-bootstrap --all-targets -- -D warnings
+CWD=C:\dev\whisper
+TARGET=host x86_64-pc-windows-msvc
+FEATURES=default
+LIBCLANG_PATH=C:\Users\cyril\AppData\Local\Programs\WhisperBuildDeps\libclang-22.1.8\runtimes\win-x64\native (process-local)
+PATH prepend=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin (process-local)
+
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.33s
+EXIT_CODE=0
