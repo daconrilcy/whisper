@@ -209,9 +209,12 @@ pub fn start_device(device: Device) -> Result<CaptureStream, String> {
         .checked_mul(usize::from(channels))
         .ok_or_else(|| "CaptureUnsupported: input dimensions overflow".to_owned())?;
     let (mut data_tx, ready) = RingBuffer::new(CAPTURE_SLOTS);
+    // The producer is retained by the consumer thread for recycling; the callback
+    // owns the consumer endpoint and receives the preallocated slots from here.
     let (mut recycle, mut free) = RingBuffer::new(CAPTURE_SLOTS);
     for _ in 0..CAPTURE_SLOTS {
-        free.push(Vec::with_capacity(slot_samples))
+        recycle
+            .push(Vec::with_capacity(slot_samples))
             .map_err(|_| "CaptureUnavailable: cannot initialize bounded slot pool")?;
     }
     let status = Arc::new(AtomicU8::new(0));
@@ -316,5 +319,60 @@ impl CaptureStream {
     }
     pub fn stop(&mut self) {
         self.stream.take();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn callback_reuses_recycled_slots_without_blocking_or_saturating() {
+        let (mut captured_tx, mut captured_rx) = RingBuffer::new(CAPTURE_SLOTS);
+        let (mut recycle_tx, mut free_rx) = RingBuffer::new(CAPTURE_SLOTS);
+        for _ in 0..CAPTURE_SLOTS {
+            recycle_tx.push(Vec::with_capacity(4)).unwrap();
+        }
+        let status = AtomicU8::new(0);
+
+        for value in 0..CAPTURE_SLOTS * 2 {
+            let data = [value as f32; 4];
+            capture_into(
+                &data,
+                |sample| sample,
+                2,
+                4,
+                &mut free_rx,
+                &mut captured_tx,
+                &status,
+            );
+            let block = captured_rx
+                .pop()
+                .expect("capture callback queued one block");
+            assert_eq!(block.as_slice(), data.as_slice());
+            recycle_tx.push(block).expect("consumer returns its slot");
+        }
+
+        assert_eq!(status.load(Ordering::Acquire), 0);
+    }
+
+    #[test]
+    fn callback_marks_partial_channel_frames_as_failed() {
+        let (mut captured_tx, _captured_rx) = RingBuffer::new(CAPTURE_SLOTS);
+        let (mut recycle_tx, mut free_rx) = RingBuffer::new(CAPTURE_SLOTS);
+        recycle_tx.push(Vec::with_capacity(4)).unwrap();
+        let status = AtomicU8::new(0);
+
+        capture_into(
+            &[0.0f32; 3],
+            |sample| sample,
+            2,
+            4,
+            &mut free_rx,
+            &mut captured_tx,
+            &status,
+        );
+
+        assert_ne!(status.load(Ordering::Acquire) & CAPTURE_FAILED, 0);
     }
 }

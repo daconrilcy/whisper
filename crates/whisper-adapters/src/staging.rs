@@ -3,6 +3,12 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{self, Read, Write},
     path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+        mpsc::{self, SyncSender, TrySendError},
+    },
+    thread::{self, JoinHandle},
 };
 
 pub const SYNC_EVERY_FRAMES: usize = 25;
@@ -29,6 +35,21 @@ pub struct PcmStaging {
     samples_written: u64,
     durable_samples: u64,
     checksum: Sha256,
+}
+
+enum WriterCommand {
+    Frame(Vec<i16>),
+    Tail(Vec<i16>),
+    Drain(SyncSender<io::Result<(u64, [u8; 32])>>),
+}
+
+/// Bounded disk writer used by live capture. Capture submits frames without waiting
+/// for storage; Stop sends an ordered drain request and waits for its durable checkpoint.
+pub struct PcmWriter {
+    sender: Option<SyncSender<WriterCommand>>,
+    worker: Option<JoinHandle<()>>,
+    durable_samples: Arc<AtomicU64>,
+    checksum: [u8; 32],
 }
 
 impl PcmStaging {
@@ -122,6 +143,19 @@ impl PcmStaging {
         self.checksum.clone().finalize().into()
     }
 
+    pub fn into_writer(self) -> PcmWriter {
+        let durable_samples = Arc::new(AtomicU64::new(self.durable_samples()));
+        let writer_durable = durable_samples.clone();
+        let (sender, receiver) = mpsc::sync_channel(MAX_PENDING_FRAMES);
+        let worker = thread::spawn(move || writer_loop(self, receiver, writer_durable));
+        PcmWriter {
+            sender: Some(sender),
+            worker: Some(worker),
+            durable_samples,
+            checksum: [0; 32],
+        }
+    }
+
     pub fn inspect_checkpoint(path: impl AsRef<Path>) -> Result<PcmCheckpoint, String> {
         let path = path.as_ref();
         let stored: StoredCheckpoint = serde_json::from_slice(
@@ -198,6 +232,122 @@ impl PcmStaging {
         drop(file);
         fs::rename(temporary, path)?;
         Ok(())
+    }
+}
+
+impl PcmWriter {
+    /// Nonblocking capture path: a full queue becomes an explicit interruption.
+    pub fn try_append_frame(&self, samples: Vec<i16>) -> io::Result<()> {
+        validate_frame(&samples)?;
+        self.sender
+            .as_ref()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::BrokenPipe, "PCM writer has stopped"))?
+            .try_send(WriterCommand::Frame(samples))
+            .map_err(|error| match error {
+                TrySendError::Full(_) => {
+                    io::Error::new(io::ErrorKind::WouldBlock, "PCM writer queue is full")
+                }
+                TrySendError::Disconnected(_) => {
+                    io::Error::new(io::ErrorKind::BrokenPipe, "PCM writer has stopped")
+                }
+            })
+    }
+
+    /// Stop path may wait for a queue slot, then drains all earlier frames in FIFO order.
+    pub fn append_frame(&self, samples: Vec<i16>) -> io::Result<()> {
+        validate_frame(&samples)?;
+        self.sender
+            .as_ref()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::BrokenPipe, "PCM writer has stopped"))?
+            .send(WriterCommand::Frame(samples))
+            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "PCM writer has stopped"))
+    }
+
+    pub fn append_tail(&self, samples: Vec<i16>) -> io::Result<()> {
+        if samples.len() >= 320 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "PCM tail must be shorter than one frame",
+            ));
+        }
+        self.sender
+            .as_ref()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::BrokenPipe, "PCM writer has stopped"))?
+            .send(WriterCommand::Tail(samples))
+            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "PCM writer has stopped"))
+    }
+
+    pub fn drain(&mut self) -> io::Result<u64> {
+        let (reply_tx, reply_rx) = mpsc::sync_channel(0);
+        self.sender
+            .as_ref()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::BrokenPipe, "PCM writer has stopped"))?
+            .send(WriterCommand::Drain(reply_tx))
+            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "PCM writer has stopped"))?;
+        let (durable_samples, checksum) = reply_rx
+            .recv()
+            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "PCM writer has stopped"))??;
+        self.durable_samples
+            .store(durable_samples, Ordering::Release);
+        self.checksum = checksum;
+        Ok(durable_samples)
+    }
+
+    pub fn durable_samples(&self) -> u64 {
+        self.durable_samples.load(Ordering::Acquire)
+    }
+
+    pub fn checksum(&self) -> [u8; 32] {
+        self.checksum
+    }
+}
+
+impl Drop for PcmWriter {
+    fn drop(&mut self) {
+        self.sender.take();
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
+
+fn writer_loop(
+    mut staging: PcmStaging,
+    receiver: mpsc::Receiver<WriterCommand>,
+    durable_samples: Arc<AtomicU64>,
+) {
+    while let Ok(command) = receiver.recv() {
+        match command {
+            WriterCommand::Frame(samples) => {
+                if staging.append_frame(&samples).is_err() {
+                    return;
+                }
+                durable_samples.store(staging.durable_samples(), Ordering::Release);
+            }
+            WriterCommand::Tail(samples) => {
+                if staging.append_tail(&samples).is_err() {
+                    return;
+                }
+            }
+            WriterCommand::Drain(reply) => {
+                let result = staging.drain().map(|()| {
+                    durable_samples.store(staging.durable_samples(), Ordering::Release);
+                    (staging.durable_samples(), staging.checksum())
+                });
+                let _ = reply.send(result);
+            }
+        }
+    }
+}
+
+fn validate_frame(samples: &[i16]) -> io::Result<()> {
+    if samples.len() == 320 {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "PCM frame must contain 320 samples",
+        ))
     }
 }
 

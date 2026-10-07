@@ -2,7 +2,7 @@ use crate::{
     WorkerTransport,
     archive::{ArchiveStore, LiveArchive},
     capture::{CaptureStream, Pcm16Converter},
-    staging::PcmStaging,
+    staging::{PcmStaging, PcmWriter},
     vad::VoiceActivity,
 };
 use serde::{Serialize, de::DeserializeOwned};
@@ -324,7 +324,7 @@ struct LiveCaptureState {
     capture: CaptureStream,
     converter: Pcm16Converter,
     vad: VoiceActivity,
-    staging: PcmStaging,
+    staging: PcmWriter,
     inference: Vec<i16>,
     frame_pending: Vec<i16>,
     inference_start: u64,
@@ -614,7 +614,8 @@ impl ImportRuntime {
             .map_err(|e| (id.0, id.1, e))?;
         let staging =
             PcmStaging::create(directory.join(format!("passage-{}.pcm", request.generation.get())))
-                .map_err(|e| (id.0, id.1, format!("StorageUnavailable: PCM staging: {e}")))?;
+                .map_err(|e| (id.0, id.1, format!("StorageUnavailable: PCM staging: {e}")))?
+                .into_writer();
         let mut capture = crate::capture::start_default().map_err(|e| (id.0, id.1, e))?;
         if let Err(error) = live_archive.capture_started() {
             capture.stop();
@@ -846,22 +847,51 @@ impl ImportRuntime {
                 ));
             }
             live.capture.stop();
-            while let Some(block) = live.capture.try_next_block() {
-                let samples = live
-                    .converter
-                    .push(&block)
-                    .map_err(|e| (job, generation, e))?;
-                live.capture
-                    .recycle_block(block)
-                    .map_err(|e| (job, generation, e))?;
-                live.frame_pending.extend(samples);
+            if live.failure.is_none() {
+                while let Some(block) = live.capture.try_next_block() {
+                    let samples = live
+                        .converter
+                        .push(&block)
+                        .map_err(|e| (job, generation, e))?;
+                    live.capture
+                        .recycle_block(block)
+                        .map_err(|e| (job, generation, e))?;
+                    live.frame_pending.extend(samples);
+                    while live.frame_pending.len() >= 320 {
+                        let frame: Vec<i16> = live.frame_pending.drain(..320).collect();
+                        live.captured += 320;
+                        if live
+                            .vad
+                            .is_speech(&frame)
+                            .map_err(|e| (job, generation, e))?
+                        {
+                            live.speech += 320;
+                        }
+                        live.inference.extend_from_slice(&frame);
+                        live.staging
+                            .append_frame(frame)
+                            .map_err(|e| (job, generation, format!("StorageUnavailable: {e}")))?;
+                        live.admitted += 320;
+                        if live.inference.len() == 80_000 {
+                            let samples =
+                                std::mem::replace(&mut live.inference, Vec::with_capacity(80_000));
+                            let start = live.inference_start;
+                            let end = start.checked_add(samples.len() as u64).ok_or((
+                                job,
+                                generation,
+                                "live offset exhausted".into(),
+                            ))?;
+                            final_windows.push((live.inference_sequence, start, end, samples));
+                            live.inference_sequence = live.inference_sequence.saturating_add(1);
+                            live.inference_start = end;
+                        }
+                    }
+                }
+                let tail = live.converter.finish().map_err(|e| (job, generation, e))?;
+                live.frame_pending.extend(tail);
                 while live.frame_pending.len() >= 320 {
                     let frame: Vec<i16> = live.frame_pending.drain(..320).collect();
-                    live.staging
-                        .append_frame(&frame)
-                        .map_err(|e| (job, generation, format!("StorageUnavailable: {e}")))?;
                     live.captured += 320;
-                    live.admitted += 320;
                     if live
                         .vad
                         .is_speech(&frame)
@@ -870,6 +900,10 @@ impl ImportRuntime {
                         live.speech += 320;
                     }
                     live.inference.extend_from_slice(&frame);
+                    live.staging
+                        .append_frame(frame)
+                        .map_err(|e| (job, generation, format!("StorageUnavailable: {e}")))?;
+                    live.admitted += 320;
                     if live.inference.len() == 80_000 {
                         let samples =
                             std::mem::replace(&mut live.inference, Vec::with_capacity(80_000));
@@ -884,60 +918,29 @@ impl ImportRuntime {
                         live.inference_start = end;
                     }
                 }
-            }
-            let tail = live.converter.finish().map_err(|e| (job, generation, e))?;
-            live.frame_pending.extend(tail);
-            while live.frame_pending.len() >= 320 {
-                let frame: Vec<i16> = live.frame_pending.drain(..320).collect();
-                live.staging
-                    .append_frame(&frame)
-                    .map_err(|e| (job, generation, format!("StorageUnavailable: {e}")))?;
-                live.captured += 320;
-                live.admitted += 320;
-                if live
-                    .vad
-                    .is_speech(&frame)
-                    .map_err(|e| (job, generation, e))?
-                {
-                    live.speech += 320;
+                if !live.frame_pending.is_empty() {
+                    let valid = std::mem::take(&mut live.frame_pending);
+                    let valid_len = valid.len();
+                    let mut vad_frame = [0i16; 320];
+                    vad_frame[..valid_len].copy_from_slice(&valid);
+                    if live
+                        .vad
+                        .is_speech(&vad_frame)
+                        .map_err(|e| (job, generation, e))?
+                    {
+                        live.speech += valid_len as u64;
+                    }
+                    live.captured += valid_len as u64;
+                    live.inference.extend_from_slice(&valid);
+                    live.staging.append_tail(valid).map_err(|e| {
+                        (
+                            job,
+                            generation,
+                            format!("StorageUnavailable: final PCM tail: {e}"),
+                        )
+                    })?;
+                    live.admitted += valid_len as u64;
                 }
-                live.inference.extend_from_slice(&frame);
-                if live.inference.len() == 80_000 {
-                    let samples =
-                        std::mem::replace(&mut live.inference, Vec::with_capacity(80_000));
-                    let start = live.inference_start;
-                    let end = start.checked_add(samples.len() as u64).ok_or((
-                        job,
-                        generation,
-                        "live offset exhausted".into(),
-                    ))?;
-                    final_windows.push((live.inference_sequence, start, end, samples));
-                    live.inference_sequence = live.inference_sequence.saturating_add(1);
-                    live.inference_start = end;
-                }
-            }
-            if !live.frame_pending.is_empty() {
-                let valid = std::mem::take(&mut live.frame_pending);
-                live.staging.append_tail(&valid).map_err(|e| {
-                    (
-                        job,
-                        generation,
-                        format!("StorageUnavailable: final PCM tail: {e}"),
-                    )
-                })?;
-                let valid_len = valid.len();
-                let mut vad_frame = [0i16; 320];
-                vad_frame[..valid_len].copy_from_slice(&valid);
-                if live
-                    .vad
-                    .is_speech(&vad_frame)
-                    .map_err(|e| (job, generation, e))?
-                {
-                    live.speech += valid_len as u64;
-                }
-                live.captured += valid_len as u64;
-                live.admitted += valid_len as u64;
-                live.inference.extend_from_slice(&valid);
             }
             if !live.inference.is_empty() {
                 let samples = std::mem::take(&mut live.inference);
@@ -1025,7 +1028,6 @@ impl ImportRuntime {
                 "CaptureInterrupted: WASAPI stream failed"
             };
             live.capture.stop();
-            let _ = live.staging.drain();
             live.failure = Some(reason.into());
             if let Some(transport) = self.transport.as_mut() {
                 let _ = transport.request(WorkerCommand::Stop { job_id, generation });
@@ -1037,7 +1039,6 @@ impl ImportRuntime {
             Ok(samples) => samples,
             Err(error) => {
                 live.capture.stop();
-                let _ = live.staging.drain();
                 live.failure = Some(error.clone());
                 if let Some(transport) = self.transport.as_mut() {
                     let _ = transport.request(WorkerCommand::Stop {
@@ -1050,7 +1051,6 @@ impl ImportRuntime {
         };
         if let Err(error) = live.capture.recycle_block(block) {
             live.capture.stop();
-            let _ = live.staging.drain();
             live.failure = Some(error.clone());
             if let Some(transport) = self.transport.as_mut() {
                 let _ = transport.request(WorkerCommand::Stop {
@@ -1064,27 +1064,12 @@ impl ImportRuntime {
         let mut window = None;
         while live.frame_pending.len() >= 320 {
             let frame: Vec<i16> = live.frame_pending.drain(..320).collect();
-            if let Err(error) = live.staging.append_frame(&frame) {
-                live.capture.stop();
-                let reason = format!("StorageUnavailable: {error}");
-                let _ = live.staging.drain();
-                live.failure = Some(reason.clone());
-                if let Some(transport) = self.transport.as_mut() {
-                    let _ = transport.request(WorkerCommand::Stop {
-                        job_id: live.request.job_id,
-                        generation: live.request.generation,
-                    });
-                }
-                return None;
-            }
             live.captured = live.captured.saturating_add(320);
-            live.admitted = live.admitted.saturating_add(320);
             match live.vad.is_speech(&frame) {
                 Ok(true) => live.speech = live.speech.saturating_add(320),
                 Ok(false) => {}
                 Err(error) => {
                     live.capture.stop();
-                    let _ = live.staging.drain();
                     live.failure = Some(error.clone());
                     if let Some(transport) = self.transport.as_mut() {
                         let _ = transport.request(WorkerCommand::Stop {
@@ -1095,7 +1080,26 @@ impl ImportRuntime {
                     return None;
                 }
             }
+            let inference_len_before_frame = live.inference.len();
             live.inference.extend_from_slice(&frame);
+            if let Err(error) = live.staging.try_append_frame(frame) {
+                live.inference.truncate(inference_len_before_frame);
+                live.capture.stop();
+                let reason = if error.kind() == io::ErrorKind::WouldBlock {
+                    "CaptureSaturated: bounded PCM writer queue is full".to_owned()
+                } else {
+                    format!("StorageUnavailable: {error}")
+                };
+                live.failure = Some(reason);
+                if let Some(transport) = self.transport.as_mut() {
+                    let _ = transport.request(WorkerCommand::Stop {
+                        job_id: live.request.job_id,
+                        generation: live.request.generation,
+                    });
+                }
+                return None;
+            }
+            live.admitted = live.admitted.saturating_add(320);
             if live.inference.len() == 80_000 {
                 let start = live.inference_start;
                 let end = start.saturating_add(80_000);
@@ -1139,7 +1143,6 @@ impl ImportRuntime {
                         live.capture.stop();
                         live.failure =
                             Some("StorageCorrupt: live inference range is invalid".into());
-                        let _ = live.staging.drain();
                         if let Some(transport) = self.transport.as_mut() {
                             let _ = transport.request(WorkerCommand::Stop {
                                 job_id: identity.0,
@@ -1156,7 +1159,6 @@ impl ImportRuntime {
             {
                 live.capture.stop();
                 live.failure = Some(format!("WorkerExited: {error:?}"));
-                let _ = live.staging.drain();
                 return None;
             }
         }
