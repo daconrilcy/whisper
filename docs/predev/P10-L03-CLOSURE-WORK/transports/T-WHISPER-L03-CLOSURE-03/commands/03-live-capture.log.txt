@@ -1,0 +1,11 @@
+   Compiling whisper-adapters v0.1.0 (C:\dev\whisper\crates\whisper-adapters)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.56s
+     Running tests\live_capture.rs (target/l03-closure-validation\x86_64-pc-windows-msvc\debug\deps\live_capture-44c3f8f6c3cf9900.exe)
+
+running 3 tests
+test capture_conversion_rejects_unsupported_dimensions_and_uses_bounded_slots ... ok
+test bounded_pcm_writer_drains_queued_frames_to_a_verified_checkpoint ... ok
+test delayed_durable_high_water_keeps_the_80k_inference_window_on_disk ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+

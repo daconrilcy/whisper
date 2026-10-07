@@ -360,10 +360,13 @@ impl LiveArchive {
                 )
             })
             .collect::<String>();
-        let text_path = self.directory.join("transcript.txt");
-        let srt_path = self.directory.join("transcript.srt");
+        let passage = self.request.generation.get();
+        let text_path = self.directory.join(format!("transcript-{passage}.txt"));
+        let srt_path = self.directory.join(format!("transcript-{passage}.srt"));
         write_replace_synced(&text_path, text.as_bytes())?;
         write_replace_synced(&srt_path, srt.as_bytes())?;
+        // Manifests reference immutable passage snapshots so later passages cannot
+        // make an earlier generation fail hash verification.
         let record = LiveCompleteRecord {
             version: 1,
             job_id: self.request.job_id,
@@ -401,6 +404,10 @@ impl LiveArchive {
             &self.directory.join("CURRENT"),
             format!("{manifest_name}\n").as_bytes(),
         )?;
+        // CURRENT is the commit point. Update compatibility aliases only after it;
+        // scan_live repairs aliases from the committed immutable snapshot after a crash.
+        let _ = write_replace_synced(&self.directory.join("transcript.txt"), text.as_bytes());
+        let _ = write_replace_synced(&self.directory.join("transcript.srt"), srt.as_bytes());
         let _ = fs::remove_file(&self.pending_path);
         Ok(())
     }
@@ -897,6 +904,12 @@ fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, Strin
                 "StorageCorrupt: live manifest is newer than the committed group tail".into(),
             );
         }
+        let manifest_path = dir.join(format!("manifest-{number}.json"));
+        let record: LiveCompleteRecord =
+            serde_json::from_slice(&fs::read(manifest_path).map_err(|error| error.to_string())?)
+                .map_err(|error| format!("StorageCorrupt: committed live manifest: {error}"))?;
+        reconcile_alias(dir, &record.text, "transcript.txt")?;
+        reconcile_alias(dir, &record.srt, "transcript.srt")?;
     }
     for item in fs::read_dir(dir).map_err(|error| error.to_string())? {
         let item = item.map_err(|error| error.to_string())?;
@@ -931,6 +944,15 @@ fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, Strin
     Ok(entries)
 }
 
+fn reconcile_alias(dir: &Path, source: &ArtifactRecord, alias: &str) -> Result<(), String> {
+    let contents = fs::read(dir.join(&source.path)).map_err(|error| error.to_string())?;
+    let alias_path = dir.join(alias);
+    if fs::read(&alias_path).ok().as_deref() != Some(contents.as_slice()) {
+        write_replace_synced(&alias_path, &contents)?;
+    }
+    Ok(())
+}
+
 pub fn scan_live_recoveries(
     root: &Path,
 ) -> Result<Vec<whisper_core::ports::LiveRecoveryInfo>, String> {
@@ -960,26 +982,24 @@ pub fn scan_live_recoveries(
             if let Some(number) = name
                 .strip_prefix("manifest-")
                 .and_then(|s| s.strip_suffix(".json"))
+                && let Ok(generation) = number.parse::<u64>()
+                && generation > 0
+                && generation.to_string() == number
             {
-                if let Ok(generation) = number.parse::<u64>() {
-                    if generation > 0 && generation.to_string() == number {
-                        latest_generation = latest_generation.max(generation);
-                        manifest_generations.insert(generation);
-                    }
-                }
+                latest_generation = latest_generation.max(generation);
+                manifest_generations.insert(generation);
             }
             if let Some(number) = name
                 .strip_prefix("passage-")
                 .and_then(|s| s.strip_suffix(".pending.json"))
+                && let Ok(generation) = number.parse::<u64>()
+                && generation > 0
+                && generation.to_string() == number
             {
-                if let Ok(generation) = number.parse::<u64>() {
-                    if generation > 0 && generation.to_string() == number {
-                        if generation >= latest_pending.as_ref().map_or(0, |(latest, _)| *latest) {
-                            latest_pending = Some((generation, item.path()));
-                        }
-                        latest_generation = latest_generation.max(generation);
-                    }
+                if generation >= latest_pending.as_ref().map_or(0, |(latest, _)| *latest) {
+                    latest_pending = Some((generation, item.path()));
                 }
+                latest_generation = latest_generation.max(generation);
             }
         }
         let Some((generation, pending_path)) = latest_pending else {

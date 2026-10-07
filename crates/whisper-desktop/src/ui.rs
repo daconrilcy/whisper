@@ -17,11 +17,15 @@ pub struct DesktopApp<A> {
     destination: String,
     manual_language: bool,
     language: String,
+    auto_stop_enabled: bool,
+    auto_stop_minutes: u64,
     active_identity: Option<(JobId, Generation)>,
     scanned_destination: Option<String>,
     observed_job_state: Option<JobState>,
     resume_confirmation: Option<(JobId, Generation)>,
     live_request: Option<LiveRequest>,
+    provisional_first_rendered_at_unix_ms: Option<u64>,
+    provisional_render_identity: Option<(JobId, Generation, u64)>,
 }
 
 impl<A: Application> DesktopApp<A> {
@@ -42,11 +46,15 @@ impl<A: Application> DesktopApp<A> {
             destination,
             manual_language: false,
             language: "fr".into(),
+            auto_stop_enabled: false,
+            auto_stop_minutes: 120,
             active_identity: None,
             scanned_destination: None,
             observed_job_state: None,
             resume_confirmation: None,
             live_request: None,
+            provisional_first_rendered_at_unix_ms: None,
+            provisional_render_identity: None,
         }
     }
 
@@ -55,6 +63,12 @@ impl<A: Application> DesktopApp<A> {
             Ok(view) => self.view = view,
             Err(ApplicationError::Failed(message)) => self.view.message = Some(message),
             Err(error) => self.view.message = Some(format!("Commande impossible : {error:?}")),
+        }
+    }
+
+    fn stop_active(&mut self) {
+        if let Some((job_id, generation)) = self.active_identity {
+            self.dispatch(AppCommand::Stop { job_id, generation });
         }
     }
 
@@ -70,7 +84,6 @@ impl<A: Application> DesktopApp<A> {
             },
             compute: ComputeChoice::Cpu,
         };
-        self.active_identity = Some((job_id, generation));
         self.dispatch(AppCommand::EnqueueImport {
             request: ImportRequest {
                 job_id,
@@ -103,6 +116,10 @@ impl<A: Application> DesktopApp<A> {
                     .group_offset_samples
                     .saturating_add(self.view.captured_samples)
             }),
+            auto_stop_after_speech_samples: speech_limit_samples(
+                self.auto_stop_enabled,
+                self.auto_stop_minutes,
+            ),
             config: JobConfig {
                 language: if self.manual_language {
                     LanguageChoice::Manual(self.language.trim().to_owned())
@@ -167,14 +184,29 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     | JobState::Finalizing
             )
         });
+        let busy_live = self.view.active_job.is_some_and(|(job_id, state)| {
+            self.live_request
+                .as_ref()
+                .is_some_and(|request| request.job_id == job_id)
+                && matches!(
+                    state,
+                    JobState::Preparing
+                        | JobState::Capturing
+                        | JobState::Draining
+                        | JobState::Running
+                        | JobState::Cancelling
+                        | JobState::Finalizing
+                )
+        });
+        let can_enqueue = import_enqueue_enabled(busy, busy_live);
         if ui.ctx().input(|input| input.viewport().close_requested())
             && busy
             && state != Some(JobState::Cancelling)
         {
             ui.ctx()
                 .send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            if let Some((job_id, generation)) = self.active_identity {
-                self.dispatch(AppCommand::Stop { job_id, generation });
+            if self.active_identity.is_some() {
+                self.stop_active();
                 self.view.message = Some(
                     "Arrêt demandé ; la fenêtre reste ouverte jusqu’à la stabilisation du passage."
                         .into(),
@@ -202,7 +234,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         ui.heading("Whisper — transcription locale");
         ui.label("Import WAV ou MP3 sur le worker CPU avec le modèle D19 approuvé.");
 
-        ui.add_enabled_ui(!busy, |ui| {
+        ui.add_enabled_ui(can_enqueue, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Fichier audio (WAV ou MP3)");
                 ui.text_edit_singleline(&mut self.source_path);
@@ -222,6 +254,20 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 }
                 ui.label("Calcul : CPU");
             });
+            ui.add_enabled_ui(!busy, |ui| {
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut self.auto_stop_enabled, "Arrêt après durée de parole");
+                    if self.auto_stop_enabled {
+                        ui.add(
+                            egui::DragValue::new(&mut self.auto_stop_minutes)
+                                .range(1..=u64::MAX)
+                                .suffix(" min"),
+                        );
+                    } else {
+                        ui.label("sans limite");
+                    }
+                });
+            });
             let can_start = !self.source_path.trim().is_empty()
                 && !self.model_path.trim().is_empty()
                 && !self.destination.trim().is_empty()
@@ -232,7 +278,8 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             {
                 self.start_import();
             }
-            let can_start_live = !self.model_path.trim().is_empty()
+            let can_start_live = !busy
+                && !self.model_path.trim().is_empty()
                 && !self.destination.trim().is_empty()
                 && (!self.manual_language || !self.language.trim().is_empty());
             if ui
@@ -264,6 +311,35 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     self.view.confirmed_fragment_samples,
                     self.view.speech_samples,
                 ));
+                if let Some(text) = self.view.provisional_text.as_deref() {
+                    let render_identity = (
+                        job_id,
+                        self.live_request
+                            .as_ref()
+                            .map_or(Generation::first(), |request| request.generation),
+                        self.view.provisional_sequence.unwrap_or(0),
+                    );
+                    let text_response = ui.label(format!("Texte provisoire : {text}"));
+                    record_first_render(
+                        render_identity,
+                        &text_response,
+                        &mut self.provisional_render_identity,
+                        &mut self.provisional_first_rendered_at_unix_ms,
+                    );
+                    if let (Some(captured), Some(available)) = (
+                        self.view.provisional_captured_at_unix_ms,
+                        self.view.provisional_available_at_unix_ms,
+                    ) {
+                        let first_rendered =
+                            self.provisional_first_rendered_at_unix_ms.unwrap_or(0);
+                        ui.label(format!(
+                            "Capture Unix {captured} ms | disponibilité Unix {available} ms | premier affichage Unix {first_rendered} ms"
+                        ));
+                    }
+                }
+                if let Some(text) = self.view.confirmed_text.as_deref() {
+                    ui.label(format!("Texte confirmé : {text}"));
+                }
             }
             if let Some((completed, total)) = self.view.progress {
                 if total > 0 {
@@ -281,12 +357,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 state,
                 JobState::Preparing | JobState::Running | JobState::Finalizing
             ) && ui.button("Arrêter").clicked()
-                && let Some((job, generation)) = self.active_identity
+                && self.active_identity.is_some()
             {
-                self.dispatch(AppCommand::Stop {
-                    job_id: job,
-                    generation,
-                });
+                self.stop_active();
             }
         }
         if let Some(message) = &self.view.message {
@@ -413,5 +486,113 @@ fn hex_digit(value: u8) -> u8 {
         b'0'..=b'9' => value - b'0',
         b'a'..=b'f' => value - b'a' + 10,
         _ => 0,
+    }
+}
+
+fn speech_limit_samples(enabled: bool, minutes: u64) -> Option<u64> {
+    enabled.then(|| minutes.max(1).saturating_mul(60 * 16_000))
+}
+
+fn import_enqueue_enabled(busy: bool, busy_live: bool) -> bool {
+    !busy || busy_live
+}
+
+fn unix_time_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |duration| {
+            duration.as_millis().min(u64::MAX as u128) as u64
+        })
+}
+
+fn record_first_render(
+    identity: (JobId, Generation, u64),
+    response: &egui::Response,
+    rendered_identity: &mut Option<(JobId, Generation, u64)>,
+    rendered_at_unix_ms: &mut Option<u64>,
+) {
+    if response.rect.width() > 0.0
+        && response.rect.height() > 0.0
+        && *rendered_identity != Some(identity)
+    {
+        *rendered_identity = Some(identity);
+        *rendered_at_unix_ms = Some(unix_time_ms());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DesktopApp, import_enqueue_enabled, record_first_render, speech_limit_samples};
+    use std::{cell::RefCell, rc::Rc};
+    use whisper_core::{AppCommand, AppView, Application, ApplicationError, Generation, JobId};
+
+    #[derive(Clone, Default)]
+    struct RecordingApplication(Rc<RefCell<Vec<AppCommand>>>);
+
+    impl Application for RecordingApplication {
+        fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
+            self.0.borrow_mut().push(command);
+            Ok(AppView::default())
+        }
+
+        fn view(&self) -> AppView {
+            AppView::default()
+        }
+    }
+
+    #[test]
+    fn auto_stop_is_disabled_by_default_and_uses_speech_sample_clock_when_enabled() {
+        assert_eq!(speech_limit_samples(false, 120), None);
+        assert_eq!(speech_limit_samples(true, 2), Some(1_920_000));
+        assert_eq!(speech_limit_samples(true, 0), Some(960_000));
+    }
+
+    #[test]
+    fn import_enqueue_stays_available_during_live_capture() {
+        assert!(import_enqueue_enabled(true, true));
+        assert!(!import_enqueue_enabled(true, false));
+        assert!(import_enqueue_enabled(false, false));
+    }
+
+    #[test]
+    fn enqueue_then_stop_still_targets_the_live_identity() {
+        let recorder = RecordingApplication::default();
+        let mut app = DesktopApp::new(recorder.clone());
+        let live = (JobId(20), Generation::first());
+        app.active_identity = Some(live);
+        app.start_import();
+        assert_eq!(app.active_identity, Some(live));
+        assert!(matches!(
+            recorder.0.borrow().first(),
+            Some(AppCommand::EnqueueImport { .. })
+        ));
+        app.stop_active();
+        assert_eq!(
+            recorder.0.borrow().last(),
+            Some(&AppCommand::Stop {
+                job_id: live.0,
+                generation: live.1,
+            })
+        );
+    }
+
+    #[test]
+    fn first_render_timestamp_is_recorded_after_the_label_in_an_egui_frame() {
+        let context = eframe::egui::Context::default();
+        let mut identity = None;
+        let mut first_render = None;
+        let _ = context.run_ui(Default::default(), |ui| {
+            eframe::egui::CentralPanel::default().show(ui, |ui| {
+                let label = ui.label("provisional transcript");
+                record_first_render(
+                    (JobId(21), Generation::first(), 1),
+                    &label,
+                    &mut identity,
+                    &mut first_render,
+                );
+            });
+        });
+        assert_eq!(identity, Some((JobId(21), Generation::first(), 1)));
+        assert!(first_render.is_some());
     }
 }

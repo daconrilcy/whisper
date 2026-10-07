@@ -1,0 +1,3 @@
+    Checking whisper-adapters v0.1.0 (C:\dev\whisper\crates\whisper-adapters)
+    Checking whisper-desktop v0.1.0 (C:\dev\whisper\crates\whisper-desktop)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.76s

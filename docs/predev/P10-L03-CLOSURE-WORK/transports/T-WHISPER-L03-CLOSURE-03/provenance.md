@@ -1,0 +1,1 @@
+Demande utilisateur: générer un paquet de clôture L03 contenant les commandes et journaux de ce candidat, puis revue indépendante et validation. Demandes précédentes: réconcilier sorties/hashes, inscrire candidate_fingerprint exact, relancer le gate et appliquer les corrections nécessaires.

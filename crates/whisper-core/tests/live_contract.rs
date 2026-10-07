@@ -33,6 +33,7 @@ fn request() -> LiveRequest {
         model_sha256: [0; 32],
         destination: "out".into(),
         group_offset_samples: 0,
+        auto_stop_after_speech_samples: None,
         config: JobConfig {
             language: LanguageChoice::Manual("fr".into()),
             compute: ComputeChoice::Cpu,

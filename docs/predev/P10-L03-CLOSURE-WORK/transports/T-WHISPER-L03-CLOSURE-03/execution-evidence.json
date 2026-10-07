@@ -1,0 +1,534 @@
+{
+  "artifacts": [
+    {
+      "path": "target/l03-closure-validation/x86_64-pc-windows-msvc/release/whisper-desktop.exe",
+      "sha256": "7292b00c50c6a173e2eaf3b0fb299a4b9c9d6312e7a526aef4697435d48234cd"
+    },
+    {
+      "path": "target/l03-closure-validation/x86_64-pc-windows-msvc/release/whisper-worker-cpu.exe",
+      "sha256": "6b4944571af1fee0320c2e3cb0f30a7044fb9cb77b940887222fc35e7afc62bc"
+    }
+  ],
+  "candidate_digests": {
+    "DESIGN": "903926ba27c70fc3a0cc6954d9e50914a64993e40c339683e557bc4c604d7529",
+    "PLANS": "9b9edfcf09e39bd6017fb818fd0b9784923b8eb89707b18a9e3a1fff4d7b8f4a"
+  },
+  "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+      "cwd": "C:\\dev\\whisper",
+      "exit_code": 0,
+      "features": [],
+      "id": "FMT",
+      "log": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/commands/01-fmt.log.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "required": true,
+      "status": "PASS",
+      "target": ""
+    },
+    {
+      "argv": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "whisper-core",
+        "-p",
+        "whisper-adapters",
+        "-p",
+        "whisper-worker-cpu",
+        "-p",
+        "whisper-desktop",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target-dir",
+        "target/l03-closure-validation"
+      ],
+      "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+      "cwd": "C:\\dev\\whisper",
+      "exit_code": 0,
+      "features": [],
+      "id": "CHECK",
+      "log": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/commands/02-check.log.txt",
+        "sha256": "050830b9078ce793abfbb99d6b2b04647b6769f99202aa7c8b71cae95192c229"
+      },
+      "required": true,
+      "status": "PASS",
+      "target": "x86_64-pc-windows-msvc"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "whisper-adapters",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target-dir",
+        "target/l03-closure-validation",
+        "--test",
+        "live_capture",
+        "--",
+        "--nocapture"
+      ],
+      "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+      "cwd": "C:\\dev\\whisper",
+      "exit_code": 0,
+      "features": [],
+      "id": "TEST-LIVE-CAPTURE",
+      "log": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/commands/03-live-capture.log.txt",
+        "sha256": "41d8fcc4f9c06b5a2cf8de26bb12025fccfe9080e7b5d8b1ad9dd75e812c8c0e"
+      },
+      "required": true,
+      "status": "PASS",
+      "target": "x86_64-pc-windows-msvc"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "whisper-adapters",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target-dir",
+        "target/l03-closure-validation",
+        "--test",
+        "vad_contract",
+        "--",
+        "--nocapture"
+      ],
+      "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+      "cwd": "C:\\dev\\whisper",
+      "exit_code": 0,
+      "features": [],
+      "id": "TEST-VAD",
+      "log": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/commands/04-vad-contract.log.txt",
+        "sha256": "63414aab8e4855206ab35f1bec27074bfde3aa557d490717be18e3256cc36c0b"
+      },
+      "required": true,
+      "status": "PASS",
+      "target": "x86_64-pc-windows-msvc"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "whisper-adapters",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target-dir",
+        "target/l03-closure-validation",
+        "--test",
+        "live_archive",
+        "--",
+        "--nocapture"
+      ],
+      "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+      "cwd": "C:\\dev\\whisper",
+      "exit_code": 0,
+      "features": [],
+      "id": "TEST-ARCHIVE",
+      "log": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/commands/05-live-archive.log.txt",
+        "sha256": "3840a56a7773500663a98eb6857d2f9178dc21b5a644e0305fb23dc75898f5df"
+      },
+      "required": true,
+      "status": "PASS",
+      "target": "x86_64-pc-windows-msvc"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "whisper-core",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target-dir",
+        "target/l03-closure-validation",
+        "--test",
+        "live_contract",
+        "--",
+        "--nocapture"
+      ],
+      "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+      "cwd": "C:\\dev\\whisper",
+      "exit_code": 0,
+      "features": [],
+      "id": "TEST-CORE-LIVE",
+      "log": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/commands/06-live-contract.log.txt",
+        "sha256": "5c1ec209e20a879af149647c17abb8a7cf20e91802b0bca3afa8a770b6a71d6a"
+      },
+      "required": true,
+      "status": "PASS",
+      "target": "x86_64-pc-windows-msvc"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "whisper-worker-cpu",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target-dir",
+        "target/l03-closure-validation",
+        "--test",
+        "live_worker",
+        "--",
+        "--nocapture"
+      ],
+      "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+      "cwd": "C:\\dev\\whisper",
+      "exit_code": 0,
+      "features": [],
+      "id": "TEST-WORKER-LIVE",
+      "log": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/commands/07-live-worker.log.txt",
+        "sha256": "08c956baa1ffd788c6140cde560c29337f17cac7c6a83d7ef12a09d7ff201539"
+      },
+      "required": true,
+      "status": "PASS",
+      "target": "x86_64-pc-windows-msvc"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "whisper-adapters",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target-dir",
+        "target/l03-closure-validation",
+        "--test",
+        "durability",
+        "--",
+        "--nocapture"
+      ],
+      "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+      "cwd": "C:\\dev\\whisper",
+      "exit_code": 0,
+      "features": [],
+      "id": "TEST-DURABILITY",
+      "log": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/commands/08-durability.log.txt",
+        "sha256": "9ae35826d2e9b4f1ca8c191d6a86646e30c7aaf841c2b6908a74ac0a2c5beba1"
+      },
+      "required": true,
+      "status": "PASS",
+      "target": "x86_64-pc-windows-msvc"
+    },
+    {
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "whisper-core",
+        "-p",
+        "whisper-adapters",
+        "-p",
+        "whisper-worker-cpu",
+        "-p",
+        "whisper-desktop",
+        "--all-targets",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target-dir",
+        "target/l03-closure-validation",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+      "cwd": "C:\\dev\\whisper",
+      "exit_code": 0,
+      "features": [],
+      "id": "CLIPPY",
+      "log": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/commands/09-clippy.log.txt",
+        "sha256": "d81908fcf3ad942f083d853b01c2a5855ae51ea5ebf3abe1cf5219e7fcc9e803"
+      },
+      "required": true,
+      "status": "PASS",
+      "target": "x86_64-pc-windows-msvc"
+    },
+    {
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "whisper-worker-cpu",
+        "-p",
+        "whisper-desktop",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target-dir",
+        "target/l03-closure-validation"
+      ],
+      "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+      "cwd": "C:\\dev\\whisper",
+      "exit_code": 0,
+      "features": [],
+      "id": "RELEASE",
+      "log": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/commands/10-release-build.log.txt",
+        "sha256": "835d0b552bf581682813ddaf4c11e56e44076d4fbab906967f34eb2017c70f9e"
+      },
+      "required": true,
+      "status": "PASS",
+      "target": "x86_64-pc-windows-msvc"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+      "cwd": "C:\\dev\\whisper",
+      "exit_code": 0,
+      "features": [],
+      "id": "DIFF",
+      "log": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/commands/11-diff-check.log.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "required": true,
+      "status": "PASS",
+      "target": ""
+    }
+  ],
+  "environment_matrix": {
+    "checks": [
+      {
+        "id": "RUSTC",
+        "kind": "executable",
+        "name": "rustc",
+        "required": true,
+        "version_pattern": "^rustc 1\\.98\\.1(?:\\s|$)"
+      },
+      {
+        "id": "CARGO",
+        "kind": "executable",
+        "name": "cargo",
+        "required": true,
+        "version_pattern": "^cargo 1\\.98\\.1(?:\\s|$)"
+      },
+      {
+        "id": "RUSTUP_SELECTION",
+        "kind": "env",
+        "name": "RUSTUP_TOOLCHAIN",
+        "required": true
+      },
+      {
+        "id": "MSVC",
+        "kind": "executable",
+        "name": "cl",
+        "required": true
+      },
+      {
+        "id": "CMAKE",
+        "kind": "executable",
+        "name": "cmake",
+        "required": true
+      },
+      {
+        "id": "LIBCLANG",
+        "kind": "env",
+        "name": "LIBCLANG_PATH",
+        "path_type": "directory",
+        "required": true
+      },
+      {
+        "entry_type": "file",
+        "id": "TOOLCHAIN",
+        "kind": "path",
+        "path": "rust-toolchain.toml",
+        "required": true
+      },
+      {
+        "entry_type": "file",
+        "id": "LOCKFILE",
+        "kind": "path",
+        "path": "Cargo.lock",
+        "required": true
+      }
+    ],
+    "schema": "rust-predev-build-env/1"
+  },
+  "environment_result": {
+    "checks": [
+      {
+        "id": "RUSTC",
+        "kind": "executable",
+        "name": "rustc",
+        "path": "C:\\Users\\cyril\\.cargo\\bin\\rustup.exe",
+        "probe_exit": 0,
+        "required": true,
+        "status": "READY",
+        "version_line": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "version_match": true
+      },
+      {
+        "id": "CARGO",
+        "kind": "executable",
+        "name": "cargo",
+        "path": "C:\\Users\\cyril\\.cargo\\bin\\rustup.exe",
+        "probe_exit": 0,
+        "required": true,
+        "status": "READY",
+        "version_line": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "version_match": true
+      },
+      {
+        "configured": true,
+        "id": "RUSTUP_SELECTION",
+        "kind": "env",
+        "name": "RUSTUP_TOOLCHAIN",
+        "required": true,
+        "status": "READY"
+      },
+      {
+        "id": "MSVC",
+        "kind": "executable",
+        "name": "cl",
+        "path": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\VC\\Tools\\MSVC\\14.29.30133\\bin\\Hostx64\\x64\\cl.exe",
+        "probe_exit": 0,
+        "required": true,
+        "status": "READY",
+        "version_line": "Compilateur d'optimisation Microsoft (R) C/C++ versionÂ 19.29.30159 pour x64"
+      },
+      {
+        "id": "CMAKE",
+        "kind": "executable",
+        "name": "cmake",
+        "path": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe",
+        "probe_exit": 0,
+        "required": true,
+        "status": "READY",
+        "version_line": "cmake version 3.20.21032501-MSVC_2"
+      },
+      {
+        "configured": true,
+        "id": "LIBCLANG",
+        "kind": "env",
+        "name": "LIBCLANG_PATH",
+        "path_type": "directory",
+        "required": true,
+        "status": "READY",
+        "target_exists": true
+      },
+      {
+        "entry_type": "file",
+        "exists": true,
+        "id": "TOOLCHAIN",
+        "kind": "path",
+        "path": "rust-toolchain.toml",
+        "required": true,
+        "status": "READY"
+      },
+      {
+        "entry_type": "file",
+        "exists": true,
+        "id": "LOCKFILE",
+        "kind": "path",
+        "path": "Cargo.lock",
+        "required": true,
+        "status": "READY"
+      }
+    ],
+    "ok": true,
+    "root": "C:\\dev\\whisper",
+    "schema": "rust-predev-build-env/1",
+    "status": "PASS"
+  },
+  "lot_id": "L-WHISPER-03",
+  "outputs": [
+    {
+      "path": "crates/whisper-adapters/src/archive.rs",
+      "sha256": "043dd959835e350bf96bfecab13b501dd9b142763c05ed6d99f78845b668a8ce"
+    },
+    {
+      "path": "crates/whisper-adapters/src/capture.rs",
+      "sha256": "6473322c054b2aead741a1c7e97567f1666e7fb4deedd7865423ead57396677c"
+    },
+    {
+      "path": "crates/whisper-adapters/src/staging.rs",
+      "sha256": "cdbb8953032cccdc7e8401b763defcc452bef66e0da0e610b0db123f8a3e5507"
+    },
+    {
+      "path": "crates/whisper-adapters/src/worker_ipc.rs",
+      "sha256": "4f1bfa7a9bdf0811046204831224a348901dfc36b64cec225ebab53ed284e2c2"
+    },
+    {
+      "path": "crates/whisper-adapters/tests/live_archive.rs",
+      "sha256": "a77acff52dbe5f33fe93f5fd5730fdd56086b3504aa38db7e15ad52a59bcfb72"
+    },
+    {
+      "path": "crates/whisper-adapters/tests/live_capture.rs",
+      "sha256": "f161830027839c49308ce7b41482889c22e0012dde9bd9dbb55b91da8793109e"
+    },
+    {
+      "path": "crates/whisper-core/src/application.rs",
+      "sha256": "47c32fcc0f9d2709670723ffea636a0324bdef51a62f9d0c9b35dbc4f2294c69"
+    },
+    {
+      "path": "crates/whisper-core/src/ports.rs",
+      "sha256": "2d260a2514704e6749c05e0e3f7d8ee65f0fd9296f5196273864166ee895f891"
+    },
+    {
+      "path": "crates/whisper-core/tests/live_contract.rs",
+      "sha256": "97bc6ce49166c74b78e262934bbda16a74322132f1a560e2cbe0d08554d5f139"
+    },
+    {
+      "path": "crates/whisper-desktop/src/ui.rs",
+      "sha256": "148900588d475028b2c0c27c65ed05116dd93aecf62568c78cef6a554b913648"
+    }
+  ],
+  "review": {
+    "authority": "AUTH-REVIEWER-L03",
+    "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+    "evidence": {
+      "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/review.md",
+      "sha256": "d0cb6464df4b5f9671c67a2a6b32e422f1ae86917e1eba2e57d0eff3f3e90a10"
+    },
+    "verdict": "CLEAN"
+  },
+  "schema": "rust-predev-execution/1",
+  "validation": {
+    "candidate_fingerprint": "3d442cfae5edcd5cb0fb15c3d8d4990820595ae146cc84640356a139bc9a5966",
+    "evidence": [
+      {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/validation.md",
+        "sha256": "2f07d8d392241854b55a13f27f3a7523d87fea25700065c08c70103c5b28cb0d"
+      }
+    ],
+    "status": "CHECKS_PASSED"
+  }
+}

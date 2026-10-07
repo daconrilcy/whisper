@@ -1,0 +1,20 @@
+VsDevCmd=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64
+cwd=C:\dev\whisper
+VSCMD_VER=17.14.41
+VSINSTALLDIR=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\
+VCToolsVersion=14.44.35207
+WindowsSDKVersion=10.0.26100.0\
+CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9
+CudaToolkitDir=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9
+CMAKE_GENERATOR=Visual Studio 17 2022
+CMAKE_GENERATOR_PLATFORM=x64
+CMAKE_GENERATOR_TOOLSET=cuda=12.9
+CMAKE_CUDA_ARCHITECTURES_PRESENT=False
+CMAKE_CUDA_ARCHITECTURES=
+RUSTUP_TOOLCHAIN=1.98.1
+RUSTUP_AUTO_INSTALL=0
+LIBCLANG_PATH=C:\Users\cyril\AppData\Local\Programs\WhisperBuildDeps\libclang-22.1.8\runtimes\win-x64\native
+target-dir=target/l03-closure-cuda-vs2022
+cmake=cmake version 4.4.4
+nvcc=Cuda compilation tools, release 12.9, V12.9.86
+cl=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\cl.exe

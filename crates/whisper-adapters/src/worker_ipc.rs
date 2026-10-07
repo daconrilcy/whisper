@@ -11,14 +11,14 @@ use std::{
     fs,
     io::{self, BufRead, BufReader, Write},
     path::{Path, PathBuf},
-    process::{Child, ChildStdin, Command, Stdio},
+    process::{Child, Command, Stdio},
     sync::{
         Arc,
         atomic::{AtomicU8, AtomicU64, Ordering},
         mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
     },
     thread,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 #[cfg(feature = "l01-memory-qualification")]
 use std::{
@@ -40,6 +40,14 @@ const GATE_CANCELLED: u8 = 2;
 const GATE_COMMITTING: u8 = 3;
 const GATE_COMMITTED: u8 = 4;
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(1);
+
+fn unix_time_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            elapsed.as_millis().min(u128::from(u64::MAX)) as u64
+        })
+}
 
 #[cfg(feature = "l01-memory-qualification")]
 static MEMORY_REPORT: OnceLock<Option<Mutex<std::io::BufWriter<File>>>> = OnceLock::new();
@@ -132,7 +140,8 @@ impl PublicationGate {
 
 pub struct ChildWorkerTransport {
     child: Child,
-    stdin: ChildStdin,
+    commands: SyncSender<WorkerCommand>,
+    stop_commands: SyncSender<WorkerCommand>,
     events: Receiver<Result<WorkerEvent, PortError>>,
 }
 
@@ -146,6 +155,26 @@ impl ChildWorkerTransport {
             .map_err(|e| PortError::Failed(format!("WorkerExited: {e}")))?;
         let stdin = child.stdin.take().ok_or(PortError::Unavailable)?;
         let stdout = child.stdout.take().ok_or(PortError::Unavailable)?;
+        #[cfg(all(feature = "l01-memory-qualification", windows))]
+        let stdin_pipe_handle = {
+            use std::os::windows::io::AsRawHandle;
+            stdin.as_raw_handle() as usize
+        };
+        let (commands, command_rx) = mpsc::sync_channel(1);
+        let (stop_commands, stop_rx) = mpsc::sync_channel(1);
+        thread::spawn(move || {
+            let mut stdin = stdin;
+            loop {
+                let command = match take_next_worker_command(&command_rx, &stop_rx) {
+                    WorkerCommandPoll::Command(command) => command,
+                    WorkerCommandPoll::Idle => continue,
+                    WorkerCommandPoll::Closed => return,
+                };
+                if write_frame(&mut stdin, &IpcEnvelope::new(command)).is_err() {
+                    break;
+                }
+            }
+        });
         let (tx, events) = mpsc::sync_channel(EVENTS_PER_STAGE);
         #[cfg(all(feature = "l01-memory-qualification", windows))]
         {
@@ -156,7 +185,7 @@ impl ChildWorkerTransport {
                     "worker_pid": child.id(),
                     "worker_event_channel_capacity": EVENTS_PER_STAGE,
                     "worker_event_channel_slot_bytes": std::mem::size_of::<Result<WorkerEvent, PortError>>(),
-                    "stdin_pipe_handle": stdin.as_raw_handle() as usize,
+                    "stdin_pipe_handle": stdin_pipe_handle,
                     "stdout_pipe_handle": stdout.as_raw_handle() as usize,
                     "kernel_pipe_capacity_bytes": "queried by Windows parent sampler",
                 }),
@@ -175,7 +204,8 @@ impl ChildWorkerTransport {
         thread::spawn(move || read_events(stdout, tx));
         Ok(Self {
             child,
-            stdin,
+            commands,
+            stop_commands,
             events,
         })
     }
@@ -189,9 +219,9 @@ impl ChildWorkerTransport {
 
 impl WorkerTransport for ChildWorkerTransport {
     fn request(&mut self, command: WorkerCommand) -> Result<(), PortError> {
-        let envelope = IpcEnvelope::new(command);
-        write_frame(&mut self.stdin, &envelope)
-            .map_err(|e| PortError::Failed(format!("ProtocolMismatch: {e}")))
+        self.commands
+            .send(command)
+            .map_err(|_| PortError::Failed("WorkerExited: stdin dispatcher stopped".into()))
     }
 
     fn receive(&mut self) -> Result<Option<WorkerEvent>, PortError> {
@@ -204,6 +234,80 @@ impl WorkerTransport for ChildWorkerTransport {
             }
         }
     }
+}
+
+impl ChildWorkerTransport {
+    fn try_request(&self, command: WorkerCommand) -> Result<(), EnqueueError> {
+        try_enqueue_worker_command(&self.commands, &self.stop_commands, command)
+    }
+
+    fn try_request_ordered(&self, command: WorkerCommand) -> Result<(), EnqueueError> {
+        try_enqueue_bounded(&self.commands, command)
+    }
+}
+
+enum WorkerCommandPoll {
+    Command(WorkerCommand),
+    Idle,
+    Closed,
+}
+
+fn take_next_worker_command(
+    commands: &Receiver<WorkerCommand>,
+    emergency: &Receiver<WorkerCommand>,
+) -> WorkerCommandPoll {
+    if let Ok(command) = emergency.try_recv() {
+        return WorkerCommandPoll::Command(command);
+    }
+    match commands.recv_timeout(Duration::from_millis(5)) {
+        Ok(command) => WorkerCommandPoll::Command(command),
+        Err(mpsc::RecvTimeoutError::Timeout) => match emergency.try_recv() {
+            Ok(command) => WorkerCommandPoll::Command(command),
+            Err(TryRecvError::Empty | TryRecvError::Disconnected) => WorkerCommandPoll::Idle,
+        },
+        Err(mpsc::RecvTimeoutError::Disconnected) => match emergency.try_recv() {
+            Ok(command) => WorkerCommandPoll::Command(command),
+            Err(TryRecvError::Empty | TryRecvError::Disconnected) => WorkerCommandPoll::Closed,
+        },
+    }
+}
+
+#[derive(Debug)]
+enum EnqueueError {
+    Full(Box<WorkerCommand>),
+    Disconnected,
+}
+
+fn try_enqueue_worker_command(
+    data: &SyncSender<WorkerCommand>,
+    control: &SyncSender<WorkerCommand>,
+    command: WorkerCommand,
+) -> Result<(), EnqueueError> {
+    let sender = if matches!(command, WorkerCommand::Stop { .. }) {
+        control
+    } else {
+        data
+    };
+    try_enqueue_bounded(sender, command)
+}
+
+fn try_enqueue_bounded(
+    commands: &SyncSender<WorkerCommand>,
+    command: WorkerCommand,
+) -> Result<(), EnqueueError> {
+    commands.try_send(command).map_err(|error| match error {
+        TrySendError::Full(command) => EnqueueError::Full(Box::new(command)),
+        TrySendError::Disconnected(_) => EnqueueError::Disconnected,
+    })
+}
+
+fn take_ready_live_stop(
+    pending_persistence: usize,
+    deferred: &mut Option<WorkerEvent>,
+) -> Option<WorkerEvent> {
+    (pending_persistence == 0)
+        .then(|| deferred.take())
+        .flatten()
 }
 
 fn read_events(stdout: impl io::Read, tx: SyncSender<Result<WorkerEvent, PortError>>) {
@@ -316,8 +420,11 @@ struct ImportRuntime {
     transport: Option<ChildWorkerTransport>,
     publication_gate: Arc<PublicationGate>,
     resume_prefix: VecDeque<crate::journal::SegmentRecord>,
+    pending_live: Option<PendingLiveState>,
     live: Option<LiveCaptureState>,
     live_archive: Option<LiveArchive>,
+    live_pending_persistence: usize,
+    deferred_live_stopped: Option<WorkerEvent>,
 }
 struct LiveCaptureState {
     request: LiveRequest,
@@ -325,16 +432,24 @@ struct LiveCaptureState {
     converter: Pcm16Converter,
     vad: VoiceActivity,
     staging: PcmWriter,
-    inference: Vec<i16>,
     frame_pending: Vec<i16>,
-    inference_start: u64,
+    inference_cursor: u64,
     inference_sequence: u64,
+    pending_window: Option<(u64, u64, u64, Vec<i16>)>,
+    stop_requested: bool,
+    stop_enqueued: bool,
+    started_at_unix_ms: u64,
     captured: u64,
     admitted: u64,
     speech: u64,
     confirmed_fragment_end: u64,
     last_reported_durable: u64,
     failure: Option<String>,
+}
+struct PendingLiveState {
+    request: LiveRequest,
+    staging: PcmWriter,
+    live_archive: LiveArchive,
 }
 struct ImportRequestState {
     job_id: JobId,
@@ -351,13 +466,33 @@ impl ImportRuntime {
             transport: None,
             publication_gate,
             resume_prefix: VecDeque::new(),
+            pending_live: None,
             live: None,
             live_archive: None,
+            live_pending_persistence: 0,
+            deferred_live_stopped: None,
         }
     }
     fn effect(&mut self, effect: ImportEffect, events: &mut VecDeque<ImportEvent>) {
+        let persisted_live_segment = match &effect {
+            ImportEffect::PersistSegment(segment)
+                if self.live.as_ref().is_some_and(|live| {
+                    (live.request.job_id, live.request.generation)
+                        == (segment.job_id, segment.generation)
+                }) =>
+            {
+                Some((segment.job_id, segment.generation))
+            }
+            _ => None,
+        };
         let result = match effect {
-            ImportEffect::StartLive(request) => self.start_live(request),
+            ImportEffect::StartLive(request) => {
+                if self.publication_gate.is_cancelled() {
+                    Ok(())
+                } else {
+                    self.start_live(request)
+                }
+            }
             ImportEffect::Enqueue(mut request) => {
                 let id = (request.job_id, request.generation);
                 let result = crate::archive::ArchiveStore::identify_source(&mut request)
@@ -561,8 +696,20 @@ impl ImportRuntime {
                 generation,
                 last_sequence,
             } => self.publish(job_id, generation, last_sequence, events),
-            ImportEffect::Stop { job_id, generation } => self.stop(job_id, generation, events),
+            ImportEffect::Stop { job_id, generation } => {
+                let live = self.live.as_ref().is_some_and(|live| {
+                    (live.request.job_id, live.request.generation) == (job_id, generation)
+                });
+                self.stop(job_id, generation, events).map(|()| {
+                    if live {
+                        events.push_back(ImportEvent::LiveFinalizing { job_id, generation });
+                    }
+                })
+            }
         };
+        if persisted_live_segment.is_some() {
+            self.live_pending_persistence = self.live_pending_persistence.saturating_sub(1);
+        }
         if let Err((job, generation, message)) = result {
             let mut deferred_live_failure = false;
             if let Some(live) = self.live.as_mut()
@@ -573,7 +720,7 @@ impl ImportRuntime {
                 let _ = live.staging.drain();
                 live.failure = Some(message.clone());
                 if let Some(transport) = self.transport.as_mut() {
-                    let _ = transport.request(WorkerCommand::Stop {
+                    let _ = transport.try_request(WorkerCommand::Stop {
                         job_id: job,
                         generation,
                     });
@@ -590,7 +737,7 @@ impl ImportRuntime {
     }
     fn start_live(&mut self, request: LiveRequest) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
-        if self.active.is_some() || self.live.is_some() {
+        if self.active.is_some() || self.live.is_some() || self.pending_live.is_some() {
             return Err((
                 id.0,
                 id.1,
@@ -604,29 +751,22 @@ impl ImportRuntime {
                 "BackendUnavailable: L03 live worker is CPU-only".into(),
             ));
         }
+        self.live_pending_persistence = 0;
+        self.deferred_live_stopped = None;
         let directory = PathBuf::from(&request.destination)
             .join("transcriptions")
             .join(format!("{:032x}", request.job_id.0))
             .join("live");
         fs::create_dir_all(&directory)
             .map_err(|e| (id.0, id.1, format!("StorageUnavailable: {e}")))?;
-        let mut live_archive = LiveArchive::prepare(&request.destination, request.clone())
+        let live_archive = LiveArchive::prepare(&request.destination, request.clone())
             .map_err(|e| (id.0, id.1, e))?;
         let staging =
             PcmStaging::create(directory.join(format!("passage-{}.pcm", request.generation.get())))
                 .map_err(|e| (id.0, id.1, format!("StorageUnavailable: PCM staging: {e}")))?
                 .into_writer();
-        let mut capture = crate::capture::start_default().map_err(|e| (id.0, id.1, e))?;
-        if let Err(error) = live_archive.capture_started() {
-            capture.stop();
-            return Err((id.0, id.1, error));
-        }
-        let rate = capture.sample_rate_hz();
-        let channels = capture.channels();
-        let converter = Pcm16Converter::new(rate, channels).map_err(|e| (id.0, id.1, e))?;
         let instance_id = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
         if instance_id == 0 {
-            capture.stop();
             return Err((
                 id.0,
                 id.1,
@@ -651,16 +791,47 @@ impl ImportRuntime {
             instance_id,
         });
         self.transport = Some(transport);
-        self.live = Some(LiveCaptureState {
+        self.pending_live = Some(PendingLiveState {
             request,
+            staging,
+            live_archive,
+        });
+        Ok(())
+    }
+
+    fn activate_live_after_ready(&mut self) -> Result<(), (JobId, Generation, String)> {
+        let Some(pending) = self.pending_live.take() else {
+            return Ok(());
+        };
+        let (job_id, generation) = (pending.request.job_id, pending.request.generation);
+        let mut capture =
+            crate::capture::start_default().map_err(|error| (job_id, generation, error))?;
+        let converter = match Pcm16Converter::new(capture.sample_rate_hz(), capture.channels()) {
+            Ok(converter) => converter,
+            Err(error) => {
+                capture.stop();
+                return Err((job_id, generation, error));
+            }
+        };
+        let mut live_archive = pending.live_archive;
+        if let Err(error) = live_archive.capture_started() {
+            capture.stop();
+            return Err((job_id, generation, error));
+        }
+        self.live_archive = Some(live_archive);
+        self.live = Some(LiveCaptureState {
+            request: pending.request,
             capture,
             converter,
             vad: VoiceActivity::new(),
-            staging,
-            inference: Vec::with_capacity(80_000),
+            staging: pending.staging,
             frame_pending: Vec::with_capacity(320),
-            inference_start: 0,
+            inference_cursor: 0,
             inference_sequence: 1,
+            pending_window: None,
+            stop_requested: false,
+            stop_enqueued: false,
+            started_at_unix_ms: unix_time_ms(),
             captured: 0,
             admitted: 0,
             speech: 0,
@@ -668,7 +839,6 @@ impl ImportRuntime {
             last_reported_durable: 0,
             failure: None,
         });
-        self.live_archive = Some(live_archive);
         Ok(())
     }
     fn prepare(
@@ -837,7 +1007,6 @@ impl ImportRuntime {
         generation: Generation,
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
-        let mut final_windows = Vec::new();
         if let Some(live) = self.live.as_mut() {
             if (live.request.job_id, live.request.generation) != (job, generation) {
                 return Err((
@@ -867,24 +1036,10 @@ impl ImportRuntime {
                         {
                             live.speech += 320;
                         }
-                        live.inference.extend_from_slice(&frame);
                         live.staging
                             .append_frame(frame)
                             .map_err(|e| (job, generation, format!("StorageUnavailable: {e}")))?;
                         live.admitted += 320;
-                        if live.inference.len() == 80_000 {
-                            let samples =
-                                std::mem::replace(&mut live.inference, Vec::with_capacity(80_000));
-                            let start = live.inference_start;
-                            let end = start.checked_add(samples.len() as u64).ok_or((
-                                job,
-                                generation,
-                                "live offset exhausted".into(),
-                            ))?;
-                            final_windows.push((live.inference_sequence, start, end, samples));
-                            live.inference_sequence = live.inference_sequence.saturating_add(1);
-                            live.inference_start = end;
-                        }
                     }
                 }
                 let tail = live.converter.finish().map_err(|e| (job, generation, e))?;
@@ -899,24 +1054,10 @@ impl ImportRuntime {
                     {
                         live.speech += 320;
                     }
-                    live.inference.extend_from_slice(&frame);
                     live.staging
                         .append_frame(frame)
                         .map_err(|e| (job, generation, format!("StorageUnavailable: {e}")))?;
                     live.admitted += 320;
-                    if live.inference.len() == 80_000 {
-                        let samples =
-                            std::mem::replace(&mut live.inference, Vec::with_capacity(80_000));
-                        let start = live.inference_start;
-                        let end = start.checked_add(samples.len() as u64).ok_or((
-                            job,
-                            generation,
-                            "live offset exhausted".into(),
-                        ))?;
-                        final_windows.push((live.inference_sequence, start, end, samples));
-                        live.inference_sequence = live.inference_sequence.saturating_add(1);
-                        live.inference_start = end;
-                    }
                 }
                 if !live.frame_pending.is_empty() {
                     let valid = std::mem::take(&mut live.frame_pending);
@@ -931,7 +1072,6 @@ impl ImportRuntime {
                         live.speech += valid_len as u64;
                     }
                     live.captured += valid_len as u64;
-                    live.inference.extend_from_slice(&valid);
                     live.staging.append_tail(valid).map_err(|e| {
                         (
                             job,
@@ -942,16 +1082,6 @@ impl ImportRuntime {
                     live.admitted += valid_len as u64;
                 }
             }
-            if !live.inference.is_empty() {
-                let samples = std::mem::take(&mut live.inference);
-                let start = live.inference_start;
-                let end = start.checked_add(samples.len() as u64).ok_or((
-                    job,
-                    generation,
-                    "live offset exhausted".into(),
-                ))?;
-                final_windows.push((live.inference_sequence, start, end, samples));
-            }
             live.staging.drain().map_err(|e| {
                 (
                     job,
@@ -959,29 +1089,8 @@ impl ImportRuntime {
                     format!("StorageUnavailable: drain failed: {e}"),
                 )
             })?;
-        }
-        let instance_id = self.active.as_ref().map_or(0, |active| active.instance_id);
-        for (sequence, start, end, samples) in final_windows {
-            self.transport
-                .as_mut()
-                .ok_or((
-                    job,
-                    generation,
-                    "WorkerExited: live worker unavailable".into(),
-                ))?
-                .request(WorkerCommand::LiveWindow {
-                    job_id: job,
-                    generation,
-                    instance_id,
-                    sequence,
-                    range: whisper_core::SourceRange::new(start, end, 16_000).ok_or((
-                        job,
-                        generation,
-                        "live final window is empty".into(),
-                    ))?,
-                    samples,
-                })
-                .map_err(|e| (job, generation, format!("WorkerExited: {e:?}")))?;
+            live.stop_requested = true;
+            return Ok(());
         }
         if !self.publication_gate.is_cancelled() {
             events.push_back(ImportEvent::Stopped {
@@ -1019,7 +1128,11 @@ impl ImportRuntime {
             .map_err(|e| (job, generation, format!("WorkerExited: {e:?}")))
     }
     fn poll_live_capture(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+        self.pump_live_windows();
         let live = self.live.as_mut()?;
+        if live.stop_requested {
+            return None;
+        }
         if live.capture.is_saturated() || live.capture.failure() {
             let (job_id, generation) = (live.request.job_id, live.request.generation);
             let reason = if live.capture.is_saturated() {
@@ -1030,7 +1143,7 @@ impl ImportRuntime {
             live.capture.stop();
             live.failure = Some(reason.into());
             if let Some(transport) = self.transport.as_mut() {
-                let _ = transport.request(WorkerCommand::Stop { job_id, generation });
+                let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
             }
             return None;
         }
@@ -1041,7 +1154,7 @@ impl ImportRuntime {
                 live.capture.stop();
                 live.failure = Some(error.clone());
                 if let Some(transport) = self.transport.as_mut() {
-                    let _ = transport.request(WorkerCommand::Stop {
+                    let _ = transport.try_request(WorkerCommand::Stop {
                         job_id: live.request.job_id,
                         generation: live.request.generation,
                     });
@@ -1053,7 +1166,7 @@ impl ImportRuntime {
             live.capture.stop();
             live.failure = Some(error.clone());
             if let Some(transport) = self.transport.as_mut() {
-                let _ = transport.request(WorkerCommand::Stop {
+                let _ = transport.try_request(WorkerCommand::Stop {
                     job_id: live.request.job_id,
                     generation: live.request.generation,
                 });
@@ -1061,7 +1174,6 @@ impl ImportRuntime {
             return None;
         }
         live.frame_pending.extend(converted);
-        let mut window = None;
         while live.frame_pending.len() >= 320 {
             let frame: Vec<i16> = live.frame_pending.drain(..320).collect();
             live.captured = live.captured.saturating_add(320);
@@ -1072,7 +1184,7 @@ impl ImportRuntime {
                     live.capture.stop();
                     live.failure = Some(error.clone());
                     if let Some(transport) = self.transport.as_mut() {
-                        let _ = transport.request(WorkerCommand::Stop {
+                        let _ = transport.try_request(WorkerCommand::Stop {
                             job_id: live.request.job_id,
                             generation: live.request.generation,
                         });
@@ -1080,10 +1192,7 @@ impl ImportRuntime {
                     return None;
                 }
             }
-            let inference_len_before_frame = live.inference.len();
-            live.inference.extend_from_slice(&frame);
             if let Err(error) = live.staging.try_append_frame(frame) {
-                live.inference.truncate(inference_len_before_frame);
                 live.capture.stop();
                 let reason = if error.kind() == io::ErrorKind::WouldBlock {
                     "CaptureSaturated: bounded PCM writer queue is full".to_owned()
@@ -1092,7 +1201,7 @@ impl ImportRuntime {
                 };
                 live.failure = Some(reason);
                 if let Some(transport) = self.transport.as_mut() {
-                    let _ = transport.request(WorkerCommand::Stop {
+                    let _ = transport.try_request(WorkerCommand::Stop {
                         job_id: live.request.job_id,
                         generation: live.request.generation,
                     });
@@ -1100,19 +1209,6 @@ impl ImportRuntime {
                 return None;
             }
             live.admitted = live.admitted.saturating_add(320);
-            if live.inference.len() == 80_000 {
-                let start = live.inference_start;
-                let end = start.saturating_add(80_000);
-                let sequence = live.inference_sequence;
-                live.inference_sequence = live.inference_sequence.saturating_add(1);
-                live.inference_start = end;
-                window = Some((
-                    sequence,
-                    start,
-                    end,
-                    std::mem::replace(&mut live.inference, Vec::with_capacity(80_000)),
-                ));
-            }
         }
         let durable_samples = live.staging.durable_samples();
         if durable_samples == live.last_reported_durable {
@@ -1129,74 +1225,161 @@ impl ImportRuntime {
             speech_samples: live.speech,
             diagnostic: None,
         };
-        let identity = (live.request.job_id, live.request.generation);
-        if let Some((sequence, start, end, samples)) = window {
-            let instance_id = self.active.as_ref().map_or(0, |active| active.instance_id);
-            let request = WorkerCommand::LiveWindow {
-                job_id: identity.0,
-                generation: identity.1,
-                instance_id,
-                sequence,
-                range: match whisper_core::SourceRange::new(start, end, 16_000) {
-                    Some(range) => range,
-                    None => {
-                        live.capture.stop();
-                        live.failure =
-                            Some("StorageCorrupt: live inference range is invalid".into());
-                        if let Some(transport) = self.transport.as_mut() {
-                            let _ = transport.request(WorkerCommand::Stop {
-                                job_id: identity.0,
-                                generation: identity.1,
-                            });
-                        }
-                        return None;
-                    }
-                },
-                samples,
+        Some(Ok(event))
+    }
+
+    fn pump_live_windows(&mut self) {
+        let (Some(live), Some(transport)) = (self.live.as_mut(), self.transport.as_ref()) else {
+            return;
+        };
+        let durable_samples = live.staging.durable_samples();
+        if live.pending_window.is_none() {
+            let available = durable_samples.saturating_sub(live.inference_cursor);
+            let sample_count = if available >= 80_000 {
+                80_000
+            } else if live.stop_requested {
+                available as usize
+            } else {
+                0
             };
-            if let Some(transport) = self.transport.as_mut()
-                && let Err(error) = transport.request(request)
-            {
-                live.capture.stop();
-                live.failure = Some(format!("WorkerExited: {error:?}"));
-                return None;
+            if sample_count > 0 {
+                match live
+                    .staging
+                    .read_durable_samples(live.inference_cursor, sample_count)
+                {
+                    Ok(Some(samples)) => {
+                        let start = live.inference_cursor;
+                        let end = start.saturating_add(sample_count as u64);
+                        live.pending_window = Some((live.inference_sequence, start, end, samples));
+                    }
+                    Ok(None) => return,
+                    Err(error) => {
+                        live.failure = Some(format!("StorageUnavailable: PCM spool read: {error}"));
+                        live.capture.stop();
+                        return;
+                    }
+                }
             }
         }
-        Some(Ok(event))
+        if let Some((sequence, start, end, samples)) = live.pending_window.take() {
+            let Some(active) = self.active.as_ref() else {
+                live.pending_window = Some((sequence, start, end, samples));
+                return;
+            };
+            let Some(range) = whisper_core::SourceRange::new(start, end, 16_000) else {
+                live.failure = Some("StorageCorrupt: live inference range is invalid".into());
+                live.capture.stop();
+                return;
+            };
+            let command = WorkerCommand::LiveWindow {
+                job_id: active.job_id,
+                generation: active.generation,
+                instance_id: active.instance_id,
+                sequence,
+                range,
+                samples,
+            };
+            match transport.try_request(command) {
+                Ok(()) => {
+                    live.inference_cursor = end;
+                    live.inference_sequence = live.inference_sequence.saturating_add(1);
+                }
+                Err(EnqueueError::Full(command)) => {
+                    let WorkerCommand::LiveWindow {
+                        sequence,
+                        range,
+                        samples,
+                        ..
+                    } = *command
+                    else {
+                        unreachable!("only live windows are queued here")
+                    };
+                    live.pending_window =
+                        Some((sequence, range.start_sample, range.end_sample, samples));
+                    return;
+                }
+                Err(EnqueueError::Disconnected) => {
+                    live.failure = Some("WorkerExited: stdin dispatcher stopped".into());
+                    live.capture.stop();
+                    return;
+                }
+            }
+        }
+        let durable_samples = live.staging.durable_samples();
+        if live.stop_requested
+            && live.pending_window.is_none()
+            && live.inference_cursor >= durable_samples
+            && !live.stop_enqueued
+        {
+            let Some(active) = self.active.as_ref() else {
+                return;
+            };
+            match transport.try_request_ordered(WorkerCommand::Stop {
+                job_id: active.job_id,
+                generation: active.generation,
+            }) {
+                Ok(()) => live.stop_enqueued = true,
+                Err(EnqueueError::Full(_)) => {}
+                Err(EnqueueError::Disconnected) => {
+                    live.failure = Some("WorkerExited: stdin dispatcher stopped".into());
+                }
+            }
+        }
     }
 
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
         if let Some(event) = self.poll_live_capture() {
             return Some(event);
         }
-        let transport = self.transport.as_mut()?;
-        let event = match transport.receive() {
-            Ok(Some(event)) => event,
-            Ok(None) => {
-                let _ = transport.try_wait();
-                return None;
-            }
-            Err(error) => {
-                let active = self.active.as_ref()?;
-                let failure = Err((
-                    active.job_id,
-                    active.generation,
-                    format!("WorkerExited without End: {error:?}"),
-                ));
-                if let Some(live) = self.live.as_mut() {
-                    live.capture.stop();
-                    let _ = live.staging.drain();
+        let event = if self.deferred_live_stopped.is_some() {
+            take_ready_live_stop(
+                self.live_pending_persistence,
+                &mut self.deferred_live_stopped,
+            )?
+        } else {
+            let transport = self.transport.as_mut()?;
+            match transport.receive() {
+                Ok(Some(event)) => event,
+                Ok(None) => {
+                    let _ = transport.try_wait();
+                    return None;
                 }
-                self.live = None;
-                self.live_archive = None;
-                self.transport = None;
-                self.active = None;
-                return Some(failure);
+                Err(error) => {
+                    let active = self.active.as_ref()?;
+                    let failure = Err((
+                        active.job_id,
+                        active.generation,
+                        format!("WorkerExited without End: {error:?}"),
+                    ));
+                    if let Some(live) = self.live.as_mut() {
+                        live.capture.stop();
+                        let _ = live.staging.drain();
+                    }
+                    self.live = None;
+                    self.live_archive = None;
+                    self.transport = None;
+                    self.active = None;
+                    return Some(failure);
+                }
             }
         };
         let active = self.active.as_ref()?;
         let (job_id, generation, instance_id) =
             (active.job_id, active.generation, active.instance_id);
+        if matches!(
+            &event,
+            WorkerEvent::Stopped {
+                job_id: stopped_job,
+                generation: stopped_generation,
+                instance_id: stopped_instance,
+            } if (*stopped_job, *stopped_generation, *stopped_instance)
+                == (job_id, generation, instance_id)
+        ) && self.live.is_some()
+            && self.live_pending_persistence > 0
+        {
+            self.deferred_live_stopped = Some(event);
+            return None;
+        }
         if let WorkerEvent::LiveMp3Packet {
             job_id: packet_job,
             generation: packet_generation,
@@ -1214,7 +1397,7 @@ impl ImportRuntime {
                     live.failure = Some("StaleResponse: live MP3 packet identity mismatch".into());
                 }
                 if let Some(transport) = self.transport.as_mut() {
-                    let _ = transport.request(WorkerCommand::Stop { job_id, generation });
+                    let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
                 }
                 return None;
             }
@@ -1226,7 +1409,7 @@ impl ImportRuntime {
                         live.failure = Some(error.clone());
                     }
                     if let Some(transport) = self.transport.as_mut() {
-                        let _ = transport.request(WorkerCommand::Stop { job_id, generation });
+                        let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
                     }
                     return None;
                 }
@@ -1286,7 +1469,7 @@ impl ImportRuntime {
             self.live_archive = None;
             self.transport = None;
             self.active = None;
-            return Some(Ok(ImportEvent::Stopped { job_id, generation }));
+            return Some(Ok(ImportEvent::Published { job_id, generation }));
         }
         if let WorkerEvent::Segment(dto) = &event
             && let Some(expected) = self.resume_prefix.pop_front()
@@ -1322,11 +1505,26 @@ impl ImportRuntime {
                 generation: g,
                 instance_id: i,
                 backend: BackendKind::Cpu,
-            } if (j, g, i) == (job_id, generation, instance_id) => Ok(ImportEvent::Ready {
-                job_id: j,
-                generation: g,
-                backend: "CPU".into(),
-            }),
+            } if (j, g, i) == (job_id, generation, instance_id) => {
+                if self.pending_live.is_some()
+                    && !self.publication_gate.is_cancelled()
+                    && let Err(failure) = self.activate_live_after_ready()
+                {
+                    if let Some(transport) = self.transport.as_mut() {
+                        let _ = transport.try_request(WorkerCommand::Stop {
+                            job_id: j,
+                            generation: g,
+                        });
+                    }
+                    Err(failure)
+                } else {
+                    Ok(ImportEvent::Ready {
+                        job_id: j,
+                        generation: g,
+                        backend: "CPU".into(),
+                    })
+                }
+            }
             WorkerEvent::Ready { .. } => Err((
                 job_id,
                 generation,
@@ -1348,14 +1546,29 @@ impl ImportRuntime {
                 if (dto.job_id, dto.generation, dto.instance_id)
                     == (job_id, generation, instance_id) =>
             {
-                Ok(ImportEvent::Segment(WorkerSegment {
+                let segment = WorkerSegment {
                     job_id: dto.job_id,
                     generation: dto.generation,
                     instance_id: dto.instance_id,
                     segment_id: dto.segment_id,
                     range: dto.range,
                     text: dto.text,
-                }))
+                };
+                if let Some(live) = self.live.as_ref().filter(|live| {
+                    live.request.job_id == job_id && live.request.generation == generation
+                }) {
+                    self.live_pending_persistence = self.live_pending_persistence.saturating_add(1);
+                    let captured_at_unix_ms = live
+                        .started_at_unix_ms
+                        .saturating_add(segment.range.start_sample.saturating_mul(1_000) / 16_000);
+                    Ok(ImportEvent::LiveProvisional {
+                        segment,
+                        captured_at_unix_ms,
+                        available_at_unix_ms: unix_time_ms(),
+                    })
+                } else {
+                    Ok(ImportEvent::Segment(segment))
+                }
             }
             WorkerEvent::End {
                 job_id: j,
@@ -1380,6 +1593,8 @@ impl ImportRuntime {
             } if (j, g, i) == (job_id, generation, instance_id) => {
                 self.transport = None;
                 self.active = None;
+                self.pending_live = None;
+                self.live_archive = None;
                 Ok(ImportEvent::Stopped {
                     job_id: j,
                     generation: g,
@@ -1397,6 +1612,7 @@ impl ImportRuntime {
                     let _ = live.staging.drain();
                 }
                 self.live = None;
+                self.pending_live = None;
                 self.live_archive = None;
                 self.transport = None;
                 self.active = None;
@@ -1427,7 +1643,7 @@ impl ImportRuntime {
             let _ = live.staging.drain();
             live.failure = Some(message.clone());
             if let Some(transport) = self.transport.as_mut() {
-                let _ = transport.request(WorkerCommand::Stop { job_id, generation });
+                let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
             }
             return None;
         }
@@ -1589,6 +1805,7 @@ fn service_loop<R: ServiceRuntime>(
     mut runtime: R,
 ) {
     let mut pending = VecDeque::new();
+    let mut deferred_effect = None;
     #[cfg(feature = "l01-memory-qualification")]
     memory_trace(
         "adapter.pending.created",
@@ -1601,22 +1818,26 @@ fn service_loop<R: ServiceRuntime>(
         }),
     );
     loop {
-        if let Ok(stop) = stop_rx.try_recv() {
-            runtime.apply_effect(stop, &mut pending);
-            #[cfg(feature = "l01-memory-qualification")]
-            memory_trace(
-                "adapter.pending.after_stop_effect",
-                serde_json::json!({
-                    "pending_len": pending.len(),
-                    "pending_capacity": pending.capacity(),
-                    "pending_slot_bytes": std::mem::size_of::<ImportEvent>(),
-                }),
-            );
+        let effect = if pending.len() < EVENTS_PER_STAGE {
+            deferred_effect.take().or_else(|| effect_rx.try_recv().ok())
+        } else {
+            None
+        };
+        let stop = stop_rx.try_recv().ok();
+        match (effect, stop) {
+            (Some(effect @ ImportEffect::StartLive(_)), Some(stop)) => {
+                runtime.apply_effect(effect, &mut pending);
+                runtime.apply_effect(stop, &mut pending);
+            }
+            (Some(effect), Some(stop)) => {
+                runtime.apply_effect(stop, &mut pending);
+                deferred_effect = Some(effect);
+            }
+            (Some(effect), None) => runtime.apply_effect(effect, &mut pending),
+            (None, Some(stop)) => runtime.apply_effect(stop, &mut pending),
+            (None, None) => {}
         }
-        if pending.len() < EVENTS_PER_STAGE
-            && let Ok(effect) = effect_rx.try_recv()
-        {
-            runtime.apply_effect(effect, &mut pending);
+        if pending.len() < EVENTS_PER_STAGE {
             #[cfg(feature = "l01-memory-qualification")]
             memory_trace(
                 "adapter.pending.after_effect",
@@ -1680,6 +1901,369 @@ mod tests {
     };
 
     #[test]
+    fn queued_import_record_accepts_legacy_live_offset_field() {
+        let request = ImportRequest {
+            job_id: JobId(1),
+            generation: Generation::first(),
+            source_path: "queued.wav".into(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: "model.bin".into(),
+            model_sha256: [1; 32],
+            destination: "archive".into(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        let mut legacy = serde_json::to_value(&request).unwrap();
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .insert("group_offset_samples".into(), serde_json::json!(1234));
+        assert_eq!(
+            serde_json::from_value::<ImportRequest>(legacy).unwrap(),
+            request
+        );
+    }
+
+    #[test]
+    fn slow_worker_backpressure_keeps_command_queue_bounded_and_retries_window() {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        let command = || WorkerCommand::LiveWindow {
+            job_id: JobId(1),
+            generation: Generation::first(),
+            instance_id: 1,
+            sequence: 1,
+            range: whisper_core::SourceRange::new(0, 80_000, 16_000).unwrap(),
+            samples: vec![1; 80_000],
+        };
+        try_enqueue_bounded(&sender, command()).unwrap();
+        let retry = try_enqueue_bounded(&sender, command()).unwrap_err();
+        assert!(matches!(
+            retry,
+            EnqueueError::Full(command) if matches!(*command, WorkerCommand::LiveWindow { .. })
+        ));
+        drop(receiver.recv().unwrap());
+        assert!(matches!(receiver.try_recv(), Err(TryRecvError::Empty)));
+        try_enqueue_bounded(&sender, command()).unwrap();
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(WorkerCommand::LiveWindow { .. })
+        ));
+    }
+
+    #[test]
+    fn capture_failure_stop_is_retained_when_data_channel_is_full() {
+        let (data_tx, data_rx) = mpsc::sync_channel(1);
+        let (control_tx, control_rx) = mpsc::sync_channel(1);
+        let window = WorkerCommand::LiveWindow {
+            job_id: JobId(2),
+            generation: Generation::first(),
+            instance_id: 1,
+            sequence: 1,
+            range: whisper_core::SourceRange::new(0, 80_000, 16_000).unwrap(),
+            samples: vec![2; 80_000],
+        };
+        try_enqueue_worker_command(&data_tx, &control_tx, window).unwrap();
+        let stop = WorkerCommand::Stop {
+            job_id: JobId(2),
+            generation: Generation::first(),
+        };
+        try_enqueue_worker_command(&data_tx, &control_tx, stop.clone()).unwrap();
+        assert!(matches!(
+            try_enqueue_worker_command(&data_tx, &control_tx, stop),
+            Err(EnqueueError::Full(command)) if matches!(*command, WorkerCommand::Stop { .. })
+        ));
+        assert!(matches!(
+            data_rx.try_recv(),
+            Ok(WorkerCommand::LiveWindow { .. })
+        ));
+        assert!(matches!(
+            control_rx.try_recv(),
+            Ok(WorkerCommand::Stop { .. })
+        ));
+    }
+
+    #[test]
+    fn stdin_frames_preserve_live_start_and_admitted_window_before_normal_stop() {
+        let (commands_tx, commands_rx) = mpsc::sync_channel(4);
+        let (_emergency_tx, emergency_rx) = mpsc::sync_channel(1);
+        let job_id = JobId(22);
+        let generation = Generation::first();
+        let config = JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        };
+        try_enqueue_bounded(
+            &commands_tx,
+            WorkerCommand::StartLiveWorker {
+                job_id,
+                generation,
+                instance_id: 1,
+                model_path: "model.bin".into(),
+                model_sha256: [22; 32],
+                config,
+            },
+        )
+        .unwrap();
+        try_enqueue_bounded(
+            &commands_tx,
+            WorkerCommand::LiveWindow {
+                job_id,
+                generation,
+                instance_id: 1,
+                sequence: 1,
+                range: whisper_core::SourceRange::new(0, 320, 16_000).unwrap(),
+                samples: vec![3; 320],
+            },
+        )
+        .unwrap();
+        try_enqueue_bounded(&commands_tx, WorkerCommand::Stop { job_id, generation }).unwrap();
+
+        let mut wire = Vec::new();
+        for _ in 0..3 {
+            let WorkerCommandPoll::Command(command) =
+                take_next_worker_command(&commands_rx, &emergency_rx)
+            else {
+                panic!("expected a queued normal command");
+            };
+            write_frame(&mut wire, &IpcEnvelope::new(command)).unwrap();
+        }
+        assert!(matches!(emergency_rx.try_recv(), Err(TryRecvError::Empty)));
+
+        let mut frames = BufReader::new(Cursor::new(wire));
+        assert!(matches!(
+            read_frame::<IpcEnvelope<WorkerCommand>>(&mut frames)
+                .unwrap()
+                .unwrap()
+                .message,
+            WorkerCommand::StartLiveWorker { .. }
+        ));
+        assert!(matches!(
+            read_frame::<IpcEnvelope<WorkerCommand>>(&mut frames)
+                .unwrap()
+                .unwrap()
+                .message,
+            WorkerCommand::LiveWindow { sequence: 1, .. }
+        ));
+        assert!(matches!(
+            read_frame::<IpcEnvelope<WorkerCommand>>(&mut frames)
+                .unwrap()
+                .unwrap()
+                .message,
+            WorkerCommand::Stop { .. }
+        ));
+    }
+
+    #[test]
+    fn stopped_worker_waits_until_live_segment_persistence_is_acknowledged() {
+        let stopped = WorkerEvent::Stopped {
+            job_id: JobId(3),
+            generation: Generation::first(),
+            instance_id: 1,
+        };
+        let mut deferred = Some(stopped.clone());
+        assert!(take_ready_live_stop(1, &mut deferred).is_none());
+        assert_eq!(deferred, Some(stopped.clone()));
+        assert_eq!(take_ready_live_stop(0, &mut deferred), Some(stopped));
+        assert!(deferred.is_none());
+    }
+
+    #[test]
+    fn queued_live_start_is_applied_before_an_immediate_stop() {
+        struct Runtime(Arc<std::sync::Mutex<Vec<&'static str>>>);
+        impl ServiceRuntime for Runtime {
+            fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+                match effect {
+                    ImportEffect::StartLive(request) => {
+                        self.0.lock().unwrap().push("start");
+                        pending.push_back(ImportEvent::Ready {
+                            job_id: request.job_id,
+                            generation: request.generation,
+                            backend: "CPU".into(),
+                        });
+                    }
+                    ImportEffect::Stop { job_id, generation } => {
+                        self.0.lock().unwrap().push("stop");
+                        pending.push_back(ImportEvent::Stopped { job_id, generation });
+                    }
+                    _ => {}
+                }
+            }
+
+            fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+                None
+            }
+        }
+
+        let job_id = JobId(4);
+        let generation = Generation::first();
+        let (effect_tx, effect_rx) = mpsc::sync_channel(2);
+        let (stop_tx, stop_rx) = mpsc::sync_channel(1);
+        let (event_tx, event_rx) = mpsc::sync_channel(4);
+        drop(event_rx);
+        effect_tx
+            .send(ImportEffect::StartLive(whisper_core::LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [0; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            }))
+            .unwrap();
+        stop_tx
+            .send(ImportEffect::Stop { job_id, generation })
+            .unwrap();
+        let order = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let runtime = Runtime(order.clone());
+        std::thread::spawn(move || service_loop(effect_rx, stop_rx, event_tx, runtime))
+            .join()
+            .unwrap();
+        assert_eq!(*order.lock().unwrap(), vec!["start", "stop"]);
+    }
+
+    #[test]
+    fn saturated_pending_queue_cannot_start_a_live_job_after_stop_and_allows_next_start() {
+        struct Runtime {
+            gate: Arc<PublicationGate>,
+            remaining_events: usize,
+            saturated: Option<mpsc::SyncSender<()>>,
+            actions: mpsc::Sender<&'static str>,
+        }
+        impl ServiceRuntime for Runtime {
+            fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+                match effect {
+                    ImportEffect::StartLive(_) => {
+                        if self.gate.is_cancelled() {
+                            self.actions.send("late-start-skipped").unwrap();
+                        } else {
+                            self.actions.send("new-start-accepted").unwrap();
+                        }
+                    }
+                    ImportEffect::Stop { job_id, generation } => {
+                        self.actions.send("stop-without-active-worker").unwrap();
+                        pending.push_back(ImportEvent::Stopped { job_id, generation });
+                    }
+                    _ => {}
+                }
+            }
+
+            fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+                if self.remaining_events == 0 {
+                    return None;
+                }
+                self.remaining_events -= 1;
+                if self.remaining_events == 0
+                    && let Some(saturated) = self.saturated.take()
+                {
+                    saturated.send(()).unwrap();
+                }
+                Some(Ok(ImportEvent::History(Vec::new())))
+            }
+        }
+
+        let gate = Arc::new(PublicationGate::default());
+        let (effect_tx, effect_rx) = mpsc::sync_channel(2);
+        let (stop_tx, stop_rx) = mpsc::sync_channel(1);
+        let (event_tx, event_rx) = mpsc::sync_channel(EVENTS_PER_STAGE);
+        for _ in 0..EVENTS_PER_STAGE {
+            event_tx.send(ImportEvent::History(Vec::new())).unwrap();
+        }
+        let (saturated_tx, saturated_rx) = mpsc::sync_channel(1);
+        let (actions_tx, actions_rx) = mpsc::channel();
+        let runtime = Runtime {
+            gate: gate.clone(),
+            remaining_events: EVENTS_PER_STAGE,
+            saturated: Some(saturated_tx),
+            actions: actions_tx,
+        };
+        let service = thread::spawn(move || service_loop(effect_rx, stop_rx, event_tx, runtime));
+        saturated_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+
+        let first_id = JobId(24);
+        let generation = Generation::first();
+        gate.activate();
+        effect_tx
+            .send(ImportEffect::StartLive(whisper_core::LiveRequest {
+                job_id: first_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [24; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            }))
+            .unwrap();
+        gate.request_stop().unwrap();
+        stop_tx
+            .send(ImportEffect::Stop {
+                job_id: first_id,
+                generation,
+            })
+            .unwrap();
+
+        for _ in 0..EVENTS_PER_STAGE {
+            event_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        }
+        let mut saw_stopped = false;
+        while !saw_stopped {
+            saw_stopped = matches!(
+                event_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+                ImportEvent::Stopped { job_id, .. } if job_id == first_id
+            );
+        }
+        assert_eq!(
+            actions_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            "stop-without-active-worker"
+        );
+        assert_eq!(
+            actions_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            "late-start-skipped"
+        );
+
+        gate.activate();
+        effect_tx
+            .send(ImportEffect::StartLive(whisper_core::LiveRequest {
+                job_id: JobId(25),
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [25; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            }))
+            .unwrap();
+        assert_eq!(
+            actions_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            "new-start-accepted"
+        );
+        gate.request_stop().unwrap();
+        stop_tx
+            .send(ImportEffect::Stop {
+                job_id: JobId(25),
+                generation,
+            })
+            .unwrap();
+        drop(event_rx);
+        service.join().unwrap();
+    }
+
+    #[test]
     fn stop_before_commit_atomically_prevents_publication() {
         let gate = PublicationGate::default();
         gate.activate();
@@ -1693,6 +2277,36 @@ mod tests {
             Err("Cancelled: publication invalidated by Stop".into())
         );
         assert!(!disk_commit, "CURRENT commit must not run after Stop wins");
+    }
+
+    #[test]
+    fn cancelled_gate_skips_live_start_before_any_worker_or_capture_side_effect() {
+        let gate = Arc::new(PublicationGate::default());
+        gate.activate();
+        gate.request_stop().unwrap();
+        let mut runtime = ImportRuntime::new(PathBuf::from("missing-worker"), gate);
+        let mut events = VecDeque::new();
+        runtime.effect(
+            ImportEffect::StartLive(whisper_core::LiveRequest {
+                job_id: JobId(26),
+                generation: Generation::first(),
+                model_path: "model.bin".into(),
+                model_sha256: [26; 32],
+                destination: "unused-archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            }),
+            &mut events,
+        );
+        assert!(runtime.active.is_none());
+        assert!(runtime.transport.is_none());
+        assert!(runtime.pending_live.is_none());
+        assert!(runtime.live.is_none());
+        assert!(events.is_empty());
     }
 
     #[test]

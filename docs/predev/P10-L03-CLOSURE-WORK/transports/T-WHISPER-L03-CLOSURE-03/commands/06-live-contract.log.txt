@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running tests\live_contract.rs (target/l03-closure-validation\x86_64-pc-windows-msvc\debug\deps\live_contract-fa3c75137cb721e0.exe)
+
+running 2 tests
+test restored_live_recovery_is_visible_without_automatically_starting_a_new_passage ... ok
+test starting_live_emits_one_explicit_effect_and_initializes_separate_counters ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

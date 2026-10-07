@@ -1,0 +1,4783 @@
+{
+  "authorities": [
+    {
+      "actor": "/root/arch_p01",
+      "delegated_by": "AUTH-USER",
+      "delegation_source": {
+        "path": "USER_AUTHORIZATION_L00.md",
+        "sha256": "e7c1a7a489f3a8b840cde771762199eeaa33eaa1d57e7bcf7045b9dfa74055d8"
+      },
+      "id": "AUTH-ARCH-P01",
+      "role": "technical",
+      "scope": {
+        "natures": [
+          "decision",
+          "reversible_detail"
+        ],
+        "version": 2
+      },
+      "sources": [
+        {
+          "path": "USER_AUTHORIZATION_L00.md",
+          "sha256": "e7c1a7a489f3a8b840cde771762199eeaa33eaa1d57e7bcf7045b9dfa74055d8"
+        }
+      ]
+    },
+    {
+      "actor": "/root/detail_p02",
+      "delegated_by": "AUTH-USER",
+      "delegation_source": {
+        "path": "USER_ACCEPTANCE_DETAIL_P02.md",
+        "sha256": "4c88042f9ab732799ac45b4263dd23655ad1803be45a9a924ed62bb36bb0cc13"
+      },
+      "id": "AUTH-ARCH-P02",
+      "role": "technical",
+      "scope": {
+        "natures": [
+          "reversible_detail"
+        ],
+        "version": 2
+      },
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-ARCH-DETAIL-P02-R2/ARCH-DETAIL-P02-v1-R2.md",
+          "sha256": "85ebaa418dbc9d6168ef7381634d709aae4bf49a53139cf0b443d143c6103879"
+        },
+        {
+          "path": "transports/T-WHISPER-ARCH-DETAIL-P02-R2/transport-manifest.json",
+          "sha256": "9b49471709b2030b9b036203c3eea304303e3774365ff8965f190ff7ef035c9e"
+        }
+      ]
+    },
+    {
+      "actor": "/root/q07_arch_answer",
+      "delegated_by": "AUTH-USER",
+      "delegation_source": {
+        "path": "USER_AUTHORIZATION_Q07.md",
+        "sha256": "77de58d3c0d65c992f9332503b12bb671db20ecaf4412c5557fc4f59294406a4"
+      },
+      "id": "AUTH-ARCH-Q07",
+      "role": "technical",
+      "scope": {
+        "natures": [
+          "reversible_detail"
+        ],
+        "version": 2
+      },
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-Q07-ANSWER-01/Q-07-architecture-answer.md",
+          "sha256": "b4473d1339bf2f16040e6e5cd653cd9c98e4d7e584ea397c7db3087570d0888c"
+        },
+        {
+          "path": "transports/T-WHISPER-Q07-ANSWER-01/transport-manifest.json",
+          "sha256": "10d662d127d871213379ea61156fbe820d4c38e3bade132e2962bf00b0338676"
+        }
+      ]
+    },
+    {
+      "actor": "PREDEV-COORDINATOR",
+      "id": "AUTH-AUTHOR",
+      "role": "author",
+      "sources": [
+        {
+          "path": "authorization.md",
+          "sha256": "bbe954936ff6e4108c11024301f3edb68fa1c3499a44096552794a9ef353b771"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/proposal.json",
+          "sha256": "ee1069ebc93740e38e255bb828a9bdfed2c21485f22179963f3eb5b4bdaf7d2b"
+        }
+      ]
+    },
+    {
+      "actor": "root-predev-coordinator",
+      "id": "AUTH-COORD",
+      "role": "coordinator",
+      "sources": [
+        {
+          "path": "authorization.md",
+          "sha256": "bbe954936ff6e4108c11024301f3edb68fa1c3499a44096552794a9ef353b771"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/10_QUESTIONS_RISKS_AND_READINESS.md",
+          "sha256": "6a0f5188178a942c6da82d5452e9dab0dfb32b733d8c66d6f58be692422227b6"
+        }
+      ]
+    },
+    {
+      "actor": "/root/l01_r7_correction",
+      "delegated_by": "AUTH-USER",
+      "delegation_source": {
+        "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/user-authorization-21-paths.md",
+        "sha256": "1521a7eed34d07ba3d0812da074759fb0145540540e1d7e05ef6ca0900599f66"
+      },
+      "id": "AUTH-IMPLEMENTER-L01",
+      "role": "implementer",
+      "scope": {
+        "lot_ids": [
+          "L-WHISPER-01"
+        ],
+        "paths": [
+          "Cargo.lock",
+          "crates/whisper-adapters/Cargo.toml",
+          "crates/whisper-adapters/src/archive.rs",
+          "crates/whisper-adapters/src/decoder.rs",
+          "crates/whisper-adapters/src/lib.rs",
+          "crates/whisper-adapters/src/worker_ipc.rs",
+          "crates/whisper-adapters/tests/import_cpu.rs",
+          "crates/whisper-core/src/application.rs",
+          "crates/whisper-core/src/ipc.rs",
+          "crates/whisper-core/src/lib.rs",
+          "crates/whisper-core/src/ports.rs",
+          "crates/whisper-core/tests/import_contract.rs",
+          "crates/whisper-desktop/Cargo.toml",
+          "crates/whisper-desktop/src/main.rs",
+          "crates/whisper-desktop/src/root.rs",
+          "crates/whisper-desktop/src/ui.rs",
+          "crates/whisper-worker-cpu/Cargo.toml",
+          "crates/whisper-worker-cpu/src/decoder.rs",
+          "crates/whisper-worker-cpu/src/ipc.rs",
+          "crates/whisper-worker-cpu/src/main.rs",
+          "crates/whisper-worker-cpu/src/native_engine.rs"
+        ],
+        "version": 2
+      },
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/user-authorization-21-paths.md",
+          "sha256": "1521a7eed34d07ba3d0812da074759fb0145540540e1d7e05ef6ca0900599f66"
+        }
+      ]
+    },
+    {
+      "actor": "/root/implement_l02",
+      "delegated_by": "AUTH-USER",
+      "delegation_source": {
+        "path": "USER_AUTHORIZATION_L02.md",
+        "sha256": "0aef854e49d8925d2e51b1a02e951c3ad2d09cf84475ca1b66e0132ac80251c9"
+      },
+      "id": "AUTH-IMPLEMENTER-L02",
+      "role": "implementer",
+      "scope": {
+        "lot_ids": [
+          "L-WHISPER-02"
+        ],
+        "natures": [],
+        "paths": [
+          "crates/whisper-adapters/src/archive.rs",
+          "crates/whisper-adapters/src/decoder.rs",
+          "crates/whisper-adapters/src/journal.rs",
+          "crates/whisper-adapters/src/lib.rs",
+          "crates/whisper-adapters/src/queue_store.rs",
+          "crates/whisper-adapters/src/recovery.rs",
+          "crates/whisper-adapters/src/worker_ipc.rs",
+          "crates/whisper-adapters/tests/durability.rs",
+          "crates/whisper-adapters/tests/import_mp3.rs",
+          "crates/whisper-core/src/application.rs",
+          "crates/whisper-core/src/ports.rs",
+          "crates/whisper-core/tests/scheduler_contract.rs",
+          "crates/whisper-desktop/src/root.rs",
+          "crates/whisper-desktop/src/ui.rs",
+          "crates/whisper-worker-cpu/src/decoder.rs"
+        ],
+        "version": 2
+      },
+      "sources": [
+        {
+          "path": "USER_AUTHORIZATION_L02.md",
+          "sha256": "0aef854e49d8925d2e51b1a02e951c3ad2d09cf84475ca1b66e0132ac80251c9"
+        }
+      ]
+    },
+    {
+      "actor": "/root/rust_implementer",
+      "delegated_by": "AUTH-USER",
+      "delegation_source": {
+        "path": "USER_AUTHORIZATION_L03.md",
+        "sha256": "97d46348d9514874d187cbcc923a298356ef5d4e66ab282dc5fa31a83fb39f9b"
+      },
+      "id": "AUTH-IMPLEMENTER-L03",
+      "role": "implementer",
+      "scope": {
+        "lot_ids": [
+          "L-WHISPER-03"
+        ],
+        "natures": [],
+        "paths": [
+          "Cargo.lock",
+          "crates/whisper-adapters/Cargo.toml",
+          "crates/whisper-adapters/src/archive.rs",
+          "crates/whisper-adapters/src/capture.rs",
+          "crates/whisper-adapters/src/journal.rs",
+          "crates/whisper-adapters/src/lib.rs",
+          "crates/whisper-adapters/src/recovery.rs",
+          "crates/whisper-adapters/src/staging.rs",
+          "crates/whisper-adapters/src/vad.rs",
+          "crates/whisper-adapters/src/worker_ipc.rs",
+          "crates/whisper-adapters/tests/durability.rs",
+          "crates/whisper-adapters/tests/live_archive.rs",
+          "crates/whisper-adapters/tests/live_capture.rs",
+          "crates/whisper-adapters/tests/vad_contract.rs",
+          "crates/whisper-core/src/application.rs",
+          "crates/whisper-core/src/domain.rs",
+          "crates/whisper-core/src/ipc.rs",
+          "crates/whisper-core/src/lib.rs",
+          "crates/whisper-core/src/ports.rs",
+          "crates/whisper-core/tests/live_contract.rs",
+          "crates/whisper-core/tests/scheduler_contract.rs",
+          "crates/whisper-desktop/src/root.rs",
+          "crates/whisper-desktop/src/ui.rs",
+          "crates/whisper-worker-cpu/Cargo.toml",
+          "crates/whisper-worker-cpu/src/encoder.rs",
+          "crates/whisper-worker-cpu/src/ipc.rs",
+          "crates/whisper-worker-cpu/src/main.rs",
+          "crates/whisper-worker-cpu/tests/live_worker.rs"
+        ],
+        "version": 2
+      },
+      "sources": [
+        {
+          "path": "USER_AUTHORIZATION_L03.md",
+          "sha256": "97d46348d9514874d187cbcc923a298356ef5d4e66ab282dc5fa31a83fb39f9b"
+        }
+      ]
+    },
+    {
+      "actor": "/root/implementer_preflight",
+      "delegated_by": "AUTH-USER",
+      "delegation_source": {
+        "path": "USER_AUTHORIZATION_L00.md",
+        "sha256": "e7c1a7a489f3a8b840cde771762199eeaa33eaa1d57e7bcf7045b9dfa74055d8"
+      },
+      "id": "AUTH-IMPLEMENTER-PREFLIGHT",
+      "role": "implementer",
+      "scope": {
+        "lot_ids": [
+          "L-WHISPER-00"
+        ],
+        "natures": [],
+        "paths": [
+          "Cargo.lock",
+          "Cargo.toml",
+          "crates/whisper-adapters/**",
+          "crates/whisper-bootstrap/**",
+          "crates/whisper-core/**",
+          "crates/whisper-desktop/**",
+          "crates/whisper-worker-cpu/**",
+          "crates/whisper-worker-gpu/**",
+          "rust-toolchain.toml"
+        ],
+        "version": 2
+      },
+      "sources": [
+        {
+          "path": "USER_AUTHORIZATION_L00.md",
+          "sha256": "e7c1a7a489f3a8b840cde771762199eeaa33eaa1d57e7bcf7045b9dfa74055d8"
+        }
+      ]
+    },
+    {
+      "actor": "/root/plans_writer",
+      "id": "AUTH-PLAN-WRITER",
+      "role": "author",
+      "sources": [
+        {
+          "path": "transports/T-PW-WHISPER-01-EXACT/PW-WHISPER-01-full.md",
+          "sha256": "201cf502239323666f028fdd8f46913b344fff7e4b84943853e29e14d82646a9"
+        },
+        {
+          "path": "transports/T-PW-WHISPER-02/PW-WHISPER-02-raw.md",
+          "sha256": "b6e7fa2e99cfa3c1083bf2a53b5752355a6010934cf3d84681dc50e68c810007"
+        },
+        {
+          "path": "transports/T-PW-WHISPER-10/PW-WHISPER-10-raw.md",
+          "sha256": "b130624cb9127df02fa44f6d9051cba5a31718b3adc1d714f67af30fe9117f7a"
+        },
+        {
+          "path": "transports/T-PW-WHISPER-10/transport-manifest.json",
+          "sha256": "9749c10499c0b533e2c5abadab879c5d65591599586388f24aa60feaf31d6521"
+        }
+      ]
+    },
+    {
+      "actor": "/root/plans_l02_scope",
+      "id": "AUTH-PLAN-WRITER-L02",
+      "role": "author",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-PLANS-07-AUTHOR-01/transports/T-WHISPER-PLANS-07-AUTHOR-01/R-WHISPER-PLANS-07-raw.md",
+          "sha256": "ba2264400bedce562cbe2db64e87f0a997f6f0be058a24f6d09009c56b946702"
+        },
+        {
+          "path": "transports/T-WHISPER-PLANS-08-AUTHOR-01/transports/T-WHISPER-PLANS-08-AUTHOR-01/R-WHISPER-PLANS-08-raw.md",
+          "sha256": "38ce9ce33872240c0266f6e1fba0038b1d73cb45b78d6ca1e6cb4f78784fe0eb"
+        }
+      ]
+    },
+    {
+      "actor": "root-design-review",
+      "id": "AUTH-REVIEWER",
+      "independence_source": {
+        "path": "transports/T-WHISPER-REVIEWS-03/review-D3.json",
+        "sha256": "aa1ebf036ebb5dc78a7ba110ae78e804fc282b480d160e02d0616c1378d26949"
+      },
+      "independent_from": [
+        "AUTH-AUTHOR"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-REVIEWS-03/review-D3.json",
+          "sha256": "aa1ebf036ebb5dc78a7ba110ae78e804fc282b480d160e02d0616c1378d26949"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-04/review-D4.json",
+          "sha256": "8e50b9fa40eedc683a50c49d5fac074531dac10cf3c55e0fefc39a78b9dd61e8"
+        }
+      ]
+    },
+    {
+      "actor": "/root/design_review_d10",
+      "id": "AUTH-REVIEWER-D11",
+      "independence_source": {
+        "path": "transports/T-WHISPER-REVIEW-11/review-D11.json",
+        "sha256": "111e68ad38eb925df6a431bb3d6201dae322e599b9e6522bbca12c7756adf63d"
+      },
+      "independent_from": [
+        "AUTH-AUTHOR"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-REVIEW-11/review-D11.json",
+          "sha256": "111e68ad38eb925df6a431bb3d6201dae322e599b9e6522bbca12c7756adf63d"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-11/transport-manifest.json",
+          "sha256": "e7e8bffa4c1d21dac0daf3581d2b7bf4fefda29f710601462e265bf8b3e0b106"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-12/review-D12.json",
+          "sha256": "ec06311bd63ff480e66aeba6865dc6521b2480809afcdb74d4391519638c965b"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-12/transport-manifest.json",
+          "sha256": "1e8ba2c5664a41b1eec3533a050c21aee665a6cacb2fe47134eba8f33d7776b3"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-13/review-D13.json",
+          "sha256": "ca8eb3de999074a7e6a29e7048ae559022608c4f85c5602f109c9ce9fee65bc7"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-13/transport-manifest.json",
+          "sha256": "38b1df4b5a7fa1626583a08746766aa83e4f5632a6f228a0e1408b547a5641f6"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-14/review-D14.json",
+          "sha256": "728ae6ce1344cc04cbb416edb3fc94ce2683df4799f3286a89213b6530d2116e"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-14/transport-manifest.json",
+          "sha256": "fe7ac92738f7ad3b258fe1d7e69e19ac47677c110b73884a52536418a6cdb370"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-15/review-D15.json",
+          "sha256": "7c2434441e75b6ef48244adfe1ca98a22d3043042fe4b8fb435e64ca25edb056"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-15/transport-manifest.json",
+          "sha256": "c865a10f0af4486f7f3f8f8f1eea86d78116962fd5d3b29048d82e900d26b32c"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-16/review-D16.json",
+          "sha256": "d658eb5d6bac574496623c2e61b377b54e87da1e3258e71d91e62372852dc4c7"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-16/transport-manifest.json",
+          "sha256": "a6f87b71889998b5a1737b5214cc2622e56b8a02db1dc198a8a653681e9ee5c3"
+        }
+      ]
+    },
+    {
+      "actor": "/root/review_d17",
+      "id": "AUTH-REVIEWER-D17",
+      "independence_source": {
+        "path": "transports/T-WHISPER-REVIEW-17/review-D17-raw.md",
+        "sha256": "b446609c938748a9734b7d799d5b08ca1f4b19b4423cef5f382b5e5b57cc6417"
+      },
+      "independent_from": [
+        "AUTH-AUTHOR"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-REVIEW-17/review-D17-raw.md",
+          "sha256": "b446609c938748a9734b7d799d5b08ca1f4b19b4423cef5f382b5e5b57cc6417"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-17/review-D17.json",
+          "sha256": "3b7dc2c793077314f64a7e75b00cede2385f8f4a9fbaef8f19281977393fd86b"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-17/transport-manifest.json",
+          "sha256": "622427803cc3c814fbc0158c27697bfdbc31adc7500dff057f6ee90c7101f9ab"
+        }
+      ]
+    },
+    {
+      "actor": "/root/review_d18",
+      "id": "AUTH-REVIEWER-D18",
+      "independence_source": {
+        "path": "transports/T-WHISPER-REVIEW-18/review-D18-raw.md",
+        "sha256": "c40e77c1be980dbac0add4bb5a3e8b7926b0c119e45eb19891d6ab60fde24743"
+      },
+      "independent_from": [
+        "AUTH-AUTHOR"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-REVIEW-18/review-D18-raw.md",
+          "sha256": "c40e77c1be980dbac0add4bb5a3e8b7926b0c119e45eb19891d6ab60fde24743"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-18/review-D18.json",
+          "sha256": "18e2e3f7e6479e1cc9cbf7cc14cc881535986e2c8966160b0d7c7cc7223e2843"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-18/transport-manifest.json",
+          "sha256": "1ef1970db0eba7b7a7c0f80d034399886543d26201bcdb75b25a60013e666496"
+        }
+      ]
+    },
+    {
+      "actor": "/root/review_d18",
+      "id": "AUTH-REVIEWER-D19",
+      "independence_source": {
+        "path": "transports/T-WHISPER-REVIEW-19/review-D19-raw.md",
+        "sha256": "e6bbbb23759211d6158792ab82b8a106981797b6ff9abe5c57ae683e75aaf681"
+      },
+      "independent_from": [
+        "AUTH-AUTHOR"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-REVIEW-19/review-D19-raw.md",
+          "sha256": "e6bbbb23759211d6158792ab82b8a106981797b6ff9abe5c57ae683e75aaf681"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-19/review-D19.json",
+          "sha256": "67b7dd8459020570bd0e362fa7aa623d770541d37c6bd7003c73b8b571d8c03e"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-19/transport-manifest.json",
+          "sha256": "7898b7d01e033a17a99a31c141e4c7281f08796e542dffb8e290ddb976097231"
+        }
+      ]
+    },
+    {
+      "actor": "/root/l01_review",
+      "id": "AUTH-REVIEWER-L01",
+      "independence_source": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/review.md",
+        "sha256": "ca46eb0fe83059aaddc0a6da443c62c3653538997b1f8d82c51f37436e4af840"
+      },
+      "independent_from": [
+        "AUTH-IMPLEMENTER-L01"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-L01-CLOSURE-02/review.md",
+          "sha256": "ca46eb0fe83059aaddc0a6da443c62c3653538997b1f8d82c51f37436e4af840"
+        }
+      ]
+    },
+    {
+      "actor": "/root/review_fix_l02/reviewer_l02",
+      "id": "AUTH-REVIEWER-L02",
+      "independence_source": {
+        "path": "transports/T-WHISPER-L02-CLOSURE-03/review.md",
+        "sha256": "d01e41f3282992c9ce449aef1c98a594a91b9bc6aaf8cb7d21dd4d15bd9feba9"
+      },
+      "independent_from": [
+        "AUTH-IMPLEMENTER-L02"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-L02-CLOSURE-03/review.md",
+          "sha256": "d01e41f3282992c9ce449aef1c98a594a91b9bc6aaf8cb7d21dd4d15bd9feba9"
+        }
+      ]
+    },
+    {
+      "actor": "/root/l03_reviewer",
+      "id": "AUTH-REVIEWER-L03",
+      "independence_source": {
+        "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/review.md",
+        "sha256": "d0cb6464df4b5f9671c67a2a6b32e422f1ae86917e1eba2e57d0eff3f3e90a10"
+      },
+      "independent_from": [
+        "AUTH-IMPLEMENTER-L03"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "P10-L03-CLOSURE-WORK/transports/T-WHISPER-L03-CLOSURE-03/review.md",
+          "sha256": "d0cb6464df4b5f9671c67a2a6b32e422f1ae86917e1eba2e57d0eff3f3e90a10"
+        }
+      ]
+    },
+    {
+      "actor": "/root/review_p08",
+      "id": "AUTH-REVIEWER-P08",
+      "independence_source": {
+        "path": "transports/T-WHISPER-PLANS-09-HANDOFF-01/transports/T-WHISPER-PLANS-09-HANDOFF-01/R-WHISPER-PLANS-08-findings.md",
+        "sha256": "95e4700ee2bedce8e6a75c0783e44b355ded2f17b73cbed91f9f507547f20e57"
+      },
+      "independent_from": [
+        "AUTH-AUTHOR",
+        "AUTH-COORD",
+        "AUTH-PLAN-WRITER-L02"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-PLANS-09-HANDOFF-01/transports/T-WHISPER-PLANS-09-HANDOFF-01/R-WHISPER-PLANS-08-findings.md",
+          "sha256": "95e4700ee2bedce8e6a75c0783e44b355ded2f17b73cbed91f9f507547f20e57"
+        },
+        {
+          "path": "transports/T-WHISPER-PLANS-09-HANDOFF-01/transport-manifest.json",
+          "sha256": "84d103957db116fbe66d92635bd34b4e897c56f0992a5765bb37698634ee193e"
+        }
+      ]
+    },
+    {
+      "actor": "/root/review_p09",
+      "id": "AUTH-REVIEWER-P09",
+      "independence_source": {
+        "path": "transports/T-WHISPER-PLANS-09-REVIEW-01/transports/T-WHISPER-PLANS-09-REVIEW-01/R-WHISPER-PLANS-09-review.md",
+        "sha256": "3fec429802c8659b1e9f2010d486471e11184c718a00929e42018ef43fc22c46"
+      },
+      "independent_from": [
+        "AUTH-AUTHOR",
+        "AUTH-COORD",
+        "AUTH-PLAN-WRITER-L02"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-PLANS-09-REVIEW-01/transports/T-WHISPER-PLANS-09-REVIEW-01/R-WHISPER-PLANS-09-review.md",
+          "sha256": "3fec429802c8659b1e9f2010d486471e11184c718a00929e42018ef43fc22c46"
+        },
+        {
+          "path": "transports/T-WHISPER-PLANS-09-REVIEW-01/transport-manifest.json",
+          "sha256": "dc056d0944a45eda86440cc764bbdedb032503b77fafa55e5c4262e487c82185"
+        }
+      ]
+    },
+    {
+      "actor": "/root/plans_review",
+      "id": "AUTH-REVIEWER-PLANS-01",
+      "independence_source": {
+        "path": "transports/T-WHISPER-PLANS-REVIEW-01/R-WHISPER-PLANS-01-raw.md",
+        "sha256": "4109d8cf052197c368b1a9bca783ba62e0e76a3b522a460749963fb1c43dfab6"
+      },
+      "independent_from": [
+        "AUTH-AUTHOR",
+        "AUTH-PLAN-WRITER"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-PLANS-REVIEW-01/R-WHISPER-PLANS-01-raw.md",
+          "sha256": "4109d8cf052197c368b1a9bca783ba62e0e76a3b522a460749963fb1c43dfab6"
+        },
+        {
+          "path": "transports/T-WHISPER-PLANS-REVIEW-01/transport-manifest.json",
+          "sha256": "7282a63459dea3d3456690e1b0bf29b27162da84d767720caa353b23eafbd6a5"
+        },
+        {
+          "path": "transports/T-WHISPER-PLANS-REVIEW-02/transport-manifest.json",
+          "sha256": "acc5e6f47a363175c90adb8fae4665a691cd3328fe41ba2e0ee371c052aaffda"
+        },
+        {
+          "path": "transports/T-WHISPER-PLANS-REVIEW-02/R-WHISPER-PLANS-02-raw.md",
+          "sha256": "65b0d5256cff71b431145d673d84f81ad4887bf4a64b5f1355b9b8db1f4ed810"
+        }
+      ]
+    },
+    {
+      "actor": "/root/review_p03",
+      "id": "AUTH-REVIEWER-PLANS-06",
+      "independence_source": {
+        "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+        "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+      },
+      "independent_from": [
+        "AUTH-AUTHOR",
+        "AUTH-PLAN-WRITER"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+          "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+        },
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/transport-manifest.json",
+          "sha256": "88b5fa0843e320a0f411ddfd143265b83653bcea56850200fc6ff45f6945c419"
+        }
+      ]
+    },
+    {
+      "actor": "/root/review_p10",
+      "id": "AUTH-REVIEWER-PLANS-10-V3",
+      "independence_source": {
+        "path": "transports/T-WHISPER-PLANS-REVIEW-10-V3/R-WHISPER-PLANS-10-v3.md",
+        "sha256": "da85a67d2a95fa7eb1c656123861c20a4d9a38cbd08bc9ebf0fed47414c1e431"
+      },
+      "independent_from": [
+        "AUTH-AUTHOR",
+        "AUTH-PLAN-WRITER"
+      ],
+      "role": "reviewer",
+      "sources": [
+        {
+          "path": "transports/T-WHISPER-PLANS-REVIEW-10-V3/R-WHISPER-PLANS-10-v3.md",
+          "sha256": "da85a67d2a95fa7eb1c656123861c20a4d9a38cbd08bc9ebf0fed47414c1e431"
+        },
+        {
+          "path": "transports/T-WHISPER-PLANS-REVIEW-10-V3/receipt.json",
+          "sha256": "b93652c1f2c4220203a1709cadf9c0c52dd8bca810508a6e43cf8cf461008e2c"
+        },
+        {
+          "path": "transports/T-WHISPER-PLANS-REVIEW-10-V3/transport-manifest.json",
+          "sha256": "4d2d99d73ead4a5b2020bbeecdf20e4f5dd254aa09e63f94c7543f8f51f2a520"
+        }
+      ]
+    },
+    {
+      "actor": "HUMAN-USER",
+      "id": "AUTH-USER",
+      "role": "user",
+      "sources": [
+        {
+          "path": "USER_ACCEPTANCE_DETAIL_P02.md",
+          "sha256": "4c88042f9ab732799ac45b4263dd23655ad1803be45a9a924ed62bb36bb0cc13"
+        },
+        {
+          "path": "USER_AUTHORIZATION_L00.md",
+          "sha256": "e7c1a7a489f3a8b840cde771762199eeaa33eaa1d57e7bcf7045b9dfa74055d8"
+        },
+        {
+          "path": "USER_AUTHORIZATION_L01.md",
+          "sha256": "b6088b12a1e8aa221db1f1b4ca9e29a5e867fce35590f217ff82164548cc3151"
+        },
+        {
+          "path": "USER_AUTHORIZATION_L02.md",
+          "sha256": "0aef854e49d8925d2e51b1a02e951c3ad2d09cf84475ca1b66e0132ac80251c9"
+        },
+        {
+          "path": "USER_AUTHORIZATION_L03.md",
+          "sha256": "97d46348d9514874d187cbcc923a298356ef5d4e66ab282dc5fa31a83fb39f9b"
+        },
+        {
+          "path": "candidates/D-WHISPER-09/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-17/47_USER_VALIDATION_D17.md",
+          "sha256": "996cde451b5d9b6394f8b3e59717b8efbae914cdef16aaa9b225bf2f8277c90b"
+        },
+        {
+          "path": "candidates/P-WHISPER-02/sources/USER_AUTHORIZATION_PLANS.md",
+          "sha256": "cf23a575972101ca331359a8bba70952cee078df9cb3b483982805afc2f91a7f"
+        },
+        {
+          "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/user-authorization-21-paths.md",
+          "sha256": "1521a7eed34d07ba3d0812da074759fb0145540540e1d7e05ef6ca0900599f66"
+        },
+        {
+          "path": "transports/T-WHISPER-Q05-ANSWER-01/transport-manifest.json",
+          "sha256": "77c6bc223694fafc8c2ecaabc1b891d500ce744279f8d14417c512e76e0d7aae"
+        }
+      ]
+    }
+  ],
+  "authorization": {
+    "authority": "AUTH-USER",
+    "explicit": true,
+    "lot_id": "L-WHISPER-00",
+    "paths": [
+      "Cargo.lock",
+      "Cargo.toml",
+      "crates/whisper-adapters/**",
+      "crates/whisper-bootstrap/**",
+      "crates/whisper-bootstrap/src/main.rs",
+      "crates/whisper-core/**",
+      "crates/whisper-core/src/application.rs",
+      "crates/whisper-core/src/domain.rs",
+      "crates/whisper-core/src/lib.rs",
+      "crates/whisper-core/src/ports.rs",
+      "crates/whisper-desktop/**",
+      "crates/whisper-desktop/src/main.rs",
+      "crates/whisper-worker-cpu/**",
+      "crates/whisper-worker-cpu/src/main.rs",
+      "crates/whisper-worker-gpu/**",
+      "crates/whisper-worker-gpu/src/main.rs",
+      "rust-toolchain.toml"
+    ],
+    "source": {
+      "path": "USER_AUTHORIZATION_L00.md",
+      "sha256": "e7c1a7a489f3a8b840cde771762199eeaa33eaa1d57e7bcf7045b9dfa74055d8"
+    }
+  },
+  "candidates": {
+    "DESIGN": {
+      "author": "AUTH-AUTHOR",
+      "contributors": [
+        "AUTH-AUTHOR"
+      ],
+      "id": "D-WHISPER-19",
+      "manifest": "candidates/D-WHISPER-19/manifest.json",
+      "perimeter_version": 2,
+      "reviews": [
+        {
+          "candidate_id": "D-WHISPER-19",
+          "evidence": [
+            {
+              "path": "transports/T-WHISPER-REVIEW-19/transport-manifest.json",
+              "sha256": "7898b7d01e033a17a99a31c141e4c7281f08796e542dffb8e290ddb976097231"
+            }
+          ],
+          "id": "R-WHISPER-DESIGN-19",
+          "manifest_digest": "903926ba27c70fc3a0cc6954d9e50914a64993e40c339683e557bc4c604d7529",
+          "reviewer": "AUTH-REVIEWER-D19",
+          "scope": "DESIGN",
+          "verdict": "CLEAN"
+        }
+      ],
+      "status": "READY"
+    },
+    "PLANS": {
+      "author": "AUTH-AUTHOR",
+      "contributors": [
+        "AUTH-AUTHOR",
+        "AUTH-PLAN-WRITER"
+      ],
+      "design_candidate_id": "D-WHISPER-19",
+      "id": "P-WHISPER-10",
+      "manifest": "candidates/P-WHISPER-10/manifest.json",
+      "perimeter_version": 2,
+      "reviews": [
+        {
+          "candidate_id": "P-WHISPER-10",
+          "design_candidate_id": "D-WHISPER-19",
+          "evidence": [
+            {
+              "path": "transports/T-WHISPER-PLANS-REVIEW-10-V3/transport-manifest.json",
+              "sha256": "4d2d99d73ead4a5b2020bbeecdf20e4f5dd254aa09e63f94c7543f8f51f2a520"
+            }
+          ],
+          "id": "R-WHISPER-PLANS-10-v3",
+          "manifest_digest": "9b9edfcf09e39bd6017fb818fd0b9784923b8eb89707b18a9e3a1fff4d7b8f4a",
+          "reviewer": "AUTH-REVIEWER-PLANS-10-V3",
+          "scope": "PLANS",
+          "verdict": "CLEAN"
+        }
+      ],
+      "status": "READY"
+    }
+  },
+  "checkpoint": {
+    "candidate_bindings": {
+      "DESIGN": {
+        "candidate_id": "D-WHISPER-19",
+        "manifest": {
+          "path": "candidates/D-WHISPER-19/manifest.json",
+          "sha256": "7f6465f9254611d432da50ab64034c7ae92b088351396f2c3eb3249c71866cb7"
+        },
+        "manifest_digest": "903926ba27c70fc3a0cc6954d9e50914a64993e40c339683e557bc4c604d7529",
+        "review_id": "R-WHISPER-DESIGN-19",
+        "review_transport": {
+          "path": "transports/T-WHISPER-REVIEW-19/transport-manifest.json",
+          "sha256": "7898b7d01e033a17a99a31c141e4c7281f08796e542dffb8e290ddb976097231"
+        },
+        "reviewer": "AUTH-REVIEWER-D19",
+        "verdict": "CLEAN"
+      },
+      "PLANS": {
+        "candidate_id": "P-WHISPER-10",
+        "design_candidate_id": "D-WHISPER-19",
+        "manifest": {
+          "path": "candidates/P-WHISPER-10/manifest.json",
+          "sha256": "c8d6997e983bfa394e7960d15753983aa832d0d51883d1e5fd674df95e6daaf2"
+        },
+        "manifest_digest": "9b9edfcf09e39bd6017fb818fd0b9784923b8eb89707b18a9e3a1fff4d7b8f4a",
+        "review_id": "R-WHISPER-PLANS-10-v3",
+        "review_transport": {
+          "path": "transports/T-WHISPER-PLANS-REVIEW-10-V3/transport-manifest.json",
+          "sha256": "4d2d99d73ead4a5b2020bbeecdf20e4f5dd254aa09e63f94c7543f8f51f2a520"
+        },
+        "reviewer": "AUTH-REVIEWER-PLANS-10-V3",
+        "verdict": "CLEAN"
+      }
+    },
+    "historical_findings_archive": {
+      "path": "transports/T-WHISPER-P06-FINDINGS-HISTORY-01/transports/T-WHISPER-P06-FINDINGS-HISTORY-01/historical-findings.json",
+      "sha256": "642aaefe42ef05c5551e20b9c312f719ce29a98224cbdbb89a99914943c1d4f5"
+    },
+    "next_actor": "AUTH-COORD",
+    "pending_tasks": [
+      "TASK-P03"
+    ],
+    "phase": "IMPLEMENTATION",
+    "raw_contributions": [
+      {
+        "path": "transports/T-D19-IMPACT-01/transport-manifest.json",
+        "sha256": "606660b0dd3899f2fff40dbc9187e22ab47347b94a07fd7e76d1268b3c71a01d"
+      },
+      {
+        "path": "transports/T-PW-WHISPER-01-EXACT/transport-manifest.json",
+        "sha256": "27ef8dc1b2a07b4231cb494cc7210f065d56f82d33fd2c0561c9f2463f89b3bd"
+      },
+      {
+        "path": "transports/T-PW-WHISPER-01/transport-manifest.json",
+        "sha256": "13c8743538e710226c68a82c7f9e44d7b375802b0ddbf01d79fc23dd2bc09387"
+      },
+      {
+        "path": "transports/T-PW-WHISPER-02/transport-manifest.json",
+        "sha256": "a98816c05625878c686d8ca2b4c55ddc3303c503117aa3cfee25c1be8c8ceb68"
+      },
+      {
+        "path": "transports/T-PW-WHISPER-10/transport-manifest.json",
+        "sha256": "9749c10499c0b533e2c5abadab879c5d65591599586388f24aa60feaf31d6521"
+      },
+      {
+        "path": "transports/T-WHISPER-ANNOTATIONS-13/transport-manifest.json",
+        "sha256": "13efd8a4e7c3795efd9dc0bc2f33c955a902d308d94c2c18f59ae16d7356beef"
+      },
+      {
+        "path": "transports/T-WHISPER-ARCH-008-DETAIL/transport-manifest.json",
+        "sha256": "7556f4e7319736152b9aee6bc4680fded31d525a44f9e9db1bbcf68b62ec050c"
+      },
+      {
+        "path": "transports/T-WHISPER-ARCH-008-EXACT/transport-manifest.json",
+        "sha256": "a249395209bcfc4f17f45bae8f3dc6c38eb38e0a021d299132b9cacde74e669a"
+      },
+      {
+        "path": "transports/T-WHISPER-ARCH-008-RAW/transport-manifest.json",
+        "sha256": "1e76aaa79b5d83b94af8d1c61b33f389c84a4924598dd96d0edb6d22e2816283"
+      },
+      {
+        "path": "transports/T-WHISPER-ARCH-008/transport-manifest.json",
+        "sha256": "50df9723dac2d028b450eeb98bab6a16b88b608227d33ef1cde2f3745c401b81"
+      },
+      {
+        "path": "transports/T-WHISPER-ARCH-D18-FINAL/transport-manifest.json",
+        "sha256": "6ae4606fd18985df7d486bdb5d5ebf323a6ca71b5000607950cbf7176f7e67ed"
+      },
+      {
+        "path": "transports/T-WHISPER-ARCH-DETAIL-P02-R2/transport-manifest.json",
+        "sha256": "9b49471709b2030b9b036203c3eea304303e3774365ff8965f190ff7ef035c9e"
+      },
+      {
+        "path": "transports/T-WHISPER-ARCH-P01-DETAIL-02/transport-manifest.json",
+        "sha256": "e2b883e721b68adbf7f568c8b16b5011693317d58ca0f68fde0d12f37e15094c"
+      },
+      {
+        "path": "transports/T-WHISPER-CORRECTION-06/transport-manifest.json",
+        "sha256": "faa6c51b549459a1cc3be67994b92302bf70260385ed5f5eb2c6526643d46439"
+      },
+      {
+        "path": "transports/T-WHISPER-CORRECTION-07/transport-manifest.json",
+        "sha256": "b23b534597a3f94ce82d83678fdcd4ce9786beea307f6cb8548b9754f47dca43"
+      },
+      {
+        "path": "transports/T-WHISPER-CORRECTION-09/transport-manifest.json",
+        "sha256": "f2e0f1e447f40c155066ba1f0d933cce425ed3af950c4dd4e93f01a94a7117b6"
+      },
+      {
+        "path": "transports/T-WHISPER-CORRECTION-11/transport-manifest.json",
+        "sha256": "175f14fccc6a9dde35a6ed8c85111dad88665d37132bea3748d89eb8d649f344"
+      },
+      {
+        "path": "transports/T-WHISPER-DECISION-12/transport-manifest.json",
+        "sha256": "5470a6c8c34a66889f99445a679337b447bcd4914da8753a59e20fea6c21bc96"
+      },
+      {
+        "path": "transports/T-WHISPER-DECISIONS-10/transport-manifest.json",
+        "sha256": "5bf29a2fa4d7c974e97b0cce03c0a7251d6a65e2b7218211031f39bfaa0c0f6c"
+      },
+      {
+        "path": "transports/T-WHISPER-DETAIL-P02-ACCEPT-01/transport-manifest.json",
+        "sha256": "0a6437775a0b6b066f4bebe19fa89f5e95de71279ecd7f9748e86a58ed998aa0"
+      },
+      {
+        "path": "transports/T-WHISPER-L01-CHECKPOINT-RECONCILIATION-01/transport-manifest.json",
+        "sha256": "8fb5d02669c85587ce2362ee4d0dc43fc245ec3373f0bc6332a038e237de34d2"
+      },
+      {
+        "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/transport-manifest.json",
+        "sha256": "97a811441c3bfe50e7c3ce26e841c2170b41b88081cfc2cf51d49d1e17d87bf3"
+      },
+      {
+        "path": "transports/T-WHISPER-MEASURES-05/transport-manifest.json",
+        "sha256": "d46da9b11f48fa2d0b03d09637a346195d6031d33dc6378e315b76c1149338a0"
+      },
+      {
+        "path": "transports/T-WHISPER-MEASURES-08/transport-manifest.json",
+        "sha256": "ad4787e369b097d90f7872d518c57fe25be05c53942b94dd70be902dffcdf3c5"
+      },
+      {
+        "path": "transports/T-WHISPER-MP3-SPIKE-04/transport-manifest.json",
+        "sha256": "04c070fbaf8877dd5099854154f34d0ba39db1a7db9bc9f3c95f58d63d8b26a3"
+      },
+      {
+        "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/transport-manifest.json",
+        "sha256": "88b5fa0843e320a0f411ddfd143265b83653bcea56850200fc6ff45f6945c419"
+      },
+      {
+        "path": "transports/T-WHISPER-PLANS-07-AUTHOR-01/transport-manifest.json",
+        "sha256": "888260ea0ff2a4fdd790551b46e175ff7c692aeee9c148eeb4e505a0f91346a1"
+      },
+      {
+        "path": "transports/T-WHISPER-PLANS-08-AUTHOR-01/transport-manifest.json",
+        "sha256": "156f1de58fb46c9b285de7ff00075aa3f10108f4be6639c2d681162771717a50"
+      },
+      {
+        "path": "transports/T-WHISPER-PLANS-09-HANDOFF-01/transport-manifest.json",
+        "sha256": "84d103957db116fbe66d92635bd34b4e897c56f0992a5765bb37698634ee193e"
+      },
+      {
+        "path": "transports/T-WHISPER-PLANS-09-REVIEW-01/transport-manifest.json",
+        "sha256": "dc056d0944a45eda86440cc764bbdedb032503b77fafa55e5c4262e487c82185"
+      },
+      {
+        "path": "transports/T-WHISPER-PLANS-REVIEW-01/transport-manifest.json",
+        "sha256": "7282a63459dea3d3456690e1b0bf29b27162da84d767720caa353b23eafbd6a5"
+      },
+      {
+        "path": "transports/T-WHISPER-PLANS-REVIEW-02/transport-manifest.json",
+        "sha256": "acc5e6f47a363175c90adb8fae4665a691cd3328fe41ba2e0ee371c052aaffda"
+      },
+      {
+        "path": "transports/T-WHISPER-PLANS-REVIEW-10-V1/transport-manifest.json",
+        "sha256": "c1dcc7bed155e633d8ea8f496aeb216959648641b68ffb2fc9b1b1d17d046497"
+      },
+      {
+        "path": "transports/T-WHISPER-PLANS-REVIEW-10-V3/transport-manifest.json",
+        "sha256": "4d2d99d73ead4a5b2020bbeecdf20e4f5dd254aa09e63f94c7543f8f51f2a520"
+      },
+      {
+        "path": "transports/T-WHISPER-PW-P04-CORRECTIONS-01/transport-manifest.json",
+        "sha256": "1bcc750d801064b6f21ed70cabad769ea67ff46e3f1a6edb6e26e442aeea158c"
+      },
+      {
+        "path": "transports/T-WHISPER-Q05-ANSWER-01/transport-manifest.json",
+        "sha256": "77c6bc223694fafc8c2ecaabc1b891d500ce744279f8d14417c512e76e0d7aae"
+      },
+      {
+        "path": "transports/T-WHISPER-Q07-ANSWER-01/transport-manifest.json",
+        "sha256": "10d662d127d871213379ea61156fbe820d4c38e3bade132e2962bf00b0338676"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-04/transport-manifest.json",
+        "sha256": "24407c39f373a1b3828cf318005f4dc1df47dd2decf4927c1481d3fe05808846"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-05/transport-manifest.json",
+        "sha256": "d706dc81041e4074bfa4b279e0cf09de5704d1995f2da3e2e3fcc9bc2f814099"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-06/transport-manifest.json",
+        "sha256": "56029e1e0567ad441d4b4f952ed5b0a81ab449504d66cd8e32ac12f037a49cff"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-07/transport-manifest.json",
+        "sha256": "1886a17b4da72907281a19b8d39ca4c1ad45e0032056c14eb20c49401dbc5915"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-08/transport-manifest.json",
+        "sha256": "07c139707a81447c0abb93570c84867a8ebde9d682f77e4530f1f5a222c2ee43"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-09/transport-manifest.json",
+        "sha256": "dd3d112e38ae4b262dff031a2dedce6742bc09cfe4812f54001a361069b7131a"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-10/transport-manifest.json",
+        "sha256": "12f29382327d49a9778e3566be910e2b824a20ae2eea123d123e005c2d94ff5d"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-11/transport-manifest.json",
+        "sha256": "e7e8bffa4c1d21dac0daf3581d2b7bf4fefda29f710601462e265bf8b3e0b106"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-12/transport-manifest.json",
+        "sha256": "1e8ba2c5664a41b1eec3533a050c21aee665a6cacb2fe47134eba8f33d7776b3"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-13/transport-manifest.json",
+        "sha256": "38b1df4b5a7fa1626583a08746766aa83e4f5632a6f228a0e1408b547a5641f6"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-14/transport-manifest.json",
+        "sha256": "fe7ac92738f7ad3b258fe1d7e69e19ac47677c110b73884a52536418a6cdb370"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-15/transport-manifest.json",
+        "sha256": "c865a10f0af4486f7f3f8f8f1eea86d78116962fd5d3b29048d82e900d26b32c"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-16/transport-manifest.json",
+        "sha256": "a6f87b71889998b5a1737b5214cc2622e56b8a02db1dc198a8a653681e9ee5c3"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-17/transport-manifest.json",
+        "sha256": "622427803cc3c814fbc0158c27697bfdbc31adc7500dff057f6ee90c7101f9ab"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-18/transport-manifest.json",
+        "sha256": "1ef1970db0eba7b7a7c0f80d034399886543d26201bcdb75b25a60013e666496"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEW-19/transport-manifest.json",
+        "sha256": "7898b7d01e033a17a99a31c141e4c7281f08796e542dffb8e290ddb976097231"
+      },
+      {
+        "path": "transports/T-WHISPER-REVIEWS-03/transport-manifest.json",
+        "sha256": "d9061a0bab1842c673253ca88893a3da30c131addf8c5451ced31318f12398ab"
+      },
+      {
+        "path": "transports/T-WHISPER-SPIKE-FOLLOWUP-04/transport-manifest.json",
+        "sha256": "f83c5279340b76958e839bc5da94dd407300b47423ab85412afd3316661ab979"
+      }
+    ],
+    "repository_identity": {
+      "code_state": "L01 completed at this input revision. The nine existing L02 source files and support inputs are hash-bound by P09 09_L02_SOURCE_BASELINE; no L02 delta is part of this preflight base.",
+      "head": "5fee290b8e74205fca94d4d2b478d430680132d4",
+      "worktree_evidence": {
+        "path": "candidates/P-WHISPER-09/09_L02_SOURCE_BASELINE.md",
+        "sha256": "bffc361c208e8b099572ed32abbc9d86b12de2ee005faa272a15d56567d555bc"
+      }
+    }
+  },
+  "elements": [
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-17/47_USER_VALIDATION_D17.md",
+          "sha256": "996cde451b5d9b6394f8b3e59717b8efbae914cdef16aaa9b225bf2f8277c90b"
+        }
+      ],
+      "id": "DEC-33",
+      "nature": "decision",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-17/47_USER_VALIDATION_D17.md",
+          "sha256": "996cde451b5d9b6394f8b3e59717b8efbae914cdef16aaa9b225bf2f8277c90b"
+        }
+      ],
+      "id": "DEC-34",
+      "nature": "decision",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-17/47_USER_VALIDATION_D17.md",
+          "sha256": "996cde451b5d9b6394f8b3e59717b8efbae914cdef16aaa9b225bf2f8277c90b"
+        }
+      ],
+      "id": "DEC-35",
+      "nature": "decision",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "approval": "superseded",
+      "id": "TASK-REVIEW-D16",
+      "nature": "task",
+      "owner": "AUTH-REVIEWER-D11",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "approval": "superseded",
+      "approval_by": null,
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-18/49_TECHNICAL_EVIDENCE_D18.md",
+          "sha256": "868062b7ea2d9038819747708c84883c1fd62acb1e6c5c7fdfe6a97aee56ef3a"
+        },
+        {
+          "path": "candidates/D-WHISPER-18/50_ARCH_DECISIONS_D18.md",
+          "sha256": "3ca083a424ae43f09c6f61709cf97a52bd28aa70a23f0aa74e8c32bd23b230bd"
+        }
+      ],
+      "id": "TASK-REVIEW-D18",
+      "nature": "task",
+      "owner": "AUTH-COORD",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "approval": "superseded",
+      "approval_by": null,
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+          "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+        }
+      ],
+      "id": "TASK-REVIEW-D19",
+      "nature": "task",
+      "owner": "AUTH-COORD",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "approval": "superseded",
+      "id": "TASK-SPIKES",
+      "nature": "task",
+      "owner": "AUTH-COORD",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-01"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-01",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-02"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-02",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-03"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-03",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-04"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-04",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-05"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-05",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-06"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-06",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-07"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-07",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-07"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-08",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-08"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-09",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-08"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-10",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-09"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-11",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-10"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-12",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-10"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-13",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-11"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-14",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-11"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-15",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-11"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-16",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-12"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-17",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-13"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-18",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-14"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-19",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-15"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-20",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-16"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-21",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-17"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-22",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-18"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-23",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-19"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-24",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "acceptance_ids": [
+        "AC-20"
+      ],
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/02_REQUIREMENTS.md",
+          "sha256": "ac6df6a29aa6d6fca09512af26adb0b1c0418cd94ede08c57526d4a49e52ec31"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "REQ-25",
+      "nature": "requirement",
+      "owner": "AUTH-USER",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-01",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-01"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-02",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-02"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-03",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-03"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-04",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-04"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-05",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-05"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-06",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-06"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-07",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-07",
+        "REQ-08"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-08",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-09",
+        "REQ-10"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-09",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-11"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-10",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-12",
+        "REQ-13"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-11",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-14",
+        "REQ-15",
+        "REQ-16"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-12",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-17"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-13",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-18"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-14",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-19"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-15",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-20"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-16",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-21"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-17",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-22"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-18",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-23"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-19",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-24"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "accepted",
+      "approval_by": "AUTH-USER",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/14_USER_MESSAGES.json",
+          "sha256": "4ae5824bb952f25244eb0a9711e616eaab76a7210863e74084cdaebcee4e0116"
+        },
+        {
+          "path": "candidates/D-WHISPER-19/07_COVERAGE_AND_ACCEPTANCE.md",
+          "sha256": "03e88ece134bfa7f388c60468e31046b5d591238c24769a4a37f6f356c61e0cf"
+        }
+      ],
+      "id": "AC-20",
+      "nature": "acceptance",
+      "owner": "AUTH-USER",
+      "refs": [
+        "REQ-25"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "proposed",
+      "id": "TASK-P00",
+      "justification": "PrÃƒÂ©pare ou vÃƒÂ©rifie L-WHISPER-00 pour REQ-03.",
+      "nature": "task",
+      "owner": "AUTH-AUTHOR",
+      "refs": [
+        "REQ-03"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "proposed",
+      "id": "TASK-P01",
+      "justification": "PrÃƒÂ©pare ou vÃƒÂ©rifie L-WHISPER-01 pour REQ-03.",
+      "nature": "task",
+      "owner": "AUTH-AUTHOR",
+      "refs": [
+        "REQ-03"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "proposed",
+      "id": "TASK-P02",
+      "justification": "PrÃƒÂ©pare ou vÃƒÂ©rifie L-WHISPER-02 pour REQ-03.",
+      "nature": "task",
+      "owner": "AUTH-AUTHOR",
+      "refs": [
+        "REQ-03"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "proposed",
+      "id": "TASK-P03",
+      "justification": "PrÃƒÂ©pare ou vÃƒÂ©rifie L-WHISPER-03 pour REQ-01.",
+      "nature": "task",
+      "owner": "AUTH-AUTHOR",
+      "refs": [
+        "REQ-01"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "proposed",
+      "id": "TASK-P04",
+      "justification": "PrÃƒÂ©pare ou vÃƒÂ©rifie L-WHISPER-04 pour REQ-07.",
+      "nature": "task",
+      "owner": "AUTH-AUTHOR",
+      "refs": [
+        "REQ-07"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "proposed",
+      "id": "TASK-P05",
+      "justification": "PrÃƒÂ©pare ou vÃƒÂ©rifie L-WHISPER-05 pour REQ-06.",
+      "nature": "task",
+      "owner": "AUTH-AUTHOR",
+      "refs": [
+        "REQ-06"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "proposed",
+      "id": "TASK-P06",
+      "justification": "PrÃƒÂ©pare ou vÃƒÂ©rifie L-WHISPER-06 pour REQ-05.",
+      "nature": "task",
+      "owner": "AUTH-AUTHOR",
+      "refs": [
+        "REQ-05"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "proposed",
+      "id": "TASK-P07",
+      "justification": "PrÃƒÂ©pare ou vÃƒÂ©rifie L-WHISPER-07 pour REQ-01.",
+      "nature": "task",
+      "owner": "AUTH-AUTHOR",
+      "refs": [
+        "REQ-01"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "superseded",
+      "id": "TASK-REVIEW-P01",
+      "justification": "Revue indÃƒÂ©pendante du candidat PLANS exact.",
+      "nature": "task",
+      "owner": "AUTH-COORD",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "approval": "superseded",
+      "id": "TASK-CORRECT-P01",
+      "justification": "Fermer les trois findings REQUIRED de R-WHISPER-PLANS-01 dans un nouveau candidat.",
+      "nature": "task",
+      "owner": "AUTH-COORD",
+      "refs": [],
+      "version": 2
+    },
+    {
+      "approval": "proposed",
+      "id": "TASK-P02-MP3",
+      "justification": "ImplÃƒÂ©menter le vrai import MP3, axe temporel et source intacte en L02.",
+      "nature": "task",
+      "owner": "AUTH-AUTHOR",
+      "refs": [
+        "REQ-03",
+        "REQ-06",
+        "REQ-24"
+      ],
+      "version": 2
+    },
+    {
+      "approval": "superseded",
+      "id": "TASK-REVIEW-P02",
+      "justification": "Revue indÃƒÂ©pendante de P-WHISPER-02 et fermeture des REQUIRED P1.",
+      "nature": "task",
+      "owner": "AUTH-COORD",
+      "refs": [],
+      "version": 2
+    }
+  ],
+  "findings": [
+    {
+      "author": "AUTH-AUTHOR",
+      "candidate_id": "D-WHISPER-19",
+      "closed_by": "AUTH-REVIEWER-D19",
+      "closure_evidence": [
+        {
+          "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+          "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+        },
+        {
+          "path": "transports/T-WHISPER-REVIEW-19/review-D19.json",
+          "sha256": "67b7dd8459020570bd0e362fa7aa623d770541d37c6bd7003c73b8b571d8c03e"
+        }
+      ],
+      "disposition": "ACTION_REQUIRED",
+      "id": "WHISPER-DESIGN-008",
+      "kind": "required",
+      "refs": [],
+      "replacement_source": {
+        "path": "transports/T-WHISPER-REVIEW-19/review-D19-raw.md",
+        "sha256": "e6bbbb23759211d6158792ab82b8a106981797b6ff9abe5c57ae683e75aaf681"
+      },
+      "reviewer": "AUTH-REVIEWER-D19",
+      "scope": "DESIGN",
+      "severity": "High",
+      "status": "closed"
+    },
+    {
+      "author": "AUTH-AUTHOR",
+      "candidate_id": "D-WHISPER-19",
+      "closed_by": "AUTH-REVIEWER-D11",
+      "closure_evidence": [
+        {
+          "path": "transports/T-WHISPER-REVIEW-16/transport-manifest.json",
+          "sha256": "a6f87b71889998b5a1737b5214cc2622e56b8a02db1dc198a8a653681e9ee5c3"
+        }
+      ],
+      "disposition": "ACTION_REQUIRED",
+      "id": "WHISPER-DESIGN-014",
+      "kind": "required",
+      "refs": [],
+      "reviewer": "AUTH-REVIEWER-D11",
+      "scope": "DESIGN",
+      "severity": "High",
+      "status": "closed"
+    }
+  ],
+  "gates": [
+    {
+      "id": "GATE-DESIGN-D19",
+      "rubrics": [
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/D-WHISPER-19/00_START_HERE.md",
+              "sha256": "c4467c35ffed370b4b5e3e17de11e1ad573e03eeeb7240c96200756ec006c538"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+              "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+            }
+          ],
+          "id": "RUBRIC-D19-SCOPE",
+          "key": "scope",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/D-WHISPER-19/00_START_HERE.md",
+              "sha256": "c4467c35ffed370b4b5e3e17de11e1ad573e03eeeb7240c96200756ec006c538"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+              "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+            }
+          ],
+          "id": "RUBRIC-D19-USE_CASES",
+          "key": "use_cases",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/D-WHISPER-19/00_START_HERE.md",
+              "sha256": "c4467c35ffed370b4b5e3e17de11e1ad573e03eeeb7240c96200756ec006c538"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+              "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+            }
+          ],
+          "id": "RUBRIC-D19-ERRORS",
+          "key": "errors",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/D-WHISPER-19/00_START_HERE.md",
+              "sha256": "c4467c35ffed370b4b5e3e17de11e1ad573e03eeeb7240c96200756ec006c538"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+              "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+            }
+          ],
+          "id": "RUBRIC-D19-DOMAIN",
+          "key": "domain",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/D-WHISPER-19/00_START_HERE.md",
+              "sha256": "c4467c35ffed370b4b5e3e17de11e1ad573e03eeeb7240c96200756ec006c538"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+              "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+            }
+          ],
+          "id": "RUBRIC-D19-DEPENDENCIES",
+          "key": "dependencies",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/D-WHISPER-19/00_START_HERE.md",
+              "sha256": "c4467c35ffed370b4b5e3e17de11e1ad573e03eeeb7240c96200756ec006c538"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+              "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+            }
+          ],
+          "id": "RUBRIC-D19-PERSISTENCE",
+          "key": "persistence",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/D-WHISPER-19/00_START_HERE.md",
+              "sha256": "c4467c35ffed370b4b5e3e17de11e1ad573e03eeeb7240c96200756ec006c538"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+              "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+            }
+          ],
+          "id": "RUBRIC-D19-CONCURRENCY",
+          "key": "concurrency",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/D-WHISPER-19/00_START_HERE.md",
+              "sha256": "c4467c35ffed370b4b5e3e17de11e1ad573e03eeeb7240c96200756ec006c538"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+              "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+            }
+          ],
+          "id": "RUBRIC-D19-PLATFORM",
+          "key": "platform",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/D-WHISPER-19/00_START_HERE.md",
+              "sha256": "c4467c35ffed370b4b5e3e17de11e1ad573e03eeeb7240c96200756ec006c538"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+              "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+            }
+          ],
+          "id": "RUBRIC-D19-ACCEPTANCE",
+          "key": "acceptance",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/D-WHISPER-19/00_START_HERE.md",
+              "sha256": "c4467c35ffed370b4b5e3e17de11e1ad573e03eeeb7240c96200756ec006c538"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+              "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+            }
+          ],
+          "id": "RUBRIC-D19-RISKS",
+          "key": "risks",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/D-WHISPER-19/00_START_HERE.md",
+              "sha256": "c4467c35ffed370b4b5e3e17de11e1ad573e03eeeb7240c96200756ec006c538"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/51_CLOSURE_INSTALL_MODES_D19.md",
+              "sha256": "b601f6b7d3266f5f501b47b583e4ed6faea765fed889259606e860323897b81b"
+            }
+          ],
+          "id": "RUBRIC-D19-RAILGUARD",
+          "key": "railguard",
+          "status": "PASS"
+        }
+      ],
+      "scope": "DESIGN"
+    },
+    {
+      "id": "GATE-PLANS-P01",
+      "rubrics": [
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+            }
+          ],
+          "id": "RUBRIC-P01-COVERAGE",
+          "key": "coverage",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+            }
+          ],
+          "id": "RUBRIC-P01-DEPENDENCIES",
+          "key": "dependencies",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+            }
+          ],
+          "id": "RUBRIC-P01-PREFLIGHT",
+          "key": "preflight",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+            }
+          ],
+          "id": "RUBRIC-P01-VERIFICATION",
+          "key": "verification",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+            }
+          ],
+          "id": "RUBRIC-P01-AUTHORIZATION",
+          "key": "authorization",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+            }
+          ],
+          "id": "RUBRIC-P01-RAILGUARD",
+          "key": "railguard",
+          "status": "PASS"
+        },
+        {
+          "applicability": "applicable",
+          "evidence": [
+            {
+              "path": "candidates/P-WHISPER-06/00_PLANS_INDEX.md",
+              "sha256": "ff1cdf0209d2f2fd1916840837eaf2ad94fd7665807a2aac9d79754b4efd9a5c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/01_LOTS.md",
+              "sha256": "b951b2711f1eb8bab32bcdf997b769a521639d4761d57e6317b1a819318682c2"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/02_VERIFICATION_AND_PREFLIGHT.md",
+              "sha256": "1bbed378b5e3c668b77b3572c509be60786549b796ac0aeea69e01b88e2a4488"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/05_SOURCE_AND_RULE_INDEX.md",
+              "sha256": "83fece1d8663220aea94c96741958c1844d5a25f52c6bcce9b8f649e2d8ae43f"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+              "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/07_BUILD_ENVIRONMENT_L01.md",
+              "sha256": "b7c049ce59395c84e0c03055e313485c7b43c331fe89376331f5393f21beea70"
+            },
+            {
+              "path": "candidates/P-WHISPER-06/manifest.json",
+              "sha256": "20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba"
+            }
+          ],
+          "id": "RUBRIC-P01-HANDOFF",
+          "key": "handoff",
+          "status": "PASS"
+        }
+      ],
+      "scope": "PLANS"
+    }
+  ],
+  "lots": [
+    {
+      "completion_evidence": [
+        {
+          "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+          "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+        }
+      ],
+      "covers": [],
+      "dependency_kinds": {},
+      "id": "L-WHISPER-00",
+      "needs": [
+        "REQ-03"
+      ],
+      "paths": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "crates/whisper-adapters/Cargo.toml",
+        "crates/whisper-adapters/src/decoder.rs",
+        "crates/whisper-adapters/src/lib.rs",
+        "crates/whisper-adapters/tests/decoder_proxy.rs",
+        "crates/whisper-bootstrap/Cargo.toml",
+        "crates/whisper-bootstrap/src/main.rs",
+        "crates/whisper-core/Cargo.toml",
+        "crates/whisper-core/src/application.rs",
+        "crates/whisper-core/src/domain.rs",
+        "crates/whisper-core/src/ipc.rs",
+        "crates/whisper-core/src/lib.rs",
+        "crates/whisper-core/src/ports.rs",
+        "crates/whisper-desktop/Cargo.toml",
+        "crates/whisper-desktop/src/lib.rs",
+        "crates/whisper-desktop/src/main.rs",
+        "crates/whisper-desktop/src/ui.rs",
+        "crates/whisper-worker-cpu/Cargo.toml",
+        "crates/whisper-worker-cpu/src/main.rs",
+        "crates/whisper-worker-gpu/Cargo.toml",
+        "crates/whisper-worker-gpu/src/main.rs",
+        "rust-toolchain.toml"
+      ],
+      "preconditions": {
+        "authorization": {
+          "authority": "AUTH-USER",
+          "lot_id": "L-WHISPER-00",
+          "paths": [
+            "Cargo.lock",
+            "Cargo.toml",
+            "crates/whisper-adapters/**",
+            "crates/whisper-bootstrap/**",
+            "crates/whisper-bootstrap/src/main.rs",
+            "crates/whisper-core/**",
+            "crates/whisper-core/src/application.rs",
+            "crates/whisper-core/src/domain.rs",
+            "crates/whisper-core/src/lib.rs",
+            "crates/whisper-core/src/ports.rs",
+            "crates/whisper-desktop/**",
+            "crates/whisper-desktop/src/main.rs",
+            "crates/whisper-worker-cpu/**",
+            "crates/whisper-worker-cpu/src/main.rs",
+            "crates/whisper-worker-gpu/**",
+            "crates/whisper-worker-gpu/src/main.rs",
+            "rust-toolchain.toml"
+          ],
+          "source": {
+            "path": "USER_AUTHORIZATION_L00.md",
+            "sha256": "e7c1a7a489f3a8b840cde771762199eeaa33eaa1d57e7bcf7045b9dfa74055d8"
+          }
+        },
+        "code_state": {
+          "baseline": [],
+          "current": [],
+          "ledger": []
+        },
+        "drift": {
+          "classification": "none",
+          "evidence": [
+            {
+              "path": "L00_IMPLEMENTATION_PREFLIGHT.md",
+              "sha256": "9e1185f1060eb7fd9aac8cb8207ecec425790a22ab8f5810ee79f5038f60c150"
+            }
+          ],
+          "previous_lots": []
+        },
+        "railguard": {
+          "activation": "active",
+          "hashes": [
+            {
+              "path": "candidates/D-WHISPER-19/11_RAILGUARD_PROPOSAL.md",
+              "sha256": "c59b913296117ee949f66349db8e821e2921a663589c3be743b31a2a757b8a01"
+            },
+            {
+              "path": "railguard-activation-L00.md",
+              "sha256": "c3604579bac645b35166a3bd0f469d9e59e9b09efc3d339b36b5120c373b9164"
+            },
+            {
+              "path": "RAILGUARD-active.md",
+              "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
+            }
+          ],
+          "ref": {
+            "path": "RAILGUARD-active.md",
+            "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
+          }
+        },
+        "repository_evidence": [
+          {
+            "path": "L00_IMPLEMENTATION_PREFLIGHT.md",
+            "sha256": "9e1185f1060eb7fd9aac8cb8207ecec425790a22ab8f5810ee79f5038f60c150"
+          }
+        ]
+      },
+      "prerequisites": [],
+      "requires_details": [
+        "DETAIL-P01"
+      ],
+      "status": "completed",
+      "tasks": [
+        "TASK-P00"
+      ],
+      "verifies": []
+    },
+    {
+      "completion_evidence": [
+        {
+          "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+          "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+        }
+      ],
+      "covers": [
+        "REQ-03",
+        "REQ-06",
+        "REQ-12",
+        "REQ-13",
+        "REQ-24"
+      ],
+      "dependency_kinds": {
+        "L-WHISPER-00": {
+          "evidence": [
+            {
+              "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+              "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+            }
+          ],
+          "expected": "L00 CODE terminÃƒÂ© ; sorties source et exÃƒÂ©cutables hashÃƒÂ©s dans le ledger. Aucun parcours produit de transcription revendiquÃƒÂ©.",
+          "kind": "CODE",
+          "outputs": [
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/Cargo.lock.txt",
+              "sha256": "447abf23220b0a3cb5c58ea2222f0e04355acb5f2d179c33aacc771c8ba616b8"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/Cargo.toml.txt",
+              "sha256": "2eb2d87c3dfb102362f31d84d8a80d8da41c0e41eee76798a24262529729e202"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-adapters/Cargo.toml.txt",
+              "sha256": "812d0dbc03e1359dc1bd19f5576d03a91dcaa0878022380e2f7e61901c75f344"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-adapters/src/decoder.rs.txt",
+              "sha256": "ea7564ca660951d1b763633dab92875340e0897b0c5e505fdf7f6cec31be3506"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-adapters/src/lib.rs.txt",
+              "sha256": "6329856cb79a1ca8712dc6f549ce7d003abbc1ed7452a89be496b01d0750fbff"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-adapters/tests/decoder_proxy.rs.txt",
+              "sha256": "3db4824f266bb72a46b813847e1febbe6c6379699164e7e07b3f51d0e47da4a7"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-bootstrap/Cargo.toml.txt",
+              "sha256": "f1d1761581e871cfcce30ed50bcbb48570fbdbe5073b3dc1d25f43882b2c0265"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-bootstrap/src/main.rs.txt",
+              "sha256": "bda42429e2243b4a734148cf995f2a335496b314288d0f010012943813531481"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/Cargo.toml.txt",
+              "sha256": "03e6fa9e6a5a20027924351b7b45012b21ce0d36727e4d1c7691b1f3151aaca3"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/src/application.rs.txt",
+              "sha256": "f9aa136fccebe741f4ff8e3bb1c0f2a04c0562d1e9d8fedd09115c79f6e88cb0"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/src/domain.rs.txt",
+              "sha256": "3b45f9852965311d58b4aa3b53ec6db8a5936b3a8933e27dd46ee76a754f7acd"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/src/ipc.rs.txt",
+              "sha256": "9c64a6af41a1fb5fe22ffb8624441fb9e530e5c11b06328ffb2b8f6269d22e10"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/src/lib.rs.txt",
+              "sha256": "64c5ba268ba38316e2baca0a943cc064da3a6b04b5570e129964a706225aa0f5"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-core/src/ports.rs.txt",
+              "sha256": "03fdef88124b4cc7c4cb7a65d76c3cc92cf067be774026b88b162469401d9b03"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-desktop/Cargo.toml.txt",
+              "sha256": "0528886e5b8575b30ada28910a50dbfe9519a7c364d33043161e046de9121d15"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-desktop/src/lib.rs.txt",
+              "sha256": "193360385cfea082ead338bf441ddf8ada5155b1d5113908fecd6988dd1c2db6"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-desktop/src/main.rs.txt",
+              "sha256": "04818ef9fdc8d37d0166b71b989da8d63b69a8b372af480c425e24f2aff7e38b"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-desktop/src/ui.rs.txt",
+              "sha256": "9317b88831780f53cc69aefdc8fb0b3c5d196fa7c9729233a8840c5b5064e4c8"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-worker-cpu/Cargo.toml.txt",
+              "sha256": "3fc393931d7d16f705b7d37fee9b0821b21f48cd3b696af2394960c3aa159bb9"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-worker-cpu/src/main.rs.txt",
+              "sha256": "047430149342e5fec4e77d8b9009ee377af8c0b3c50a9c96b3fb52536d96f953"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-worker-gpu/Cargo.toml.txt",
+              "sha256": "5ef21c0437965d8ea28c01bdd33f5c5d3ec867e2498ab4329b3a24ad54553b89"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/crates/whisper-worker-gpu/src/main.rs.txt",
+              "sha256": "047430149342e5fec4e77d8b9009ee377af8c0b3c50a9c96b3fb52536d96f953"
+            },
+            {
+              "path": "transports/T-WHISPER-L01-P09-RECONCILIATION-03/outputs/rust-toolchain.toml.txt",
+              "sha256": "6a0855ab5a6b75bd9449e9ac8363a52eacb9ae8b3a7c80bfce0378d013cb16db"
+            }
+          ]
+        }
+      },
+      "id": "L-WHISPER-01",
+      "needs": [
+        "REQ-03"
+      ],
+      "paths": [
+        "Cargo.lock",
+        "crates/whisper-adapters/Cargo.toml",
+        "crates/whisper-adapters/src/archive.rs",
+        "crates/whisper-adapters/src/decoder.rs",
+        "crates/whisper-adapters/src/lib.rs",
+        "crates/whisper-adapters/src/worker_ipc.rs",
+        "crates/whisper-adapters/tests/import_cpu.rs",
+        "crates/whisper-core/src/application.rs",
+        "crates/whisper-core/src/ipc.rs",
+        "crates/whisper-core/src/lib.rs",
+        "crates/whisper-core/src/ports.rs",
+        "crates/whisper-core/tests/import_contract.rs",
+        "crates/whisper-desktop/Cargo.toml",
+        "crates/whisper-desktop/src/main.rs",
+        "crates/whisper-desktop/src/root.rs",
+        "crates/whisper-desktop/src/ui.rs",
+        "crates/whisper-worker-cpu/Cargo.toml",
+        "crates/whisper-worker-cpu/src/decoder.rs",
+        "crates/whisper-worker-cpu/src/ipc.rs",
+        "crates/whisper-worker-cpu/src/main.rs",
+        "crates/whisper-worker-cpu/src/native_engine.rs"
+      ],
+      "preconditions": {
+        "authorization": {
+          "authority": "AUTH-USER",
+          "explicit": true,
+          "lot_id": "L-WHISPER-01",
+          "paths": [
+            "Cargo.lock",
+            "crates/whisper-adapters/Cargo.toml",
+            "crates/whisper-adapters/src/archive.rs",
+            "crates/whisper-adapters/src/decoder.rs",
+            "crates/whisper-adapters/src/lib.rs",
+            "crates/whisper-adapters/src/worker_ipc.rs",
+            "crates/whisper-adapters/tests/import_cpu.rs",
+            "crates/whisper-core/src/application.rs",
+            "crates/whisper-core/src/ipc.rs",
+            "crates/whisper-core/src/lib.rs",
+            "crates/whisper-core/src/ports.rs",
+            "crates/whisper-core/tests/import_contract.rs",
+            "crates/whisper-desktop/Cargo.toml",
+            "crates/whisper-desktop/src/main.rs",
+            "crates/whisper-desktop/src/root.rs",
+            "crates/whisper-desktop/src/ui.rs",
+            "crates/whisper-worker-cpu/Cargo.toml",
+            "crates/whisper-worker-cpu/src/decoder.rs",
+            "crates/whisper-worker-cpu/src/ipc.rs",
+            "crates/whisper-worker-cpu/src/main.rs",
+            "crates/whisper-worker-cpu/src/native_engine.rs"
+          ],
+          "source": {
+            "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/user-authorization-21-paths.md",
+            "sha256": "1521a7eed34d07ba3d0812da074759fb0145540540e1d7e05ef6ca0900599f66"
+          }
+        },
+        "code_state": {
+          "baseline": [],
+          "current": [
+            {
+              "path": "crates/whisper-adapters/src/decoder.rs",
+              "sha256": "ea7564ca660951d1b763633dab92875340e0897b0c5e505fdf7f6cec31be3506"
+            },
+            {
+              "path": "crates/whisper-desktop/src/ui.rs",
+              "sha256": "9317b88831780f53cc69aefdc8fb0b3c5d196fa7c9729233a8840c5b5064e4c8"
+            },
+            {
+              "path": "crates/whisper-worker-cpu/src/main.rs",
+              "sha256": "047430149342e5fec4e77d8b9009ee377af8c0b3c50a9c96b3fb52536d96f953"
+            }
+          ],
+          "ledger": [
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-adapters/src/decoder.rs",
+              "sha256": "ea7564ca660951d1b763633dab92875340e0897b0c5e505fdf7f6cec31be3506"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-desktop/src/ui.rs",
+              "sha256": "9317b88831780f53cc69aefdc8fb0b3c5d196fa7c9729233a8840c5b5064e4c8"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-worker-cpu/src/main.rs",
+              "sha256": "047430149342e5fec4e77d8b9009ee377af8c0b3c50a9c96b3fb52536d96f953"
+            }
+          ]
+        },
+        "drift": {
+          "classification": "expected_previous_lots",
+          "evidence": [
+            {
+              "path": "L01_IMPLEMENTATION_PREFLIGHT.md",
+              "sha256": "d821a76109e211b5483a990fe6d2c04bf54ecad9e55f865195cee8fe4f0fffac"
+            },
+            {
+              "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+              "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+            }
+          ],
+          "previous_lots": [
+            "L-WHISPER-00"
+          ]
+        },
+        "railguard": {
+          "activation": "active",
+          "hashes": [
+            {
+              "path": "RAILGUARD-active.md",
+              "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
+            },
+            {
+              "path": "railguard-activation-L00.md",
+              "sha256": "c3604579bac645b35166a3bd0f469d9e59e9b09efc3d339b36b5120c373b9164"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/11_RAILGUARD_PROPOSAL.md",
+              "sha256": "c59b913296117ee949f66349db8e821e2921a663589c3be743b31a2a757b8a01"
+            }
+          ],
+          "ref": {
+            "path": "RAILGUARD-active.md",
+            "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
+          }
+        },
+        "repository_evidence": [
+          {
+            "path": "L01_PREFLIGHT_21PATHS_2026-10-06.md",
+            "sha256": "e419c4d450d3f585de8aae1bf06d5a5decdb038699eb3f7c370dee49760deb8b"
+          },
+          {
+            "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/R-WHISPER-PLANS-06.md",
+            "sha256": "cbefc48118ea179f6224e7ad4ed6fb402069569921c667721d43d3c5f036403d"
+          },
+          {
+            "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/transport-manifest.json",
+            "sha256": "88b5fa0843e320a0f411ddfd143265b83653bcea56850200fc6ff45f6945c419"
+          },
+          {
+            "path": "transports/T-WHISPER-P06-REVIEW-AUTH-01/user-authorization-21-paths.md",
+            "sha256": "1521a7eed34d07ba3d0812da074759fb0145540540e1d7e05ef6ca0900599f66"
+          }
+        ]
+      },
+      "prerequisites": [
+        "L-WHISPER-00"
+      ],
+      "requires_details": [
+        "DETAIL-P01",
+        "Q-05",
+        "Q-L01-BOUNDS-01"
+      ],
+      "status": "completed",
+      "tasks": [
+        "TASK-P01"
+      ],
+      "verifies": [
+        "AC-03",
+        "AC-06",
+        "AC-10",
+        "AC-19"
+      ]
+    },
+    {
+      "completion_evidence": [
+        {
+          "path": "transports/T-WHISPER-L02-CLOSURE-03/execution-evidence.json",
+          "sha256": "8e47865669af164b037b010377d58d7e8372c41f339d29e7082ce33e3a457f3b"
+        }
+      ],
+      "covers": [
+        "REQ-03",
+        "REQ-04",
+        "REQ-06",
+        "REQ-12",
+        "REQ-13",
+        "REQ-16",
+        "REQ-17",
+        "REQ-18",
+        "REQ-24"
+      ],
+      "dependency_kinds": {
+        "L-WHISPER-01": {
+          "evidence": [
+            {
+              "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+              "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+            }
+          ],
+          "expected": "Sorties et preuve du lot fournisseur aprÃƒÂ¨s code ; NOT RUN.",
+          "kind": "EXECUTION"
+        }
+      },
+      "id": "L-WHISPER-02",
+      "needs": [
+        "REQ-03"
+      ],
+      "paths": [
+        "crates/whisper-adapters/src/archive.rs",
+        "crates/whisper-adapters/src/decoder.rs",
+        "crates/whisper-adapters/src/journal.rs",
+        "crates/whisper-adapters/src/lib.rs",
+        "crates/whisper-adapters/src/queue_store.rs",
+        "crates/whisper-adapters/src/recovery.rs",
+        "crates/whisper-adapters/src/worker_ipc.rs",
+        "crates/whisper-adapters/tests/durability.rs",
+        "crates/whisper-adapters/tests/import_mp3.rs",
+        "crates/whisper-core/src/application.rs",
+        "crates/whisper-core/src/ports.rs",
+        "crates/whisper-core/tests/scheduler_contract.rs",
+        "crates/whisper-desktop/src/root.rs",
+        "crates/whisper-desktop/src/ui.rs",
+        "crates/whisper-worker-cpu/src/decoder.rs"
+      ],
+      "preconditions": {
+        "authorization": {
+          "authority": "AUTH-USER",
+          "lot_id": "L-WHISPER-02",
+          "paths": [
+            "crates/whisper-adapters/src/archive.rs",
+            "crates/whisper-adapters/src/decoder.rs",
+            "crates/whisper-adapters/src/journal.rs",
+            "crates/whisper-adapters/src/lib.rs",
+            "crates/whisper-adapters/src/queue_store.rs",
+            "crates/whisper-adapters/src/recovery.rs",
+            "crates/whisper-adapters/src/worker_ipc.rs",
+            "crates/whisper-adapters/tests/durability.rs",
+            "crates/whisper-adapters/tests/import_mp3.rs",
+            "crates/whisper-core/src/application.rs",
+            "crates/whisper-core/src/ports.rs",
+            "crates/whisper-core/tests/scheduler_contract.rs",
+            "crates/whisper-desktop/src/root.rs",
+            "crates/whisper-desktop/src/ui.rs",
+            "crates/whisper-worker-cpu/src/decoder.rs"
+          ],
+          "source": {
+            "path": "USER_AUTHORIZATION_L02.md",
+            "sha256": "0aef854e49d8925d2e51b1a02e951c3ad2d09cf84475ca1b66e0132ac80251c9"
+          }
+        },
+        "code_state": {
+          "baseline": [],
+          "current": [
+            {
+              "path": "crates/whisper-adapters/src/archive.rs",
+              "sha256": "28ea92cd2e06a4c4206d42c78078c95ac77ae474869976d9045ec2c6aabb195a"
+            },
+            {
+              "path": "crates/whisper-adapters/src/decoder.rs",
+              "sha256": "548e111e4abb4aaab1170bf2e80cbf8c0e2603006e2f9fe80943feb450ae0288"
+            },
+            {
+              "path": "crates/whisper-adapters/src/lib.rs",
+              "sha256": "bd3ea83de0ea78e06fd7dc679590f731e1a4656bdcba814ca2757583dfc26699"
+            },
+            {
+              "path": "crates/whisper-adapters/src/worker_ipc.rs",
+              "sha256": "979431ac8b21ad4b81647c7fac2f9806481efa2585b6019fe2a0e5035b38e160"
+            },
+            {
+              "path": "crates/whisper-core/src/application.rs",
+              "sha256": "5ec3deb57c98e842e1bab592d9217c95b810cb6ad71717467f4a6489ea7abb8b"
+            },
+            {
+              "path": "crates/whisper-core/src/ports.rs",
+              "sha256": "94cb3ba7210ad755cf5273bdb2a8057ab2cb65f18983a499ea26be1e5c4adcb7"
+            },
+            {
+              "path": "crates/whisper-desktop/src/root.rs",
+              "sha256": "9a3713112e3dfc3872e15e3cb581c7c6a53222e5f62864144ba4d111caa98599"
+            },
+            {
+              "path": "crates/whisper-desktop/src/ui.rs",
+              "sha256": "67eac6aded566e0a0e3d5ed101321bb4134246d76af339b54271ae984302c7f8"
+            },
+            {
+              "path": "crates/whisper-worker-cpu/src/decoder.rs",
+              "sha256": "bda03e8b8561f7912f5c8eaa21fc62215ea359eab047cb8771db9f9aea6f613a"
+            }
+          ],
+          "ledger": [
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-adapters/src/archive.rs",
+              "sha256": "28ea92cd2e06a4c4206d42c78078c95ac77ae474869976d9045ec2c6aabb195a"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-adapters/src/decoder.rs",
+              "sha256": "548e111e4abb4aaab1170bf2e80cbf8c0e2603006e2f9fe80943feb450ae0288"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-adapters/src/lib.rs",
+              "sha256": "bd3ea83de0ea78e06fd7dc679590f731e1a4656bdcba814ca2757583dfc26699"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-adapters/src/worker_ipc.rs",
+              "sha256": "979431ac8b21ad4b81647c7fac2f9806481efa2585b6019fe2a0e5035b38e160"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-core/src/application.rs",
+              "sha256": "5ec3deb57c98e842e1bab592d9217c95b810cb6ad71717467f4a6489ea7abb8b"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-core/src/ports.rs",
+              "sha256": "94cb3ba7210ad755cf5273bdb2a8057ab2cb65f18983a499ea26be1e5c4adcb7"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-desktop/src/root.rs",
+              "sha256": "9a3713112e3dfc3872e15e3cb581c7c6a53222e5f62864144ba4d111caa98599"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-desktop/src/ui.rs",
+              "sha256": "67eac6aded566e0a0e3d5ed101321bb4134246d76af339b54271ae984302c7f8"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-worker-cpu/src/decoder.rs",
+              "sha256": "bda03e8b8561f7912f5c8eaa21fc62215ea359eab047cb8771db9f9aea6f613a"
+            }
+          ]
+        },
+        "drift": {
+          "classification": "expected_previous_lots",
+          "evidence": [
+            {
+              "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+              "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+            },
+            {
+              "path": "L01_IMPLEMENTATION_PREFLIGHT.md",
+              "sha256": "d821a76109e211b5483a990fe6d2c04bf54ecad9e55f865195cee8fe4f0fffac"
+            }
+          ],
+          "previous_lots": [
+            "L-WHISPER-01"
+          ]
+        },
+        "railguard": {
+          "activation": "active",
+          "hashes": [
+            {
+              "path": "RAILGUARD-active.md",
+              "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
+            },
+            {
+              "path": "railguard-activation-L00.md",
+              "sha256": "c3604579bac645b35166a3bd0f469d9e59e9b09efc3d339b36b5120c373b9164"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/11_RAILGUARD_PROPOSAL.md",
+              "sha256": "c59b913296117ee949f66349db8e821e2921a663589c3be743b31a2a757b8a01"
+            }
+          ],
+          "ref": {
+            "path": "RAILGUARD-active.md",
+            "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
+          }
+        },
+        "repository_evidence": [
+          {
+            "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+            "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+          }
+        ]
+      },
+      "prerequisites": [
+        "L-WHISPER-01"
+      ],
+      "requires_details": [
+        "DETAIL-P01",
+        "Q-05",
+        "Q-07"
+      ],
+      "status": "completed",
+      "tasks": [
+        "TASK-P02",
+        "TASK-P02-MP3"
+      ],
+      "verifies": [
+        "AC-03",
+        "AC-04",
+        "AC-06",
+        "AC-10",
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-19"
+      ]
+    },
+    {
+      "covers": [
+        "REQ-01",
+        "REQ-02",
+        "REQ-03",
+        "REQ-04",
+        "REQ-09",
+        "REQ-10",
+        "REQ-12",
+        "REQ-18",
+        "REQ-25"
+      ],
+      "dependency_kinds": {
+        "L-WHISPER-02": {
+          "evidence": [
+            {
+              "path": "transports/T-WHISPER-L02-CLOSURE-03/execution-evidence.json",
+              "sha256": "8e47865669af164b037b010377d58d7e8372c41f339d29e7082ce33e3a457f3b"
+            }
+          ],
+          "expected": "Sorties et preuve du lot fournisseur aprÃƒÂ¨s code ; NOT RUN.",
+          "kind": "EXECUTION"
+        }
+      },
+      "id": "L-WHISPER-03",
+      "needs": [
+        "REQ-01"
+      ],
+      "paths": [
+        "Cargo.lock",
+        "crates/whisper-adapters/Cargo.toml",
+        "crates/whisper-adapters/src/archive.rs",
+        "crates/whisper-adapters/src/capture.rs",
+        "crates/whisper-adapters/src/journal.rs",
+        "crates/whisper-adapters/src/lib.rs",
+        "crates/whisper-adapters/src/recovery.rs",
+        "crates/whisper-adapters/src/staging.rs",
+        "crates/whisper-adapters/src/vad.rs",
+        "crates/whisper-adapters/src/worker_ipc.rs",
+        "crates/whisper-adapters/tests/durability.rs",
+        "crates/whisper-adapters/tests/live_archive.rs",
+        "crates/whisper-adapters/tests/live_capture.rs",
+        "crates/whisper-adapters/tests/vad_contract.rs",
+        "crates/whisper-core/src/application.rs",
+        "crates/whisper-core/src/domain.rs",
+        "crates/whisper-core/src/ipc.rs",
+        "crates/whisper-core/src/lib.rs",
+        "crates/whisper-core/src/ports.rs",
+        "crates/whisper-core/tests/live_contract.rs",
+        "crates/whisper-core/tests/scheduler_contract.rs",
+        "crates/whisper-desktop/src/root.rs",
+        "crates/whisper-desktop/src/ui.rs",
+        "crates/whisper-worker-cpu/Cargo.toml",
+        "crates/whisper-worker-cpu/src/encoder.rs",
+        "crates/whisper-worker-cpu/src/ipc.rs",
+        "crates/whisper-worker-cpu/src/main.rs",
+        "crates/whisper-worker-cpu/tests/live_worker.rs"
+      ],
+      "preconditions": {
+        "authorization": {
+          "authority": "AUTH-USER",
+          "lot_id": "L-WHISPER-03",
+          "paths": [
+            "Cargo.lock",
+            "crates/whisper-adapters/Cargo.toml",
+            "crates/whisper-adapters/src/archive.rs",
+            "crates/whisper-adapters/src/capture.rs",
+            "crates/whisper-adapters/src/journal.rs",
+            "crates/whisper-adapters/src/lib.rs",
+            "crates/whisper-adapters/src/recovery.rs",
+            "crates/whisper-adapters/src/staging.rs",
+            "crates/whisper-adapters/src/vad.rs",
+            "crates/whisper-adapters/src/worker_ipc.rs",
+            "crates/whisper-adapters/tests/durability.rs",
+            "crates/whisper-adapters/tests/live_archive.rs",
+            "crates/whisper-adapters/tests/live_capture.rs",
+            "crates/whisper-adapters/tests/vad_contract.rs",
+            "crates/whisper-core/src/application.rs",
+            "crates/whisper-core/src/domain.rs",
+            "crates/whisper-core/src/ipc.rs",
+            "crates/whisper-core/src/lib.rs",
+            "crates/whisper-core/src/ports.rs",
+            "crates/whisper-core/tests/live_contract.rs",
+            "crates/whisper-core/tests/scheduler_contract.rs",
+            "crates/whisper-desktop/src/root.rs",
+            "crates/whisper-desktop/src/ui.rs",
+            "crates/whisper-worker-cpu/Cargo.toml",
+            "crates/whisper-worker-cpu/src/encoder.rs",
+            "crates/whisper-worker-cpu/src/ipc.rs",
+            "crates/whisper-worker-cpu/src/main.rs",
+            "crates/whisper-worker-cpu/tests/live_worker.rs"
+          ],
+          "source": {
+            "path": "USER_AUTHORIZATION_L03.md",
+            "sha256": "97d46348d9514874d187cbcc923a298356ef5d4e66ab282dc5fa31a83fb39f9b"
+          }
+        },
+        "code_state": {
+          "baseline": [],
+          "current": [
+            {
+              "path": "Cargo.lock",
+              "sha256": "821b32dc3bc5a3c6f60b997772902e1af5de8029cdf8171c5292050ec4bf82aa"
+            },
+            {
+              "path": "crates/whisper-adapters/Cargo.toml",
+              "sha256": "917120ec0edf7725143a2d9d0c8405dbf82238ce87a3134b3df86c6af2f6011e"
+            },
+            {
+              "path": "crates/whisper-adapters/src/archive.rs",
+              "sha256": "f6bdff5a63c49796004164287834ca21c375ccceb592e7d479b1164cbdde3207"
+            },
+            {
+              "path": "crates/whisper-adapters/src/journal.rs",
+              "sha256": "824ea6734f4253cf6eb763036b1fbe8f164b7430fa692351868b3f0d6b867c5d"
+            },
+            {
+              "path": "crates/whisper-adapters/src/lib.rs",
+              "sha256": "7043670e6734355fac95cfea966275d89edc27a908cc77979204d01751f670af"
+            },
+            {
+              "path": "crates/whisper-adapters/src/recovery.rs",
+              "sha256": "94f5a4dc212f52a90211256b0c9681ee304e91aa9e4ecc2fc3f4fc0a650ef382"
+            },
+            {
+              "path": "crates/whisper-adapters/src/worker_ipc.rs",
+              "sha256": "58e3d22c598dd6c2ec7b276eb23e24224be1d8b7a83bea02069cd3ca69efe0c8"
+            },
+            {
+              "path": "crates/whisper-adapters/tests/durability.rs",
+              "sha256": "4b2f06db6630d4806de6842a62e365038280c24cb43cf5ceb064c39ae9a60fc9"
+            },
+            {
+              "path": "crates/whisper-core/src/application.rs",
+              "sha256": "50da488c497e0b026b0f283d98c4331d0a24e1723cbd44b25dac3eae55291229"
+            },
+            {
+              "path": "crates/whisper-core/src/domain.rs",
+              "sha256": "3b45f9852965311d58b4aa3b53ec6db8a5936b3a8933e27dd46ee76a754f7acd"
+            },
+            {
+              "path": "crates/whisper-core/src/ipc.rs",
+              "sha256": "535b5f453f3a613a0859dd85690317b8abedcef04c1f3c4ad45fdd551d956737"
+            },
+            {
+              "path": "crates/whisper-core/src/lib.rs",
+              "sha256": "c5c83ee62d7609a8a8f01bfc433b3a7a3af8aec642c7ff5306bd9973134827e6"
+            },
+            {
+              "path": "crates/whisper-core/src/ports.rs",
+              "sha256": "ba5abcba01689ba42f4cf1d761aa58aafbbfdfb1c097908b274e100780735bf8"
+            },
+            {
+              "path": "crates/whisper-core/tests/scheduler_contract.rs",
+              "sha256": "133bd6a7a8a083f7896d5426aa9b967928b6c4d66309959a79d46cd8eb639845"
+            },
+            {
+              "path": "crates/whisper-desktop/src/root.rs",
+              "sha256": "9a3713112e3dfc3872e15e3cb581c7c6a53222e5f62864144ba4d111caa98599"
+            },
+            {
+              "path": "crates/whisper-desktop/src/ui.rs",
+              "sha256": "5ec778204dbbf7cc60a768dd7e701fd39a0fd3c92216479eb3d8f2d5d3ba45ba"
+            },
+            {
+              "path": "crates/whisper-worker-cpu/Cargo.toml",
+              "sha256": "c1181281797bf037e9ca35d6ee78927e6fc7d18af26b7445b76e54be0247fbe9"
+            },
+            {
+              "path": "crates/whisper-worker-cpu/src/ipc.rs",
+              "sha256": "1b06be095f4586f8e2cddc128fcc9e7307ab208d87323e18f97eddca97f06f97"
+            },
+            {
+              "path": "crates/whisper-worker-cpu/src/main.rs",
+              "sha256": "d04bd322d92501991d8be526b510a670c228161e6caa2c5e61940dd1894f2e9a"
+            }
+          ],
+          "ledger": [
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "Cargo.lock",
+              "sha256": "447abf23220b0a3cb5c58ea2222f0e04355acb5f2d179c33aacc771c8ba616b8"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-adapters/Cargo.toml",
+              "sha256": "812d0dbc03e1359dc1bd19f5576d03a91dcaa0878022380e2f7e61901c75f344"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-adapters/src/lib.rs",
+              "sha256": "6329856cb79a1ca8712dc6f549ce7d003abbc1ed7452a89be496b01d0750fbff"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-core/src/application.rs",
+              "sha256": "f9aa136fccebe741f4ff8e3bb1c0f2a04c0562d1e9d8fedd09115c79f6e88cb0"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-core/src/domain.rs",
+              "sha256": "3b45f9852965311d58b4aa3b53ec6db8a5936b3a8933e27dd46ee76a754f7acd"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-core/src/ipc.rs",
+              "sha256": "9c64a6af41a1fb5fe22ffb8624441fb9e530e5c11b06328ffb2b8f6269d22e10"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-core/src/lib.rs",
+              "sha256": "64c5ba268ba38316e2baca0a943cc064da3a6b04b5570e129964a706225aa0f5"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-core/src/ports.rs",
+              "sha256": "03fdef88124b4cc7c4cb7a65d76c3cc92cf067be774026b88b162469401d9b03"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-desktop/src/ui.rs",
+              "sha256": "9317b88831780f53cc69aefdc8fb0b3c5d196fa7c9729233a8840c5b5064e4c8"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-worker-cpu/Cargo.toml",
+              "sha256": "3fc393931d7d16f705b7d37fee9b0821b21f48cd3b696af2394960c3aa159bb9"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "execution-ledgers/L-WHISPER-00-2026-10-05.md",
+                  "sha256": "03ac66707e082e8bb84079f000af3e8fc4bcb55b916a8dab91b3f3d4ff18bf1c"
+                }
+              ],
+              "lot_id": "L-WHISPER-00",
+              "path": "crates/whisper-worker-cpu/src/main.rs",
+              "sha256": "047430149342e5fec4e77d8b9009ee377af8c0b3c50a9c96b3fb52536d96f953"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "Cargo.lock",
+              "sha256": "821b32dc3bc5a3c6f60b997772902e1af5de8029cdf8171c5292050ec4bf82aa"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-adapters/Cargo.toml",
+              "sha256": "917120ec0edf7725143a2d9d0c8405dbf82238ce87a3134b3df86c6af2f6011e"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-adapters/src/archive.rs",
+              "sha256": "28ea92cd2e06a4c4206d42c78078c95ac77ae474869976d9045ec2c6aabb195a"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-adapters/src/lib.rs",
+              "sha256": "bd3ea83de0ea78e06fd7dc679590f731e1a4656bdcba814ca2757583dfc26699"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-adapters/src/worker_ipc.rs",
+              "sha256": "979431ac8b21ad4b81647c7fac2f9806481efa2585b6019fe2a0e5035b38e160"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-core/src/application.rs",
+              "sha256": "5ec3deb57c98e842e1bab592d9217c95b810cb6ad71717467f4a6489ea7abb8b"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-core/src/ipc.rs",
+              "sha256": "535b5f453f3a613a0859dd85690317b8abedcef04c1f3c4ad45fdd551d956737"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-core/src/lib.rs",
+              "sha256": "c5c83ee62d7609a8a8f01bfc433b3a7a3af8aec642c7ff5306bd9973134827e6"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-core/src/ports.rs",
+              "sha256": "94cb3ba7210ad755cf5273bdb2a8057ab2cb65f18983a499ea26be1e5c4adcb7"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-desktop/src/root.rs",
+              "sha256": "9a3713112e3dfc3872e15e3cb581c7c6a53222e5f62864144ba4d111caa98599"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-desktop/src/ui.rs",
+              "sha256": "67eac6aded566e0a0e3d5ed101321bb4134246d76af339b54271ae984302c7f8"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-worker-cpu/Cargo.toml",
+              "sha256": "c1181281797bf037e9ca35d6ee78927e6fc7d18af26b7445b76e54be0247fbe9"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-worker-cpu/src/ipc.rs",
+              "sha256": "1b06be095f4586f8e2cddc128fcc9e7307ab208d87323e18f97eddca97f06f97"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L01-CLOSURE-02/execution-evidence.json",
+                  "sha256": "f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920"
+                }
+              ],
+              "lot_id": "L-WHISPER-01",
+              "path": "crates/whisper-worker-cpu/src/main.rs",
+              "sha256": "d04bd322d92501991d8be526b510a670c228161e6caa2c5e61940dd1894f2e9a"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L02-CLOSURE-03/execution-evidence.json",
+                  "sha256": "8e47865669af164b037b010377d58d7e8372c41f339d29e7082ce33e3a457f3b"
+                }
+              ],
+              "lot_id": "L-WHISPER-02",
+              "path": "crates/whisper-adapters/src/archive.rs",
+              "sha256": "f6bdff5a63c49796004164287834ca21c375ccceb592e7d479b1164cbdde3207"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L02-SUPPLEMENTAL-REVIEW-01/review.md",
+                  "sha256": "931c62d86205fb828adbfd8ac6b8c68bbaf37560c52a0c2ba2756de4e4c68161"
+                },
+                {
+                  "path": "transports/T-WHISPER-L02-SUPPLEMENTAL-REVIEW-01/transport-manifest.json",
+                  "sha256": "507397183b05862675d790411e10267da4d2925510b33fae44ab122ef036e2f2"
+                }
+              ],
+              "lot_id": "L-WHISPER-02",
+              "path": "crates/whisper-adapters/src/journal.rs",
+              "sha256": "824ea6734f4253cf6eb763036b1fbe8f164b7430fa692351868b3f0d6b867c5d"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L02-SUPPLEMENTAL-REVIEW-01/review.md",
+                  "sha256": "931c62d86205fb828adbfd8ac6b8c68bbaf37560c52a0c2ba2756de4e4c68161"
+                },
+                {
+                  "path": "transports/T-WHISPER-L02-SUPPLEMENTAL-REVIEW-01/transport-manifest.json",
+                  "sha256": "507397183b05862675d790411e10267da4d2925510b33fae44ab122ef036e2f2"
+                }
+              ],
+              "lot_id": "L-WHISPER-02",
+              "path": "crates/whisper-adapters/src/lib.rs",
+              "sha256": "7043670e6734355fac95cfea966275d89edc27a908cc77979204d01751f670af"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L02-SUPPLEMENTAL-REVIEW-01/review.md",
+                  "sha256": "931c62d86205fb828adbfd8ac6b8c68bbaf37560c52a0c2ba2756de4e4c68161"
+                },
+                {
+                  "path": "transports/T-WHISPER-L02-SUPPLEMENTAL-REVIEW-01/transport-manifest.json",
+                  "sha256": "507397183b05862675d790411e10267da4d2925510b33fae44ab122ef036e2f2"
+                }
+              ],
+              "lot_id": "L-WHISPER-02",
+              "path": "crates/whisper-adapters/src/recovery.rs",
+              "sha256": "94f5a4dc212f52a90211256b0c9681ee304e91aa9e4ecc2fc3f4fc0a650ef382"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L02-CLOSURE-03/execution-evidence.json",
+                  "sha256": "8e47865669af164b037b010377d58d7e8372c41f339d29e7082ce33e3a457f3b"
+                }
+              ],
+              "lot_id": "L-WHISPER-02",
+              "path": "crates/whisper-adapters/src/worker_ipc.rs",
+              "sha256": "58e3d22c598dd6c2ec7b276eb23e24224be1d8b7a83bea02069cd3ca69efe0c8"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L02-CLOSURE-03/execution-evidence.json",
+                  "sha256": "8e47865669af164b037b010377d58d7e8372c41f339d29e7082ce33e3a457f3b"
+                }
+              ],
+              "lot_id": "L-WHISPER-02",
+              "path": "crates/whisper-adapters/tests/durability.rs",
+              "sha256": "4b2f06db6630d4806de6842a62e365038280c24cb43cf5ceb064c39ae9a60fc9"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L02-CLOSURE-03/execution-evidence.json",
+                  "sha256": "8e47865669af164b037b010377d58d7e8372c41f339d29e7082ce33e3a457f3b"
+                }
+              ],
+              "lot_id": "L-WHISPER-02",
+              "path": "crates/whisper-core/src/application.rs",
+              "sha256": "50da488c497e0b026b0f283d98c4331d0a24e1723cbd44b25dac3eae55291229"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L02-CLOSURE-03/execution-evidence.json",
+                  "sha256": "8e47865669af164b037b010377d58d7e8372c41f339d29e7082ce33e3a457f3b"
+                }
+              ],
+              "lot_id": "L-WHISPER-02",
+              "path": "crates/whisper-core/src/ports.rs",
+              "sha256": "ba5abcba01689ba42f4cf1d761aa58aafbbfdfb1c097908b274e100780735bf8"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L02-CLOSURE-03/execution-evidence.json",
+                  "sha256": "8e47865669af164b037b010377d58d7e8372c41f339d29e7082ce33e3a457f3b"
+                }
+              ],
+              "lot_id": "L-WHISPER-02",
+              "path": "crates/whisper-core/tests/scheduler_contract.rs",
+              "sha256": "133bd6a7a8a083f7896d5426aa9b967928b6c4d66309959a79d46cd8eb639845"
+            },
+            {
+              "evidence": [
+                {
+                  "path": "transports/T-WHISPER-L02-CLOSURE-03/execution-evidence.json",
+                  "sha256": "8e47865669af164b037b010377d58d7e8372c41f339d29e7082ce33e3a457f3b"
+                }
+              ],
+              "lot_id": "L-WHISPER-02",
+              "path": "crates/whisper-desktop/src/ui.rs",
+              "sha256": "5ec778204dbbf7cc60a768dd7e701fd39a0fd3c92216479eb3d8f2d5d3ba45ba"
+            }
+          ]
+        },
+        "drift": {
+          "classification": "expected_previous_lots",
+          "evidence": [
+            {
+              "path": "transports/T-WHISPER-L02-CLOSURE-03/execution-evidence.json",
+              "sha256": "8e47865669af164b037b010377d58d7e8372c41f339d29e7082ce33e3a457f3b"
+            },
+            {
+              "path": "transports/T-WHISPER-L02-SUPPLEMENTAL-REVIEW-01/transport-manifest.json",
+              "sha256": "507397183b05862675d790411e10267da4d2925510b33fae44ab122ef036e2f2"
+            }
+          ],
+          "previous_lots": [
+            "L-WHISPER-02"
+          ]
+        },
+        "railguard": {
+          "activation": "active",
+          "hashes": [
+            {
+              "path": "RAILGUARD-active.md",
+              "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
+            },
+            {
+              "path": "candidates/D-WHISPER-19/11_RAILGUARD_PROPOSAL.md",
+              "sha256": "c59b913296117ee949f66349db8e821e2921a663589c3be743b31a2a757b8a01"
+            },
+            {
+              "path": "railguard-activation-L00.md",
+              "sha256": "c3604579bac645b35166a3bd0f469d9e59e9b09efc3d339b36b5120c373b9164"
+            }
+          ],
+          "ref": {
+            "path": "RAILGUARD-active.md",
+            "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
+          }
+        },
+        "repository_evidence": [
+          {
+            "path": "USER_AUTHORIZATION_L03.md",
+            "sha256": "97d46348d9514874d187cbcc923a298356ef5d4e66ab282dc5fa31a83fb39f9b"
+          },
+          {
+            "path": "candidates/P-WHISPER-10/11_L03_SOURCE_BASELINE.md",
+            "sha256": "ed3464d9858ebdbf5d7daef90f3b1e9a194200c6c476e28da802757e092fce79"
+          },
+          {
+            "path": "transports/T-WHISPER-L02-SUPPLEMENTAL-REVIEW-01/transport-manifest.json",
+            "sha256": "507397183b05862675d790411e10267da4d2925510b33fae44ab122ef036e2f2"
+          },
+          {
+            "path": "transports/T-WHISPER-L03-PREFLIGHT-01/build-environment-result.json",
+            "sha256": "a3be5325db90f4c53571056035458ff42e926eaa45c54c9cfb66875421200325"
+          },
+          {
+            "path": "transports/T-WHISPER-L03-PREFLIGHT-01/preflight.md",
+            "sha256": "fd5e961ea447a33b65d099e177027a5b6420d609738609ff6aec0e8c7cd1f730"
+          },
+          {
+            "path": "transports/T-WHISPER-L03-PREFLIGHT-01/transport-manifest.json",
+            "sha256": "c8db9cc9fc0cf539d4d3fe56abd61639a8e53323b6d6471785a44cc6d748aa7a"
+          }
+        ]
+      },
+      "prerequisites": [
+        "L-WHISPER-02"
+      ],
+      "requires_details": [
+        "DETAIL-P02",
+        "Q-07"
+      ],
+      "status": "planned",
+      "tasks": [
+        "TASK-P03"
+      ],
+      "verifies": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-08",
+        "AC-10",
+        "AC-13",
+        "AC-20"
+      ]
+    },
+    {
+      "covers": [
+        "REQ-07",
+        "REQ-08",
+        "REQ-11",
+        "REQ-14",
+        "REQ-15",
+        "REQ-16",
+        "REQ-18",
+        "REQ-24"
+      ],
+      "dependency_kinds": {
+        "L-WHISPER-03": {
+          "evidence": [],
+          "expected": "Sorties et preuve du lot fournisseur aprÃƒÂ¨s code ; NOT RUN.",
+          "kind": "EXECUTION"
+        }
+      },
+      "id": "L-WHISPER-04",
+      "needs": [
+        "REQ-07"
+      ],
+      "paths": [
+        "crates/whisper-adapters/src/supervisor.rs",
+        "crates/whisper-adapters/tests/worker_control.rs",
+        "crates/whisper-core/tests/compute_policy.rs",
+        "crates/whisper-worker-cpu/src/native_engine.rs",
+        "crates/whisper-worker-gpu/src/native_engine.rs"
+      ],
+      "prerequisites": [
+        "L-WHISPER-03"
+      ],
+      "requires_details": [
+        "DETAIL-P03",
+        "Q-04",
+        "Q-06",
+        "Q-09"
+      ],
+      "status": "planned",
+      "tasks": [
+        "TASK-P04"
+      ],
+      "verifies": [
+        "AC-07",
+        "AC-09",
+        "AC-11",
+        "AC-13",
+        "AC-19"
+      ]
+    },
+    {
+      "covers": [
+        "REQ-06",
+        "REQ-14",
+        "REQ-15",
+        "REQ-16",
+        "REQ-19",
+        "REQ-20",
+        "REQ-21",
+        "REQ-22",
+        "REQ-23"
+      ],
+      "dependency_kinds": {
+        "L-WHISPER-04": {
+          "evidence": [],
+          "expected": "Sorties et preuve du lot fournisseur aprÃƒÂ¨s code ; NOT RUN.",
+          "kind": "EXECUTION"
+        }
+      },
+      "id": "L-WHISPER-05",
+      "needs": [
+        "REQ-06"
+      ],
+      "paths": [
+        "crates/whisper-adapters/src/os.rs",
+        "crates/whisper-adapters/src/settings.rs",
+        "crates/whisper-adapters/tests/windows_integration.rs",
+        "crates/whisper-core/tests/settings_lifecycle.rs"
+      ],
+      "prerequisites": [
+        "L-WHISPER-04"
+      ],
+      "requires_details": [
+        "DETAIL-P03",
+        "Q-03",
+        "Q-05",
+        "Q-06",
+        "Q-09"
+      ],
+      "status": "planned",
+      "tasks": [
+        "TASK-P05"
+      ],
+      "verifies": [
+        "AC-06",
+        "AC-11",
+        "AC-14",
+        "AC-15",
+        "AC-16",
+        "AC-17",
+        "AC-18"
+      ]
+    },
+    {
+      "covers": [
+        "REQ-05",
+        "REQ-07",
+        "REQ-08",
+        "REQ-24"
+      ],
+      "dependency_kinds": {
+        "L-WHISPER-05": {
+          "evidence": [],
+          "expected": "Sorties et preuve du lot fournisseur aprÃƒÂ¨s code ; NOT RUN.",
+          "kind": "EXECUTION"
+        }
+      },
+      "id": "L-WHISPER-06",
+      "needs": [
+        "REQ-05"
+      ],
+      "paths": [
+        "crates/whisper-bootstrap/src/acquisition.rs",
+        "crates/whisper-bootstrap/src/prerequisites.rs",
+        "crates/whisper-bootstrap/tests/install_contract.rs",
+        "docs/release/whisper-notices.md",
+        "docs/release/whisper-payload.json"
+      ],
+      "prerequisites": [
+        "L-WHISPER-05"
+      ],
+      "requires_details": [],
+      "status": "planned",
+      "tasks": [
+        "TASK-P06"
+      ],
+      "verifies": [
+        "AC-05",
+        "AC-07",
+        "AC-19"
+      ]
+    },
+    {
+      "covers": [
+        "REQ-01",
+        "REQ-02",
+        "REQ-03",
+        "REQ-04",
+        "REQ-05",
+        "REQ-06",
+        "REQ-07",
+        "REQ-08",
+        "REQ-09",
+        "REQ-10",
+        "REQ-11",
+        "REQ-12",
+        "REQ-13",
+        "REQ-14",
+        "REQ-15",
+        "REQ-16",
+        "REQ-17",
+        "REQ-18",
+        "REQ-19",
+        "REQ-20",
+        "REQ-21",
+        "REQ-22",
+        "REQ-23",
+        "REQ-24",
+        "REQ-25"
+      ],
+      "dependency_kinds": {
+        "L-WHISPER-06": {
+          "evidence": [],
+          "expected": "Sorties et preuve du lot fournisseur aprÃƒÂ¨s code ; NOT RUN.",
+          "kind": "EXECUTION"
+        }
+      },
+      "id": "L-WHISPER-07",
+      "needs": [
+        "REQ-01"
+      ],
+      "paths": [
+        "docs/qualification/whisper-v1-report.md"
+      ],
+      "prerequisites": [
+        "L-WHISPER-06"
+      ],
+      "requires_details": [
+        "DETAIL-P04"
+      ],
+      "status": "planned",
+      "tasks": [
+        "TASK-P07"
+      ],
+      "verifies": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05",
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-10",
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15",
+        "AC-16",
+        "AC-17",
+        "AC-18",
+        "AC-19",
+        "AC-20"
+      ]
+    }
+  ],
+  "perimeter": {
+    "version": 2
+  },
+  "questions": [
+    {
+      "classification": "structural",
+      "deadline": "before:DESIGN-READY",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-17/47_USER_VALIDATION_D17.md",
+          "sha256": "996cde451b5d9b6394f8b3e59717b8efbae914cdef16aaa9b225bf2f8277c90b"
+        },
+        {
+          "path": "candidates/D-WHISPER-17/48_VAD_HUMAN_RESULT.md",
+          "sha256": "aecf53874d8f4488194ef6ce43817113d5ef9a954955e18463a3f61b1f68e9a9"
+        }
+      ],
+      "id": "Q-08",
+      "impacted_lots": [],
+      "owner": "AUTH-COORD",
+      "refs": [],
+      "status": "answered"
+    },
+    {
+      "classification": "structural",
+      "deadline": "before:DESIGN-READY",
+      "evidence": [
+        {
+          "path": "candidates/D-WHISPER-18/49_TECHNICAL_EVIDENCE_D18.md",
+          "sha256": "868062b7ea2d9038819747708c84883c1fd62acb1e6c5c7fdfe6a97aee56ef3a"
+        },
+        {
+          "path": "candidates/D-WHISPER-18/50_ARCH_DECISIONS_D18.md",
+          "sha256": "3ca083a424ae43f09c6f61709cf97a52bd28aa70a23f0aa74e8c32bd23b230bd"
+        }
+      ],
+      "id": "Q-10",
+      "impacted_lots": [],
+      "owner": "AUTH-COORD",
+      "refs": [],
+      "status": "answered"
+    },
+    {
+      "answer_ref": {
+        "path": "transports/T-WHISPER-ARCH-P01-DETAIL-02/DETAIL-P01-raw.md",
+        "sha256": "c554c748d888eb91aef8cff024ba4eb6b3b7d0317f333f0395111c084cae8086"
+      },
+      "answer_verdict": "ANSWERED_DETAIL",
+      "answer_version": 3,
+      "answered_by": "AUTH-ARCH-P01",
+      "approval": "accepted",
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-00",
+      "design_change_required": false,
+      "evidence": [
+        {
+          "path": "transports/T-WHISPER-ARCH-P01-DETAIL-02/DETAIL-P01-raw.md",
+          "sha256": "c554c748d888eb91aef8cff024ba4eb6b3b7d0317f333f0395111c084cae8086"
+        },
+        {
+          "path": "transports/T-WHISPER-ARCH-P01-DETAIL-02/transport-manifest.json",
+          "sha256": "e2b883e721b68adbf7f568c8b16b5011693317d58ca0f68fde0d12f37e15094c"
+        }
+      ],
+      "id": "DETAIL-P01",
+      "impacted_lots": [
+        "L-WHISPER-00",
+        "L-WHISPER-01",
+        "L-WHISPER-02"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [
+        "REQ-03",
+        "REQ-24"
+      ],
+      "status": "answered",
+      "transport_ref": {
+        "path": "transports/T-WHISPER-ARCH-P01-DETAIL-02/transport-manifest.json",
+        "sha256": "e2b883e721b68adbf7f568c8b16b5011693317d58ca0f68fde0d12f37e15094c"
+      }
+    },
+    {
+      "answer_ref": {
+        "path": "transports/T-WHISPER-ARCH-DETAIL-P02-R2/ARCH-DETAIL-P02-v1-R2.md",
+        "sha256": "85ebaa418dbc9d6168ef7381634d709aae4bf49a53139cf0b443d143c6103879"
+      },
+      "answer_verdict": "ANSWERED_DETAIL",
+      "answer_version": 1,
+      "answered_by": "AUTH-ARCH-P02",
+      "approval": "accepted",
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-03",
+      "design_change_required": false,
+      "evidence": [
+        {
+          "path": "transports/T-WHISPER-ARCH-DETAIL-P02-R2/ARCH-DETAIL-P02-v1-R2.md",
+          "sha256": "85ebaa418dbc9d6168ef7381634d709aae4bf49a53139cf0b443d143c6103879"
+        },
+        {
+          "path": "transports/T-WHISPER-ARCH-DETAIL-P02-R2/transport-manifest.json",
+          "sha256": "9b49471709b2030b9b036203c3eea304303e3774365ff8965f190ff7ef035c9e"
+        }
+      ],
+      "id": "DETAIL-P02",
+      "impacted_lots": [
+        "L-WHISPER-03"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [
+        "REQ-01",
+        "REQ-02",
+        "REQ-18"
+      ],
+      "status": "answered",
+      "transport_ref": {
+        "path": "transports/T-WHISPER-ARCH-DETAIL-P02-R2/transport-manifest.json",
+        "sha256": "9b49471709b2030b9b036203c3eea304303e3774365ff8965f190ff7ef035c9e"
+      }
+    },
+    {
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-04",
+      "id": "DETAIL-P03",
+      "impacted_lots": [
+        "L-WHISPER-04",
+        "L-WHISPER-05"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [
+        "REQ-15",
+        "REQ-16"
+      ],
+      "status": "open"
+    },
+    {
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-07",
+      "id": "DETAIL-P04",
+      "impacted_lots": [
+        "L-WHISPER-07"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [
+        "REQ-02",
+        "REQ-09",
+        "REQ-18"
+      ],
+      "status": "open"
+    },
+    {
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-05",
+      "id": "Q-03",
+      "impacted_lots": [
+        "L-WHISPER-05"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [
+        "REQ-04",
+        "REQ-21"
+      ],
+      "status": "open"
+    },
+    {
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-04",
+      "id": "Q-04",
+      "impacted_lots": [
+        "L-WHISPER-04"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [
+        "REQ-11"
+      ],
+      "status": "open"
+    },
+    {
+      "answer_ref": {
+        "path": "transports/T-WHISPER-Q05-ANSWER-01/Q-05-answer-raw.md",
+        "sha256": "89538c0beebfe221883bb9e260d415818a992e58273bb870ba5dbaddea0f45c6"
+      },
+      "answer_verdict": "ANSWERED_DETAIL",
+      "answer_version": 1,
+      "answered_by": "AUTH-USER",
+      "approval": "accepted",
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-01",
+      "evidence": [
+        {
+          "path": "transports/T-WHISPER-Q05-ANSWER-01/Q-05-answer-raw.md",
+          "sha256": "89538c0beebfe221883bb9e260d415818a992e58273bb870ba5dbaddea0f45c6"
+        },
+        {
+          "path": "transports/T-WHISPER-Q05-ANSWER-01/transport-manifest.json",
+          "sha256": "77c6bc223694fafc8c2ecaabc1b891d500ce744279f8d14417c512e76e0d7aae"
+        }
+      ],
+      "id": "Q-05",
+      "impacted_lots": [
+        "L-WHISPER-01",
+        "L-WHISPER-02",
+        "L-WHISPER-05"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [
+        "REQ-20",
+        "REQ-22",
+        "REQ-23"
+      ],
+      "status": "answered",
+      "transport_ref": {
+        "path": "transports/T-WHISPER-Q05-ANSWER-01/transport-manifest.json",
+        "sha256": "77c6bc223694fafc8c2ecaabc1b891d500ce744279f8d14417c512e76e0d7aae"
+      }
+    },
+    {
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-04",
+      "id": "Q-06",
+      "impacted_lots": [
+        "L-WHISPER-04",
+        "L-WHISPER-05"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [
+        "REQ-15",
+        "REQ-16"
+      ],
+      "status": "open"
+    },
+    {
+      "answer_ref": {
+        "path": "transports/T-WHISPER-Q07-ANSWER-01/Q-07-architecture-answer.md",
+        "sha256": "b4473d1339bf2f16040e6e5cd653cd9c98e4d7e584ea397c7db3087570d0888c"
+      },
+      "answer_verdict": "ANSWERED_DETAIL",
+      "answer_version": 1,
+      "answered_by": "AUTH-ARCH-Q07",
+      "approval": "accepted",
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-02",
+      "design_change_required": false,
+      "evidence": [
+        {
+          "path": "transports/T-WHISPER-Q07-ANSWER-01/Q-07-architecture-answer.md",
+          "sha256": "b4473d1339bf2f16040e6e5cd653cd9c98e4d7e584ea397c7db3087570d0888c"
+        },
+        {
+          "path": "transports/T-WHISPER-Q07-ANSWER-01/transport-manifest.json",
+          "sha256": "10d662d127d871213379ea61156fbe820d4c38e3bade132e2962bf00b0338676"
+        }
+      ],
+      "id": "Q-07",
+      "impacted_lots": [
+        "L-WHISPER-02",
+        "L-WHISPER-03"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [
+        "REQ-03",
+        "REQ-10",
+        "REQ-12"
+      ],
+      "status": "answered",
+      "transport_ref": {
+        "path": "transports/T-WHISPER-Q07-ANSWER-01/transport-manifest.json",
+        "sha256": "10d662d127d871213379ea61156fbe820d4c38e3bade132e2962bf00b0338676"
+      }
+    },
+    {
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-04",
+      "id": "Q-09",
+      "impacted_lots": [
+        "L-WHISPER-04",
+        "L-WHISPER-05"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [
+        "REQ-11",
+        "REQ-20"
+      ],
+      "status": "open"
+    },
+    {
+      "classification": "reversible_detail",
+      "deadline": "before:L-WHISPER-01",
+      "evidence": [
+        {
+          "path": "transports/T-WHISPER-ARCH-L01-BOUNDS-01/ARCH-L01-BOUNDS-raw.md",
+          "sha256": "fee3f0dbcb5ecdbc9f70082aba311bca3daa34bf5efaa12d6b90b71a10f2efce"
+        },
+        {
+          "path": "candidates/P-WHISPER-06/06_L01_INTEGRATION_CONTRACTS.md",
+          "sha256": "e6ef8ed6f6e538b2809ce11e0412e0653d7c9e8127e473c0482fb746cd8aa18c"
+        }
+      ],
+      "id": "Q-L01-BOUNDS-01",
+      "impacted_lots": [
+        "L-WHISPER-01"
+      ],
+      "owner": "AUTH-COORD",
+      "refs": [],
+      "status": "answered"
+    }
+  ],
+  "rails": {
+    "activation": "active",
+    "active_copy": {
+      "path": "RAILGUARD-active.md",
+      "sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34"
+    },
+    "active_sha256": "9fed5e976f9f49a994718637e3489acfe7d341911645969d0f5e4fc8a9107c34",
+    "attestation": {
+      "path": "railguard-activation-L00.md",
+      "sha256": "c3604579bac645b35166a3bd0f469d9e59e9b09efc3d339b36b5120c373b9164"
+    },
+    "authority": "AUTH-USER",
+    "date": "2026-10-05",
+    "normative_equivalence": true,
+    "proposal": {
+      "path": "candidates/D-WHISPER-19/11_RAILGUARD_PROPOSAL.md",
+      "sha256": "c59b913296117ee949f66349db8e821e2921a663589c3be743b31a2a757b8a01"
+    },
+    "scope": "Whisper Windows V1 code/build/installer/migration",
+    "target_path": "RAILGUARD.md"
+  },
+  "schema": "rust-predev/2"
+}

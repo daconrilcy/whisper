@@ -1,0 +1,401 @@
+    Checking bytemuck v1.25.2
+    Checking log v0.4.34
+   Compiling whisper-rs v0.16.0
+    Checking serde v1.0.228
+   Compiling whisper-rs-sys v0.15.0
+    Checking symphonia-core v0.5.5
+    Checking whisper-core v0.1.0 (C:\dev\whisper\crates\whisper-core)
+    Checking symphonia-metadata v0.5.5
+    Checking symphonia-codec-pcm v0.5.5
+    Checking symphonia-bundle-mp3 v0.5.5
+    Checking symphonia-format-riff v0.5.5
+    Checking symphonia v0.5.5
+error: failed to run custom build command for `whisper-rs-sys v0.15.0`
+
+Caused by:
+  process didn't exit successfully: `C:\dev\whisper\target/l03-closure-validation\debug\build\whisper-rs-sys-19953230ff8fe7a4\build-script-build` (exit code: 101)
+  --- stdout
+  cargo:rustc-link-lib=cublas
+  cargo:rustc-link-lib=cudart
+  cargo:rustc-link-lib=cublasLt
+  cargo:rustc-link-lib=cuda
+  cargo:rustc-link-search=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib/x64
+  cargo:rerun-if-changed=wrapper.h
+  cargo:rerun-if-env-changed=TARGET
+  cargo:rerun-if-env-changed=BINDGEN_EXTRA_CLANG_ARGS_x86_64-pc-windows-msvc
+  cargo:rerun-if-env-changed=BINDGEN_EXTRA_CLANG_ARGS_x86_64_pc_windows_msvc
+  cargo:rerun-if-env-changed=BINDGEN_EXTRA_CLANG_ARGS
+  cargo:rerun-if-changed=wrapper.h
+  cargo:rerun-if-changed=./whisper.cpp\include/whisper.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\stdbool.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt\stddef.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt\corecrt.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\vcruntime.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\sal.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\concurrencysal.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\vadefs.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\stdint.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\vcruntime.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt\stdio.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt\corecrt.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt\corecrt_wstdio.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt\corecrt.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt\corecrt_stdio_config.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt\corecrt.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml-cpu.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml-backend.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml-alloc.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt\stddef.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\stdint.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\stdbool.h
+  cargo:rerun-if-changed=./whisper.cpp\ggml/include/ggml.h
+  cargo:rustc-link-lib=advapi32
+  CMAKE_TOOLCHAIN_FILE_x86_64-pc-windows-msvc = None
+  CMAKE_TOOLCHAIN_FILE_x86_64_pc_windows_msvc = None
+  HOST_CMAKE_TOOLCHAIN_FILE = None
+  CMAKE_TOOLCHAIN_FILE = None
+  CMAKE_GENERATOR_x86_64-pc-windows-msvc = None
+  CMAKE_GENERATOR_x86_64_pc_windows_msvc = None
+  HOST_CMAKE_GENERATOR = None
+  CMAKE_GENERATOR = None
+  CMAKE_PREFIX_PATH_x86_64-pc-windows-msvc = None
+  CMAKE_PREFIX_PATH_x86_64_pc_windows_msvc = None
+  HOST_CMAKE_PREFIX_PATH = None
+  CMAKE_PREFIX_PATH = None
+  CMAKE_x86_64-pc-windows-msvc = None
+  CMAKE_x86_64_pc_windows_msvc = None
+  HOST_CMAKE = None
+  CMAKE = None
+  Running with debug output on.
+  -- Selecting Windows SDK version 10.0.19041.0 to target Windows 10.0.26200.
+     Called from: [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- The C compiler identification is MSVC 19.29.30159.0
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerId.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- The CXX compiler identification is MSVC 19.29.30159.0
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerId.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCXXCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- Detecting C compiler ABI info
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerABI.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- Detecting C compiler ABI info - done
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerABI.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- Check for working C compiler: C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/VC/Tools/MSVC/14.29.30133/bin/Hostx64/x64/cl.exe - skipped
+     Called from: [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- Detecting C compile features
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompileFeatures.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- Detecting C compile features - done
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompileFeatures.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- Detecting CXX compiler ABI info
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerABI.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCXXCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- Detecting CXX compiler ABI info - done
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerABI.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCXXCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- Check for working CXX compiler: C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/VC/Tools/MSVC/14.29.30133/bin/Hostx64/x64/cl.exe - skipped
+     Called from: [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCXXCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- Detecting CXX compile features
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompileFeatures.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCXXCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- Detecting CXX compile features - done
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompileFeatures.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCXXCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- Found Git: C:/Program Files/Git/cmd/git.exe (found version "2.51.1.windows.1") 
+     Called from: [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindPackageMessage.cmake
+                  [4]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindPackageHandleStandardArgs.cmake
+                  [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindGit.cmake
+                  [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/cmake/git-vars.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  -- The ASM compiler identification is MSVC
+     Called from: [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineASMCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/CMakeLists.txt
+  -- Found assembler: C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/VC/Tools/MSVC/14.29.30133/bin/Hostx64/x64/cl.exe
+     Called from: [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineASMCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/CMakeLists.txt
+  -- Looking for pthread.h
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckIncludeFile.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindThreads.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/CMakeLists.txt
+  -- Looking for pthread.h - not found
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckIncludeFile.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindThreads.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/CMakeLists.txt
+  -- Found Threads: TRUE  
+     Called from: [4]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindPackageMessage.cmake
+                  [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindPackageHandleStandardArgs.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindThreads.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/CMakeLists.txt
+  -- Warning: ccache not found - consider installing it for faster compilation or disable this warning with GGML_CCACHE=OFF
+     Called from: [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- CMAKE_SYSTEM_PROCESSOR: AMD64
+     Called from: [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- CMAKE_GENERATOR_PLATFORM: x64
+     Called from: [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- GGML_SYSTEM_ARCH: x86
+     Called from: [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Including CPU backend
+     Called from: [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- x86 detected
+     Called from: [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Performing Test HAS_AVX_1
+     Called from: [6]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/Internal/CheckSourceRuns.cmake
+                  [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckCSourceRuns.cmake
+                  [4]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [3]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Performing Test HAS_AVX_1 - Success
+     Called from: [6]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/Internal/CheckSourceRuns.cmake
+                  [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckCSourceRuns.cmake
+                  [4]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [3]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Performing Test HAS_AVX2_1
+     Called from: [6]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/Internal/CheckSourceRuns.cmake
+                  [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckCSourceRuns.cmake
+                  [4]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [3]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Performing Test HAS_AVX2_1 - Success
+     Called from: [6]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/Internal/CheckSourceRuns.cmake
+                  [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckCSourceRuns.cmake
+                  [4]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [3]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Performing Test HAS_FMA_1
+     Called from: [6]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/Internal/CheckSourceRuns.cmake
+                  [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckCSourceRuns.cmake
+                  [4]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [3]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Performing Test HAS_FMA_1 - Success
+     Called from: [6]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/Internal/CheckSourceRuns.cmake
+                  [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckCSourceRuns.cmake
+                  [4]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [3]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Performing Test HAS_AVX512_1
+     Called from: [6]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/Internal/CheckSourceRuns.cmake
+                  [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckCSourceRuns.cmake
+                  [4]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [3]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Performing Test HAS_AVX512_1 - Failed
+     Called from: [6]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/Internal/CheckSourceRuns.cmake
+                  [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckCSourceRuns.cmake
+                  [4]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [3]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Performing Test HAS_AVX512_2
+     Called from: [6]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/Internal/CheckSourceRuns.cmake
+                  [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckCSourceRuns.cmake
+                  [4]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [3]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Performing Test HAS_AVX512_2 - Failed
+     Called from: [6]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/Internal/CheckSourceRuns.cmake
+                  [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CheckCSourceRuns.cmake
+                  [4]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [3]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/cmake/FindSIMD.cmake
+                  [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Adding CPU backend variant ggml-cpu: /arch:AVX2 GGML_AVX2;GGML_FMA;GGML_F16C
+     Called from: [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  -- Found CUDAToolkit: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/include (found version "12.9.86") 
+     Called from: [4]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindPackageMessage.cmake
+                  [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindPackageHandleStandardArgs.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/FindCUDAToolkit.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cuda/CMakeLists.txt
+  -- CUDA Toolkit found
+     Called from: [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cuda/CMakeLists.txt
+  -- Configuring incomplete, errors occurred!
+  See also "C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/build/CMakeFiles/CMakeOutput.log".
+  See also "C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/build/CMakeFiles/CMakeError.log".
+
+  --- stderr
+  running: "cmake" "-Wdev" "--debug-output" "C:\\dev\\whisper\\target/l03-closure-validation\\x86_64-pc-windows-msvc\\debug\\build\\whisper-rs-sys-d360db1f003f7122\\out\\whisper.cpp" "-B" "C:\\dev\\whisper\\target/l03-closure-validation\\x86_64-pc-windows-msvc\\debug\\build\\whisper-rs-sys-d360db1f003f7122\\out\\build" "-G" "Visual Studio 16 2019" "-Thost=x64" "-Ax64" "-DBUILD_SHARED_LIBS=OFF" "-DWHISPER_ALL_WARNINGS=OFF" "-DWHISPER_ALL_WARNINGS_3RD_PARTY=OFF" "-DWHISPER_BUILD_TESTS=OFF" "-DWHISPER_BUILD_EXAMPLES=OFF" "-DGGML_CUDA=ON" "-DCMAKE_POSITION_INDEPENDENT_CODE=ON" "-DCMAKE_CUDA_FLAGS=-Xcompiler=-fPIC" "-DGGML_METAL=OFF" "-DCMAKE_BUILD_TYPE=RelWithDebInfo" "-DGGML_OPENMP=OFF" "-DCMAKE_INSTALL_PREFIX=C:\\dev\\whisper\\target/l03-closure-validation\\x86_64-pc-windows-msvc\\debug\\build\\whisper-rs-sys-d360db1f003f7122\\out" "-DCMAKE_C_FLAGS= -nologo -MD -Brepro -W0" "-DCMAKE_C_FLAGS_RELWITHDEBINFO= -nologo -MD -Brepro -W0" "-DCMAKE_CXX_FLAGS= /utf-8 -DWHISPER_DEBUG -nologo -MD -Brepro -W0" "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO= /utf-8 -DWHISPER_DEBUG -nologo -MD -Brepro -W0" "-DCMAKE_ASM_FLAGS= -nologo -MD -Brepro -W0" "-DCMAKE_ASM_FLAGS_RELWITHDEBINFO= -nologo -MD -Brepro -W0" "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+  CMake Warning (dev) at C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerABI.cmake:49 (try_compile):
+    Policy CMP0066 is not set: Honor per-config flags in try_compile()
+    source-file signature.  Run "cmake --help-policy CMP0066" for policy
+    details.  Use the cmake_policy command to set the policy and suppress this
+    warning.
+
+    For compatibility with older versions of CMake, try_compile is not honoring
+    caller config-specific compiler flags (e.g.  CMAKE_C_FLAGS_DEBUG) in the
+    test project.
+  Call Stack (most recent call first):
+    C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)
+    CMakeLists.txt:2 (project)
+  This warning is for project developers.  Use -Wno-dev to suppress it.
+
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerABI.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+  CMake Warning (dev) at C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerABI.cmake:49 (try_compile):
+    Policy CMP0066 is not set: Honor per-config flags in try_compile()
+    source-file signature.  Run "cmake --help-policy CMP0066" for policy
+    details.  Use the cmake_policy command to set the policy and suppress this
+    warning.
+
+    For compatibility with older versions of CMake, try_compile is not honoring
+    caller config-specific compiler flags (e.g.  CMAKE_C_FLAGS_DEBUG) in the
+    test project.
+  Call Stack (most recent call first):
+    C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)
+    CMakeLists.txt:2 (project)
+  This warning is for project developers.  Use -Wno-dev to suppress it.
+
+     Called from: [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerABI.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeTestCXXCompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+     Entering             C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml
+     Called from: [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+     Entering             C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src
+     Called from: [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/CMakeLists.txt
+     Entering             C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cpu
+     Called from: [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+     Returning to         C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src
+     Called from: [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+     Entering             C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cuda
+     Called from: [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+  CMake Error at C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerId.cmake:675 (message):
+    Compiling the CUDA compiler identification source file
+    "CMakeCUDACompilerId.cu" failed.
+
+    Compiler:
+
+    Build flags:
+
+    Id flags:
+    --keep;--keep-dir;tmp;-gencode=arch=compute_50,code=sm_50;-gencode=arch=compute_61,code=sm_61;-gencode=arch=compute_70,code=sm_70;-gencode=arch=compute_75,code=sm_75;-gencode=arch=compute_80,code=sm_80;-gencode=arch=compute_86,code=sm_86;-gencode=arch=compute_89,code=sm_89;-gencode=arch=compute_120,code=sm_120;-gencode=arch=compute_121,code=sm_121
+    -v
+
+    
+
+    The output was:
+
+    1
+
+    Microsoft (R) Build Engine version 16.11.6+a918ceb31 pour .NET Framework
+
+    Copyright (C) Microsoft Corporation.  Tous droits r├®serv├®s.
+
+    
+
+    La g├®n├®ration a d├®marr├® 07/10/2026 09:56:30.
+
+    Projet
+    "C:\dev\whisper\target\l03-closure-validation\x86_64-pc-windows-msvc\debug\build\whisper-rs-sys-d360db1f003f7122\out\build\CMakeFiles\3.20.21032501-MSVC_2\CompilerIdCUDA\CompilerIdCUDA.vcxproj"
+    sur le n┼ôud 1 (cibles par d├®faut).
+
+    PrepareForBuild:
+
+      Cr├®ation du r├®pertoire "Debug\".
+      Cr├®ation du r├®pertoire "Debug\CompilerIdCUDA.tlog\".
+
+    InitializeBuildStatus:
+
+      Cr├®ation de "Debug\CompilerIdCUDA.tlog\unsuccessfulbuild", car "AlwaysCreate" a ├®t├® sp├®cifi├®.
+
+    AddCudaCompileDeps:
+
+      C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\bin\HostX64\x64\cl.exe /E /nologo /showIncludes /TP /D__CUDACC__ /D__CUDACC_VER_MAJOR__=12 /D__CUDACC_VER_MINOR__=9 /D_MBCS /Iinclude /Ibin /Iinclude /I. /FIcuda_runtime.h /c C:\dev\whisper\target\l03-closure-validation\x86_64-pc-windows-msvc\debug\build\whisper-rs-sys-d360db1f003f7122\out\build\CMakeFiles\3.20.21032501-MSVC_2\CompilerIdCUDA\CMakeCUDACompilerId.cu 
+
+    C:\Program Files (x86)\Microsoft Visual
+    Studio\2019\BuildTools\MSBuild\Microsoft\VC\v160\BuildCustomizations\CUDA
+    12.9.targets(607,9): error : The CUDA Toolkit v12.9 directory '' does not
+    exist.  Please verify the CUDA Toolkit is installed properly or define the
+    CudaToolkitDir property to resolve this error.
+    [C:\dev\whisper\target\l03-closure-validation\x86_64-pc-windows-msvc\debug\build\whisper-rs-sys-d360db1f003f7122\out\build\CMakeFiles\3.20.21032501-MSVC_2\CompilerIdCUDA\CompilerIdCUDA.vcxproj]
+
+
+    G├®n├®ration du projet
+    "C:\dev\whisper\target\l03-closure-validation\x86_64-pc-windows-msvc\debug\build\whisper-rs-sys-d360db1f003f7122\out\build\CMakeFiles\3.20.21032501-MSVC_2\CompilerIdCUDA\CompilerIdCUDA.vcxproj"
+    termin├®e (cibles par d├®faut) -- ├ëCHEC.
+
+    
+
+    ├ëCHEC de la build.
+
+    
+
+    
+    "C:\dev\whisper\target\l03-closure-validation\x86_64-pc-windows-msvc\debug\build\whisper-rs-sys-d360db1f003f7122\out\build\CMakeFiles\3.20.21032501-MSVC_2\CompilerIdCUDA\CompilerIdCUDA.vcxproj"
+    (cible par d├®faut) (1) ->
+
+    (ValidateCudaBuild cible) ->
+
+      C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Microsoft\VC\v160\BuildCustomizations\CUDA 12.9.targets(607,9): error : The CUDA Toolkit v12.9 directory '' does not exist.  Please verify the CUDA Toolkit is installed properly or define the CudaToolkitDir property to resolve this error. [C:\dev\whisper\target\l03-closure-validation\x86_64-pc-windows-msvc\debug\build\whisper-rs-sys-d360db1f003f7122\out\build\CMakeFiles\3.20.21032501-MSVC_2\CompilerIdCUDA\CompilerIdCUDA.vcxproj]
+
+    
+
+        0 Avertissement(s)
+        1 Erreur(s)
+
+    
+
+    Temps ├®coul├® 00:00:00.25
+
+    
+
+    
+
+  Call Stack (most recent call first):
+    C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerId.cmake:6 (CMAKE_DETERMINE_COMPILER_ID_BUILD)
+    C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerId.cmake:47 (__determine_compiler_id_test)
+    C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCUDACompiler.cmake:278 (CMAKE_DETERMINE_COMPILER_ID)
+    ggml/src/ggml-cuda/CMakeLists.txt:58 (enable_language)
+
+
+     Called from: [5]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerId.cmake
+                  [4]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerId.cmake
+                  [3]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCompilerId.cmake
+                  [2]	C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.20/Modules/CMakeDetermineCUDACompiler.cmake
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/ggml-cuda/CMakeLists.txt
+     Returning to         C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src
+     Called from: [2]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+                  [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/src/CMakeLists.txt
+     Returning to         C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml
+     Called from: [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/ggml/CMakeLists.txt
+     Returning to         C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp
+     Called from: [1]	C:/dev/whisper/target/l03-closure-validation/x86_64-pc-windows-msvc/debug/build/whisper-rs-sys-d360db1f003f7122/out/whisper.cpp/CMakeLists.txt
+
+  thread 'main' (85224) panicked at C:\Users\cyril\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\cmake-0.1.58\src\lib.rs:1132:5:
+
+  command did not execute successfully, got: exit code: 1
+
+  build script failed, must exit now
+  note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

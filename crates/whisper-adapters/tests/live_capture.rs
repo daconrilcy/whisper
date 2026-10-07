@@ -43,3 +43,36 @@ fn bounded_pcm_writer_drains_queued_frames_to_a_verified_checkpoint() {
     )))
     .unwrap();
 }
+
+#[test]
+fn delayed_durable_high_water_keeps_the_80k_inference_window_on_disk() {
+    let path = std::env::temp_dir().join(format!(
+        "whisper-live-spool-{}-{}.pcm",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let mut writer = PcmStaging::create(&path).unwrap().into_writer();
+    for _ in 0..249 {
+        writer.append_frame(vec![17; 320]).unwrap();
+    }
+    assert!(writer.durable_samples() < 80_000);
+    assert_eq!(writer.read_durable_samples(0, 80_000).unwrap(), None);
+
+    writer.append_frame(vec![17; 320]).unwrap();
+    writer.drain().unwrap();
+    assert_eq!(writer.durable_samples(), 80_000);
+    let window = writer.read_durable_samples(0, 80_000).unwrap().unwrap();
+    assert_eq!(window.len(), 80_000);
+    assert!(window.iter().all(|sample| *sample == 17));
+
+    drop(writer);
+    std::fs::remove_file(&path).unwrap();
+    std::fs::remove_file(path.with_file_name(format!(
+        "{}.state.json",
+        path.file_name().unwrap().to_string_lossy()
+    )))
+    .unwrap();
+}

@@ -1,0 +1,10 @@
+   Compiling whisper-adapters v0.1.0 (C:\dev\whisper\crates\whisper-adapters)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.67s
+     Running tests\durability.rs (target/l03-closure-validation\x86_64-pc-windows-msvc\debug\deps\durability-090ad8a3f0d1efd5.exe)
+
+running 2 tests
+test resume_validation_rejects_later_fifo_row_without_advancing_any_generation ... ok
+test queue_ack_replays_fifo_and_running_work_recovers_without_launch ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

@@ -1,0 +1,132 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.26
+   Compiling quote v1.0.47
+   Compiling glob v0.3.4
+   Compiling prettyplease v0.2.37
+   Compiling libc v0.2.190
+   Compiling rustversion v1.0.23
+   Compiling minimal-lexical v0.2.1
+   Compiling memchr v2.8.3
+   Compiling regex-syntax v0.8.11
+   Compiling windows-link v0.2.1
+   Compiling either v1.18.0
+   Compiling find-msvc-tools v0.1.14
+   Compiling bindgen v0.72.1
+   Compiling shlex v2.0.1
+   Compiling log v0.4.34
+   Compiling shlex v1.3.0
+   Compiling rustc-hash v2.1.3
+   Compiling lazy_static v1.5.1
+   Compiling bytemuck v1.25.2
+   Compiling bitflags v2.13.2
+   Compiling arrayvec v0.7.8
+   Compiling bitflags v1.3.2
+   Compiling cfg-if v1.0.5
+   Compiling scopeguard v1.2.0
+   Compiling multiversion_no_op v1.0.0
+   Compiling serde_core v1.0.228
+   Compiling semver v1.0.28
+   Compiling fs_extra v1.3.0
+   Compiling core_detect v1.0.0
+   Compiling libloading v0.8.9
+   Compiling simdutf8 v0.1.5
+   Compiling serde v1.0.228
+   Compiling whisper-rs v0.16.0
+   Compiling serde_json v1.0.145
+   Compiling extended v0.1.0
+   Compiling ryu v1.0.23
+   Compiling itertools v0.13.0
+   Compiling itoa v1.0.18
+   Compiling symphonia-core v0.5.5
+   Compiling clang-sys v1.9.1
+   Compiling cc v1.6.0
+   Compiling nom v7.1.3
+   Compiling regex-automata v0.4.18
+   Compiling encoding_rs v0.8.42
+   Compiling symphonia-codec-pcm v0.5.5
+   Compiling syn v2.0.119
+   Compiling cmake v0.1.58
+   Compiling cexpr v0.6.0
+   Compiling regex v1.13.1
+   Compiling symphonia-metadata v0.5.5
+   Compiling symphonia-bundle-mp3 v0.5.5
+   Compiling symphonia-format-riff v0.5.5
+   Compiling symphonia v0.5.5
+   Compiling serde_derive v1.0.228
+   Compiling whisper-core v0.1.0 (C:\dev\whisper\crates\whisper-core)
+   Compiling whisper-rs-sys v0.15.0
+error: failed to run custom build command for `whisper-rs-sys v0.15.0`
+
+Caused by:
+  process didn't exit successfully: `C:\dev\whisper\target/l03-closure-cuda-vs2022\release\build\whisper-rs-sys-58767534df8421b9\build-script-build` (exit code: 101)
+  --- stdout
+  cargo:rustc-link-lib=cublas
+  cargo:rustc-link-lib=cudart
+  cargo:rustc-link-lib=cublasLt
+  cargo:rustc-link-lib=cuda
+  cargo:rustc-link-search=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib/x64
+  cargo:rerun-if-changed=wrapper.h
+  cargo:rerun-if-env-changed=TARGET
+  cargo:rerun-if-env-changed=BINDGEN_EXTRA_CLANG_ARGS_x86_64-pc-windows-msvc
+  cargo:rerun-if-env-changed=BINDGEN_EXTRA_CLANG_ARGS_x86_64_pc_windows_msvc
+  cargo:rerun-if-env-changed=BINDGEN_EXTRA_CLANG_ARGS
+  cargo:rerun-if-changed=wrapper.h
+  cargo:rerun-if-changed=./whisper.cpp\include/whisper.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\stdbool.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stddef.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\vcruntime.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\sal.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\concurrencysal.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\vadefs.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\stdint.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\vcruntime.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stdio.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt_wstdio.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt_stdio_config.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml-cpu.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml-backend.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml-alloc.h
+  cargo:rerun-if-changed=./whisper.cpp/ggml/include\ggml.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stddef.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\stdint.h
+  cargo:rerun-if-changed=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\stdbool.h
+  cargo:rerun-if-changed=./whisper.cpp\ggml/include/ggml.h
+  cargo:rustc-link-lib=advapi32
+  CMAKE_TOOLCHAIN_FILE_x86_64-pc-windows-msvc = None
+  CMAKE_TOOLCHAIN_FILE_x86_64_pc_windows_msvc = None
+  HOST_CMAKE_TOOLCHAIN_FILE = None
+  CMAKE_TOOLCHAIN_FILE = None
+  CMAKE_GENERATOR_x86_64-pc-windows-msvc = None
+  CMAKE_GENERATOR_x86_64_pc_windows_msvc = None
+  HOST_CMAKE_GENERATOR = None
+  CMAKE_GENERATOR = Some("Visual Studio 17 2022")
+  CMAKE_PREFIX_PATH_x86_64-pc-windows-msvc = None
+  CMAKE_PREFIX_PATH_x86_64_pc_windows_msvc = None
+  HOST_CMAKE_PREFIX_PATH = None
+  CMAKE_PREFIX_PATH = None
+  CMAKE_x86_64-pc-windows-msvc = None
+  CMAKE_x86_64_pc_windows_msvc = None
+  HOST_CMAKE = None
+  CMAKE = None
+  Running with debug output on.
+
+  --- stderr
+  running: "cmake" "-Wdev" "--debug-output" "C:\\dev\\whisper\\target/l03-closure-cuda-vs2022\\x86_64-pc-windows-msvc\\release\\build\\whisper-rs-sys-a0bc6ac74ceab1fd\\out\\whisper.cpp" "-B" "C:\\dev\\whisper\\target/l03-closure-cuda-vs2022\\x86_64-pc-windows-msvc\\release\\build\\whisper-rs-sys-a0bc6ac74ceab1fd\\out\\build" "-Thost=x64" "-Ax64" "-G" "Visual Studio 17 2022" "-DBUILD_SHARED_LIBS=OFF" "-DWHISPER_ALL_WARNINGS=OFF" "-DWHISPER_ALL_WARNINGS_3RD_PARTY=OFF" "-DWHISPER_BUILD_TESTS=OFF" "-DWHISPER_BUILD_EXAMPLES=OFF" "-DGGML_CUDA=ON" "-DCMAKE_POSITION_INDEPENDENT_CODE=ON" "-DCMAKE_CUDA_FLAGS=-Xcompiler=-fPIC" "-DGGML_METAL=OFF" "-DCMAKE_BUILD_TYPE=Release" "-DCMAKE_GENERATOR=Visual Studio 17 2022" "-DCMAKE_GENERATOR_PLATFORM=x64" "-DCMAKE_GENERATOR_TOOLSET=cuda=12.9" "-DGGML_OPENMP=OFF" "-DCMAKE_INSTALL_PREFIX=C:\\dev\\whisper\\target/l03-closure-cuda-vs2022\\x86_64-pc-windows-msvc\\release\\build\\whisper-rs-sys-a0bc6ac74ceab1fd\\out" "-DCMAKE_C_FLAGS= -nologo -MD -Brepro -W0" "-DCMAKE_CXX_FLAGS= /utf-8 -nologo -MD -Brepro -W0" "-DCMAKE_ASM_FLAGS= -nologo -MD -Brepro -W0" "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+  The dev option is deprecated.  Use -Wauthor instead.
+  CMake Error: Error: generator toolset: host=x64
+  Does not match the toolset used previously: cuda=12.9
+  Either remove the CMakeCache.txt file and CMakeFiles directory or choose a different binary directory.
+
+  thread 'main' (49828) panicked at C:\Users\cyril\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\cmake-0.1.58\src\lib.rs:1132:5:
+
+  command did not execute successfully, got: exit code: 1
+
+  build script failed, must exit now
+  note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

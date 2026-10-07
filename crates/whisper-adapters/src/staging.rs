@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File, OpenOptions},
-    io::{self, Read, Write},
+    io::{self, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -46,6 +46,7 @@ enum WriterCommand {
 /// Bounded disk writer used by live capture. Capture submits frames without waiting
 /// for storage; Stop sends an ordered drain request and waits for its durable checkpoint.
 pub struct PcmWriter {
+    path: PathBuf,
     sender: Option<SyncSender<WriterCommand>>,
     worker: Option<JoinHandle<()>>,
     durable_samples: Arc<AtomicU64>,
@@ -63,7 +64,7 @@ impl PcmStaging {
         let mut file = file;
         file.write_all(HEADER)?;
         file.sync_all()?;
-        let mut staging = Self {
+        let staging = Self {
             path,
             file,
             frames_since_sync: 0,
@@ -83,7 +84,7 @@ impl PcmStaging {
             ));
         }
         let mut bytes = [0u8; 640];
-        for (chunk, sample) in bytes.chunks_exact_mut(2).zip(samples) {
+        for (chunk, sample) in bytes.as_chunks_mut::<2>().0.iter_mut().zip(samples) {
             chunk.copy_from_slice(&sample.to_le_bytes());
         }
         self.file.write_all(&bytes)?;
@@ -144,11 +145,13 @@ impl PcmStaging {
     }
 
     pub fn into_writer(self) -> PcmWriter {
+        let path = self.path.clone();
         let durable_samples = Arc::new(AtomicU64::new(self.durable_samples()));
         let writer_durable = durable_samples.clone();
         let (sender, receiver) = mpsc::sync_channel(MAX_PENDING_FRAMES);
         let worker = thread::spawn(move || writer_loop(self, receiver, writer_durable));
         PcmWriter {
+            path,
             sender: Some(sender),
             worker: Some(worker),
             durable_samples,
@@ -191,8 +194,9 @@ impl PcmStaging {
         let mut remaining = expected_len - HEADER.len() as u64;
         let mut buffer = [0u8; 64 * 1024];
         while remaining > 0 {
+            let read_len = remaining.min(buffer.len() as u64) as usize;
             let count = file
-                .read(&mut buffer[..remaining.min(buffer.len() as u64) as usize])
+                .read(&mut buffer[..read_len])
                 .map_err(|e| e.to_string())?;
             if count == 0 {
                 return Err("StorageCorrupt: truncated durable PCM payload".into());
@@ -236,6 +240,41 @@ impl PcmStaging {
 }
 
 impl PcmWriter {
+    /// Reads only a fully synced range so inference can be dispatched from the
+    /// durable spool without retaining an unbounded in-memory backlog.
+    pub fn read_durable_samples(
+        &self,
+        start_sample: u64,
+        sample_count: usize,
+    ) -> io::Result<Option<Vec<i16>>> {
+        let end_sample = start_sample
+            .checked_add(sample_count as u64)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "sample range overflow"))?;
+        if end_sample > self.durable_samples() {
+            return Ok(None);
+        }
+        let byte_count = sample_count
+            .checked_mul(2)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "byte range overflow"))?;
+        let offset = (HEADER.len() as u64)
+            .checked_add(start_sample.checked_mul(2).ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "sample offset overflow")
+            })?)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "file offset overflow"))?;
+        let mut file = File::open(&self.path)?;
+        file.seek(SeekFrom::Start(offset))?;
+        let mut bytes = vec![0; byte_count];
+        file.read_exact(&mut bytes)?;
+        Ok(Some(
+            bytes
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|chunk| i16::from_le_bytes(*chunk))
+                .collect(),
+        ))
+    }
+
     /// Nonblocking capture path: a full queue becomes an explicit interruption.
     pub fn try_append_frame(&self, samples: Vec<i16>) -> io::Result<()> {
         validate_frame(&samples)?;
@@ -330,7 +369,7 @@ fn writer_loop(
                 }
             }
             WriterCommand::Drain(reply) => {
-                let result = staging.drain().map(|()| {
+                let result = staging.drain().map(|_| {
                     durable_samples.store(staging.durable_samples(), Ordering::Release);
                     (staging.durable_samples(), staging.checksum())
                 });

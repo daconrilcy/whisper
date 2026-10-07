@@ -79,7 +79,10 @@ impl Pcm16Converter {
         }
         if block.sample_rate_hz != self.rate
             || block.channels != self.channels
-            || block.samples.len() % usize::from(self.channels) != 0
+            || !block
+                .samples
+                .len()
+                .is_multiple_of(usize::from(self.channels))
         {
             return Err(
                 "CaptureInterrupted: stream format changed or delivered a partial frame".into(),
@@ -159,7 +162,7 @@ fn capture_into<T: Copy>(
     status: &AtomicU8,
 ) {
     let channels = usize::from(channels);
-    if channels == 0 || data.len() % channels != 0 {
+    if channels == 0 || !data.len().is_multiple_of(channels) {
         status.fetch_or(CAPTURE_FAILED, Ordering::Release);
         return;
     }
@@ -173,7 +176,7 @@ fn capture_into<T: Copy>(
             return;
         }
         block.clear();
-        block.extend(samples.iter().copied().map(convert));
+        block.extend(samples.iter().copied().map(&convert));
         if let Err(error) = ready.push(block) {
             drop(error); // Impossible while the two 100-slot pools remain balanced.
             status.fetch_or(CAPTURE_SATURATED, Ordering::Release);
@@ -195,7 +198,7 @@ pub fn start_device(device: Device) -> Result<CaptureStream, String> {
     let supported = device
         .default_input_config()
         .map_err(|error| format!("CaptureUnavailable: {error}"))?;
-    let rate = supported.sample_rate().0;
+    let rate = supported.sample_rate();
     let channels = supported.channels();
     if rate < 16_000 || channels == 0 {
         return Err(
@@ -222,7 +225,7 @@ pub fn start_device(device: Device) -> Result<CaptureStream, String> {
     let error_status = status.clone();
     let stream = match format {
         SampleFormat::F32 => device.build_input_stream(
-            &config,
+            config,
             move |data: &[f32], _| {
                 capture_into(
                     data,
@@ -240,7 +243,7 @@ pub fn start_device(device: Device) -> Result<CaptureStream, String> {
             None,
         ),
         SampleFormat::I16 => device.build_input_stream(
-            &config,
+            config,
             move |data: &[i16], _| {
                 capture_into(
                     data,
@@ -258,7 +261,7 @@ pub fn start_device(device: Device) -> Result<CaptureStream, String> {
             None,
         ),
         SampleFormat::U16 => device.build_input_stream(
-            &config,
+            config,
             move |data: &[u16], _| {
                 capture_into(
                     data,

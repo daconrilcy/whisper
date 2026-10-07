@@ -89,7 +89,6 @@ pub struct ImportRequest {
     pub model_path: String,
     pub model_sha256: [u8; 32],
     pub destination: String,
-    pub group_offset_samples: u64,
     pub config: JobConfig,
 }
 
@@ -102,6 +101,9 @@ pub struct LiveRequest {
     pub destination: String,
     /// Absolute start sample of this passage on the transcription group's clock.
     pub group_offset_samples: u64,
+    /// Optional speech-only auto-stop limit. `None` means unlimited capture.
+    #[serde(default)]
+    pub auto_stop_after_speech_samples: Option<u64>,
     pub config: JobConfig,
 }
 
@@ -156,6 +158,11 @@ pub enum ImportEffect {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEvent {
+    LiveProvisional {
+        segment: WorkerSegment,
+        captured_at_unix_ms: u64,
+        available_at_unix_ms: u64,
+    },
     LiveCounters {
         job_id: JobId,
         generation: Generation,
@@ -165,6 +172,10 @@ pub enum ImportEvent {
         confirmed_fragment_samples: u64,
         speech_samples: u64,
         diagnostic: Option<String>,
+    },
+    LiveFinalizing {
+        job_id: JobId,
+        generation: Generation,
     },
     Queue(Vec<ImportQueueEntry>),
     ResumeCheckpoint {
