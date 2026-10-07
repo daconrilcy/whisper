@@ -1,0 +1,5 @@
+# Impact courant du pack central — P-WHISPER-24
+
+P24 DRAFT, base canonique P14, parent D19 conservé. Le gel P17 contient 23 snapshots exacts des fichiers centraux installés et un pack-manifest recalculé. Le contrôleur central a été corrigé après P16 : `protect_refs` sélectionne maintenant `code_root` uniquement pour `code_state.current`; `baseline.snapshot` et `ledger.evidence` gardent la racine documentaire. Le test `test_promotion_protects_document_refs_nested_in_code_state` couvre snapshot et evidence sous racines distinctes. SHA contrôleur courant `4d16c0153f020b12028d70a6936e4287554a3b09754d06ce93e2515f85d6be7c`; le SHA P17 `7c674b7b0390b5d54f4ce5759e79336649d76631d1b8599a0f0ab71f8e996673` est historique; les 30 tests `test_predev_control.py` passent.
+
+P16 confirmait 23/23 copies exactes. P24 les régénère depuis les sources installées après le correctif; aucune normalisation CRLF/LF n’est appliquée. Le pack-manifest P24 est distinct et exact. Cette validation porte sur les outils documentaires, pas sur les campagnes produit ni runtime.
