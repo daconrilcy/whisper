@@ -36,6 +36,22 @@ pub enum WorkerCommand {
         model_sha256: [u8; 32],
         config: JobConfig,
     },
+    StartLiveWorker {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        model_path: String,
+        model_sha256: [u8; 32],
+        config: JobConfig,
+    },
+    LiveWindow {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        sequence: u64,
+        range: SourceRange,
+        samples: Vec<i16>,
+    },
     CreateState {
         model_path: String,
         config: JobConfig,
@@ -66,6 +82,13 @@ pub enum WorkerEvent {
         backend: BackendKind,
     },
     Segment(WorkerSegmentDto),
+    LiveMp3Packet {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        sequence: u64,
+        bytes: Vec<u8>,
+    },
     DecodedBlock {
         request_id: u64,
         block: Option<DecodedPcmBlock>,

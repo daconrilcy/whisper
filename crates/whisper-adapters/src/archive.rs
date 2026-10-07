@@ -12,12 +12,13 @@ use symphonia::core::{
 };
 use whisper_core::{
     Generation, JobId, SourceRange,
-    ports::{ImportRequest, WorkerSegment},
+    ports::{ImportRequest, LiveRequest, WorkerSegment},
 };
 
 const APPROVED_MODEL_SIZE: u64 = 1_624_555_275;
 const APPROVED_MODEL_SHA256: &str =
     "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69";
+const PCM_STAGING_HEADER: &[u8] = b"WHISPCM1\0\x80\x3e\0\0\x01\0";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SegmentRecord {
@@ -69,6 +70,340 @@ pub struct ArchiveEntry {
 pub struct ArchiveStore {
     root: PathBuf,
     current: Option<ActiveArchive>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct LiveCompleteRecord {
+    version: u32,
+    job_id: JobId,
+    generation: Generation,
+    audio_samples: u64,
+    group_offset_samples: u64,
+    completed_at_unix_ms: u64,
+    pcm_sha256: String,
+    staging: ArtifactRecord,
+    mp3: ArtifactRecord,
+    text: ArtifactRecord,
+    srt: ArtifactRecord,
+}
+
+/// Passage-oriented durable publisher for live jobs. `CURRENT` is written only after
+/// the MP3, cumulative transcript, subtitle, and manifest have been synced and verified.
+pub struct LiveArchive {
+    directory: PathBuf,
+    request: LiveRequest,
+    pending_path: PathBuf,
+    mp3_pending_path: PathBuf,
+    mp3: Option<File>,
+    expected_sequence: u64,
+    segments: Vec<SegmentRecord>,
+    previous_completed_at_ms: Option<u64>,
+}
+
+impl LiveArchive {
+    pub fn prepare(root: impl AsRef<Path>, mut request: LiveRequest) -> Result<Self, String> {
+        let directory = root
+            .as_ref()
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join("live");
+        fs::create_dir_all(&directory).map_err(|e| format!("StorageUnavailable: {e}"))?;
+        let mut previous_completed_at_ms = None;
+        if request.generation.get() > 1 {
+            let previous =
+                directory.join(format!("manifest-{}.json", request.generation.get() - 1));
+            if previous.is_file() {
+                let record: LiveCompleteRecord =
+                    serde_json::from_slice(&fs::read(previous).map_err(|e| e.to_string())?)
+                        .map_err(|e| {
+                            format!("StorageCorrupt: previous live passage manifest: {e}")
+                        })?;
+                if record.version != 1
+                    || record.job_id != request.job_id
+                    || record.generation.get() + 1 != request.generation.get()
+                    || !is_sha256(&record.pcm_sha256)
+                {
+                    return Err("StorageCorrupt: previous live passage identity mismatch".into());
+                }
+                let current = fs::read_to_string(directory.join("CURRENT")).map_err(|e| {
+                    format!("StorageCorrupt: previous live passage is not committed: {e}")
+                })?;
+                if current != format!("manifest-{}.json\n", request.generation.get() - 1) {
+                    return Err(
+                        "StorageCorrupt: previous live passage is not the committed group tail"
+                            .into(),
+                    );
+                }
+                verify_artifact(&directory, &record.staging)?;
+                verify_pcm_staging(
+                    &directory,
+                    &record.staging,
+                    record.audio_samples,
+                    &record.pcm_sha256,
+                )?;
+                verify_artifact(&directory, &record.mp3)?;
+                verify_artifact(&directory, &record.text)?;
+                verify_artifact(&directory, &record.srt)?;
+                request.group_offset_samples = record
+                    .group_offset_samples
+                    .checked_add(record.audio_samples)
+                    .ok_or_else(|| "StorageCorrupt: live group sample axis overflow".to_owned())?;
+                previous_completed_at_ms = Some(record.completed_at_unix_ms);
+            } else {
+                let pending_path = directory.join(format!(
+                    "passage-{}.pending.json",
+                    request.generation.get() - 1
+                ));
+                if pending_path.is_file() {
+                    let previous_request: LiveRequest = serde_json::from_slice(
+                        &fs::read(&pending_path).map_err(|e| e.to_string())?,
+                    )
+                    .map_err(|e| format!("StorageCorrupt: previous live pending record: {e}"))?;
+                    if previous_request.job_id != request.job_id
+                        || previous_request.generation.get() + 1 != request.generation.get()
+                        || previous_request.destination != request.destination
+                    {
+                        return Err(
+                            "StorageCorrupt: previous recoverable passage identity mismatch".into(),
+                        );
+                    }
+                    let pcm_path =
+                        directory.join(format!("passage-{}.pcm", request.generation.get() - 1));
+                    let checkpoint = crate::staging::PcmStaging::inspect_checkpoint(&pcm_path)?;
+                    let old_segments = read_segments(&directory.join(format!(
+                        "passage-{}.segments.jsonl",
+                        request.generation.get() - 1
+                    )))?;
+                    if old_segments.iter().any(|segment| {
+                        segment.range.sample_rate_hz != 16_000
+                            || segment.range.end_sample <= previous_request.group_offset_samples
+                            || segment.range.end_sample - previous_request.group_offset_samples
+                                > checkpoint.durable_samples
+                    }) {
+                        return Err(
+                            "StorageCorrupt: confirmed text is outside the durable PCM checkpoint"
+                                .into(),
+                        );
+                    }
+                    request.group_offset_samples = previous_request
+                        .group_offset_samples
+                        .checked_add(checkpoint.durable_samples)
+                        .ok_or_else(|| {
+                            "StorageCorrupt: recovered live group offset overflow".to_owned()
+                        })?;
+                    previous_completed_at_ms = Some(checkpoint.synced_at_unix_ms);
+                }
+            }
+        }
+        let pending_path =
+            directory.join(format!("passage-{}.pending.json", request.generation.get()));
+        let mut pending = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&pending_path)
+            .map_err(|e| format!("StorageUnavailable: pending passage: {e}"))?;
+        serde_json::to_writer(&mut pending, &request).map_err(|e| e.to_string())?;
+        pending
+            .sync_all()
+            .map_err(|e| format!("StorageUnavailable: pending sync: {e}"))?;
+        let mp3_pending_path =
+            directory.join(format!("passage-{}.mp3.pending", request.generation.get()));
+        let mp3 = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&mp3_pending_path)
+            .map_err(|e| format!("StorageUnavailable: passage MP3: {e}"))?;
+        Ok(Self {
+            directory,
+            request,
+            pending_path,
+            mp3_pending_path,
+            mp3: Some(mp3),
+            expected_sequence: 1,
+            segments: Vec::new(),
+            previous_completed_at_ms,
+        })
+    }
+
+    /// Finalizes the group's pause offset immediately before opening the live capture path.
+    pub fn capture_started(&mut self) -> Result<(), String> {
+        if let Some(completed_at) = self.previous_completed_at_ms.take() {
+            let pause_samples = unix_time_ms()?
+                .saturating_sub(completed_at)
+                .saturating_mul(16);
+            self.request.group_offset_samples = self
+                .request
+                .group_offset_samples
+                .checked_add(pause_samples)
+                .ok_or_else(|| "StorageCorrupt: live group pause offset overflow".to_owned())?;
+            let bytes = serde_json::to_vec(&self.request).map_err(|e| e.to_string())?;
+            write_replace_synced(&self.pending_path, &bytes)?;
+        }
+        Ok(())
+    }
+
+    pub fn append_mp3_packet(&mut self, packet: &[u8]) -> Result<(), String> {
+        self.mp3
+            .as_mut()
+            .ok_or_else(|| "StorageUnavailable: MP3 passage is already finalized".to_owned())?
+            .write_all(packet)
+            .map_err(|e| format!("StorageUnavailable: MP3 write: {e}"))
+    }
+
+    pub fn persist_segment(
+        &mut self,
+        segment: &WorkerSegment,
+        audio_durable_samples: u64,
+    ) -> Result<u64, String> {
+        if segment.job_id != self.request.job_id
+            || segment.generation != self.request.generation
+            || segment.segment_id.0 != self.expected_sequence
+            || segment.range.sample_rate_hz != 16_000
+            || segment.range.start_sample >= segment.range.end_sample
+            || segment.range.end_sample > audio_durable_samples
+            || segment.text.trim().is_empty()
+        {
+            return Err(
+                "StorageCorrupt: live fragment is not covered by a durable PCM prefix".into(),
+            );
+        }
+        let range = SourceRange::new(
+            self.request
+                .group_offset_samples
+                .saturating_add(segment.range.start_sample),
+            self.request
+                .group_offset_samples
+                .saturating_add(segment.range.end_sample),
+            16_000,
+        )
+        .ok_or_else(|| "StorageCorrupt: live group offset overflow".to_owned())?;
+        let record = SegmentRecord {
+            sequence: segment.segment_id.0,
+            range,
+            text: segment.text.trim().to_owned(),
+        };
+        let path = self.directory.join(format!(
+            "passage-{}.segments.jsonl",
+            self.request.generation.get()
+        ));
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|e| format!("StorageUnavailable: {e}"))?;
+        serde_json::to_writer(&mut file, &record).map_err(|e| e.to_string())?;
+        file.write_all(b"\n").map_err(|e| e.to_string())?;
+        file.sync_all()
+            .map_err(|e| format!("StorageUnavailable: fragment sync: {e}"))?;
+        self.expected_sequence = self
+            .expected_sequence
+            .checked_add(1)
+            .ok_or_else(|| "segment sequence exhausted".to_owned())?;
+        self.segments.push(record);
+        Ok(self.segments.last().map_or(0, |item| item.range.end_sample))
+    }
+
+    pub fn publish(
+        &mut self,
+        audio_durable_samples: u64,
+        confirmed_fragment_end: u64,
+        pcm_sha256: [u8; 32],
+    ) -> Result<(), String> {
+        if audio_durable_samples == 0 {
+            return Err(
+                "Recoverable: no audio samples were durably captured; passage was not published"
+                    .into(),
+            );
+        }
+        if self
+            .segments
+            .iter()
+            .any(|segment| segment.range.end_sample > confirmed_fragment_end)
+        {
+            return Err("StorageCorrupt: fragment confirmation does not cover the journal".into());
+        }
+        self.mp3
+            .as_mut()
+            .ok_or_else(|| "StorageUnavailable: MP3 passage is already finalized".to_owned())?
+            .sync_all()
+            .map_err(|e| format!("StorageUnavailable: MP3 sync: {e}"))?;
+        drop(self.mp3.take());
+        let mp3_path = self
+            .directory
+            .join(format!("passage-{}.mp3", self.request.generation.get()));
+        fs::rename(&self.mp3_pending_path, &mp3_path)
+            .map_err(|e| format!("StorageUnavailable: MP3 publish: {e}"))?;
+        let mut segments = Vec::new();
+        for generation in 1..=self.request.generation.get() {
+            let path = self
+                .directory
+                .join(format!("passage-{generation}.segments.jsonl"));
+            if path.exists() {
+                segments.extend(read_segments(&path)?);
+            }
+        }
+        let text = segments
+            .iter()
+            .map(|segment| segment.text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let srt = segments
+            .iter()
+            .enumerate()
+            .map(|(index, segment)| {
+                format!(
+                    "{}\n{} --> {}\n{}\n",
+                    index + 1,
+                    timestamp(segment.range.start_sample),
+                    timestamp(segment.range.end_sample),
+                    segment.text
+                )
+            })
+            .collect::<String>();
+        let text_path = self.directory.join("transcript.txt");
+        let srt_path = self.directory.join("transcript.srt");
+        write_replace_synced(&text_path, text.as_bytes())?;
+        write_replace_synced(&srt_path, srt.as_bytes())?;
+        let record = LiveCompleteRecord {
+            version: 1,
+            job_id: self.request.job_id,
+            generation: self.request.generation,
+            audio_samples: audio_durable_samples,
+            group_offset_samples: self.request.group_offset_samples,
+            completed_at_unix_ms: unix_time_ms()?,
+            pcm_sha256: hex(&pcm_sha256),
+            staging: verified_artifact(
+                &self.directory,
+                &self
+                    .directory
+                    .join(format!("passage-{}.pcm", self.request.generation.get())),
+            )?,
+            mp3: verified_artifact(&self.directory, &mp3_path)?,
+            text: verified_artifact(&self.directory, &text_path)?,
+            srt: verified_artifact(&self.directory, &srt_path)?,
+        };
+        let manifest_name = format!("manifest-{}.json", self.request.generation.get());
+        let manifest_path = self.directory.join(&manifest_name);
+        write_replace_synced(
+            &manifest_path,
+            &serde_json::to_vec(&record).map_err(|e| e.to_string())?,
+        )?;
+        verify_artifact(&self.directory, &record.mp3)?;
+        verify_pcm_staging(
+            &self.directory,
+            &record.staging,
+            audio_durable_samples,
+            &record.pcm_sha256,
+        )?;
+        verify_artifact(&self.directory, &record.text)?;
+        verify_artifact(&self.directory, &record.srt)?;
+        write_replace_synced(
+            &self.directory.join("CURRENT"),
+            format!("{manifest_name}\n").as_bytes(),
+        )?;
+        let _ = fs::remove_file(&self.pending_path);
+        Ok(())
+    }
 }
 struct ActiveArchive {
     job_id: JobId,
@@ -430,6 +765,13 @@ impl ArchiveStore {
                 };
                 let dir = generation.path();
                 let job_id = parse_job_id(&job.file_name().to_string_lossy()).unwrap_or(JobId(0));
+                if generation.file_name() == "live" {
+                    match scan_live(&dir, job_id) {
+                        Ok(live_entries) => entries.extend(live_entries),
+                        Err(error) => entries.push(corrupt_entry(job_id, "live", error)),
+                    }
+                    continue;
+                }
                 match scan_generation(
                     &dir,
                     &job.file_name().to_string_lossy(),
@@ -448,6 +790,234 @@ impl ArchiveStore {
         entries.sort_by_key(|entry| (entry.job_id.0, entry.generation.get()));
         Ok(entries)
     }
+}
+
+fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, String> {
+    if format!("{:032x}", expected_job.0)
+        != dir
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(|name| name.to_str())
+            .unwrap_or("")
+    {
+        return Err("live job folder is not canonical".into());
+    }
+    let mut entries = Vec::new();
+    let mut verified = std::collections::BTreeSet::new();
+    let current_path = dir.join("CURRENT");
+    let committed_generation = if current_path.exists() {
+        let pointer = fs::read_to_string(&current_path).map_err(|e| e.to_string())?;
+        let target = pointer.strip_suffix('\n').ok_or_else(|| {
+            "StorageCorrupt: live CURRENT pointer is not newline terminated".to_owned()
+        })?;
+        if pointer != format!("{target}\n")
+            || !target.starts_with("manifest-")
+            || !target.ends_with(".json")
+            || !safe_artifact_path(target)
+        {
+            return Err("StorageCorrupt: live CURRENT pointer is invalid".into());
+        }
+        let number = target
+            .strip_prefix("manifest-")
+            .and_then(|s| s.strip_suffix(".json"))
+            .and_then(|s| s.parse::<u64>().ok())
+            .filter(|number| {
+                number.to_string()
+                    == target
+                        .trim_start_matches("manifest-")
+                        .trim_end_matches(".json")
+            })
+            .ok_or_else(|| "StorageCorrupt: live CURRENT target is invalid".to_owned())?;
+        Some(number)
+    } else {
+        None
+    };
+    for item in fs::read_dir(dir).map_err(|error| error.to_string())? {
+        let item = item.map_err(|error| error.to_string())?;
+        let name = item.file_name().to_string_lossy().into_owned();
+        if let Some(number) = name
+            .strip_prefix("manifest-")
+            .and_then(|s| s.strip_suffix(".json"))
+        {
+            let generation_number = number
+                .parse::<u64>()
+                .ok()
+                .filter(|value| value.to_string() == number && *value > 0)
+                .ok_or_else(|| format!("invalid live manifest name: {name}"))?;
+            let generation: Generation =
+                serde_json::from_value(serde_json::Value::from(generation_number))
+                    .map_err(|error| format!("invalid live generation: {error}"))?;
+            let record: LiveCompleteRecord =
+                serde_json::from_slice(&fs::read(item.path()).map_err(|e| e.to_string())?)
+                    .map_err(|error| format!("StorageCorrupt: live manifest: {error}"))?;
+            if record.version != 1
+                || record.job_id != expected_job
+                || record.generation != generation
+                || record.audio_samples == 0
+                || !is_sha256(&record.pcm_sha256)
+                || !safe_artifact_path(&record.staging.path)
+                || !safe_artifact_path(&record.mp3.path)
+                || !safe_artifact_path(&record.text.path)
+                || !safe_artifact_path(&record.srt.path)
+            {
+                return Err(format!(
+                    "StorageCorrupt: live manifest identity or shape mismatch: {name}"
+                ));
+            }
+            verify_artifact(dir, &record.staging)?;
+            verify_pcm_staging(
+                dir,
+                &record.staging,
+                record.audio_samples,
+                &record.pcm_sha256,
+            )?;
+            verify_artifact(dir, &record.mp3)?;
+            verify_artifact(dir, &record.text)?;
+            verify_artifact(dir, &record.srt)?;
+            verified.insert(generation_number);
+            let complete =
+                committed_generation.is_some_and(|committed| generation_number <= committed);
+            entries.push(ArchiveEntry {
+                job_id: expected_job,
+                generation,
+                complete,
+                source_sha256: String::new(),
+                diagnostic: (!complete).then(|| {
+                    "Recoverable: passage manifest exists but CURRENT did not commit it".into()
+                }),
+            });
+        }
+    }
+    if let Some(number) = committed_generation {
+        if !verified.contains(&number) {
+            return Err("StorageCorrupt: live CURRENT target is not a verified passage".into());
+        }
+        if verified.iter().any(|generation| *generation > number) {
+            return Err(
+                "StorageCorrupt: live manifest is newer than the committed group tail".into(),
+            );
+        }
+    }
+    for item in fs::read_dir(dir).map_err(|error| error.to_string())? {
+        let item = item.map_err(|error| error.to_string())?;
+        let name = item.file_name().to_string_lossy().into_owned();
+        if let Some(number) = name
+            .strip_prefix("passage-")
+            .and_then(|s| s.strip_suffix(".pending.json"))
+        {
+            let generation_number = number
+                .parse::<u64>()
+                .ok()
+                .filter(|value| value.to_string() == number && *value > 0)
+                .ok_or_else(|| format!("invalid pending live passage name: {name}"))?;
+            let generation: Generation =
+                serde_json::from_value(serde_json::Value::from(generation_number))
+                    .map_err(|error| format!("invalid pending generation: {error}"))?;
+            let request: LiveRequest =
+                serde_json::from_slice(&fs::read(item.path()).map_err(|e| e.to_string())?)
+                    .map_err(|error| format!("StorageCorrupt: live pending record: {error}"))?;
+            if request.job_id != expected_job || request.generation != generation {
+                return Err(format!(
+                    "StorageCorrupt: live pending identity mismatch: {name}"
+                ));
+            }
+            if !entries.iter().any(|entry| entry.generation == generation) {
+                entries.push(ArchiveEntry { job_id: expected_job, generation, complete: false,
+                    source_sha256: String::new(), diagnostic: Some("Recoverable: live passage was not atomically published; explicit resume or discard required".into()) });
+            }
+        }
+    }
+    entries.sort_by_key(|entry| entry.generation.get());
+    Ok(entries)
+}
+
+pub fn scan_live_recoveries(
+    root: &Path,
+) -> Result<Vec<whisper_core::ports::LiveRecoveryInfo>, String> {
+    let base = root.join("transcriptions");
+    if !base.exists() {
+        return Ok(Vec::new());
+    }
+    let mut recoveries = Vec::new();
+    for job_entry in fs::read_dir(base).map_err(|e| e.to_string())? {
+        let job_entry = job_entry.map_err(|e| e.to_string())?;
+        let job_name = job_entry.file_name().to_string_lossy().into_owned();
+        let Some(job_id) =
+            parse_job_id(&job_name).filter(|id| format!("{:032x}", id.0) == job_name)
+        else {
+            continue;
+        };
+        let dir = job_entry.path().join("live");
+        if !dir.is_dir() {
+            continue;
+        }
+        let mut latest_generation = 0u64;
+        let mut latest_pending: Option<(u64, PathBuf)> = None;
+        let mut manifest_generations = std::collections::BTreeSet::new();
+        for item in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+            let item = item.map_err(|e| e.to_string())?;
+            let name = item.file_name().to_string_lossy().into_owned();
+            if let Some(number) = name
+                .strip_prefix("manifest-")
+                .and_then(|s| s.strip_suffix(".json"))
+            {
+                if let Ok(generation) = number.parse::<u64>() {
+                    if generation > 0 && generation.to_string() == number {
+                        latest_generation = latest_generation.max(generation);
+                        manifest_generations.insert(generation);
+                    }
+                }
+            }
+            if let Some(number) = name
+                .strip_prefix("passage-")
+                .and_then(|s| s.strip_suffix(".pending.json"))
+            {
+                if let Ok(generation) = number.parse::<u64>() {
+                    if generation > 0 && generation.to_string() == number {
+                        if generation >= latest_pending.as_ref().map_or(0, |(latest, _)| *latest) {
+                            latest_pending = Some((generation, item.path()));
+                        }
+                        latest_generation = latest_generation.max(generation);
+                    }
+                }
+            }
+        }
+        let Some((generation, pending_path)) = latest_pending else {
+            continue;
+        };
+        if generation != latest_generation || manifest_generations.contains(&generation) {
+            continue;
+        }
+        let request: LiveRequest =
+            serde_json::from_slice(&fs::read(pending_path).map_err(|e| e.to_string())?)
+                .map_err(|e| format!("StorageCorrupt: live recovery request: {e}"))?;
+        if request.job_id != job_id || request.generation.get() != generation {
+            continue;
+        }
+        let pcm_path = dir.join(format!("passage-{generation}.pcm"));
+        let Ok(checkpoint) = crate::staging::PcmStaging::inspect_checkpoint(&pcm_path) else {
+            continue;
+        };
+        recoveries.push(whisper_core::ports::LiveRecoveryInfo {
+            request,
+            durable_samples: checkpoint.durable_samples,
+        });
+    }
+    Ok(recoveries)
+}
+
+fn safe_artifact_path(path: &str) -> bool {
+    !path.is_empty()
+        && Path::new(path)
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+}
+
+fn unix_time_ms() -> Result<u64, String> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
+        .map_err(|error| format!("ClockUnavailable: system clock precedes Unix epoch: {error}"))
 }
 
 fn scan_generation(
@@ -704,6 +1274,46 @@ fn verify_artifact(directory: &Path, artifact: &ArtifactRecord) -> Result<(), St
             "StorageCorrupt: artifact verification failed: {}",
             artifact.path
         ));
+    }
+    Ok(())
+}
+fn verify_pcm_staging(
+    directory: &Path,
+    artifact: &ArtifactRecord,
+    samples: u64,
+    expected_pcm_sha256: &str,
+) -> Result<(), String> {
+    let expected_bytes = (PCM_STAGING_HEADER.len() as u64)
+        .checked_add(
+            samples
+                .checked_mul(2)
+                .ok_or_else(|| "StorageCorrupt: PCM sample byte count overflow".to_owned())?,
+        )
+        .ok_or_else(|| "StorageCorrupt: PCM staging byte count overflow".to_owned())?;
+    if artifact.bytes != expected_bytes {
+        return Err(
+            "StorageCorrupt: PCM staging byte count does not match its sample range".into(),
+        );
+    }
+    let path = directory.join(&artifact.path);
+    let mut file = File::open(path).map_err(|e| e.to_string())?;
+    let mut header = vec![0; PCM_STAGING_HEADER.len()];
+    file.read_exact(&mut header)
+        .map_err(|e| format!("StorageCorrupt: PCM staging header: {e}"))?;
+    if header != PCM_STAGING_HEADER {
+        return Err("StorageCorrupt: PCM staging version/header mismatch".into());
+    }
+    let mut hash = Sha256::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let count = file.read(&mut buffer).map_err(|e| e.to_string())?;
+        if count == 0 {
+            break;
+        }
+        hash.update(&buffer[..count]);
+    }
+    if hex(&hash.finalize()) != expected_pcm_sha256 {
+        return Err("StorageCorrupt: PCM payload SHA-256 mismatch".into());
     }
     Ok(())
 }

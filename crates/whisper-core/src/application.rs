@@ -1,7 +1,7 @@
 use crate::domain::{Generation, JobConfig, JobId, JobState};
 use crate::ports::{
     ArchiveHistoryItem, ImportEffect, ImportEvent, ImportIoPort, ImportQueueEntry, ImportRequest,
-    PortError,
+    LiveRequest, PortError,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -33,6 +33,9 @@ pub enum AppCommand {
         job_id: JobId,
         generation: Generation,
         config: JobConfig,
+    },
+    StartLiveConfigured {
+        request: LiveRequest,
     },
     Stop {
         job_id: JobId,
@@ -75,6 +78,10 @@ impl AppCommand {
                 job_id: *job_id,
                 generation: *generation,
             }),
+            Self::StartLiveConfigured { request } => Some(CommandIdentity {
+                job_id: request.job_id,
+                generation: request.generation,
+            }),
             Self::ScanHistory { .. } => None,
         }
     }
@@ -95,6 +102,11 @@ pub struct AppView {
     pub queue: Vec<ImportQueueEntry>,
     pub history_scan_pending: bool,
     pub queue_scan_pending: bool,
+    pub captured_samples: u64,
+    pub admitted_samples: u64,
+    pub audio_durable_samples: u64,
+    pub confirmed_fragment_samples: u64,
+    pub speech_samples: u64,
 }
 
 /// Owns queue admission and import lifecycle. Adapters only execute effects.
@@ -196,6 +208,24 @@ impl<P: ImportIoPort> ImportApplication<P> {
             return Ok(());
         }
         match event {
+            ImportEvent::LiveCounters {
+                captured_samples,
+                admitted_samples,
+                audio_durable_samples,
+                confirmed_fragment_samples,
+                speech_samples,
+                diagnostic,
+                ..
+            } => {
+                self.view.captured_samples = captured_samples;
+                self.view.admitted_samples = admitted_samples;
+                self.view.audio_durable_samples = audio_durable_samples;
+                self.view.confirmed_fragment_samples = confirmed_fragment_samples;
+                self.view.speech_samples = speech_samples;
+                if let Some(message) = diagnostic {
+                    self.view.message = Some(message);
+                }
+            }
             ImportEvent::History(_) => {
                 unreachable!("non-lifecycle events are handled before job admission")
             }
@@ -265,7 +295,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
                         .request
                         .as_ref()
                         .and_then(|request| request.source_samples)
-                        .is_none_or(|limit| segment.range.end_sample > limit)
+                        .is_some_and(|limit| segment.range.end_sample > limit)
                 {
                     return Err(ApplicationError::InvalidCommand);
                 }
@@ -283,6 +313,12 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 self.pending_persistence = self.pending_persistence.saturating_sub(1);
                 if sequence >= self.next_sequence {
                     return Err(ApplicationError::InvalidCommand);
+                }
+                if self.request.is_none() {
+                    self.view.confirmed_fragment_samples = self
+                        .view
+                        .confirmed_fragment_samples
+                        .max(self.max_segment_offset);
                 }
                 self.maybe_publish(job_id, generation)?;
             }
@@ -396,6 +432,34 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                             .ok_or(ApplicationError::InvalidCommand)?,
                     })
                     .map_err(|e| self.fail(e))?;
+            }
+            AppCommand::StartLiveConfigured { request } => {
+                if self.active.is_some() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let identity = CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                };
+                self.io
+                    .submit(ImportEffect::StartLive(request))
+                    .map_err(|e| self.fail(e))?;
+                self.request = None;
+                self.active = Some(identity);
+                self.stopping = None;
+                self.next_sequence = 1;
+                self.pending_persistence = 0;
+                self.max_segment_offset = 0;
+                self.ended_at = None;
+                self.final_source_samples = None;
+                self.view.progress = None;
+                self.view.active_job = Some((identity.job_id, JobState::Preparing));
+                self.view.captured_samples = 0;
+                self.view.admitted_samples = 0;
+                self.view.audio_durable_samples = 0;
+                self.view.confirmed_fragment_samples = 0;
+                self.view.speech_samples = 0;
+                self.view.message = Some("Préparation du staging durable et du worker CPU…".into());
             }
             AppCommand::StartImport { request } => {
                 if self.active.is_some() {
@@ -527,6 +591,9 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
 impl ImportEvent {
     fn identity(&self) -> (JobId, Generation) {
         match self {
+            Self::LiveCounters {
+                job_id, generation, ..
+            } => (*job_id, *generation),
             Self::Ready {
                 job_id, generation, ..
             }

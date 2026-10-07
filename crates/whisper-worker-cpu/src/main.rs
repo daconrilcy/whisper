@@ -1,4 +1,5 @@
 mod decoder;
+mod encoder;
 mod ipc;
 mod native_engine;
 
@@ -228,6 +229,51 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
         } => {
             return run_decode_service(rx, output, request_id, request);
         }
+        WorkerCommand::StartLiveWorker {
+            job_id,
+            generation,
+            instance_id,
+            model_path,
+            model_sha256,
+            config,
+        } => {
+            if config.compute != ComputeChoice::Cpu
+                || verify_sha256(Path::new(&model_path), &model_sha256).is_err()
+            {
+                return emit_failure(
+                    output,
+                    job_id,
+                    generation,
+                    instance_id,
+                    WorkerErrorCode::ModelHashMismatch,
+                    "ModelHashMismatch: live model identity could not be verified",
+                );
+            }
+            let engine = match CpuEngine::load(&model_path) {
+                Ok(engine) => engine,
+                Err(error) => {
+                    return emit_failure(
+                        output,
+                        job_id,
+                        generation,
+                        instance_id,
+                        WorkerErrorCode::ModelUnavailable,
+                        &error,
+                    );
+                }
+            };
+            write_frame(
+                output,
+                &IpcEnvelope::new(WorkerEvent::Ready {
+                    job_id,
+                    generation,
+                    instance_id,
+                    backend: BackendKind::Cpu,
+                }),
+            )
+            .map_err(|e| e.to_string())?;
+            return run_live_service(rx, output, engine, job_id, generation, instance_id, config);
+        }
         WorkerCommand::StartImport {
             job_id,
             generation,
@@ -250,7 +296,9 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
             config,
         ),
         _ => {
-            return Err("first IPC command must be StartImport or DecodeBlock".into());
+            return Err(
+                "first IPC command must be StartImport, StartLiveWorker or DecodeBlock".into(),
+            );
         }
     };
     if config.compute != ComputeChoice::Cpu {
@@ -525,6 +573,175 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+fn run_live_service(
+    rx: Receiver<Incoming>,
+    output: &mut impl io::Write,
+    engine: CpuEngine,
+    job_id: whisper_core::JobId,
+    generation: whisper_core::Generation,
+    instance_id: u64,
+    config: whisper_core::JobConfig,
+) -> Result<(), String> {
+    let mut expected_sequence = 1_u64;
+    let mut next_segment_id = 1_u64;
+    let mut next_packet_id = 1_u64;
+    let mut mp3 = encoder::LiveMp3Encoder::new();
+    loop {
+        let envelope = rx
+            .recv()
+            .map_err(|_| "live IPC closed before Stop".to_owned())??;
+        if envelope.version != IPC_PROTOCOL_VERSION {
+            return Err("ProtocolMismatch: live command version changed".into());
+        }
+        match envelope.message {
+            WorkerCommand::LiveWindow {
+                job_id: target,
+                generation: target_generation,
+                instance_id: target_instance,
+                sequence,
+                range,
+                samples,
+            } => {
+                if target != job_id
+                    || target_generation != generation
+                    || target_instance != instance_id
+                    || sequence != expected_sequence
+                    || range.sample_rate_hz != 16_000
+                    || range.start_sample >= range.end_sample
+                    || range.end_sample - range.start_sample != samples.len() as u64
+                    || samples.is_empty()
+                    || samples.len() > 80_000
+                {
+                    return emit_failure(
+                        output,
+                        job_id,
+                        generation,
+                        instance_id,
+                        WorkerErrorCode::InvalidRequest,
+                        "InvalidRequest: live PCM identity or window bounds are invalid",
+                    );
+                }
+                for chunk in samples.chunks(16_000) {
+                    for bytes in mp3.push_pcm(chunk)? {
+                        let sequence = next_packet_id;
+                        next_packet_id = next_packet_id
+                            .checked_add(1)
+                            .ok_or_else(|| "live MP3 packet sequence exhausted".to_owned())?;
+                        write_frame(
+                            output,
+                            &IpcEnvelope::new(WorkerEvent::LiveMp3Packet {
+                                job_id,
+                                generation,
+                                instance_id,
+                                sequence,
+                                bytes,
+                            }),
+                        )
+                        .map_err(|e| e.to_string())?;
+                    }
+                }
+                expected_sequence = expected_sequence
+                    .checked_add(1)
+                    .ok_or_else(|| "live window sequence exhausted".to_owned())?;
+                let pcm: Vec<f32> = samples
+                    .iter()
+                    .map(|sample| *sample as f32 / 32768.0)
+                    .collect();
+                let language = match &config.language {
+                    whisper_core::LanguageChoice::Automatic => None,
+                    whisper_core::LanguageChoice::Manual(code) => Some(code.as_str()),
+                };
+                let segments = match engine.transcribe(&pcm, language) {
+                    Ok(segments) => segments,
+                    Err(error) => {
+                        return emit_failure(
+                            output,
+                            job_id,
+                            generation,
+                            instance_id,
+                            WorkerErrorCode::InferenceFailed,
+                            &error,
+                        );
+                    }
+                };
+                for segment in segments {
+                    let start = range
+                        .start_sample
+                        .saturating_add(
+                            (segment.start_centiseconds.max(0) as u64).saturating_mul(160),
+                        )
+                        .min(range.end_sample);
+                    let end = range
+                        .start_sample
+                        .saturating_add(
+                            (segment.end_centiseconds.max(0) as u64).saturating_mul(160),
+                        )
+                        .min(range.end_sample);
+                    if end <= start || segment.text.trim().is_empty() {
+                        continue;
+                    }
+                    let segment_id = next_segment_id;
+                    next_segment_id = next_segment_id
+                        .checked_add(1)
+                        .ok_or_else(|| "live segment id exhausted".to_owned())?;
+                    let message = WorkerEvent::Segment(WorkerSegmentDto {
+                        job_id,
+                        generation,
+                        instance_id,
+                        segment_id: SegmentId(segment_id),
+                        range: SourceRange::new(start, end, 16_000)
+                            .ok_or_else(|| "live segment range is invalid".to_owned())?,
+                        text: segment.text.trim().to_owned(),
+                    });
+                    write_frame(output, &IpcEnvelope::new(message)).map_err(|e| e.to_string())?;
+                }
+            }
+            WorkerCommand::Stop {
+                job_id: target,
+                generation: target_generation,
+            } if target == job_id && target_generation == generation => {
+                for bytes in mp3.finish()? {
+                    let sequence = next_packet_id;
+                    next_packet_id = next_packet_id
+                        .checked_add(1)
+                        .ok_or_else(|| "live MP3 packet sequence exhausted".to_owned())?;
+                    write_frame(
+                        output,
+                        &IpcEnvelope::new(WorkerEvent::LiveMp3Packet {
+                            job_id,
+                            generation,
+                            instance_id,
+                            sequence,
+                            bytes,
+                        }),
+                    )
+                    .map_err(|e| e.to_string())?;
+                }
+                return write_frame(
+                    output,
+                    &IpcEnvelope::new(WorkerEvent::Stopped {
+                        job_id,
+                        generation,
+                        instance_id,
+                    }),
+                )
+                .map_err(|e| e.to_string());
+            }
+            WorkerCommand::Shutdown => return Ok(()),
+            _ => {
+                return emit_failure(
+                    output,
+                    job_id,
+                    generation,
+                    instance_id,
+                    WorkerErrorCode::InvalidRequest,
+                    "InvalidRequest: unexpected command in live worker",
+                );
+            }
+        }
+    }
 }
 
 fn take_stop(

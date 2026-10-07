@@ -15,5 +15,6 @@ pub use domain::{
 };
 pub use ports::{
     ArchiveHistoryItem, Clock, DecodeRequest, DecodedPcmBlock, DecoderPort, ImportEffect,
-    ImportEvent, ImportIoPort, ImportRequest, JobRepository, SourceIdentity, WorkerPort,
+    ImportEvent, ImportIoPort, ImportRequest, JobRepository, LiveRecoveryInfo, LiveRequest,
+    SourceIdentity, WorkerPort,
 };

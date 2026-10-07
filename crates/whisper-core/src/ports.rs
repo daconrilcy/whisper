@@ -89,6 +89,19 @@ pub struct ImportRequest {
     pub model_path: String,
     pub model_sha256: [u8; 32],
     pub destination: String,
+    pub group_offset_samples: u64,
+    pub config: JobConfig,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LiveRequest {
+    pub job_id: JobId,
+    pub generation: Generation,
+    pub model_path: String,
+    pub model_sha256: [u8; 32],
+    pub destination: String,
+    /// Absolute start sample of this passage on the transcription group's clock.
+    pub group_offset_samples: u64,
     pub config: JobConfig,
 }
 
@@ -109,6 +122,7 @@ pub struct ImportQueueEntry {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEffect {
+    StartLive(LiveRequest),
     Enqueue(ImportRequest),
     RemoveQueued {
         job_id: JobId,
@@ -142,6 +156,16 @@ pub enum ImportEffect {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEvent {
+    LiveCounters {
+        job_id: JobId,
+        generation: Generation,
+        captured_samples: u64,
+        admitted_samples: u64,
+        audio_durable_samples: u64,
+        confirmed_fragment_samples: u64,
+        speech_samples: u64,
+        diagnostic: Option<String>,
+    },
     Queue(Vec<ImportQueueEntry>),
     ResumeCheckpoint {
         job_id: JobId,
@@ -196,6 +220,13 @@ pub struct ArchiveHistoryItem {
     pub complete: bool,
     pub source_sha256: String,
     pub diagnostic: Option<String>,
+    pub live_recovery: Option<LiveRecoveryInfo>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LiveRecoveryInfo {
+    pub request: LiveRequest,
+    pub durable_samples: u64,
 }
 
 pub trait ImportIoPort {

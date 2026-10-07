@@ -1,7 +1,14 @@
-use crate::{WorkerTransport, archive::ArchiveStore};
+use crate::{
+    WorkerTransport,
+    archive::{ArchiveStore, LiveArchive},
+    capture::{CaptureStream, Pcm16Converter},
+    staging::PcmStaging,
+    vad::VoiceActivity,
+};
 use serde::{Serialize, de::DeserializeOwned};
 use std::{
     collections::VecDeque,
+    fs,
     io::{self, BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
@@ -22,7 +29,7 @@ use std::{
 use whisper_core::{
     ArchiveHistoryItem, Generation, ImportEffect, ImportEvent, ImportIoPort, JobId,
     ipc::{BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerEvent},
-    ports::{ImportRequest, PortError, WorkerSegment},
+    ports::{ImportRequest, LiveRequest, PortError, WorkerSegment},
 };
 
 const MAX_FRAME_BYTES: usize = 1_048_576;
@@ -309,6 +316,25 @@ struct ImportRuntime {
     transport: Option<ChildWorkerTransport>,
     publication_gate: Arc<PublicationGate>,
     resume_prefix: VecDeque<crate::journal::SegmentRecord>,
+    live: Option<LiveCaptureState>,
+    live_archive: Option<LiveArchive>,
+}
+struct LiveCaptureState {
+    request: LiveRequest,
+    capture: CaptureStream,
+    converter: Pcm16Converter,
+    vad: VoiceActivity,
+    staging: PcmStaging,
+    inference: Vec<i16>,
+    frame_pending: Vec<i16>,
+    inference_start: u64,
+    inference_sequence: u64,
+    captured: u64,
+    admitted: u64,
+    speech: u64,
+    confirmed_fragment_end: u64,
+    last_reported_durable: u64,
+    failure: Option<String>,
 }
 struct ImportRequestState {
     job_id: JobId,
@@ -325,10 +351,13 @@ impl ImportRuntime {
             transport: None,
             publication_gate,
             resume_prefix: VecDeque::new(),
+            live: None,
+            live_archive: None,
         }
     }
     fn effect(&mut self, effect: ImportEffect, events: &mut VecDeque<ImportEvent>) {
         let result = match effect {
+            ImportEffect::StartLive(request) => self.start_live(request),
             ImportEffect::Enqueue(mut request) => {
                 let id = (request.job_id, request.generation);
                 let result = crate::archive::ArchiveStore::identify_source(&mut request)
@@ -477,6 +506,21 @@ impl ImportRuntime {
                 let root = PathBuf::from(destination);
                 match ArchiveStore::scan(&root) {
                     Ok(entries) => {
+                        let recoveries = crate::archive::scan_live_recoveries(&root);
+                        let recoveries = match recoveries {
+                            Ok(recoveries) => recoveries,
+                            Err(error) => {
+                                events.push_back(ImportEvent::History(vec![ArchiveHistoryItem {
+                                    job_id: JobId(0),
+                                    generation: Generation::first(),
+                                    complete: false,
+                                    source_sha256: String::new(),
+                                    diagnostic: Some(error),
+                                    live_recovery: None,
+                                }]));
+                                return;
+                            }
+                        };
                         events.push_back(ImportEvent::History(
                             entries
                                 .into_iter()
@@ -486,6 +530,13 @@ impl ImportRuntime {
                                     complete: item.complete,
                                     source_sha256: item.source_sha256,
                                     diagnostic: item.diagnostic,
+                                    live_recovery: recoveries
+                                        .iter()
+                                        .find(|recovery| {
+                                            recovery.request.job_id == item.job_id
+                                                && recovery.request.generation == item.generation
+                                        })
+                                        .cloned(),
                                 })
                                 .collect(),
                         ));
@@ -498,6 +549,7 @@ impl ImportRuntime {
                             complete: false,
                             source_sha256: String::new(),
                             diagnostic: Some(format!("StorageCorrupt: {message}")),
+                            live_recovery: None,
                         }]));
                         Ok(())
                     }
@@ -512,12 +564,111 @@ impl ImportRuntime {
             ImportEffect::Stop { job_id, generation } => self.stop(job_id, generation, events),
         };
         if let Err((job, generation, message)) = result {
-            events.push_back(ImportEvent::Failed {
-                job_id: job,
-                generation,
-                message,
-            });
+            let mut deferred_live_failure = false;
+            if let Some(live) = self.live.as_mut()
+                && (live.request.job_id, live.request.generation) == (job, generation)
+            {
+                deferred_live_failure = true;
+                live.capture.stop();
+                let _ = live.staging.drain();
+                live.failure = Some(message.clone());
+                if let Some(transport) = self.transport.as_mut() {
+                    let _ = transport.request(WorkerCommand::Stop {
+                        job_id: job,
+                        generation,
+                    });
+                }
+            }
+            if !deferred_live_failure {
+                events.push_back(ImportEvent::Failed {
+                    job_id: job,
+                    generation,
+                    message,
+                });
+            }
         }
+    }
+    fn start_live(&mut self, request: LiveRequest) -> Result<(), (JobId, Generation, String)> {
+        let id = (request.job_id, request.generation);
+        if self.active.is_some() || self.live.is_some() {
+            return Err((
+                id.0,
+                id.1,
+                "Busy: another live/import session is active".into(),
+            ));
+        }
+        if request.config.compute != whisper_core::ComputeChoice::Cpu {
+            return Err((
+                id.0,
+                id.1,
+                "BackendUnavailable: L03 live worker is CPU-only".into(),
+            ));
+        }
+        let directory = PathBuf::from(&request.destination)
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join("live");
+        fs::create_dir_all(&directory)
+            .map_err(|e| (id.0, id.1, format!("StorageUnavailable: {e}")))?;
+        let mut live_archive = LiveArchive::prepare(&request.destination, request.clone())
+            .map_err(|e| (id.0, id.1, e))?;
+        let staging =
+            PcmStaging::create(directory.join(format!("passage-{}.pcm", request.generation.get())))
+                .map_err(|e| (id.0, id.1, format!("StorageUnavailable: PCM staging: {e}")))?;
+        let mut capture = crate::capture::start_default().map_err(|e| (id.0, id.1, e))?;
+        if let Err(error) = live_archive.capture_started() {
+            capture.stop();
+            return Err((id.0, id.1, error));
+        }
+        let rate = capture.sample_rate_hz();
+        let channels = capture.channels();
+        let converter = Pcm16Converter::new(rate, channels).map_err(|e| (id.0, id.1, e))?;
+        let instance_id = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
+        if instance_id == 0 {
+            capture.stop();
+            return Err((
+                id.0,
+                id.1,
+                "WorkerExited: instance identity exhausted".into(),
+            ));
+        }
+        let mut transport = ChildWorkerTransport::spawn(&self.worker_path)
+            .map_err(|e| (id.0, id.1, format!("WorkerExited: {e:?}")))?;
+        transport
+            .request(WorkerCommand::StartLiveWorker {
+                job_id: id.0,
+                generation: id.1,
+                instance_id,
+                model_path: request.model_path.clone(),
+                model_sha256: request.model_sha256,
+                config: request.config.clone(),
+            })
+            .map_err(|e| (id.0, id.1, format!("ProtocolMismatch: {e:?}")))?;
+        self.active = Some(ImportRequestState {
+            job_id: id.0,
+            generation: id.1,
+            instance_id,
+        });
+        self.transport = Some(transport);
+        self.live = Some(LiveCaptureState {
+            request,
+            capture,
+            converter,
+            vad: VoiceActivity::new(),
+            staging,
+            inference: Vec::with_capacity(80_000),
+            frame_pending: Vec::with_capacity(320),
+            inference_start: 0,
+            inference_sequence: 1,
+            captured: 0,
+            admitted: 0,
+            speech: 0,
+            confirmed_fragment_end: 0,
+            last_reported_durable: 0,
+            failure: None,
+        });
+        self.live_archive = Some(live_archive);
+        Ok(())
     }
     fn prepare(
         &mut self,
@@ -602,6 +753,31 @@ impl ImportRuntime {
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (segment.job_id, segment.generation);
+        if self.live.is_some() {
+            let durable = self
+                .live
+                .as_ref()
+                .map_or(0, |live| live.staging.durable_samples());
+            let confirmed = self
+                .live_archive
+                .as_mut()
+                .ok_or((
+                    id.0,
+                    id.1,
+                    "StorageUnavailable: live archive is missing".into(),
+                ))?
+                .persist_segment(&segment, durable)
+                .map_err(|e| (id.0, id.1, e))?;
+            if let Some(live) = self.live.as_mut() {
+                live.confirmed_fragment_end = confirmed;
+            }
+            events.push_back(ImportEvent::Persisted {
+                job_id: id.0,
+                generation: id.1,
+                sequence: segment.segment_id.0,
+            });
+            return Ok(());
+        }
         let sequence = self
             .archive
             .persist_segment(&segment)
@@ -660,6 +836,150 @@ impl ImportRuntime {
         generation: Generation,
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
+        let mut final_windows = Vec::new();
+        if let Some(live) = self.live.as_mut() {
+            if (live.request.job_id, live.request.generation) != (job, generation) {
+                return Err((
+                    job,
+                    generation,
+                    "StaleResponse: live Stop targets another passage".into(),
+                ));
+            }
+            live.capture.stop();
+            while let Some(block) = live.capture.try_next_block() {
+                let samples = live
+                    .converter
+                    .push(&block)
+                    .map_err(|e| (job, generation, e))?;
+                live.capture
+                    .recycle_block(block)
+                    .map_err(|e| (job, generation, e))?;
+                live.frame_pending.extend(samples);
+                while live.frame_pending.len() >= 320 {
+                    let frame: Vec<i16> = live.frame_pending.drain(..320).collect();
+                    live.staging
+                        .append_frame(&frame)
+                        .map_err(|e| (job, generation, format!("StorageUnavailable: {e}")))?;
+                    live.captured += 320;
+                    live.admitted += 320;
+                    if live
+                        .vad
+                        .is_speech(&frame)
+                        .map_err(|e| (job, generation, e))?
+                    {
+                        live.speech += 320;
+                    }
+                    live.inference.extend_from_slice(&frame);
+                    if live.inference.len() == 80_000 {
+                        let samples =
+                            std::mem::replace(&mut live.inference, Vec::with_capacity(80_000));
+                        let start = live.inference_start;
+                        let end = start.checked_add(samples.len() as u64).ok_or((
+                            job,
+                            generation,
+                            "live offset exhausted".into(),
+                        ))?;
+                        final_windows.push((live.inference_sequence, start, end, samples));
+                        live.inference_sequence = live.inference_sequence.saturating_add(1);
+                        live.inference_start = end;
+                    }
+                }
+            }
+            let tail = live.converter.finish().map_err(|e| (job, generation, e))?;
+            live.frame_pending.extend(tail);
+            while live.frame_pending.len() >= 320 {
+                let frame: Vec<i16> = live.frame_pending.drain(..320).collect();
+                live.staging
+                    .append_frame(&frame)
+                    .map_err(|e| (job, generation, format!("StorageUnavailable: {e}")))?;
+                live.captured += 320;
+                live.admitted += 320;
+                if live
+                    .vad
+                    .is_speech(&frame)
+                    .map_err(|e| (job, generation, e))?
+                {
+                    live.speech += 320;
+                }
+                live.inference.extend_from_slice(&frame);
+                if live.inference.len() == 80_000 {
+                    let samples =
+                        std::mem::replace(&mut live.inference, Vec::with_capacity(80_000));
+                    let start = live.inference_start;
+                    let end = start.checked_add(samples.len() as u64).ok_or((
+                        job,
+                        generation,
+                        "live offset exhausted".into(),
+                    ))?;
+                    final_windows.push((live.inference_sequence, start, end, samples));
+                    live.inference_sequence = live.inference_sequence.saturating_add(1);
+                    live.inference_start = end;
+                }
+            }
+            if !live.frame_pending.is_empty() {
+                let valid = std::mem::take(&mut live.frame_pending);
+                live.staging.append_tail(&valid).map_err(|e| {
+                    (
+                        job,
+                        generation,
+                        format!("StorageUnavailable: final PCM tail: {e}"),
+                    )
+                })?;
+                let valid_len = valid.len();
+                let mut vad_frame = [0i16; 320];
+                vad_frame[..valid_len].copy_from_slice(&valid);
+                if live
+                    .vad
+                    .is_speech(&vad_frame)
+                    .map_err(|e| (job, generation, e))?
+                {
+                    live.speech += valid_len as u64;
+                }
+                live.captured += valid_len as u64;
+                live.admitted += valid_len as u64;
+                live.inference.extend_from_slice(&valid);
+            }
+            if !live.inference.is_empty() {
+                let samples = std::mem::take(&mut live.inference);
+                let start = live.inference_start;
+                let end = start.checked_add(samples.len() as u64).ok_or((
+                    job,
+                    generation,
+                    "live offset exhausted".into(),
+                ))?;
+                final_windows.push((live.inference_sequence, start, end, samples));
+            }
+            live.staging.drain().map_err(|e| {
+                (
+                    job,
+                    generation,
+                    format!("StorageUnavailable: drain failed: {e}"),
+                )
+            })?;
+        }
+        let instance_id = self.active.as_ref().map_or(0, |active| active.instance_id);
+        for (sequence, start, end, samples) in final_windows {
+            self.transport
+                .as_mut()
+                .ok_or((
+                    job,
+                    generation,
+                    "WorkerExited: live worker unavailable".into(),
+                ))?
+                .request(WorkerCommand::LiveWindow {
+                    job_id: job,
+                    generation,
+                    instance_id,
+                    sequence,
+                    range: whisper_core::SourceRange::new(start, end, 16_000).ok_or((
+                        job,
+                        generation,
+                        "live final window is empty".into(),
+                    ))?,
+                    samples,
+                })
+                .map_err(|e| (job, generation, format!("WorkerExited: {e:?}")))?;
+        }
         if !self.publication_gate.is_cancelled() {
             events.push_back(ImportEvent::Stopped {
                 job_id: job,
@@ -695,7 +1015,158 @@ impl ImportRuntime {
             })
             .map_err(|e| (job, generation, format!("WorkerExited: {e:?}")))
     }
+    fn poll_live_capture(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+        let live = self.live.as_mut()?;
+        if live.capture.is_saturated() || live.capture.failure() {
+            let (job_id, generation) = (live.request.job_id, live.request.generation);
+            let reason = if live.capture.is_saturated() {
+                "CaptureSaturated: bounded callback slots are full"
+            } else {
+                "CaptureInterrupted: WASAPI stream failed"
+            };
+            live.capture.stop();
+            let _ = live.staging.drain();
+            live.failure = Some(reason.into());
+            if let Some(transport) = self.transport.as_mut() {
+                let _ = transport.request(WorkerCommand::Stop { job_id, generation });
+            }
+            return None;
+        }
+        let block = live.capture.try_next_block()?;
+        let converted = match live.converter.push(&block) {
+            Ok(samples) => samples,
+            Err(error) => {
+                live.capture.stop();
+                let _ = live.staging.drain();
+                live.failure = Some(error.clone());
+                if let Some(transport) = self.transport.as_mut() {
+                    let _ = transport.request(WorkerCommand::Stop {
+                        job_id: live.request.job_id,
+                        generation: live.request.generation,
+                    });
+                }
+                return None;
+            }
+        };
+        if let Err(error) = live.capture.recycle_block(block) {
+            live.capture.stop();
+            let _ = live.staging.drain();
+            live.failure = Some(error.clone());
+            if let Some(transport) = self.transport.as_mut() {
+                let _ = transport.request(WorkerCommand::Stop {
+                    job_id: live.request.job_id,
+                    generation: live.request.generation,
+                });
+            }
+            return None;
+        }
+        live.frame_pending.extend(converted);
+        let mut window = None;
+        while live.frame_pending.len() >= 320 {
+            let frame: Vec<i16> = live.frame_pending.drain(..320).collect();
+            if let Err(error) = live.staging.append_frame(&frame) {
+                live.capture.stop();
+                let reason = format!("StorageUnavailable: {error}");
+                let _ = live.staging.drain();
+                live.failure = Some(reason.clone());
+                if let Some(transport) = self.transport.as_mut() {
+                    let _ = transport.request(WorkerCommand::Stop {
+                        job_id: live.request.job_id,
+                        generation: live.request.generation,
+                    });
+                }
+                return None;
+            }
+            live.captured = live.captured.saturating_add(320);
+            live.admitted = live.admitted.saturating_add(320);
+            match live.vad.is_speech(&frame) {
+                Ok(true) => live.speech = live.speech.saturating_add(320),
+                Ok(false) => {}
+                Err(error) => {
+                    live.capture.stop();
+                    let _ = live.staging.drain();
+                    live.failure = Some(error.clone());
+                    if let Some(transport) = self.transport.as_mut() {
+                        let _ = transport.request(WorkerCommand::Stop {
+                            job_id: live.request.job_id,
+                            generation: live.request.generation,
+                        });
+                    }
+                    return None;
+                }
+            }
+            live.inference.extend_from_slice(&frame);
+            if live.inference.len() == 80_000 {
+                let start = live.inference_start;
+                let end = start.saturating_add(80_000);
+                let sequence = live.inference_sequence;
+                live.inference_sequence = live.inference_sequence.saturating_add(1);
+                live.inference_start = end;
+                window = Some((
+                    sequence,
+                    start,
+                    end,
+                    std::mem::replace(&mut live.inference, Vec::with_capacity(80_000)),
+                ));
+            }
+        }
+        let durable_samples = live.staging.durable_samples();
+        if durable_samples == live.last_reported_durable {
+            return None;
+        }
+        live.last_reported_durable = durable_samples;
+        let event = ImportEvent::LiveCounters {
+            job_id: live.request.job_id,
+            generation: live.request.generation,
+            captured_samples: live.captured,
+            admitted_samples: live.admitted,
+            audio_durable_samples: durable_samples,
+            confirmed_fragment_samples: live.confirmed_fragment_end,
+            speech_samples: live.speech,
+            diagnostic: None,
+        };
+        let identity = (live.request.job_id, live.request.generation);
+        if let Some((sequence, start, end, samples)) = window {
+            let instance_id = self.active.as_ref().map_or(0, |active| active.instance_id);
+            let request = WorkerCommand::LiveWindow {
+                job_id: identity.0,
+                generation: identity.1,
+                instance_id,
+                sequence,
+                range: match whisper_core::SourceRange::new(start, end, 16_000) {
+                    Some(range) => range,
+                    None => {
+                        live.capture.stop();
+                        live.failure =
+                            Some("StorageCorrupt: live inference range is invalid".into());
+                        let _ = live.staging.drain();
+                        if let Some(transport) = self.transport.as_mut() {
+                            let _ = transport.request(WorkerCommand::Stop {
+                                job_id: identity.0,
+                                generation: identity.1,
+                            });
+                        }
+                        return None;
+                    }
+                },
+                samples,
+            };
+            if let Some(transport) = self.transport.as_mut()
+                && let Err(error) = transport.request(request)
+            {
+                live.capture.stop();
+                live.failure = Some(format!("WorkerExited: {error:?}"));
+                let _ = live.staging.drain();
+                return None;
+            }
+        }
+        Some(Ok(event))
+    }
+
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+        if let Some(event) = self.poll_live_capture() {
+            return Some(event);
+        }
         let transport = self.transport.as_mut()?;
         let event = match transport.receive() {
             Ok(Some(event)) => event,
@@ -710,6 +1181,12 @@ impl ImportRuntime {
                     active.generation,
                     format!("WorkerExited without End: {error:?}"),
                 ));
+                if let Some(live) = self.live.as_mut() {
+                    live.capture.stop();
+                    let _ = live.staging.drain();
+                }
+                self.live = None;
+                self.live_archive = None;
                 self.transport = None;
                 self.active = None;
                 return Some(failure);
@@ -718,6 +1195,97 @@ impl ImportRuntime {
         let active = self.active.as_ref()?;
         let (job_id, generation, instance_id) =
             (active.job_id, active.generation, active.instance_id);
+        if let WorkerEvent::LiveMp3Packet {
+            job_id: packet_job,
+            generation: packet_generation,
+            instance_id: packet_instance,
+            bytes,
+            ..
+        } = &event
+        {
+            if (*packet_job, *packet_generation, *packet_instance)
+                != (job_id, generation, instance_id)
+            {
+                if let Some(live) = self.live.as_mut() {
+                    live.capture.stop();
+                    let _ = live.staging.drain();
+                    live.failure = Some("StaleResponse: live MP3 packet identity mismatch".into());
+                }
+                if let Some(transport) = self.transport.as_mut() {
+                    let _ = transport.request(WorkerCommand::Stop { job_id, generation });
+                }
+                return None;
+            }
+            if let Some(archive) = self.live_archive.as_mut() {
+                if let Err(error) = archive.append_mp3_packet(bytes) {
+                    if let Some(live) = self.live.as_mut() {
+                        live.capture.stop();
+                        let _ = live.staging.drain();
+                        live.failure = Some(error.clone());
+                    }
+                    if let Some(transport) = self.transport.as_mut() {
+                        let _ = transport.request(WorkerCommand::Stop { job_id, generation });
+                    }
+                    return None;
+                }
+                return None;
+            }
+        }
+        if matches!(event, WorkerEvent::Stopped { .. }) && self.live.is_some() {
+            if let Some(reason) = self.live.as_ref().and_then(|live| live.failure.clone()) {
+                if let Some(live) = self.live.as_mut() {
+                    live.capture.stop();
+                    let _ = live.staging.drain();
+                }
+                self.live = None;
+                self.live_archive = None;
+                self.transport = None;
+                self.active = None;
+                return Some(Err((job_id, generation, reason)));
+            }
+            let final_drain = self.live.as_mut().map(|live| live.staging.drain());
+            if let Some(Err(error)) = final_drain {
+                if let Some(live) = self.live.as_mut() {
+                    live.capture.stop();
+                }
+                self.live = None;
+                self.live_archive = None;
+                self.transport = None;
+                self.active = None;
+                return Some(Err((
+                    job_id,
+                    generation,
+                    format!("StorageUnavailable: final audio sync: {error}"),
+                )));
+            }
+            let (durable, confirmed, pcm_sha256) =
+                self.live.as_ref().map_or((0, 0, [0; 32]), |live| {
+                    (
+                        live.staging.durable_samples(),
+                        live.confirmed_fragment_end,
+                        live.staging.checksum(),
+                    )
+                });
+            let publish_result = self
+                .live_archive
+                .as_mut()
+                .map(|archive| archive.publish(durable, confirmed, pcm_sha256));
+            if let Some(Err(error)) = publish_result {
+                if let Some(live) = self.live.as_mut() {
+                    live.capture.stop();
+                }
+                self.live = None;
+                self.live_archive = None;
+                self.transport = None;
+                self.active = None;
+                return Some(Err((job_id, generation, error)));
+            }
+            self.live = None;
+            self.live_archive = None;
+            self.transport = None;
+            self.active = None;
+            return Some(Ok(ImportEvent::Stopped { job_id, generation }));
+        }
         if let WorkerEvent::Segment(dto) = &event
             && let Some(expected) = self.resume_prefix.pop_front()
         {
@@ -822,11 +1390,23 @@ impl ImportRuntime {
                 message,
                 ..
             } if (j, g, i) == (job_id, generation, instance_id) => {
+                if let Some(live) = self.live.as_mut() {
+                    live.capture.stop();
+                    let _ = live.staging.drain();
+                }
+                self.live = None;
+                self.live_archive = None;
                 self.transport = None;
                 self.active = None;
                 Err((j, g, message))
             }
             WorkerEvent::Failed { message, .. } => {
+                if let Some(live) = self.live.as_mut() {
+                    live.capture.stop();
+                    let _ = live.staging.drain();
+                }
+                self.live = None;
+                self.live_archive = None;
                 self.transport = None;
                 self.active = None;
                 Err((job_id, generation, message))
@@ -837,6 +1417,18 @@ impl ImportRuntime {
                 "StaleResponse: worker event identity mismatch".into(),
             )),
         };
+        if let Err((failed_job, failed_generation, message)) = &result
+            && let Some(live) = self.live.as_mut()
+            && (live.request.job_id, live.request.generation) == (*failed_job, *failed_generation)
+        {
+            live.capture.stop();
+            let _ = live.staging.drain();
+            live.failure = Some(message.clone());
+            if let Some(transport) = self.transport.as_mut() {
+                let _ = transport.request(WorkerCommand::Stop { job_id, generation });
+            }
+            return None;
+        }
         Some(result)
     }
 }
@@ -941,6 +1533,7 @@ impl ImportIoPort for AsyncImportIo {
             }
         } else {
             let active_identity = match &effect {
+                ImportEffect::StartLive(request) => Some((request.job_id, request.generation)),
                 ImportEffect::Prepare(request) | ImportEffect::ProcessQueued(request) => {
                     Some((request.job_id, request.generation))
                 }

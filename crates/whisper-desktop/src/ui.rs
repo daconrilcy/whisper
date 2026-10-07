@@ -2,7 +2,7 @@ use eframe::egui;
 use std::sync::atomic::{AtomicU64, Ordering};
 use whisper_core::{
     AppCommand, AppFacade, AppView, Application, ApplicationError, ComputeChoice, Generation,
-    ImportRequest, JobConfig, JobId, JobState, LanguageChoice,
+    ImportRequest, JobConfig, JobId, JobState, LanguageChoice, LiveRequest,
 };
 
 const APPROVED_MODEL_SHA256: &str =
@@ -21,6 +21,7 @@ pub struct DesktopApp<A> {
     scanned_destination: Option<String>,
     observed_job_state: Option<JobState>,
     resume_confirmation: Option<(JobId, Generation)>,
+    live_request: Option<LiveRequest>,
 }
 
 impl<A: Application> DesktopApp<A> {
@@ -45,6 +46,7 @@ impl<A: Application> DesktopApp<A> {
             scanned_destination: None,
             observed_job_state: None,
             resume_confirmation: None,
+            live_request: None,
         }
     }
 
@@ -83,6 +85,61 @@ impl<A: Application> DesktopApp<A> {
             },
         });
     }
+
+    fn start_live(&mut self, generation: Generation) {
+        let serial = NEXT_JOB.fetch_add(1, Ordering::Relaxed);
+        let job_id = self.live_request.as_ref().map_or_else(
+            || JobId(((std::process::id() as u128) << 64) | serial as u128),
+            |request| request.job_id,
+        );
+        let request = LiveRequest {
+            job_id,
+            generation,
+            model_path: self.model_path.trim().to_owned(),
+            model_sha256: parse_sha256(APPROVED_MODEL_SHA256),
+            destination: self.destination.trim().to_owned(),
+            group_offset_samples: self.live_request.as_ref().map_or(0, |previous| {
+                previous
+                    .group_offset_samples
+                    .saturating_add(self.view.captured_samples)
+            }),
+            config: JobConfig {
+                language: if self.manual_language {
+                    LanguageChoice::Manual(self.language.trim().to_owned())
+                } else {
+                    LanguageChoice::Automatic
+                },
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        self.active_identity = Some((job_id, generation));
+        self.live_request = Some(request.clone());
+        self.dispatch(AppCommand::StartLiveConfigured { request });
+    }
+
+    fn continue_live_group(&mut self, previous: LiveRequest) {
+        let Some(generation) = previous.generation.next() else {
+            self.view.message =
+                Some("Le numéro de passage est épuisé ; le groupe reste récupérable.".into());
+            return;
+        };
+        self.model_path = previous.model_path.clone();
+        self.destination = previous.destination.clone();
+        match &previous.config.language {
+            LanguageChoice::Automatic => {
+                self.manual_language = false;
+                self.language.clear();
+            }
+            LanguageChoice::Manual(language) => {
+                self.manual_language = true;
+                self.language = language.clone();
+            }
+        }
+        // Keep the durable group identity and configuration. LiveArchive derives
+        // the new passage offset from the prior passage's confirmed checkpoint.
+        self.live_request = Some(previous);
+        self.start_live(generation);
+    }
 }
 
 impl<A: Application> eframe::App for DesktopApp<A> {
@@ -110,6 +167,20 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     | JobState::Finalizing
             )
         });
+        if ui.ctx().input(|input| input.viewport().close_requested())
+            && busy
+            && state != Some(JobState::Cancelling)
+        {
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            if let Some((job_id, generation)) = self.active_identity {
+                self.dispatch(AppCommand::Stop { job_id, generation });
+                self.view.message = Some(
+                    "Arrêt demandé ; la fenêtre reste ouverte jusqu’à la stabilisation du passage."
+                        .into(),
+                );
+            }
+        }
         let destination = self.destination.trim().to_owned();
         let destination_scan_pending = !destination.is_empty()
             && self.scanned_destination.as_deref() != Some(destination.as_str());
@@ -161,11 +232,39 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             {
                 self.start_import();
             }
+            let can_start_live = !self.model_path.trim().is_empty()
+                && !self.destination.trim().is_empty()
+                && (!self.manual_language || !self.language.trim().is_empty());
+            if ui
+                .add_enabled(can_start_live, egui::Button::new("Démarrer le micro"))
+                .clicked()
+            {
+                self.start_live(Generation::first());
+            }
+            if state == Some(JobState::Cancelled)
+                && let Some(request) = self.live_request.as_ref()
+                && let Some(next) = request.generation.next()
+                && ui
+                    .button("Reprendre — démarrer un nouveau passage")
+                    .clicked()
+            {
+                self.start_live(next);
+            }
         });
 
         if let Some((job_id, state)) = self.view.active_job {
             ui.separator();
             ui.label(format!("Import {job_id:?} — {state:?}"));
+            if self.live_request.is_some() {
+                ui.label(format!(
+                    "Micro — capturés {} | admis {} | audio durable {} | fragment confirmé {} | parole {} échantillons",
+                    self.view.captured_samples,
+                    self.view.admitted_samples,
+                    self.view.audio_durable_samples,
+                    self.view.confirmed_fragment_samples,
+                    self.view.speech_samples,
+                ));
+            }
             if let Some((completed, total)) = self.view.progress {
                 if total > 0 {
                     ui.add(
@@ -181,7 +280,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             if matches!(
                 state,
                 JobState::Preparing | JobState::Running | JobState::Finalizing
-            ) && ui.button("Arrêter l’import").clicked()
+            ) && ui.button("Arrêter").clicked()
                 && let Some((job, generation)) = self.active_identity
             {
                 self.dispatch(AppCommand::Stop {
@@ -270,7 +369,8 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         if self.view.history.is_empty() {
             ui.label("Aucune transcription publiée dans ce dossier.");
         }
-        for item in &self.view.history {
+        let history = self.view.history.clone();
+        for item in history {
             ui.label(format!(
                 "{} — job {:?}, génération {} — source {}",
                 if item.complete {
@@ -284,6 +384,18 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             ));
             if let Some(diagnostic) = &item.diagnostic {
                 ui.colored_label(egui::Color32::LIGHT_RED, diagnostic);
+            }
+            if let Some(recovery) = item.live_recovery
+                && !busy
+                && self.view.active_job.is_none()
+                && ui
+                    .button(format!(
+                        "Continuer le groupe — nouveau passage ({} échantillons confirmés)",
+                        recovery.durable_samples
+                    ))
+                    .clicked()
+            {
+                self.continue_live_group(recovery.request);
             }
         }
     }
