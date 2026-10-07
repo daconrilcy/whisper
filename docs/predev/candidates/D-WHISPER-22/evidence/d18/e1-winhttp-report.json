@@ -1,0 +1,15 @@
+{
+  "schema": "whisper-e1-winhttp/1",
+  "client": "Rust windows-sys 0.61.2 WinHTTP + sha2 0.11.0",
+  "source": "8MiB loopback fixture",
+  "interrupted": "INTERRUPTED bytes=1048576 ready=false",
+  "resumed": "READY bytes=8388608 sha256=7d212b9c884f5c77896de960ae17cc341cda43b14d6a971f34ca29ebd4badf7f",
+  "wrong_expected": "REJECTED_NO_READY",
+  "corrupt_partial": "HASH_MISMATCH_NO_READY",
+  "truncated": "REJECTED_NO_READY",
+  "limits": [
+    "HTTP loopback, not HTTPS external/HuggingFace redirect",
+    "exact 1.6GB model acquired with Python loopback E1 separately",
+    "no final installer/clean PC"
+  ]
+}

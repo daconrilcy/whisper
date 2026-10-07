@@ -1,0 +1,56 @@
+{
+  "schema": "whisper-spike-e3/1",
+  "status": "PARTIAL",
+  "encoder": "rusty_mp3 0.8.0 from Cargo.lock; 64 kb/s mono 16 kHz",
+  "decoder": "symphonia 0.5.5 from prior formats bench",
+  "fixture": "Three existing FLEURS WAV; 1500 ms group pause; synthetic text oracle",
+  "passages": [
+    {
+      "id": 1,
+      "source": "fr_fr-000.wav",
+      "source_sha256": "8bb53b14f4cc695c54a136a5db57e534344a225d81a6b5314ca6cdb0a12c7005",
+      "source_samples_16k": 231360,
+      "source_duration_ms": 14460,
+      "group_start_ms": 0,
+      "mp3_sha256": "17230d063c3646b608f2a82ca3dc80bc4e0bbf5cdc1cf214c6f20e0ebc144e79",
+      "mp3_bytes": 116064,
+      "decoded_samples_symphonia": 231552,
+      "decoded_excess_samples": 192,
+      "decoded_excess_ms": 12.0
+    },
+    {
+      "id": 2,
+      "source": "en_us-000.wav",
+      "source_sha256": "048169439c0328b758349af74aeb54a82a7a476e309709eb791dced06db25d48",
+      "source_samples_16k": 104640,
+      "source_duration_ms": 6540,
+      "group_start_ms": 15960,
+      "mp3_sha256": "5919a1eeed9dc14606304eb3ca6eeadf2655b9800aac3f81f81fcffe43af242e",
+      "mp3_bytes": 52704,
+      "decoded_samples_symphonia": 104832,
+      "decoded_excess_samples": 192,
+      "decoded_excess_ms": 12.0
+    },
+    {
+      "id": 3,
+      "source": "fr_fr-001.wav",
+      "source_sha256": "a9f2f1630034aae5bbe5273a25166d9ed1e92bedf4d613c7398fbda92b65ed12",
+      "source_samples_16k": 96000,
+      "source_duration_ms": 6000,
+      "group_start_ms": 24000,
+      "mp3_sha256": "e98ebaef28195b8aeb980fb0e9e8a93372125f04b2cd5826961f19da7ebb912b",
+      "mp3_bytes": 48384,
+      "decoded_samples_symphonia": 96192,
+      "decoded_excess_samples": 192,
+      "decoded_excess_ms": 12.0
+    }
+  ],
+  "cumulative_srt_sha256": "c43917aadee03099d3559ae692f130aa798b3e256c7ed687faf7bd9369aa2187",
+  "cumulative_txt_sha256": "6926c045e5f2bfe907a3f664356cece495b9ab5ec22fd10e443f3bd665cda01a",
+  "limitations": [
+    "No process stop, crash, double scan, manifest or recovery tested",
+    "No original speech quality or MP3 padding correction evaluated",
+    "No Whisper transcription used for cumulative text",
+    "No application integration, installer or live capture tested"
+  ]
+}

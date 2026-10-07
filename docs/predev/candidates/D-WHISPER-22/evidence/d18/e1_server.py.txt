@@ -1,0 +1,29 @@
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
+import hashlib,json
+
+root=Path(__file__).parent
+source=root/'e1-http-fixture.bin'
+if not source.exists():source.write_bytes(bytes(range(256))*32768)
+size=source.stat().st_size
+sha=hashlib.sha256(source.read_bytes()).hexdigest()
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path!='/model':self.send_error(404);return
+        rng=self.headers.get('Range')
+        start=int(rng[6:-1]) if rng and rng.startswith('bytes=') and rng.endswith('-') else 0
+        if start>=size:self.send_error(416);return
+        self.send_response(206 if rng else 200)
+        self.send_header('Content-Length',str(size-start))
+        self.send_header('ETag',sha)
+        self.send_header('Accept-Ranges','bytes')
+        if rng:self.send_header('Content-Range',f'bytes {start}-{size-1}/{size}')
+        self.end_headers()
+        try:
+            with source.open('rb') as f:
+                f.seek(start)
+                while chunk:=f.read(65536):self.wfile.write(chunk)
+        except (BrokenPipeError,ConnectionResetError):pass
+    def log_message(self,*args):pass
+print(json.dumps({'port':8766,'bytes':size,'sha256':sha}),flush=True)
+ThreadingHTTPServer(('127.0.0.1',8766),Handler).serve_forever()

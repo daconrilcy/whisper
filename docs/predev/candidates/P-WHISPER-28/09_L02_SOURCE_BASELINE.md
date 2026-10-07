@@ -1,0 +1,54 @@
+# Baseline source L02 — P-WHISPER-08
+
+Observation 2026-10-06 ; dépôt C:/dev/whisper ; HEAD `5fee290b8e74205fca94d4d2b478d430680132d4`. Snapshots byte-exacts, aucun hash de sortie future.
+
+| Path | État | SHA-256 |
+|---|---|---|
+| `crates/whisper-adapters/src/archive.rs` | L02_PRESENT | `28ea92cd2e06a4c4206d42c78078c95ac77ae474869976d9045ec2c6aabb195a` |
+| `crates/whisper-adapters/src/decoder.rs` | L02_PRESENT | `548e111e4abb4aaab1170bf2e80cbf8c0e2603006e2f9fe80943feb450ae0288` |
+| `crates/whisper-adapters/src/lib.rs` | L02_PRESENT | `bd3ea83de0ea78e06fd7dc679590f731e1a4656bdcba814ca2757583dfc26699` |
+| `crates/whisper-adapters/src/worker_ipc.rs` | L02_PRESENT | `979431ac8b21ad4b81647c7fac2f9806481efa2585b6019fe2a0e5035b38e160` |
+| `crates/whisper-core/src/application.rs` | L02_PRESENT | `5ec3deb57c98e842e1bab592d9217c95b810cb6ad71717467f4a6489ea7abb8b` |
+| `crates/whisper-core/src/ports.rs` | L02_PRESENT | `94cb3ba7210ad755cf5273bdb2a8057ab2cb65f18983a499ea26be1e5c4adcb7` |
+| `crates/whisper-desktop/src/root.rs` | L02_PRESENT | `9a3713112e3dfc3872e15e3cb581c7c6a53222e5f62864144ba4d111caa98599` |
+| `crates/whisper-desktop/src/ui.rs` | L02_PRESENT | `67eac6aded566e0a0e3d5ed101321bb4134246d76af339b54271ae984302c7f8` |
+| `crates/whisper-worker-cpu/src/decoder.rs` | L02_PRESENT | `bda03e8b8561f7912f5c8eaa21fc62215ea359eab047cb8771db9f9aea6f613a` |
+| `Cargo.lock` | SUPPORT | `821b32dc3bc5a3c6f60b997772902e1af5de8029cdf8171c5292050ec4bf82aa` |
+| `rust-toolchain.toml` | SUPPORT | `6a0855ab5a6b75bd9449e9ac8363a52eacb9ae8b3a7c80bfce0378d013cb16db` |
+| `crates/whisper-adapters/Cargo.toml` | SUPPORT | `917120ec0edf7725143a2d9d0c8405dbf82238ce87a3134b3df86c6af2f6011e` |
+| `crates/whisper-worker-cpu/Cargo.toml` | SUPPORT | `c1181281797bf037e9ca35d6ee78927e6fc7d18af26b7445b76e54be0247fbe9` |
+| `crates/whisper-core/src/domain.rs` | SUPPORT | `3b45f9852965311d58b4aa3b53ec6db8a5936b3a8933e27dd46ee76a754f7acd` |
+| `crates/whisper-core/src/lib.rs` | SUPPORT | `c5c83ee62d7609a8a8f01bfc433b3a7a3af8aec642c7ff5306bd9973134827e6` |
+| `crates/whisper-worker-cpu/src/main.rs` | SUPPORT | `d04bd322d92501991d8be526b510a670c228161e6caa2c5e61940dd1894f2e9a` |
+| `crates/whisper-desktop/src/main.rs` | SUPPORT | `9c6e5cbddbda59e41a610b187afb5f2e58dfbf1a01110e301c35c8ef9d5029a0` |
+| `crates/whisper-desktop/src/lib.rs` | SUPPORT | `193360385cfea082ead338bf441ddf8ada5155b1d5113908fecd6988dd1c2db6` |
+
+FUTURE_ABSENT sans snapshot/hash fictif :
+- `crates/whisper-adapters/src/journal.rs`
+- `crates/whisper-adapters/src/queue_store.rs`
+- `crates/whisper-adapters/src/recovery.rs`
+- `crates/whisper-adapters/tests/durability.rs`
+- `crates/whisper-adapters/tests/import_mp3.rs`
+- `crates/whisper-core/tests/scheduler_contract.rs`
+
+## Preuves L01-CLOSURE-02
+
+| Fichier source | SHA-256 |
+|---|---|
+| `00_SUMMARY.md` | `a64ed1dafdeee347d1b2b648b8448356fe844e1de6dbd18732200513e41b1078` |
+| `execution-evidence.json` | `f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920` |
+| `manifest.json` | `fa8cfa60b00550d609ff2dab8d3a61693886b19f7b531b720a482ddf90f005a5` |
+| `memory-adapter.jsonl` | `e024bbfa95b7ecf9296fd6c2eecacb6b2839792271a221e6692bb4c414749b3d` |
+| `memory-long-adapter.jsonl` | `d1c87f04ecc9fed640ced7abe96c3cf2800ddd1d1c583e69e3f5726d11b85402` |
+| `memory-long-analysis.json` | `d463c29d14ea96664b28208286f7880499b03aa9d1677856aefee806dd19d30d` |
+| `memory-long-process-samples.jsonl` | `109268ba97829479df7e0051ed75932052088ff181011c0bebe0eaa0df9101b2` |
+| `memory-long-worker.jsonl` | `e7ba9b64f08006a10e60a0e65fb2decb5bc300e9f77a2c9d71e0999e82ef76b8` |
+| `memory-observation.csv` | `719acfb987c56de10a327541173704b070a7e81f5d43d3e1b0e2c7a051c06b14` |
+| `memory-process-samples.jsonl` | `316f473c2f59d9a086944a51e144150e7868545f9c48de02ae8f735a6334c513` |
+| `memory-stage-analysis.json` | `30625e0c2dbe95b846f200e71a9327225219bc644378e71ec2ddda189efb2211` |
+| `memory-worker.jsonl` | `baa902aa80b36cd958f48a0734977a7301650cb084900c17a4631d41810a63ed` |
+| `review.md` | `ca46eb0fe83059aaddc0a6da443c62c3653538997b1f8d82c51f37436e4af840` |
+| `ui-memory-observation.csv` | `efb3eadb763bed095c22e8d9a4497aee2d8e4e2f938ebc44ae1cb2fbcf9405bf` |
+| `validation.md` | `9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692` |
+
+Les fichiers texte sont incorporés byte-exacts ; captures PNG restent à la source originale et ne sont pas copiées dans le corpus documentaire. La preuve demeure liée à D19/P06 et au fingerprint historique, sans attester revue P08 ou exécution L02. Les neuf sources L02 présentes concordent avec les outputs L01.

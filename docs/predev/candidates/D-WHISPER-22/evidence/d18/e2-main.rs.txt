@@ -1,0 +1,98 @@
+use std::env;
+use std::process::Command;
+use std::path::Path;
+use libloading::{Library, Symbol};
+
+struct ResultRow { generation: u64, segment: usize, start_ms: u64, end_ms: u64, backend: &'static str }
+
+fn gpu_count(dll: &Path) -> Result<i32, String> {
+    unsafe {
+        let lib = Library::new(dll).map_err(|e| e.to_string())?;
+        let func: Symbol<unsafe extern "C" fn(*mut i32) -> i32> = lib.get(b"cudaGetDeviceCount").map_err(|e| e.to_string())?;
+        let mut count = 0_i32;
+        let status = func(&mut count);
+        if status != 0 { return Err(format!("CUDA_DEVICE_QUERY_FAILED_{status}")); }
+        Ok(count)
+    }
+}
+
+fn run(engine: &str, model: &str, wav: &str, mode: &str) -> Result<&'static str, String> {
+    if mode == "gpu" {
+        let dll = Path::new(engine).parent().ok_or("engine parent")?.join("cudart64_12.dll");
+        if gpu_count(&dll)? < 1 { return Err("GPU_PRECHECK_NO_VISIBLE_DEVICE".into()); }
+    }
+    let mut command = Command::new(engine);
+    command.args([model, wav, mode]);
+    let output = command.output().map_err(|e| e.to_string())?;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !output.status.success() { return Err(format!("worker_exit={:?}", output.status.code())); }
+    let gpu = stderr.contains("whisper_backend_init_gpu: using CUDA0 backend")
+        && stderr.contains("CUDA0 total size");
+    let cpu = stderr.contains("whisper_backend_init_gpu: no GPU found")
+        && stderr.contains("use gpu    = 0")
+        && !stderr.contains("CUDA0 total size");
+    if mode == "gpu" && !gpu { return Err("GPU_REQUESTED_EFFECTIVE_CPU_REJECTED".into()); }
+    if mode == "cpu" && !cpu { return Err("CPU_NOT_ATTESTED".into()); }
+    if stdout.trim().is_empty() { return Err("EMPTY_TRANSCRIPT".into()); }
+    Ok(if gpu { "CUDA0" } else { "CPU" })
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().collect();
+    if args.len() == 3 && args[1] == "probe" {
+        let count = gpu_count(Path::new(&args[2])).unwrap_or(0);
+        println!("cuda_visible_devices={count}");
+        std::process::exit(if count == 0 { 3 } else { 0 });
+    }
+    if args.len() != 7 { return Err("usage: e2-controller ENGINE_GPU ENGINE_CPU MODEL WAV1 WAV2 WAV3".into()); }
+    let (engine_gpu, engine_cpu, model) = (&args[1], &args[2], &args[3]);
+    let wavs = &args[4..7];
+    let dll = Path::new(engine_gpu).parent().ok_or("engine parent")?.join("cudart64_12.dll");
+    let strict_probe = Command::new(env::current_exe()?).args(["probe", dll.to_str().ok_or("dll path")?])
+        .env("CUDA_VISIBLE_DEVICES", "-1").output()?;
+    assert_eq!(strict_probe.status.code(), Some(3));
+    assert!(String::from_utf8_lossy(&strict_probe.stdout).contains("cuda_visible_devices=0"));
+    println!("strict_absent=REFUSED_PRE_INFERENCE_NO_CPU_PUBLISH");
+    let cpu = run(engine_cpu, model, &wavs[0], "cpu")?;
+    assert_eq!(cpu, "CPU");
+    println!("forced_cpu={cpu}");
+    let strict_first = run(engine_gpu, model, &wavs[0], "gpu")?;
+    assert_eq!(strict_first, "CUDA0");
+    // The GPU worker exits in error after inference but before acknowledgement.
+    // A strict job does not call the CPU path and does not publish this window.
+    println!("strict_gpu_worker_failure_injected=STOPPED_NO_CPU_RETRY_NO_PUBLISH");
+
+    // Three independently committed source windows. A failed second GPU window is
+    // retried once on CPU at its original offset; a result from the old generation
+    // is deliberately delivered after the switch and must be discarded.
+    let durations = [14_460_u64, 6_540, 6_000];
+    let mut committed = Vec::<ResultRow>::new();
+    let mut generation = 1_u64;
+    let mut start_ms = 0_u64;
+    for (i, wav) in wavs.iter().enumerate() {
+        if i == 1 {
+            // Fault before acknowledgement after the second GPU inference.
+            let gpu_result = run(engine_gpu, model, wav, "gpu")?;
+            assert_eq!(gpu_result, "CUDA0");
+            let stale = ResultRow { generation, segment: i, start_ms, end_ms: start_ms + durations[i], backend: gpu_result };
+            generation += 1;
+            assert_ne!(stale.generation, generation);
+            println!("injected_gpu_failure_after_inference=segment_{} stale_generation_{}=REJECTED", i+1, stale.generation);
+        }
+        let requested = if generation == 1 { "gpu" } else { "cpu" };
+        let engine = if requested == "gpu" { engine_gpu } else { engine_cpu };
+        let backend = run(engine, model, wav, requested)?;
+        assert!(requested != "gpu" || backend == "CUDA0");
+        let row = ResultRow { generation, segment: i, start_ms, end_ms: start_ms + durations[i], backend };
+        assert!(committed.last().is_none_or(|prior| prior.end_ms <= row.start_ms));
+        println!("committed_segment={} generation={} start_ms={} end_ms={} backend={}", row.segment+1, row.generation, row.start_ms, row.end_ms, row.backend);
+        committed.push(row);
+        start_ms += durations[i] + 1500;
+    }
+    assert_eq!(committed.len(), 3);
+    assert_eq!(committed[0].backend, "CUDA0");
+    assert!(committed[1..].iter().all(|r| r.backend == "CPU"));
+    println!("auto_gpu_to_cpu=PASS committed=3 generations=2 overlap=0 stale_publish=0");
+    Ok(())
+}

@@ -1,0 +1,34 @@
+{
+  "schema": "whisper-e1-local-launch/1",
+  "status": "SAME_PC_LOCAL_STAGING",
+  "limits": [
+    "No final installer",
+    "No clean PC",
+    "Network not physically blocked; proxy override is not proof of no network access",
+    "Development runtime may remain globally installed"
+  ],
+  "runs": [
+    {
+      "mode": "cpu",
+      "exit_code": 0,
+      "duration_s": 14.531,
+      "segments": 1,
+      "cuda_backend_reported": false,
+      "requested_gpu": false,
+      "requested_cpu": true,
+      "path_restricted": "C:\\Windows\\System32;C:\\Windows",
+      "proxy_unreachable": true
+    },
+    {
+      "mode": "gpu",
+      "exit_code": 0,
+      "duration_s": 2.173,
+      "segments": 1,
+      "cuda_backend_reported": true,
+      "requested_gpu": true,
+      "requested_cpu": false,
+      "path_restricted": "C:\\Windows\\System32;C:\\Windows",
+      "proxy_unreachable": true
+    }
+  ]
+}

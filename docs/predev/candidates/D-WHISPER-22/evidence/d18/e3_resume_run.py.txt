@@ -1,0 +1,48 @@
+from pathlib import Path
+import subprocess, tempfile, shutil, hashlib, json
+
+here=Path(__file__).parent
+exe=here/'e3-resume/target/release/e3-resume.exe'
+source=here/'e3-output'
+base=Path(tempfile.mkdtemp(prefix='whisper-e3-resume-'))
+main=base/'main'
+def call(*args):
+    return subprocess.run([str(exe),*map(str,args)],capture_output=True,text=True)
+def scan(path):
+    p=call('scan',path); assert p.returncode==0,p.stderr; return p.stdout.strip()
+def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+
+first=call('append',main,source,1,999)
+assert first.returncode==0,first.stderr
+assert scan(main)=='generation=1 status=COMPLETE'
+first_hash=digest(main/'assets/passage-1.mp3')
+rows=[]
+for index in (2,3):
+    for cut in range(5):
+        test=base/f'index-{index}-cut-{cut}'
+        shutil.copytree(main,test)
+        run=call('append',test,source,index,cut)
+        expected=f'generation={index} status=COMPLETE' if cut==4 else f'generation={index-1} status=RECOVERABLE_PENDING_PASSAGE'
+        a,b=scan(test),scan(test)
+        assert a==b==expected,(index,cut,run.stderr,a,b)
+        assert run.returncode==91
+        assert digest(test/'assets/passage-1.mp3')==first_hash
+        retry=call('append',test,source,index,999)
+        assert retry.returncode==0,(index,cut,retry.stderr)
+        assert scan(test)==f'generation={index} status=COMPLETE'
+        rows.append({'passage':index,'cut':cut,'before_retry':a,'after_retry':f'generation={index} status=COMPLETE','prior_mp3_preserved':True})
+    good=call('append',main,source,index,999)
+    assert good.returncode==0,good.stderr
+    assert scan(main)==f'generation={index} status=COMPLETE'
+assert digest(main/'assets/passage-1.mp3')==first_hash
+txt=(main/'gen-3/cumulative.txt').read_text(encoding='utf-8')
+srt=(main/'gen-3/cumulative.srt').read_text(encoding='utf-8')
+assert all(f'Passage {n}' in txt and f'Passage {n}' in srt for n in (1,2,3))
+assert '00:00:15,960 --> 00:00:22,500' in srt and '00:00:24,000 --> 00:00:30,000' in srt
+raw=(main/'assets/passage-1.mp3').read_bytes()
+(main/'assets/passage-1.mp3').write_bytes(b'X'+raw[1:])
+assert scan(main)=='generation=3 status=RECOVERABLE_CORRUPT_ARTIFACT'
+report={'schema':'whisper-e3-resume/1','source':'three Rust-encoded MP3 from e3-multipass','rows':rows,'final_srt':srt,'final_txt':txt,
+        'corrupt_prior':'RECOVERABLE_CORRUPT_ARTIFACT','limits':['synthetic text oracle','process exit injection, not power failure','separate encoding and publication fixtures','no human MP3 quality verdict']}
+(here/'e3-resume-report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps({'rows':len(rows),'final_scan_before_corruption':'generation=3 status=COMPLETE','corrupt_prior':report['corrupt_prior'],'group_end_ms':30000}))

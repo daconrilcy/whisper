@@ -1,0 +1,10 @@
+# Contribution brute — rust_plan_writer
+
+- Base candidate: P-WHISPER-14, digest `2724e325c5377d725b4e4f73541b6079a7bf08a9ff8e4328b10768e6823ca55b`.
+- Parent DESIGN: D-WHISPER-19, digest `903926ba27c70fc3a0cc6954d9e50914a64993e40c339683e557bc4c604d7529`.
+- Owner/role: `/root/p15_plan_update`, rust_plan_writer, read-only.
+- Proposed changes: CHANGE-P15-01 refresh the actual controller snapshot and pack manifest; CHANGE-P15-02 record the inherited CPU output from L01 and the four future absent paths without fabricated hashes or files; CHANGE-P15-03 refresh L04 to L03 canonical linkage only in a later reviewed pending checkpoint; CHANGE-P15-04 keep documentary PLANS promotion separate from L04 implementation authorization.
+- Evidence observed: CPU output SHA-256 `9d415e118185e0c97917098bf79902f649722a909f1486ef619c3626e88203d7`; L01 evidence SHA-256 `f354c02310a3376fa7a181e596321eae42a4e0f7d8c30306b3c1f47031425920`; L03 closure proof SHA-256 `247966a803d10445597dd9fc3915e855409a54cb09ff9b4e17997fc0f4c4ec53`; P14 pack digest `2460bd0dbf0fee3cf7445f4e65ad4dbba29f8bc8765df705c88cba44b0191ef3`, with controller old/current hashes `2fe0d71e151fb35d86551808a6b9db491fa1f6f4b59f4e67f491db5828d3b485` / `43191671e4bca55d5e23419e1125c2b2d524cd2e6b0530294cf86b664a49d3a4`. `check_ledger` permits the inherited CPU output in baseline/ledger while the other absent paths are documented as repository evidence; direct prior-lot dependency remains L03, producer remains L01.
+- Questions/limitations: independent reviewer must confirm KEEP_D19 and integration feasibility; previous-session central tests were not captured as a durable raw log and are not asserted here as new proof.
+- Unfinished at contribution time: persist P15 canonically, persist this raw contribution as a transport, freeze exact source hashes, independent review, and later prepare a pending checkpoint without `--lot`. A future code gate still requires explicit L04 authorization.
+- Status: no CLEAN/READY verdict, no code edit, no test execution, no state promotion.

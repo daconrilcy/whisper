@@ -1,0 +1,472 @@
+"""Observable integrity and gate behavior; no external packages or repository."""
+import copy
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+
+import predev_control as pc
+
+
+class Controls(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.populate_fixture()
+
+    def populate_fixture(self):
+        for name in ("design.md", "plans.md", "authority.md", "review.md", "gate.md", "guard.md"):
+            (self.root / name).write_bytes((name + "\r\nraw bytes\n").encode("utf-8"))
+        self.write("design.manifest.json", pc.create_manifest(self.root, "DESIGN", "D-1", ["design.md"]))
+        self.write("plans.manifest.json", pc.create_manifest(self.root, "PLANS", "P-1", ["plans.md", "design.manifest.json"], "D-1"))
+        source = self.proof("authority.md")
+        self.state = {
+            "schema": pc.SCHEMA, "perimeter": {"version": 1},
+            "authorities": [
+                {"id": "USER", "role": "user", "actor": "human", "sources": [source]},
+                {"id": "AUTHOR", "role": "author", "actor": "writer", "sources": [source]},
+                {"id": "REVIEWER", "role": "reviewer", "actor": "reviewer", "sources": [source],
+                 "independent_from": ["AUTHOR"], "independence_source": source},
+            ],
+            "candidates": {scope: self.candidate(scope) for scope in ("DESIGN", "PLANS")},
+            "elements": [
+                {"id": "REQ-1", "nature": "requirement", "approval": "accepted", "approval_by": "USER", "owner": "AUTHOR", "version": 1, "refs": []},
+                {"id": "TASK-1", "nature": "task", "approval": "proposed", "owner": "AUTHOR", "version": 1, "refs": ["REQ-1"]},
+                {"id": "AC-1", "nature": "acceptance", "approval": "accepted", "approval_by": "USER", "owner": "AUTHOR", "version": 1, "refs": ["REQ-1"]},
+            ],
+            "questions": [], "findings": [],
+            "gates": [{"id": "G-" + scope, "scope": scope, "rubrics": [
+                {"id": "R-" + scope + "-" + key, "key": key, "applicability": "applicable", "status": "PASS", "evidence": [self.proof("gate.md")]}
+                for key in sorted(pc.RUBRICS[scope])]} for scope in ("DESIGN", "PLANS")],
+            "lots": [{"id": "L-1", "needs": ["REQ-1"], "covers": ["REQ-1"], "verifies": ["AC-1"],
+                      "paths": ["src/main.rs"], "prerequisites": [], "tasks": ["TASK-1"],
+                      "preconditions": {"railguard": {"activation": "active", "ref": self.proof("guard.md"), "hashes": [self.proof("design.md")]},
+                                        "authorization": {"authority": "USER", "source": source, "paths": ["src/main.rs"], "lot_id": "L-1"},
+                                        "drift": {"classification": "none", "previous_lots": [], "evidence": [source]},
+                                        "code_state": {"baseline": [], "ledger": [], "current": []}}}],
+            "checkpoint": {"phase": "IMPLEMENTATION", "next_actor": "AUTHOR", "pending_tasks": ["TASK-1"]},
+        }
+
+    def write(self, path, value):
+        (self.root / path).write_bytes(pc.canonical(value))
+
+    def proof(self, path):
+        return {"path": path, "sha256": pc.file_hash(self.root / path)}
+
+    def candidate(self, scope):
+        path = scope.lower() + ".manifest.json"
+        manifest = pc.verify_manifest(self.root, self.root / path)
+        record = {"id": manifest["candidate_id"], "status": "READY", "author": "AUTHOR", "contributors": ["AUTHOR"], "perimeter_version": 1,
+                  "manifest": path, "reviews": [{"id": "RV-" + scope, "scope": scope, "candidate_id": manifest["candidate_id"],
+                                                "verdict": "CLEAN", "reviewer": "REVIEWER", "manifest_digest": manifest["digest"], "evidence": [self.proof("review.md")]}]}
+        if scope == "PLANS":
+            record["design_candidate_id"] = "D-1"
+            record["reviews"][0]["design_candidate_id"] = "D-1"
+        return record
+
+    def fails(self, mutation, match):
+        state = copy.deepcopy(self.state)
+        mutation(state)
+        with self.assertRaisesRegex(pc.ControlError, match):
+            pc.check_state(self.root, state)
+
+    def test_ready_and_lot_preflight(self):
+        self.assertTrue(pc.check_state(self.root, self.state, "L-1")["ok"])
+
+    def test_raw_hash_and_canonicalization(self):
+        (self.root / "é.md").write_bytes(b"\xff\x00\r\n")
+        value = pc.create_manifest(self.root, "DESIGN", "D-é", ["e\u0301.md", "design.md"])
+        self.assertEqual([f["path"] for f in value["files"]], ["design.md", "é.md"])
+        self.assertIn("é".encode(), pc.canonical(value))
+        self.write("unicode.json", value)
+        self.assertEqual(pc.verify_manifest(self.root, self.root / "unicode.json"), value)
+        self.assertEqual(value["files"][1]["sha256"], pc.file_hash(self.root / "é.md"))
+        self.assertTrue(pc.canonical(value).endswith(b"\n"))
+        self.assertNotIn(b"\r\n", pc.canonical(value))
+
+    def test_bad_paths_duplicates_and_collisions(self):
+        for paths in (["../design.md"], ["C:\\design.md"], ["/design.md"], ["./design.md"], ["design.md", "design.md"], ["A.md", "a.md"], ["é.md", "e\u0301.md"]):
+            with self.subTest(paths=paths), self.assertRaises(pc.ControlError):
+                pc.create_manifest(self.root, "DESIGN", "D", paths)
+
+    def test_tamper_and_recomputed_digest_cannot_hide_source_drift(self):
+        value = pc.read_json(self.root / "design.manifest.json")
+        value["files"][0]["sha256"] = "0" * 64
+        self.write("tamper.json", value)
+        with self.assertRaisesRegex(pc.ControlError, "payload digest"):
+            pc.verify_manifest(self.root, self.root / "tamper.json")
+        value["digest"] = pc.payload_digest({k: v for k, v in value.items() if k != "digest"})
+        self.write("tamper.json", value)
+        with self.assertRaisesRegex(pc.ControlError, "corpus changed"):
+            pc.verify_manifest(self.root, self.root / "tamper.json")
+
+    def test_noncanonical_and_duplicate_json_keys(self):
+        value = pc.read_json(self.root / "design.manifest.json")
+        (self.root / "bad.json").write_text(json.dumps(value, indent=2), encoding="utf-8")
+        with self.assertRaisesRegex(pc.ControlError, "canonical"):
+            pc.verify_manifest(self.root, self.root / "bad.json")
+        (self.root / "bad.json").write_bytes(b'{"schema":"a","schema":"b"}\n')
+        with self.assertRaisesRegex(pc.ControlError, "duplicate JSON key"):
+            pc.read_json(self.root / "bad.json")
+
+    def test_scope_and_parent_bindings(self):
+        self.fails(lambda s: s["candidates"]["DESIGN"].update(manifest="plans.manifest.json"), "scope/ID")
+        self.fails(lambda s: s["candidates"]["PLANS"].update(design_candidate_id="D-wrong"), "parent DESIGN")
+        self.fails(lambda s: s["candidates"]["PLANS"]["reviews"][0].update(design_candidate_id="D-wrong"), "parent DESIGN")
+        with self.assertRaisesRegex(pc.ControlError, "only PLANS"):
+            pc.create_manifest(self.root, "DESIGN", "D", ["design.md"], "D-parent")
+
+    def test_actual_corpus_and_stale_review(self):
+        (self.root / "design.md").write_bytes(b"modified source")
+        with self.assertRaisesRegex(pc.ControlError, "corpus changed"):
+            pc.check_state(self.root, self.state)
+        self.write("design.manifest.json", pc.create_manifest(self.root, "DESIGN", "D-1", ["design.md"]))
+        self.write("plans.manifest.json", pc.create_manifest(self.root, "PLANS", "P-1", ["plans.md", "design.manifest.json"], "D-1"))
+        with self.assertRaisesRegex(pc.ControlError, "stale review"):
+            pc.check_state(self.root, self.state)
+
+    def test_ids_refs_versions_proofs(self):
+        self.fails(lambda s: s["elements"][0].pop("id"), "nonempty ID")
+        self.fails(lambda s: s["elements"][1].update(id="REQ-1"), "duplicate ID")
+        self.fails(lambda s: s["elements"][0].update(refs=["UNKNOWN"]), "unknown reference")
+        self.fails(lambda s: s["perimeter"].update(version=2), "perimeter version mismatch")
+        self.fails(lambda s: s["authorities"][0]["sources"][0].update(sha256="0" * 64), "stale proof")
+        self.fails(lambda s: s["candidates"]["DESIGN"]["reviews"][0].update(reviewer="AUTHOR"), "reviewer authority")
+        self.fails(lambda s: s["authorities"][2].pop("independent_from"), "sourced independence")
+
+    def test_ready_blockers_and_checkpoint(self):
+        self.fails(lambda s: s["candidates"]["DESIGN"]["reviews"][0].update(verdict="FINDINGS"), "CLEAN")
+        self.fails(lambda s: s["gates"][0]["rubrics"][0].update(status="GAP"), "GAP")
+        self.fails(lambda s: s["elements"].append({"id": "H-1", "nature": "structural_assumption", "approval": "proposed", "owner": "AUTHOR", "version": 1, "refs": []}), "unvalidated structural")
+        self.fails(lambda s: s["candidates"]["DESIGN"].update(status="DRAFT"), "requires DESIGN READY")
+        self.fails(lambda s: s["checkpoint"].update(next_actor="UNKNOWN"), "next_actor")
+        self.fails(lambda s: s["checkpoint"].update(pending_tasks=["REQ-1"]), "must be tasks")
+
+    def test_checkpoint_raw_contribution_references(self):
+        transport = self.root / "transports" / "T-1"
+        transport.mkdir(parents=True)
+        (transport / "transport-manifest.json").write_bytes(b"transport proof\n")
+        reference = self.proof("transports/T-1/transport-manifest.json")
+        state = copy.deepcopy(self.state)
+        state["checkpoint"]["raw_contributions"] = [reference]
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+        state["checkpoint"]["raw_contributions"][0]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(pc.ControlError, "stale proof"):
+            pc.check_state(self.root, state)
+        self.fails(lambda s: s["checkpoint"].update(raw_contributions=[self.proof("review.md")]), "transport manifests")
+
+    def test_dag_and_requirement_task_traceability(self):
+        self.fails(lambda s: s["lots"][0].update(prerequisites=["L-1"], dependency_kinds={"L-1": {"kind": "DOCUMENT", "evidence": [self.proof("plans.md")]}}), "dependency cycle")
+        self.fails(lambda s: s["lots"][0].update(covers=[]), "uncovered")
+        self.fails(lambda s: s["lots"][0].update(verifies=[]), "without verification")
+        self.fails(lambda s: s["elements"][1].update(refs=[]), "without need")
+        self.fails(lambda s: s["lots"][0].update(tasks=[]), "one lot")
+        state = copy.deepcopy(self.state)
+        state["lots"].append({"id": "L-2", "needs": [], "covers": [], "verifies": [], "paths": [], "prerequisites": ["L-1"], "dependency_kinds": {"L-1": {"kind": "DOCUMENT", "evidence": [self.proof("plans.md")]}}, "tasks": ["TASK-2"]})
+        state["elements"].append({"id": "TASK-2", "nature": "task", "approval": "proposed", "owner": "AUTHOR", "version": 1, "refs": ["L-1"], "justification": "Package result produced by L-1"})
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+
+    def test_required_finding_closure_and_suggestion(self):
+        state = copy.deepcopy(self.state)
+        finding = {"id": "F-1", "kind": "suggestion", "severity": "Low", "scope": "DESIGN", "candidate_id": "D-1", "status": "open", "author": "AUTHOR", "reviewer": "REVIEWER", "refs": []}
+        state["findings"] = [finding]
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+        finding["kind"] = "required"
+        with self.assertRaisesRegex(pc.ControlError, "open required"):
+            pc.check_state(self.root, state)
+        finding.update(status="closed", closed_by="AUTHOR", closure_evidence=[self.proof("review.md")])
+        with self.assertRaisesRegex(pc.ControlError, "confirmed by an independent reviewer"):
+            pc.check_state(self.root, state)
+        finding["closed_by"] = "REVIEWER"
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+
+    def test_open_detail_only_blocks_dependent_lot(self):
+        state = copy.deepcopy(self.state)
+        state["questions"] = [{"id": "Q-1", "classification": "reversible_detail", "status": "open", "owner": "AUTHOR", "deadline": "before:L-1", "impacted_lots": ["L-1"], "refs": []}]
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+        state["lots"][0]["requires_details"] = ["Q-1"]
+        other = copy.deepcopy(state["lots"][0])
+        other.update(id="L-CORE", tasks=[], requires_details=[])
+        other["preconditions"]["authorization"]["lot_id"] = "L-CORE"
+        state["lots"].append(other)
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+        self.assertTrue(pc.check_state(self.root, state, "L-CORE")["ok"])
+        with self.assertRaisesRegex(pc.ControlError, "unresolved detail"):
+            pc.check_state(self.root, state, "L-1")
+        state["questions"][0].update(status="answered", evidence=[self.proof("authority.md")])
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+
+    def test_scoped_technical_delegation_and_invariant(self):
+        state = copy.deepcopy(self.state)
+        source = self.proof("authority.md")
+        state["authorities"].append({"id": "ARCH", "role": "technical", "actor": "architect", "sources": [source], "delegated_by": "USER", "delegation_source": source, "scope": {"version": 1, "natures": ["decision"]}})
+        state["elements"].append({"id": "DEC-1", "nature": "decision", "approval": "accepted", "approval_by": "ARCH", "owner": "ARCH", "version": 1, "refs": []})
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+        state["elements"][-1]["nature"] = "structural_assumption"
+        with self.assertRaisesRegex(pc.ControlError, "scoped authority"):
+            pc.check_state(self.root, state)
+        state["elements"][-1]["nature"] = "decision"
+        state["elements"].append({"id": "INV-1", "nature": "invariant", "approval": "accepted", "approval_by": "USER", "source_authority": "USER", "owner": "AUTHOR", "version": 1, "refs": []})
+        state["elements"][-2]["replaces"] = ["INV-1"]
+        with self.assertRaisesRegex(pc.ControlError, "cannot override invariant"):
+            pc.check_state(self.root, state)
+
+    def test_lot_guard_authorization_and_expected_drift(self):
+        state = copy.deepcopy(self.state)
+        state["lots"][0]["preconditions"]["authorization"]["paths"] = []
+        with self.assertRaisesRegex(pc.ControlError, "exceed authorization"):
+            pc.check_state(self.root, state, "L-1")
+        state = copy.deepcopy(self.state)
+        state["lots"][0]["preconditions"]["railguard"]["hashes"][0]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(pc.ControlError, "stale proof"):
+            pc.check_state(self.root, state, "L-1")
+        state = copy.deepcopy(self.state)
+        state["lots"][0]["preconditions"]["drift"].update(classification="expected_previous_lots", previous_lots=[])
+        with self.assertRaisesRegex(pc.ControlError, "requires previous lots"):
+            pc.check_state(self.root, state, "L-1")
+        state = copy.deepcopy(self.state)
+        state["lots"].append({"id": "L-0", "needs": [], "covers": [], "verifies": [], "paths": [], "prerequisites": [], "tasks": []})
+        state["lots"][0]["prerequisites"] = ["L-0"]
+        state["lots"][0]["dependency_kinds"] = {"L-0": {"kind": "EXECUTION", "evidence": [self.proof("plans.md")]}}
+        with self.assertRaisesRegex(pc.ControlError, "prerequisite not completed"):
+            pc.check_state(self.root, state, "L-1")
+        state["lots"][-1].update(status="completed", completion_evidence=[self.proof("review.md")])
+        state["lots"][0]["preconditions"]["drift"].update(classification="expected_previous_lots", previous_lots=["L-0"])
+        self.assertTrue(pc.check_state(self.root, state, "L-1")["ok"])
+
+    def test_parent_manifest_bytes_are_bound_to_plans(self):
+        (self.root / "design.md").write_bytes(b"new design")
+        self.write("design.manifest.json", pc.create_manifest(self.root, "DESIGN", "D-1", ["design.md"]))
+        with self.assertRaisesRegex(pc.ControlError, "corpus changed: design.manifest.json"):
+            pc.check_state(self.root, self.state)
+        self.write("plans.manifest.json", pc.create_manifest(self.root, "PLANS", "P-1", ["plans.md"], "D-1"))
+        with self.assertRaisesRegex(pc.ControlError, "include parent DESIGN manifest"):
+            pc.check_state(self.root, self.state)
+
+    def test_promotion_preserves_existing_invalid_and_protects_corpus(self):
+        self.write("pending.json", self.state)
+        (self.root / "current.json").write_bytes(b"old checkpoint")
+        invalid = copy.deepcopy(self.state)
+        invalid["checkpoint"]["next_actor"] = "UNKNOWN"
+        self.write("invalid.json", invalid)
+        with self.assertRaises(pc.ControlError):
+            pc.promote_checkpoint(self.root, self.root / "invalid.json", self.root / "current.json")
+        self.assertEqual((self.root / "current.json").read_bytes(), b"old checkpoint")
+        corpus_before = (self.root / "design.md").read_bytes()
+        with self.assertRaisesRegex(pc.ControlError, "overwrite corpus"):
+            pc.promote_checkpoint(self.root, self.root / "pending.json", self.root / "design.md")
+        self.assertEqual((self.root / "design.md").read_bytes(), corpus_before)
+        self.assertTrue(pc.promote_checkpoint(self.root, self.root / "pending.json", self.root / "current.json")["ok"])
+        self.assertEqual((self.root / "current.json").read_bytes(), pc.canonical(self.state))
+        self.assertFalse(list(self.root.glob(".predev-*")))
+
+    def test_promotion_resolves_code_state_refs_from_code_root(self):
+        code_root = self.root / "code-root"
+        source = code_root / "src" / "main.rs"
+        source.parent.mkdir(parents=True)
+        source.write_bytes(b"fn main() {}\n")
+        state = copy.deepcopy(self.state)
+        code_ref = {"path": "src/main.rs", "sha256": pc.file_hash(source)}
+        code_state = state["lots"][0]["preconditions"]["code_state"]
+        code_state["baseline"] = [code_ref]
+        code_state["current"] = [code_ref]
+        self.write("pending-code.json", state)
+        current = self.root / "current-code.json"
+        result = pc.promote_checkpoint(self.root, self.root / "pending-code.json", current, code_root)
+        self.assertTrue(result["ok"])
+        self.assertEqual(current.read_bytes(), pc.canonical(state))
+
+    def test_promotion_protects_document_refs_nested_in_code_state(self):
+        code_root = self.root / "code-root"
+        (code_root / "src").mkdir(parents=True)
+        (code_root / "src" / "main.rs").write_bytes(b"fn main() {}\n")
+        self.write("snapshot-only.md", "baseline snapshot evidence")
+        self.write("ledger-only.md", "ledger evidence")
+        state = copy.deepcopy(self.state)
+        code_state = state["lots"][0]["preconditions"]["code_state"]
+        code_ref = {"path": "src/main.rs", "sha256": pc.file_hash(code_root / "src" / "main.rs")}
+        code_state["current"] = [code_ref]
+        code_state["baseline"] = [{
+            "path": "src/main.rs", "sha256": code_ref["sha256"],
+            "snapshot": self.proof("snapshot-only.md"), "revision": "D0",
+            "dirty_hash": "0" * 64,
+        }]
+        code_state["ledger"] = [{
+            "path": "src/main.rs", "sha256": code_ref["sha256"],
+            "lot_id": "L-0", "evidence": [self.proof("ledger-only.md")],
+        }]
+        self.write("pending-nested-refs.json", state)
+        for target in (self.root / "snapshot-only.md", self.root / "ledger-only.md"):
+            with self.subTest(target=target.name), self.assertRaisesRegex(pc.ControlError, "overwrite corpus/manifest/evidence"):
+                pc.promote_checkpoint(self.root, self.root / "pending-nested-refs.json", target, code_root)
+
+    def test_cli_contract(self):
+        self.write("state.json", self.state)
+        command = [sys.executable, str(Path(pc.__file__)), "check-state", "--root", str(self.root), "--state", str(self.root / "state.json"), "--lot", "L-1"]
+        done = subprocess.run(command, capture_output=True, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr.decode())
+        self.assertTrue(json.loads(done.stdout)["ok"])
+
+    def test_cli_create_verify_promote_and_failure(self):
+        self.write("files.json", ["design.md"])
+        executable = [sys.executable, str(Path(pc.__file__))]
+        create = subprocess.run(executable + ["create-manifest", "--root", str(self.root), "--scope", "DESIGN", "--candidate-id", "D-CLI", "--files-list", str(self.root / "files.json"), "--output", str(self.root / "cli.manifest.json")], capture_output=True)
+        self.assertEqual(create.returncode, 0, create.stderr.decode())
+        verify = subprocess.run(executable + ["verify-manifest", "--root", str(self.root), "--manifest", str(self.root / "cli.manifest.json")], capture_output=True)
+        self.assertEqual(verify.returncode, 0, verify.stderr.decode())
+        self.assertEqual(json.loads(verify.stdout)["candidate_id"], "D-CLI")
+        self.write("pending.json", self.state)
+        promote = subprocess.run(executable + ["promote-checkpoint", "--root", str(self.root), "--pending", str(self.root / "pending.json"), "--current", str(self.root / "current.json")], capture_output=True)
+        self.assertEqual(promote.returncode, 0, promote.stderr.decode())
+        (self.root / "design.md").write_bytes(b"changed")
+        invalid = subprocess.run(executable + ["verify-manifest", "--root", str(self.root), "--manifest", str(self.root / "cli.manifest.json")], capture_output=True)
+        self.assertEqual(invalid.returncode, 1)
+        self.assertIn(b"corpus changed", invalid.stderr)
+
+    def test_canonical_gate_inventory_and_contributors(self):
+        self.fails(lambda s: s["gates"][0]["rubrics"].pop(), "exact canonical rubric inventory")
+        self.fails(lambda s: next(r for r in s["gates"][0]["rubrics"] if r["key"] == "railguard").update(applicability="not_applicable", reason="omit"), "must always apply")
+        self.fails(lambda s: s["candidates"]["DESIGN"]["contributors"].append("USER"), "independence from contributors")
+
+    def test_acceptance_mapping_and_delegated_execution(self):
+        state = copy.deepcopy(self.state)
+        state["lots"][0]["verifies"] = ["REQ-1"]
+        with self.assertRaisesRegex(pc.ControlError, "explicit acceptance_ids"):
+            pc.check_state(self.root, state)
+        state["elements"][0]["acceptance_ids"] = ["AC-1"]
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+        source = self.proof("authority.md")
+        state["authorities"].append({"id": "IMPL", "actor": "implementation", "role": "implementer", "sources": [source],
+                                     "delegated_by": "USER", "delegation_source": source,
+                                     "scope": {"version": 1, "paths": ["src/main.rs"], "lot_ids": ["L-1"]}})
+        state["lots"][0]["preconditions"]["authorization"]["authority"] = "IMPL"
+        self.assertTrue(pc.check_state(self.root, state, "L-1")["ok"])
+        state["authorities"][-1]["scope"]["paths"] = []
+        with self.assertRaisesRegex(pc.ControlError, "exceeds delegated"):
+            pc.check_state(self.root, state, "L-1")
+        state["authorities"][-1]["scope"]["paths"] = ["src/main.rs"]
+        state["lots"][0]["preconditions"]["railguard"]["activation"] = "not_applicable"
+        with self.assertRaisesRegex(pc.ControlError, "requires active railguard"):
+            pc.check_state(self.root, state, "L-1")
+
+    def test_exported_fixture(self):
+        fixture_root = self.root / "exported"
+        fixture = write_positive_fixture(fixture_root)
+        self.assertTrue(pc.check_state(fixture_root, fixture_root / "state.json", "L-1")["ok"])
+        self.assertEqual(pc.read_json(fixture_root / "state.json"), fixture)
+
+    def test_stale_and_blocked_are_preserved_without_downstream_transfer(self):
+        state = copy.deepcopy(self.state)
+        state["candidates"].pop("PLANS")
+        state["gates"] = state["gates"][:1]
+        state["checkpoint"]["phase"] = "DESIGN"
+        state["candidates"]["DESIGN"].update(status="BLOCKED")
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+        (self.root / "design.md").write_bytes(b"unexpected drift")
+        state["candidates"]["DESIGN"].update(status="STALE", staleness={"reason": "observed code changed", "evidence": [self.proof("authority.md")]})
+        result = pc.check_state(self.root, state)
+        self.assertEqual(result["observed_drift"]["DESIGN"], ["design.md"])
+        (self.root / "design.md").unlink()
+        self.assertEqual(pc.check_state(self.root, state)["observed_drift"]["DESIGN"], ["design.md"])
+        state["checkpoint"]["phase"] = "PLANS"
+        with self.assertRaisesRegex(pc.ControlError, "requires DESIGN READY"):
+            pc.check_state(self.root, state)
+
+    def test_code_ledger_accepts_expected_progression_rejects_unexpected(self):
+        state = copy.deepcopy(self.state)
+        baseline_bytes = b"old source"
+        (self.root / "snapshot.rs").write_bytes(baseline_bytes)
+        self.write("design.manifest.json", pc.create_manifest(self.root, "DESIGN", "D-1", ["design.md", "snapshot.rs"]))
+        self.write("plans.manifest.json", pc.create_manifest(self.root, "PLANS", "P-1", ["plans.md", "design.manifest.json"], "D-1"))
+        state["candidates"] = {scope: self.candidate(scope) for scope in ("DESIGN", "PLANS")}
+        (self.root / "src").mkdir()
+        (self.root / "src/main.rs").write_bytes(b"authorized output")
+        state["lots"].append({"id": "L-0", "needs": [], "covers": [], "verifies": [], "paths": ["src/main.rs"], "prerequisites": [], "tasks": [], "status": "completed", "completion_evidence": [self.proof("review.md")]})
+        state["lots"][0]["prerequisites"] = ["L-0"]
+        state["lots"][0]["dependency_kinds"] = {"L-0": {"kind": "EXECUTION", "evidence": [self.proof("plans.md")]}}
+        state["lots"][0]["preconditions"]["drift"].update(classification="expected_previous_lots", previous_lots=["L-0"])
+        state["lots"][0]["preconditions"]["code_state"] = {
+            "baseline": [{"path": "src/main.rs", "sha256": self.proof("snapshot.rs")["sha256"], "snapshot": self.proof("snapshot.rs"), "revision": "D0-test", "dirty_hash": "0" * 64}],
+            "ledger": [{"path": "src/main.rs", "sha256": self.proof("src/main.rs")["sha256"], "lot_id": "L-0", "evidence": [self.proof("review.md")]}],
+            "current": [self.proof("src/main.rs")]}
+        self.assertTrue(pc.check_state(self.root, state, "L-1")["ok"])
+        (self.root / "src/main.rs").write_bytes(b"unknown change")
+        state["lots"][0]["preconditions"]["code_state"]["current"] = [self.proof("src/main.rs")]
+        with self.assertRaisesRegex(pc.ControlError, "unexpected current code drift"):
+            pc.check_state(self.root, state, "L-1")
+
+
+    def test_reviewers_cannot_declare_self_independent(self):
+        self.fails(lambda s: (s["candidates"]["DESIGN"]["contributors"].append("REVIEWER"), s["authorities"][2]["independent_from"].append("REVIEWER")), "cannot be a contributor")
+        state = copy.deepcopy(self.state)
+        state["candidates"]["DESIGN"].update(status="DRAFT", contributors=["AUTHOR", "REVIEWER"], reviews=[])
+        state["candidates"]["PLANS"]["status"] = "DRAFT"
+        state["checkpoint"]["phase"] = "DESIGN"
+        state["authorities"][2]["independent_from"].append("REVIEWER")
+        state["findings"] = [{"id": "F-SELF", "scope": "DESIGN", "candidate_id": "D-1", "kind": "required", "severity": "High", "status": "open", "author": "AUTHOR", "reviewer": "REVIEWER", "refs": []}]
+        with self.assertRaisesRegex(pc.ControlError, "cannot be a contributor"):
+            pc.check_state(self.root, state)
+
+    def test_typed_dependencies_availability(self):
+        state = copy.deepcopy(self.state)
+        state["lots"].append({"id": "L-DOC", "needs": [], "covers": [], "verifies": [], "paths": [], "prerequisites": [], "tasks": []})
+        state["lots"][0]["prerequisites"] = ["L-DOC"]
+        with self.assertRaisesRegex(pc.ControlError, "every prerequisite"):
+            pc.check_state(self.root, state)
+        state["lots"][0]["dependency_kinds"] = {"L-DOC": {"kind": "DOCUMENT", "evidence": [self.proof("plans.md")]}}
+        self.assertTrue(pc.check_state(self.root, state, "L-1")["ok"])
+        dependency = state["lots"][0]["dependency_kinds"]["L-DOC"]
+        dependency.update(kind="CODE", outputs=[self.proof("design.md")])
+        self.assertTrue(pc.check_state(self.root, state, "L-1")["ok"])
+        dependency["kind"] = "EXECUTION"
+        dependency.update(evidence=[], expected="Run L-DOC after code authorization; NOT RUN")
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+        with self.assertRaisesRegex(pc.ControlError, "available dependency evidence"):
+            pc.check_state(self.root, state, "L-1")
+        dependency["evidence"] = [self.proof("review.md")]
+        with self.assertRaisesRegex(pc.ControlError, "not completed"):
+            pc.check_state(self.root, state, "L-1")
+        state["lots"][-1].update(status="completed", completion_evidence=[self.proof("review.md")])
+        self.assertTrue(pc.check_state(self.root, state, "L-1")["ok"])
+
+    def test_plans_rubrics_and_finding_dispositions(self):
+        self.fails(lambda s: s["gates"][1]["rubrics"][0].update(applicability="not_applicable", reason="omit"), "PLANS rubrics must apply")
+        state = copy.deepcopy(self.state)
+        finding = {"id": "F-DISPUTED", "scope": "DESIGN", "candidate_id": "D-1", "kind": "required", "severity": "Medium", "status": "closed", "author": "AUTHOR", "reviewer": "REVIEWER", "refs": [], "closed_by": "REVIEWER", "closure_evidence": [self.proof("review.md")], "disposition": "DISPUTED"}
+        state["findings"] = [finding]
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+        finding.update(disposition="RISK_ACCEPTED", risk_nature="decision")
+        with self.assertRaisesRegex(pc.ControlError, "competent scoped"):
+            pc.check_state(self.root, state)
+        finding.update(confirmed_by="USER", confirmation_source=self.proof("authority.md"))
+        self.assertTrue(pc.check_state(self.root, state)["ok"])
+
+    def test_historical_tasks_are_preserved_and_not_executed(self):
+        for approval in ("rejected", "superseded"):
+            state = copy.deepcopy(self.state)
+            state["elements"].append({"id": "TASK-OLD", "nature": "task", "approval": approval, "owner": "AUTHOR", "version": 1, "refs": ["REQ-1"]})
+            self.assertTrue(pc.check_state(self.root, state)["ok"])
+            state["lots"][0]["tasks"].append("TASK-OLD")
+            with self.assertRaisesRegex(pc.ControlError, "historical task"):
+                pc.check_state(self.root, state)
+            state["lots"][0]["tasks"].pop()
+            state["checkpoint"]["pending_tasks"].append("TASK-OLD")
+            with self.assertRaisesRegex(pc.ControlError, "historical task"):
+                pc.check_state(self.root, state)
+
+
+def write_positive_fixture(root):
+    """Export a SYNTHETIC test example. Its verdicts are not real reviewer evidence."""
+    case = Controls()
+    case.root = Path(root)
+    case.root.mkdir(parents=True, exist_ok=True)
+    case.populate_fixture()
+    case.write("state.json", case.state)
+    return case.state
+
+
+if __name__ == "__main__":
+    unittest.main()

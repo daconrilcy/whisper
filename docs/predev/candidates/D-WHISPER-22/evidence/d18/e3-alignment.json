@@ -1,0 +1,43 @@
+{
+  "schema": "whisper-e3-alignment/1",
+  "sample_rate": 16000,
+  "method": "sparse normalized cross-correlation, source vs FFmpeg PCM decode",
+  "rows": [
+    {
+      "passage": 1,
+      "source_samples": 231360,
+      "decoded_samples_ffmpeg": 232128,
+      "decoded_excess_samples": 768,
+      "best_offset_samples": 919,
+      "best_offset_ms": 57.438,
+      "correlation": 0.29488,
+      "mp3_sha256": "17230d063c3646b608f2a82ca3dc80bc4e0bbf5cdc1cf214c6f20e0ebc144e79"
+    },
+    {
+      "passage": 2,
+      "source_samples": 104640,
+      "decoded_samples_ffmpeg": 105408,
+      "decoded_excess_samples": 768,
+      "best_offset_samples": 533,
+      "best_offset_ms": 33.312,
+      "correlation": 0.16468,
+      "mp3_sha256": "5919a1eeed9dc14606304eb3ca6eeadf2655b9800aac3f81f81fcffe43af242e"
+    },
+    {
+      "passage": 3,
+      "source_samples": 96000,
+      "decoded_samples_ffmpeg": 96768,
+      "decoded_excess_samples": 768,
+      "best_offset_samples": 914,
+      "best_offset_ms": 57.125,
+      "correlation": 0.35198,
+      "mp3_sha256": "e98ebaef28195b8aeb980fb0e9e8a93372125f04b2cd5826961f19da7ebb912b"
+    }
+  ],
+  "limits": [
+    "decoder-specific padding",
+    "lossy waveform; score depends on source segment",
+    "no human audio quality verdict",
+    "SRT is indexed on original PCM capture clock"
+  ]
+}

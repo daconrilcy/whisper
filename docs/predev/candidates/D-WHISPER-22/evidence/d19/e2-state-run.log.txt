@@ -1,0 +1,12 @@
+   Compiling e2-controller v0.1.0 (C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\e2-controller)
+    Finished `release` profile [optimized] target(s) in 0.48s
+     Running `target\release\e2_state.exe C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\e2-controller\attested-gpu\engine_attested.exe C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\e2-controller\attested-cpu\engine_attested.exe C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\e1-install\primary\models\ggml-large-v3-turbo.bin C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\e2-controller\wav16\fr_fr-000.wav C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\e2-controller\wav16\en_us-000.wav C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\e2-controller\wav16\fr_fr-001.wav`
+strict_absent=REFUSED_PRE_INFERENCE_NO_CPU_PUBLISH
+receiver_failure segment=1 exit=73 backend_attested_before_full=CUDA0 policy=strict
+strict_worker_exit73=STOPPED_NO_CPU_RETRY_NO_PUBLISH
+receiver_failure segment=2 exit=73 backend_attested_before_full=CUDA0 policy=auto
+receiver_rejected_stale segment=2 event_generation=1 current_generation=2 before_publish=true
+committed_segment=1 generation=1 start_ms=0 end_ms=14460 backend=CUDA0
+committed_segment=2 generation=2 start_ms=15960 end_ms=22500 backend=CPU
+committed_segment=3 generation=2 start_ms=24000 end_ms=30000 backend=CPU
+auto_exit73_to_cpu=PASS committed=3 generations=2 stale_event=REJECTED overlap=0

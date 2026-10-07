@@ -1,0 +1,52 @@
+import hashlib
+import json
+from pathlib import Path
+
+root = Path(__file__).resolve().parent
+bench = root / "e2-controller"
+engine = root.parent / "engine"
+files = {
+    "controller_source": bench / "src/bin/e2_state.rs",
+    "controller_lock": bench / "Cargo.lock",
+    "controller_log": bench / "e2-state-run.log",
+    "worker_source": engine / "src/bin/engine_attested.rs",
+    "worker_lock": engine / "Cargo.lock",
+    "gpu_worker": bench / "attested-gpu/engine_attested.exe",
+    "cpu_worker": bench / "attested-cpu/engine_attested.exe",
+    "gpu_success_log": bench / "attested-gpu-run.log",
+    "cpu_success_log": bench / "attested-cpu-run.log",
+    "gpu_absent_log": bench / "attested-gpu-absent.log",
+}
+hashes = {}
+for name, path in files.items():
+    with path.open("rb") as stream:
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+    hashes[name] = {"sha256": digest, "bytes": path.stat().st_size}
+text = files["controller_log"].read_text(encoding="utf-8", errors="replace")
+for required in (
+    "receiver_failure segment=1 exit=73 backend_attested_before_full=CUDA0 policy=strict",
+    "strict_worker_exit73=STOPPED_NO_CPU_RETRY_NO_PUBLISH",
+    "receiver_failure segment=2 exit=73 backend_attested_before_full=CUDA0 policy=auto",
+    "receiver_rejected_stale segment=2 event_generation=1 current_generation=2 before_publish=true",
+    "committed_segment=1 generation=1 start_ms=0 end_ms=14460 backend=CUDA0",
+    "committed_segment=2 generation=2 start_ms=15960 end_ms=22500 backend=CPU",
+    "committed_segment=3 generation=2 start_ms=24000 end_ms=30000 backend=CPU",
+    "auto_exit73_to_cpu=PASS committed=3 generations=2 stale_event=REJECTED overlap=0",
+):
+    assert required in text, required
+assert "backend_attested=CUDA0 before_full=true" in files["gpu_success_log"].read_text(encoding="utf-8", errors="replace")
+assert "backend_attested=CPU before_full=true" in files["cpu_success_log"].read_text(encoding="utf-8", errors="replace")
+absent = files["gpu_absent_log"].read_text(encoding="utf-8", errors="replace")
+assert "backend_attestation_failed_before_full requested=gpu" in absent
+assert "mode_requested=" not in absent
+report = {
+    "schema": "whisper-mode-state-bench/2", "files": hashes,
+    "strict_absent": "GPU_WORKER_REJECTED_BEFORE_FULL",
+    "strict_worker_exit73": "STOPPED_NO_CPU_RETRY_NO_PUBLISH",
+    "auto_worker_exit73": "GENERATION_1_INVALIDATED_CPU_REPLAY_SAME_RANGE",
+    "stale_delivery": "SAME_RECEIVER_REJECTED_BEFORE_COMMITTED_VECTOR",
+    "backend_attestation": "Whisper log callback observed native context/create_state before state.full; versioned markers CPU/CUDA0, fail closed",
+    "limits": "Injected exit73 after real inference, not a physical GPU driver failure. Three finite WAVs, in-memory commit vector; product archive/UI, long session and hardware outage not tested.",
+}
+(root / "e2-state-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print(json.dumps({"result": "PASS", "files": len(hashes), "strict": report["strict_worker_exit73"], "auto": report["auto_worker_exit73"]}))

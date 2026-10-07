@@ -1,0 +1,21 @@
+from pathlib import Path
+import importlib.util, tempfile, hashlib, json
+here=Path(__file__).parent
+p=here/'e1_install.py'
+s=importlib.util.spec_from_file_location('e1',p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+root=Path(tempfile.mkdtemp(prefix='whisper-e1-integrity-'))
+src=root/'source.bin'; src.write_bytes(b'abc123'*10000)
+out=root/'model.bin'; valid=hashlib.sha256(src.read_bytes()).hexdigest()
+r1=m.acquire(src,out,'0'*64)
+assert r1['status']=='HASH_MISMATCH' and not out.exists()
+partial=out.with_suffix('.bin.partial'); partial.write_bytes(b'corrupt')
+r2=m.acquire(src,out,valid,stop_after=4096)
+assert r2['status']=='INTERRUPTED' and not out.exists() and partial.read_bytes()==src.read_bytes()[:r2['partial_bytes']]
+r3=m.acquire(src,out,valid)
+assert r3['status']=='VERIFIED' and out.read_bytes()==src.read_bytes()
+trunc=root/'truncated.bin'; trunc.write_bytes(src.read_bytes()[:-1])
+out2=root/'model2.bin'; r4=m.acquire(trunc,out2,valid)
+assert r4['status']=='HASH_MISMATCH' and not out2.exists()
+report={'schema':'e1-integrity/1','wrong_expected':r1['status'],'corrupt_partial_restarted':r2['status'],'valid_resume':r3['status'],'truncated_source':r4['status'],'ready_on_invalid':False,'fixture_bytes':src.stat().st_size,'limitation':'60kB local fixture, not remote model transfer'}
+(here/'e1-integrity.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps(report))

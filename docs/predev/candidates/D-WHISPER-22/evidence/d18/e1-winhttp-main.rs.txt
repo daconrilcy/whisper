@@ -1,0 +1,89 @@
+use sha2::{Digest, Sha256};
+use std::env;
+use std::ffi::{OsStr, c_void};
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Write};
+use std::os::windows::ffi::OsStrExt;
+use std::path::Path;
+use std::ptr::{null, null_mut};
+use windows_sys::Win32::Networking::WinHttp::*;
+
+fn wide(value:&str)->Vec<u16>{OsStr::new(value).encode_wide().chain([0]).collect()}
+struct Handle(*mut c_void);
+impl Handle {
+    fn new(raw:*mut c_void)->Result<Self,Box<dyn std::error::Error>>{
+        if raw.is_null(){Err(std::io::Error::last_os_error().into())}else{Ok(Self(raw))}
+    }
+}
+impl Drop for Handle {fn drop(&mut self){unsafe{WinHttpCloseHandle(self.0);}}}
+fn check(ok:i32)->Result<(),Box<dyn std::error::Error>>{
+    if ok==0{Err(std::io::Error::last_os_error().into())}else{Ok(())}
+}
+fn header(handle:&Handle,query:u32)->Result<String,Box<dyn std::error::Error>>{
+    let mut buf=[0_u16;256];
+    let mut len=(buf.len()*2) as u32;
+    check(unsafe{WinHttpQueryHeaders(handle.0,query,null(),buf.as_mut_ptr().cast(),&mut len,null_mut())})?;
+    Ok(String::from_utf16(&buf[..(len as usize/2)])?.trim_end_matches('\0').to_string())
+}
+fn status(handle:&Handle)->Result<u32,Box<dyn std::error::Error>>{
+    let mut value=0_u32;let mut len=4_u32;
+    check(unsafe{WinHttpQueryHeaders(handle.0,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,null(),(&mut value as *mut u32).cast(),&mut len,null_mut())})?;
+    Ok(value)
+}
+fn hash(path:&Path)->Result<String,Box<dyn std::error::Error>>{
+    let mut file=File::open(path)?;let mut h=Sha256::new();let mut buf=[0_u8;65536];
+    loop{let n=file.read(&mut buf)?;if n==0{break}h.update(&buf[..n]);}
+    Ok(h.finalize().iter().map(|b|format!("{b:02x}")).collect())
+}
+fn acquire(port:u16,root:&Path,expected:&str,total:u64,stop_after:u64)->Result<(),Box<dyn std::error::Error>>{
+    fs::create_dir_all(root)?;
+    let partial=root.join("model.partial");let dest=root.join("model.bin");let ready=root.join("Ready.json");
+    if ready.exists(){return Err("already Ready".into())}
+    let offset=partial.metadata().map(|m|m.len()).unwrap_or(0);
+    if offset>total{return Err("partial exceeds expected size".into())}
+    unsafe {
+        let session=Handle::new(WinHttpOpen(wide("WhisperDesignE1/1").as_ptr(),WINHTTP_ACCESS_TYPE_NO_PROXY,null(),null(),0))?;
+        check(WinHttpSetTimeouts(session.0,5000,5000,5000,10000))?;
+        let connection=Handle::new(WinHttpConnect(session.0,wide("127.0.0.1").as_ptr(),port,0))?;
+        let request=Handle::new(WinHttpOpenRequest(connection.0,wide("GET").as_ptr(),wide("/model").as_ptr(),null(),null(),null(),0))?;
+        if offset>0 {
+            let range=wide(&format!("Range: bytes={offset}-\r\n"));
+            check(WinHttpAddRequestHeaders(request.0,range.as_ptr(),u32::MAX,WINHTTP_ADDREQ_FLAG_ADD))?;
+        }
+        check(WinHttpSendRequest(request.0,null(),0,null(),0,0,0))?;
+        check(WinHttpReceiveResponse(request.0,null_mut()))?;
+        let code=status(&request)?;
+        if (offset==0 && code!=200)||(offset>0 && code!=206){return Err(format!("unexpected HTTP status {code} for offset {offset}").into())}
+        let tag=header(&request,WINHTTP_QUERY_ETAG)?;
+        if tag!=expected{return Err("ETag fixture identity mismatch".into())}
+        if offset>0 {
+            let content_range=header(&request,WINHTTP_QUERY_CONTENT_RANGE)?;
+            if content_range!=format!("bytes {offset}-{}/{total}",total-1){return Err(format!("bad Content-Range {content_range}").into())}
+        }
+        let mut file=OpenOptions::new().create(true).append(true).open(&partial)?;
+        let mut written=offset;let mut buf=[0_u8;65536];
+        loop {
+            let mut n=0_u32;
+            check(WinHttpReadData(request.0,buf.as_mut_ptr().cast(),buf.len() as u32,&mut n))?;
+            if n==0{break}
+            file.write_all(&buf[..n as usize])?;
+            written+=u64::from(n);
+            if stop_after>0 && written>=stop_after {file.sync_all()?;println!("INTERRUPTED bytes={written} ready=false");return Ok(())}
+        }
+        file.sync_all()?;drop(file);
+        if written!=total{return Err(format!("truncated {written}/{total}").into())}
+        if hash(&partial)?!=expected{return Err("HASH_MISMATCH".into())}
+        fs::rename(&partial,&dest)?;
+        let mut marker=File::create(root.join("Ready.partial"))?;
+        marker.write_all(format!("{{\"status\":\"READY\",\"bytes\":{total},\"sha256\":\"{expected}\"}}\n").as_bytes())?;
+        marker.sync_all()?;drop(marker);
+        fs::rename(root.join("Ready.partial"),ready)?;
+        println!("READY bytes={written} sha256={expected}");
+    }
+    Ok(())
+}
+fn main()->Result<(),Box<dyn std::error::Error>>{
+    let args:Vec<String>=env::args().collect();
+    if args.len()!=6{return Err("usage: e1-winhttp PORT TARGET EXPECTED_SHA SIZE STOP_AFTER".into())}
+    acquire(args[1].parse()?,Path::new(&args[2]),&args[3],args[4].parse()?,args[5].parse()?)
+}

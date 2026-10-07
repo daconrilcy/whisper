@@ -1,0 +1,38 @@
+from pathlib import Path
+import subprocess,tempfile,shutil,json
+here=Path(__file__).parent
+exe=here/'e4-spool/target/release/e4-spool.exe'
+wav=Path.home()/'AppData/Local/Temp/whisper-spikes/fleurs-small/fr_fr-000.wav'
+base=Path(tempfile.mkdtemp(prefix='whisper-e4-spool-'))
+def call(*args):return subprocess.run([str(exe),*map(str,args)],capture_output=True,text=True)
+def scan(root):return call('scan',root).stdout.strip()
+main=base/'main'
+p=call('append',main,wav,1,99)
+assert p.returncode==0 and 'ACK' in p.stdout
+assert scan(main)=='confirmed=1 unconfirmed_audio=0 corrupt=false'
+rows=[]
+for cut in range(4):
+    root=base/f'cut-{cut}';shutil.copytree(main,root)
+    p=call('append',root,wav,2,cut)
+    assert p.returncode==91 and 'ACK' not in p.stdout
+    first,second=scan(root),scan(root);assert first==second
+    expected={0:'confirmed=1 unconfirmed_audio=0 corrupt=false',1:'confirmed=1 unconfirmed_audio=1 corrupt=false',2:'confirmed=1 unconfirmed_audio=1 corrupt=false',3:'confirmed=2 unconfirmed_audio=0 corrupt=false'}[cut]
+    assert first==expected,(cut,first)
+    retry=call('append',root,wav,2,99)
+    assert retry.returncode==0 and 'ACK' in retry.stdout
+    assert scan(root)=='confirmed=2 unconfirmed_audio=0 corrupt=false'
+    rows.append({'cut':cut,'after_cut':first,'after_retry':scan(root),'ack_before_cut':False})
+assert call('append',main,wav,2,99).returncode==0
+assert call('append',main,wav,3,99).returncode==0
+assert scan(main)=='confirmed=3 unconfirmed_audio=0 corrupt=false'
+bad=base/'bad';shutil.copytree(main,bad)
+(bad/'audio-2.pcm').write_bytes(b'corrupt')
+assert scan(bad)=='confirmed=1 unconfirmed_audio=0 corrupt=true'
+missing=base/'missing';shutil.copytree(main,missing)
+(missing/'audio-2.pcm').unlink()
+assert scan(missing)=='confirmed=1 unconfirmed_audio=0 corrupt=true'
+report={'schema':'whisper-e4-spool/1','source':'existing FR FLEURS WAV PCM, 320-sample frames; synthetic text oracle',
+        'rows':rows,'final':'confirmed=3 unconfirmed_audio=0 corrupt=false','corrupt_audio':'detected','missing_audio':'detected',
+        'limits':['process exit, not power failure','only three frames, not long capture or product latency','text oracle, not Whisper result','directory metadata durability and physical cache not proved']}
+(here/'e4-spool-report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps(report,indent=2))

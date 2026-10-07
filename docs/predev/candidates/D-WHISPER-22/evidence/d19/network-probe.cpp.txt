@@ -1,0 +1,21 @@
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iostream>
+#pragma comment(lib, "ws2_32.lib")
+int wmain() {
+    WSADATA data{};
+    if (WSAStartup(MAKEWORD(2, 2), &data)) return 2;
+    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == INVALID_SOCKET) return 3;
+    sockaddr_in target{};
+    target.sin_family = AF_INET;
+    target.sin_port = htons(8765);
+    InetPtonW(AF_INET, L"127.0.0.1", &target.sin_addr);
+    int result = connect(sock, reinterpret_cast<sockaddr*>(&target), sizeof(target));
+    int code = result == SOCKET_ERROR ? WSAGetLastError() : 0;
+    std::cout << "loopback_connect=" << (result == 0 ? "CONNECTED" : "FAILED") << " wsa_error=" << code << "\n";
+    closesocket(sock);
+    WSACleanup();
+    return 0;
+}
