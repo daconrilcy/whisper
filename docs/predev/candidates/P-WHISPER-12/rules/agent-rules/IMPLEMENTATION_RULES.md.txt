@@ -1,0 +1,13 @@
+# Planification et transfert
+
+Le gate et les états sont définis dans skills/rust-predev-design/references/handoff-contract.md sous la racine effective du pack résolue depuis le profil/skill fourni ; son schéma est workflow-schema.md du même dossier. Absence = BLOCKED, aucun fallback vers une autre installation. Le plan writer reçoit un design READY prouvé, les décisions et le railguard. Il retourne DESIGN_CHANGE_REQUIRED si un découpage révèle une décision structurante manquante ou incompatible ; il ne la glisse pas dans un plan.
+
+Préférer un premier parcours minimal démontrable de bout en bout, puis des incréments observables ; un bootstrap nécessaire peut précéder cette preuve. Traiter tôt les risques structurants. Les lots portent périmètre, exclusions, IDs couverts, contrats, entrées/sorties et prérequis typés DOCUMENT/CODE/EXECUTION. Le graphe doit être sans cycle ; les conflits de chemins/contrats interdisent une parallélisation annoncée sans coordination.
+
+Chaque vérification précise cwd, shell, cible/options, données, commande proposée ou observée et résultat comportemental attendu. Un code retour nul ne suffit pas à prouver le comportement. Prévoir refus/erreurs pertinents, qualification UI dans le vrai consumer si nécessaire et récupération bornée ; jamais reset global ou suppression non ciblée par défaut.
+
+Avant chaque lot : vérifier manifests design/plans, verdicts exacts, activation du railguard, autorisation déjà applicable, prérequis et état réel du dépôt. Les modifications attendues des lots précédents sont des preuves de progression consignées ; une divergence inexpliquée revient au coordinateur. Ne pas invalider tous les plans pour chaque changement de code prévu.
+
+CHANGE couvre ajout/retrait/correction d'exigence ou critère, remplacement de décision et découverte technique. Nature, impacts, historique, échéance et acceptation sont documentés ; une décision d'origine peut être N/A justifié. Une variante exploratoire ne suspend pas la référence acceptée ; une demande d'exécution suspend les lots réellement touchés, et une preuve de défaut invalide immédiatement les preuves concernées.
+
+Readiness, acceptation des décisions, autorisation de coder, checks exécutés, qualification et publication sont distincts. Réutiliser une autorisation déjà accordée avec sa source/portée ; ne pas demander l'accord utilisateur pour chaque choix technique délégué. Ne jamais inventer l'autorisation absente.

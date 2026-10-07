@@ -1,0 +1,49 @@
+# Contenus techniques et transfert des plans
+
+## Domaine et contrats
+
+Pour les frontières pertinentes : entrées/sorties, préconditions, invariants, erreurs et effets, propriétaire de chaque état/donnée, transitions valides et événements. Le framer couvre les parcours structurants ; l'analyste leur état visible et leurs scénarios d'échec/annulation/fermeture/reprise. L'architecte distingue état métier et état de présentation.
+
+Selon le besoin : propriété/transfert des données entre threads, Send/Sync, arrêt/annulation et délai acceptable, bornes/backpressure des files ; effets de persistance, atomicité, migration/compatibilité ; isolation d'appels bloquants/FFI et politique unsafe encapsulée et justifiée. N'imposer ni async, ni trait, ni mutex sans cas réel.
+
+## Faisabilité et critères
+
+Les dépendances structurantes portent versions Rust/Cargo/édition et OS/architecture, crates/features et dépendances natives nécessaires, compatibilités/limites, source primaire/date, redistribution et packaging lorsque décisifs. Distinguer option, décision acceptée et preuve. Une commande non exécutée est proposée avec résultat attendu, pas garantie.
+
+Pour un lot autorisé, fournir une matrice des prérequis d'environnement consommée par `predev_control.py check-build-environment` avant le premier changement. Le format et les probes autorisées sont définis dans [execution-evidence.md](execution-evidence.md). Une version ou variable requise absente bloque le seul lot consommateur; le check ne remplace pas le build ni sa preuve d'exécution.
+
+Une exigence non fonctionnelle déterminante porte données/charge, plateforme/matériel, métrique, seuil et méthode reproductible. Si une valeur manque, question classée et échéance avant la conception ou le lot qui en dépend. Les tests produit futurs ne prouvent pas une faisabilité préalable.
+
+SPIKE : hypothèse technique, raison pour laquelle les documents ne suffisent pas, dossier isolé, acteur d'exécution séparément autorisé, ressources/durée bornées, critère de succès/échec, preuves/candidat/source et nettoyage ciblé. Un résultat incomplet ne vaut pas succès ; requalifier risque/périmètre puis revoir le dossier. Le cadrage ne devient pas implémentation du produit.
+
+L'architecte définit le protocole et interprète la conséquence technique ; le coordinateur enregistre mandat, résultat et handoff, sans exécuter le banc depuis son rôle en lecture seule. L'exécution appartient à un exécutant de SPIKE distinct de l'hôte documentaire, autorisé séparément pour le seul dossier d'essai et la durée du mandat ; sa sortie brute est attribuée à cet exécutant. L'hôte documentaire peut seulement persister ces sorties selon sa policy docs. Aucun nouveau profil d'agent n'est requis automatiquement. Avant de qualifier un résultat, l'exécutant remet les sources/versions/hashes, commandes et codes retour, données/paramètres, logs, témoin utile et limites. La vérification compare le stimulus réellement injecté, la branche réellement parcourue et l'effet observé au critère annoncé ; un succès adjacent ne ferme pas le scénario non exercé.
+
+La matrice de preuve classe chaque item `DESIGN_FEASIBILITY`, `PRODUCT_VALIDATION` ou `DELIVERY_QUALIFICATION`, avec hypothèse, owner, état PASS/PARTIAL/FAIL/NOT RUN, source et prochaine échéance. Seule la faisabilité structurante nécessaire au design bloque DESIGN READY ; les vérifications qui exigent le produit ou son installateur final vont aux lots/à la qualification correspondants. Ne pas élargir un SPIKE pour reproduire tout le produit ni convertir ses fixtures en tests produit.
+
+## Traçabilité
+
+REQ acceptée -> UC/AC -> responsabilité architecturale -> lot -> vérification ; vérifier aussi tâche -> REQ acceptée ou préalable technique justifié. Les éléments exclus/différés portent leur motif/version et ne demandent pas une couverture du périmètre courant. IDs orphelins ou fonctionnalité ajoutée sont findings. workflow-schema.md définit les liens contrôlés automatiquement, le reviewer vérifie leur sens.
+
+## Lots
+
+Chaque lot porte ID, design parent, objectif, scope/exclusions, modules/chemins et contrats, entrées/sorties, besoins requis et détails réversibles délégués, étapes et critères. Préférer un parcours minimal de bout en bout tôt, puis incréments observables ; bootstrap technique seulement si nécessaire.
+
+Prérequis typés DOCUMENT (contrat accepté), CODE (API/artefact fourni par un lot) ou EXECUTION (preuve de réussite du lot précédent). Graphe sans cycle, IDs existants, entrées disponibles et sortie prouvée. Lots touchant le même contrat/chemin ne sont parallélisables qu'avec propriété/coordination explicitée. Les simples besoins documentaires n'autorisent pas l'usage d'un code encore absent.
+
+Le plan writer ne choisit pas silencieusement stockage/technologie/invariant. Sortie DESIGN_CHANGE_REQUIRED avec ID impacté, raison, questions et lots touchés ; le coordinateur retourne au spécialiste, met à jour conception/revue/gate, puis régénère les plans.
+
+## Vérifications et récupération
+
+Préciser cwd, shell, cible, features/options, données de test, commande, état proposed/observed, comportement attendu et preuve à conserver. Un exit code 0 ne prouve pas seul l'acceptation. Les validations fmt/tests/clippy/build dépendent des autorités actuelles du dépôt ; ne pas copier automatiquement les gates VectoPict. Si UI, qualification dans le vrai widget/consumer et contexte d'exécution requis.
+
+Décrire arrêt, reprise et récupération proportionnée : préserver données et changements ordinaires, vérifier les chemins et autorisations avant action destructive. Pas de reset global, suppression récursive ou remise à zéro automatique du dépôt.
+
+## Preflight de chaque lot
+
+1. Vérifier manifests DESIGN/PLANS, parent et verdicts exacts, readiness et sources/règles effectives.
+2. Vérifier autorisation d'implémenter déjà applicable (source/portée), railguard actif et équivalence attestée, décisions nécessaires au lot.
+3. Vérifier prérequis DOCUMENT/CODE/EXECUTION et preuves réelles, état du dépôt et empreintes des contrats affectés.
+4. Distinguer progression attendue et divergence : consigner sorties/hashes/commits des lots terminés dans le ledger d'exécution séparé, sans modifier le design/plans revus. Les changements prédits par les plans actualisent l'état d'exécution ; une différence imprévue revient au coordinateur et suspend le lot concerné.
+5. Lancer le lot seulement après preflight valide ; garder résultat et vérifications liés au candidat exécuté. Un vieux plan n'est pas transférable simplement parce qu'il porte READY.
+
+La promotion d'un checkpoint vérifie la cohérence documentaire ; elle n'atteste ni l'état produit ni une permission OS non testée.
