@@ -1,0 +1,8 @@
+strict_absent=REFUSED_PRE_INFERENCE_NO_CPU_PUBLISH
+forced_cpu=CPU
+strict_gpu_worker_failure_injected=STOPPED_NO_CPU_RETRY_NO_PUBLISH
+committed_segment=1 generation=1 start_ms=0 end_ms=14460 backend=CUDA0
+injected_gpu_failure_after_inference=segment_2 stale_generation_1=REJECTED
+committed_segment=2 generation=2 start_ms=15960 end_ms=22500 backend=CPU
+committed_segment=3 generation=2 start_ms=24000 end_ms=30000 backend=CPU
+auto_gpu_to_cpu=PASS committed=3 generations=2 overlap=0 stale_publish=0

@@ -1,0 +1,74 @@
+{
+  "schema": "whisper-e0-licenses/1",
+  "cargo_package_count": 52,
+  "key_crates": [
+    {
+      "name": "hound",
+      "version": "3.5.1",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/ruuda/hound",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "libloading",
+      "version": "0.8.9",
+      "license": "ISC",
+      "repository": "https://github.com/nagisa/rust_libloading/",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "rusty_mp3",
+      "version": "0.8.0",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/Remade-With-Rust/remade_ffmpeg_rs",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "sha2",
+      "version": "0.11.0",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/RustCrypto/hashes",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "webrtc-vad",
+      "version": "0.4.0",
+      "license": "MIT",
+      "repository": "https://github.com/kaegi/webrtc-vad",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "whisper-rs",
+      "version": "0.16.0",
+      "license": "Unlicense",
+      "repository": "https://codeberg.org/tazz4843/whisper-rs",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "whisper-rs-sys",
+      "version": "0.15.0",
+      "license": "Unlicense",
+      "repository": "https://codeberg.org/tazz4843/whisper-rs",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+  ],
+  "native": {
+    "whisper_cpp_version": "1.8.3",
+    "license_path": "C:\\Users\\cyril\\.cargo\\registry\\src\\index.crates.io-1949cf8c6b5b557f\\whisper-rs-sys-0.15.0\\whisper.cpp\\LICENSE",
+    "license_sha256": "e562a2ddfaf8280537795ac5ecd34e3012b6582a147ef69ba6a6a5c08c84757d"
+  },
+  "cuda": {
+    "version": "12.8",
+    "license_path": "C:\\Users\\cyril\\AppData\\Local\\Temp\\whisper-spikes\\cuda-12.8\\LICENSE",
+    "license_sha256": "e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07",
+    "eula_url": "https://docs.nvidia.com/cuda/archive/12.8.0/eula/index.html"
+  },
+  "model": {
+    "repository": "https://huggingface.co/ggerganov/whisper.cpp",
+    "commit": "6034871ec87c84e342efab769d4c5c06cd126db3",
+    "file": "ggml-large-v3-turbo.bin",
+    "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+    "repository_license_metadata": "mit"
+  },
+  "limit": "Metadata and notices only; no final legal/compliance verdict or installer produced"
+}

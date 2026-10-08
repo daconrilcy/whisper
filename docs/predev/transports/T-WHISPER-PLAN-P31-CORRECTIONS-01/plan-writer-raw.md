@@ -1,0 +1,11 @@
+# PLAN-P31-CORRECTIONS-v1 — transcription de la contribution auteur
+
+Auteur : `/root/plan_p30`. Statut : proposition DRAFT, lecture seule. Autorité proposée : `AUTH-PLAN-P31` distincte de l'autorité historique `AUTH-PLAN-L04` de P29. La transcription ci-dessous doit être confirmée par l'auteur ; elle ne prétend pas être un export octet de son message.
+
+Base P30 digest `6befdd092dcb8e137584557e2f01514e7079f89849b43a52d4bd465c23863ae5`. Parent D30 digest `514d8fcf3e3ffdbb06852a81ffca8cc114bd6a0450ef83550443a995f29a1a2b`. P30 reste immuable DRAFT avec P30-001 et P30-002 ; aucun verdict transféré.
+
+Dans `17_L04_D28_PLAN.md`, corriger le titre en `# L-WHISPER-04 — plan opératoire D30 / P31`, attribuer l'auteur `/root/plan_p30` et l'owner proposé `AUTH-PLAN-P31`, conserver la date 2026-10-08 et le parent D30. L'introduction indique que P31 reprend P30, corrige le parent de préflight et l'attribution, conserve le delta D30/63 CUDA 12.9, les contrats 59–62, 21 chemins, I04-A à I04-E et V01–V15. Aucun résultat produit, CLEAN PLANS ou READY PLANS n'est établi à la création. Dans §1, `selon D28` devient `selon D30`. Dans §9.1, prescrire : `Vérifier DESIGN D30 exact et revue indépendante CLEAN, onze rubriques, aucun REQUIRED ouvert ; puis PLANS P31 exact, parent D30, revue CLEAN et sept rubriques.` Les autres D28 historiques restent inchangés.
+
+Dans `00_PLANS_INDEX.md`, nommer P31, l'auteur et l'autorité P31. Expliquer la filiation P30 DRAFT avec digest ci-dessus, le parent D30 exact, et préserver l'autorité historique P29 sans prétendre une adoption P31 par son acteur. Les sources P30 restent historiques. Dans `16_L04_VERIFICATION_MATRIX.md`, nommer P31/D30 sans changer commandes, oracles ni environnement.
+
+P31 exige corpus complet, parent D30, provenance auteur, revue indépendante exacte, gate PLANS, réconciliation de 21 chemins, contrôle d'environnement et préflight ciblé avant IMPLEMENTATION. Aucune validation produit ou livraison n'est revendiquée.

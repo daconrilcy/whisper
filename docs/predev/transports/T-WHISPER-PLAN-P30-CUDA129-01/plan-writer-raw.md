@@ -1,0 +1,26 @@
+# PLAN-P30-CUDA129-v2 — contribution du plan writer
+
+Auteur : /root/plan_p30, owner AUTH-PLAN-L04, lecture seule, DRAFT, 2026-10-08. Base PLANS P-WHISPER-29, digest 6fe6b6c9313074d38dff1b2ad816be3a8f5094dcc0190cbc64a754445c80529f. Parent DESIGN D-WHISPER-30, digest 514d8fcf3e3ffdbb06852a81ffca8cc114bd6a0450ef83550443a995f29a1a2b.
+
+P30 reprend le corpus complet P29 en préservant les octets hérités hors quatre fichiers modifiés : 00_PLANS_INDEX.md, 16_L04_VERIFICATION_MATRIX.md, 17_L04_D28_PLAN.md et build-environment-L04.json. Les 21 chemins, contrats 59–62, REQ/UC/AC, incréments I04-A–E, oracles V01–V15 et récupération restent applicables.
+
+00 : identifier P30 et le parent D30 exact ; les autorisations utilisateur historique et d'extension couvrent ensemble les 21 chemins. D30/63 fixe CUDA 12.9 Update 1, NVCC 12.9.86 et la voie Visual Studio 2022 x64. Le nom de fichier 17_L04_D28_PLAN.md reste historique. Les sources P29 restent immuables. Baseline, environnement, checkpoint IMPLEMENTATION et contrôle ciblé restent requis. Campagnes P30 : NOT RUN.
+
+16 : titre P30, introduction subordonnée à 17/§7–9 pour V01–V15 et le préflight D30/P30. Tout reste PROPOSED / NOT RUN. Présence des 21 chemins ne prouve ni conformité ni clôture L04. Ajouter les tests live_contract, live_archive et whisper-worker-cpu --bin whisper-worker-cpu tels que 17/§8.
+
+17 : titre D30/P30, parent D30 digest exact ; références opératoires D28 deviennent D30 sans réécrire les références historiques. Les six chemins supplémentaires sont autorisés par l'extension utilisateur, soit 21 en union. Environnement accepté : Visual Studio 2022 x64, MSVC 14.44.35207, CMake 4.4.4, CUDA 12.9 Update 1/NVCC 12.9.86, CUDA_PATH et CudaToolkitDir vers ce toolkit, CMAKE_GENERATOR_TOOLSET absent, Ninja facultatif pour cette voie ; Rust/Cargo 1.98.1, RUSTUP_TOOLCHAIN explicite, auto-install désactivé, Libclang valide et cible installée requis. Source D30/63.
+
+Matrice : conserver les autres checks et le schéma ; modifier ou ajouter exactement les quatre entrées JSON suivantes :
+
+[
+  {"id":"CMAKE","kind":"executable","name":"cmake","required":true,"version_pattern":"^cmake version 4\\.4\\.4(?:\\s|$)"},
+  {"id":"NINJA","kind":"executable","name":"ninja","required":false},
+  {"id":"NVCC","kind":"executable","name":"nvcc","required":true,"version_pattern":"release 12\\.9,\\s+V12\\.9\\.86(?:\\s|$)"},
+  {"id":"CUDA_TOOLKIT_DIR","kind":"env","name":"CudaToolkitDir","path_type":"directory","required":true}
+]
+
+La matrice canonique ne vérifie pas seule les versions/chemins natifs exacts, la valeur de RUSTUP_TOOLCHAIN, la cible installée ou l’absence de CMAKE_GENERATOR_TOOLSET. Le préflight conserve les contrôles complémentaires et leurs preuves. Cwd C:/dev/whisper, Developer PowerShell VS2022 x64, Python -B, cible x86_64-pc-windows-msvc.
+
+Contrôles lus par le plan writer : verify-manifest P29 PASS ; check-state courant PASS, phase DESIGN D30, racine docs/predev et code-root C:/dev/whisper ; revue D30 indépendante lue. Aucun probe, build ou test P30 exécuté.
+
+IMPLEMENTATION exige revue/gate P30 exact, autorisation canonique des 21 chemins, baseline/current exhaustifs et ledger sans faux completed, railguard et prérequis, environnement réussi, pending contrôlé puis check-state --lot L-WHISPER-04 réussi avant et après promotion. L04 reste planned. PRODUCT_VALIDATION et DELIVERY_QUALIFICATION restent NOT RUN. Aucun reset global.

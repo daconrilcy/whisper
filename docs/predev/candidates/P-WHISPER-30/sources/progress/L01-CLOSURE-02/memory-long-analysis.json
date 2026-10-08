@@ -1,0 +1,147 @@
+{
+  "schema": "whisper-l01-memory-stage-analysis/2",
+  "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+  "run": {
+    "command": "cargo test --locked -p whisper-adapters --features l01-memory-qualification --test import_cpu --target x86_64-pc-windows-msvc --target-dir target/r7 generated_long_wav_runs_eight_full_native_windows_with_stage_memory_samples -- --test-threads=1 --nocapture",
+    "exit_code": 0,
+    "elapsed_ms": 169847,
+    "source_samples": 640123,
+    "windows": 9,
+    "window_samples": [
+      80000,
+      80000,
+      80000,
+      80000,
+      80000,
+      80000,
+      80000,
+      80000,
+      123
+    ]
+  },
+  "context_load": {
+    "details": {
+      "model_path_bytes": 1624555275,
+      "native_context_and_initial_state_bytes": "opaque; included in worker process counters",
+      "process_memory": {
+        "peak_working_set_bytes": 1714724864,
+        "private_bytes": 1638752256,
+        "sampled_at_unix_us": 1791285781345521,
+        "working_set_bytes": 1641504768
+      }
+    },
+    "elapsed_unix_us": 1791285781345521,
+    "stage": "model_context.load.complete"
+  },
+  "window_lifecycle": [
+    {
+      "window": 1,
+      "pcm_samples": 80000,
+      "create_begin_private_bytes": 1639829504,
+      "inference_complete_private_bytes": 2584084480,
+      "state_destroyed_private_bytes": 1639268352,
+      "create_sample_delta_us": 0,
+      "complete_sample_delta_us": 0,
+      "destroy_sample_delta_us": 0
+    },
+    {
+      "window": 2,
+      "pcm_samples": 80000,
+      "create_begin_private_bytes": 1639268352,
+      "inference_complete_private_bytes": 2584076288,
+      "state_destroyed_private_bytes": 1639264256,
+      "create_sample_delta_us": 0,
+      "complete_sample_delta_us": 0,
+      "destroy_sample_delta_us": 0
+    },
+    {
+      "window": 3,
+      "pcm_samples": 80000,
+      "create_begin_private_bytes": 1639514112,
+      "inference_complete_private_bytes": 2584109056,
+      "state_destroyed_private_bytes": 1639276544,
+      "create_sample_delta_us": 0,
+      "complete_sample_delta_us": 0,
+      "destroy_sample_delta_us": 0
+    },
+    {
+      "window": 4,
+      "pcm_samples": 80000,
+      "create_begin_private_bytes": 1639276544,
+      "inference_complete_private_bytes": 2583973888,
+      "state_destroyed_private_bytes": 1639038976,
+      "create_sample_delta_us": 0,
+      "complete_sample_delta_us": 0,
+      "destroy_sample_delta_us": 0
+    },
+    {
+      "window": 5,
+      "pcm_samples": 80000,
+      "create_begin_private_bytes": 1639727104,
+      "inference_complete_private_bytes": 2583916544,
+      "state_destroyed_private_bytes": 1639333888,
+      "create_sample_delta_us": 0,
+      "complete_sample_delta_us": 0,
+      "destroy_sample_delta_us": 0
+    },
+    {
+      "window": 6,
+      "pcm_samples": 80000,
+      "create_begin_private_bytes": 1639649280,
+      "inference_complete_private_bytes": 2583973888,
+      "state_destroyed_private_bytes": 1640292352,
+      "create_sample_delta_us": 0,
+      "complete_sample_delta_us": 0,
+      "destroy_sample_delta_us": 0
+    },
+    {
+      "window": 7,
+      "pcm_samples": 80000,
+      "create_begin_private_bytes": 1640292352,
+      "inference_complete_private_bytes": 2584051712,
+      "state_destroyed_private_bytes": 1639403520,
+      "create_sample_delta_us": 0,
+      "complete_sample_delta_us": 0,
+      "destroy_sample_delta_us": 0
+    },
+    {
+      "window": 8,
+      "pcm_samples": 80000,
+      "create_begin_private_bytes": 1639403520,
+      "inference_complete_private_bytes": 2584064000,
+      "state_destroyed_private_bytes": 1639473152,
+      "create_sample_delta_us": 0,
+      "complete_sample_delta_us": 0,
+      "destroy_sample_delta_us": 0
+    },
+    {
+      "window": 9,
+      "pcm_samples": 123,
+      "create_begin_private_bytes": 1639473152,
+      "inference_complete_private_bytes": 2491691008,
+      "state_destroyed_private_bytes": 1639063552,
+      "create_sample_delta_us": 0,
+      "complete_sample_delta_us": 0,
+      "destroy_sample_delta_us": 0
+    }
+  ],
+  "post_drop_private_bytes": {
+    "min": 1639038976,
+    "max": 1640292352,
+    "first": 1639268352,
+    "last": 1639063552,
+    "first_to_last_delta": -204800,
+    "rising_steps": 4,
+    "falling_steps": 4
+  },
+  "observed_transient_inference_private_bytes_max": 2584109056,
+  "trace_counts": {
+    "worker": 1223,
+    "adapter": 97,
+    "host_samples": 152
+  },
+  "limits": [
+    "Native model/context/WhisperState internal allocations remain opaque; process counters characterize whole worker at explicit lifecycle markers.",
+    "This nine-window run is characterization, not a universal RSS bound."
+  ]
+}

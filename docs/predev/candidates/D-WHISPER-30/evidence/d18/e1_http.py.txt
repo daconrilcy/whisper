@@ -1,0 +1,77 @@
+"""Bounded HTTP Range acquisition fixture over loopback using the exact pinned model bytes."""
+from pathlib import Path
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+from urllib.request import Request, urlopen
+import hashlib, json, os, tempfile, threading, time
+
+root=Path.home()/'AppData/Local/Temp/whisper-spikes'
+source=root/'ggml-large-v3-turbo.bin'
+expected='1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69'
+size=source.stat().st_size
+assert size==1624555275
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path!='/model': self.send_error(404);return
+        header=self.headers.get('Range')
+        start=0
+        if header:
+            assert header.startswith('bytes=') and header.endswith('-')
+            start=int(header[6:-1])
+        if start>=size: self.send_error(416);return
+        self.send_response(206 if header else 200)
+        self.send_header('Content-Length',str(size-start))
+        self.send_header('Accept-Ranges','bytes')
+        self.send_header('ETag',expected)
+        if header:self.send_header('Content-Range',f'bytes {start}-{size-1}/{size}')
+        self.end_headers()
+        try:
+            with source.open('rb') as f:
+                f.seek(start)
+                while chunk:=f.read(4*1024*1024): self.wfile.write(chunk)
+        except (BrokenPipeError,ConnectionResetError): pass
+    def log_message(self,*args): pass
+
+server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+url=f'http://127.0.0.1:{server.server_port}/model'
+target=Path(tempfile.mkdtemp(prefix='whisper-e1-http-'))
+partial=target/'model.partial'
+ready=target/'Ready.json'
+def acquire(stop_after=None):
+    offset=partial.stat().st_size if partial.exists() else 0
+    headers={'Range':f'bytes={offset}-'} if offset else {}
+    with urlopen(Request(url,headers=headers),timeout=30) as reply:
+        assert reply.headers['ETag']==expected
+        if offset: assert reply.status==206 and reply.headers['Content-Range']==f'bytes {offset}-{size-1}/{size}'
+        else: assert reply.status==200
+        with partial.open('ab') as f:
+            while chunk:=reply.read(4*1024*1024):
+                f.write(chunk);offset+=len(chunk)
+                if stop_after and offset>=stop_after:
+                    f.flush();os.fsync(f.fileno())
+                    return 'INTERRUPTED',offset
+            f.flush();os.fsync(f.fileno())
+    with partial.open('rb') as f: digest=hashlib.file_digest(f,'sha256').hexdigest()
+    if offset!=size or digest!=expected:return 'HASH_MISMATCH',offset
+    os.replace(partial,target/'model.bin')
+    marker={'status':'READY','bytes':offset,'sha256':digest}
+    with (target/'Ready.partial').open('w',encoding='utf-8') as f:
+        json.dump(marker,f);f.flush();os.fsync(f.fileno())
+    os.replace(target/'Ready.partial',ready)
+    return 'READY',offset
+
+try:
+    start=time.monotonic()
+    first,n1=acquire(8*1024*1024)
+    assert first=='INTERRUPTED' and not ready.exists()
+    second,n2=acquire()
+    assert second=='READY' and ready.exists()
+    report={'schema':'whisper-e1-http-range/1','source_sha256':expected,'source_bytes':size,
+            'first':{'status':first,'bytes':n1,'ready_exists':False},'resume':{'status':second,'bytes':n2,'range_start':n1,'ready_exists':True},
+            'elapsed_s':round(time.monotonic()-start,3),
+            'limits':['loopback server, not HuggingFace network','no final installer or clean PC','HTTP Range/ETag fixture with exact pinned model bytes']}
+    out=root/'closure-008/e1-http-report.json'
+    out.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+    print(json.dumps(report))
+finally:
+    server.shutdown();server.server_close()

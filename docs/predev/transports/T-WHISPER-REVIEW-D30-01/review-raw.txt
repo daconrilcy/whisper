@@ -1,0 +1,22 @@
+R-WHISPER-DESIGN-30-v1-RAW-SHORT — 2026-10-08
+
+Scope : DESIGN. Candidat : D-WHISPER-30.
+
+Manifest digest : 514d8fcf3e3ffdbb06852a81ffca8cc114bd6a0450ef83550443a995f29a1a2b.
+Manifest SHA256 : 323ea5416235aa3957b9c9dc6c4661eb3c594517ab3a4b8c354b8748ec530326.
+
+Reviewer : /root/review_d29. Je suis indépendant de la rédaction, des corrections et de la persistance de D30. J’ai uniquement produit les findings D29 et vérifié leur fermeture. Aucun fichier modifié, aucun banc exécuté, aucun sous-agent. Cette déclaration repose sur la séparation effective des actions, et non sur le seul nom du profil.
+
+Intégrité : manifeste vérifié indépendamment avant et après revue ; 328/328 fichiers conformes, aucune dérive.
+
+D29-001 CLOSED sur D30 : 319 fichiers hérités identiques octet à octet à D28, aucun retrait. Les conversions CRLF→LF sont corrigées. Les 27 références du snapshot index, 21 fichiers du freeze historique, 23 fichiers des règles effectives et 23 snapshots référencés par le source index sont conformes.
+
+D29-002 CLOSED sur D30 : exécution indépendante de check-state sans lot PASS, phase DESIGN, digest D30 exact. Le checkpoint courant lie D30 DRAFT et référence T-WHISPER-ARCH-CUDA129-01. Ses 21 transports et 72 fichiers sont conformes. L’état précédent D28/P29 est archivé au hash attendu f74d72a70e9f3dff17e5de0ba84580da41893ac5da9e32b43dac00c64d2631e7. L’autorité technique CUDA est déclarée et sourcée.
+
+Provenance CUDA : comparaison input → proposition → TRANSPORT PASS ; 4 797 octets, SHA256 db3476a23ac0c1694480f61060b2a8c5c2f931dabb96c8e66e7756296c1a9ae8. La copie D30 correspond au transport. Limite explicite : aucun export indépendant n’atteste l’identité avec le message conversationnel original ; la confirmation de l’auteur est rapportée par le coordinateur.
+
+La couverture bidirectionnelle et l’examen technique D29 restent applicables aux contenus restaurés. Aucune nouvelle contradiction, violation d’invariant ou extension de scope constatée. Le successeur PLANS doit citer D30 comme parent exact.
+
+Verdict : CLEAN. Aucun REQUIRED ouvert, aucun ADVISORY ajouté. Je ferme D29-001 et D29-002 sur les preuves D30 vérifiées.
+
+Le statut courant vérifié reste DRAFT jusqu’au gate et à la promotion contrôlés. Préflight L04, PRODUCT_VALIDATION et DELIVERY_QUALIFICATION restent NOT RUN.

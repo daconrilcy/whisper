@@ -1,0 +1,62 @@
+import hashlib
+import json
+import subprocess
+import time
+from pathlib import Path
+
+root = Path(__file__).resolve().parent
+source = root / "e1-install" / "primary"
+copy = Path(r"C:\Users\cyril\AppData\Local\Packages\whisperdesignd19offline\AC\work")
+launcher = root / "appcontainer_launch.exe"
+probe = root / "network_probe.exe"
+name = "WhisperDesignD19Offline"
+
+def sha(path):
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+def run(label, args):
+    started = time.monotonic()
+    process = subprocess.run([str(x) for x in args], capture_output=True, text=True, errors="replace")
+    text = process.stdout + process.stderr
+    (root / f"e1-offline-{label}.log").write_text(text, encoding="utf-8", newline="\n")
+    return {"exit": process.returncode, "elapsed_s": round(time.monotonic() - started, 3), "log": f"e1-offline-{label}.log"}, text
+
+identity = {}
+for relative in ["cpu/whisper-engine-spike.exe", "gpu/whisper-engine-spike.exe", "gpu/cudart64_12.dll",
+                 "gpu/cublas64_12.dll", "gpu/cublasLt64_12.dll", "models/ggml-large-v3-turbo.bin"]:
+    original = sha(source / relative)
+    copied = sha(copy / relative)
+    assert original == copied, relative
+    identity[relative] = {"sha256": original, "bytes": (source / relative).stat().st_size}
+
+normal, normal_text = run("probe-normal", [probe])
+restricted, restricted_text = run("probe-appcontainer", [launcher, "run", name, copy / "network_probe.exe", "ignored", "ignored", "ignored"])
+assert normal["exit"] == restricted["exit"] == 0
+assert "loopback_connect=CONNECTED wsa_error=0" in normal_text
+assert "loopback_connect=FAILED" in restricted_text
+assert "wsa_error=10060" in restricted_text
+assert "capabilities=0" in restricted_text and "token_is_appcontainer=1" in restricted_text
+
+workers = {}
+for mode in ("cpu", "gpu"):
+    result, output = run(mode, [launcher, "run", name, copy / mode / "whisper-engine-spike.exe",
+                                copy / "models" / "ggml-large-v3-turbo.bin", copy / "wav16" / "fr_fr-000.wav", mode])
+    assert result["exit"] == 0
+    assert "capabilities=0" in output and "token_is_appcontainer=1" in output and "child_exit=0" in output
+    assert f"mode_requested={mode}" in output and "segments=1" in output
+    assert ("whisper_backend_init_gpu: using CUDA0 backend" in output) == (mode == "gpu")
+    workers[mode] = result
+
+report = {
+    "schema": "whisper-offline-appcontainer/1", "profile": name,
+    "network_capabilities": 0, "token_is_appcontainer": True,
+    "same_local_model_and_workers_sha256": identity,
+    "tool_sha256": {name: sha(root / name) for name in ("appcontainer_launch.exe", "network_probe.exe")},
+    "tool_source_sha256": {name: sha(root / name) for name in ("appcontainer_launch.cpp", "network_probe.cpp", "build_appcontainer.cmd", "e1_offline.py")},
+    "normal_probe": normal, "restricted_probe": restricted, "restricted_probe_wsa_error": 10060, "workers": workers,
+    "result": "CPU_GPU_LOCAL_SUCCESS_IN_NO_NETWORK_CAPABILITY_CONTAINER",
+    "scope": "Same-PC AppContainer fixture. No clean-PC, absent-runtime, product installer, physical outage or end-to-end UI claim.",
+}
+(root / "e1-offline-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print(json.dumps({"result": report["result"], "identity_files": len(identity), "workers": workers}, ensure_ascii=False))

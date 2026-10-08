@@ -1,0 +1,16 @@
+from pathlib import Path
+import pefile,json
+root=Path.home()/'AppData/Local/Temp/whisper-spikes/closure-008/e1-install/primary'
+rows=[]
+for kind in ('cpu','gpu'):
+    path=root/kind/'whisper-engine-spike.exe'
+    pe=pefile.PE(str(path),fast_load=False)
+    imported=sorted({x.dll.decode('ascii','replace').lower() for x in pe.DIRECTORY_ENTRY_IMPORT})
+    rows.append({'binary':kind,'imports':imported,'cuda_imports':[x for x in imported if x.startswith(('cuda','cublas','nvcuda'))],
+                 'msvc_imports':[x for x in imported if x.startswith(('msvcp','vcruntime'))]})
+report={'schema':'whisper-e1-pe-imports/1','parser':'pefile 2024.8.26','rows':rows,
+        'assessment':'CPU has no static CUDA imports; GPU needs CUDA DLLs and nvcuda driver. Both require compatible MSVC runtime.',
+        'limit':'Static PE imports do not enumerate every dynamic LoadLibrary call or prove clean-PC operation.'}
+out=Path.home()/'AppData/Local/Temp/whisper-spikes/closure-008/e1-pe-imports.json'
+out.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps(report,indent=2))

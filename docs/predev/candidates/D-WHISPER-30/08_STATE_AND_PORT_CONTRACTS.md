@@ -1,0 +1,63 @@
+# États, persistance et contrats de ports — proposition D-WHISPER-09
+
+Ce document précise les obligations logiques. Il ne prétend pas que la pile native les satisfait déjà. Les alternatives qui modifient le produit restent `Q` dans `10_QUESTIONS_RISKS_AND_READINESS.md`.
+
+## Ownership et états
+
+`application` est l'unique propriétaire du scheduler et de l'identité d'un job. `domain` valide les événements et invariants, sans IO. Un adaptateur capture possède le handle micro ; un worker possède le contexte moteur ; l'UI n'en possède aucun. Un `job_id` stable, une `generation` monotone et un `segment_id`/offset original identifient chaque résultat. Un résultat d'une génération annulée est rejeté. Un `transcription_id` regroupe plusieurs `passage_id` live lorsque Stop + Reprise est utilisé ; chaque passage reste un job/finalisation distinct. La file d'import durable est distincte de l'index d'historique reconstruit.
+
+| Flux | États métier/durables | États visibles | Événement, précondition, effet et issue d'erreur |
+|---|---|---|---|
+| Live | `Absent → Preparing → Capturing → Draining → Finalizing → Complete` ; `Recoverable` si coupure/erreur après fragments confirmés | Idle, Starting, Live, Stopping, Recoverable, Complete | Start seulement si aucun job actif ; micro ouvert après validation ; Stop coupe l'entrée puis draine les échantillons déjà captés, confirme les fragments et publie. Erreur micro/worker/disque : cesser capture, conserver état récupérable, afficher cause. Second Start : refus `AC-01`. |
+| Import | `Queued → AwaitingChoice` après redémarrage ; `Queued → Running → Finalizing → Complete` après choix ; `Interrupted`/`Cancelled` séparés | Queued, AwaitingChoice, Running, Cancelling, Interrupted, Complete | Enqueue après validation et écriture durable, sans toucher source ; démarrage seulement si aucun live actif et règle Q-01 satisfaite ; Retirer supprime entrée, pas source ; crash Running ne rejoint pas Queued et ne redémarre jamais automatiquement. |
+| Archive | `Staging → Verified → Complete` ou `Recoverable` | Processing, Complete ou Recoverable | Chaque sortie est écrite en staging, fermée et vérifiée ; un marqueur de complétude durable est publié **en dernier** ; l'historique ne qualifie Complete qu'avec marqueur et fichiers vérifiés. Échec intermédiaire : Recoverable et aucune annonce Complete. |
+| Paramètres | `Current(version) → Candidate → Current(version+1)` | Valeur courante, erreur de validation | Valider nouvelle valeur, écrire fichier temporaire, synchroniser, remplacer selon garantie filesystem vérifiée ; une erreur conserve Current. Un job existant garde son snapshot `JobConfig`. |
+
+`Draining` est la fin de capture, **avant** la fin de finalisation. L'import demandé durant live ne peut démarrer qu'après l'état `Complete`/`Recoverable` stabilisé ; plusieurs imports passent un par un en ordre de demande, jamais au seul arrêt du micro. `Stop + Reprise` clôt le passage courant et arme la possibilité d'un nouveau passage dans le même groupe, mais le nouveau Start exige une impulsion utilisateur attestée. Le passage N est Complete ou Recoverable avant N+1 ; les identifiants et offsets restent distincts. Fermer la fenêtre ne change aucun état métier. Quitter demande l'arrêt ; si worker/encodeur bloque, l'application signale l'état et **reste ouverte** jusqu'à résolution ou action manuelle, sans annoncer une sortie réussie.
+
+## Point de confirmation et récupération
+
+Une confirmation de fragment n'est émise qu'après que les octets audio correspondants, le texte confirmé, leurs identifiants et offsets ont été rendus durables selon une stratégie vérifiée sur le volume cible. Les segments provisoires et les buffers non confirmés restent explicitement perdables. Le journal de session est append-only ou versionné avec checksum ; la mise en mémoire de l'UI n'est jamais une confirmation. Le point de confirmation et la fréquence de sync devront être mesurés par `SPIKE-02` ; ce texte définit la **garantie à démontrer**, pas une API ou cadence validée. Au redémarrage : scanner les fragments confirmés, écarter dernier enregistrement incomplet, dédupliquer `(job_id, segment_id, offset)` ; calculer et afficher la plage non confirmée perdue. `AC-13` teste des coupures à chaque frontière.
+
+La file durable d'imports utilise un enregistrement versionné avec identifiant stable, chemin source, hash ou identité source à revérifier, état et ordre de demande. L'accusé « en attente » n'arrive qu'après persistance vérifiée. Restaurer une entrée ne valide pas que le fichier source existe encore : Traiter revérifie la source et rend l'erreur visible. `Running` après crash devient `Interrupted` ; le retour à `Queued` demande **confirmation explicite** ; reprise depuis début ou checkpoint prouvé doit éviter les doublons. Le journal de file n'est pas un historique de transcriptions.
+
+Les archives de capture live sont un dossier de transcription avec `passage_id.mp3` pour chaque passage et TXT/SRT cumulés. Le manifeste de sortie contient versions, tailles, hashes, offsets de passage et offsets de groupe, ainsi que le statut de chaque passage et du groupe. La pause entre passages apparaît sur l'axe de groupe ; le MP3 de chaque passage ne contient que son propre audio, silences internes conservés. Le texte/SRT cumulé est reconstruit de fragments confirmés avec décalage de groupe ; un passage Recoverable reste explicitement marqué et ne rend pas tout le groupe Complete par défaut. Il n'existe aucune transaction atomique entre les fichiers : écrire sous nom de staging, fermer/synchroniser, vérifier, puis publier un marqueur `Complete` en dernier pour la version du groupe. Au scan, marqueur absent ou hash discordant signifie `Recoverable`, même si des fichiers finaux existent. En cas de coupure pendant le marqueur, la réconciliation revalide les artefacts requis et décide Complete ou Recoverable de façon idempotente. Pour un import, les artefacts requis sont TXT/SRT et référence validée à la source à son chemin d'origine, **aucun MP3 archivé** ; ne pas copier l'audio source par défaut. `AC-10/12/13/20` couvrent les coupures. Les primitives Windows exactes et leur comportement sur le volume cible restent à prouver par `SPIKE-02`.
+
+## Concurrence, saturation et arrêt
+
+- Une capture live et un import actif sont mutuellement exclus dans le scheduler ; des demandes d'import peuvent être durablement en file pendant live. Politique multi-imports et ordre : Q-01.
+- Capture et écriture audio ne dépendent jamais du thread UI. Inference et décodage peuvent bloquer dans un worker supervisé. Le canal UI peut jeter des rendus provisoires obsolètes, **jamais** un fragment audio non confirmé ni une commande critique sans diagnostic. Chaque canal a une capacité finie dimensionnée par `SPIKE-02` ; saturation propage une rétropression, puis un état d'erreur/récupération explicite si la capture ne peut suivre. Aucune politique de perte silencieuse.
+- Les commandes Start/Stop/Quitter portent `job_id` et `generation` ; une répétition est idempotente ou refusée sans deuxième handle. L'arrêt ferme d'abord l'entrée audio, puis draine et synchronise les confirmations, puis attend worker/encodeur. Si bloqué, le superviseur diagnostique et signale ; le processus principal reste ouvert jusqu'à résolution ou **action manuelle explicite**. `SPIKE-02` mesure les blocages et les possibilités de récupération sans supposer une sortie forcée.
+- Auto GPU→CPU reprend au dernier `(segment_id, offset)` confirmé ; un résultat tardif GPU d'ancienne génération est rejeté. Les échantillons confirmés restent inchangés ; les non confirmés sont rejoués depuis audio durable si disponible, sinon la perte mesurée est signalée. GPU forcé exige une nouvelle décision utilisateur. Cette stratégie exige la preuve `SPIKE-01` pour le moteur réel.
+
+## Matrice de dépendances et ports
+
+| Origine | Dépendances autorisées | Interdit / contrôle futur |
+|---|---|---|
+| `domain` | std et types purs | OS, IO, UI, moteur/codec ; inspection imports + test de frontières |
+| `application` | `domain`, traits de ports | adaptateurs concrets et widget ; inspection imports + compilation sans features natives |
+| `adapters` | ports application + bibliothèques OS/moteur/stockage | accès direct au widget ; test contractuel par adaptateur |
+| `ui` | API application et vues | accès direct au stockage, au micro ou au moteur ; inspection imports |
+| composition root | toutes couches pour assemblage | aucune logique métier ; revue du wiring |
+
+| Port / propriétaire | Entrée → sortie, précondition et erreurs | Annulation, thread, borne, durabilité |
+|---|---|---|
+| `CapturePort` / application, handle adaptateur | `JobConfig`+device → flux `(offset, samples, time)` ; device disponible ; erreurs accès/débranchement/overflow | thread capture dédié ; callback borné ; fermeture sur Stop ; échantillons non confirmés suivis explicitement |
+| `EnginePort` / worker supervisé | audio 16 kHz mono + langue + compute → segments avec offsets ; modèle vérifié ; erreurs backend, OOM, invalid input | worker hors UI ; requêtes versionnées, arrêt coopératif puis isolation ; temps/buffers mesurés |
+| `QueueStore` / application via adaptateur | enqueue/ack/restore/remove par ID ; chemin validé ; erreurs accès/corruption/sync | séquentiel par journal ou transaction vérifiée ; ack durable ; jamais suppression de source |
+| `SessionJournal` et `ArchiveStore` / application via adaptateur | confirm fragment et stage/verify/publish ; erreurs espace, sync, hash, partage de fichiers | sérialisation par session ; sync avant ack ; marqueur Complete dernier ; recovery idempotent |
+| `OSAdapter` / application via adaptateurs | autostart, tray, hotkey, single instance et notifications ; erreurs conflit/permission | boucle Windows sans blocage ; commandes vers scheduler ; aucun Start implicite au login |
+| `SettingsStore` / application via adaptateur | load/validate/commit config versionnée ; erreurs migration/écriture | snapshot par job ; commit durable ou ancienne valeur ; aucun changement en cours de job |
+| `SupervisorPort` / application | progression, santé worker/disque/canaux → diagnostic typé | lecture non bloquante ; après silence attendu aucun arrêt ; panne avérée entraîne récupération/alerte |
+| `DecoderPort` / adaptateur import | source WAV/MP3 validée → flux PCM avec fréquence, canaux, offsets source et durée ; erreurs format/codec/fichier modifié | hors UI ; buffers bornés ; source en lecture seule ; conversion 16 kHz mono documentée avec correspondance d'offsets pour SRT |
+| `ModelStore` et `InstallerPort` / installateur puis application | URL/version/licence/hash approuvés → modèle local vérifié ; erreurs réseau, manque espace, hash et reprise d'installation | téléchargement en staging pendant installation, vérification SHA-256 puis promotion ; aucun premier usage considéré prêt sans modèle vérifié ; `SPIKE-01` démontre seulement un paquet portable sur le même PC avec PATH minimal |
+| `WorkerPort` / application | commande `(job_id,generation,sequence,config,offset)` → événements ordonnés/erreurs typées ; précondition modèle présent | processus ou thread isolé à choisir par `SPIKE-01`, canal d'arrêt distinct, rejet des générations obsolètes, capacité finie mesurée ; mémoire/ressources libérées après ack |
+| `VadPort` / application via moteur/adaptateur | PCM avec axe original → intervalles de parole et score/config versionnée ; erreurs initialisation/inférence | hors UI ; ne modifie jamais échantillons archivés ; intervalles triés, non chevauchants, bornés à la durée ; validation corpus Q-08/`SPIKE-02` |
+
+Les types, crates et frontières physiques restent proposés. Les contrôles ci-dessus sont des critères de revue et de validation futurs, pas des tests déjà exécutés.
+
+## Complément ARCH-D18
+
+Les frontières, owners et ports TECH-D18-01..08 sont synthétisés dans `50_ARCH_DECISIONS_D18.md` ; apport brut attribué à `/root/arch_d18` dans TRANSPORT ARCH-D18. Le parent possède scheduler/journal/génération ; worker enfant possède contexte natif/encodeur ; snapshots et pending sont distincts ; aucun état Complete si une tentative courante est récupérable.
+
+60/61 D26 sont canoniques. AttemptJournal v1 = Reserved/Started/Retired; ChildExited est un fait observé distinct. Réserver avant spawn; watermark fini; ACK après commit; zéro segment confirme silence; corruption interne distincte du suffixe incomplet; ancien namespace refusé.

@@ -1,0 +1,78 @@
+{
+  "schema": "whisper-e4-rust-archive/1",
+  "source": "actual Rust-encoded MP3 and cumulative TXT/SRT from E3",
+  "base": "C:\\Users\\cyril\\AppData\\Local\\Temp\\whisper-e4-archive-0dhnzhen",
+  "rows": [
+    {
+      "cut_after": 0,
+      "producer_exit": 91,
+      "scan_first": "RECOVERABLE_NO_MARKER",
+      "scan_second": "RECOVERABLE_NO_MARKER",
+      "ack_count": 1
+    },
+    {
+      "cut_after": 1,
+      "producer_exit": 91,
+      "scan_first": "RECOVERABLE_NO_MARKER",
+      "scan_second": "RECOVERABLE_NO_MARKER",
+      "ack_count": 2
+    },
+    {
+      "cut_after": 2,
+      "producer_exit": 91,
+      "scan_first": "RECOVERABLE_NO_MARKER",
+      "scan_second": "RECOVERABLE_NO_MARKER",
+      "ack_count": 3
+    },
+    {
+      "cut_after": 3,
+      "producer_exit": 91,
+      "scan_first": "RECOVERABLE_NO_MARKER",
+      "scan_second": "RECOVERABLE_NO_MARKER",
+      "ack_count": 4
+    },
+    {
+      "cut_after": 4,
+      "producer_exit": 91,
+      "scan_first": "RECOVERABLE_NO_MARKER",
+      "scan_second": "RECOVERABLE_NO_MARKER",
+      "ack_count": 5
+    },
+    {
+      "cut_after": 5,
+      "producer_exit": 91,
+      "scan_first": "RECOVERABLE_NO_MARKER",
+      "scan_second": "RECOVERABLE_NO_MARKER",
+      "ack_count": 5
+    },
+    {
+      "cut_after": 6,
+      "producer_exit": 91,
+      "scan_first": "RECOVERABLE_NO_MARKER",
+      "scan_second": "RECOVERABLE_NO_MARKER",
+      "ack_count": 5
+    },
+    {
+      "cut_after": 7,
+      "producer_exit": 91,
+      "scan_first": "COMPLETE",
+      "scan_second": "COMPLETE",
+      "ack_count": 5
+    },
+    {
+      "cut_after": 8,
+      "producer_exit": 0,
+      "scan_first": "COMPLETE",
+      "scan_second": "COMPLETE",
+      "ack_count": 5
+    }
+  ],
+  "corrupt_mp3": "RECOVERABLE_CORRUPT_ARTIFACT",
+  "missing_mp3": "RECOVERABLE_MISSING_ARTIFACT",
+  "truncated_marker": "RECOVERABLE_BAD_MARKER",
+  "limits": [
+    "process exit injection, not power failure",
+    "directory metadata durability not established",
+    "encoder and durable publisher are separate Rust fixtures"
+  ]
+}

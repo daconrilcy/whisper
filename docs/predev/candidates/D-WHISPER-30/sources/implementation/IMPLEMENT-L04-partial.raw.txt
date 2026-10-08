@@ -1,0 +1,103 @@
+**Statut : BLOCKED — implémentation partielle et vérifiée, L04 non complet.** Le code et les artefacts restent limités aux 15 chemins autorisés; l’ajout temporaire à `ports.rs`, hors allowlist, a été retiré. Aucun état contrôlé n’a été modifié, aucune promotion ou livraison n’a été faite.
+
+Le préflight P28 repasse à **PASS** avec le script d’activation L04 et `--root .`. Les tests, le formatage, Clippy et les trois builds release passent sur le candidat ci-dessous.
+
+Le blocage restant concerne les comportements de supervision visibles et le fallback Auto après échec GPU. L04 exclut `crates/whisper-core/src/ports.rs`, alors que l’interface autorisée ne permet pas de transmettre à l’application un avertissement de progression, une dégradation des diagnostics ou le changement de génération nécessaire à une reprise live conforme. La reprise import Auto n’est pas livrée non plus dans ce candidat final. Un changement de contrat et d’allowlist est donc nécessaire; aucun fallback non conforme n’a été conservé.
+
+### Paquet d’exécution candidat
+
+```json
+{
+  "schema": "rust-predev-execution/1",
+  "lot_id": "L-WHISPER-04",
+  "candidate_digests": {
+    "DESIGN": "8c41b42e365bca68be8b8de91a07516ed0c9858b92d16d15f5311ff34cac87a1",
+    "PLANS": "09ced4084ca8f3c5c2c29cf4dcf62b3c1d50e6ae8fd40724a6bda267525c2e99"
+  },
+  "candidate_fingerprint": "6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320",
+  "outputs": [
+    {"path":"Cargo.lock","sha256":"fff642a48cded6424c55c23ef4f3dff4faefc91718f57fc91c9b80de6d205f98"},
+    {"path":"crates/whisper-adapters/src/lib.rs","sha256":"ca8b48d56ff97a58adb504dc6cc47ca001e5de9bd10a728d748dab26c306de7f"},
+    {"path":"crates/whisper-adapters/src/supervisor.rs","sha256":"2d8214d816df4cf2901b7becf70b491ed5b7d2461379147649928d15495799ee"},
+    {"path":"crates/whisper-adapters/src/worker_ipc.rs","sha256":"a97e3bc66566eccfe168ed20a8134f3b5428df7656be0dadb7dfd51258d26462"},
+    {"path":"crates/whisper-adapters/tests/worker_control.rs","sha256":"259649e34132d323aa66a9d5c0759028fecb4ce35dc3590d048327370ed57ed4"},
+    {"path":"crates/whisper-core/src/application.rs","sha256":"0ce0e32c0b2e92f8a747d065f30a8f89c022ac2ce5e2848ae323bc897c55ea4b"},
+    {"path":"crates/whisper-core/src/compute_policy.rs","sha256":"b38ef28d0cfa56da6f39fc2f0baae96a4368feb9069c934283eda3486b21c632"},
+    {"path":"crates/whisper-core/src/lib.rs","sha256":"a67db97f671d45152bf08db87ebca6d0ad0b0ecf25c904376003c84abc446660"},
+    {"path":"crates/whisper-core/tests/compute_policy.rs","sha256":"b43d5944bdcc86f71dd0fec98357022642c7158a7830a88ddd728a2ea0aaf2d6"},
+    {"path":"crates/whisper-desktop/src/root.rs","sha256":"420217f23209d277cc617b7bc65b4e6de62429a13c1f2786b3f892c4f5693d54"},
+    {"path":"crates/whisper-desktop/src/ui.rs","sha256":"ebedcf8de86ef910a8e9a8152e39df873a72425fa643c028118370ab596f035a"},
+    {"path":"crates/whisper-worker-cpu/src/native_engine.rs","sha256":"9d415e118185e0c97917098bf79902f649722a909f1486ef619c3626e88203d7"},
+    {"path":"crates/whisper-worker-gpu/Cargo.toml","sha256":"4022bc78a2707b77fae290f11d0c0d10adb2575baaf1e5a929e248cfb11cc16a"},
+    {"path":"crates/whisper-worker-gpu/src/main.rs","sha256":"e83d7fb7bd6636b8ee32dd821c104042dab8d7d246fd24254ee5012e91d682c4"},
+    {"path":"crates/whisper-worker-gpu/src/native_engine.rs","sha256":"eae19eeb4e5c67754f3ce68860ad0a52509dad7de5865b1247b0f2fddd07887c"}
+  ],
+  "artifacts": [
+    {"path":"target/l04/cpu/x86_64-pc-windows-msvc/release/whisper-worker-cpu.exe","sha256":"ce99e3157f9dac291538d12f62427a4bed73016b528d0088829d6a145de8ce22"},
+    {"path":"target/l04/gpu/x86_64-pc-windows-msvc/release/whisper-worker-gpu.exe","sha256":"91dc0269cf9a1bd0f4b070ddb9be0f185990daad620d9e65d6a3869d4bec8553"},
+    {"path":"target/l04/desktop/x86_64-pc-windows-msvc/release/whisper-desktop.exe","sha256":"0265dd21bcba5be0a86325a9280877056e1922b22484cf987e54fcf9090f5051"}
+  ],
+  "environment_matrix": {
+    "schema": "rust-predev-build-env/1",
+    "checks": [
+      {"id":"RUSTC","kind":"executable","name":"rustc","required":true,"version_pattern":"^rustc 1\\.98\\.1(?:\\s|$)"},
+      {"id":"CARGO","kind":"executable","name":"cargo","required":true,"version_pattern":"^cargo 1\\.98\\.1(?:\\s|$)"},
+      {"id":"RUSTUP_SELECTION","kind":"env","name":"RUSTUP_TOOLCHAIN","required":true},
+      {"id":"MSVC","kind":"executable","name":"cl","required":true},
+      {"id":"CMAKE","kind":"executable","name":"cmake","required":true},
+      {"id":"LIBCLANG","kind":"env","name":"LIBCLANG_PATH","path_type":"directory","required":true},
+      {"id":"TOOLCHAIN","kind":"path","path":"rust-toolchain.toml","entry_type":"file","required":true},
+      {"id":"LOCKFILE","kind":"path","path":"Cargo.lock","entry_type":"file","required":true},
+      {"id":"NINJA","kind":"executable","name":"ninja","required":true},
+      {"id":"NVCC","kind":"executable","name":"nvcc","required":true,"version_pattern":"release 12\\.8"},
+      {"id":"CUDA_PATH","kind":"env","name":"CUDA_PATH","path_type":"directory","required":true}
+    ]
+  },
+  "environment_result": {
+    "ok": true,
+    "schema": "rust-predev-build-env/1",
+    "status": "PASS",
+    "root": "C:\\dev\\whisper",
+    "observed": {
+      "rustc": "1.98.1 (48a229cea 2026-09-01)",
+      "cargo": "1.98.1 (797e8a9bc 2026-08-05)",
+      "rustup_toolchain": "1.98.1",
+      "ninja": "1.10.2",
+      "nvcc": "CUDA 12.8",
+      "target": "x86_64-pc-windows-msvc",
+      "activation_script": "%LOCALAPPDATA%\\Programs\\WhisperBuildDeps\\activate-whisper-l04.ps1",
+      "gpu_link_environment": "process-local LIB prepended with %CUDA_PATH%\\lib"
+    }
+  },
+  "commands": [
+    {"id":"FMT","argv":["cargo","fmt","--all","--","--check"],"cwd":"C:\\dev\\whisper","target":"x86_64-pc-windows-msvc","required":true,"status":"PASS","exit_code":0,"candidate_fingerprint":"6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320"},
+    {"id":"CHECK","argv":["cargo","check","--locked","--workspace","--all-targets","--target","x86_64-pc-windows-msvc"],"cwd":"C:\\dev\\whisper","target":"x86_64-pc-windows-msvc","required":true,"status":"PASS","exit_code":0,"candidate_fingerprint":"6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320"},
+    {"id":"TEST-POLICY","argv":["cargo","test","--locked","-p","whisper-core","--test","compute_policy","--target","x86_64-pc-windows-msvc","--","--nocapture"],"cwd":"C:\\dev\\whisper","target":"x86_64-pc-windows-msvc","required":true,"status":"PASS","exit_code":0,"candidate_fingerprint":"6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320"},
+    {"id":"TEST-WORKER-CONTROL","argv":["cargo","test","--locked","-p","whisper-adapters","--test","worker_control","--target","x86_64-pc-windows-msvc","--","--nocapture"],"cwd":"C:\\dev\\whisper","target":"x86_64-pc-windows-msvc","required":true,"status":"PASS","exit_code":0,"candidate_fingerprint":"6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320"},
+    {"id":"TEST-CORE-LIB","argv":["cargo","test","--locked","-p","whisper-core","--lib","--target","x86_64-pc-windows-msvc","--","--nocapture"],"cwd":"C:\\dev\\whisper","target":"x86_64-pc-windows-msvc","required":true,"status":"PASS","exit_code":0,"candidate_fingerprint":"6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320"},
+    {"id":"TEST-ADAPTERS-LIB","argv":["cargo","test","--locked","-p","whisper-adapters","--lib","--target","x86_64-pc-windows-msvc","--","--nocapture"],"cwd":"C:\\dev\\whisper","target":"x86_64-pc-windows-msvc","required":true,"status":"PASS","exit_code":0,"candidate_fingerprint":"6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320"},
+    {"id":"CLIPPY","argv":["cargo","clippy","--locked","--workspace","--all-targets","--target","x86_64-pc-windows-msvc","--","-D","warnings"],"cwd":"C:\\dev\\whisper","target":"x86_64-pc-windows-msvc","required":true,"status":"PASS","exit_code":0,"candidate_fingerprint":"6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320"},
+    {"id":"BUILD-CPU","argv":["cargo","build","--locked","--release","-p","whisper-worker-cpu","--target","x86_64-pc-windows-msvc","--target-dir","target/l04/cpu"],"cwd":"C:\\dev\\whisper","target":"x86_64-pc-windows-msvc","required":true,"status":"PASS","exit_code":0,"candidate_fingerprint":"6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320"},
+    {"id":"BUILD-GPU","argv":["cargo","build","--locked","--release","-p","whisper-worker-gpu","--target","x86_64-pc-windows-msvc","--target-dir","target/l04/gpu"],"cwd":"C:\\dev\\whisper","target":"x86_64-pc-windows-msvc","required":true,"status":"PASS","exit_code":0,"candidate_fingerprint":"6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320"},
+    {"id":"BUILD-DESKTOP","argv":["cargo","build","--locked","--release","-p","whisper-desktop","--target","x86_64-pc-windows-msvc","--target-dir","target/l04/desktop"],"cwd":"C:\\dev\\whisper","target":"x86_64-pc-windows-msvc","required":true,"status":"PASS","exit_code":0,"candidate_fingerprint":"6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320"},
+    {"id":"DIFF-CHECK","argv":["git","diff","--check"],"cwd":"C:\\dev\\whisper","required":true,"status":"PASS","exit_code":0,"candidate_fingerprint":"6e659ac8a01b1355340058f36a1753ed6b541e3db3cced75caa6780688d96320"}
+  ]
+}
+```
+
+Les sorties ci-dessus correspondent aux stdout observés dans l’invocation; aucun fichier journal persistant n’a été créé. Le GPU a d’abord échoué à l’édition de liens (`cublas.lib` introuvable), puis le build a réussi avec le chemin de bibliothèques CUDA ajouté uniquement au processus PowerShell.
+
+### Changements requis pour débloquer
+
+Proposition minimale de successor CHANGE : autoriser `crates/whisper-core/src/ports.rs` pour définir les événements de fallback live et de supervision, puis couvrir la transition de génération et le rejet des réponses anciennes dans `crates/whisper-core/tests/live_contract.rs`. Le chemin IPC existant `LiveWindow` peut servir au replay du PCM durable; aucune modification à `ipc.rs` ne paraît nécessaire. Les comportements restants sont REQ-07/AC-07 (Auto GPU vers CPU et reprise au point confirmé), ainsi que la remontée visible des avertissements/dégradation exigés par Q-04/Q-09. Les campagnes produit, l’inférence GPU réelle et la qualification UI restent **NOT RUN**.
+
+Aucun verdict de revue ou de validation indépendante n’est revendiqué; le lot et le checkpoint ne sont pas marqués completed.
+
+<oai-mem-citation>
+<citation_entries>
+MEMORY.md:38-46|note=[previous Whisper CUDA environment evidence and qualification boundary]
+</citation_entries>
+<rollout_ids>
+01a10fca-3ac3-7ec2-859f-25686d355e17
+</rollout_ids>
+</oai-mem-citation>

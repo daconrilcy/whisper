@@ -1,0 +1,19 @@
+# R-WHISPER-DESIGN-22-v1 — transcription sémantique vérifiée
+
+**Provenance et limite :** transcription sémantique par `AUTH-COORD` de la sortie conversationnelle de `/root/d20_review`. Ce n’est pas un export verbatim ni une comparaison octet pour octet; le reviewer a confirmé la fidélité substantielle de son verdict, findings, preuves et conditions de fermeture.
+
+## Verdict
+
+`CLEAN`, scope DESIGN, candidat exact `D-WHISPER-22`, digest `8c41b42e365bca68be8b8de91a07516ed0c9858b92d16d15f5311ff34cac87a1`; SHA manifeste `bebb63d892019341ac9c7d2d5c7688a99bbef920254a358e94c393878a2a90bc`. Le reviewer a vérifié 278 références, hashes et digest avant/après. Indépendance: opérations en lecture seule, aucune rédaction/correction/persistance D22 par le reviewer.
+
+## Findings fermés
+
+- D20-001 confirmé CLOSED: 23 snapshots des règles effectives concordent avec les sources installées; freeze agrégé `45fc60181311bd17078790c3c5f1a3366e07d35367f2cdc8294012aa394c4f12`, hashes directs et index 12/16 cohérents.
+- D20-002 CLOSED: les liens de `00_START_HERE.md` résolvent vers `docs/predev/state.json` et `state.pending.D20-host.json`; les deux existent et passent `check-state` sans `--lot`. Le state actif porte SHA `17044672f0788be7b50c375c13d7b5b5740f0743ac46fc1ed974f9dd2e60fd27`.
+- D21-001 CLOSED avec limite explicite: transcriptions D20/D21 identifiées non verbatim, divergences et provenance qualifiées; le reviewer confirme leur fidélité substantielle à ses sorties. Transport D21 hashé, référencé dans le pending.
+
+## Contrôles complémentaires et portée
+
+La lignée helper D22→D21, proposal/policy sources, contenus et copies metadata concordent. D20/D21 restent inchangés. Baseline: quinze chemins, dix snapshots égaux au code au HEAD `ffd93125604be5dc6439587b7edad4f420f5cccc`, cinq créations futures absentes; diffs scoped vides. Aucun REQUIRED ni ADVISORY ouvert.
+
+Ce CLEAN permet le gate DESIGN D22 et la préparation de P25 parent D22. Il n’est pas un CLEAN PLANS et ne rend pas le préflight possible à lui seul: promotion, identité courante du checkpoint, allowlist, détails et preuves du lot restent à réconcilier avant `check-state --lot L-WHISPER-04`. Aucun préflight, code produit ou validation produit/UI/livraison n’a été exécuté par la revue.

@@ -1,0 +1,32 @@
+from pathlib import Path
+import subprocess,tempfile,json,hashlib
+here=Path(__file__).parent
+exe=here/'e3-resume/target/release/e3-resume.exe'
+source=Path.home()/'AppData/Local/Temp/whisper-spikes/fleurs-small'
+target=Path(tempfile.mkdtemp(prefix='whisper-e3-integrated-'))
+def call(*args):return subprocess.run([str(exe),*map(str,args)],capture_output=True,text=True)
+def scan():return call('scan',target).stdout.strip()
+assert call('append_raw',target,source,1,999).returncode==0
+assert scan()=='generation=1 status=COMPLETE'
+cut=call('append_raw',target,source,2,1)
+assert cut.returncode==91 and scan()=='generation=1 status=RECOVERABLE_PENDING_PASSAGE'
+assert call('append_raw',target,source,2,999).returncode==0
+assert scan()=='generation=2 status=COMPLETE'
+assert call('append_raw',target,source,3,999).returncode==0
+assert scan()=='generation=3 status=COMPLETE'
+rows=[]
+for index in (1,2,3):
+    mp3=target/'assets'/f'passage-{index}.mp3'
+    decoded=subprocess.run(['ffmpeg','-v','error','-i',str(mp3),'-f','null','-'],capture_output=True)
+    assert decoded.returncode==0,decoded.stderr
+    digest=hashlib.sha256(mp3.read_bytes()).hexdigest()
+    reference=here/'e3-output'/mp3.name
+    rows.append({'passage':index,'bytes':mp3.stat().st_size,'sha256':digest,'same_as_e3_smoke':digest==hashlib.sha256(reference.read_bytes()).hexdigest(),'ffmpeg_decodable':True})
+assert all(row['same_as_e3_smoke'] for row in rows)
+srt=(target/'gen-3/cumulative.srt').read_text(encoding='utf-8')
+assert '00:00:24,000 --> 00:00:30,000' in srt
+report={'schema':'whisper-e3-integrated/1','source':'existing three FLEURS WAV; rusty_mp3 0.8.0 encoder and durable Rust publisher in same process',
+        'cut_during_second':'generation=1 status=RECOVERABLE_PENDING_PASSAGE','final':'generation=3 status=COMPLETE','rows':rows,
+        'limits':['synthetic TXT/SRT oracle, not ASR text','process exit, not physical power loss','no human MP3 quality verdict','FFmpeg decoding and PCM source clock only; no third-party player sample-exact sync guarantee']}
+(here/'e3-integrated-report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps(report,indent=2))

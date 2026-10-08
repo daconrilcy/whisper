@@ -1,0 +1,1 @@
+{"candidate_digests":{"DESIGN":"514d8fcf3e3ffdbb06852a81ffca8cc114bd6a0450ef83550443a995f29a1a2b","PLANS":"427cae046f0515b9bdcb941e9ad23ad634d298d82fed227a822c978f53e046e4"},"code_root":"C:\\dev\\whisper","documentation_root":"C:\\dev\\whisper\\docs\\predev","lot":"L-WHISPER-04","observed_drift":{},"ok":true,"phase":"IMPLEMENTATION","schema":"rust-predev/2"}

@@ -1,0 +1,39 @@
+{
+  "schema": "whisper-e4-queue/1",
+  "rows": [
+    {
+      "cut": 0,
+      "first_scan": "RESTORED 0",
+      "second_scan": "RESTORED 0",
+      "ack_before_cut": false,
+      "retry_ack": "ACK id=import-01 idempotent=false after_sync=true"
+    },
+    {
+      "cut": 1,
+      "first_scan": "RESTORED 0",
+      "second_scan": "RESTORED 0",
+      "ack_before_cut": false,
+      "retry_ack": "ACK id=import-01 idempotent=false after_sync=true"
+    },
+    {
+      "cut": 2,
+      "first_scan": "RESTORED 1 import-01",
+      "second_scan": "RESTORED 1 import-01",
+      "ack_before_cut": false,
+      "retry_ack": "ACK id=import-01 idempotent=true after_sync=true"
+    },
+    {
+      "cut": 3,
+      "first_scan": "RESTORED 1 import-01",
+      "second_scan": "RESTORED 1 import-01",
+      "ack_before_cut": true,
+      "retry_ack": "ACK id=import-01 idempotent=true after_sync=true"
+    }
+  ],
+  "corrupt": "CORRUPT import-01",
+  "limits": [
+    "process exit injection, not power failure",
+    "single local job fixture",
+    "directory metadata durability not established"
+  ]
+}

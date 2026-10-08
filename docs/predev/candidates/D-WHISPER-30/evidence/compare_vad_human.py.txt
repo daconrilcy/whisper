@@ -1,0 +1,74 @@
+from pathlib import Path
+import hashlib
+import json
+import subprocess
+import sys
+import webrtcvad
+
+human_path = Path(sys.argv[1])
+out_path = Path(sys.argv[2])
+root = Path.home() / "AppData/Local/Temp/whisper-spikes"
+human = json.loads(human_path.read_text(encoding="utf-8"))
+assert human["schema"] == "whisper-human-annotations/1"
+assert len(human["files"]) == 26
+rows = []
+for rec in human["files"]:
+    assert rec["verified"] is True
+    name = rec["file"]
+    path = (
+        Path(r"C:\WhisperLive") / name if name == "micro_test.wav"
+        else root / name if name == "jfk.wav"
+        else root / "fleurs-small" / name
+    )
+    assert path.is_file()
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == rec["sha256"]
+    data = subprocess.check_output([
+        "ffmpeg", "-v", "error", "-i", str(path), "-ar", "16000", "-ac", "1",
+        "-f", "s16le", "-acodec", "pcm_s16le", "pipe:1",
+    ])
+    frame_count = len(data) // 640
+    truth = [
+        any(start <= (i + .5) * .02 < end for start, end in rec["intervals_s"])
+        for i in range(frame_count)
+    ]
+    for mode in range(4):
+        vad = webrtcvad.Vad(mode)
+        flags = [
+            bool(vad.is_speech(data[i * 640:(i + 1) * 640], 16000))
+            for i in range(frame_count)
+        ]
+        tp = sum(a and b for a, b in zip(truth, flags))
+        fp = sum(not a and b for a, b in zip(truth, flags))
+        fn = sum(a and not b for a, b in zip(truth, flags))
+        tn = frame_count - tp - fp - fn
+        rows.append({
+            "file": name, "language": rec["language"], "mode": mode,
+            "frames": frame_count, "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+            "precision": round(tp / (tp + fp), 4) if tp + fp else None,
+            "recall": round(tp / (tp + fn), 4) if tp + fn else None,
+        })
+summary = []
+for language in ("fr_fr", "en_us", "fr_micro", "en_public", "all"):
+    for mode in range(4):
+        subset = [r for r in rows if r["mode"] == mode and (language == "all" or r["language"] == language)]
+        tp = sum(r["tp"] for r in subset)
+        fp = sum(r["fp"] for r in subset)
+        fn = sum(r["fn"] for r in subset)
+        tn = sum(r["tn"] for r in subset)
+        summary.append({
+            "language": language, "mode": mode, "clips": len(subset),
+            "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+            "precision": round(tp / (tp + fp), 4) if tp + fp else None,
+            "recall": round(tp / (tp + fn), 4) if tp + fn else None,
+        })
+report = {
+    "schema": "whisper-vad-vs-human-labels/1",
+    "status": "HUMAN_ACCEPTED_LABELS_EXISTING_WAV_ONLY",
+    "human_annotation_sha256": hashlib.sha256(human_path.read_bytes()).hexdigest(),
+    "method": "20 ms frames, midpoint overlap with user-verified intervals, ffmpeg 16 kHz mono PCM16, Python webrtcvad modes 0..3. Clean existing WAV only; same RMS proposals were accepted without edits. Results do not cover real microphone EN or everyday noise, Rust VAD implementation, or product UI.",
+    "rows": rows,
+    "summary": summary,
+}
+out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+for item in summary:
+    print(item)

@@ -1,0 +1,41 @@
+# CHANGE L04 — décisions acceptées et portée D24
+
+Statut : DRAFT, successor de D23. D23/P28 READY historiques ne confèrent aucune autorité à ce CHANGE.
+
+## Autorité produit
+
+Les décisions `DEC-L04-CAPTURE-AUTO-01` et `DEC-L04-STRICT-FINISH-01` sont acceptées et référencées par le checkpoint :
+
+- En Auto, pendant GPU→CPU live, poursuivre la capture sous bornes (`transports/T-WHISPER-USER-L04-ANSWERS-D24/user-Q-D24-BOUND-01.raw.txt`).
+- Après panne GPU forcé, attendre le choix CPU puis terminer le même passage depuis PCM préservé, sans rouvrir le microphone (`.../user-Q-D24-STRICT-FINISH-01.raw.txt`).
+
+Le deuxième scénario ferme d’abord la capture; il ne prolonge pas le flux Auto. Aucun fallback spontané GPU forcé n’est accepté.
+
+## Portée proposée
+
+Conserver les quinze chemins P28 et ajouter exactement six chemins issus du diagnostic d’architecture : `whisper-adapters/src/archive.rs`, `whisper-adapters/tests/live_archive.rs`, `whisper-core/src/ipc.rs`, `whisper-core/src/ports.rs`, `whisper-core/tests/live_contract.rs`, `whisper-worker-cpu/src/main.rs` (préfixés par `crates/`). Portée complète = 21 chemins dans le transport technique et le snapshot de baseline D23. Cette extension est une proposition de plan et d’autorisation à confirmer dans le successor; elle n’autorise pas encore le code.
+
+D23 reste immuable. Le candidat partiel précédent demeure une baseline d’analyse; ses builds rapportés ne sont pas une clôture, et les campagnes produit, native, UI et archive restent NOT RUN.
+
+D26 disposition: D24-001 CLOSED; D24-002/003/004 and D25-001 OPEN pending exact D26 review. Full report in T-WHISPER-REVIEW-DESIGN-25-RAW.
+
+R-WHISPER-DESIGN-25-v1 — FINDINGS
+
+Candidat revu : DESIGN D-WHISPER-25.
+Digest recalculé avant/après : 3d9c3c58734b41dac25e7212685ee2d0c11a5e6a2c7e6c355ede85c61109de50. SHA256 manifeste : 3da8b656ba1de57d70fdd5b0fc75171e2cf51a4ae35859c09456613fe9a2e822. 322/322 hashes conformes; aucun changement pendant la revue. State observé : SHA256 0ac12490a8ed55d5e142400520f3c51fbb04b044b1cbbdb52cf026568eb7d9fc, D25 DRAFT, phase DESIGN, rubriques GAP; contributions brutes checkpoint conformes.
+
+Indépendance : /root/review_d24, auteur des findings précédents seulement. Aucune participation aux corrections D25, aucune écriture, aucun build/test ni sous-agent.
+
+DISPOSITION DES FINDINGS D24
+
+D24-001 CLOSED : les fichiers spécialistes raw D24 correspondent aux originaux, messages, propositions et transports; D25 bounds ligne 3746, domain ligne 4170, architecture ligne 4356 correspondent aux messages racine. Manifeste et checkpoint concordent; ancienne synthèse qualifiée comme synthèse. Les sources raw D24 et D25 sont distinctes.
+
+D24-002 OPEN — High. D25 distingue RAM transitoire, spool PCM durable et allocations natives inconnues; inventorie 14 étages et relève événement 20→23, sérialisation avant contrôle et allocations natives/texte. Aucun SPIKE n'est nécessaire pour RSS globale/durée/quota non promis. Mais `61_CHANGE_L04_ARCHITECTURE_D24.md` reste inchangé, question capacité encore « avant PLANS » alors que `10` la dit répondue. Inventaire/admission burst/sérialisation plafonnée/lecture progressive restent un transport externe sans adoption normative. Sources de code capture.rs, staging.rs, encoder.rs, worker-cpu/ipc.rs ne sont pas figées dans le manifeste. Fermeture : adopter explicitement l'inventaire/prescriptions avec statut, priorité, référence hashée; figer les sources; aligner la question. PRODUCT_VALIDATION reste NOT RUN.
+
+D24-003 OPEN — High. Les apports décrivent silence, T/A/C/E, watermark fini, réservation consommée, migration prudente, ancien writer non coopérant, verrou exclusif et opérations. Le corpus n'adopte pas plusieurs obligations : exclusivité et cessation ancien enfant/writer; framing/checksum et suffixe incomplet versus corruption; préconditions/opérations/errors freeze_inference, settle, reserve_attempt, confirm_window, rebuild_mp3, publish; confirmation IPC fenêtre silencieuse; commit durable/ACK perdu; namespace migration/refus ancien protocole. `08` dit AttemptJournal Reserved/Started/Exited/checkpointé tandis que deux apports disent Reserved/Started/Retired; `60/61/62` inchangés conservent D24. Fermeture : intégrer les contrats détaillés; résoudre le journal; marquer formulations remplacées et relier scénarios aux AC. Aucun test produit préalablement exigé.
+
+D24-004 OPEN — Medium. Questions produit/technique mieux séparées, owner et tâche existent. Mais textes annoncent REQ-07/08/11 v3 tandis qu'éléments canoniques et AC restent v2 liés à D19; IDs REQ-07-D25-PROPOSAL etc sont v2 sans remplacement/version explicite; apports révisent aussi REQ-18/AC-13 non mutés au registre; choix produit classés reversible_detail malgré leur caractère structurant; `62` continue de proposer REQ-26/UC-21/AC-21 alors que `02` les écarte. Fermeture : cohérence versions, statuts et liens de remplacement; enregistrer AC affectés dont couverture/silence; classer décisions produit comme structurantes déjà répondues; déclarer le sort des propositions et passages remplacés. Aucune nouvelle réponse utilisateur requise.
+
+D25-001 OPEN — High — Régression REQUIRED : normalisation CRLF→LF de preuves héritées, sans mise à jour de leurs attestations historiques. `evidence/d19/e2-state-run.log.txt` réel SHA c5a3978268334db5cdbf598e5d2452c89b8bd5488bc1bd9f5d2d71aa2761f7fb, `e2-state-report.json/files/controller_log/sha256` annonce 483cf856d0272861e0ae72a44e0118cd236e45dde4ae661cfbef9c06075e4d50. `rules-effective/agent-rules/ARCHITECTURE_CONSTITUTION.md.txt` réel SHA 1496bc87c8faf8dc84cef968b977dff08cee3df0dbac5273bc7f9af5ce7134de, `12_SOURCE_INDEX.json/rules` annonce 74865dcb4e69173d43a2e38f3dad134fe0816c9da4a7a50029c7445ca3d85b38. Treize snapshots des règles ne correspondent pas aux hashes indexés; autres logs/rapports affectés. Fermeture : restaurer les octets sources depuis D24 et vérifier tous index/références internes. Si transformation voulue, conserver l'original et qualifier copie avec comparaison/provenance; ne pas réécrire les attestations historiques.
+
+Couverture héritée brief→REQ/UC/AC demeure. Scénarios D25 renforcent Auto, GPU forcé, saturation, silence, migration, Stop/Quit et publication; traçabilité inverse delta incomplète. Les 21 chemins sont cohérents et restent proposés, non autorisés pour le code. Préflight stale, implémentation partielle et validations NOT RUN sont distincts. Aucun advisory supplémentaire. Aucun CLEAN. D24-001 seul est fermé; D24-002..004 et D25-001 nécessitent un nouveau candidat exact.

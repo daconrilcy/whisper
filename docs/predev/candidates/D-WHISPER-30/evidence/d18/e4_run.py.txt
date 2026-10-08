@@ -1,0 +1,34 @@
+from pathlib import Path
+import json, subprocess, tempfile
+
+root = Path(__file__).parent
+exe = root / 'e4-archive/target/release/e4-archive.exe'
+source = root / 'e3-output'
+base = Path(tempfile.mkdtemp(prefix='whisper-e4-archive-'))
+rows = []
+for cut in range(9):
+    target = base / f'cut-{cut}'
+    produce = subprocess.run([str(exe), 'produce', str(target), str(source), str(cut)], capture_output=True, text=True)
+    a = subprocess.check_output([str(exe), 'scan', str(target)], text=True).strip()
+    b = subprocess.check_output([str(exe), 'scan', str(target)], text=True).strip()
+    assert a == b
+    assert (a == 'COMPLETE') == (cut >= 7)
+    assert produce.returncode == 91 if cut <= 7 else produce.returncode == 0
+    rows.append({'cut_after': cut, 'producer_exit': produce.returncode, 'scan_first': a, 'scan_second': b, 'ack_count': produce.stdout.count('ack_after_sync=')})
+
+complete = base / 'cut-8'
+mp3 = complete / 'passage-2.mp3'
+raw = mp3.read_bytes(); mp3.write_bytes(b'X' + raw[1:])
+corrupt = subprocess.check_output([str(exe), 'scan', str(complete)], text=True).strip()
+assert corrupt == 'RECOVERABLE_CORRUPT_ARTIFACT'
+mp3.write_bytes(raw); mp3.unlink()
+missing = subprocess.check_output([str(exe), 'scan', str(complete)], text=True).strip()
+assert missing == 'RECOVERABLE_MISSING_ARTIFACT'
+marker = complete / 'Complete.txt'; marker.write_text('bad', encoding='utf-8')
+bad_marker = subprocess.check_output([str(exe), 'scan', str(complete)], text=True).strip()
+assert bad_marker == 'RECOVERABLE_BAD_MARKER'
+report = {'schema':'whisper-e4-rust-archive/1', 'source':'actual Rust-encoded MP3 and cumulative TXT/SRT from E3', 'base':str(base), 'rows':rows,
+          'corrupt_mp3':corrupt, 'missing_mp3':missing, 'truncated_marker':bad_marker,
+          'limits':['process exit injection, not power failure', 'directory metadata durability not established', 'encoder and durable publisher are separate Rust fixtures']}
+(root / 'e4-report.json').write_text(json.dumps(report, indent=2)+'\n', encoding='utf-8')
+print(json.dumps(report, indent=2))

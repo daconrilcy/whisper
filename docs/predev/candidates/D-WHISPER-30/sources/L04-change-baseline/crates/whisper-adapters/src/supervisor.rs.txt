@@ -1,0 +1,315 @@
+use std::time::Instant;
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+        mpsc::{self, SyncSender, TrySendError},
+    },
+    thread,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+use whisper_core::{BackendAttempt, ComputeChoice, ComputePolicy, ComputePolicyError};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProgressPhase {
+    Preparing,
+    Capturing,
+    Import,
+    Inference,
+    Draining,
+    Finalizing,
+    Cancelling,
+    Quitting,
+}
+
+#[derive(Clone, Debug)]
+pub struct WorkerPaths {
+    pub cpu: PathBuf,
+    pub gpu: PathBuf,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorkerSelection {
+    pub path: PathBuf,
+    pub backend: BackendAttempt,
+}
+
+impl WorkerPaths {
+    pub fn select(&self, choice: ComputeChoice) -> Result<WorkerSelection, ComputePolicyError> {
+        let gpu_available = self.gpu.is_file();
+        let backend = ComputePolicy::initial(choice, gpu_available)?;
+        let path = match backend {
+            BackendAttempt::Cpu => self.cpu.clone(),
+            BackendAttempt::Gpu => self.gpu.clone(),
+        };
+        if !path.is_file() {
+            return Err(if backend == BackendAttempt::Gpu {
+                ComputePolicyError::GpuUnavailable
+            } else {
+                ComputePolicyError::CpuUnavailable
+            });
+        }
+        Ok(WorkerSelection { path, backend })
+    }
+}
+
+const DIAGNOSTIC_FILE_LIMIT: u64 = 2 * 1024 * 1024;
+const DIAGNOSTIC_FILE_COUNT: usize = 4;
+const DIAGNOSTIC_MAX_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+const DIAGNOSTIC_QUEUE_CAPACITY: usize = 128;
+const DIAGNOSTIC_RECORD_LIMIT: usize = 4096;
+
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiagnosticPhase {
+    Preparing,
+    Capturing,
+    Import,
+    Inference,
+    Draining,
+    Finalizing,
+    Cancelling,
+    Quitting,
+}
+
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiagnosticCode {
+    WorkerStarted,
+    BackendReady,
+    Progress,
+    WorkerFailed,
+    WorkerStopped,
+    LogDegraded,
+    ProgressWarning,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct DiagnosticRecord {
+    schema: u8,
+    timestamp_unix_ms: u64,
+    job_id: u128,
+    generation: u64,
+    phase: DiagnosticPhase,
+    code: DiagnosticCode,
+    backend: Option<&'static str>,
+    completed_samples: Option<u64>,
+    total_samples: Option<u64>,
+}
+
+pub struct DiagnosticSink {
+    sender: SyncSender<Vec<u8>>,
+    dropped: Arc<AtomicU64>,
+    degraded: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl DiagnosticSink {
+    pub fn start(destination: &Path) -> Result<Self, std::io::Error> {
+        let directory = destination.join(".whisper-diagnostics");
+        fs::create_dir_all(&directory)?;
+        let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(DIAGNOSTIC_QUEUE_CAPACITY);
+        let dropped = Arc::new(AtomicU64::new(0));
+        let degraded = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let writer_degraded = degraded.clone();
+        thread::Builder::new()
+            .name("whisper-diagnostics".into())
+            .spawn(move || {
+                while let Ok(line) = receiver.recv() {
+                    if append_rotating(&directory, &line).is_err() {
+                        writer_degraded.store(true, Ordering::Release);
+                    }
+                }
+            })?;
+        Ok(Self {
+            sender,
+            dropped,
+            degraded,
+        })
+    }
+
+    pub fn record(&self, record: DiagnosticRecord) {
+        let Ok(mut bytes) = serde_json::to_vec(&record) else {
+            self.dropped.fetch_add(1, Ordering::Relaxed);
+            return;
+        };
+        if bytes.len() + 1 > DIAGNOSTIC_RECORD_LIMIT {
+            self.dropped.fetch_add(1, Ordering::Relaxed);
+            self.degraded.store(true, Ordering::Release);
+            return;
+        }
+        bytes.push(b'\n');
+        match self.sender.try_send(bytes) {
+            Ok(()) => {}
+            Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) => {
+                self.dropped.fetch_add(1, Ordering::Relaxed);
+                self.degraded.store(true, Ordering::Release);
+            }
+        }
+    }
+
+    pub fn dropped_count(&self) -> u64 {
+        self.dropped.load(Ordering::Relaxed)
+    }
+
+    pub fn is_degraded(&self) -> bool {
+        self.degraded.load(Ordering::Acquire)
+    }
+}
+
+impl DiagnosticRecord {
+    pub fn new(
+        job_id: u128,
+        generation: u64,
+        phase: DiagnosticPhase,
+        code: DiagnosticCode,
+        backend: Option<&'static str>,
+        progress: Option<(u64, u64)>,
+    ) -> Self {
+        Self {
+            schema: 1,
+            timestamp_unix_ms: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |duration| {
+                    duration.as_millis().min(u128::from(u64::MAX)) as u64
+                }),
+            job_id,
+            generation,
+            phase,
+            code,
+            backend,
+            completed_samples: progress.map(|value| value.0),
+            total_samples: progress.map(|value| value.1),
+        }
+    }
+}
+
+fn append_rotating(directory: &Path, line: &[u8]) -> Result<(), std::io::Error> {
+    let now = SystemTime::now();
+    for index in 0..DIAGNOSTIC_FILE_COUNT {
+        let path = diagnostic_path(directory, index);
+        if let Ok(metadata) = fs::metadata(&path)
+            && metadata.modified().ok().is_some_and(|modified| {
+                now.duration_since(modified).unwrap_or_default() > DIAGNOSTIC_MAX_AGE
+            })
+        {
+            let _ = fs::remove_file(path);
+        }
+    }
+    let active = diagnostic_path(directory, 0);
+    let should_rotate = fs::metadata(&active).is_ok_and(|metadata| {
+        metadata.len().saturating_add(line.len() as u64) > DIAGNOSTIC_FILE_LIMIT
+            || metadata.modified().ok().is_some_and(|modified| {
+                now.duration_since(modified).unwrap_or_default() > DIAGNOSTIC_MAX_AGE
+            })
+    });
+    if should_rotate {
+        let oldest = diagnostic_path(directory, DIAGNOSTIC_FILE_COUNT - 1);
+        if oldest.exists() {
+            fs::remove_file(oldest)?;
+        }
+        for index in (1..DIAGNOSTIC_FILE_COUNT).rev() {
+            let previous = diagnostic_path(directory, index - 1);
+            if previous.exists() {
+                fs::rename(previous, diagnostic_path(directory, index))?;
+            }
+        }
+    }
+    let mut file = OpenOptions::new().create(true).append(true).open(active)?;
+    file.write_all(line)?;
+    file.flush()
+}
+
+fn diagnostic_path(directory: &Path, index: usize) -> PathBuf {
+    directory.join(format!("worker-{index}.jsonl"))
+}
+
+pub struct ProgressWatch {
+    phase: ProgressPhase,
+    last_progress: Instant,
+    completed: u64,
+    warned: bool,
+}
+
+impl ProgressWatch {
+    pub fn new(phase: ProgressPhase, now: Instant) -> Self {
+        Self {
+            phase,
+            last_progress: now,
+            completed: 0,
+            warned: false,
+        }
+    }
+
+    pub fn transition(&mut self, phase: ProgressPhase, now: Instant) {
+        if self.phase != phase {
+            self.phase = phase;
+            self.last_progress = now;
+            self.completed = 0;
+            self.warned = false;
+        }
+    }
+
+    pub fn observe(&mut self, completed: u64, now: Instant) {
+        if completed > self.completed {
+            self.completed = completed;
+            self.last_progress = now;
+            self.warned = false;
+        }
+    }
+
+    pub fn warning(&mut self, now: Instant) -> Option<(ProgressPhase, u64)> {
+        let idle = now.saturating_duration_since(self.last_progress);
+        if !self.warned && idle >= Duration::from_secs(60) {
+            self.warned = true;
+            Some((
+                self.phase,
+                idle.as_millis().min(u128::from(u64::MAX)) as u64,
+            ))
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct ProgressSupervisor {
+    obligations: Vec<ProgressWatch>,
+}
+
+impl ProgressSupervisor {
+    pub fn starting(now: Instant) -> Self {
+        Self {
+            obligations: vec![ProgressWatch::new(ProgressPhase::Preparing, now)],
+        }
+    }
+
+    pub fn open(&mut self, phase: ProgressPhase, now: Instant) {
+        if !self.obligations.iter().any(|watch| watch.phase == phase) {
+            self.obligations.push(ProgressWatch::new(phase, now));
+        }
+    }
+
+    pub fn close(&mut self, phase: ProgressPhase) {
+        self.obligations.retain(|watch| watch.phase != phase);
+    }
+
+    pub fn observe(&mut self, phase: ProgressPhase, completed: u64, now: Instant) {
+        self.obligations
+            .iter_mut()
+            .filter(|watch| watch.phase == phase)
+            .for_each(|watch| watch.observe(completed, now));
+    }
+
+    pub fn take_warning(&mut self, now: Instant) -> Option<(ProgressPhase, u64)> {
+        self.obligations
+            .iter_mut()
+            .find_map(|watch| watch.warning(now))
+    }
+
+    pub fn close_all(&mut self) {
+        self.obligations.clear();
+    }
+}

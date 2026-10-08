@@ -1,0 +1,3 @@
+<send_user_message_question_reply>
+[{"questionItemId":"[\"request_user_input_async\",\"call_mv2coc3779fNEzxlU0OFxHnU\",0]","question":"Suite du lot L04","answer":"Autoriser un CHANGE ciblé (recommandé)"}]
+</send_user_message_question_reply>

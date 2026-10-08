@@ -1,0 +1,39 @@
+{
+  "schema": "whisper-e4-spool/1",
+  "source": "existing FR FLEURS WAV PCM, 320-sample frames; synthetic text oracle",
+  "rows": [
+    {
+      "cut": 0,
+      "after_cut": "confirmed=1 unconfirmed_audio=0 corrupt=false",
+      "after_retry": "confirmed=2 unconfirmed_audio=0 corrupt=false",
+      "ack_before_cut": false
+    },
+    {
+      "cut": 1,
+      "after_cut": "confirmed=1 unconfirmed_audio=1 corrupt=false",
+      "after_retry": "confirmed=2 unconfirmed_audio=0 corrupt=false",
+      "ack_before_cut": false
+    },
+    {
+      "cut": 2,
+      "after_cut": "confirmed=1 unconfirmed_audio=1 corrupt=false",
+      "after_retry": "confirmed=2 unconfirmed_audio=0 corrupt=false",
+      "ack_before_cut": false
+    },
+    {
+      "cut": 3,
+      "after_cut": "confirmed=2 unconfirmed_audio=0 corrupt=false",
+      "after_retry": "confirmed=2 unconfirmed_audio=0 corrupt=false",
+      "ack_before_cut": false
+    }
+  ],
+  "final": "confirmed=3 unconfirmed_audio=0 corrupt=false",
+  "corrupt_audio": "detected",
+  "missing_audio": "detected",
+  "limits": [
+    "process exit, not power failure",
+    "only three frames, not long capture or product latency",
+    "text oracle, not Whisper result",
+    "directory metadata durability and physical cache not proved"
+  ]
+}

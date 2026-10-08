@@ -1,0 +1,69 @@
+{
+  "schema": "whisper-e1-pe-imports/1",
+  "parser": "pefile 2024.8.26",
+  "rows": [
+    {
+      "binary": "cpu",
+      "imports": [
+        "advapi32.dll",
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "kernel32.dll",
+        "msvcp140.dll",
+        "ntdll.dll",
+        "vcruntime140.dll",
+        "vcruntime140_1.dll"
+      ],
+      "cuda_imports": [],
+      "msvc_imports": [
+        "msvcp140.dll",
+        "vcruntime140.dll",
+        "vcruntime140_1.dll"
+      ]
+    },
+    {
+      "binary": "gpu",
+      "imports": [
+        "advapi32.dll",
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "cublas64_12.dll",
+        "cudart64_12.dll",
+        "kernel32.dll",
+        "msvcp140.dll",
+        "ntdll.dll",
+        "nvcuda.dll",
+        "vcruntime140.dll",
+        "vcruntime140_1.dll"
+      ],
+      "cuda_imports": [
+        "cublas64_12.dll",
+        "cudart64_12.dll",
+        "nvcuda.dll"
+      ],
+      "msvc_imports": [
+        "msvcp140.dll",
+        "vcruntime140.dll",
+        "vcruntime140_1.dll"
+      ]
+    }
+  ],
+  "assessment": "CPU has no static CUDA imports; GPU needs CUDA DLLs and nvcuda driver. Both require compatible MSVC runtime.",
+  "limit": "Static PE imports do not enumerate every dynamic LoadLibrary call or prove clean-PC operation."
+}

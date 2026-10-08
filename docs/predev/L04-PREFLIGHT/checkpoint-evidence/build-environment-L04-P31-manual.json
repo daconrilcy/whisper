@@ -1,0 +1,17 @@
+{
+  "schema": "whisper-l04-environment-manual/1",
+  "plan": "P-WHISPER-31",
+  "developer_bat": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\Build\\vcvars64.bat",
+  "vs_install_dir": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\",
+  "vs_tools_version": "14.44.35207",
+  "target_arch": "x64",
+  "cl_path": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\cl.exe",
+  "rustup_toolchain": "1.98.1",
+  "rustup_auto_install": "0",
+  "target_installed": true,
+  "cuda_path": "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.9",
+  "cuda_toolkit_dir": "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.9",
+  "cuda_paths_equal": true,
+  "cmake_generator_toolset_absent": true,
+  "libclang_path": "C:\\Users\\cyril\\AppData\\Local\\Programs\\WhisperBuildDeps\\libclang-22.1.8\\runtimes\\win-x64\\native"
+}

@@ -1,0 +1,9 @@
+# R-WHISPER-PLANS-31-v1 — transcription du rapport indépendant
+
+Reviewer : `/root/review_d29`, indépendant de la rédaction et des corrections P31. Verdict CLEAN le 2026-10-08. Candidat P31, digest `427cae046f0515b9bdcb941e9ad23ad634d298d82fed227a822c978f53e046e4`, manifeste SHA256 `16b96e259fc970a7822cfe031dc875dc38142867a58ee00744122400b1c96374`, parent DESIGN D30 digest `514d8fcf3e3ffdbb06852a81ffca8cc114bd6a0450ef83550443a995f29a1a2b`.
+
+Intégrité 215/215 fichiers, 204 hérités P30 identiques, parent D30 READY/CLEAN et `check-state` sans lot PASS. P30-001 CLOSED : 17/§9.1 demande P31 exact, parent D30. P30-002 CLOSED : AUTH-PLAN-P31 désigne `/root/plan_p30`, son transport et son attestation confirmée SHA256 `61eda890e3d7f86ee3a9b14aed967e5abe64ed1320de35e3e1c48e946c8b4509` ; AUTH-PLAN-L04 historique reste attribuée à `/root/plans_writer_l04`.
+
+Le reviewer a vérifié matrice CUDA conforme à D30/63, 26 transports/87 fichiers checkpointés, provenance input → proposition → TRANSPORT des corrections 2 016 octets SHA256 `1ef91c76725525b94f0962e7f7ad35479b6a9a1dd30de791c513877c1193865d`, ainsi que sept rubriques PLANS satisfaites au niveau documentaire. Aucun REQUIRED ou ADVISORY ouvert. La source auteur est une reformulation approuvée, sans équivalence verbatim. Le gate et la promotion relèvent du coordinateur. Baseline/environnement/checkpoint IMPLEMENTATION et contrôle ciblé restent requis ; produit/livraison NOT RUN.
+
+Cette source est une transcription sémantique du message du reviewer, à confirmer par lui ; elle ne prétend pas être un export indépendant octet à octet.
