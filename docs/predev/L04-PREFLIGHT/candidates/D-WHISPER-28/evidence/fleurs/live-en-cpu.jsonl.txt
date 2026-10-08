@@ -1,0 +1,4 @@
+{"mode":"cpu","language":"en","seq":0,"samples":80000,"queue_wait_ms":0,"inference_ms":13812,"first_callback_ms":13812,"visible_proxy_ms":13812,"segments":1,"ok":true}
+{"mode":"cpu","language":"en","seq":1,"samples":80000,"queue_wait_ms":8812,"inference_ms":13577,"first_callback_ms":22390,"visible_proxy_ms":22390,"segments":1,"ok":true}
+{"mode":"cpu","language":"en","seq":2,"samples":80000,"queue_wait_ms":17390,"inference_ms":13607,"first_callback_ms":30998,"visible_proxy_ms":30998,"segments":1,"ok":true}
+{"mode":"cpu","language":"en","seq":3,"samples":22080,"queue_wait_ms":29618,"inference_ms":13549,"first_callback_ms":43167,"visible_proxy_ms":43167,"segments":1,"ok":true}

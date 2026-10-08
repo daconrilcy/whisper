@@ -1,0 +1,14 @@
+sh: can't create /workspace/Cargo.toml: Read-only file system
+sh: can't create /pack/pack-manifest.json: Read-only file system
+OS_SCOPE_PASS
+sh: can't create /workspace/Cargo.toml: Read-only file system
+REAL_MOUNTS_SCOPE_PASS
+sh: can't create /pack/pack-manifest.json: Read-only file system
+{"authority_source":{"path":"authorization.md","sha256":"cf33c588e127086cab063da1f38ab76a0b2ba8b55cb4db34ba994dd1195320b5"},"destination":"/workspace/docs/predev/L04-PREFLIGHT/candidates/D-QUALIFICATION-1","files":[{"path":"design.md","sha256":"05643facac56518ca3535d90fb63fff86a5e396ad3095b3f2535fea143651cb8"}],"generation":1,"host_actor":"WHISPER-DOC-HOST-QUALIFICATION","mode":"AUDIT","ok":true,"pack_digest":"0b8f4184cbe5097e220c545de472f0f45e6dc36f607e365136fef660205389fb","policy_sha256":"00b93fec66e45ba1ee8b29f1b8d10a0196d388352e87a098f71fd6ddf7f76440","proposal_sha256":"ab134c794c0cbe6f7c71a173deb380a0186d22305d144ebd676595f804a50c2e","root":"/workspace/docs/predev/L04-PREFLIGHT"}
+{"actor":"QUALIFICATION-COORDINATOR","destination":"/workspace/docs/predev/L04-PREFLIGHT/candidates/D-QUALIFICATION-1","files":[{"path":"design.md","sha256":"05643facac56518ca3535d90fb63fff86a5e396ad3095b3f2535fea143651cb8"}],"manifest_digest":"2ccfdde6a2be88b5dee082d2a63e2f64c306061fdccf811742d51fbe73356048","mode":"HOST_PERSISTED","ok":true,"persisted_by":"WHISPER-DOC-HOST-QUALIFICATION","receipt":"/workspace/docs/predev/L04-PREFLIGHT/candidates/D-QUALIFICATION-1/receipt.json","scope":"DESIGN"}
+{"ok":true,"projected_files":5,"projection_sha256":"66c76c67a2e28ae36b05488310834efcf2394353c28fe98225c56c849c98aa4d","unique_bytes":1775}
+{"expected_refusal":"physical projection sources collide: transports/T-WHISPER-DOC-HOST-PROJECTION-1/transport-manifest.json","ok":true}
+{"expected_refusal":"empty, dot or parent path segment forbidden: ../Cargo.toml","ok":true}
+{"fixture_references": 151, "projection_candidate": "D-QUALIFICATION-1", "nested_transport": "transports/T-WHISPER-DOC-HOST-PROJECTION-1/transport-manifest.json"}
+{"base_sha256":"1d2b31bde9eb7561f1021584e4f309bb77ff3d8b28b2e0a3e7218cfbd2b3f647","gate":{"candidate_digests":{"DESIGN":"2ccfdde6a2be88b5dee082d2a63e2f64c306061fdccf811742d51fbe73356048"},"code_root":"/workspace","documentation_root":"/tmp/doc-view-65d7b37beb5942da876a37d204db2210","lot":null,"observed_drift":{},"ok":true,"phase":"DESIGN","schema":"rust-predev/2"},"post_projected_files":151,"post_projection_sha256":"9bd37abd5196300ef5dcd8cc8b8a4a870b43fc23cf30712511fd76575f78b599","post_unique_bytes":2428870,"projected_files":151,"projection_sha256":"9bd37abd5196300ef5dcd8cc8b8a4a870b43fc23cf30712511fd76575f78b599","promotion":"PASS","published_sha256":"bb2600daf4e55b76c1b7a8b097218163ba4df2a73f905455bd08c002d82cb5e5","unique_bytes":2428870}
+QUALIFIED_FIXTURE_PASS C:\Users\cyril\.codex\tools\whisper-doc-host\qualification\probe-20261007-190754-9d065e1e

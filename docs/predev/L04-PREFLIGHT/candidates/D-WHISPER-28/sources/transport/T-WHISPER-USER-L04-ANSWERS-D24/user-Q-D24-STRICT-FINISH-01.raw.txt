@@ -1,0 +1,3 @@
+<send_user_message_question_reply>
+[{"questionItemId":"[\"request_user_input_async\",\"call_UKxxAOMwEjfmNhT5qPipA71d\",1]","question":"Après une panne GPU forcé, un choix CPU reprend-il le même passage depuis le PCM conservé, sans rouvrir le micro ?","answer":"Oui, finir le même passage"}]
+</send_user_message_question_reply>

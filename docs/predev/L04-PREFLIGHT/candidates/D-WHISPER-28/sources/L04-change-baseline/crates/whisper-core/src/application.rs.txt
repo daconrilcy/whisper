@@ -1,0 +1,1443 @@
+use crate::domain::{Generation, JobConfig, JobId, JobState};
+use crate::ports::{
+    ArchiveHistoryItem, ImportEffect, ImportEvent, ImportIoPort, ImportQueueEntry, ImportRequest,
+    LiveRequest, PortError,
+};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CommandIdentity {
+    pub job_id: JobId,
+    pub generation: Generation,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AppCommand {
+    Refresh,
+    StartImport {
+        request: ImportRequest,
+    },
+    EnqueueImport {
+        request: ImportRequest,
+    },
+    ProcessQueued {
+        request: ImportRequest,
+    },
+    ResumeInterrupted {
+        request: ImportRequest,
+    },
+    RemoveQueued {
+        job_id: JobId,
+        generation: Generation,
+    },
+    StartLive {
+        job_id: JobId,
+        generation: Generation,
+        config: JobConfig,
+    },
+    StartLiveConfigured {
+        request: LiveRequest,
+    },
+    Stop {
+        job_id: JobId,
+        generation: Generation,
+    },
+    Quit {
+        job_id: JobId,
+        generation: Generation,
+    },
+    ScanHistory {
+        destination: String,
+    },
+}
+
+impl AppCommand {
+    pub fn identity(&self) -> Option<CommandIdentity> {
+        match self {
+            Self::Refresh => None,
+            Self::StartLive {
+                job_id, generation, ..
+            }
+            | Self::Stop { job_id, generation }
+            | Self::Quit { job_id, generation } => Some(CommandIdentity {
+                job_id: *job_id,
+                generation: *generation,
+            }),
+            Self::StartImport { request } | Self::EnqueueImport { request } => {
+                Some(CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                })
+            }
+            Self::ProcessQueued { request } | Self::ResumeInterrupted { request } => {
+                Some(CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                })
+            }
+            Self::RemoveQueued { job_id, generation } => Some(CommandIdentity {
+                job_id: *job_id,
+                generation: *generation,
+            }),
+            Self::StartLiveConfigured { request } => Some(CommandIdentity {
+                job_id: request.job_id,
+                generation: request.generation,
+            }),
+            Self::ScanHistory { .. } => None,
+        }
+    }
+
+    pub fn targets(&self, job_id: JobId, generation: Generation) -> bool {
+        self.identity() == Some(CommandIdentity { job_id, generation })
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct AppView {
+    pub active_job: Option<(JobId, JobState)>,
+    pub active_generation: Option<Generation>,
+    pub queued_jobs: usize,
+    pub message: Option<String>,
+    pub progress: Option<(u64, u64)>,
+    pub last_result: Option<String>,
+    pub history: Vec<ArchiveHistoryItem>,
+    pub queue: Vec<ImportQueueEntry>,
+    pub history_scan_pending: bool,
+    pub queue_scan_pending: bool,
+    pub captured_samples: u64,
+    pub admitted_samples: u64,
+    pub audio_durable_samples: u64,
+    pub confirmed_fragment_samples: u64,
+    pub speech_samples: u64,
+    pub provisional_text: Option<String>,
+    pub provisional_sequence: Option<u64>,
+    pub provisional_range: Option<crate::domain::SourceRange>,
+    pub provisional_captured_at_unix_ms: Option<u64>,
+    pub provisional_available_at_unix_ms: Option<u64>,
+    pub confirmed_text: Option<String>,
+}
+
+/// Owns queue admission and import lifecycle. Adapters only execute effects.
+pub struct ImportApplication<P> {
+    io: P,
+    view: AppView,
+    active: Option<CommandIdentity>,
+    request: Option<ImportRequest>,
+    next_sequence: u64,
+    pending_persistence: usize,
+    pending_live_segments: std::collections::BTreeMap<u64, crate::ports::WorkerSegment>,
+    pending_enqueues: Vec<CommandIdentity>,
+    auto_stop_after_speech_samples: Option<u64>,
+    ended_at: Option<u64>,
+    stopping: Option<CommandIdentity>,
+    max_segment_offset: u64,
+    final_source_samples: Option<u64>,
+}
+
+impl<P: ImportIoPort> ImportApplication<P> {
+    pub fn new(io: P) -> Self {
+        Self {
+            io,
+            view: AppView::default(),
+            active: None,
+            request: None,
+            next_sequence: 0,
+            pending_persistence: 0,
+            pending_live_segments: std::collections::BTreeMap::new(),
+            pending_enqueues: Vec::new(),
+            auto_stop_after_speech_samples: None,
+            ended_at: None,
+            stopping: None,
+            max_segment_offset: 0,
+            final_source_samples: None,
+        }
+    }
+
+    fn fail(&mut self, error: PortError) -> ApplicationError {
+        self.view.message = Some(format!("Import indisponible : {error:?}"));
+        ApplicationError::PortUnavailable
+    }
+
+    fn poll_once(&mut self) -> Result<(), ApplicationError> {
+        let Some(event) = self.io.poll().map_err(|e| self.fail(e))? else {
+            return Ok(());
+        };
+        match &event {
+            ImportEvent::History(history) => {
+                self.view.history = history.clone();
+                self.view.history_scan_pending = false;
+                return Ok(());
+            }
+            ImportEvent::Queue(queue) => {
+                self.view.queue_scan_pending = false;
+                let acknowledged = self
+                    .pending_enqueues
+                    .iter()
+                    .filter(|identity| {
+                        queue.iter().any(|entry| {
+                            entry.request.job_id == identity.job_id
+                                && entry.request.generation == identity.generation
+                        })
+                    })
+                    .count();
+                self.pending_enqueues.retain(|identity| {
+                    !queue.iter().any(|entry| {
+                        entry.request.job_id == identity.job_id
+                            && entry.request.generation == identity.generation
+                    })
+                });
+                if acknowledged > 0 {
+                    self.view.message = Some(format!(
+                        "{acknowledged} import(s) ajouté(s) à la file durable. Choisissez Traiter pour les démarrer."
+                    ));
+                }
+                self.view.queued_jobs = queue.len();
+                self.view.queue = queue.clone();
+                return Ok(());
+            }
+            ImportEvent::Failed {
+                job_id, message, ..
+            } if *job_id == JobId(0) && self.view.queue_scan_pending => {
+                self.view.queue_scan_pending = false;
+                self.view.message = Some(format!("File durable indisponible : {message}"));
+                return Ok(());
+            }
+            _ => {}
+        }
+        let (job_id, generation) = event.identity();
+        let identity = CommandIdentity { job_id, generation };
+        let enqueue_failed = matches!(
+            &event,
+            ImportEvent::Failed { .. } if self.pending_enqueues.contains(&identity)
+        );
+        if self.active != Some(identity)
+            && !(matches!(
+                event,
+                ImportEvent::Stopped { .. } | ImportEvent::Failed { .. }
+            ) && self.stopping == Some(identity))
+            && !enqueue_failed
+        {
+            return Ok(());
+        }
+        if self.stopping == Some(identity)
+            && self.request.is_some()
+            && matches!(event, ImportEvent::Segment(_))
+        {
+            return Ok(());
+        }
+        match event {
+            ImportEvent::LiveProvisional {
+                segment,
+                captured_at_unix_ms,
+                available_at_unix_ms,
+            } => {
+                let sequence = segment.segment_id.0;
+                self.view.provisional_text = Some(segment.text.clone());
+                self.view.provisional_sequence = Some(sequence);
+                self.view.provisional_range = Some(segment.range);
+                self.view.provisional_captured_at_unix_ms = Some(captured_at_unix_ms);
+                self.view.provisional_available_at_unix_ms = Some(available_at_unix_ms);
+                self.pending_live_segments.insert(sequence, segment.clone());
+                self.accept_segment(segment, job_id, generation)?;
+            }
+            ImportEvent::LiveCounters {
+                captured_samples,
+                admitted_samples,
+                audio_durable_samples,
+                confirmed_fragment_samples,
+                speech_samples,
+                diagnostic,
+                ..
+            } => {
+                self.view.captured_samples = captured_samples;
+                self.view.admitted_samples = admitted_samples;
+                self.view.audio_durable_samples = audio_durable_samples;
+                self.view.confirmed_fragment_samples = confirmed_fragment_samples;
+                self.view.speech_samples = speech_samples;
+                if let Some(message) = diagnostic {
+                    self.view.message = Some(message);
+                }
+                if self.stopping.is_none()
+                    && self
+                        .auto_stop_after_speech_samples
+                        .is_some_and(|limit| speech_samples >= limit)
+                {
+                    self.io
+                        .submit(ImportEffect::Stop { job_id, generation })
+                        .map_err(|e| self.fail(e))?;
+                    self.stopping = Some(identity);
+                    self.view.active_job = Some((
+                        job_id,
+                        if self.request.is_none() {
+                            JobState::Draining
+                        } else {
+                            JobState::Cancelling
+                        },
+                    ));
+                    self.view.message =
+                        Some("Durée de parole atteinte ; finalisation du passage…".into());
+                }
+            }
+            ImportEvent::LiveFinalizing { .. } => {
+                self.view.active_job = Some((job_id, JobState::Finalizing));
+            }
+            ImportEvent::History(_) => {
+                unreachable!("non-lifecycle events are handled before job admission")
+            }
+            ImportEvent::Queue(_) => unreachable!("queue events are handled before job admission"),
+            ImportEvent::ResumeCheckpoint {
+                confirmed_segments,
+                confirmed_offset,
+                ..
+            } => {
+                self.next_sequence = confirmed_segments
+                    .checked_add(1)
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                self.max_segment_offset = confirmed_offset;
+            }
+            ImportEvent::Prepared(request) => {
+                if request.source_sha256.is_none()
+                    || request.source_samples.is_none_or(|samples| samples == 0)
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let Some(accepted) = self.request.as_ref() else {
+                    return Err(ApplicationError::InvalidCommand);
+                };
+                let mut expected = accepted.clone();
+                expected.source_sha256 = request.source_sha256;
+                expected.source_samples = request.source_samples;
+                if expected != request {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.request = Some(request.clone());
+                if self.stopping != Some(identity) {
+                    self.io
+                        .submit(ImportEffect::StartWorker(request))
+                        .map_err(|e| self.fail(e))?;
+                    self.view.active_job = Some((job_id, JobState::Preparing));
+                    self.view.message = Some("Source vérifiée ; démarrage du moteur CPU…".into());
+                }
+            }
+            ImportEvent::Ready { backend, .. } => {
+                if self.stopping != Some(identity) {
+                    self.view.active_job = Some((
+                        job_id,
+                        if self.request.is_none() {
+                            JobState::Capturing
+                        } else {
+                            JobState::Running
+                        },
+                    ));
+                    self.view.message = Some(format!("Moteur actif : {backend}"));
+                }
+            }
+            ImportEvent::Progress {
+                completed_samples,
+                total_samples,
+                ..
+            } => {
+                let source_samples = self
+                    .request
+                    .as_ref()
+                    .and_then(|request| request.source_samples);
+                if source_samples.is_none_or(|limit| completed_samples > limit)
+                    || (total_samples > 0
+                        && (completed_samples != total_samples
+                            || Some(total_samples) != source_samples))
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                if total_samples > 0 {
+                    self.final_source_samples = Some(total_samples);
+                }
+                self.view.progress = Some((completed_samples, total_samples));
+            }
+            ImportEvent::Segment(segment) => {
+                self.accept_segment(segment, job_id, generation)?;
+            }
+            ImportEvent::Persisted { sequence, .. } => {
+                self.pending_persistence = self.pending_persistence.saturating_sub(1);
+                if sequence >= self.next_sequence {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                if self.request.is_none() {
+                    self.view.confirmed_fragment_samples = self
+                        .view
+                        .confirmed_fragment_samples
+                        .max(self.max_segment_offset);
+                    if let Some(segment) = self.pending_live_segments.remove(&sequence) {
+                        self.view.confirmed_text = Some(segment.text);
+                        if self.view.provisional_sequence == Some(sequence) {
+                            self.view.provisional_text = None;
+                            self.view.provisional_sequence = None;
+                            self.view.provisional_range = None;
+                            self.view.provisional_captured_at_unix_ms = None;
+                            self.view.provisional_available_at_unix_ms = None;
+                        }
+                    }
+                }
+                self.maybe_publish(job_id, generation)?;
+            }
+            ImportEvent::End {
+                last_sequence,
+                last_offset,
+                ..
+            } => {
+                if last_sequence != self.next_sequence.saturating_sub(1)
+                    || last_offset == 0
+                    || self.final_source_samples != Some(last_offset)
+                    || self
+                        .request
+                        .as_ref()
+                        .and_then(|request| request.source_samples)
+                        != Some(last_offset)
+                    || self.max_segment_offset > last_offset
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.ended_at = Some(last_sequence);
+                self.maybe_publish(job_id, generation)?;
+            }
+            ImportEvent::Published { .. } => {
+                if self.stopping == Some(identity) && self.request.is_some() {
+                    self.view.active_job = Some((job_id, JobState::Cancelling));
+                } else {
+                    self.view.active_job = Some((job_id, JobState::Complete));
+                    self.view.last_result = Some("Transcription publiée et vérifiée".into());
+                    self.view.message = None;
+                    self.active = None;
+                    self.stopping = None;
+                    self.view.provisional_text = None;
+                    self.view.provisional_sequence = None;
+                    self.view.provisional_range = None;
+                    self.view.provisional_captured_at_unix_ms = None;
+                    self.view.provisional_available_at_unix_ms = None;
+                }
+            }
+            ImportEvent::Failed { message, .. } => {
+                if self.pending_enqueues.contains(&identity) {
+                    self.pending_enqueues.retain(|pending| *pending != identity);
+                    self.view.message = Some(message);
+                } else if self.stopping == Some(identity) && self.request.is_some() {
+                    self.view.active_job = Some((job_id, JobState::Cancelled));
+                    self.view.message =
+                        Some(format!("Arrêt confirmé; archive conservée ({message})."));
+                    self.active = None;
+                    self.stopping = None;
+                } else {
+                    self.view.active_job = Some((job_id, JobState::Recoverable));
+                    self.view.message = Some(message);
+                    self.active = None;
+                    self.stopping = None;
+                }
+            }
+            ImportEvent::Stopped { .. } => {
+                self.view.active_job = Some((job_id, JobState::Cancelled));
+                self.view.message =
+                    Some("Arrêt confirmé ; la source et l’archive pending sont conservées.".into());
+                self.active = None;
+                self.stopping = None;
+                self.ended_at = None;
+                self.pending_persistence = 0;
+            }
+        }
+        Ok(())
+    }
+
+    fn maybe_publish(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+    ) -> Result<(), ApplicationError> {
+        if self.pending_persistence == 0
+            && let Some(last_sequence) = self.ended_at
+        {
+            self.io
+                .submit(ImportEffect::Publish {
+                    job_id,
+                    generation,
+                    last_sequence,
+                })
+                .map_err(|e| self.fail(e))?;
+            self.ended_at = None;
+            self.view.active_job = Some((job_id, JobState::Finalizing));
+        }
+        Ok(())
+    }
+
+    fn accept_segment(
+        &mut self,
+        segment: crate::ports::WorkerSegment,
+        _job_id: crate::domain::JobId,
+        _generation: crate::domain::Generation,
+    ) -> Result<(), ApplicationError> {
+        if segment.segment_id.0 != self.next_sequence
+            || segment.range.sample_rate_hz != 16_000
+            || segment.range.start_sample >= segment.range.end_sample
+            || self
+                .request
+                .as_ref()
+                .and_then(|request| request.source_samples)
+                .is_some_and(|limit| segment.range.end_sample > limit)
+        {
+            return Err(ApplicationError::InvalidCommand);
+        }
+        self.max_segment_offset = self.max_segment_offset.max(segment.range.end_sample);
+        self.next_sequence = self
+            .next_sequence
+            .checked_add(1)
+            .ok_or(ApplicationError::InvalidCommand)?;
+        self.io
+            .submit(ImportEffect::PersistSegment(segment))
+            .map_err(|e| self.fail(e))?;
+        self.pending_persistence += 1;
+        Ok(())
+    }
+}
+
+impl<P: ImportIoPort> Application for ImportApplication<P> {
+    fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
+        match command {
+            AppCommand::Refresh => self.poll_once()?,
+            AppCommand::ScanHistory { destination } => {
+                self.io
+                    .submit(ImportEffect::ScanHistory {
+                        destination: destination.clone(),
+                    })
+                    .map_err(|e| self.fail(e))?;
+                self.io
+                    .submit(ImportEffect::ScanQueue { destination })
+                    .map_err(|e| self.fail(e))?;
+                self.view.history_scan_pending = true;
+                self.view.queue_scan_pending = true;
+            }
+            AppCommand::RemoveQueued { job_id, generation } => {
+                self.io
+                    .submit(ImportEffect::RemoveQueued {
+                        job_id,
+                        generation,
+                        destination: self
+                            .view
+                            .queue
+                            .iter()
+                            .find(|item| {
+                                item.request.job_id == job_id
+                                    && item.request.generation == generation
+                            })
+                            .map(|item| item.request.destination.clone())
+                            .ok_or(ApplicationError::InvalidCommand)?,
+                    })
+                    .map_err(|e| self.fail(e))?;
+            }
+            AppCommand::StartLiveConfigured { request } => {
+                if self.active.is_some() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let identity = CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                };
+                self.auto_stop_after_speech_samples = request
+                    .auto_stop_after_speech_samples
+                    .filter(|limit| *limit > 0);
+                self.io
+                    .submit(ImportEffect::StartLive(request))
+                    .map_err(|e| self.fail(e))?;
+                self.request = None;
+                self.active = Some(identity);
+                self.stopping = None;
+                self.next_sequence = 1;
+                self.pending_persistence = 0;
+                self.pending_live_segments.clear();
+                self.max_segment_offset = 0;
+                self.ended_at = None;
+                self.final_source_samples = None;
+                self.view.progress = None;
+                self.view.active_job = Some((identity.job_id, JobState::Preparing));
+                self.view.active_generation = Some(identity.generation);
+                self.view.captured_samples = 0;
+                self.view.admitted_samples = 0;
+                self.view.audio_durable_samples = 0;
+                self.view.confirmed_fragment_samples = 0;
+                self.view.speech_samples = 0;
+                self.view.provisional_text = None;
+                self.view.provisional_sequence = None;
+                self.view.provisional_range = None;
+                self.view.provisional_captured_at_unix_ms = None;
+                self.view.provisional_available_at_unix_ms = None;
+                self.view.confirmed_text = None;
+                self.view.message = Some("Préparation du staging durable et du worker CPU…".into());
+            }
+            AppCommand::StartImport { request } => {
+                if self.active.is_some() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let identity = CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                };
+                self.io
+                    .submit(ImportEffect::Prepare(request.clone()))
+                    .map_err(|e| self.fail(e))?;
+                self.request = Some(request);
+                self.auto_stop_after_speech_samples = None;
+                self.active = Some(identity);
+                self.stopping = None;
+                self.next_sequence = 1;
+                self.pending_persistence = 0;
+                self.ended_at = None;
+                self.max_segment_offset = 0;
+                self.final_source_samples = None;
+                self.view.progress = None;
+                self.view.active_job = Some((identity.job_id, JobState::Preparing));
+                self.view.active_generation = Some(identity.generation);
+                self.view.message = Some("Vérification de la source et du modèle…".into());
+            }
+            AppCommand::EnqueueImport { request } => {
+                let identity = CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                };
+                self.io
+                    .submit(ImportEffect::Enqueue(request))
+                    .map_err(|e| self.fail(e))?;
+                self.pending_enqueues.push(identity);
+                self.view.message =
+                    Some("Vérification de la source et ajout à la file durable en cours…".into());
+            }
+            AppCommand::ProcessQueued { request } => {
+                if self.active.is_some() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let identity = CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                };
+                self.io
+                    .submit(ImportEffect::ProcessQueued(request.clone()))
+                    .map_err(|e| self.fail(e))?;
+                self.request = Some(request);
+                self.active = Some(identity);
+                self.stopping = None;
+                self.next_sequence = 1;
+                self.pending_persistence = 0;
+                self.ended_at = None;
+                self.max_segment_offset = 0;
+                self.final_source_samples = None;
+                self.view.progress = None;
+                self.view.active_job = Some((identity.job_id, JobState::Queued));
+                self.view.active_generation = Some(identity.generation);
+                self.view.message = Some("Vérification du choix explicite et préparation…".into());
+            }
+            AppCommand::ResumeInterrupted { request } => {
+                if self.active.is_some() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let previous = request;
+                let mut resumed = previous.clone();
+                resumed.generation = previous
+                    .generation
+                    .next()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                let identity = CommandIdentity {
+                    job_id: resumed.job_id,
+                    generation: resumed.generation,
+                };
+                self.io
+                    .submit(ImportEffect::ResumeInterrupted {
+                        previous: Box::new(previous),
+                        request: resumed.clone(),
+                    })
+                    .map_err(|e| self.fail(e))?;
+                self.request = Some(resumed);
+                self.active = Some(identity);
+                self.stopping = None;
+                self.next_sequence = 1;
+                self.pending_persistence = 0;
+                self.ended_at = None;
+                self.max_segment_offset = 0;
+                self.final_source_samples = None;
+                self.view.progress = None;
+                self.view.active_job = Some((identity.job_id, JobState::Queued));
+                self.view.active_generation = Some(identity.generation);
+                self.view.message = Some(
+                    "Reprise confirmée : vérification du préfixe durable avant recalcul…".into(),
+                );
+            }
+            AppCommand::Stop { job_id, generation } | AppCommand::Quit { job_id, generation } => {
+                if self.active != Some(CommandIdentity { job_id, generation }) {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                match self.io.submit(ImportEffect::Stop { job_id, generation }) {
+                    Ok(()) => {
+                        self.stopping = Some(CommandIdentity { job_id, generation });
+                    }
+                    Err(PortError::Committing) => {
+                        self.view.active_job = Some((job_id, JobState::Finalizing));
+                        self.view.message = Some(
+                            "Publication en cours ; l’arrêt est trop tardif. Attendez sa fin."
+                                .into(),
+                        );
+                        return Ok(self.view.clone());
+                    }
+                    Err(error) => return Err(self.fail(error)),
+                }
+                self.view.active_job = Some((
+                    job_id,
+                    if self.request.is_none() {
+                        JobState::Draining
+                    } else {
+                        JobState::Cancelling
+                    },
+                ));
+            }
+            _ => return Err(ApplicationError::InvalidCommand),
+        }
+        Ok(self.view.clone())
+    }
+
+    fn view(&self) -> AppView {
+        self.view.clone()
+    }
+}
+
+impl ImportEvent {
+    fn identity(&self) -> (JobId, Generation) {
+        match self {
+            Self::LiveProvisional { segment, .. } => (segment.job_id, segment.generation),
+            Self::LiveCounters {
+                job_id, generation, ..
+            } => (*job_id, *generation),
+            Self::LiveFinalizing { job_id, generation } => (*job_id, *generation),
+            Self::Ready {
+                job_id, generation, ..
+            }
+            | Self::Progress {
+                job_id, generation, ..
+            }
+            | Self::Persisted {
+                job_id, generation, ..
+            }
+            | Self::End {
+                job_id, generation, ..
+            }
+            | Self::Published { job_id, generation }
+            | Self::Failed {
+                job_id, generation, ..
+            }
+            | Self::Stopped { job_id, generation } => (*job_id, *generation),
+            Self::ResumeCheckpoint {
+                job_id, generation, ..
+            } => (*job_id, *generation),
+            Self::Prepared(request) => (request.job_id, request.generation),
+            Self::History(_) | Self::Queue(_) => (JobId(0), Generation::first()),
+            Self::Segment(segment) => (segment.job_id, segment.generation),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ApplicationError {
+    InvalidCommand,
+    PortUnavailable,
+    Failed(String),
+}
+
+/// Application owns orchestration; concrete infrastructure is supplied by a composition root.
+pub trait Application {
+    fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError>;
+    fn view(&self) -> AppView;
+}
+
+pub struct AppFacade<A> {
+    application: A,
+}
+
+impl<A: Application> AppFacade<A> {
+    pub fn new(application: A) -> Self {
+        Self { application }
+    }
+
+    pub fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
+        self.application.dispatch(command)
+    }
+
+    pub fn view(&self) -> AppView {
+        self.application.view()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::{ComputeChoice, LanguageChoice};
+    use std::collections::VecDeque;
+
+    #[derive(Default)]
+    struct ScanTestIo {
+        effects: Vec<ImportEffect>,
+        events: VecDeque<ImportEvent>,
+    }
+
+    impl ImportIoPort for ScanTestIo {
+        fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
+            self.effects.push(effect);
+            Ok(())
+        }
+
+        fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
+            Ok(self.events.pop_front())
+        }
+    }
+
+    #[test]
+    fn destination_scan_stays_pending_until_history_and_queue_are_consumed() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let view = app
+            .dispatch(AppCommand::ScanHistory {
+                destination: "archive".into(),
+            })
+            .unwrap();
+        assert!(view.history_scan_pending);
+        assert!(view.queue_scan_pending);
+
+        app.io.events.push_back(ImportEvent::History(Vec::new()));
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(!view.history_scan_pending);
+        assert!(view.queue_scan_pending);
+
+        app.io.events.push_back(ImportEvent::Queue(Vec::new()));
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(!view.history_scan_pending);
+        assert!(!view.queue_scan_pending);
+    }
+
+    #[test]
+    fn queue_scan_failure_clears_pending_state_and_is_visible() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::ScanHistory {
+            destination: "missing-or-invalid".into(),
+        })
+        .unwrap();
+        app.io.events.push_back(ImportEvent::History(Vec::new()));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.io.events.push_back(ImportEvent::Failed {
+            job_id: JobId(0),
+            generation: Generation::first(),
+            message: "StorageCorrupt: destination is not a directory".into(),
+        });
+
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(!view.queue_scan_pending);
+        assert!(
+            view.message
+                .as_deref()
+                .is_some_and(|message| message.contains("destination is not a directory"))
+        );
+    }
+
+    #[test]
+    fn repeated_start_is_identifiable_and_stale_stop_does_not_target_new_generation() {
+        let job_id = JobId(7);
+        let current = Generation::first().next().unwrap();
+        let stale = Generation::first();
+        let config = JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        };
+        let start = AppCommand::StartLive {
+            job_id,
+            generation: current,
+            config,
+        };
+        let repeated_start = start.clone();
+        let stale_stop = AppCommand::Stop {
+            job_id,
+            generation: stale,
+        };
+
+        assert_eq!(start, repeated_start);
+        assert!(start.targets(job_id, current));
+        assert!(!stale_stop.targets(job_id, current));
+    }
+
+    #[test]
+    fn every_job_lifecycle_command_carries_identity() {
+        let job_id = JobId(9);
+        let generation = Generation::first();
+        let config = JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        };
+        let commands = [
+            AppCommand::StartImport {
+                request: ImportRequest {
+                    job_id,
+                    generation,
+                    source_path: "source.wav".into(),
+                    source_sha256: None,
+                    source_samples: None,
+                    model_path: "model.bin".into(),
+                    model_sha256: [0; 32],
+                    destination: "archive".into(),
+                    config: config.clone(),
+                },
+            },
+            AppCommand::ProcessQueued {
+                request: ImportRequest {
+                    job_id,
+                    generation,
+                    source_path: "source.wav".into(),
+                    source_sha256: None,
+                    source_samples: None,
+                    model_path: "model.bin".into(),
+                    model_sha256: [0; 32],
+                    destination: "archive".into(),
+                    config: config.clone(),
+                },
+            },
+            AppCommand::EnqueueImport {
+                request: ImportRequest {
+                    job_id,
+                    generation,
+                    source_path: "source.wav".into(),
+                    source_sha256: None,
+                    source_samples: None,
+                    model_path: "model.bin".into(),
+                    model_sha256: [0; 32],
+                    destination: "archive".into(),
+                    config: config.clone(),
+                },
+            },
+            AppCommand::StartLive {
+                job_id,
+                generation,
+                config,
+            },
+            AppCommand::Stop { job_id, generation },
+            AppCommand::Quit { job_id, generation },
+        ];
+        assert!(commands.iter().all(|command| command.identity().is_some()));
+        assert_eq!(AppCommand::Refresh.identity(), None);
+    }
+
+    #[test]
+    fn live_stop_keeps_generation_until_segments_are_persisted_and_published() {
+        let job_id = JobId(10);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::StartLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [1; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+        app.io.events.push_back(ImportEvent::LiveCounters {
+            job_id,
+            generation,
+            captured_samples: 320,
+            admitted_samples: 320,
+            audio_durable_samples: 320,
+            confirmed_fragment_samples: 0,
+            speech_samples: 320,
+            diagnostic: None,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.dispatch(AppCommand::Stop { job_id, generation })
+            .unwrap();
+        assert_eq!(app.active, Some(CommandIdentity { job_id, generation }));
+
+        app.io.events.push_back(ImportEvent::LiveProvisional {
+            segment: crate::ports::WorkerSegment {
+                job_id,
+                generation,
+                instance_id: 1,
+                segment_id: crate::domain::SegmentId(1),
+                range: crate::domain::SourceRange::new(0, 320, 16_000).unwrap(),
+                text: "bonjour".into(),
+            },
+            captured_at_unix_ms: 1,
+            available_at_unix_ms: 2,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(matches!(
+            app.io.effects.last(),
+            Some(ImportEffect::PersistSegment(_))
+        ));
+        app.io.events.push_back(ImportEvent::Persisted {
+            job_id,
+            generation,
+            sequence: 1,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.io
+            .events
+            .push_back(ImportEvent::Published { job_id, generation });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.active_job, Some((job_id, JobState::Complete)));
+        assert!(
+            view.last_result
+                .as_deref()
+                .is_some_and(|text| text.contains("vérifiée"))
+        );
+    }
+
+    #[test]
+    fn live_state_advances_through_capture_drain_and_finalization() {
+        let job_id = JobId(19);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::StartLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [9; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+        assert_eq!(app.view.active_job, Some((job_id, JobState::Preparing)));
+        app.io.events.push_back(ImportEvent::Ready {
+            job_id,
+            generation,
+            backend: "CPU".into(),
+        });
+        assert_eq!(
+            app.dispatch(AppCommand::Refresh).unwrap().active_job,
+            Some((job_id, JobState::Capturing))
+        );
+        assert_eq!(
+            app.dispatch(AppCommand::Stop { job_id, generation })
+                .unwrap()
+                .active_job,
+            Some((job_id, JobState::Draining))
+        );
+        app.io
+            .events
+            .push_back(ImportEvent::LiveFinalizing { job_id, generation });
+        assert_eq!(
+            app.dispatch(AppCommand::Refresh).unwrap().active_job,
+            Some((job_id, JobState::Finalizing))
+        );
+        app.io
+            .events
+            .push_back(ImportEvent::Published { job_id, generation });
+        assert_eq!(
+            app.dispatch(AppCommand::Refresh).unwrap().active_job,
+            Some((job_id, JobState::Complete))
+        );
+    }
+
+    #[test]
+    fn immediate_live_stop_does_not_reenter_capturing_on_late_ready() {
+        let job_id = JobId(23);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::StartLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [11; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+        app.dispatch(AppCommand::Stop { job_id, generation })
+            .unwrap();
+        app.io.events.push_back(ImportEvent::Ready {
+            job_id,
+            generation,
+            backend: "CPU".into(),
+        });
+        assert_eq!(
+            app.dispatch(AppCommand::Refresh).unwrap().active_job,
+            Some((job_id, JobState::Draining))
+        );
+        app.io
+            .events
+            .push_back(ImportEvent::Stopped { job_id, generation });
+        assert_eq!(
+            app.dispatch(AppCommand::Refresh).unwrap().active_job,
+            Some((job_id, JobState::Cancelled))
+        );
+    }
+
+    #[test]
+    fn live_auto_stop_acts_only_when_a_positive_speech_limit_is_configured() {
+        for (limit, should_stop) in [(Some(640), true), (None, false), (Some(0), false)] {
+            let job_id = JobId(11);
+            let generation = Generation::first();
+            let mut app = ImportApplication::new(ScanTestIo::default());
+            app.dispatch(AppCommand::StartLiveConfigured {
+                request: LiveRequest {
+                    job_id,
+                    generation,
+                    model_path: "model.bin".into(),
+                    model_sha256: [2; 32],
+                    destination: "archive".into(),
+                    group_offset_samples: 0,
+                    auto_stop_after_speech_samples: limit,
+                    config: JobConfig {
+                        language: LanguageChoice::Automatic,
+                        compute: ComputeChoice::Cpu,
+                    },
+                },
+            })
+            .unwrap();
+            app.io.events.push_back(ImportEvent::LiveCounters {
+                job_id,
+                generation,
+                captured_samples: 960,
+                admitted_samples: 960,
+                audio_durable_samples: 640,
+                confirmed_fragment_samples: 0,
+                speech_samples: 640,
+                diagnostic: None,
+            });
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            assert_eq!(
+                app.io
+                    .effects
+                    .iter()
+                    .any(|effect| matches!(effect, ImportEffect::Stop { .. })),
+                should_stop,
+                "limit {limit:?}"
+            );
+            assert_eq!(
+                view.active_job,
+                Some((
+                    job_id,
+                    if should_stop {
+                        JobState::Draining
+                    } else {
+                        JobState::Preparing
+                    }
+                ))
+            );
+        }
+    }
+
+    #[test]
+    fn live_provisional_text_is_exposed_and_persisted_by_the_application() {
+        let job_id = JobId(12);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::StartLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [3; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+        let segment = crate::ports::WorkerSegment {
+            job_id,
+            generation,
+            instance_id: 1,
+            segment_id: crate::domain::SegmentId(1),
+            range: crate::domain::SourceRange::new(0, 320, 16_000).unwrap(),
+            text: "bonjour provisoire".into(),
+        };
+        app.io.events.push_back(ImportEvent::LiveProvisional {
+            segment,
+            captured_at_unix_ms: 1_000,
+            available_at_unix_ms: 1_020,
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.provisional_text.as_deref(), Some("bonjour provisoire"));
+        assert_eq!(view.provisional_sequence, Some(1));
+        assert_eq!(view.provisional_captured_at_unix_ms, Some(1_000));
+        assert_eq!(view.provisional_available_at_unix_ms, Some(1_020));
+        assert!(matches!(
+            app.io.effects.last(),
+            Some(ImportEffect::PersistSegment(_))
+        ));
+        app.io.events.push_back(ImportEvent::Persisted {
+            job_id,
+            generation,
+            sequence: 1,
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.provisional_text, None);
+        assert_eq!(view.confirmed_text.as_deref(), Some("bonjour provisoire"));
+    }
+
+    #[test]
+    fn import_can_be_enqueued_during_live_without_replacing_the_live_job() {
+        let job_id = JobId(13);
+        let generation = Generation::first();
+        let config = JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        };
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::StartLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [4; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: config.clone(),
+            },
+        })
+        .unwrap();
+        let import = ImportRequest {
+            job_id: JobId(14),
+            generation,
+            source_path: "later.wav".into(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: "model.bin".into(),
+            model_sha256: [4; 32],
+            destination: "archive".into(),
+            config,
+        };
+        app.dispatch(AppCommand::EnqueueImport { request: import })
+            .unwrap();
+        assert_eq!(app.active, Some(CommandIdentity { job_id, generation }));
+        assert!(matches!(
+            app.io.effects.last(),
+            Some(ImportEffect::Enqueue(_))
+        ));
+        assert_eq!(app.view.active_job, Some((job_id, JobState::Preparing)));
+    }
+
+    #[test]
+    fn queued_import_starts_only_after_live_publication_and_explicit_processing() {
+        let live_id = JobId(16);
+        let generation = Generation::first();
+        let config = JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        };
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::StartLiveConfigured {
+            request: LiveRequest {
+                job_id: live_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [6; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: config.clone(),
+            },
+        })
+        .unwrap();
+        let queued = ImportRequest {
+            job_id: JobId(17),
+            generation,
+            source_path: "later.wav".into(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: "model.bin".into(),
+            model_sha256: [6; 32],
+            destination: "archive".into(),
+            config,
+        };
+        app.dispatch(AppCommand::EnqueueImport {
+            request: queued.clone(),
+        })
+        .unwrap();
+        app.dispatch(AppCommand::Stop {
+            job_id: live_id,
+            generation,
+        })
+        .unwrap();
+        assert!(
+            matches!(app.io.effects.last(), Some(ImportEffect::Stop { job_id, .. }) if *job_id == live_id)
+        );
+        assert_eq!(
+            app.active,
+            Some(CommandIdentity {
+                job_id: live_id,
+                generation
+            })
+        );
+
+        app.io.events.push_back(ImportEvent::Published {
+            job_id: live_id,
+            generation,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(app.active, None);
+        app.dispatch(AppCommand::ProcessQueued { request: queued })
+            .unwrap();
+        assert_eq!(
+            app.active,
+            Some(CommandIdentity {
+                job_id: JobId(17),
+                generation
+            })
+        );
+        assert!(
+            matches!(app.io.effects.last(), Some(ImportEffect::ProcessQueued(request)) if request.job_id == JobId(17))
+        );
+    }
+
+    #[test]
+    fn stopped_import_ignores_late_segments_and_remains_cancelled() {
+        let job_id = JobId(15);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::StartImport {
+            request: ImportRequest {
+                job_id,
+                generation,
+                source_path: "source.wav".into(),
+                source_sha256: None,
+                source_samples: None,
+                model_path: "model.bin".into(),
+                model_sha256: [5; 32],
+                destination: "archive".into(),
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+        app.dispatch(AppCommand::Stop { job_id, generation })
+            .unwrap();
+        let effects_before_late_segment = app.io.effects.len();
+        app.io
+            .events
+            .push_back(ImportEvent::Segment(crate::ports::WorkerSegment {
+                job_id,
+                generation,
+                instance_id: 1,
+                segment_id: crate::domain::SegmentId(1),
+                range: crate::domain::SourceRange::new(0, 320, 16_000).unwrap(),
+                text: "late".into(),
+            }));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(app.io.effects.len(), effects_before_late_segment);
+        app.io
+            .events
+            .push_back(ImportEvent::Stopped { job_id, generation });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.active_job, Some((job_id, JobState::Cancelled)));
+    }
+
+    #[test]
+    fn live_capture_failure_remains_recoverable_with_its_diagnostic() {
+        let job_id = JobId(16);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::StartLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [6; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+        let diagnostic = "CaptureSaturated: Stop retained while worker data channel is full";
+        app.io.events.push_back(ImportEvent::Failed {
+            job_id,
+            generation,
+            message: diagnostic.into(),
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.active_job, Some((job_id, JobState::Recoverable)));
+        assert_eq!(view.message.as_deref(), Some(diagnostic));
+    }
+
+    #[test]
+    fn failed_live_stop_retains_recoverable_diagnostic_and_confirmed_fragment() {
+        let job_id = JobId(20);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::StartLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [10; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+        app.io.events.push_back(ImportEvent::LiveProvisional {
+            segment: crate::ports::WorkerSegment {
+                job_id,
+                generation,
+                instance_id: 1,
+                segment_id: crate::domain::SegmentId(1),
+                range: crate::domain::SourceRange::new(0, 320, 16_000).unwrap(),
+                text: "confirmé".into(),
+            },
+            captured_at_unix_ms: 1,
+            available_at_unix_ms: 2,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.io.events.push_back(ImportEvent::Persisted {
+            job_id,
+            generation,
+            sequence: 1,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.dispatch(AppCommand::Stop { job_id, generation })
+            .unwrap();
+        let diagnostic = "StorageUnavailable: final audio sync failed";
+        app.io.events.push_back(ImportEvent::Failed {
+            job_id,
+            generation,
+            message: diagnostic.into(),
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.active_job, Some((job_id, JobState::Recoverable)));
+        assert_eq!(view.message.as_deref(), Some(diagnostic));
+        assert_eq!(view.confirmed_text.as_deref(), Some("confirmé"));
+        assert_eq!(view.confirmed_fragment_samples, 320);
+    }
+}

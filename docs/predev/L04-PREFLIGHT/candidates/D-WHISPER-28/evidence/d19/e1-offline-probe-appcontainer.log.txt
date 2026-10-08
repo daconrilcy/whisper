@@ -1,0 +1,4 @@
+loopback_connect=FAILED wsa_error=10060
+appcontainer_sid=S-1-15-2-766941251-2162423214-758663112-3677967739-2489364596-3841917618-108621471 capabilities=0
+child_pid=117348 token_is_appcontainer=1
+child_exit=0

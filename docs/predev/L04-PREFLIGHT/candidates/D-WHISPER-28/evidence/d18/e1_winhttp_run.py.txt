@@ -1,0 +1,28 @@
+from pathlib import Path
+import subprocess,tempfile,json,hashlib
+here=Path(__file__).parent
+exe=here/'e1-winhttp/target/release/e1-winhttp.exe'
+expected='7d212b9c884f5c77896de960ae17cc341cda43b14d6a971f34ca29ebd4badf7f'
+base=Path(tempfile.mkdtemp(prefix='whisper-e1-winhttp-'))
+def call(path,sha,size,stop):
+    return subprocess.run([str(exe),'8766',str(path),sha,str(size),str(stop)],capture_output=True,text=True)
+valid=base/'valid';a=call(valid,expected,8388608,1048576)
+assert a.returncode==0 and 'INTERRUPTED' in a.stdout and not (valid/'Ready.json').exists()
+b=call(valid,expected,8388608,0)
+assert b.returncode==0 and 'READY' in b.stdout
+assert hashlib.sha256((valid/'model.bin').read_bytes()).hexdigest()==expected
+wrong=base/'wrong-hash';c=call(wrong,'0'*64,8388608,0)
+assert c.returncode!=0 and not (wrong/'Ready.json').exists()
+corrupt=base/'corrupt-partial';d=call(corrupt,expected,8388608,1048576)
+assert d.returncode==0
+p=corrupt/'model.partial';raw=p.read_bytes();p.write_bytes(b'X'+raw[1:])
+e=call(corrupt,expected,8388608,0)
+assert e.returncode!=0 and 'HASH_MISMATCH' in e.stderr and not (corrupt/'Ready.json').exists()
+truncated=base/'truncated';f=call(truncated,expected,8388609,0)
+assert f.returncode!=0 and 'truncated' in f.stderr and not (truncated/'Ready.json').exists()
+report={'schema':'whisper-e1-winhttp/1','client':'Rust windows-sys 0.61.2 WinHTTP + sha2 0.11.0','source':'8MiB loopback fixture',
+        'interrupted':a.stdout.strip(),'resumed':b.stdout.strip(),'wrong_expected':'REJECTED_NO_READY',
+        'corrupt_partial':'HASH_MISMATCH_NO_READY','truncated':'REJECTED_NO_READY',
+        'limits':['HTTP loopback, not HTTPS external/HuggingFace redirect','exact 1.6GB model acquired with Python loopback E1 separately','no final installer/clean PC']}
+(here/'e1-winhttp-report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps(report,indent=2))

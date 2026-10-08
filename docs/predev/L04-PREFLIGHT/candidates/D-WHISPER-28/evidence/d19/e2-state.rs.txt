@@ -1,0 +1,113 @@
+use libloading::{Library, Symbol};
+use std::{env, path::Path, process::{Command, Output}};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Mode { Strict, Auto }
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Outcome { Committed, RetryCpu, Stopped, RejectedStale }
+struct Event { generation: u64, segment: usize, start_ms: u64, end_ms: u64, requested: &'static str, output: Output }
+struct Row { generation: u64, segment: usize, start_ms: u64, end_ms: u64, backend: &'static str }
+struct Controller { mode: Mode, generation: u64, cpu: bool, stopped: bool, committed: Vec<Row> }
+
+impl Controller {
+    fn new(mode: Mode) -> Self { Self { mode, generation: 1, cpu: false, stopped: false, committed: Vec::new() } }
+    fn accept(&mut self, event: Event) -> Result<Outcome, String> {
+        if event.generation != self.generation || self.stopped {
+            println!("receiver_rejected_stale segment={} event_generation={} current_generation={} before_publish=true",
+                event.segment + 1, event.generation, self.generation);
+            return Ok(Outcome::RejectedStale);
+        }
+        let stderr = String::from_utf8_lossy(&event.output.stderr);
+        let stdout = String::from_utf8_lossy(&event.output.stdout);
+        let cuda = stderr.contains("backend_attested=CUDA0 before_full=true");
+        let cpu = stderr.contains("backend_attested=CPU before_full=true");
+        if !event.output.status.success() {
+            if event.output.status.code() != Some(73) || !cuda || stdout.trim().is_empty() {
+                return Err(format!("unqualified worker failure {:?}", event.output.status.code()));
+            }
+            println!("receiver_failure segment={} exit=73 backend_attested_before_full=CUDA0 policy={}",
+                event.segment + 1, if self.mode == Mode::Strict { "strict" } else { "auto" });
+            if self.mode == Mode::Strict { self.stopped = true; return Ok(Outcome::Stopped); }
+            self.generation += 1;
+            self.cpu = true;
+            return Ok(Outcome::RetryCpu);
+        }
+        if stdout.trim().is_empty() { return Err("empty transcript".into()); }
+        let backend = match event.requested {
+            "gpu" if cuda => "CUDA0",
+            "cpu" if cpu => "CPU",
+            _ => return Err("effective backend unverified".into()),
+        };
+        if self.cpu != (backend == "CPU") { return Err("backend not selected by generation".into()); }
+        if self.committed.iter().any(|row| row.segment == event.segment) { return Err("duplicate segment".into()); }
+        if self.committed.last().is_some_and(|row| row.end_ms > event.start_ms) { return Err("overlap".into()); }
+        self.committed.push(Row { generation: event.generation, segment: event.segment,
+            start_ms: event.start_ms, end_ms: event.end_ms, backend });
+        Ok(Outcome::Committed)
+    }
+}
+
+fn gpu_count(dll: &Path) -> Result<i32, String> {
+    unsafe {
+        let lib = Library::new(dll).map_err(|e| e.to_string())?;
+        let f: Symbol<unsafe extern "C" fn(*mut i32) -> i32> = lib.get(b"cudaGetDeviceCount").map_err(|e| e.to_string())?;
+        let mut count = 0;
+        let rc = f(&mut count);
+        if rc != 0 { return Err(format!("cudaGetDeviceCount={rc}")); }
+        Ok(count)
+    }
+}
+fn invoke(engine: &str, model: &str, wav: &str, requested: &'static str,
+          generation: u64, segment: usize, start_ms: u64, end_ms: u64, fault: bool) -> Result<Event, String> {
+    let mut command = Command::new(engine);
+    command.args([model, wav, requested]);
+    if fault { command.arg("fail-after-inference"); }
+    let output = command.output().map_err(|e| e.to_string())?;
+    Ok(Event { generation, segment, start_ms, end_ms, requested, output })
+}
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().collect();
+    if args.len() == 3 && args[1] == "probe" {
+        let count = gpu_count(Path::new(&args[2])).unwrap_or(0);
+        println!("cuda_visible_devices={count}");
+        std::process::exit(if count == 0 { 3 } else { 0 });
+    }
+    if args.len() != 7 { return Err("usage: e2_state GPU_EXE CPU_EXE MODEL WAV1 WAV2 WAV3".into()); }
+    let gpu = &args[1]; let cpu = &args[2]; let model = &args[3]; let wavs = &args[4..7];
+    let dll = Path::new(gpu).parent().ok_or("gpu parent")?.join("cudart64_12.dll");
+    let absent = Command::new(env::current_exe()?).args(["probe", dll.to_str().ok_or("dll")?])
+        .env("CUDA_VISIBLE_DEVICES", "-1").output()?;
+    assert_eq!(absent.status.code(), Some(3));
+    println!("strict_absent=REFUSED_PRE_INFERENCE_NO_CPU_PUBLISH");
+
+    let mut strict = Controller::new(Mode::Strict);
+    let strict_event = invoke(gpu, model, &wavs[0], "gpu", 1, 0, 0, 14_460, true)?;
+    assert_eq!(strict.accept(strict_event)?, Outcome::Stopped);
+    assert!(strict.stopped && strict.committed.is_empty() && !strict.cpu);
+    println!("strict_worker_exit73=STOPPED_NO_CPU_RETRY_NO_PUBLISH");
+
+    let mut auto = Controller::new(Mode::Auto);
+    let durations = [14_460_u64, 6_540, 6_000];
+    let mut start = 0;
+    let first = invoke(gpu, model, &wavs[0], "gpu", 1, 0, start, start + durations[0], false)?;
+    assert_eq!(auto.accept(first)?, Outcome::Committed);
+    start += durations[0] + 1500;
+    let stale = invoke(gpu, model, &wavs[1], "gpu", 1, 1, start, start + durations[1], false)?;
+    let failed = invoke(gpu, model, &wavs[1], "gpu", 1, 1, start, start + durations[1], true)?;
+    assert_eq!(auto.accept(failed)?, Outcome::RetryCpu);
+    assert_eq!(auto.accept(stale)?, Outcome::RejectedStale);
+    assert_eq!(auto.committed.len(), 1);
+    let second = invoke(cpu, model, &wavs[1], "cpu", 2, 1, start, start + durations[1], false)?;
+    assert_eq!(auto.accept(second)?, Outcome::Committed);
+    start += durations[1] + 1500;
+    let third = invoke(cpu, model, &wavs[2], "cpu", 2, 2, start, start + durations[2], false)?;
+    assert_eq!(auto.accept(third)?, Outcome::Committed);
+    assert_eq!(auto.committed.len(), 3);
+    for row in &auto.committed {
+        println!("committed_segment={} generation={} start_ms={} end_ms={} backend={}",
+            row.segment+1, row.generation, row.start_ms, row.end_ms, row.backend);
+    }
+    assert!(auto.committed[1..].iter().all(|r| r.backend == "CPU"));
+    println!("auto_exit73_to_cpu=PASS committed=3 generations=2 stale_event=REJECTED overlap=0");
+    Ok(())
+}

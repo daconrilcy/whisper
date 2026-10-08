@@ -1,0 +1,34 @@
+from pathlib import Path
+import hashlib,json,subprocess,math
+import numpy as np
+root=Path.home()/'AppData/Local/Temp/whisper-spikes'
+meta=json.loads((root/'fleurs-small/sample-metadata.json').read_text(encoding='utf-8'))
+files=[(root/'fleurs-small'/r['file'],r['language']) for r in meta['records']]
+files.extend([(Path(r'C:\WhisperLive\micro_test.wav'),'fr_micro'),(root/'jfk.wav','en_public')])
+results=[]
+for path,lang in files:
+ assert path.is_file(),path
+ pcm=subprocess.check_output(['ffmpeg','-hide_banner','-loglevel','error','-i',str(path),'-ac','1','-ar','16000','-f','s16le','-'])
+ x=np.frombuffer(pcm,dtype='<i2').astype(np.float64)/32768.0
+ n=len(x)//320; x=x[:n*320].reshape(n,320)
+ rms=np.sqrt(np.mean(x*x,axis=1)+1e-12)
+ floor=float(np.percentile(rms,20));high=float(np.percentile(rms,90));threshold=max(0.00007, floor*2.0, high*0.10)
+ active=rms>threshold
+ # Fill gaps of at most six 20 ms frames; remove runs shorter than four frames.
+ def runs(v):
+  out=[];start=None
+  for i,b in enumerate(list(v)+[False]):
+   if b and start is None:start=i
+   elif not b and start is not None:out.append((start,i));start=None
+  return out
+ for (a,b),(c,d) in zip(runs(active),runs(active)[1:]):
+  if c-b<=6:active[b:c]=True
+ for a,b in runs(active):
+  if b-a<4:active[a:b]=False
+ spans=[[round(a*0.02,2),round(b*0.02,2)] for a,b in runs(active)]
+ results.append({'file':path.name,'language':lang,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'duration_s':round(len(pcm)/2/16000,3),'rms_floor':round(floor,6),'rms_p90':round(high,6),'threshold':round(threshold,6),'candidate_intervals_s':spans,'candidate_active_s':round(sum(b-a for a,b in spans),2)})
+report={'schema':'whisper-annotation-candidates/1','status':'AUTOMATIC_UNVERIFIED','method':'20ms mono 16k RMS threshold max(0.00007, 2.0*P20, 0.10*P90), fill <=120ms gaps, remove <80ms runs; these are acoustic activity candidates, not speech truth.','files':results}
+out=root/'annotation-candidates.json';out.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+print('files',len(results),'zero',sum(not r['candidate_intervals_s'] for r in results),'range',[min(len(r['candidate_intervals_s']) for r in results),max(len(r['candidate_intervals_s']) for r in results)])
+for r in results:print(r['file'],r['duration_s'],r['candidate_active_s'],len(r['candidate_intervals_s']))
+

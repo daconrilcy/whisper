@@ -1,0 +1,10 @@
+{
+  "schema": "e1-integrity/1",
+  "wrong_expected": "HASH_MISMATCH",
+  "corrupt_partial_restarted": "INTERRUPTED",
+  "valid_resume": "VERIFIED",
+  "truncated_source": "HASH_MISMATCH",
+  "ready_on_invalid": false,
+  "fixture_bytes": 60000,
+  "limitation": "60kB local fixture, not remote model transfer"
+}

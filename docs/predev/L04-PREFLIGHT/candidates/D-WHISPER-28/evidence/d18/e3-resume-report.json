@@ -1,0 +1,85 @@
+{
+  "schema": "whisper-e3-resume/1",
+  "source": "three Rust-encoded MP3 from e3-multipass",
+  "rows": [
+    {
+      "passage": 2,
+      "cut": 0,
+      "before_retry": "generation=1 status=RECOVERABLE_PENDING_PASSAGE",
+      "after_retry": "generation=2 status=COMPLETE",
+      "prior_mp3_preserved": true
+    },
+    {
+      "passage": 2,
+      "cut": 1,
+      "before_retry": "generation=1 status=RECOVERABLE_PENDING_PASSAGE",
+      "after_retry": "generation=2 status=COMPLETE",
+      "prior_mp3_preserved": true
+    },
+    {
+      "passage": 2,
+      "cut": 2,
+      "before_retry": "generation=1 status=RECOVERABLE_PENDING_PASSAGE",
+      "after_retry": "generation=2 status=COMPLETE",
+      "prior_mp3_preserved": true
+    },
+    {
+      "passage": 2,
+      "cut": 3,
+      "before_retry": "generation=1 status=RECOVERABLE_PENDING_PASSAGE",
+      "after_retry": "generation=2 status=COMPLETE",
+      "prior_mp3_preserved": true
+    },
+    {
+      "passage": 2,
+      "cut": 4,
+      "before_retry": "generation=2 status=COMPLETE",
+      "after_retry": "generation=2 status=COMPLETE",
+      "prior_mp3_preserved": true
+    },
+    {
+      "passage": 3,
+      "cut": 0,
+      "before_retry": "generation=2 status=RECOVERABLE_PENDING_PASSAGE",
+      "after_retry": "generation=3 status=COMPLETE",
+      "prior_mp3_preserved": true
+    },
+    {
+      "passage": 3,
+      "cut": 1,
+      "before_retry": "generation=2 status=RECOVERABLE_PENDING_PASSAGE",
+      "after_retry": "generation=3 status=COMPLETE",
+      "prior_mp3_preserved": true
+    },
+    {
+      "passage": 3,
+      "cut": 2,
+      "before_retry": "generation=2 status=RECOVERABLE_PENDING_PASSAGE",
+      "after_retry": "generation=3 status=COMPLETE",
+      "prior_mp3_preserved": true
+    },
+    {
+      "passage": 3,
+      "cut": 3,
+      "before_retry": "generation=2 status=RECOVERABLE_PENDING_PASSAGE",
+      "after_retry": "generation=3 status=COMPLETE",
+      "prior_mp3_preserved": true
+    },
+    {
+      "passage": 3,
+      "cut": 4,
+      "before_retry": "generation=3 status=COMPLETE",
+      "after_retry": "generation=3 status=COMPLETE",
+      "prior_mp3_preserved": true
+    }
+  ],
+  "final_srt": "1\n00:00:00,000 --> 00:00:14,460\nPassage 1 fixture\n\n2\n00:00:15,960 --> 00:00:22,500\nPassage 2 fixture\n\n3\n00:00:24,000 --> 00:00:30,000\nPassage 3 fixture\n\n",
+  "final_txt": "Passage 1 fixture\nPassage 2 fixture\nPassage 3 fixture\n",
+  "corrupt_prior": "RECOVERABLE_CORRUPT_ARTIFACT",
+  "limits": [
+    "synthetic text oracle",
+    "process exit injection, not power failure",
+    "separate encoding and publication fixtures",
+    "no human MP3 quality verdict"
+  ]
+}

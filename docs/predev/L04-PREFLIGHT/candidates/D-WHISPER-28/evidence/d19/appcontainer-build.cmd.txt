@@ -1,0 +1,4 @@
+@echo off
+call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\bin\HostX64\x64\cl.exe" /nologo /std:c++17 /EHsc /W4 /Fe:"C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\appcontainer_launch.exe" "C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\appcontainer_launch.cpp"
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\bin\HostX64\x64\cl.exe" /nologo /std:c++17 /EHsc /W4 /Fe:"C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\network_probe.exe" "C:\Users\cyril\AppData\Local\Temp\whisper-spikes\closure-008\network_probe.cpp"

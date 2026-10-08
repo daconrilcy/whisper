@@ -1,0 +1,80 @@
+Message Type: FINAL_ANSWER
+Task name: /root
+Sender: /root/d23_arch_delta
+Payload:
+# ARCH-L04-BOUNDS-v1 — inventaire technique pour D24-002
+
+Auteur : `/root/d23_arch_delta`, rôle `rust_architect`, lecture seule, 2026-10-07. Aucun fichier édité ni banc exécuté. Inventaire fondé sur les snapshots **D23** et les contrats **P28/L03** ; il ne ferme pas lui-même D24-002.
+
+## Sources et fidélité
+
+Racine documentaire `R = docs/predev/L04-PREFLIGHT/candidates/`.
+
+| Référence | Source / SHA256 recalculé |
+|---|---|
+| B01 | `R/P-WHISPER-28/10_L03_INTEGRATION_CONTRACTS.md` — `1079689e79414c2d700eda2a1ac9a2f90632c35dc0b4709f3e379f44abcfcaae` |
+| B02 | `R/P-WHISPER-28/sources/ARCH-DETAIL-P02-v1-R2.md` — `85ebaa418dbc9d6168ef7381634d709aae4bf49a53139cf0b443d143c6103879` |
+| B03 | `R/P-WHISPER-28/sources/architecture/ARCH-L01-BOUNDS-v1.md` — `fee3f0dbcb5ecdbc9f70082aba311bca3daaa34bf5efaa12d6b90b71a10f2efce` |
+| B04 | D23 snapshot `sources/L04-change-baseline/crates/whisper-adapters/src/worker_ipc.rs.txt` — `a97e3bc66566eccfe168ed20a8134f3b5428df7656be0dadb7dfd51258d26462` |
+| B05 | D23 snapshot `…/crates/whisper-worker-cpu/src/main.rs.txt` — `25d88755bed8bd3afeed539f028c2471301d8391ccdd2567b3ada7c4499009f1` |
+| B06 | D23 snapshot `…/crates/whisper-adapters/src/archive.rs.txt` — `043dd959835e350bf96bfecab13b501dd9b142763c05ed6d99f78845b668a8ce` |
+| B07 | Code courant `crates/whisper-adapters/src/capture.rs` — `6473322c054b2aead741a1c7e97567f1666e7fb4deedd7865423ead57396677c` |
+| B08 | Code courant `crates/whisper-adapters/src/staging.rs` — `cdbb8953032cccdc7e8401b763defcc452bef66e0da0e610b0db123f8a3e5507` |
+| B09 | Code courant `crates/whisper-worker-cpu/src/encoder.rs` — `25d59e138604f9d58a4a3f6952eee47d33a10104706b038ed7c19bb4b50680cd` |
+| B10 | Code courant `crates/whisper-worker-cpu/src/ipc.rs` — `1b06be095f4586f8e2cddc128fcc9e7307ab208d87323e18f97eddca97f06f97` |
+
+B04–B06 sont identiques au code courant relu. B07/B08 n’ont pas de snapshot dans la baseline D23 des 21 chemins ; leurs hashes correspondent aux sorties L03 enregistrées dans `R/P-WHISPER-28/sources/progress/L03-CLOSURE-04/execution-evidence.json`, hash `247966a803d10445597dd9fc3915e855409a54cb09ff9b4e17997fc0f4c4ec53`. Cette égalité est une preuve de version, pas une nouvelle exécution.
+
+## Inventaire par étage
+
+| Étage / owner | Capacité et payload établis | Admission, saturation, limites |
+|---|---|---|
+| WASAPI / CPAL | Format device effectif `Fs`, canaux `C`; buffers OS non inventoriés. | Erreur CPAL latch `CAPTURE_FAILED`. Aucune borne globale des formats admis au-delà de `Fs≥16000`, `C>0`. B07 `start_device`. |
+| Pool callback / capture adapter | **100 vecteurs f32 partagés entre deux rings**, pas 200 payloads. Taille demandée du slot `S=ceil(Fs×20/1000)×C`; payload demandé `100×S×4` octets. | Callback découpe sans IO. Pool libre vide ⇒ saturation latch ; format partiel/incohérent ⇒ failure. Le vecteur détenu par le consommateur appartient à ces mêmes 100 slots. B07:12,159–188,209–223,304–324. |
+| Conversion mono/rubato / `Pcm16Converter` | `K=input_frames_next()` ; `pending` initialement réservé à `2K`; buffers sortie alloués par rubato. Bloc entrant ≤`S/C` frames. | `Vec::with_capacity` n’est pas un plafond. Avant traitement, longueur mono ≤`K−1+S/C`; après boucle `<K`. Résultat PCM, capacité Vec, FFT interne et drainage final non chiffrés. Erreur conversion cesse capture. B07:28–151. |
+| Réassemblage/VAD / live runtime | Trame **320 i16 =640 octets** ; reliquat après extraction `<320`. | Le pic avant extraction dépend du résultat converter ; `frame_pending` et vecteur `converted` peuvent coexister. VAD ne supprime aucun audio archivé. Erreur ⇒ cessation. B04:1252–1348. |
+| Writer PCM / stockage | File **50 commandes** ; Frame=320 i16 ; payload queued ≤**32 000 octets**, plus une commande writer active et la trame détenue par le producteur, comptées séparément. Tail `<320`; Drain sans PCM. | `try_send` plein ⇒ `WouldBlock`; déconnexion ⇒ `BrokenPipe`. Runtime cesse capture. Stop utilise send/drain bloquants hors UI, sans délai maximal promis. B08:12–13,147–157,279–343. |
+| Spool durable / `PcmStaging` | PCM16 mono16k : **32 000 octets/s**, plus header/checkpoint. Sync nominale toutes **25 trames**, puis drain. | **Aucun quota applicatif de spool ni durée maximale** dans B08. Croissance sur disque jusqu’à Stop/erreur filesystem/limite d’offset contrôlée. Ce n’est pas une file RAM. IO/sync échoué ⇒ aucun nouvel ACK durable valide. B01/B08. |
+| Lecture replay / `PcmWriter` | Appel runtime ≤**80 000 échantillons** : PCM **160 000 octets**. Lecture garde temporairement bytes et i16 simultanément : jusqu’à **320 000 octets de payload**, hors capacités/overhead. | Lecture seulement plage durable, checked offsets; erreur ⇒ Recoverable. API `read_durable_samples` ne vérifie pas elle-même 80k : cette borne vient de son caller. B08:242–275; B04:1353–1428. |
+| Commandes parent→enfant / IPC adapter | **1 commande data queued**, **1 Stop queued**, plus dispatcher actif et un `pending_window` runtime. | Plein ⇒ fenêtre conservée et réessayée ; pas de seconde file de replay autorisée. Déconnexion ⇒ cessation/erreur. B04:170–187,244–307,1353–1450. |
+| Framing / parent et worker | **1 048 576 octets/frame**, newline incluse. 80k i16 : 160k payload binaire; borne conservatrice JSON valeurs/séparateurs **560k**, métadonnées en supplément. | Reader contrôle accumulation avant désérialisation. Writer sérialise **avant** contrôle taille : frame admise bornée, allocation préalable non démontrée bornée à 1MiB. B03/B04:353–415/B10. |
+| Entrée worker CPU/GPU / enfant | **8 commandes queued**, une commande traitée, plus reader bloqué en transfert. Fenêtre live valide ≤80k; conversion moteur f32 ≤**320k octets**. | `send` bloque reader si queue pleine. Validation 80k dans service, après désérialisation/admission en queue. Donc « une fenêtre active + une suivante » de B01 n’est pas démontré sur toute la chaîne. B05:125,156–194,578–651; GPU courant `main.rs:743`. |
+| Codec/native / enfant | Encodeur reçoit chunks ≤16k i16 ; fenêtre moteur ≤80k. | Vecteurs de paquets, segments/textes natifs, modèle/contexte et mémoire FFT/codec non bornés par ces chiffres. Un bitrate de64kbps ne constitue pas une borne allocation/packet démontrée. B09/B05/native_engine. |
+| Effets application / service | **8 queued**, budget contractuel wire ≤8MiB, un actif séparé, contrôle Stop1. | Effet sérialisé puis refusé si frame trop grande ; `try_send` plein refuse. `deferred_effect` et effet actif doivent être comptés dans l’inventaire, sans confusion avec queued. B04:1924–2035. |
+| Événements / application | Contrat **64 globalement**, soit21×3+1, wire≤64MiB. Code : child events21, service pending21 visés, app channel21. | **Limite globale non démontrée pour tous les effets** : guard `pending.len()<21` avant un effet pouvant produire plusieurs événements ; ResumeInterrupted peut faire20→23. Clone en transfert et objets locaux à compter. B04:605–655,2061–2150. |
+| Texte/archive/UI / archive+application | Dernière vue provisoire remplaçable. | `LiveArchive.segments`, lecture des journaux, TXT/SRT cumulés et Queue/History peuvent croître avec le corpus. Aucun budget RSS global ni plafond de texte démontré. B06:92–101,253–304,337–362; P02-GAP-BYTES-01 dans B01. |
+
+Q09 borne uniquement les **diagnostics**. Ses 8MiB ne bornent ni PCM, ni spool, ni archive.
+
+## Charge et méthode de dimensionnement
+
+La charge de référence est celle du device effectivement choisi : relever `Fs/C/format`, dériver `S`, interroger `K` et dimensions rubato, mesurer `.len()` **et** `.capacity()` des vecteurs. À **48kHz stéréo**, exemple contractuel B01 : slot7 680 octets, pool768 000 octets. Ce n’est pas une nouvelle garantie pour tous les devices.
+
+Pour la capture normalisée, `N=16 000×T`, stockage PCM=`2N+header`. Pour le backlog inférence, suivre `B=durable_samples−inference_cursor`; pendant un blocage, croissance nominale32kB/s. Pour un replay au checkpoint, charge à traiter=`durable_samples−confirmed_offset`. Ne charger cette différence entière ni dupliquer le spool; lire par fenêtres≤80k.
+
+Dimensionner par **occupations simultanées**, pas par addition de plafonds théoriques incompatibles : callback, converter, frame producer, writer queue/active, read buffers, pending window, dispatcher, enfant queue/reader/active, f32, frames sérialisées et buffers OS. Compter aussi mémoire texte/native, indépendante de PCM.
+
+La campagne future doit exercer writer ralenti, inférence bloquée, UI consommatrice ralentie et disque défaillant, avec occupation/capacités, counters captured/admitted/durable/confirmed, bytes spool, backend/identités, refus et Stop. Aucun seuil de délai, RSS ou réserve disque n’est inventé.
+
+## Avis sur migration et journal
+
+La séparation passage durable/tentative est appropriée. Préférer un journal technique séparé **versionné, checksummé, streamé**, de réservations de tentative, pour préserver les pending/manifests historiques. Réservation sync avant spawn ; compteur jamais recyclé ; un record complet mais sans enfant lancé reste consommé.
+
+Préciser la réconciliation entre journal technique, checkpoint PCM et fragments : aucun record d’intention ne confirme audio/texte ni Complete. Suffixe incomplet ignoré ; divergence d’identité/checkpoint rend Recoverable. Aucun auto-start au scan. Éviter une lecture intégrale du journal ou du groupe pour calculer le high-watermark.
+
+## Analyse suffisante ou SPIKE ?
+
+**L’analyse suffit pour corriger la conception de D24-002**, à condition de consigner ces valeurs, inconnues et écarts, et de prescrire :
+
+- aucune nouvelle file cachée de replay;
+- admission par capacité réelle, erreurs explicites et cessation sur saturation;
+- comptabilité globale des événements/bursts;
+- publication/recovery streamés lorsqu’une accumulation entière ferait échouer la garantie;
+- distinction mémoire finie du transport / spool durable croissant / allocations natives inconnues.
+
+Les garanties actuelles ne permettent pas d’affirmer « RSS entièrement borné » ou « une fenêtre active et une suivante sur toute la chaîne ». Retirer ces affirmations ou définir leurs corrections vérifiables.
+
+**Pas de SPIKE préalable requis identifié ici** : aucune nouvelle pile ni garantie de débit continu n’est acceptée. Les mesures du pipeline intégré relèvent de **PRODUCT_VALIDATION NOT RUN**. Un SPIKE devient nécessaire si le successor exige un plafond RSS ou une continuité garantie pendant une durée de panne déterminée malgré les allocations opaques ; ces garanties ne sont pas établies par les sources présentes.
+
+La fermeture de D24-002 appartient au reviewer sur le successor exact, après intégration de cet inventaire et des contrats corrigés.
+

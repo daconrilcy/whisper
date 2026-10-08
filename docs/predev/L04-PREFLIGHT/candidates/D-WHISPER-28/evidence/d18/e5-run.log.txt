@@ -1,0 +1,4 @@
+mode=blocked_worker cause=QUEUE_FULL_STOP_INPUT accepted=29 rejected=1 peak_including_writer=9 diagnosis_ms=290 quitter=PARENT_OPEN_AWAITING_MANUAL_ACTION
+mode=blocked_encoder cause=QUEUE_FULL_STOP_INPUT accepted=32 rejected=1 peak_including_writer=9 diagnosis_ms=320 quitter=PARENT_OPEN_AWAITING_MANUAL_ACTION
+mode=slow cause=QUEUE_FULL_STOP_INPUT accepted=38 rejected=1 peak_including_writer=9 diagnosis_ms=380 quitter=PARENT_OPEN_AWAITING_MANUAL_ACTION
+mode=manual_stop cause=STOP accepted=9 rejected=0 peak_including_writer=1 diagnosis_ms=90 quitter=PARENT_OPEN_AWAITING_MANUAL_ACTION

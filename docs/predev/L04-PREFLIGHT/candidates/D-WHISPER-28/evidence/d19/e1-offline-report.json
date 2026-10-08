@@ -1,0 +1,67 @@
+{
+  "schema": "whisper-offline-appcontainer/1",
+  "profile": "WhisperDesignD19Offline",
+  "network_capabilities": 0,
+  "token_is_appcontainer": true,
+  "same_local_model_and_workers_sha256": {
+    "cpu/whisper-engine-spike.exe": {
+      "sha256": "b07ffc3f59a6b3387e61663157967140d995a1f00141f6067de3f77efdc3f928",
+      "bytes": 1349632
+    },
+    "gpu/whisper-engine-spike.exe": {
+      "sha256": "d342eb59e3f42386396f30ada3467b9e6cfacb01ee3a39a9d076bcc291027df0",
+      "bytes": 28132352
+    },
+    "gpu/cudart64_12.dll": {
+      "sha256": "9d9b868955149875ac4ef43442aaaa8913d4a7b3e4d6dd60ee871626aa045768",
+      "bytes": 573952
+    },
+    "gpu/cublas64_12.dll": {
+      "sha256": "0a60a7ecbf906f7f3842826fecaf412f1587ff6269729339245a1ec224364161",
+      "bytes": 113712640
+    },
+    "gpu/cublasLt64_12.dll": {
+      "sha256": "a21ddfc1c9cd090ab07d2c6aad235aa4f15fe60fe896d5db28adf7a279c09ef3",
+      "bytes": 692441600
+    },
+    "models/ggml-large-v3-turbo.bin": {
+      "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+      "bytes": 1624555275
+    }
+  },
+  "tool_sha256": {
+    "appcontainer_launch.exe": "eaae5594bac0f7a6f1efed1a7829dfc7b49b4d0d78d32a910ae74d014bcfe079",
+    "network_probe.exe": "394d4ee97e61dc4b29376b157ef3fb880f0de2ccc1c2d5fca9bd3202971749e2"
+  },
+  "tool_source_sha256": {
+    "appcontainer_launch.cpp": "c47c84285596d37044e70b58bc26e6491b38b53822f7be1916c73b4b6a237f89",
+    "network_probe.cpp": "ae9e62ffb3864105de765c75d5f3dbf1ad7963f6015163b1b413fb3a5cbeae5e",
+    "build_appcontainer.cmd": "91a8b10d97d66f85a20d88d41c9750b8351f664196b0d6d306bd966e5f41f0f7",
+    "e1_offline.py": "b3355ccb8cafe7d89fb01be4592e916f8ad131ccb14476c58c659d5f5391c0ec"
+  },
+  "normal_probe": {
+    "exit": 0,
+    "elapsed_s": 0.015,
+    "log": "e1-offline-probe-normal.log"
+  },
+  "restricted_probe": {
+    "exit": 0,
+    "elapsed_s": 21.052,
+    "log": "e1-offline-probe-appcontainer.log"
+  },
+  "restricted_probe_wsa_error": 10060,
+  "workers": {
+    "cpu": {
+      "exit": 0,
+      "elapsed_s": 14.489,
+      "log": "e1-offline-cpu.log"
+    },
+    "gpu": {
+      "exit": 0,
+      "elapsed_s": 2.17,
+      "log": "e1-offline-gpu.log"
+    }
+  },
+  "result": "CPU_GPU_LOCAL_SUCCESS_IN_NO_NETWORK_CAPABILITY_CONTAINER",
+  "scope": "Same-PC AppContainer fixture. No clean-PC, absent-runtime, product installer, physical outage or end-to-end UI claim."
+}

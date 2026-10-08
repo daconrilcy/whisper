@@ -1,0 +1,28 @@
+from pathlib import Path
+import json, subprocess, hashlib
+
+root=Path.home()/'AppData/Local/Temp/whisper-spikes'
+projects=[root/'engine',root/'closure-008/e3-multipass',root/'closure-008/vad-rust',root/'closure-008/e2-controller',root/'closure-008/e4-archive']
+packages={}
+for project in projects:
+    command=['cargo','metadata','--locked','--format-version','1']
+    if project.name=='engine': command += ['--features','whisper-rs/cuda']
+    data=json.loads(subprocess.check_output(command,cwd=project,text=True,encoding='utf-8'))
+    for pkg in data['packages']:
+        if pkg['source'] is None: continue
+        key=(pkg['name'],pkg['version'])
+        packages[key]={'name':pkg['name'],'version':pkg['version'],'license':pkg['license'],'repository':pkg['repository'],'source':pkg['source']}
+crate=next((Path.home()/'.cargo/registry/src').rglob('whisper-rs-sys-0.15.0'))
+native_license=crate/'whisper.cpp/LICENSE'
+cuda_license=root/'cuda-12.8/LICENSE'
+important={'whisper-rs','whisper-rs-sys','hound','rusty_mp3','webrtc-vad','libloading','sha2'}
+report={'schema':'whisper-e0-licenses/1','cargo_package_count':len(packages),
+        'key_crates':[v for k,v in sorted(packages.items()) if k[0] in important],
+        'native':{'whisper_cpp_version':'1.8.3','license_path':str(native_license),'license_sha256':hashlib.sha256(native_license.read_bytes()).hexdigest()},
+        'cuda':{'version':'12.8','license_path':str(cuda_license),'license_sha256':hashlib.sha256(cuda_license.read_bytes()).hexdigest(),
+                'eula_url':'https://docs.nvidia.com/cuda/archive/12.8.0/eula/index.html'},
+        'model':{'repository':'https://huggingface.co/ggerganov/whisper.cpp','commit':'6034871ec87c84e342efab769d4c5c06cd126db3','file':'ggml-large-v3-turbo.bin','sha256':'1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69','repository_license_metadata':'mit'},
+        'limit':'Metadata and notices only; no final legal/compliance verdict or installer produced'}
+out=root/'closure-008/e0-licenses.json'
+out.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps({'cargo_package_count':len(packages),'key_crates':report['key_crates']},indent=2))

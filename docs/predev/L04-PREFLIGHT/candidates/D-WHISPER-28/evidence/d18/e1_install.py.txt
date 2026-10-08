@@ -1,0 +1,103 @@
+"""Disposable local installation feasibility probe; not the V1 installer."""
+from pathlib import Path
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import sys
+
+EXPECTED = "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69"
+CHUNK = 4 * 1024 * 1024
+
+def digest(path):
+    h = hashlib.sha256()
+    with path.open("rb") as src:
+        for block in iter(lambda: src.read(CHUNK), b""):
+            h.update(block)
+    return h.hexdigest()
+
+def acquire(source, destination, expected, stop_after=None):
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    partial = destination.with_suffix(destination.suffix + ".partial")
+    offset = partial.stat().st_size if partial.exists() else 0
+    if offset > source.stat().st_size:
+        raise ValueError("partial exceeds source")
+    if offset:
+        corrupt = False
+        with source.open("rb") as src, partial.open("rb") as prior:
+            while block := prior.read(CHUNK):
+                if block != src.read(len(block)):
+                    corrupt = True
+                    break
+        if corrupt:
+            partial.unlink()
+            offset = 0
+    with source.open("rb") as src, partial.open("ab") as out:
+        src.seek(offset)
+        while block := src.read(CHUNK):
+            out.write(block)
+            offset += len(block)
+            if stop_after is not None and offset >= stop_after:
+                out.flush(); os.fsync(out.fileno())
+                return {"status": "INTERRUPTED", "partial_bytes": offset}
+        out.flush(); os.fsync(out.fileno())
+    if offset != source.stat().st_size or digest(partial) != expected:
+        return {"status": "HASH_MISMATCH", "partial_bytes": offset}
+    os.replace(partial, destination)
+    return {"status": "VERIFIED", "bytes": offset, "sha256": expected}
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--target", type=Path, required=True)
+    parser.add_argument("--expected", default=EXPECTED)
+    parser.add_argument("--stop-after", type=int)
+    args = parser.parse_args()
+    root = args.target
+    root.mkdir(parents=True, exist_ok=True)
+    ready = root / "Ready.json"
+    if ready.exists():
+        raise ValueError("target already Ready")
+    result = acquire(args.source, root / "models" / "ggml-large-v3-turbo.bin", args.expected, args.stop_after)
+    if result["status"] != "VERIFIED":
+        print(json.dumps(result))
+        return 2
+    source_root = Path.home() / "AppData/Local/Temp/whisper-spikes"
+    cpu = root / "cpu"
+    gpu = root / "gpu"
+    cpu.mkdir(exist_ok=True); gpu.mkdir(exist_ok=True)
+    shutil.copy2(source_root / "engine/target/release/whisper-engine-spike.exe", cpu / "whisper-engine-spike.exe")
+    for name in ("whisper-engine-spike.exe", "cublas64_12.dll", "cublasLt64_12.dll", "cudart64_12.dll"):
+        shutil.copy2(source_root / "package" / name, gpu / name)
+    crate = next((Path.home() / ".cargo/registry/src").rglob("whisper-rs-sys-0.15.0"))
+    notices = root / "licenses"
+    notices.mkdir(exist_ok=True)
+    shutil.copy2(crate / "whisper.cpp/LICENSE", notices / "whisper.cpp-MIT.txt")
+    shutil.copy2(source_root / "cuda-12.8/LICENSE", notices / "CUDA-12.8-EULA.txt")
+    (notices / "SOURCES.txt").write_text(
+        "Bundled native source: whisper-rs-sys 0.15.0 / whisper.cpp 1.8.3.\n"
+        "Model repository and MIT metadata: https://huggingface.co/ggerganov/whisper.cpp\n"
+        "CUDA 12.8.0 EULA: https://docs.nvidia.com/cuda/archive/12.8.0/eula/index.html\n"
+        "This is a feasibility fixture, not a completed distribution compliance review.\n",
+        encoding="utf-8",
+    )
+    manifest = {"schema": "whisper-e1-staging/1", "model": result,
+                "cpu_exe_sha256": digest(cpu / "whisper-engine-spike.exe"),
+                "gpu_exe_sha256": digest(gpu / "whisper-engine-spike.exe"),
+                "cuda_dll_sha256": {name: digest(gpu / name) for name in ("cublas64_12.dll", "cublasLt64_12.dll", "cudart64_12.dll")}}
+    staging = ready.with_suffix(".json.partial")
+    with staging.open("w", encoding="utf-8") as out:
+        json.dump(manifest, out, sort_keys=True)
+        out.write("\n")
+        out.flush(); os.fsync(out.fileno())
+    os.replace(staging, ready)
+    print(json.dumps({"status": "READY", "target": str(root), "manifest": manifest}))
+    return 0
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as exc:
+        print(json.dumps({"status": "ERROR", "error": str(exc)}))
+        sys.exit(1)

@@ -1,0 +1,22 @@
+{
+  "schema": "whisper-e1-http-range/1",
+  "source_sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+  "source_bytes": 1624555275,
+  "first": {
+    "status": "INTERRUPTED",
+    "bytes": 8388608,
+    "ready_exists": false
+  },
+  "resume": {
+    "status": "READY",
+    "bytes": 1624555275,
+    "range_start": 8388608,
+    "ready_exists": true
+  },
+  "elapsed_s": 3.208,
+  "limits": [
+    "loopback server, not HuggingFace network",
+    "no final installer or clean PC",
+    "HTTP Range/ETag fixture with exact pinned model bytes"
+  ]
+}

@@ -1,0 +1,11 @@
+# Cycle de revue adversariale 05 — hôte Whisper
+
+Date : 2026-10-07. Reviewer indépendant en lecture seule : `/root/review_doc_host`. Candidat exact : `invoke.ps1` SHA-256 `476d8ce080956ca8deae49d76ccd871bd321200b565417420c37a620e91ee8d8`, README, qualification racine et journal `probe-latest.log`.
+
+Verdict final : **CLEAN**.
+
+DH-01 est fermé sous un contrat borné : toutes les promotions canoniques passent par ce wrapper ; les appels directs du contrôleur et les écrivains externes de renommage sont exclus pendant une promotion. Le verrou sérialise les appels du wrapper et le handle Windows empêche les écritures en place ordinaires. Un écrivain non coopératif de renommage demeure techniquement possible et hors du périmètre qualifié.
+
+DH-02 est fermé. `probe-latest.log` (SHA-256 `24f9bab8b8ee5ed4406c9c279fc28129f2410cbdfc4628cf0358afbeed4e5c82`) prouve les refus d'écriture sur les montages repo/pack réels, `REAL_MOUNTS_SCOPE_PASS`, puis la promotion synthétique réussie sous le handle et le contrôle post-publication.
+
+Cette revue qualifie uniquement le mécanisme testé. D23/P29, leurs contenus et leur revue, ainsi que le gate courant `L-WHISPER-04`, restent à établir séparément.

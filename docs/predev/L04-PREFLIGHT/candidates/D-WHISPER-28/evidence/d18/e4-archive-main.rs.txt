@@ -1,0 +1,79 @@
+use sha2::{Digest, Sha256};
+use std::env;
+use std::fs::{self, File};
+use std::io::{Read, Write};
+use std::path::Path;
+
+const ARTIFACTS: [&str; 5] = ["passage-1.mp3", "passage-2.mp3", "passage-3.mp3", "cumulative.txt", "cumulative.srt"];
+
+fn hash(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    let mut file = File::open(path)?;
+    let mut h = Sha256::new();
+    let mut buf = [0_u8; 65_536];
+    loop { let n = file.read(&mut buf)?; if n == 0 { break; } h.update(&buf[..n]); }
+    Ok(h.finalize().iter().map(|byte| format!("{byte:02x}")).collect())
+}
+fn synced_write(path: &Path, bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    let mut file = File::create(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    Ok(())
+}
+fn publish(root: &Path, source: &Path, cut: usize) -> Result<(), Box<dyn std::error::Error>> {
+    fs::create_dir_all(root)?;
+    let mut manifest = String::from("archive-v1\n");
+    for (index, name) in ARTIFACTS.iter().enumerate() {
+        let mut src = File::open(source.join(name))?;
+        let partial = root.join(format!("{name}.partial"));
+        let mut dest = File::create(&partial)?;
+        let len = std::io::copy(&mut src, &mut dest)?;
+        dest.sync_all()?;
+        drop(dest);
+        fs::rename(&partial, root.join(name))?;
+        manifest.push_str(&format!("{name}\t{len}\t{}\n", hash(&root.join(name))?));
+        println!("ack_after_sync={name} bytes={len}");
+        if cut == index { std::process::exit(91); }
+    }
+    let partial = root.join("manifest.partial");
+    synced_write(&partial, manifest.as_bytes())?;
+    fs::rename(&partial, root.join("manifest.txt"))?;
+    if cut == 5 { std::process::exit(91); }
+    let marker = format!("complete-v1\n{}\n", hash(&root.join("manifest.txt"))?);
+    let partial = root.join("Complete.partial");
+    synced_write(&partial, marker.as_bytes())?;
+    if cut == 6 { std::process::exit(91); }
+    fs::rename(&partial, root.join("Complete.txt"))?;
+    if cut == 7 { std::process::exit(91); }
+    println!("published=COMPLETE");
+    Ok(())
+}
+fn scan(root: &Path) -> Result<&'static str, Box<dyn std::error::Error>> {
+    let marker = root.join("Complete.txt");
+    if !marker.is_file() { return Ok("RECOVERABLE_NO_MARKER"); }
+    let marker_text = fs::read_to_string(marker)?;
+    let Some(marker_hash) = marker_text.strip_prefix("complete-v1\n").and_then(|v| v.strip_suffix('\n')) else { return Ok("RECOVERABLE_BAD_MARKER"); };
+    let manifest_path = root.join("manifest.txt");
+    if !manifest_path.is_file() || hash(&manifest_path)? != marker_hash { return Ok("RECOVERABLE_BAD_MANIFEST"); }
+    let body = fs::read_to_string(manifest_path)?;
+    let mut lines = body.lines();
+    if lines.next() != Some("archive-v1") { return Ok("RECOVERABLE_BAD_MANIFEST"); }
+    for expected in ARTIFACTS {
+        let Some(line) = lines.next() else { return Ok("RECOVERABLE_BAD_MANIFEST"); };
+        let mut fields = line.split('\t');
+        let (Some(name), Some(size), Some(expected_hash), None) = (fields.next(), fields.next(), fields.next(), fields.next()) else { return Ok("RECOVERABLE_BAD_MANIFEST"); };
+        if name != expected { return Ok("RECOVERABLE_BAD_MANIFEST"); }
+        let path = root.join(name);
+        if !path.is_file() { return Ok("RECOVERABLE_MISSING_ARTIFACT"); }
+        if fs::metadata(&path)?.len().to_string() != size || hash(&path)? != expected_hash { return Ok("RECOVERABLE_CORRUPT_ARTIFACT"); }
+    }
+    if lines.next().is_some() { return Ok("RECOVERABLE_BAD_MANIFEST"); }
+    Ok("COMPLETE")
+}
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().collect();
+    match args.as_slice() {
+        [_, mode, root, source, cut] if mode == "produce" => publish(Path::new(root), Path::new(source), cut.parse()?),
+        [_, mode, root] if mode == "scan" => { println!("{}", scan(Path::new(root))?); Ok(()) },
+        _ => Err("usage: e4-archive produce ROOT SOURCE CUT | scan ROOT".into()),
+    }
+}

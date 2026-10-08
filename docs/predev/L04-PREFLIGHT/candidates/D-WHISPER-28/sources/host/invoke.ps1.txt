@@ -1,0 +1,512 @@
+param(
+    [Parameter(Mandatory)]
+    [ValidateSet('Probe', 'Audit', 'Apply', 'CheckCheckpoint', 'CheckCurrent', 'PromoteCheckpoint')]
+    [string]$Action,
+    [string]$Proposal,
+    [string]$Policy,
+    [string]$Pending,
+    [string]$Lot
+)
+
+$ErrorActionPreference = 'Stop'
+$repo = 'C:\dev\whisper'
+$docs = Join-Path $repo 'docs\predev\L04-PREFLIGHT'
+$stateDocs = Join-Path $repo 'docs\predev'
+$pack = Join-Path $PSScriptRoot 'pack'
+$image = 'python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a'
+$expectedPackManifestSha = '80c9a0987498d7031240c95396db710fef079dfb4682bdf2e9dcbace810217c5'
+$expectedPackDigest = '0b8f4184cbe5097e220c545de472f0f45e6dc36f607e365136fef660205389fb'
+
+function Assert-FrozenPack {
+    $manifestPath = Join-Path $pack 'pack-manifest.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'Frozen pack manifest is missing.' }
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $manifestPath).Hash.ToLowerInvariant() -ne $expectedPackManifestSha) {
+        throw 'Frozen pack manifest differs from the qualified SHA-256.'
+    }
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    if ($manifest.digest -ne $expectedPackDigest -or $manifest.files.Count -ne 24) {
+        throw 'Frozen pack identity differs from the qualified manifest.'
+    }
+    $expectedPaths = @{}
+    foreach ($entry in $manifest.files) {
+        $relative = [string]$entry.path
+        if ($relative.StartsWith('/') -or $relative.Contains('\') -or $relative.Split('/') -contains '..' -or $expectedPaths.ContainsKey($relative)) {
+            throw 'Frozen pack contains an unsafe or duplicate path.'
+        }
+        $expectedPaths[$relative] = $true
+        $file = Join-Path $pack $relative.Replace('/', '\')
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Frozen pack file missing: $relative" }
+        if ((Get-FileHash -Algorithm SHA256 -LiteralPath $file).Hash.ToLowerInvariant() -ne $entry.sha256) {
+            throw "Frozen pack file changed: $relative"
+        }
+    }
+    $actualPaths = @{}
+    foreach ($item in Get-ChildItem -LiteralPath $pack -Force -Recurse) {
+        if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw 'Frozen pack contains a link or junction.' }
+        if (-not $item.PSIsContainer) {
+            $relative = [System.IO.Path]::GetRelativePath($pack, $item.FullName).Replace('\', '/')
+            $actualPaths[$relative] = $true
+        }
+    }
+    if ($actualPaths.Count -ne $expectedPaths.Count + 1 -or -not $actualPaths.ContainsKey('pack-manifest.json')) {
+        throw 'Frozen pack contains an unexpected or missing file.'
+    }
+    foreach ($relative in $expectedPaths.Keys) {
+        if (-not $actualPaths.ContainsKey($relative)) { throw "Frozen pack inventory mismatch: $relative" }
+    }
+}
+
+function ContainerPath([string]$Path) {
+    $resolved = (Resolve-Path -LiteralPath $Path).Path
+    $relative = [System.IO.Path]::GetRelativePath($docs, $resolved)
+    if ($relative -eq '.' -or $relative -eq '..' -or $relative.StartsWith('..\') -or $relative.StartsWith('../') -or [System.IO.Path]::IsPathRooted($relative)) {
+        throw "Input must be a file below $docs`: $Path"
+    }
+    if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) { throw "Missing input: $Path" }
+    return '/workspace/docs/predev/L04-PREFLIGHT/' + $relative.Replace('\', '/')
+}
+
+function DockerArgs([string]$RepoPath, [string]$DocsPath, [string]$MountTarget = '/workspace/docs/predev/L04-PREFLIGHT', [bool]$Writable = $true) {
+    $documentMount = "type=bind,source=$DocsPath,target=$MountTarget"
+    if (-not $Writable) { $documentMount += ',readonly' }
+    return @(
+        'run', '--rm', '--pull=never', '--network=none', '--read-only',
+        '--cap-drop=ALL', '--security-opt=no-new-privileges',
+        '--pids-limit=64', '--memory=256m', '--cpus=1',
+        '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
+        '--mount', "type=bind,source=$RepoPath,target=/workspace,readonly",
+        '--mount', $documentMount,
+        '--mount', "type=bind,source=$pack,target=/pack,readonly",
+        '--workdir', '/workspace/docs/predev/L04-PREFLIGHT', $image
+    )
+}
+
+$checkpointProgram = @'
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import shutil
+import stat
+import sys
+import tempfile
+import uuid
+sys.path.insert(0, '/pack/skills/rust-predev-design/scripts')
+import predev_control as pc
+
+real_root = Path('/workspace/docs/predev')
+code_root = Path('/workspace')
+source = Path(sys.argv[1])
+operation = sys.argv[2]
+lot = None if sys.argv[3] == '__NO_LOT__' else sys.argv[3]
+limit = 64 * 1024 * 1024
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+def safe_rel(value):
+    normalized = pc.normalized_path(value)
+    pc.require(normalized == value, 'projection path is not canonical: ' + str(value))
+    return PurePosixPath(normalized)
+
+def checked_source(rel):
+    relpath = safe_rel(rel)
+    candidates = [real_root.joinpath(*relpath.parts)]
+    if relpath.parts[0] != 'L04-PREFLIGHT':
+        candidates.append(real_root / 'L04-PREFLIGHT' / Path(*relpath.parts))
+    existing = []
+    for path in candidates:
+        if not path.exists():
+            continue
+        current = path
+        while current != real_root and real_root in current.parents:
+            pc.require(not current.is_symlink(), 'projection source is a link: ' + str(current))
+            current = current.parent
+        pc.require(real_root in path.parents and path.is_file(), 'projection source is not a regular file: ' + str(path))
+        pc.require(stat.S_ISREG(path.lstat().st_mode), 'projection source has unsupported type: ' + str(path))
+        existing.append(path)
+    pc.require(bool(existing), 'projection source is missing: ' + rel)
+    hashes = {digest(path.read_bytes()) for path in existing}
+    pc.require(len(hashes) == 1, 'physical projection sources collide: ' + rel)
+    return existing[0], next(iter(hashes))
+
+def build_view(state):
+    view = Path('/tmp/doc-view-' + uuid.uuid4().hex)
+    view.mkdir()
+    blobs = view / '.projection-blobs'
+    blobs.mkdir()
+    expected = {}
+    folded_paths = {}
+    def add(rel, sha=None):
+        relpath = safe_rel(rel)
+        key = relpath.as_posix()
+        folded = key.casefold()
+        pc.require(folded not in folded_paths or folded_paths[folded] == key,
+                   'projection paths collide under case folding: ' + key)
+        folded_paths[folded] = key
+        if key in expected:
+            pc.require(sha is None or expected[key] == sha, 'projection logical path has conflicting hashes: ' + key)
+            return
+        source_path, actual_sha = checked_source(key)
+        pc.require(sha is None or actual_sha == sha, 'projection source hash mismatch: ' + key)
+        expected[key] = actual_sha
+    def walk(value, in_code_state=False):
+        if isinstance(value, dict):
+            if isinstance(value.get('path'), str) and isinstance(value.get('sha256'), str) and not in_code_state:
+                add(value['path'], value['sha256'])
+            for key, child in value.items():
+                if in_code_state and key in ('baseline', 'current'):
+                    continue
+                if in_code_state and key == 'ledger':
+                    for entry in child:
+                        walk(entry.get('evidence', []))
+                    continue
+                walk(child, in_code_state or key == 'code_state')
+        elif isinstance(value, list):
+            for child in value:
+                walk(child, in_code_state)
+    walk(state)
+    for candidate in state.get('candidates', {}).values():
+        manifest_rel = candidate['manifest']
+        add(manifest_rel)
+        if candidate.get('status') == 'STALE':
+            continue
+        manifest_source, _ = checked_source(manifest_rel)
+        manifest = pc.read_json(manifest_source)
+        for entry in manifest['files']:
+            add(entry['path'], entry['sha256'])
+    unique_bytes = 0
+    for rel, sha in sorted(expected.items()):
+        source_path, observed_sha = checked_source(rel)
+        pc.require(observed_sha == sha, 'projection source drifted while copying: ' + rel)
+        data = source_path.read_bytes()
+        pc.require(digest(data) == sha, 'projection source changed while copying: ' + rel)
+        blob = blobs / sha
+        if not blob.exists():
+            unique_bytes += len(data)
+            pc.require(unique_bytes <= limit, 'verified projection exceeds 64 MiB limit')
+            blob.write_bytes(data)
+        else:
+            pc.require(digest(blob.read_bytes()) == sha, 'projection blob hash mismatch: ' + sha)
+        destination = view.joinpath(*safe_rel(rel).parts)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        os.link(blob, destination)
+    mappings = [{'logical': rel, 'physical': str(checked_source(rel)[0].relative_to(real_root)).replace('\\', '/'),
+                 'sha256': sha, 'size': (view / Path(*safe_rel(rel).parts)).stat().st_size}
+                for rel, sha in sorted(expected.items())]
+    payload = {'schema': 'whisper-doc-projection/1', 'files': mappings}
+    projection_digest = digest(pc.canonical(payload))
+    return view, mappings, projection_digest, unique_bytes
+
+def verify_sources(mappings):
+    for item in mappings:
+        path = real_root.joinpath(*safe_rel(item['physical']).parts)
+        pc.require(path.is_file() and digest(path.read_bytes()) == item['sha256'],
+                   'projection source changed before checkpoint publication: ' + item['physical'])
+
+raw = source.read_bytes()
+state = pc.read_json(source)
+pc.require(source.read_bytes() == raw, 'checkpoint source changed while being read')
+if operation == 'PROJECT_EXPECT_FAILURE':
+    try:
+        build_view(state)
+    except pc.ControlError as exc:
+        sys.stdout.buffer.write(pc.canonical({'ok': True, 'expected_refusal': str(exc)}))
+        sys.exit(0)
+    raise pc.ControlError('projection accepted a fixture that must be refused')
+view, mappings, projection_digest, unique_bytes = build_view(state)
+if operation == 'PROJECT':
+    for candidate in state.get('candidates', {}).values():
+        pc.verify_manifest(view, view / candidate['manifest'])
+    for entry in state.get('checkpoint', {}).get('raw_contributions', []):
+        pc.require(digest((view / entry['path']).read_bytes()) == entry['sha256'],
+                   'projected transport hash mismatch: ' + entry['path'])
+    verify_sources(mappings)
+    sys.stdout.buffer.write(pc.canonical({'ok': True, 'projection_sha256': projection_digest,
+        'projected_files': len(mappings), 'unique_bytes': unique_bytes}))
+    sys.exit(0)
+lock_path = real_root / '.whisper-doc-host-state.lock'
+lock_fd = None
+published = False
+published_sha = None
+try:
+    if operation == 'PROMOTE':
+        try:
+            lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            raise pc.ControlError('checkpoint publisher lock exists; inspect it before retrying')
+        os.write(lock_fd, (str(os.getpid()) + '\n').encode('ascii'))
+        os.fsync(lock_fd)
+    current_path = real_root / 'state.json'
+    current_before = current_path.read_bytes() if current_path.exists() else None
+    current_sha = digest(current_before) if current_before is not None else None
+    result = pc.check_state(view, state, lot_id=lot, code_root=code_root)
+    if operation == 'PROMOTE':
+        pc.require(state['checkpoint']['phase'] == 'IMPLEMENTATION' or lot is None,
+                   'a lot gate can only be supplied for IMPLEMENTATION')
+        if state['checkpoint']['phase'] == 'IMPLEMENTATION':
+            pc.require(lot == 'L-WHISPER-04', 'IMPLEMENTATION checkpoint promotion requires -Lot L-WHISPER-04')
+            l04 = next((item for item in state['lots'] if item['id'] == 'L-WHISPER-04'), None)
+            pc.require(l04 is not None, 'L04 lot missing from checkpoint')
+            pending_tasks = set(state['checkpoint']['pending_tasks'])
+            pc.require(bool(pending_tasks) and pending_tasks.issubset(set(l04['tasks'])),
+                       'IMPLEMENTATION pending tasks do not belong to L-WHISPER-04')
+        with tempfile.TemporaryDirectory(dir='/tmp') as private_dir:
+            snapshot = Path(private_dir) / 'pending.json'
+            snapshot.write_bytes(raw)
+            pc.require(snapshot.read_bytes() == raw, 'private checkpoint snapshot changed')
+            pc.promote_checkpoint(view, snapshot, view / 'state.json', code_root=code_root)
+            new_bytes = (view / 'state.json').read_bytes()
+            pc.require(new_bytes == pc.canonical(state), 'projected promotion bytes are not canonical state')
+        pc.require(source.read_bytes() == raw, 'pending checkpoint changed before publication')
+        verify_sources(mappings)
+        current_now = current_path.read_bytes() if current_path.exists() else None
+        pc.require((digest(current_now) if current_now is not None else None) == current_sha,
+                   'current checkpoint changed during promotion')
+        temp_fd, temp_name = tempfile.mkstemp(prefix='.predev-state-', suffix='.json', dir=real_root)
+        try:
+            with os.fdopen(temp_fd, 'wb') as stream:
+                stream.write(new_bytes)
+                stream.flush()
+                os.fsync(stream.fileno())
+            pc.require(Path(temp_name).read_bytes() == new_bytes, 'checkpoint publication staging bytes changed')
+            os.replace(temp_name, current_path)
+            published = True
+        finally:
+            if os.path.exists(temp_name):
+                os.unlink(temp_name)
+        published_sha = digest(current_path.read_bytes())
+        pc.require(published_sha == digest(new_bytes), 'published checkpoint hash mismatch')
+        post_view, post_mappings, post_digest, post_bytes = build_view(pc.read_json(current_path))
+        post_result = pc.check_state(post_view, pc.read_json(current_path), lot_id=lot, code_root=code_root)
+        verify_sources(post_mappings)
+        result = {'promotion': 'PASS', 'base_sha256': current_sha, 'published_sha256': published_sha,
+                  'projection_sha256': projection_digest, 'post_projection_sha256': post_digest,
+                  'projected_files': len(mappings), 'unique_bytes': unique_bytes,
+                  'post_projected_files': len(post_mappings), 'post_unique_bytes': post_bytes,
+                  'gate': post_result}
+    else:
+        verify_sources(mappings)
+        result.update({'projection_sha256': projection_digest, 'projected_files': len(mappings),
+                       'unique_bytes': unique_bytes})
+    sys.stdout.buffer.write(pc.canonical(result))
+except Exception as exc:
+    if published:
+        payload = {'ok': False, 'status': 'POST_PUBLISH_FAILURE', 'published_sha256': published_sha,
+                   'error': str(exc)}
+        sys.stdout.buffer.write(pc.canonical(payload))
+        sys.exit(3)
+    raise
+finally:
+    if lock_fd is not None:
+        os.close(lock_fd)
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
+'@
+
+Assert-FrozenPack
+docker image inspect $image --format '{{.Id}}' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Pinned Python image is unavailable.' }
+
+if ($Action -eq 'Probe') {
+    $probe = Join-Path $PSScriptRoot ('qualification\probe-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    $fixture = Join-Path $probe 'fixture'
+    $fixturePredev = Join-Path $fixture 'docs\predev'
+    $fixtureDocs = Join-Path $fixture 'docs\predev\L04-PREFLIGHT'
+    New-Item -ItemType Directory -Path (Join-Path $fixture '.git'), $fixtureDocs -Force | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $fixture 'Cargo.toml'), '[workspace]' + "`n")
+    $codeBefore = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $fixture 'Cargo.toml')).Hash
+    $packFile = Join-Path $pack 'pack-manifest.json'
+    $packBefore = (Get-FileHash -Algorithm SHA256 -LiteralPath $packFile).Hash
+    $args = DockerArgs $fixture $fixtureDocs
+    $osProbe = 'set -eu; echo allowed > /workspace/docs/predev/L04-PREFLIGHT/allowed.txt; if echo forbidden > /workspace/Cargo.toml 2>/dev/null; then exit 21; fi; if echo forbidden > /pack/pack-manifest.json 2>/dev/null; then exit 22; fi; test "$(ls /sys/class/net | tr "\n" " ")" = "lo "; echo OS_SCOPE_PASS'
+    & docker @args sh -c $osProbe
+    if ($LASTEXITCODE -ne 0) { throw 'Container OS scope probe failed.' }
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $fixture 'Cargo.toml')).Hash -ne $codeBefore) { throw 'Code fixture changed.' }
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $packFile).Hash -ne $packBefore) { throw 'Frozen pack changed.' }
+    if ((Get-Content -LiteralPath (Join-Path $fixtureDocs 'allowed.txt') -Raw).Trim() -ne 'allowed') { throw 'Allowed documentation write failed.' }    $realMountArgs = DockerArgs $repo $docs
+    $realMountProbe = Join-Path $docs ('.host-mount-probe-' + [guid]::NewGuid().ToString('N') + '.tmp')
+    try {
+        $realMountContainerProbe = 'set -eu; test -r /workspace/Cargo.toml; test -r /pack/pack-manifest.json; echo allowed > /workspace/docs/predev/L04-PREFLIGHT/' + [System.IO.Path]::GetFileName($realMountProbe) + '; if echo forbidden > /workspace/Cargo.toml 2>/dev/null; then exit 31; fi; if echo forbidden > /pack/pack-manifest.json 2>/dev/null; then exit 32; fi; echo REAL_MOUNTS_SCOPE_PASS'
+        & docker @realMountArgs sh -c $realMountContainerProbe
+        if ($LASTEXITCODE -ne 0) { throw 'Actual repository mount scope probe failed.' }
+        if (-not (Test-Path -LiteralPath $realMountProbe -PathType Leaf)) { throw 'Actual docs subtree write probe failed.' }
+    } finally { Remove-Item -LiteralPath $realMountProbe -Force -ErrorAction SilentlyContinue }
+
+    $source = Join-Path $fixtureDocs 'authorization.md'
+    [System.IO.File]::WriteAllText($source, "Synthetic host qualification only.`n")
+    $sourceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $source).Hash.ToLowerInvariant()
+    $manifest = Get-Content -LiteralPath (Join-Path $pack 'pack-manifest.json') -Raw | ConvertFrom-Json
+    $probePolicy = @{ schema='rust-predev-host/1'; host_actor='WHISPER-DOC-HOST-QUALIFICATION'; proposal_actor='QUALIFICATION-COORDINATOR'; roots=@('/workspace/docs/predev/L04-PREFLIGHT'); paths=@('design.md'); source=@{path='authorization.md';sha256=$sourceHash} }
+    $probeProposal = @{ schema='rust-predev-host/1'; scope='DESIGN'; proposal_id='PROPOSAL-QUALIFICATION-D1'; actor='QUALIFICATION-COORDINATOR'; base_candidate_id=$null; target_candidate_id='D-QUALIFICATION-1'; pack_digest=$manifest.digest; files=@(@{path='design.md';content="Synthetic document.`n";base_sha256=$null}) }
+    $policyPath = Join-Path $fixtureDocs 'policy.json'
+    $proposalPath = Join-Path $fixtureDocs 'proposal.json'
+    $policyJson = ConvertTo-Json -InputObject $probePolicy -Depth 10 -Compress
+    $proposalJson = ConvertTo-Json -InputObject $probeProposal -Depth 10 -Compress
+    [System.IO.File]::WriteAllText($policyPath, $policyJson)
+    [System.IO.File]::WriteAllText($proposalPath, $proposalJson)
+    $helper = '/pack/skills/rust-predev-design/scripts/predev_host.py'
+    $common = @('--root','/workspace/docs/predev/L04-PREFLIGHT','--proposal','/workspace/docs/predev/L04-PREFLIGHT/proposal.json','--policy','/workspace/docs/predev/L04-PREFLIGHT/policy.json','--pack-root','/pack','--pack-manifest','/pack/pack-manifest.json')
+    & docker @args python -B $helper audit @common
+    if ($LASTEXITCODE -ne 0) { throw 'Host audit probe failed.' }
+    & docker @args python -B $helper apply @common
+    if ($LASTEXITCODE -ne 0) { throw 'Host apply probe failed.' }
+    $candidate = Join-Path $fixtureDocs 'candidates\D-QUALIFICATION-1'
+    if (-not (Test-Path -LiteralPath (Join-Path $candidate 'manifest.json') -PathType Leaf)) { throw 'Host candidate manifest missing.' }
+    if (-not (Test-Path -LiteralPath (Join-Path $candidate 'receipt.json') -PathType Leaf)) { throw 'Host receipt missing.' }
+
+    $probeTransportId = 'T-WHISPER-DOC-HOST-PROJECTION-1'
+    $probeTransportRelative = "transports/$probeTransportId/transport-manifest.json"
+    $probeTransportPayload = '{"schema":"rust-predev-transport/1","transport_id":"' + $probeTransportId + '"}' + "`n"
+    $nestedTransport = Join-Path $fixtureDocs ('transports\' + $probeTransportId + '\transport-manifest.json')
+    $canonicalTransport = Join-Path $fixturePredev ('transports\' + $probeTransportId + '\transport-manifest.json')
+    New-Item -ItemType Directory -Path (Split-Path -Parent $nestedTransport), (Split-Path -Parent $canonicalTransport) -Force | Out-Null
+    [System.IO.File]::WriteAllText($nestedTransport, $probeTransportPayload, [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($canonicalTransport, $probeTransportPayload, [System.Text.UTF8Encoding]::new($false))
+    $transportHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $nestedTransport).Hash.ToLowerInvariant()
+    $projectionStatePath = Join-Path $fixtureDocs 'projection-state.json'
+    $projectionState = @{
+        candidates = @{ DESIGN = @{ manifest='candidates/D-QUALIFICATION-1/manifest.json'; status='DRAFT' } }
+        checkpoint = @{ raw_contributions = @(@{ path=$probeTransportRelative; sha256=$transportHash }) }
+    }
+    [System.IO.File]::WriteAllText($projectionStatePath, (ConvertTo-Json -InputObject $projectionState -Depth 8 -Compress), [System.Text.UTF8Encoding]::new($false))
+    & docker @args python -B -c $checkpointProgram '/workspace/docs/predev/L04-PREFLIGHT/projection-state.json' PROJECT __NO_LOT__
+    if ($LASTEXITCODE -ne 0) { throw 'Nested candidate/transport projection probe failed.' }
+
+    [System.IO.File]::WriteAllText($nestedTransport, '{"schema":"collision"}' + "`n", [System.Text.UTF8Encoding]::new($false))
+    & docker @args python -B -c $checkpointProgram '/workspace/docs/predev/L04-PREFLIGHT/projection-state.json' PROJECT_EXPECT_FAILURE __NO_LOT__
+    if ($LASTEXITCODE -ne 0) { throw 'Conflicting canonical/nested projection sources were not refused.' }
+    [System.IO.File]::WriteAllText($nestedTransport, $probeTransportPayload, [System.Text.UTF8Encoding]::new($false))
+
+    $invalidProjection = @{ candidates = @{}; checkpoint = @{ raw_contributions = @(@{ path='../Cargo.toml'; sha256=$transportHash }) } }
+    $invalidProjectionPath = Join-Path $fixtureDocs 'projection-invalid.json'
+    [System.IO.File]::WriteAllText($invalidProjectionPath, (ConvertTo-Json -InputObject $invalidProjection -Depth 8 -Compress), [System.Text.UTF8Encoding]::new($false))
+    & docker @args python -B -c $checkpointProgram '/workspace/docs/predev/L04-PREFLIGHT/projection-invalid.json' PROJECT_EXPECT_FAILURE __NO_LOT__
+    if ($LASTEXITCODE -ne 0) { throw 'Traversal projection path was not refused.' }
+
+    Remove-Item -LiteralPath $canonicalTransport -Force
+    Remove-Item -LiteralPath (Join-Path $fixtureDocs 'authorization.md') -Force
+    $fixturePending = Join-Path $fixturePredev 'state.pending.probe.json'
+    $fixtureActive = Join-Path $fixturePredev 'state.json'
+    $fixtureSetupProgram = @'
+import hashlib, json, pathlib, shutil, sys
+source_root, fixture_root, pending_source, nested_root, transport_source = map(pathlib.Path, sys.argv[1:])
+source_root = source_root.resolve()
+fixture_root.mkdir(parents=True, exist_ok=True)
+state = json.loads(pending_source.read_bytes().decode('utf-8'))
+state['checkpoint']['phase'] = 'DESIGN'
+state['candidates'] = {'DESIGN': {'id':'D-QUALIFICATION-1','status':'DRAFT','manifest':'candidates/D-QUALIFICATION-1/manifest.json','author':'AUTH-COORD','contributors':['AUTH-COORD'],'perimeter_version':state['perimeter']['version'],'reviews':[]}}
+state['gates'] = [item for item in state['gates'] if item.get('scope') == 'DESIGN']
+state['findings'] = []
+transport_bytes = transport_source.read_bytes()
+transport_hash = hashlib.sha256(transport_bytes).hexdigest()
+transport_id = transport_source.parent.name
+logical_transport = 'transports/' + transport_id + '/transport-manifest.json'
+state['checkpoint']['raw_contributions'] = sorted(state['checkpoint']['raw_contributions'] + [{'path':logical_transport,'sha256':transport_hash}], key=lambda item:item['path'])
+references = {}
+def walk(value, in_code_state=False):
+    if isinstance(value, dict):
+        if not in_code_state and isinstance(value.get('path'), str) and isinstance(value.get('sha256'), str):
+            references[value['path']] = value['sha256']
+        for key, child in value.items():
+            if in_code_state and key in ('baseline','current'):
+                continue
+            if in_code_state and key == 'ledger':
+                for entry in child: walk(entry.get('evidence', []))
+                continue
+            walk(child, in_code_state or key == 'code_state')
+    elif isinstance(value, list):
+        for child in value: walk(child, in_code_state)
+walk(state)
+references[logical_transport] = transport_hash
+manifest_source = nested_root / 'candidates' / 'D-QUALIFICATION-1' / 'manifest.json'
+manifest = json.loads(manifest_source.read_bytes().decode('utf-8'))
+for entry in manifest['files']: references[entry['path']] = entry['sha256']
+references['candidates/D-QUALIFICATION-1/manifest.json'] = None
+for rel, expected in references.items():
+    if rel.startswith('candidates/D-QUALIFICATION-1/') or rel.startswith('transports/' + transport_id + '/'):
+        continue
+    src = source_root.joinpath(*pathlib.PurePosixPath(rel).parts)
+    if not src.is_file():
+        raise SystemExit('fixture source missing: ' + rel)
+    data = src.read_bytes()
+    if expected is not None and hashlib.sha256(data).hexdigest() != expected:
+        raise SystemExit('fixture source hash mismatch: ' + rel)
+    dst = fixture_root.joinpath(*pathlib.PurePosixPath(rel).parts)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.exists() and dst.read_bytes() != data:
+        raise SystemExit('fixture path collision: ' + rel)
+    dst.write_bytes(data)
+(fixture_root / 'state.json').write_bytes((source_root / 'state.json').read_bytes())
+(fixture_root / 'state.pending.probe.json').write_bytes(json.dumps(state,ensure_ascii=False,separators=(',',':'),allow_nan=False).encode('utf-8'))
+print(json.dumps({'fixture_references':len(references),'projection_candidate':'D-QUALIFICATION-1','nested_transport':logical_transport}))
+'@
+    $probePendingSource = Join-Path $stateDocs 'state.pending.P28-L04.json'
+    & python -B -c $fixtureSetupProgram $stateDocs $fixturePredev $probePendingSource $fixtureDocs $nestedTransport
+    if ($LASTEXITCODE -ne 0) { throw 'Checkpoint publisher fixture setup failed.' }
+    $fixtureBaseHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $fixtureActive).Hash
+    $fixturePublishArgs = DockerArgs $fixture $fixturePredev '/workspace/docs/predev' $true
+    $stateGuard = [System.IO.File]::Open($fixtureActive, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read -bor [System.IO.FileShare]::Delete)
+    try {
+        $externalWriteRefused = $false
+        try { $blockedWriter = [System.IO.File]::Open($fixtureActive, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite); $blockedWriter.Dispose() }
+        catch [System.IO.IOException] { $externalWriteRefused = $true }
+        if (-not $externalWriteRefused) { throw 'State publication guard did not refuse a concurrent writer.' }
+        & docker @fixturePublishArgs python -B -c $checkpointProgram '/workspace/docs/predev/state.pending.probe.json' PROMOTE __NO_LOT__
+        if ($LASTEXITCODE -ne 0) { throw 'Fixture checkpoint projection/publication probe failed while state guard was held.' }
+    } finally { $stateGuard.Dispose() }
+    $fixtureState = Get-Content -LiteralPath $fixtureActive -Raw | ConvertFrom-Json
+    if ($fixtureState.checkpoint.phase -ne 'DESIGN' -or $fixtureState.candidates.DESIGN.id -ne 'D-QUALIFICATION-1') {
+        throw 'Fixture checkpoint publication produced unexpected current state.'
+    }
+    if (Test-Path -LiteralPath (Join-Path $fixturePredev '.whisper-doc-host-state.lock')) { throw 'Fixture publisher lock was not released.' }
+    if (Get-ChildItem -LiteralPath $fixturePredev -Filter '.predev-state-*.json' -Force) { throw 'Fixture publisher left an atomic-write temporary file.' }
+    $fixturePublishedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $fixtureActive).Hash
+    if ($fixturePublishedHash -eq $fixtureBaseHash) { throw 'Fixture checkpoint publisher did not replace state.json.' }
+    "QUALIFIED_FIXTURE_PASS $probe"
+    exit 0
+}
+
+if ($Action -in @('CheckCheckpoint', 'CheckCurrent', 'PromoteCheckpoint')) {
+    if ($Action -eq 'CheckCurrent') {
+        if ($Pending) { throw 'CheckCurrent reads the canonical state.json; omit -Pending.' }
+        $stateRelative = 'state.json'
+    } else {
+        if (-not $Pending) { throw 'Checkpoint actions require -Pending.' }
+        $pendingResolved = (Resolve-Path -LiteralPath $Pending).Path
+        if (-not (Test-Path -LiteralPath $pendingResolved -PathType Leaf)) { throw 'Pending checkpoint is missing.' }
+        $pendingRelative = [System.IO.Path]::GetRelativePath($stateDocs, $pendingResolved)
+        if ($pendingRelative.Contains('\') -or $pendingRelative.Contains('/') -or -not $pendingRelative.StartsWith('state.pending.') -or -not $pendingRelative.EndsWith('.json')) {
+            throw 'Pending checkpoint must be a direct state.pending.*.json file under docs/predev.'
+        }
+        $stateRelative = $pendingRelative
+    }
+    $writable = $Action -eq 'PromoteCheckpoint'
+    $checkpointArgs = DockerArgs $repo $stateDocs '/workspace/docs/predev' $writable
+    $stateInContainer = '/workspace/docs/predev/' + $stateRelative
+    $operationArg = if ($writable) { 'PROMOTE' } else { 'CHECK' }
+    $lotArg = if ($Lot) { $Lot } else { '__NO_LOT__' }
+    # Canonical publisher contract: route all promotions through this wrapper; never run direct controllers or external rename writers concurrently.
+    # Its O_EXCL lock serializes supported callers; the Windows handle blocks ordinary in-place writes during Docker publication.
+    $stateGuard = $null
+    try {
+        if ($writable) {
+            $stateCurrent = Join-Path $stateDocs 'state.json'
+            $stateGuard = [System.IO.File]::Open($stateCurrent, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read -bor [System.IO.FileShare]::Delete)
+        }
+        & docker @checkpointArgs python -B -c $checkpointProgram $stateInContainer $operationArg $lotArg
+        if ($LASTEXITCODE -ne 0) { throw "Checkpoint $Action failed with exit code $LASTEXITCODE." }
+    } finally { if ($null -ne $stateGuard) { $stateGuard.Dispose() } }
+    exit 0
+}
+
+if (-not $Proposal -or -not $Policy) { throw 'Audit and Apply require -Proposal and -Policy.' }
+$proposalInContainer = ContainerPath $Proposal
+$policyInContainer = ContainerPath $Policy
+$args = DockerArgs $repo $docs
+$helper = '/pack/skills/rust-predev-design/scripts/predev_host.py'
+$command = $Action.ToLowerInvariant()
+& docker @args python -B $helper $command --root /workspace/docs/predev/L04-PREFLIGHT --proposal $proposalInContainer --policy $policyInContainer --pack-root /pack --pack-manifest /pack/pack-manifest.json
+if ($LASTEXITCODE -ne 0) { throw "Host $Action failed with exit code $LASTEXITCODE." }

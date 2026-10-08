@@ -1,0 +1,54 @@
+use std::{ffi::{CStr, c_char, c_void}, sync::{Mutex, OnceLock}, time::Instant};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+
+static LOGS: OnceLock<Mutex<String>> = OnceLock::new();
+
+unsafe extern "C" fn capture_log(_level: i32, message: *const c_char, _data: *mut c_void) {
+    if message.is_null() { return; }
+    let Ok(text) = (unsafe { CStr::from_ptr(message) }).to_str() else { return; };
+    if let Some(logs) = LOGS.get() {
+        if let Ok(mut logs) = logs.lock() { logs.push_str(text); }
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 4 || args.len() > 5 { return Err("usage: engine_attested MODEL WAV cpu|gpu [fail-after-inference]".into()); }
+    let use_gpu = match args[3].as_str() { "cpu" => false, "gpu" => true, _ => return Err("mode".into()) };
+    if args.len() == 5 && args[4] != "fail-after-inference" { return Err("fault arg".into()); }
+    LOGS.set(Mutex::new(String::new())).map_err(|_| "log initialized")?;
+    unsafe { whisper_rs::set_log_callback(Some(capture_log), std::ptr::null_mut()) };
+    let mut reader = hound::WavReader::open(&args[2])?;
+    let spec = reader.spec();
+    if spec.channels != 1 || spec.sample_rate != 16000 || spec.bits_per_sample != 16 { return Err("expected 16k mono i16 wav".into()); }
+    let pcm: Vec<f32> = reader.samples::<i16>().map(|x| x.map(|v| f32::from(v) / 32768.0)).collect::<Result<_, _>>()?;
+    let mut context_params = WhisperContextParameters::default();
+    context_params.use_gpu(use_gpu);
+    let start = Instant::now();
+    let context = WhisperContext::new_with_params(&args[1], context_params)?;
+    let mut state = context.create_state()?;
+    let init_logs = LOGS.get().ok_or("logs")?.lock().map_err(|_| "poisoned logs")?.clone();
+    let gpu_attested = init_logs.contains("whisper_backend_init_gpu: using CUDA0 backend")
+        && init_logs.contains("CUDA0 total size");
+    let cpu_attested = init_logs.contains("whisper_backend_init_gpu: no GPU found")
+        && init_logs.contains("use gpu    = 0") && !init_logs.contains("CUDA0 total size");
+    if (use_gpu && !gpu_attested) || (!use_gpu && !cpu_attested) {
+        for line in init_logs.lines().filter(|line| line.contains("backend") || line.contains("total size") || line.contains("use gpu")) {
+            eprintln!("init_log={line}");
+        }
+        eprintln!("backend_attestation_failed_before_full requested={}", args[3]);
+        return Err("effective backend unverified".into());
+    }
+    eprintln!("backend_attested={} before_full=true", if gpu_attested { "CUDA0" } else { "CPU" });
+    let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+    params.set_language(Some("fr"));
+    params.set_print_special(false);
+    params.set_print_progress(false);
+    params.set_print_realtime(false);
+    params.set_print_timestamps(false);
+    state.full(params, &pcm)?;
+    println!("mode_requested={} elapsed_ms={} samples={} segments={}", args[3], start.elapsed().as_millis(), pcm.len(), state.as_iter().count());
+    for segment in state.as_iter() { println!("{}-{} {}", segment.start_timestamp(), segment.end_timestamp(), segment); }
+    if args.len() == 5 { std::process::exit(73); }
+    Ok(())
+}

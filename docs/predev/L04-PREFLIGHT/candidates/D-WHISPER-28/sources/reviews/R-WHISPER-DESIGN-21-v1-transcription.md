@@ -1,0 +1,29 @@
+# R-WHISPER-DESIGN-21-v1 — transcription sémantique vérifiée
+
+**Provenance et limite :** transcription du verdict conversationnel de `/root/d20_review`, produite par `AUTH-COORD`. Ce fichier n’est pas un export brut verbatim. Le reviewer a vérifié que son contenu substantiel, findings, preuves, conditions de fermeture et verdict concordent avec sa sortie. L’export octet pour octet de la sortie conversationnelle n’est pas disponible. La présente transcription ne prétend pas être identique à la source en octets.
+
+## Résultat résumé
+
+Scope DESIGN. Candidat D-WHISPER-21, successeur D20. Racine `C:\dev\whisper\docs\predev\L04-PREFLIGHT`.
+
+Digest exact : `2b6ad95eaa9081db02da8cce7770bcc0f2f86fee29794955ae1f9746ac95ab95`. SHA du manifeste : `9cc64b7dc46432161bb5fd14bd675ed6aa0f2c7b1c2260b3a35ea7d813158136`. Les 273 références, leur digest agrégé et leurs octets ont été vérifiés avant et après; aucune différence. Reviewer indépendant : `/root/d20_review`, lecture seule, indépendant de `AUTH-COORD`, `AUTH-ARCH-P04`, `WHISPER-DOC-HOST-L04`.
+
+### D20-001 — CLOSED dans D21
+
+Les 23 snapshots `rules-effective/` égalent les sources installées actuelles et sont directement inclus dans le manifeste DESIGN. Leurs hashes concordent avec `12_SOURCE_INDEX.json` et `sources/EFFECTIVE_RULES_MANIFEST.json`. Le digest du freeze `69f629e95469477c0556a99d5b9ee71b4d102eaf00ac2cf098d7239d2a5140e3` a été recalculé; ses 23 références vérifient sous la racine documentaire. Le SHA du freeze est `1164f5c5e18791632a218fcba3645fc8e1a8cd9ee450eb4ad44298558efcb4b7`, comme dans les index 12 et 16. Les règles historiques sont distinguées et conservées.
+
+### D20-002 — OPEN, Medium / REQUIRED
+
+`00_START_HERE.md` identifie D21/D20 et distingue l’historique du statut courant. Les hashes du state (`17044672f0788be7b50c375c13d7b5b5740f0743ac46fc1ed974f9dd2e60fd27`) et du pending (`5bac972024c90a8ff933afc095bdaba9f8ccf449eee8d91229d01518d3288f0f`) sont corrects. Les deux liens `../state.json` et `../state.pending.D20-host.json` sont toutefois résolus depuis le dossier candidat vers `docs/predev/L04-PREFLIGHT/candidates/`, où les fichiers n’existent pas. Les commandes nomment `docs/predev/state.json`, mais les liens et l’instruction ultérieure restent erronés. Il faut un successeur avec pointeurs résolubles et vérifiés.
+
+### D21-001 — OPEN, Medium / REQUIRED
+
+`sources/reviews/R-WHISPER-DESIGN-20-v1-exact.md`, issu du transport `T-WHISPER-REVIEW-D20-02-EXACT`, diffère de la sortie conversationnelle D20 : `DESIGN` et `D-WHISPER-20` étaient en code inline dans la sortie, mais en gras dans le fichier; le bloc mémoire terminal est absent. Proposition, transport et copie DESIGN sont identiques entre eux, ce qui ne prouve pas l’identité à la sortie originale.
+
+Après lecture complète, le reviewer confirme que le contenu substantiel, findings, preuves, conditions et verdict D20 sont conservés, sans autre écart de fond. Le risque porte sur l’appellation de fidélité exacte. Fermeture : export véritable avec comparaison, ou qualification explicite de transcription sémantique vérifiée par son auteur, avec écarts connus et limite octet.
+
+### Autres contrôles
+
+La lignée helper D21→D20, reçus et contenus persistés concordent. Manifest/proposal/receipt D20 sont copiés identiquement dans les sources. Le rapport D20, ses hashes/digest et sa référence pending ont été contrôlés. State et pending passent `check-state` sans `--lot`, D19/P24 actifs. Dix snapshots L04 restent égaux au code courant; cinq créations futures restent absentes. HEAD reste `ffd93125604be5dc6439587b7edad4f420f5cccc`; diff code scoped vide. Couverture bidirectionnelle conservée, aucun scope produit ni SPIKE ajouté. Aucun préflight, validation produit/UI ou livraison n’est revendiqué. Advisory : aucun.
+
+D21 reste FINDINGS tant que D20-002 et D21-001 ne sont pas fermés sur un successeur exact.

@@ -1,0 +1,99 @@
+Message Type: FINAL_ANSWER
+Task name: /root
+Sender: /root/review_d24
+Payload:
+**R-WHISPER-DESIGN-24-v1 — FINDINGS**
+
+Périmètre réellement revu : **DESIGN D-WHISPER-24**, successeur D23, et son checkpoint courant. Aucun PLANS revu.
+
+- Digest calculé indépendamment avant/après : `80e8bbfef4c0c671e7eba47d73f73ec15bf876477f71d580dea931e80bb27793`.
+- SHA256 du manifeste avant/après : `b12f527b7f3c9fc155b5b46321e541adabb70165fd0d61ea5bcd3cdf86f21357`.
+- **322/322 fichiers conformes**, aucune dérive pendant la revue.
+- State relu : SHA256 `e0ed2c13ad805b78207e28422359e43823e6ec068883575153c9b82030b7f13c`, phase DESIGN, D24 DRAFT, aucune review, rubriques GAP.
+- Les **21 snapshots** correspondent à `57_L04_CHANGE_BASELINE.json` et aux fichiers courants observés.
+
+Déclaration d’indépendance : je suis `/root/review_d24`. Je n’ai participé ni à la rédaction, ni à la synthèse, ni à la persistance, ni à la correction de D23/D24 ou des apports spécialistes. J’ai uniquement lu et comparé les éléments existants. Aucun fichier modifié, aucun build/test, aucun sous-agent. Cette déclaration et ce résultat constituent le paquet brut à conserver hors du corpus examiné ; l’indépendance ne repose pas sur un nom de profil.
+
+### REQUIRED
+
+**D24-001 — High — Les contributions présentées comme brutes sont réécrites.**
+
+Preuves : `60_CHANGE_L04_DOMAIN_D24.md:3`, `61_CHANGE_L04_ARCHITECTURE_D24.md:3`, `62_CHANGE_L04_REQUIREMENTS_D24.md:3` et les trois fichiers de `transports/T-WHISPER-L04-SPECIALISTS-D24/`.
+
+J’ai comparé les TRANSPORTs avec les messages finaux des auteurs :
+
+| Apport | Source originale, ligne physique de session | SHA256 du message original | SHA256 du TRANSPORT |
+|---|---|---|---|
+| ARCH-v3 | `rollout-2026-10-07T19-14-20-01a1175b-e297-7990-9706-420145267451.jsonl:197` | `ed9543afaa0b0913d9fd1e8d387e10f58839d67e9268f3adff83172dad9a3360` | `69d6e67785b16c651aeecc34121656430dbc8806756ba6af9df6880ffc86e6df` |
+| DOM-v3 | `rollout-2026-10-07T19-36-51-01a11770-81d4-7ca0-bcde-3c583a16091b.jsonl:138` | `a0af62faddf7d7781617bc466bfbd3f30da119bcabdea4a0029602a5b6de1524` | `0053461ce24e8f0cf87e4729ae5d2389ba671f3d055f5583b23384e590be0753` |
+| REQ-v3 | `rollout-2026-10-07T19-14-22-01a1175b-ecc8-7672-b1ef-2298cd589055.jsonl:158` | `2884ae1257f3467fabbc9cb8675b5bcd429ee65df17629cc3785e20ee65bc23c` | `c8e853a88d64ab78e0322d01f8cb4d63aa5bc75a4daa022d090700a8fa69d1d1` |
+
+Même après retrait expérimental du bloc de citation mémoire, les textes diffèrent : paragraphes regroupés, formulations remplacées, mentions de base/checkpoint et limites de provenance supprimées. DOM perd notamment l’attestation de lecture et la distinction entre transmission du coordinateur et export humain. REQ perd des formulations et instructions de persistance.
+
+L’égalité **proposition→TRANSPORT passe**, mais ne démontre pas la fidélité à l’auteur. Les réécritures actuellement attribuées aux spécialistes ne satisfont pas le contrat de paquet brut.
+
+**Fermeture :** conserver les véritables messages sources dans de nouveaux TRANSPORTs immuables, avec comparaison source/proposition/transport et références de session ; qualifier les fichiers actuels comme synthèses du coordinateur. Une simple requalification peut retirer la fausse revendication, mais ne remplace pas la conservation des apports bruts disponibles. Référencer les nouveaux reçus et transports dans le checkpoint et le successeur DESIGN.
+
+---
+
+**D24-002 — High — La garantie « capture continue sous bornes » ne dispose pas encore d’un contrat contrôlable.**
+
+Preuves : `60_CHANGE_L04_DOMAIN_D24.md:13`, `61_CHANGE_L04_ARCHITECTURE_D24.md:11`, `62_CHANGE_L04_REQUIREMENTS_D24.md:10`, ARCH-v3 « Reprise, IPC, archive et bornes », question ouverte `Q-D24-BOUND-01`.
+
+L’architecture invoque les capacités existantes L03/P28, mais n’en donne ni inventaire, ni budgets, ni preuve d’adéquation au nouveau flux. La capture peut continuer pendant l’attente de sortie de l’ancien enfant, explicitement sans délai maximal. Il faut alors savoir où passe le PCM, quels buffers restent bornés, quelle limite s’applique au backlog durable, et quel événement ferme effectivement l’entrée. Q-09 borne les diagnostics et ne prouve aucune de ces limites audio.
+
+La décision produit est acquise ; le choix technique demeure délégué. Toutefois, la finitude et la politique de saturation sont nécessaires pour juger concurrence, persistance et risques du DESIGN. Leur détermination ne peut être entièrement reportée au PLANS comme un simple détail de valeur.
+
+**Fermeture :** inventaire par étage avec capacité, payload maximal, allocations/backlog, propriétaire, admission/refus et effet de saturation ; charge cible et méthode de dimensionnement ; références exactes aux capacités réutilisées. Démontrer la faisabilité structurante par analyse des contrats existants ou banc ciblé si cette analyse ne suffit pas. Classer séparément les paramètres effectivement réversibles et les engagements indispensables avant DESIGN READY. Aucun besoin de relancer une interview produit pour un choix technique déjà délégué.
+
+---
+
+**D24-003 — High — Le contrat de reprise et de migration reste insuffisant pour contrôler les garanties durables.**
+
+Preuves : `60_CHANGE_L04_DOMAIN_D24.md:7–17`, `61_CHANGE_L04_ARCHITECTURE_D24.md:7–9`, ARCH-v3 « Identités et checkpoint » et « IPC et archive », DOM-v3 conclusion « contrats techniques/migration/isolation pending ». `08_STATE_AND_PORT_CONTRACTS.md` conserve les contrats antérieurs.
+
+Les invariants `T ≤ A ≤ C`, la séparation identité durable/tentative et la publication du pointeur en dernier sont pertinents. Les nouvelles opérations restent cependant décrites par intentions :
+
+- schéma/version et propriétaire du journal de tentatives ;
+- lecture des anciens formats, génération initiale et traitement d’une réservation incomplète ;
+- opérations pertinentes de checkpoint/replay/reconstruction, préconditions et erreurs ;
+- ordre précis entre fermeture d’admission, ACK déjà admis, sortie de l’enfant et réservation durable ;
+- comportement d’une reconstruction interrompue, distinction des plages encodées seulement et inférées, checkpoint confirmé incluant le silence ;
+- arrêt/annulation pendant chaque phase et issue lorsque CPU échoue.
+
+« IPC versionné livré ensemble » et « suffixe incomplet ignoré » ne définissent pas ces contrats. Les contrats antérieurs gardent aussi « erreur worker : cesser capture », alors que le nouveau cas Auto exige sa continuation ; aucune règle explicite de priorité des contrats n’est donnée.
+
+**Fermeture :** contrats versionnés des opérations nouvelles avec entrées/sorties, préconditions, erreurs, ownership, concurrence, durabilité et annulation ; transitions pour les interruptions pertinentes ; stratégie de compatibilité/migration et réconciliation idempotente ; désignation des formulations remplacées. Ajouter les AC correspondants avec déclencheur et oracle. Les tests du produit peuvent rester NOT RUN.
+
+---
+
+**D24-004 — Medium — Le checkpoint ne porte pas encore la progression et la traçabilité des mutations D24.**
+
+Preuves : `docs/predev/state.json`, `59_CHANGE_L04_DECISIONS_D24.md:7`, `62_CHANGE_L04_REQUIREMENTS_D24.md:5–10`, `56_CHANGE_L04_GAPS.md`.
+
+Les deux DEC acceptées figurent correctement dans `elements` avec sources humaines. En revanche :
+
+- REQ-07/08/11 restent en version 2, liées exclusivement à D19 ; les mutations proposées D24 n’ont pas de version/statut/référence explicites dans l’état ;
+- REQ-26/UC-21/AC-21 n’y figurent pas ;
+- les deux réponses produit n’ont pas de questions résolues identifiées ; le nom `user-Q-D24-BOUND-01.raw.txt` désigne la décision de continuer, alors que **Q-D24-BOUND-01 ouverte** désigne le dimensionnement technique ;
+- Q-D24-BOUND-01 a owner `AUTH-COORD` dans l’état, architecte dans les contributions ;
+- `checkpoint.pending_tasks=[]` malgré les contrats, dimensionnement et GAP explicitement ouverts.
+
+La distinction DRAFT est honnête, mais la reprise ne dispose pas du registre suffisant pour savoir quelles entrées sont proposées, quelles tâches restent attribuées et quelle réponse ferme quelle question.
+
+**Fermeture :** aligner état et corpus par IDs/versions/statuts/sources ; distinguer la question produit répondue du dimensionnement ouvert ; conserver les versions remplacées et leur autorité ; expliciter owner technique et coordinateur ; enregistrer les tâches restantes dans le checkpoint. Pas de promotion READY par cette seule correction.
+
+### Couverture et preuves admises
+
+La passe brief→REQ/UC/AC retrouve les capacités héritées : live/progression, imports/file/restauration, modes/langue/VAD, archives/historique/suppression, fermeture/Quitter, installation/autostart/réglages/raccourci/dossier. Les deux nouvelles décisions sont reliées aux familles REQ-07/08 et AC-07. La passe inverse trouve les responsabilités et risques hérités dans `07/08/50`, complétés par `60/61/62`. Les lacunes du delta sont celles des findings ci-dessus ; REQ-26 formalise Q-09, sans nouvelle capacité produit démontrée.
+
+Les deux réponses utilisateur sont **identiques** aux messages humains originaux des lignes 2036 et 2054 de la session racine, puis à la proposition et au TRANSPORT. Les hashes `eb74a5…` et `50b702…` concordent.
+
+La proposition de **21 chemins** et son inventaire sont cohérents. L’extension est présentée comme proposée et ne constitue pas une autorisation de code. Le préflight stale, l’implémentation partielle et les validations NOT RUN sont correctement distingués.
+
+J’ai examiné les sources et logs D19 `engine-attested.rs`, `e2-state.rs`, `e2-state-run.log`, ainsi que launcher/probe AppContainer et témoins réseau. Ils appuient leur portée limitée : attestation avant inference, erreur processus 73, rejet réel au validateur commun, replay fini CPU et isolation réseau du banc. Ils ne démontrent pas le nouveau maintien de capture, la reconstruction MP3 ou la reprise durable D24. Aucun test produit ni qualification future n’est exigé prématurément par cette revue.
+
+**ADVISORY : aucune suggestion bloquante supplémentaire.**
+
+D24 demeure **FINDINGS / non READY**. Les rubriques GAP du checkpoint sont honnêtes ; elles ne sont pas fermées par cette revue. Je fermerai les findings seulement après vérification du successeur exact et des preuves de correction.
+

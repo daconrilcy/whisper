@@ -1,0 +1,3 @@
+Passage 1 fixture fr_fr-000.wav
+Passage 2 fixture en_us-000.wav
+Passage 3 fixture fr_fr-001.wav

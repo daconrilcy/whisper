@@ -1,0 +1,54 @@
+# Qualification de l'hôte documentaire Whisper — 2026-10-07
+
+## Résultat
+
+**Mécanisme de persistance qualifié sur fixture ; racine documentaire réelle acceptée.** Le wrapper a produit un candidat documentaire synthétique avec manifeste et reçu. Il ne qualifie pas D23/P29 ni leur checkpoint : aucune proposition opérationnelle, policy à chemins exacts, revue indépendante ou promotion n'a été exécutée dans cette campagne.
+
+## Identité de l'environnement testé
+
+- Docker Desktop Linux Engine 29.1.3.
+- Image `python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a`.
+- Pack gelé : `PACK-WHISPER-DOC-HOST-20261007`, digest canonique `0b8f4184cbe5097e220c545de472f0f45e6dc36f607e365136fef660205389fb`, 24 fichiers référencés. `verify-manifest` dans le conteneur : `ok:true`.
+- SHA-256 du manifeste de pack qualifié : `80c9a0987498d7031240c95396db710fef079dfb4682bdf2e9dcbace810217c5` ; le wrapper l'ancre désormais avec le digest et les 24 hashes de fichiers. Le SHA du wrapper courant est consigné dans le rapport de cycle de revue.
+- Topologie : dépôt `/workspace` en lecture seule, sous-montage `/workspace/docs/predev/L04-PREFLIGHT` en écriture, pack `/pack` en lecture seule ; `--network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit=64 --memory=256m --cpus=1`.
+
+## Contrôles observés
+
+| Contrôle | Résultat |
+| --- | --- |
+| Écriture dans `docs/predev/L04-PREFLIGHT` de la fixture | PASS |
+| Écriture dans `Cargo.toml` de la fixture | refus `Read-only file system` |
+| Écriture dans le manifeste du pack | refus `Read-only file system` |
+| Réseau du conteneur | interface `lo` seule observée sous `--network=none` |
+| `predev_host.py audit` puis `apply` sur une proposition DESIGN synthétique | exit 0, candidat `D-QUALIFICATION-1`, manifeste et reçu présents |
+| Intégrité des fichiers interdits après tentative | hashes inchangés |
+| Montages du dépôt réel | lecture de `state.json` réussie ; création de fichiers dans la racine du dépôt et dans le pack refusée (`REAL_MOUNTS_SCOPE_PASS`) |
+| Contrôle `docs_root` sur `L04-PREFLIGHT` réel | PASS, retourne `/workspace/docs/predev/L04-PREFLIGHT` |
+| Catalogue existant L04 dans le conteneur | PASS, 50 candidats et 10 transports vérifiés |
+| `CheckCheckpoint` sur `state.pending.P28-L04.json`, sans lot | PASS (`ok:true`, drift vide) |
+| Même contrôle avec `--lot L-WHISPER-04` | refus attendu : `stale code_state.current file: Cargo.lock` |
+| Montage `docs/predev` pour checkpoint sur fixture | écriture documentaire permise ; écriture à la racine du dépôt refusée |
+| Promotion contrôlée sur fixture dans le conteneur | deux tests ciblés PASS : refus d'un état invalide sans écraser le current, puis promotion canonique avec `code-root` séparé |
+| Pack modifié dans une copie de qualification | refus avant Docker : `Frozen pack file changed` |
+| Manifeste modifié dans une copie de qualification | refus avant Docker : `Frozen pack manifest differs` |
+| Promotion du pending P28 en phase IMPLEMENTATION sans `-Lot` | refus ; `state.json` conserve SHA `1d2b31bde9eb7561f1021584e4f309bb77ff3d8b28b2e0a3e7218cfbd2b3f647` |
+| Même promotion avec `-Lot L-WHISPER-04` | refus sur `Cargo.lock` ; SHA de `state.json` inchangé |
+
+Fixture conservée : `qualification/probe-20261007-181153-1c51df35`. Elle est hors du dépôt Whisper et porte uniquement des données synthétiques. Les essais ont également laissé des fixtures de diagnostic antérieures, où l'ancien pack et un défaut de sérialisation PowerShell ont été refusés avant persistance ; elles ne constituent pas des succès. Une tentative initiale sur la racine large `docs/predev` a été refusée à cause d'un fichier `.jsonl` historique ; le périmètre a été réduit au dossier L04.
+
+## Limites et conditions de réutilisation
+
+Cette qualification prouve la restriction **d'écriture** du processus Docker testé, le chemin `audit`/`apply` sur une fixture et le contrôleur de checkpoint sur fixture. Elle n'est ni une preuve d'indépendance des auteurs/reviewers, ni une autorisation de modifier les documents du projet, ni une validation du contenu d'un futur checkpoint. Les seules tentatives de promotion opérationnelle ont été refusées avant écriture et `state.json` est inchangé. Le conteneur peut lire le dépôt monté ; aucune garantie de confidentialité envers le processus hôte n'est revendiquée. Le moteur Docker et l'image/pack exacts doivent rester disponibles. Tout changement d'image, de pack, de wrapper, de montages ou de policy exige une nouvelle vérification adaptée.
+
+Les findings et résultats bruts des cycles sont conservés dans [qualification/REVIEW-CYCLE-01.md](qualification/REVIEW-CYCLE-01.md), [qualification/REVIEW-CYCLE-02.md](qualification/REVIEW-CYCLE-02.md) et [qualification/REVIEW-CYCLE-03.md](qualification/REVIEW-CYCLE-03.md). Le SHA-256 du wrapper courant figure dans le troisième rapport.
+
+**Contrat de concurrence pour les promotions actuelles :** toutes les promotions canoniques doivent passer par `invoke.ps1`. Les invocations directes de `predev_control.py` et les écrivains externes qui remplacent ou renomment `state.json` ne doivent pas tourner pendant une promotion. Le verrou `O_EXCL` sérialise les appels au wrapper et le handle Windows bloque les écritures en place ordinaires ; `FileShare.Delete` reste nécessaire au remplacement atomique Docker. Un écrivain externe non coopératif de renommage demeure techniquement possible et se trouve hors du périmètre qualifié.
+
+## Requalification du wrapper
+
+Le wrapper projette les candidats et transports imbriqués vers les chemins canoniques, ajoute `CheckCurrent` et contrôle la promotion avec le contrat de concurrence ci-dessus. Analyse PowerShell et Probe passent. La preuve réelle des montages repo/pack est dans [qualification/probe-latest.log](qualification/probe-latest.log), SHA-256 `24f9bab8b8ee5ed4406c9c279fc28129f2410cbdfc4628cf0358afbeed4e5c82`. L'écriture autorisée dans `L04-PREFLIGHT` a été nettoyée. La promotion synthétique, le refus d'ouverture d'un écrivain en place et le contrôle post-promotion passent dans la fixture. `state.json` réel est inchangé (SHA-256 `1d2b31bde9eb7561f1021584e4f309bb77ff3d8b28b2e0a3e7218cfbd2b3f647`).
+
+Wrapper qualifié : SHA-256 `476d8ce080956ca8deae49d76ccd871bd321200b565417420c37a620e91ee8d8`. La revue indépendante finale est consignée dans [qualification/REVIEW-CYCLE-05.md](qualification/REVIEW-CYCLE-05.md). Cela ne qualifie pas D23/P29 ni le gate opérationnel L04.
+
+
+Promotion concurrency contract: route every canonical promotion through invoke.ps1. Do not run direct controller calls or external state.json rename writers concurrently. The wrapper lock serializes its own calls; its Windows handle blocks ordinary in-place writes. FileShare.Delete is required for Docker's atomic replace. A non-cooperating external rename remains technically possible and is outside the qualified scope.

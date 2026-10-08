@@ -1,0 +1,176 @@
+{
+  "candidate_id": "D-WHISPER-28",
+  "effective_pack_manifest": {
+    "path": "sources/EFFECTIVE_RULES_MANIFEST.json",
+    "sha256": "e2dae2dbed02c5bb9852b9a74ea59651adc460c1c91e3f82efc8853119aa087a"
+  },
+  "external_sources": [
+    {
+      "path": "C:\\dev\\whisper\\docs\\predev\\authorization.md",
+      "role": "document persistence authority",
+      "sha256": "bbe954936ff6e4108c11024301f3edb68fa1c3499a44096552794a9ef353b771"
+    },
+    {
+      "path": "C:\\Users\\cyril\\.codex\\attachments\\5d8b8ae7-430b-46f8-b28f-a3e57f2c031f\\Texte collÃ©.txt",
+      "role": "initial user-supplied proposal",
+      "sha256": "c6e750d6b46af206d22db3f84f0cb695540c53ed2243fce96be56b72e57508aa"
+    }
+  ],
+  "limits": "Thread references identify messages in Codex. They are not copied as canonical files here; reviewer should verify accessible source messages independently.",
+  "pack_digest": "45fc60181311bd17078790c3c5f1a3366e07d35367f2cdc8294012aa394c4f12",
+  "rules": [
+    {
+      "path": "agent-rules/ARCHITECTURE_CONSTITUTION.md",
+      "sha256": "74865dcb4e69173d43a2e38f3dad134fe0816c9da4a7a50029c7445ca3d85b38",
+      "snapshot": "rules-effective/agent-rules/ARCHITECTURE_CONSTITUTION.md.txt"
+    },
+    {
+      "path": "agent-rules/IMPLEMENTATION_RULES.md",
+      "sha256": "04ad5f6cdbc09df8fdbdb9d0ef6d59157f37289872966f60cac892172ba66dc0",
+      "snapshot": "rules-effective/agent-rules/IMPLEMENTATION_RULES.md.txt"
+    },
+    {
+      "path": "agent-rules/REQUIREMENTS_RULES.md",
+      "sha256": "f6e393569a59fe7f910f863f7753ccd3c9d64c82a7bfb28bd30ebdb48a22e0e6",
+      "snapshot": "rules-effective/agent-rules/REQUIREMENTS_RULES.md.txt"
+    },
+    {
+      "path": "agent-rules/REVIEW_RULES.md",
+      "sha256": "92be7cd942eadc25876a2d3b80a200ed55bb962d0567f2b53da69f65b419d621",
+      "snapshot": "rules-effective/agent-rules/REVIEW_RULES.md.txt"
+    },
+    {
+      "path": "agent-rules/RUST_RULES.md",
+      "sha256": "ed8789932c0ad8abdc6422c7730a802f160a27b210ed0dafc6cd6318d90751fe",
+      "snapshot": "rules-effective/agent-rules/RUST_RULES.md.txt"
+    },
+    {
+      "path": "agents/rust_architect.toml",
+      "sha256": "2357cee1a032948fc58f575fee3c2c851d5089220115e845d4a4430d8b9cbc26",
+      "snapshot": "rules-effective/agents/rust_architect.toml.txt"
+    },
+    {
+      "path": "agents/rust_design_reviewer.toml",
+      "sha256": "630ba050ffe3101c2c168e2caac923f81092191c0d1e99ad696984adfe793e7d",
+      "snapshot": "rules-effective/agents/rust_design_reviewer.toml.txt"
+    },
+    {
+      "path": "agents/rust_domain_architect.toml",
+      "sha256": "2289439762ec7d7980d09149872c4a14af4c5585d7b3c7388ecb7ca86be0faeb",
+      "snapshot": "rules-effective/agents/rust_domain_architect.toml.txt"
+    },
+    {
+      "path": "agents/rust_plan_writer.toml",
+      "sha256": "26aa5d8421735b1a5c22061a779177a0f4a097fd6133754b5d2590bfd9de8e62",
+      "snapshot": "rules-effective/agents/rust_plan_writer.toml.txt"
+    },
+    {
+      "path": "agents/rust_predev_orchestrator.toml",
+      "sha256": "273f15b7da6f0310b1efe4dc3e7adef84bba2108a332290f247dfbdcc716972b",
+      "snapshot": "rules-effective/agents/rust_predev_orchestrator.toml.txt"
+    },
+    {
+      "path": "agents/rust_product_framer.toml",
+      "sha256": "2e76b521c3e9870b084f3d5fb688c2766bceb92581853c0bcbd434676c278e83",
+      "snapshot": "rules-effective/agents/rust_product_framer.toml.txt"
+    },
+    {
+      "path": "agents/rust_requirements_analyst.toml",
+      "sha256": "59d7e2fc29078e262c22a5104e86bb96ea3aebc69a738454ae1869cbdc4e5d72",
+      "snapshot": "rules-effective/agents/rust_requirements_analyst.toml.txt"
+    },
+    {
+      "path": "skills/rust-predev-design/SKILL.md",
+      "sha256": "f0f44ef176cf4bbe8ca081e09a701bf50e102e1c11da456dcb8d01368ca8a296",
+      "snapshot": "rules-effective/skills/rust-predev-design/SKILL.md.txt"
+    },
+    {
+      "path": "skills/rust-predev-design/references/deliverable-quality.md",
+      "sha256": "b376331863fe099e5361a6fb686bd720b5977d339657c7ff53c085e0943660ef",
+      "snapshot": "rules-effective/skills/rust-predev-design/references/deliverable-quality.md.txt"
+    },
+    {
+      "path": "skills/rust-predev-design/references/engineering-contract.md",
+      "sha256": "e9755c1db10132f5752d9201000c0baf90c27c5259d41601a1d7e78fbe09b16e",
+      "snapshot": "rules-effective/skills/rust-predev-design/references/engineering-contract.md.txt"
+    },
+    {
+      "path": "skills/rust-predev-design/references/execution-evidence.md",
+      "sha256": "02054e091e4fecf77719b06b2b6fbe07a2d002ca10278626c422cf97acfe8ab5",
+      "snapshot": "rules-effective/skills/rust-predev-design/references/execution-evidence.md.txt"
+    },
+    {
+      "path": "skills/rust-predev-design/references/handoff-contract.md",
+      "sha256": "ece19ba4f02299aa774868a1811046638c7f5f296e6485e4c9daeb1bae9d1138",
+      "snapshot": "rules-effective/skills/rust-predev-design/references/handoff-contract.md.txt"
+    },
+    {
+      "path": "skills/rust-predev-design/references/runtime-qualification.md",
+      "sha256": "ed28c253cb94d7911a3709c012f086302faa8dff779f032c9173c15ec016fa08",
+      "snapshot": "rules-effective/skills/rust-predev-design/references/runtime-qualification.md.txt"
+    },
+    {
+      "path": "skills/rust-predev-design/references/workflow-schema.md",
+      "sha256": "3599bfb629a35f4002dd3838c0d1fe9893489fabccf3b782a152edebd00a0323",
+      "snapshot": "rules-effective/skills/rust-predev-design/references/workflow-schema.md.txt"
+    },
+    {
+      "path": "skills/rust-predev-design/scripts/predev_control.py",
+      "sha256": "4d16c0153f020b12028d70a6936e4287554a3b09754d06ce93e2515f85d6be7c",
+      "snapshot": "rules-effective/skills/rust-predev-design/scripts/predev_control.py.txt"
+    },
+    {
+      "path": "skills/rust-predev-design/scripts/predev_host.py",
+      "sha256": "041da69893a814c86337863cd41a22637b4754c381ef59c026e6917361bfe031",
+      "snapshot": "rules-effective/skills/rust-predev-design/scripts/predev_host.py.txt"
+    },
+    {
+      "path": "skills/rust-predev-design/scripts/verify_raw_handoff.py",
+      "sha256": "f31851b7477ea43b66d66de36c104b24e76e6ffd3e38106289513d2606729f35",
+      "snapshot": "rules-effective/skills/rust-predev-design/scripts/verify_raw_handoff.py.txt"
+    },
+    {
+      "path": "skills/rust-predev-orchestration/SKILL.md",
+      "sha256": "c4a4f41b039355f7254057cd1d892972470b0bf8623c6840c1181e51d6893075",
+      "snapshot": "rules-effective/skills/rust-predev-orchestration/SKILL.md.txt"
+    }
+  ],
+  "schema": "whisper-source-index/1",
+  "snapshot_index": "16_SNAPSHOT_INDEX.json",
+  "user_thread_sources": [
+    "01a108b7-9f64-7671-bd72-21db5f9b42d6",
+    "01a10a6a-418e-7cd2-ab69-162ffe16db34",
+    "01a10aea-a9da-7811-a779-cd0cf5dbe42f",
+    "01a10b3c-e5d0-7221-93f1-6048b57f46b0"
+  ],
+  "D24_sources": {
+    "user_decisions_transport": "transports/T-WHISPER-USER-L04-ANSWERS-D24/transport-manifest.json",
+    "integrated_docs": [
+      "59_CHANGE_L04_DECISIONS_D24.md",
+      "60_CHANGE_L04_DOMAIN_D24.md",
+      "61_CHANGE_L04_ARCHITECTURE_D24.md",
+      "62_CHANGE_L04_REQUIREMENTS_D24.md"
+    ],
+    "coordinator_synthesis": "transports/T-WHISPER-L04-SPECIALISTS-D24/transport-manifest.json",
+    "specialist_raw_transport": "transports/T-WHISPER-L04-SPECIALISTS-RAW-D24/transport-manifest.json",
+    "provenance_note": "T-WHISPER-L04-SPECIALISTS-D24 contains coordinator summaries, not verbatim specialist contributions. The original specialist outputs are preserved byte-for-byte in T-WHISPER-L04-SPECIALISTS-RAW-D24; hashes are recorded in its transport manifest. Historical compact copies and attestations remain unchanged."
+  },
+  "D26_sources": {
+    "review_D25": "transports/T-WHISPER-REVIEW-DESIGN-25-RAW/transport-manifest.json",
+    "specialists_D25": "transports/T-WHISPER-L04-D25-SPECIALISTS-RAW/transport-manifest.json",
+    "user_answers": "transports/T-WHISPER-USER-L04-ANSWERS-D24/transport-manifest.json",
+    "domain": "60_CHANGE_L04_DOMAIN_D24.md",
+    "architecture_bounds": "61_CHANGE_L04_ARCHITECTURE_D24.md",
+    "requirements": "62_CHANGE_L04_REQUIREMENTS_D24.md",
+    "code_snapshots": "52_L04_SOURCE_BASELINE_D20.md",
+    "review_D26": "transports/T-WHISPER-REVIEW-DESIGN-26-RAW/transport-manifest.json"
+  },
+  "D27_sources": {
+    "specialist_raw": "transports/T-WHISPER-L04-SPECIALISTS-RAW-D24/transport-manifest.json",
+    "provenance_finding": "D26-001",
+    "coordinator_synthesis": "transports/T-WHISPER-L04-SPECIALISTS-D24/transport-manifest.json",
+    "review_D26": "",
+    "review_D27": "transports/T-WHISPER-REVIEW-DESIGN-27-RAW/transport-manifest.json",
+    "corpus_finding": "D27-001"
+  }
+}
