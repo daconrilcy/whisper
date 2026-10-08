@@ -3752,7 +3752,10 @@ dependencies = [
 name = "whisper-worker-gpu"
 version = "0.1.0"
 dependencies = [
+ "rusty_mp3",
+ "serde",
  "serde_json",
+ "sha2",
  "symphonia",
  "whisper-core",
  "whisper-rs",

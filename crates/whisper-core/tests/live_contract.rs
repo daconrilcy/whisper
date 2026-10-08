@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 use whisper_core::{
-    AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportEffect,
-    ImportEvent, JobConfig, JobId, LanguageChoice, LiveRequest,
+    AppCommand, Application, ComputeChoice, DiagnosticNotice, DiagnosticPhase, Generation,
+    ImportApplication, ImportEffect, ImportEvent, JobConfig, JobId, LanguageChoice, LiveRequest,
     ports::{ImportIoPort, PortError},
 };
 
@@ -74,6 +74,39 @@ fn starting_live_emits_one_explicit_effect_and_initializes_separate_counters() {
 }
 
 #[test]
+fn forced_gpu_recovery_requires_an_explicit_cpu_finish_command() {
+    let io = Fake::default();
+    let mut app = ImportApplication::new(io.clone());
+    let request = request();
+    app.dispatch(AppCommand::StartLiveConfigured {
+        request: request.clone(),
+    })
+    .unwrap();
+    io.0.borrow_mut()
+        .events
+        .push_back(ImportEvent::AwaitingCpuChoice {
+            job_id: request.job_id,
+            generation: request.generation,
+        });
+    let view = app.dispatch(AppCommand::Refresh).unwrap();
+    assert_eq!(
+        view.active_job,
+        Some((request.job_id, whisper_core::JobState::AwaitingChoice))
+    );
+
+    app.dispatch(AppCommand::FinishLiveOnCpu {
+        job_id: request.job_id,
+        generation: request.generation,
+    })
+    .unwrap();
+    assert!(matches!(
+        io.0.borrow().effects.last(),
+        Some(ImportEffect::FinishLiveOnCpu { job_id, generation })
+            if (*job_id, *generation) == (request.job_id, request.generation)
+    ));
+}
+
+#[test]
 fn restored_live_recovery_is_visible_without_automatically_starting_a_new_passage() {
     use whisper_core::ports::{ArchiveHistoryItem, LiveRecoveryInfo};
 
@@ -91,6 +124,7 @@ fn restored_live_recovery_is_visible_without_automatically_starting_a_new_passag
             live_recovery: Some(LiveRecoveryInfo {
                 request,
                 durable_samples: 16_000,
+                confirmed_samples: 0,
             }),
         }]));
 
@@ -99,4 +133,50 @@ fn restored_live_recovery_is_visible_without_automatically_starting_a_new_passag
     assert_eq!(view.history.len(), 1);
     assert!(view.history[0].live_recovery.is_some());
     assert!(io.0.borrow().effects.is_empty());
+}
+
+#[test]
+fn diagnostic_warning_is_visible_without_changing_job_state_and_stale_notice_is_ignored() {
+    let io = Fake::default();
+    let mut app = ImportApplication::new(io.clone());
+    let request = request();
+    app.dispatch(AppCommand::StartLiveConfigured {
+        request: request.clone(),
+    })
+    .unwrap();
+
+    io.0.borrow_mut().events.push_back(ImportEvent::Diagnostic {
+        job_id: request.job_id,
+        generation: request.generation,
+        notice: DiagnosticNotice::ProgressStalled {
+            phase: DiagnosticPhase::Inference,
+            idle_ms: 60_000,
+        },
+    });
+    let view = app.dispatch(AppCommand::Refresh).unwrap();
+    assert_eq!(
+        view.active_job,
+        Some((request.job_id, whisper_core::JobState::Preparing))
+    );
+    assert!(
+        view.message
+            .as_deref()
+            .is_some_and(|message| message.contains("60 s"))
+    );
+
+    io.0.borrow_mut().events.push_back(ImportEvent::Diagnostic {
+        job_id: JobId(99),
+        generation: request.generation,
+        notice: DiagnosticNotice::LoggingUnavailable,
+    });
+    let view = app.dispatch(AppCommand::Refresh).unwrap();
+    assert!(
+        view.message
+            .as_deref()
+            .is_some_and(|message| message.contains("60 s"))
+    );
+    assert_eq!(
+        view.active_job,
+        Some((request.job_id, whisper_core::JobState::Preparing))
+    );
 }

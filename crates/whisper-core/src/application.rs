@@ -1,7 +1,7 @@
 use crate::domain::{Generation, JobConfig, JobId, JobState};
 use crate::ports::{
-    ArchiveHistoryItem, ImportEffect, ImportEvent, ImportIoPort, ImportQueueEntry, ImportRequest,
-    LiveRequest, PortError,
+    ArchiveHistoryItem, DiagnosticNotice, ImportEffect, ImportEvent, ImportIoPort,
+    ImportQueueEntry, ImportRequest, LiveRequest, PortError,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -37,6 +37,10 @@ pub enum AppCommand {
     StartLiveConfigured {
         request: LiveRequest,
     },
+    FinishLiveOnCpu {
+        job_id: JobId,
+        generation: Generation,
+    },
     Stop {
         job_id: JobId,
         generation: Generation,
@@ -58,7 +62,8 @@ impl AppCommand {
                 job_id, generation, ..
             }
             | Self::Stop { job_id, generation }
-            | Self::Quit { job_id, generation } => Some(CommandIdentity {
+            | Self::Quit { job_id, generation }
+            | Self::FinishLiveOnCpu { job_id, generation } => Some(CommandIdentity {
                 job_id: *job_id,
                 generation: *generation,
             }),
@@ -94,6 +99,7 @@ impl AppCommand {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct AppView {
     pub active_job: Option<(JobId, JobState)>,
+    pub active_generation: Option<Generation>,
     pub queued_jobs: usize,
     pub message: Option<String>,
     pub progress: Option<(u64, u64)>,
@@ -106,6 +112,7 @@ pub struct AppView {
     pub admitted_samples: u64,
     pub audio_durable_samples: u64,
     pub confirmed_fragment_samples: u64,
+    pub confirmed_samples: u64,
     pub speech_samples: u64,
     pub provisional_text: Option<String>,
     pub provisional_sequence: Option<u64>,
@@ -224,6 +231,17 @@ impl<P: ImportIoPort> ImportApplication<P> {
             return Ok(());
         }
         match event {
+            ImportEvent::Diagnostic { notice, .. } => {
+                self.view.message = Some(match notice {
+                    DiagnosticNotice::ProgressStalled { phase, idle_ms } => format!(
+                        "Aucun progrès observé pendant {} s ({phase:?}) ; l’opération continue.",
+                        idle_ms / 1_000
+                    ),
+                    DiagnosticNotice::LoggingUnavailable => {
+                        "Les diagnostics locaux sont indisponibles ; l’opération continue.".into()
+                    }
+                });
+            }
             ImportEvent::LiveProvisional {
                 segment,
                 captured_at_unix_ms,
@@ -278,6 +296,54 @@ impl<P: ImportIoPort> ImportApplication<P> {
             }
             ImportEvent::LiveFinalizing { .. } => {
                 self.view.active_job = Some((job_id, JobState::Finalizing));
+            }
+            ImportEvent::AwaitingCpuChoice { .. } => {
+                self.view.active_job = Some((job_id, JobState::AwaitingChoice));
+                self.view.message = Some(
+                    "Le GPU s’est arrêté. Choisissez explicitement de terminer ce passage sur CPU."
+                        .into(),
+                );
+            }
+            ImportEvent::LiveAttemptReset {
+                confirmed_samples,
+                next_segment_sequence,
+                ..
+            } => {
+                if confirmed_samples < self.view.confirmed_samples
+                    || confirmed_samples > self.view.audio_durable_samples
+                    || next_segment_sequence == 0
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.view.confirmed_samples = confirmed_samples;
+                self.next_sequence = next_segment_sequence;
+                self.pending_live_segments.clear();
+                self.view.provisional_text = None;
+                self.view.provisional_sequence = None;
+                self.view.provisional_range = None;
+                self.view.provisional_captured_at_unix_ms = None;
+                self.view.provisional_available_at_unix_ms = None;
+            }
+            ImportEvent::LiveAttemptStarting { .. } => {
+                self.view.active_job = Some((job_id, JobState::Preparing));
+                self.view.message = Some("Attente de l’attestation du worker CPU…".into());
+            }
+            ImportEvent::LiveRetryingOnCpu { .. } => {
+                self.view.active_job = Some((job_id, JobState::Capturing));
+                self.view.message = Some(
+                    "Le GPU a échoué ; la capture continue et le passage sera repris sur CPU."
+                        .into(),
+                );
+            }
+            ImportEvent::WindowFinished {
+                confirmed_samples, ..
+            } => {
+                if confirmed_samples < self.view.confirmed_samples
+                    || confirmed_samples > self.view.audio_durable_samples
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.view.confirmed_samples = confirmed_samples;
             }
             ImportEvent::History(_) => {
                 unreachable!("non-lifecycle events are handled before job admission")
@@ -553,10 +619,12 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.final_source_samples = None;
                 self.view.progress = None;
                 self.view.active_job = Some((identity.job_id, JobState::Preparing));
+                self.view.active_generation = Some(identity.generation);
                 self.view.captured_samples = 0;
                 self.view.admitted_samples = 0;
                 self.view.audio_durable_samples = 0;
                 self.view.confirmed_fragment_samples = 0;
+                self.view.confirmed_samples = 0;
                 self.view.speech_samples = 0;
                 self.view.provisional_text = None;
                 self.view.provisional_sequence = None;
@@ -565,6 +633,22 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.provisional_available_at_unix_ms = None;
                 self.view.confirmed_text = None;
                 self.view.message = Some("Préparation du staging durable et du worker CPU…".into());
+            }
+            AppCommand::FinishLiveOnCpu { job_id, generation } => {
+                let identity = CommandIdentity { job_id, generation };
+                if self.active != Some(identity)
+                    || self.view.active_job != Some((job_id, JobState::AwaitingChoice))
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.io
+                    .submit(ImportEffect::FinishLiveOnCpu { job_id, generation })
+                    .map_err(|error| self.fail(error))?;
+                self.view.active_job = Some((job_id, JobState::Preparing));
+                self.view.message = Some(
+                    "Choix CPU confirmé ; finalisation du passage conservé sans relancer le micro…"
+                        .into(),
+                );
             }
             AppCommand::StartImport { request } => {
                 if self.active.is_some() {
@@ -588,6 +672,7 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.final_source_samples = None;
                 self.view.progress = None;
                 self.view.active_job = Some((identity.job_id, JobState::Preparing));
+                self.view.active_generation = Some(identity.generation);
                 self.view.message = Some("Vérification de la source et du modèle…".into());
             }
             AppCommand::EnqueueImport { request } => {
@@ -623,6 +708,7 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.final_source_samples = None;
                 self.view.progress = None;
                 self.view.active_job = Some((identity.job_id, JobState::Queued));
+                self.view.active_generation = Some(identity.generation);
                 self.view.message = Some("Vérification du choix explicite et préparation…".into());
             }
             AppCommand::ResumeInterrupted { request } => {
@@ -655,11 +741,12 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.final_source_samples = None;
                 self.view.progress = None;
                 self.view.active_job = Some((identity.job_id, JobState::Queued));
+                self.view.active_generation = Some(identity.generation);
                 self.view.message = Some(
                     "Reprise confirmée : vérification du préfixe durable avant recalcul…".into(),
                 );
             }
-            AppCommand::Stop { job_id, generation } => {
+            AppCommand::Stop { job_id, generation } | AppCommand::Quit { job_id, generation } => {
                 if self.active != Some(CommandIdentity { job_id, generation }) {
                     return Err(ApplicationError::InvalidCommand);
                 }
@@ -703,7 +790,19 @@ impl ImportEvent {
             Self::LiveCounters {
                 job_id, generation, ..
             } => (*job_id, *generation),
-            Self::LiveFinalizing { job_id, generation } => (*job_id, *generation),
+            Self::WindowFinished {
+                job_id, generation, ..
+            } => (*job_id, *generation),
+            Self::AwaitingCpuChoice { job_id, generation } => (*job_id, *generation),
+            Self::LiveAttemptReset {
+                job_id, generation, ..
+            } => (*job_id, *generation),
+            Self::LiveRetryingOnCpu { job_id, generation } => (*job_id, *generation),
+            Self::LiveAttemptStarting { job_id, generation } => (*job_id, *generation),
+            Self::LiveFinalizing { job_id, generation }
+            | Self::Diagnostic {
+                job_id, generation, ..
+            } => (*job_id, *generation),
             Self::Ready {
                 job_id, generation, ..
             }

@@ -115,6 +115,27 @@ pub enum ImportQueueStatus {
     Interrupted,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DiagnosticPhase {
+    Preparing,
+    Capturing,
+    Import,
+    Inference,
+    Draining,
+    Finalizing,
+    Cancelling,
+    Quitting,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DiagnosticNotice {
+    ProgressStalled {
+        phase: DiagnosticPhase,
+        idle_ms: u64,
+    },
+    LoggingUnavailable,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImportQueueEntry {
     pub sequence: u64,
@@ -154,10 +175,19 @@ pub enum ImportEffect {
         job_id: JobId,
         generation: Generation,
     },
+    FinishLiveOnCpu {
+        job_id: JobId,
+        generation: Generation,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEvent {
+    Diagnostic {
+        job_id: JobId,
+        generation: Generation,
+        notice: DiagnosticNotice,
+    },
     LiveProvisional {
         segment: WorkerSegment,
         captured_at_unix_ms: u64,
@@ -172,6 +202,30 @@ pub enum ImportEvent {
         confirmed_fragment_samples: u64,
         speech_samples: u64,
         diagnostic: Option<String>,
+    },
+    WindowFinished {
+        job_id: JobId,
+        generation: Generation,
+        window_sequence: u64,
+        confirmed_samples: u64,
+    },
+    AwaitingCpuChoice {
+        job_id: JobId,
+        generation: Generation,
+    },
+    LiveAttemptReset {
+        job_id: JobId,
+        generation: Generation,
+        confirmed_samples: u64,
+        next_segment_sequence: u64,
+    },
+    LiveAttemptStarting {
+        job_id: JobId,
+        generation: Generation,
+    },
+    LiveRetryingOnCpu {
+        job_id: JobId,
+        generation: Generation,
     },
     LiveFinalizing {
         job_id: JobId,
@@ -238,6 +292,8 @@ pub struct ArchiveHistoryItem {
 pub struct LiveRecoveryInfo {
     pub request: LiveRequest,
     pub durable_samples: u64,
+    #[serde(default)]
+    pub confirmed_samples: u64,
 }
 
 pub trait ImportIoPort {

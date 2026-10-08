@@ -78,6 +78,8 @@ struct LiveCompleteRecord {
     job_id: JobId,
     generation: Generation,
     audio_samples: u64,
+    #[serde(default)]
+    confirmed_samples: u64,
     group_offset_samples: u64,
     completed_at_unix_ms: u64,
     pcm_sha256: String,
@@ -87,15 +89,63 @@ struct LiveCompleteRecord {
     srt: ArtifactRecord,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct CoverageRecordPayload {
+    version: u32,
+    job_id: JobId,
+    generation: Generation,
+    window_sequence: u64,
+    start_sample: u64,
+    end_sample: u64,
+    last_segment_sequence: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CoverageRecord {
+    payload: CoverageRecordPayload,
+    sha256: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LiveAttemptState {
+    Reserved,
+    Started,
+    Retired,
+}
+
+#[derive(Serialize, Deserialize)]
+struct LiveAttemptRecord {
+    payload: LiveAttemptPayload,
+    sha256: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct LiveAttemptPayload {
+    version: u32,
+    journal_sequence: u64,
+    job_id: JobId,
+    generation: Generation,
+    attempt: u64,
+    state: LiveAttemptState,
+}
+
 /// Passage-oriented durable publisher for live jobs. `CURRENT` is written only after
 /// the MP3, cumulative transcript, subtitle, and manifest have been synced and verified.
 pub struct LiveArchive {
     directory: PathBuf,
     request: LiveRequest,
+    _writer_lock: File,
     pending_path: PathBuf,
     mp3_pending_path: PathBuf,
     mp3: Option<File>,
     expected_sequence: u64,
+    expected_window_sequence: u64,
+    confirmed_samples: u64,
+    confirmed_segment_count: usize,
+    next_attempt: u64,
+    next_attempt_record_sequence: u64,
+    active_attempt: Option<(u64, LiveAttemptState)>,
     segments: Vec<SegmentRecord>,
     previous_completed_at_ms: Option<u64>,
 }
@@ -108,6 +158,17 @@ impl LiveArchive {
             .join(format!("{:032x}", request.job_id.0))
             .join("live");
         fs::create_dir_all(&directory).map_err(|e| format!("StorageUnavailable: {e}"))?;
+        let lock_path = directory.join(format!("group-{:032x}.writer.lock", request.job_id.0));
+        let writer_lock = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(lock_path)
+            .map_err(|error| format!("StorageUnavailable: archive lock open: {error}"))?;
+        writer_lock.try_lock().map_err(|error| {
+            format!("Recoverable: another live archive writer owns the passage: {error}")
+        })?;
         let mut previous_completed_at_ms = None;
         if request.generation.get() > 1 {
             let previous =
@@ -216,10 +277,17 @@ impl LiveArchive {
         Ok(Self {
             directory,
             request,
+            _writer_lock: writer_lock,
             pending_path,
             mp3_pending_path,
             mp3: Some(mp3),
             expected_sequence: 1,
+            expected_window_sequence: 1,
+            confirmed_samples: 0,
+            confirmed_segment_count: 0,
+            next_attempt: 1,
+            next_attempt_record_sequence: 1,
+            active_attempt: None,
             segments: Vec::new(),
             previous_completed_at_ms,
         })
@@ -248,6 +316,110 @@ impl LiveArchive {
             .ok_or_else(|| "StorageUnavailable: MP3 passage is already finalized".to_owned())?
             .write_all(packet)
             .map_err(|e| format!("StorageUnavailable: MP3 write: {e}"))
+    }
+
+    pub fn reserve_attempt(&mut self) -> Result<u64, String> {
+        if self.active_attempt.is_some() {
+            return Err("StorageCorrupt: prior attempt has not been retired".into());
+        }
+        let attempt = self.next_attempt;
+        self.append_attempt_record(attempt, LiveAttemptState::Reserved)?;
+        self.active_attempt = Some((attempt, LiveAttemptState::Reserved));
+        self.next_attempt = attempt
+            .checked_add(1)
+            .ok_or_else(|| "StorageCorrupt: live attempt sequence exhausted".to_owned())?;
+        Ok(attempt)
+    }
+
+    pub fn mark_attempt_started(&mut self, attempt: u64) -> Result<(), String> {
+        if self.active_attempt != Some((attempt, LiveAttemptState::Reserved)) {
+            return Err("StorageCorrupt: Started requires the matching Reserved attempt".into());
+        }
+        self.append_attempt_record(attempt, LiveAttemptState::Started)?;
+        self.active_attempt = Some((attempt, LiveAttemptState::Started));
+        Ok(())
+    }
+
+    pub fn retire_attempt(&mut self, attempt: u64) -> Result<(), String> {
+        if self.active_attempt != Some((attempt, LiveAttemptState::Started)) {
+            return Err("StorageCorrupt: Retired requires the matching Started attempt".into());
+        }
+        self.append_attempt_record(attempt, LiveAttemptState::Retired)?;
+        self.active_attempt = None;
+        Ok(())
+    }
+
+    pub fn restart_mp3_attempt(&mut self) -> Result<(), String> {
+        let file = self
+            .mp3
+            .as_mut()
+            .ok_or_else(|| "StorageUnavailable: MP3 passage is already finalized".to_owned())?;
+        file.set_len(0)
+            .and_then(|()| file.seek(SeekFrom::Start(0)))
+            .and_then(|_| file.sync_all())
+            .map_err(|error| format!("StorageUnavailable: reset MP3 attempt: {error}"))?;
+        Ok(())
+    }
+
+    pub fn discard_unconfirmed_segments(&mut self) -> Result<(), String> {
+        self.segments.truncate(self.confirmed_segment_count);
+        let path = self.directory.join(format!(
+            "passage-{}.segments.jsonl",
+            self.request.generation.get()
+        ));
+        let mut bytes = Vec::new();
+        for segment in &self.segments {
+            serde_json::to_writer(&mut bytes, segment).map_err(|error| error.to_string())?;
+            bytes.extend_from_slice(b"\n");
+        }
+        write_replace_synced(&path, &bytes)?;
+        self.expected_sequence = u64::try_from(self.confirmed_segment_count)
+            .ok()
+            .and_then(|sequence| sequence.checked_add(1))
+            .ok_or_else(|| "StorageCorrupt: live segment sequence exhausted".to_owned())?;
+        Ok(())
+    }
+
+    fn append_attempt_record(
+        &mut self,
+        attempt: u64,
+        state: LiveAttemptState,
+    ) -> Result<(), String> {
+        let payload = LiveAttemptPayload {
+            version: 1,
+            journal_sequence: self.next_attempt_record_sequence,
+            job_id: self.request.job_id,
+            generation: self.request.generation,
+            attempt,
+            state,
+        };
+        let canonical = serde_json::to_vec(&payload).map_err(|error| error.to_string())?;
+        let record = LiveAttemptRecord {
+            payload,
+            sha256: format!("{:x}", Sha256::digest(canonical)),
+        };
+        let bytes = serde_json::to_vec(&record).map_err(|error| error.to_string())?;
+        if bytes.len() + 1 > 1_048_576 {
+            return Err("StorageCorrupt: attempt journal record exceeds 1 MiB".into());
+        }
+        let path = self.directory.join(format!(
+            "passage-{}.attempts.jsonl",
+            self.request.generation.get()
+        ));
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|error| format!("StorageUnavailable: attempt journal: {error}"))?;
+        file.write_all(&bytes)
+            .and_then(|()| file.write_all(b"\n"))
+            .and_then(|()| file.sync_all())
+            .map_err(|error| format!("StorageUnavailable: attempt journal sync: {error}"))?;
+        self.next_attempt_record_sequence = self
+            .next_attempt_record_sequence
+            .checked_add(1)
+            .ok_or_else(|| "StorageCorrupt: attempt journal sequence exhausted".to_owned())?;
+        Ok(())
     }
 
     pub fn persist_segment(
@@ -303,6 +475,105 @@ impl LiveArchive {
         Ok(self.segments.last().map_or(0, |item| item.range.end_sample))
     }
 
+    pub fn persist_window_finished(
+        &mut self,
+        sequence: u64,
+        range: SourceRange,
+        last_segment_sequence: u64,
+        audio_durable_samples: u64,
+    ) -> Result<u64, String> {
+        if sequence != self.expected_window_sequence
+            || range.sample_rate_hz != 16_000
+            || range.start_sample != self.confirmed_samples
+            || range.end_sample <= range.start_sample
+            || range.end_sample > audio_durable_samples
+            || last_segment_sequence.checked_add(1) != Some(self.expected_sequence)
+        {
+            return Err("StorageCorrupt: live window confirmation is not contiguous".into());
+        }
+        let group_start = self
+            .request
+            .group_offset_samples
+            .checked_add(range.start_sample)
+            .ok_or_else(|| "StorageCorrupt: live window group offset overflow".to_owned())?;
+        let group_end = self
+            .request
+            .group_offset_samples
+            .checked_add(range.end_sample)
+            .ok_or_else(|| "StorageCorrupt: live window group offset overflow".to_owned())?;
+        let new_segments = self
+            .segments
+            .get(self.confirmed_segment_count..)
+            .ok_or_else(|| "StorageCorrupt: confirmed segment cursor is invalid".to_owned())?;
+        if new_segments.iter().any(|segment| {
+            segment.sequence > last_segment_sequence
+                || segment.range.start_sample < group_start
+                || segment.range.end_sample > group_end
+        }) || new_segments
+            .last()
+            .map_or(self.confirmed_segment_count as u64, |segment| {
+                segment.sequence
+            })
+            != last_segment_sequence
+        {
+            return Err("StorageCorrupt: window confirmation does not cover its segments".into());
+        }
+        let payload = CoverageRecordPayload {
+            version: 2,
+            job_id: self.request.job_id,
+            generation: self.request.generation,
+            window_sequence: sequence,
+            start_sample: range.start_sample,
+            end_sample: range.end_sample,
+            last_segment_sequence,
+        };
+        let canonical = serde_json::to_vec(&payload).map_err(|error| error.to_string())?;
+        let checksum = format!("{:x}", Sha256::digest(canonical));
+        let bytes = serde_json::to_vec(&CoverageRecord {
+            payload,
+            sha256: checksum,
+        })
+        .map_err(|error| error.to_string())?;
+        if bytes.len() + 1 > 1_048_576 {
+            return Err("StorageCorrupt: coverage confirmation exceeds record limit".into());
+        }
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.coverage_path())
+            .map_err(|error| format!("StorageUnavailable: coverage confirmation: {error}"))?;
+        file.write_all(&bytes)
+            .and_then(|()| file.write_all(b"\n"))
+            .and_then(|()| file.sync_all())
+            .map_err(|error| format!("StorageUnavailable: coverage sync: {error}"))?;
+        self.expected_window_sequence = self
+            .expected_window_sequence
+            .checked_add(1)
+            .ok_or_else(|| "StorageCorrupt: window sequence exhausted".to_owned())?;
+        self.confirmed_samples = range.end_sample;
+        self.confirmed_segment_count = self.segments.len();
+        Ok(self.confirmed_samples)
+    }
+
+    pub fn confirmed_samples(&self) -> u64 {
+        self.confirmed_samples
+    }
+
+    pub fn next_segment_sequence(&self) -> u64 {
+        self.expected_sequence
+    }
+
+    pub fn next_window_sequence(&self) -> u64 {
+        self.expected_window_sequence
+    }
+
+    fn coverage_path(&self) -> PathBuf {
+        self.directory.join(format!(
+            "passage-{}.coverage.jsonl",
+            self.request.generation.get()
+        ))
+    }
+
     pub fn publish(
         &mut self,
         audio_durable_samples: u64,
@@ -313,6 +584,11 @@ impl LiveArchive {
             return Err(
                 "Recoverable: no audio samples were durably captured; passage was not published"
                     .into(),
+            );
+        }
+        if self.confirmed_samples != audio_durable_samples {
+            return Err(
+                "Recoverable: durable PCM is not fully covered by completed windows".into(),
             );
         }
         if self
@@ -372,6 +648,7 @@ impl LiveArchive {
             job_id: self.request.job_id,
             generation: self.request.generation,
             audio_samples: audio_durable_samples,
+            confirmed_samples: self.confirmed_samples,
             group_offset_samples: self.request.group_offset_samples,
             completed_at_unix_ms: unix_time_ms()?,
             pcm_sha256: hex(&pcm_sha256),
@@ -409,6 +686,9 @@ impl LiveArchive {
         let _ = write_replace_synced(&self.directory.join("transcript.txt"), text.as_bytes());
         let _ = write_replace_synced(&self.directory.join("transcript.srt"), srt.as_bytes());
         let _ = fs::remove_file(&self.pending_path);
+        self._writer_lock
+            .unlock()
+            .map_err(|error| format!("StorageUnavailable: archive lock release: {error}"))?;
         Ok(())
     }
 }
@@ -1018,12 +1298,125 @@ pub fn scan_live_recoveries(
         let Ok(checkpoint) = crate::staging::PcmStaging::inspect_checkpoint(&pcm_path) else {
             continue;
         };
+        let confirmed_samples =
+            scan_confirmed_live_prefix(&dir, generation, &request, checkpoint.durable_samples)?;
         recoveries.push(whisper_core::ports::LiveRecoveryInfo {
             request,
             durable_samples: checkpoint.durable_samples,
+            confirmed_samples,
         });
     }
     Ok(recoveries)
+}
+
+fn scan_confirmed_live_prefix(
+    dir: &Path,
+    generation: u64,
+    request: &LiveRequest,
+    durable_samples: u64,
+) -> Result<u64, String> {
+    let coverage_path = dir.join(format!("passage-{generation}.coverage.jsonl"));
+    if !coverage_path.exists() {
+        return Ok(0);
+    }
+    let segment_path = dir.join(format!("passage-{generation}.segments.jsonl"));
+    let segments = read_bounded_jsonl::<SegmentRecord>(&segment_path)?;
+    let coverage = read_bounded_jsonl::<CoverageRecord>(&coverage_path)?;
+    let mut confirmed_samples = 0_u64;
+    let mut expected_window_sequence = 1_u64;
+    let mut confirmed_segment_sequence = 0_u64;
+    for record in coverage {
+        let payload = record.payload;
+        let canonical = serde_json::to_vec(&payload).map_err(|error| error.to_string())?;
+        let checksum = format!("{:x}", Sha256::digest(canonical));
+        if record.sha256 != checksum
+            || payload.version != 2
+            || payload.job_id != request.job_id
+            || payload.generation != request.generation
+            || payload.window_sequence != expected_window_sequence
+            || payload.start_sample != confirmed_samples
+            || payload.end_sample <= payload.start_sample
+            || payload.end_sample > durable_samples
+            || payload.last_segment_sequence < confirmed_segment_sequence
+            || payload.last_segment_sequence as usize > segments.len()
+        {
+            return Err(
+                "StorageCorrupt: live coverage journal is not a verified contiguous prefix".into(),
+            );
+        }
+        let start = confirmed_segment_sequence as usize;
+        let end = payload.last_segment_sequence as usize;
+        let group_start = request
+            .group_offset_samples
+            .checked_add(payload.start_sample)
+            .ok_or_else(|| "StorageCorrupt: coverage offset overflow".to_owned())?;
+        let group_end = request
+            .group_offset_samples
+            .checked_add(payload.end_sample)
+            .ok_or_else(|| "StorageCorrupt: coverage offset overflow".to_owned())?;
+        if segments[start..end]
+            .iter()
+            .enumerate()
+            .any(|(offset, segment)| {
+                segment.sequence != confirmed_segment_sequence + offset as u64 + 1
+                    || segment.range.sample_rate_hz != 16_000
+                    || segment.range.start_sample < group_start
+                    || segment.range.end_sample > group_end
+                    || segment.range.start_sample >= segment.range.end_sample
+            })
+        {
+            return Err(
+                "StorageCorrupt: coverage journal does not cover its persisted segments".into(),
+            );
+        }
+        confirmed_samples = payload.end_sample;
+        confirmed_segment_sequence = payload.last_segment_sequence;
+        expected_window_sequence = expected_window_sequence
+            .checked_add(1)
+            .ok_or_else(|| "StorageCorrupt: coverage sequence exhausted".to_owned())?;
+    }
+    Ok(confirmed_samples)
+}
+
+fn read_bounded_jsonl<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Vec<T>, String> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let file = File::open(path).map_err(|error| error.to_string())?;
+    let mut input = BufReader::new(file);
+    let mut records = Vec::new();
+    loop {
+        let mut bytes = Vec::with_capacity(4096);
+        let mut complete = false;
+        loop {
+            let available = input.fill_buf().map_err(|error| error.to_string())?;
+            if available.is_empty() {
+                break;
+            }
+            let consumed = available
+                .iter()
+                .position(|byte| *byte == b'\n')
+                .map_or(available.len(), |index| index + 1);
+            if bytes.len().saturating_add(consumed) > 1_048_576 {
+                return Err("StorageCorrupt: JSONL record exceeds 1 MiB".into());
+            }
+            let has_newline = available.get(consumed.saturating_sub(1)) == Some(&b'\n');
+            bytes.extend_from_slice(&available[..consumed]);
+            input.consume(consumed);
+            if has_newline {
+                complete = true;
+                break;
+            }
+        }
+        if bytes.is_empty() || !complete {
+            break;
+        }
+        bytes.pop();
+        let record = serde_json::from_slice(&bytes)
+            .map_err(|error| format!("StorageCorrupt: JSONL record: {error}"))?;
+        records.push(record);
+    }
+    Ok(records)
 }
 
 fn safe_artifact_path(path: &str) -> bool {

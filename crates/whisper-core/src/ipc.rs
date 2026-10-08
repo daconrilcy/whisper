@@ -52,6 +52,15 @@ pub enum WorkerCommand {
         range: SourceRange,
         samples: Vec<i16>,
     },
+    /// Re-encodes already confirmed PCM during a new live attempt without emitting text.
+    LiveReplayWindow {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        sequence: u64,
+        range: SourceRange,
+        samples: Vec<i16>,
+    },
     CreateState {
         model_path: String,
         config: JobConfig,
@@ -82,6 +91,14 @@ pub enum WorkerEvent {
         backend: BackendKind,
     },
     Segment(WorkerSegmentDto),
+    WindowFinished {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        sequence: u64,
+        range: SourceRange,
+        last_segment_sequence: u64,
+    },
     LiveMp3Packet {
         job_id: JobId,
         generation: Generation,

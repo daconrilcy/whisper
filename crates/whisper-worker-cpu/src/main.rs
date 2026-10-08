@@ -1,5 +1,8 @@
 mod decoder;
 mod encoder;
+// `read_frame` is shared with the inherited IPC module; its unbounded writer
+// remains unused by this executable, which writes through the bounded sink below.
+#[allow(dead_code)]
 mod ipc;
 mod native_engine;
 
@@ -99,7 +102,7 @@ mod memory_qualification {
     }
 }
 
-use ipc::{read_frame, write_frame};
+use ipc::read_frame;
 use native_engine::CpuEngine;
 use sha2::{Digest, Sha256};
 use std::{
@@ -120,6 +123,41 @@ use whisper_core::{
 };
 
 type Incoming = Result<IpcEnvelope<WorkerCommand>, String>;
+
+const MAX_IPC_FRAME_BYTES: usize = ipc::MAX_FRAME_BYTES;
+
+struct BoundedJsonFrame(Vec<u8>);
+
+impl io::Write for BoundedJsonFrame {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let limit = MAX_IPC_FRAME_BYTES - 1;
+        if self.0.len().saturating_add(bytes.len()) > limit {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "IPC frame exceeds 1 MiB",
+            ));
+        }
+        self.0.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn write_frame<T: serde::Serialize>(output: &mut impl io::Write, value: &T) -> io::Result<()> {
+    let mut frame = BoundedJsonFrame(Vec::with_capacity(4096));
+    serde_json::to_writer(&mut frame, value).map_err(|error| {
+        io::Error::new(
+            error.io_error_kind().unwrap_or(io::ErrorKind::InvalidData),
+            error,
+        )
+    })?;
+    output.write_all(&frame.0)?;
+    output.write_all(b"\n")?;
+    output.flush()
+}
 
 fn main() {
     let (tx, rx) = mpsc::sync_channel(8);
@@ -595,8 +633,17 @@ fn run_live_service(
         if envelope.version != IPC_PROTOCOL_VERSION {
             return Err("ProtocolMismatch: live command version changed".into());
         }
+        let transcribe_window = matches!(&envelope.message, WorkerCommand::LiveWindow { .. });
         match envelope.message {
             WorkerCommand::LiveWindow {
+                job_id: target,
+                generation: target_generation,
+                instance_id: target_instance,
+                sequence,
+                range,
+                samples,
+            }
+            | WorkerCommand::LiveReplayWindow {
                 job_id: target,
                 generation: target_generation,
                 instance_id: target_instance,
@@ -645,58 +692,73 @@ fn run_live_service(
                 expected_sequence = expected_sequence
                     .checked_add(1)
                     .ok_or_else(|| "live window sequence exhausted".to_owned())?;
-                let pcm: Vec<f32> = samples
-                    .iter()
-                    .map(|sample| *sample as f32 / 32768.0)
-                    .collect();
-                let language = match &config.language {
-                    whisper_core::LanguageChoice::Automatic => None,
-                    whisper_core::LanguageChoice::Manual(code) => Some(code.as_str()),
-                };
-                let segments = match engine.transcribe(&pcm, language) {
-                    Ok(segments) => segments,
-                    Err(error) => {
-                        return emit_failure(
-                            output,
+                if transcribe_window {
+                    let pcm: Vec<f32> = samples
+                        .iter()
+                        .map(|sample| *sample as f32 / 32768.0)
+                        .collect();
+                    let language = match &config.language {
+                        whisper_core::LanguageChoice::Automatic => None,
+                        whisper_core::LanguageChoice::Manual(code) => Some(code.as_str()),
+                    };
+                    let segments = match engine.transcribe(&pcm, language) {
+                        Ok(segments) => segments,
+                        Err(error) => {
+                            return emit_failure(
+                                output,
+                                job_id,
+                                generation,
+                                instance_id,
+                                WorkerErrorCode::InferenceFailed,
+                                &error,
+                            );
+                        }
+                    };
+                    for segment in segments {
+                        let start = range
+                            .start_sample
+                            .saturating_add(
+                                (segment.start_centiseconds.max(0) as u64).saturating_mul(160),
+                            )
+                            .min(range.end_sample);
+                        let end = range
+                            .start_sample
+                            .saturating_add(
+                                (segment.end_centiseconds.max(0) as u64).saturating_mul(160),
+                            )
+                            .min(range.end_sample);
+                        if end <= start || segment.text.trim().is_empty() {
+                            continue;
+                        }
+                        let segment_id = next_segment_id;
+                        next_segment_id = next_segment_id
+                            .checked_add(1)
+                            .ok_or_else(|| "live segment id exhausted".to_owned())?;
+                        let message = WorkerEvent::Segment(WorkerSegmentDto {
                             job_id,
                             generation,
                             instance_id,
-                            WorkerErrorCode::InferenceFailed,
-                            &error,
-                        );
+                            segment_id: SegmentId(segment_id),
+                            range: SourceRange::new(start, end, 16_000)
+                                .ok_or_else(|| "live segment range is invalid".to_owned())?,
+                            text: segment.text.trim().to_owned(),
+                        });
+                        write_frame(output, &IpcEnvelope::new(message))
+                            .map_err(|e| e.to_string())?;
                     }
-                };
-                for segment in segments {
-                    let start = range
-                        .start_sample
-                        .saturating_add(
-                            (segment.start_centiseconds.max(0) as u64).saturating_mul(160),
-                        )
-                        .min(range.end_sample);
-                    let end = range
-                        .start_sample
-                        .saturating_add(
-                            (segment.end_centiseconds.max(0) as u64).saturating_mul(160),
-                        )
-                        .min(range.end_sample);
-                    if end <= start || segment.text.trim().is_empty() {
-                        continue;
-                    }
-                    let segment_id = next_segment_id;
-                    next_segment_id = next_segment_id
-                        .checked_add(1)
-                        .ok_or_else(|| "live segment id exhausted".to_owned())?;
-                    let message = WorkerEvent::Segment(WorkerSegmentDto {
+                }
+                write_frame(
+                    output,
+                    &IpcEnvelope::new(WorkerEvent::WindowFinished {
                         job_id,
                         generation,
                         instance_id,
-                        segment_id: SegmentId(segment_id),
-                        range: SourceRange::new(start, end, 16_000)
-                            .ok_or_else(|| "live segment range is invalid".to_owned())?,
-                        text: segment.text.trim().to_owned(),
-                    });
-                    write_frame(output, &IpcEnvelope::new(message)).map_err(|e| e.to_string())?;
-                }
+                        sequence,
+                        range,
+                        last_segment_sequence: next_segment_id - 1,
+                    }),
+                )
+                .map_err(|e| e.to_string())?;
             }
             WorkerCommand::Stop {
                 job_id: target,
@@ -967,4 +1029,23 @@ fn emit_failure(
         }),
     )
     .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod bounded_writer_tests {
+    use super::*;
+
+    #[test]
+    fn writer_accepts_limit_and_rejects_limit_plus_one_without_growing_past_it() {
+        let exact = "x".repeat(MAX_IPC_FRAME_BYTES - 3);
+        let mut output = Vec::new();
+        write_frame(&mut output, &exact).unwrap();
+        assert_eq!(output.len(), MAX_IPC_FRAME_BYTES);
+
+        let oversized = "x".repeat(MAX_IPC_FRAME_BYTES - 2);
+        assert_eq!(
+            write_frame(&mut Vec::new(), &oversized).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
 }

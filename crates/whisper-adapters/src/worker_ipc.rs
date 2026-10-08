@@ -3,6 +3,10 @@ use crate::{
     archive::{ArchiveStore, LiveArchive},
     capture::{CaptureStream, Pcm16Converter},
     staging::{PcmStaging, PcmWriter},
+    supervisor::{
+        DiagnosticCode, DiagnosticPhase, DiagnosticRecord, DiagnosticSink, ProgressPhase,
+        ProgressSupervisor, WorkerPaths,
+    },
     vad::VoiceActivity,
 };
 use serde::{Serialize, de::DeserializeOwned};
@@ -27,7 +31,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use whisper_core::{
-    ArchiveHistoryItem, Generation, ImportEffect, ImportEvent, ImportIoPort, JobId,
+    ArchiveHistoryItem, DiagnosticNotice, Generation, ImportEffect, ImportEvent, ImportIoPort,
+    JobId,
     ipc::{BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerEvent},
     ports::{ImportRequest, LiveRequest, PortError, WorkerSegment},
 };
@@ -336,14 +341,108 @@ fn read_events(stdout: impl io::Read, tx: SyncSender<Result<WorkerEvent, PortErr
         let terminal = event.is_err()
             || matches!(
                 event,
-                Ok(WorkerEvent::End { .. }
-                    | WorkerEvent::Stopped { .. }
-                    | WorkerEvent::Failed { .. })
+                Ok(WorkerEvent::End { .. } | WorkerEvent::Stopped { .. })
             );
         if tx.send(event).is_err() || terminal {
             break;
         }
     }
+}
+
+fn worker_event_identity(event: &WorkerEvent) -> Option<(JobId, Generation, u64)> {
+    match event {
+        WorkerEvent::Ready {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        }
+        | WorkerEvent::LiveMp3Packet {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        }
+        | WorkerEvent::WindowFinished {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        }
+        | WorkerEvent::Stopped {
+            job_id,
+            generation,
+            instance_id,
+        }
+        | WorkerEvent::Progress {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        }
+        | WorkerEvent::End {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        } => Some((*job_id, *generation, *instance_id)),
+        WorkerEvent::Segment(segment) => {
+            Some((segment.job_id, segment.generation, segment.instance_id))
+        }
+        WorkerEvent::Failed {
+            job_id: Some(job_id),
+            generation: Some(generation),
+            instance_id: Some(instance_id),
+            ..
+        } => Some((*job_id, *generation, *instance_id)),
+        WorkerEvent::Failed { .. } | WorkerEvent::DecodedBlock { .. } => None,
+    }
+}
+
+fn map_attempt_sequence(base: u64, replay_prefix: u64, attempt_sequence: u64) -> Option<u64> {
+    attempt_sequence
+        .checked_sub(replay_prefix)?
+        .checked_sub(1)?
+        .checked_add(base)
+}
+
+fn spawn_live_attempt(
+    request: &LiveRequest,
+    selection: &crate::supervisor::WorkerSelection,
+) -> Result<(ChildWorkerTransport, u64), (JobId, Generation, String)> {
+    let identity = (request.job_id, request.generation);
+    let instance_id = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
+    if instance_id == 0 {
+        return Err((
+            identity.0,
+            identity.1,
+            "WorkerExited: instance identity exhausted".into(),
+        ));
+    }
+    let mut transport = ChildWorkerTransport::spawn(&selection.path)
+        .map_err(|error| (identity.0, identity.1, format!("WorkerExited: {error:?}")))?;
+    let mut worker_config = request.config.clone();
+    worker_config.compute = match selection.backend {
+        whisper_core::BackendAttempt::Cpu => whisper_core::ComputeChoice::Cpu,
+        whisper_core::BackendAttempt::Gpu => whisper_core::ComputeChoice::Gpu,
+    };
+    transport
+        .request(WorkerCommand::StartLiveWorker {
+            job_id: identity.0,
+            generation: identity.1,
+            instance_id,
+            model_path: request.model_path.clone(),
+            model_sha256: request.model_sha256,
+            config: worker_config,
+        })
+        .map_err(|error| {
+            (
+                identity.0,
+                identity.1,
+                format!("ProtocolMismatch: {error:?}"),
+            )
+        })?;
+    Ok((transport, instance_id))
 }
 
 fn read_frame<T: DeserializeOwned>(input: &mut impl BufRead) -> io::Result<Option<T>> {
@@ -391,7 +490,7 @@ fn read_frame<T: DeserializeOwned>(input: &mut impl BufRead) -> io::Result<Optio
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 fn write_frame<T: Serialize>(output: &mut impl Write, value: &T) -> io::Result<()> {
-    let bytes = serde_json::to_vec(value).map_err(io::Error::other)?;
+    let bytes = serialize_frame(value)?;
     #[cfg(feature = "l01-memory-qualification")]
     memory_trace(
         "adapter.ipc.serialize.buffer",
@@ -402,19 +501,51 @@ fn write_frame<T: Serialize>(output: &mut impl Write, value: &T) -> io::Result<(
             "frame_limit_bytes": MAX_FRAME_BYTES,
         }),
     );
-    if bytes.len() + 1 > MAX_FRAME_BYTES {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "IPC frame exceeds 1 MiB",
-        ));
-    }
     output.write_all(&bytes)?;
     output.write_all(b"\n")?;
     output.flush()
 }
 
+struct BoundedFrameWriter {
+    bytes: Vec<u8>,
+}
+
+impl Write for BoundedFrameWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let limit = MAX_FRAME_BYTES - 1;
+        if self.bytes.len().saturating_add(bytes.len()) > limit {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "IPC frame exceeds 1 MiB",
+            ));
+        }
+        self.bytes
+            .try_reserve_exact(bytes.len())
+            .map_err(io::Error::other)?;
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn serialize_frame<T: Serialize>(value: &T) -> io::Result<Vec<u8>> {
+    let mut writer = BoundedFrameWriter {
+        bytes: Vec::with_capacity(4_096),
+    };
+    serde_json::to_writer(&mut writer, value)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    Ok(writer.bytes)
+}
+
 struct ImportRuntime {
-    worker_path: PathBuf,
+    workers: WorkerPaths,
+    diagnostics: Option<DiagnosticSink>,
+    diagnostic_start_failed: bool,
+    diagnostic_degraded_reported: bool,
+    progress: Option<ProgressSupervisor>,
     archive: ArchiveStore,
     active: Option<ImportRequestState>,
     transport: Option<ChildWorkerTransport>,
@@ -423,8 +554,23 @@ struct ImportRuntime {
     pending_live: Option<PendingLiveState>,
     live: Option<LiveCaptureState>,
     live_archive: Option<LiveArchive>,
+    pending_attempt_reset: Option<ImportEvent>,
     live_pending_persistence: usize,
     deferred_live_stopped: Option<WorkerEvent>,
+    deferred_live_window_finished: Option<FinishedLiveWindow>,
+}
+#[derive(Clone, Copy)]
+struct FinishedLiveWindow {
+    sequence: u64,
+    range: whisper_core::SourceRange,
+    last_segment_sequence: u64,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LiveRecoveryState {
+    None,
+    AutoRetryPending,
+    AwaitingChoicePending,
+    AwaitingChoice,
 }
 struct LiveCaptureState {
     request: LiveRequest,
@@ -436,6 +582,15 @@ struct LiveCaptureState {
     inference_cursor: u64,
     inference_sequence: u64,
     pending_window: Option<(u64, u64, u64, Vec<i16>)>,
+    replay_until: u64,
+    replay_windows_queued: u64,
+    replay_windows_to_skip: u64,
+    segment_sequence_base: u64,
+    window_sequence_base: u64,
+    recovery: LiveRecoveryState,
+    barrier_m: Option<u64>,
+    inference_admission_closed: bool,
+    worker_ready: bool,
     stop_requested: bool,
     stop_enqueued: bool,
     started_at_unix_ms: u64,
@@ -450,17 +605,26 @@ struct PendingLiveState {
     request: LiveRequest,
     staging: PcmWriter,
     live_archive: LiveArchive,
+    recovery: LiveRecoveryState,
 }
 struct ImportRequestState {
     job_id: JobId,
     generation: Generation,
     instance_id: u64,
+    backend: BackendKind,
+    attempt_number: u64,
+    import_request: Option<whisper_core::ports::ImportRequest>,
+    recovery: LiveRecoveryState,
 }
 
 impl ImportRuntime {
-    fn new(worker_path: PathBuf, publication_gate: Arc<PublicationGate>) -> Self {
+    fn new(workers: WorkerPaths, publication_gate: Arc<PublicationGate>) -> Self {
         Self {
-            worker_path,
+            workers,
+            diagnostics: None,
+            diagnostic_start_failed: false,
+            diagnostic_degraded_reported: false,
+            progress: None,
             archive: ArchiveStore::new("."),
             active: None,
             transport: None,
@@ -469,8 +633,23 @@ impl ImportRuntime {
             pending_live: None,
             live: None,
             live_archive: None,
+            pending_attempt_reset: None,
             live_pending_persistence: 0,
             deferred_live_stopped: None,
+            deferred_live_window_finished: None,
+        }
+    }
+
+    fn start_diagnostics(&mut self, destination: &Path) {
+        match DiagnosticSink::start(destination) {
+            Ok(sink) => {
+                self.diagnostics = Some(sink);
+                self.diagnostic_start_failed = false;
+            }
+            Err(_) => {
+                self.diagnostics = None;
+                self.diagnostic_start_failed = true;
+            }
         }
     }
     fn effect(&mut self, effect: ImportEffect, events: &mut VecDeque<ImportEvent>) {
@@ -485,7 +664,7 @@ impl ImportRuntime {
             }
             _ => None,
         };
-        let result = match effect {
+        let mut result = match effect {
             ImportEffect::StartLive(request) => {
                 if self.publication_gate.is_cancelled() {
                     Ok(())
@@ -696,12 +875,27 @@ impl ImportRuntime {
                 generation,
                 last_sequence,
             } => self.publish(job_id, generation, last_sequence, events),
+            ImportEffect::FinishLiveOnCpu { job_id, generation } => {
+                match self.finish_live_on_cpu(job_id, generation) {
+                    Ok(event) => {
+                        events.push_back(event);
+                        Ok(())
+                    }
+                    Err(error) => Err(error),
+                }
+            }
             ImportEffect::Stop { job_id, generation } => {
+                if let Some(progress) = self.progress.as_mut() {
+                    let now = std::time::Instant::now();
+                    progress.close(ProgressPhase::Capturing);
+                    progress.open(ProgressPhase::Draining, now);
+                    progress.open(ProgressPhase::Cancelling, now);
+                }
                 let live = self.live.as_ref().is_some_and(|live| {
                     (live.request.job_id, live.request.generation) == (job_id, generation)
                 });
                 self.stop(job_id, generation, events).map(|()| {
-                    if live {
+                    if live && self.live.is_some() {
                         events.push_back(ImportEvent::LiveFinalizing { job_id, generation });
                     }
                 })
@@ -709,6 +903,14 @@ impl ImportRuntime {
         };
         if persisted_live_segment.is_some() {
             self.live_pending_persistence = self.live_pending_persistence.saturating_sub(1);
+            if self.live_pending_persistence == 0
+                && let Some(window) = self.deferred_live_window_finished.take()
+            {
+                match self.confirm_live_window(window) {
+                    Ok(event) => events.push_back(event),
+                    Err(failure) => result = Err(failure),
+                }
+            }
         }
         if let Err((job, generation, message)) = result {
             let mut deferred_live_failure = false;
@@ -744,15 +946,23 @@ impl ImportRuntime {
                 "Busy: another live/import session is active".into(),
             ));
         }
-        if request.config.compute != whisper_core::ComputeChoice::Cpu {
-            return Err((
-                id.0,
-                id.1,
-                "BackendUnavailable: L03 live worker is CPU-only".into(),
-            ));
-        }
+        let selection = self
+            .workers
+            .select(request.config.compute)
+            .map_err(|error| {
+                (
+                    id.0,
+                    id.1,
+                    format!("BackendUnavailable: compute policy rejected request ({error:?})"),
+                )
+            })?;
+        self.start_diagnostics(Path::new(&request.destination));
+        self.diagnostic_degraded_reported = false;
+        self.progress = Some(ProgressSupervisor::starting(std::time::Instant::now()));
         self.live_pending_persistence = 0;
+        self.pending_attempt_reset = None;
         self.deferred_live_stopped = None;
+        self.deferred_live_window_finished = None;
         let directory = PathBuf::from(&request.destination)
             .join("transcriptions")
             .join(format!("{:032x}", request.job_id.0))
@@ -761,40 +971,49 @@ impl ImportRuntime {
             .map_err(|e| (id.0, id.1, format!("StorageUnavailable: {e}")))?;
         let live_archive = LiveArchive::prepare(&request.destination, request.clone())
             .map_err(|e| (id.0, id.1, e))?;
+        let mut live_archive = live_archive;
+        let attempt_number = live_archive
+            .reserve_attempt()
+            .map_err(|error| (id.0, id.1, error))?;
         let staging =
             PcmStaging::create(directory.join(format!("passage-{}.pcm", request.generation.get())))
                 .map_err(|e| (id.0, id.1, format!("StorageUnavailable: PCM staging: {e}")))?
                 .into_writer();
-        let instance_id = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
-        if instance_id == 0 {
-            return Err((
-                id.0,
-                id.1,
-                "WorkerExited: instance identity exhausted".into(),
-            ));
-        }
-        let mut transport = ChildWorkerTransport::spawn(&self.worker_path)
-            .map_err(|e| (id.0, id.1, format!("WorkerExited: {e:?}")))?;
-        transport
-            .request(WorkerCommand::StartLiveWorker {
-                job_id: id.0,
-                generation: id.1,
-                instance_id,
-                model_path: request.model_path.clone(),
-                model_sha256: request.model_sha256,
-                config: request.config.clone(),
-            })
-            .map_err(|e| (id.0, id.1, format!("ProtocolMismatch: {e:?}")))?;
+        let (transport, instance_id) = spawn_live_attempt(&request, &selection)?;
+        live_archive
+            .mark_attempt_started(attempt_number)
+            .map_err(|error| (id.0, id.1, error))?;
         self.active = Some(ImportRequestState {
             job_id: id.0,
             generation: id.1,
             instance_id,
+            backend: match selection.backend {
+                whisper_core::BackendAttempt::Cpu => BackendKind::Cpu,
+                whisper_core::BackendAttempt::Gpu => BackendKind::Cuda,
+            },
+            attempt_number,
+            import_request: None,
+            recovery: LiveRecoveryState::None,
         });
+        if let Some(diagnostics) = &self.diagnostics {
+            diagnostics.record(DiagnosticRecord::new(
+                id.0.0,
+                id.1.get(),
+                DiagnosticPhase::Preparing,
+                DiagnosticCode::WorkerStarted,
+                Some(match selection.backend {
+                    whisper_core::BackendAttempt::Cpu => "cpu",
+                    whisper_core::BackendAttempt::Gpu => "cuda",
+                }),
+                None,
+            ));
+        }
         self.transport = Some(transport);
         self.pending_live = Some(PendingLiveState {
             request,
             staging,
             live_archive,
+            recovery: LiveRecoveryState::None,
         });
         Ok(())
     }
@@ -829,6 +1048,15 @@ impl ImportRuntime {
             inference_cursor: 0,
             inference_sequence: 1,
             pending_window: None,
+            replay_until: 0,
+            replay_windows_queued: 0,
+            replay_windows_to_skip: 0,
+            segment_sequence_base: 1,
+            window_sequence_base: 1,
+            recovery: LiveRecoveryState::None,
+            barrier_m: None,
+            inference_admission_closed: false,
+            worker_ready: true,
             stop_requested: false,
             stop_enqueued: false,
             started_at_unix_ms: unix_time_ms(),
@@ -868,6 +1096,14 @@ impl ImportRuntime {
         &mut self,
         request: whisper_core::ports::ImportRequest,
     ) -> Result<(), (JobId, Generation, String)> {
+        self.start_worker_with_cpu_override(request, false)
+    }
+
+    fn start_worker_with_cpu_override(
+        &mut self,
+        request: whisper_core::ports::ImportRequest,
+        force_cpu: bool,
+    ) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
         if self.publication_gate.is_cancelled() {
             return Err((
@@ -887,7 +1123,32 @@ impl ImportRuntime {
             "InvalidInput: prepared WAV duration is missing".into(),
         ))?;
         let model_sha256 = request.model_sha256;
-        let mut transport = ChildWorkerTransport::spawn(&self.worker_path)
+        self.start_diagnostics(Path::new(&request.destination));
+        self.diagnostic_degraded_reported = false;
+        self.progress = Some(ProgressSupervisor::starting(std::time::Instant::now()));
+        let selection = self
+            .workers
+            .select(if force_cpu {
+                whisper_core::ComputeChoice::Cpu
+            } else {
+                request.config.compute
+            })
+            .map_err(|error| {
+                (
+                    id.0,
+                    id.1,
+                    format!("BackendUnavailable: compute policy rejected request ({error:?})"),
+                )
+            })?;
+        let expected_backend = match selection.backend {
+            whisper_core::BackendAttempt::Cpu => BackendKind::Cpu,
+            whisper_core::BackendAttempt::Gpu => BackendKind::Cuda,
+        };
+        let mut worker_config = request.config.clone();
+        if expected_backend == BackendKind::Cpu {
+            worker_config.compute = whisper_core::ComputeChoice::Cpu;
+        }
+        let mut transport = ChildWorkerTransport::spawn(&selection.path)
             .map_err(|e| (id.0, id.1, format!("WorkerExited: {e:?}")))?;
         let instance_id = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
         if instance_id == 0 {
@@ -897,6 +1158,7 @@ impl ImportRuntime {
                 "WorkerExited: instance identity exhausted".into(),
             ));
         }
+        let retry_request = request.clone();
         transport
             .request(WorkerCommand::StartImport {
                 job_id: id.0,
@@ -907,16 +1169,402 @@ impl ImportRuntime {
                 expected_source_samples,
                 model_path: request.model_path,
                 model_sha256,
-                config: request.config,
+                config: worker_config,
             })
             .map_err(|e| (id.0, id.1, format!("ProtocolMismatch: {e:?}")))?;
         self.active = Some(ImportRequestState {
             job_id: id.0,
             generation: id.1,
             instance_id,
+            backend: expected_backend,
+            attempt_number: 0,
+            import_request: Some(retry_request),
+            recovery: LiveRecoveryState::None,
         });
+        if let Some(diagnostics) = &self.diagnostics {
+            diagnostics.record(DiagnosticRecord::new(
+                id.0.0,
+                id.1.get(),
+                DiagnosticPhase::Preparing,
+                DiagnosticCode::WorkerStarted,
+                Some(match expected_backend {
+                    BackendKind::Cpu => "cpu",
+                    BackendKind::Cuda => "cuda",
+                }),
+                None,
+            ));
+        }
         self.transport = Some(transport);
         Ok(())
+    }
+
+    fn start_cpu_live_attempt(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+    ) -> Result<ImportEvent, (JobId, Generation, String)> {
+        if self.publication_gate.is_cancelled() {
+            return Err((
+                job_id,
+                generation,
+                "Cancelled: CPU retry suppressed by latched Stop/Quit".into(),
+            ));
+        }
+        let request = self
+            .live
+            .as_ref()
+            .filter(|live| (live.request.job_id, live.request.generation) == (job_id, generation))
+            .map(|live| live.request.clone())
+            .ok_or((
+                job_id,
+                generation,
+                "StaleResponse: live passage is unavailable".into(),
+            ))?;
+        let selection = self
+            .workers
+            .select(whisper_core::ComputeChoice::Cpu)
+            .map_err(|error| {
+                (
+                    job_id,
+                    generation,
+                    format!("BackendUnavailable: CPU fallback unavailable ({error:?})"),
+                )
+            })?;
+        let (confirmed_samples, next_segment_sequence, next_window_sequence, attempt_number) = {
+            let archive = self.live_archive.as_mut().ok_or((
+                job_id,
+                generation,
+                "StorageUnavailable: live archive is missing".into(),
+            ))?;
+            archive
+                .discard_unconfirmed_segments()
+                .and_then(|()| archive.restart_mp3_attempt())
+                .map_err(|error| (job_id, generation, error))?;
+            let confirmed_samples = archive.confirmed_samples();
+            let next_segment_sequence = archive.next_segment_sequence();
+            let next_window_sequence = archive.next_window_sequence();
+            let attempt_number = archive
+                .reserve_attempt()
+                .map_err(|error| (job_id, generation, error))?;
+            (
+                confirmed_samples,
+                next_segment_sequence,
+                next_window_sequence,
+                attempt_number,
+            )
+        };
+        let (transport, instance_id) = match spawn_live_attempt(&request, &selection) {
+            Ok(spawned) => spawned,
+            Err(error) => {
+                if let Some(live) = self.live.as_mut() {
+                    live.capture.stop();
+                    let _ = live.staging.drain();
+                }
+                self.live = None;
+                self.live_archive = None;
+                self.active = None;
+                self.transport = None;
+                return Err(error);
+            }
+        };
+        self.live_archive
+            .as_mut()
+            .ok_or((
+                job_id,
+                generation,
+                "StorageUnavailable: live archive disappeared after CPU spawn".into(),
+            ))?
+            .mark_attempt_started(attempt_number)
+            .map_err(|error| (job_id, generation, error))?;
+        self.active = Some(ImportRequestState {
+            job_id,
+            generation,
+            instance_id,
+            backend: BackendKind::Cpu,
+            attempt_number,
+            import_request: None,
+            recovery: LiveRecoveryState::None,
+        });
+        self.transport = Some(transport);
+        let live = self.live.as_mut().ok_or((
+            job_id,
+            generation,
+            "StorageUnavailable: live capture state disappeared".into(),
+        ))?;
+        live.replay_until = confirmed_samples;
+        live.replay_windows_queued = 0;
+        live.replay_windows_to_skip = next_window_sequence.saturating_sub(1);
+        live.segment_sequence_base = next_segment_sequence;
+        live.window_sequence_base = next_window_sequence;
+        live.pending_window = None;
+        live.inference_cursor = 0;
+        live.inference_sequence = 1;
+        live.inference_admission_closed = false;
+        live.worker_ready = false;
+        live.stop_enqueued = false;
+        live.recovery = LiveRecoveryState::None;
+        live.barrier_m = None;
+        if let Some(diagnostics) = &self.diagnostics {
+            diagnostics.record(DiagnosticRecord::new(
+                job_id.0,
+                generation.get(),
+                DiagnosticPhase::Preparing,
+                DiagnosticCode::WorkerStarted,
+                Some("cpu"),
+                None,
+            ));
+        }
+        self.pending_attempt_reset = Some(ImportEvent::LiveAttemptReset {
+            job_id,
+            generation,
+            confirmed_samples,
+            next_segment_sequence,
+        });
+        Ok(ImportEvent::LiveAttemptStarting { job_id, generation })
+    }
+
+    fn start_cpu_pending_live_attempt(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+    ) -> Result<ImportEvent, (JobId, Generation, String)> {
+        if self.publication_gate.is_cancelled() {
+            return Err((
+                job_id,
+                generation,
+                "Cancelled: CPU retry suppressed by latched Stop/Quit".into(),
+            ));
+        }
+        let (request, attempt_number) = {
+            let pending = self
+                .pending_live
+                .as_mut()
+                .filter(|pending| {
+                    (pending.request.job_id, pending.request.generation) == (job_id, generation)
+                })
+                .ok_or((
+                    job_id,
+                    generation,
+                    "StaleResponse: pending live passage is unavailable".into(),
+                ))?;
+            pending
+                .live_archive
+                .restart_mp3_attempt()
+                .map_err(|error| (job_id, generation, error))?;
+            (
+                pending.request.clone(),
+                pending
+                    .live_archive
+                    .reserve_attempt()
+                    .map_err(|error| (job_id, generation, error))?,
+            )
+        };
+        let selection = self
+            .workers
+            .select(whisper_core::ComputeChoice::Cpu)
+            .map_err(|error| {
+                (
+                    job_id,
+                    generation,
+                    format!("BackendUnavailable: CPU fallback unavailable ({error:?})"),
+                )
+            })?;
+        let (transport, instance_id) = spawn_live_attempt(&request, &selection)?;
+        self.pending_live
+            .as_mut()
+            .ok_or((
+                job_id,
+                generation,
+                "StaleResponse: pending live passage is unavailable".into(),
+            ))?
+            .live_archive
+            .mark_attempt_started(attempt_number)
+            .map_err(|error| (job_id, generation, error))?;
+        self.active = Some(ImportRequestState {
+            job_id,
+            generation,
+            instance_id,
+            backend: BackendKind::Cpu,
+            attempt_number,
+            import_request: None,
+            recovery: LiveRecoveryState::None,
+        });
+        self.transport = Some(transport);
+        if let Some(pending) = self.pending_live.as_mut() {
+            pending.recovery = LiveRecoveryState::None;
+        }
+        Ok(ImportEvent::LiveAttemptStarting { job_id, generation })
+    }
+
+    fn finish_live_on_cpu(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+    ) -> Result<ImportEvent, (JobId, Generation, String)> {
+        if self.pending_live.as_ref().is_some_and(|pending| {
+            (pending.request.job_id, pending.request.generation) == (job_id, generation)
+                && pending.recovery == LiveRecoveryState::AwaitingChoice
+        }) {
+            return self.start_cpu_pending_live_attempt(job_id, generation);
+        }
+        if !self.live.as_ref().is_some_and(|live| {
+            (live.request.job_id, live.request.generation) == (job_id, generation)
+                && live.recovery == LiveRecoveryState::AwaitingChoice
+        }) {
+            return Err((
+                job_id,
+                generation,
+                "InvalidInput: CPU finish requires a pending user choice".into(),
+            ));
+        }
+        self.start_cpu_live_attempt(job_id, generation)
+    }
+
+    fn handle_worker_failure(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        code: whisper_core::ipc::WorkerErrorCode,
+        message: String,
+    ) -> Result<ImportEvent, (JobId, Generation, String)> {
+        if self.live.is_none()
+            && let Some(pending) = self.pending_live.as_mut().filter(|pending| {
+                (pending.request.job_id, pending.request.generation) == (job_id, generation)
+            })
+        {
+            let backend = self.active.as_ref().map(|active| active.backend);
+            let retryable = matches!(
+                code,
+                whisper_core::ipc::WorkerErrorCode::BackendUnavailable
+                    | whisper_core::ipc::WorkerErrorCode::WorkerExited
+                    | whisper_core::ipc::WorkerErrorCode::InferenceFailed
+            );
+            let decision = if retryable && backend == Some(BackendKind::Cuda) {
+                whisper_core::ComputePolicy::after_failure(
+                    pending.request.config.compute,
+                    whisper_core::BackendAttempt::Gpu,
+                )
+            } else {
+                whisper_core::BackendDecision::Fail
+            };
+            match decision {
+                whisper_core::BackendDecision::RetryCpu => {
+                    pending.recovery = LiveRecoveryState::AutoRetryPending
+                }
+                whisper_core::BackendDecision::AwaitUserChoice => {
+                    pending.recovery = LiveRecoveryState::AwaitingChoicePending
+                }
+                _ => return Err((job_id, generation, message)),
+            }
+            if let Some(transport) = self.transport.as_mut() {
+                let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
+            }
+            return Ok(match decision {
+                whisper_core::BackendDecision::RetryCpu => {
+                    ImportEvent::LiveRetryingOnCpu { job_id, generation }
+                }
+                _ => ImportEvent::LiveFinalizing { job_id, generation },
+            });
+        }
+        if self.live.is_none()
+            && let Some(active) = self.active.as_mut().filter(|active| {
+                active.job_id == job_id
+                    && active.generation == generation
+                    && active.import_request.is_some()
+            })
+        {
+            let retryable = matches!(
+                code,
+                whisper_core::ipc::WorkerErrorCode::BackendUnavailable
+                    | whisper_core::ipc::WorkerErrorCode::WorkerExited
+                    | whisper_core::ipc::WorkerErrorCode::InferenceFailed
+            );
+            let decision = if retryable && active.backend == BackendKind::Cuda {
+                whisper_core::ComputePolicy::after_failure(
+                    active
+                        .import_request
+                        .as_ref()
+                        .expect("checked above")
+                        .config
+                        .compute,
+                    whisper_core::BackendAttempt::Gpu,
+                )
+            } else {
+                whisper_core::BackendDecision::Fail
+            };
+            if decision == whisper_core::BackendDecision::RetryCpu {
+                active.recovery = LiveRecoveryState::AutoRetryPending;
+                if let Some(transport) = self.transport.as_mut() {
+                    let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
+                }
+                return Ok(ImportEvent::LiveAttemptStarting { job_id, generation });
+            }
+        }
+        if let Some(live) = self.live.as_mut() {
+            let backend = self.active.as_ref().map(|active| active.backend);
+            let choice = live.request.config.compute;
+            let retryable = matches!(
+                code,
+                whisper_core::ipc::WorkerErrorCode::BackendUnavailable
+                    | whisper_core::ipc::WorkerErrorCode::WorkerExited
+                    | whisper_core::ipc::WorkerErrorCode::InferenceFailed
+            );
+            let decision = if retryable && backend == Some(BackendKind::Cuda) {
+                whisper_core::ComputePolicy::after_failure(
+                    choice,
+                    whisper_core::BackendAttempt::Gpu,
+                )
+            } else {
+                whisper_core::BackendDecision::Fail
+            };
+            match decision {
+                whisper_core::BackendDecision::RetryCpu => {
+                    live.recovery = LiveRecoveryState::AutoRetryPending;
+                    live.inference_admission_closed = true;
+                    live.pending_window = None;
+                    live.barrier_m = Some(live.inference_sequence.saturating_sub(1));
+                }
+                whisper_core::BackendDecision::AwaitUserChoice => {
+                    live.recovery = LiveRecoveryState::AwaitingChoicePending;
+                    live.inference_admission_closed = true;
+                    live.pending_window = None;
+                    live.barrier_m = Some(live.inference_sequence.saturating_sub(1));
+                    live.capture.stop();
+                }
+                whisper_core::BackendDecision::Fail => {
+                    live.capture.stop();
+                    let _ = live.staging.drain();
+                    live.failure = Some(message.clone());
+                }
+                whisper_core::BackendDecision::Start(_) => {
+                    live.capture.stop();
+                    let _ = live.staging.drain();
+                    live.failure = Some(message.clone());
+                }
+            }
+            if decision == whisper_core::BackendDecision::AwaitUserChoice {
+                let mut ignored_events = VecDeque::new();
+                self.stop(job_id, generation, &mut ignored_events)?;
+            }
+            if let Some(transport) = self.transport.as_mut() {
+                let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
+            }
+            return match decision {
+                whisper_core::BackendDecision::RetryCpu => {
+                    Ok(ImportEvent::LiveRetryingOnCpu { job_id, generation })
+                }
+                whisper_core::BackendDecision::AwaitUserChoice => {
+                    Ok(ImportEvent::LiveFinalizing { job_id, generation })
+                }
+                whisper_core::BackendDecision::Fail => Err((job_id, generation, message)),
+                whisper_core::BackendDecision::Start(_) => Err((job_id, generation, message)),
+            };
+        }
+        self.pending_live = None;
+        self.live_archive = None;
+        self.transport = None;
+        self.active = None;
+        Err((job_id, generation, message))
     }
     fn persist_segment(
         &mut self,
@@ -942,6 +1590,13 @@ impl ImportRuntime {
             if let Some(live) = self.live.as_mut() {
                 live.confirmed_fragment_end = confirmed;
             }
+            if let Some(progress) = self.progress.as_mut() {
+                progress.observe(
+                    ProgressPhase::Draining,
+                    confirmed,
+                    std::time::Instant::now(),
+                );
+            }
             events.push_back(ImportEvent::Persisted {
                 job_id: id.0,
                 generation: id.1,
@@ -953,6 +1608,9 @@ impl ImportRuntime {
             .archive
             .persist_segment(&segment)
             .map_err(|e| (id.0, id.1, e))?;
+        if let Some(progress) = self.progress.as_mut() {
+            progress.observe(ProgressPhase::Draining, sequence, std::time::Instant::now());
+        }
         events.push_back(ImportEvent::Persisted {
             job_id: id.0,
             generation: id.1,
@@ -960,6 +1618,51 @@ impl ImportRuntime {
         });
         Ok(())
     }
+
+    fn confirm_live_window(
+        &mut self,
+        window: FinishedLiveWindow,
+    ) -> Result<ImportEvent, (JobId, Generation, String)> {
+        let active = self.active.as_ref().ok_or((
+            JobId(0),
+            Generation::first(),
+            "StaleResponse: finished window has no active worker".into(),
+        ))?;
+        let id = (active.job_id, active.generation);
+        let durable = self
+            .live
+            .as_ref()
+            .map_or(0, |live| live.staging.durable_samples());
+        let confirmed_samples = self
+            .live_archive
+            .as_mut()
+            .ok_or((
+                id.0,
+                id.1,
+                "StorageUnavailable: live archive is missing".into(),
+            ))?
+            .persist_window_finished(
+                window.sequence,
+                window.range,
+                window.last_segment_sequence,
+                durable,
+            )
+            .map_err(|error| (id.0, id.1, error))?;
+        if let Some(progress) = self.progress.as_mut() {
+            progress.observe(
+                ProgressPhase::Draining,
+                confirmed_samples,
+                std::time::Instant::now(),
+            );
+        }
+        Ok(ImportEvent::WindowFinished {
+            job_id: id.0,
+            generation: id.1,
+            window_sequence: window.sequence,
+            confirmed_samples,
+        })
+    }
+
     fn publish(
         &mut self,
         job: JobId,
@@ -967,6 +1670,10 @@ impl ImportRuntime {
         count: u64,
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
+        if let Some(progress) = self.progress.as_mut() {
+            progress.close(ProgressPhase::Draining);
+            progress.close(ProgressPhase::Finalizing);
+        }
         self.archive
             .prepare_publish(job, generation, count)
             .map_err(|e| (job, generation, e))?;
@@ -1014,6 +1721,16 @@ impl ImportRuntime {
                     generation,
                     "StaleResponse: live Stop targets another passage".into(),
                 ));
+            }
+            if live.recovery == LiveRecoveryState::AwaitingChoice && self.active.is_none() {
+                self.live = None;
+                self.live_archive = None;
+                self.transport = None;
+                events.push_back(ImportEvent::Stopped {
+                    job_id: job,
+                    generation,
+                });
+                return Ok(());
             }
             live.capture.stop();
             if live.failure.is_none() {
@@ -1232,10 +1949,18 @@ impl ImportRuntime {
         let (Some(live), Some(transport)) = (self.live.as_mut(), self.transport.as_ref()) else {
             return;
         };
+        if live.inference_admission_closed || !live.worker_ready {
+            return;
+        }
         let durable_samples = live.staging.durable_samples();
         if live.pending_window.is_none() {
             let available = durable_samples.saturating_sub(live.inference_cursor);
-            let sample_count = if available >= 80_000 {
+            let replay_remaining = live.replay_until.saturating_sub(live.inference_cursor);
+            let sample_count = if available == 0 {
+                0
+            } else if replay_remaining > 0 {
+                available.min(80_000).min(replay_remaining) as usize
+            } else if available >= 80_000 {
                 80_000
             } else if live.stop_requested {
                 available as usize
@@ -1271,28 +1996,49 @@ impl ImportRuntime {
                 live.capture.stop();
                 return;
             };
-            let command = WorkerCommand::LiveWindow {
-                job_id: active.job_id,
-                generation: active.generation,
-                instance_id: active.instance_id,
-                sequence,
-                range,
-                samples,
+            let replay = start < live.replay_until;
+            let command = if replay {
+                WorkerCommand::LiveReplayWindow {
+                    job_id: active.job_id,
+                    generation: active.generation,
+                    instance_id: active.instance_id,
+                    sequence,
+                    range,
+                    samples,
+                }
+            } else {
+                WorkerCommand::LiveWindow {
+                    job_id: active.job_id,
+                    generation: active.generation,
+                    instance_id: active.instance_id,
+                    sequence,
+                    range,
+                    samples,
+                }
             };
             match transport.try_request(command) {
                 Ok(()) => {
                     live.inference_cursor = end;
                     live.inference_sequence = live.inference_sequence.saturating_add(1);
+                    if replay {
+                        live.replay_windows_queued = live.replay_windows_queued.saturating_add(1);
+                    }
                 }
                 Err(EnqueueError::Full(command)) => {
-                    let WorkerCommand::LiveWindow {
-                        sequence,
-                        range,
-                        samples,
-                        ..
-                    } = *command
-                    else {
-                        unreachable!("only live windows are queued here")
+                    let (sequence, range, samples) = match *command {
+                        WorkerCommand::LiveWindow {
+                            sequence,
+                            range,
+                            samples,
+                            ..
+                        }
+                        | WorkerCommand::LiveReplayWindow {
+                            sequence,
+                            range,
+                            samples,
+                            ..
+                        } => (sequence, range, samples),
+                        _ => unreachable!("only live windows are queued here"),
                     };
                     live.pending_window =
                         Some((sequence, range.start_sample, range.end_sample, samples));
@@ -1328,10 +2074,93 @@ impl ImportRuntime {
     }
 
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+        if self.live.as_ref().is_some_and(|live| live.worker_ready)
+            && let Some(event) = self.pending_attempt_reset.take()
+        {
+            return Some(Ok(event));
+        }
+        if let Some(progress) = self.progress.as_mut()
+            && let Some((phase, idle_ms)) = progress.take_warning(std::time::Instant::now())
+            && let Some(active) = self.active.as_ref()
+        {
+            if let Some(diagnostics) = &self.diagnostics {
+                diagnostics.record(DiagnosticRecord::new(
+                    active.job_id.0,
+                    active.generation.get(),
+                    phase.into(),
+                    DiagnosticCode::ProgressWarning,
+                    Some(match active.backend {
+                        BackendKind::Cpu => "cpu",
+                        BackendKind::Cuda => "cuda",
+                    }),
+                    None,
+                ));
+            }
+            return Some(Ok(ImportEvent::Diagnostic {
+                job_id: active.job_id,
+                generation: active.generation,
+                notice: DiagnosticNotice::ProgressStalled {
+                    phase: phase.into(),
+                    idle_ms,
+                },
+            }));
+        }
+        let diagnostics_degraded = self.diagnostic_start_failed
+            || self
+                .diagnostics
+                .as_ref()
+                .is_some_and(DiagnosticSink::is_degraded);
+        if !self.diagnostic_degraded_reported
+            && diagnostics_degraded
+            && let Some(active) = self.active.as_ref()
+        {
+            self.diagnostic_degraded_reported = true;
+            if let Some(diagnostics) = self.diagnostics.as_ref() {
+                diagnostics.record(DiagnosticRecord::new(
+                    active.job_id.0,
+                    active.generation.get(),
+                    DiagnosticPhase::Finalizing,
+                    DiagnosticCode::LogDegraded,
+                    Some(match active.backend {
+                        BackendKind::Cpu => "cpu",
+                        BackendKind::Cuda => "cuda",
+                    }),
+                    None,
+                ));
+            }
+            return Some(Ok(ImportEvent::Diagnostic {
+                job_id: active.job_id,
+                generation: active.generation,
+                notice: DiagnosticNotice::LoggingUnavailable,
+            }));
+        }
         if let Some(event) = self.poll_live_capture() {
+            if let Ok(ImportEvent::LiveCounters {
+                captured_samples,
+                audio_durable_samples,
+                ..
+            }) = event.as_ref()
+                && let Some(progress) = self.progress.as_mut()
+            {
+                let now = std::time::Instant::now();
+                progress.observe(ProgressPhase::Capturing, *captured_samples, now);
+                progress.observe(ProgressPhase::Draining, *audio_durable_samples, now);
+            }
             return Some(event);
         }
+        if self.deferred_live_window_finished.is_some() && self.live_pending_persistence > 0 {
+            return None;
+        }
         let event = if self.deferred_live_stopped.is_some() {
+            if self.live_pending_persistence > 0
+                || self
+                    .transport
+                    .as_mut()
+                    .and_then(|transport| transport.try_wait().ok().flatten())
+                    .is_none()
+            {
+                return None;
+            }
             take_ready_live_stop(
                 self.live_pending_persistence,
                 &mut self.deferred_live_stopped,
@@ -1346,9 +2175,35 @@ impl ImportRuntime {
                 }
                 Err(error) => {
                     let active = self.active.as_ref()?;
+                    let (job_id, generation, instance_id) =
+                        (active.job_id, active.generation, active.instance_id);
+                    let recovery_session = self.live.is_some()
+                        || (active.backend == BackendKind::Cuda
+                            && (self.pending_live.is_some()
+                                || active.import_request.as_ref().is_some_and(|request| {
+                                    request.config.compute == whisper_core::ComputeChoice::Auto
+                                })))
+                        || active.recovery != LiveRecoveryState::None
+                        || self
+                            .pending_live
+                            .as_ref()
+                            .is_some_and(|pending| pending.recovery != LiveRecoveryState::None);
+                    if recovery_session {
+                        self.deferred_live_stopped = Some(WorkerEvent::Stopped {
+                            job_id,
+                            generation,
+                            instance_id,
+                        });
+                        return Some(self.handle_worker_failure(
+                            job_id,
+                            generation,
+                            whisper_core::ipc::WorkerErrorCode::WorkerExited,
+                            format!("WorkerExited without End: {error:?}"),
+                        ));
+                    }
                     let failure = Err((
-                        active.job_id,
-                        active.generation,
+                        job_id,
+                        generation,
                         format!("WorkerExited without End: {error:?}"),
                     ));
                     if let Some(live) = self.live.as_mut() {
@@ -1366,6 +2221,117 @@ impl ImportRuntime {
         let active = self.active.as_ref()?;
         let (job_id, generation, instance_id) =
             (active.job_id, active.generation, active.instance_id);
+        if worker_event_identity(&event)
+            .is_some_and(|identity| identity != (job_id, generation, instance_id))
+        {
+            return None;
+        }
+        if matches!(
+            &event,
+            WorkerEvent::Failed { job_id: None, .. }
+                | WorkerEvent::Failed {
+                    generation: None,
+                    ..
+                }
+                | WorkerEvent::Failed {
+                    instance_id: None,
+                    ..
+                }
+        ) {
+            return Some(self.handle_worker_failure(
+                job_id,
+                generation,
+                whisper_core::ipc::WorkerErrorCode::ProtocolMismatch,
+                "ProtocolMismatch: worker failure lacks current attempt identity".into(),
+            ));
+        }
+        if let Some(diagnostics) = &self.diagnostics {
+            let backend = Some(match active.backend {
+                BackendKind::Cpu => "cpu",
+                BackendKind::Cuda => "cuda",
+            });
+            let record = match &event {
+                WorkerEvent::Ready { .. } => Some(DiagnosticRecord::new(
+                    job_id.0,
+                    generation.get(),
+                    DiagnosticPhase::Preparing,
+                    DiagnosticCode::BackendReady,
+                    backend,
+                    None,
+                )),
+                WorkerEvent::Progress {
+                    completed_samples,
+                    total_samples,
+                    ..
+                } => Some(DiagnosticRecord::new(
+                    job_id.0,
+                    generation.get(),
+                    if self.live.is_some() {
+                        DiagnosticPhase::Inference
+                    } else {
+                        DiagnosticPhase::Import
+                    },
+                    DiagnosticCode::Progress,
+                    backend,
+                    Some((*completed_samples, *total_samples)),
+                )),
+                WorkerEvent::Failed { .. } => Some(DiagnosticRecord::new(
+                    job_id.0,
+                    generation.get(),
+                    DiagnosticPhase::Finalizing,
+                    DiagnosticCode::WorkerFailed,
+                    backend,
+                    None,
+                )),
+                WorkerEvent::Stopped { .. } => Some(DiagnosticRecord::new(
+                    job_id.0,
+                    generation.get(),
+                    DiagnosticPhase::Cancelling,
+                    DiagnosticCode::WorkerStopped,
+                    backend,
+                    None,
+                )),
+                _ => None,
+            };
+            if let Some(record) = record {
+                diagnostics.record(record);
+            }
+        }
+        if let Some(progress) = self.progress.as_mut() {
+            match &event {
+                WorkerEvent::Ready { .. } => {
+                    let now = std::time::Instant::now();
+                    progress.close(ProgressPhase::Preparing);
+                    progress.open(ProgressPhase::Inference, now);
+                    if self.live.is_some() || self.pending_live.is_some() {
+                        progress.open(ProgressPhase::Capturing, now);
+                        progress.open(ProgressPhase::Draining, now);
+                    } else {
+                        progress.open(ProgressPhase::Import, now);
+                    }
+                }
+                WorkerEvent::Progress {
+                    completed_samples, ..
+                } => {
+                    let now = std::time::Instant::now();
+                    progress.observe(ProgressPhase::Inference, *completed_samples, now);
+                    progress.observe(ProgressPhase::Import, *completed_samples, now);
+                }
+                WorkerEvent::Segment(dto) => progress.observe(
+                    ProgressPhase::Inference,
+                    dto.segment_id.0,
+                    std::time::Instant::now(),
+                ),
+                WorkerEvent::End { .. } => {
+                    let now = std::time::Instant::now();
+                    progress.close(ProgressPhase::Inference);
+                    progress.close(ProgressPhase::Import);
+                    progress.open(ProgressPhase::Finalizing, now);
+                }
+                WorkerEvent::Stopped { .. } | WorkerEvent::Failed { .. } => progress.close_all(),
+                _ => {}
+            }
+        }
         if matches!(
             &event,
             WorkerEvent::Stopped {
@@ -1374,8 +2340,21 @@ impl ImportRuntime {
                 instance_id: stopped_instance,
             } if (*stopped_job, *stopped_generation, *stopped_instance)
                 == (job_id, generation, instance_id)
-        ) && self.live.is_some()
-            && self.live_pending_persistence > 0
+        ) && (self.live.is_some()
+            || self
+                .pending_live
+                .as_ref()
+                .is_some_and(|pending| pending.recovery != LiveRecoveryState::None)
+            || self
+                .active
+                .as_ref()
+                .is_some_and(|active| active.recovery != LiveRecoveryState::None))
+            && (self.live_pending_persistence > 0
+                || self
+                    .transport
+                    .as_mut()
+                    .and_then(|transport| transport.try_wait().ok().flatten())
+                    .is_none())
         {
             self.deferred_live_stopped = Some(event);
             return None;
@@ -1391,14 +2370,6 @@ impl ImportRuntime {
             if (*packet_job, *packet_generation, *packet_instance)
                 != (job_id, generation, instance_id)
             {
-                if let Some(live) = self.live.as_mut() {
-                    live.capture.stop();
-                    let _ = live.staging.drain();
-                    live.failure = Some("StaleResponse: live MP3 packet identity mismatch".into());
-                }
-                if let Some(transport) = self.transport.as_mut() {
-                    let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
-                }
                 return None;
             }
             if let Some(archive) = self.live_archive.as_mut() {
@@ -1415,6 +2386,131 @@ impl ImportRuntime {
                 }
                 return None;
             }
+        }
+        if let WorkerEvent::WindowFinished {
+            sequence,
+            range,
+            last_segment_sequence,
+            ..
+        } = &event
+        {
+            if self.live.is_none() {
+                return Some(Err((
+                    job_id,
+                    generation,
+                    "ProtocolMismatch: WindowFinished outside a live pass".into(),
+                )));
+            }
+            let Some(live) = self.live.as_ref() else {
+                unreachable!()
+            };
+            // Confirmations wholly inside T were already durable before this attempt.
+            // Replay only rebuilds the MP3 encoder and must not create duplicate coverage.
+            if range.end_sample <= live.replay_until {
+                return None;
+            }
+            let Some(window_sequence) = map_attempt_sequence(
+                live.window_sequence_base,
+                live.replay_windows_to_skip,
+                *sequence,
+            ) else {
+                return Some(Err((
+                    job_id,
+                    generation,
+                    "ProtocolMismatch: live window sequence cannot be mapped to durable prefix"
+                        .into(),
+                )));
+            };
+            let last_segment_sequence = if *last_segment_sequence == 0 {
+                live.segment_sequence_base.checked_sub(1)
+            } else {
+                map_attempt_sequence(live.segment_sequence_base, 0, *last_segment_sequence)
+            };
+            let Some(last_segment_sequence) = last_segment_sequence else {
+                return Some(Err((
+                    job_id,
+                    generation,
+                    "ProtocolMismatch: live segment sequence cannot be mapped to durable prefix"
+                        .into(),
+                )));
+            };
+            let finished = FinishedLiveWindow {
+                sequence: window_sequence,
+                range: *range,
+                last_segment_sequence,
+            };
+            if self.live_pending_persistence > 0 {
+                self.deferred_live_window_finished = Some(finished);
+                return None;
+            }
+            return Some(self.confirm_live_window(finished));
+        }
+        if matches!(event, WorkerEvent::Stopped { .. })
+            && self.live.is_none()
+            && self
+                .pending_live
+                .as_ref()
+                .is_some_and(|pending| pending.recovery != LiveRecoveryState::None)
+        {
+            let recovery = self.pending_live.as_ref().map(|pending| pending.recovery);
+            if let Some(pending) = self.pending_live.as_mut()
+                && let Err(error) = pending.live_archive.retire_attempt(
+                    self.active
+                        .as_ref()
+                        .map_or(0, |active| active.attempt_number),
+                )
+            {
+                self.pending_live = None;
+                self.active = None;
+                self.transport = None;
+                return Some(Err((job_id, generation, error)));
+            }
+            self.active = None;
+            self.transport = None;
+            if self.publication_gate.is_cancelled() {
+                self.pending_live = None;
+                return Some(Ok(ImportEvent::Stopped { job_id, generation }));
+            }
+            if recovery == Some(LiveRecoveryState::AwaitingChoicePending) {
+                if let Some(pending) = self.pending_live.as_mut() {
+                    pending.recovery = LiveRecoveryState::AwaitingChoice;
+                }
+                return Some(Ok(ImportEvent::AwaitingCpuChoice { job_id, generation }));
+            }
+            return Some(
+                match self.start_cpu_pending_live_attempt(job_id, generation) {
+                    Ok(event) => Ok(event),
+                    Err(error) => Err(error),
+                },
+            );
+        }
+        if matches!(event, WorkerEvent::Stopped { .. })
+            && self.live.is_none()
+            && self.active.as_ref().is_some_and(|active| {
+                active.recovery == LiveRecoveryState::AutoRetryPending
+                    && active.import_request.is_some()
+            })
+        {
+            let request = self
+                .active
+                .as_ref()
+                .and_then(|active| active.import_request.clone());
+            self.active = None;
+            self.transport = None;
+            if self.publication_gate.is_cancelled() {
+                return Some(Ok(ImportEvent::Stopped { job_id, generation }));
+            }
+            return Some(
+                match request.map(|request| self.start_worker_with_cpu_override(request, true)) {
+                    Some(Ok(())) => Ok(ImportEvent::LiveAttemptStarting { job_id, generation }),
+                    Some(Err(error)) => Err(error),
+                    None => Err((
+                        job_id,
+                        generation,
+                        "ProtocolMismatch: retry request unavailable".into(),
+                    )),
+                },
+            );
         }
         if matches!(event, WorkerEvent::Stopped { .. }) && self.live.is_some() {
             if let Some(reason) = self.live.as_ref().and_then(|live| live.failure.clone()) {
@@ -1451,6 +2547,76 @@ impl ImportRuntime {
                         live.staging.checksum(),
                     )
                 });
+            let recovery = self.live.as_ref().map(|live| live.recovery);
+            if matches!(
+                recovery,
+                Some(
+                    LiveRecoveryState::AutoRetryPending | LiveRecoveryState::AwaitingChoicePending
+                )
+            ) {
+                let barrier_valid = self.live.as_ref().is_some_and(|live| {
+                    live.barrier_m.is_some_and(|watermark| {
+                        watermark <= live.inference_sequence.saturating_sub(1)
+                    })
+                });
+                let coverage_valid = self
+                    .live_archive
+                    .as_ref()
+                    .is_some_and(|archive| archive.confirmed_samples() <= durable);
+                if !barrier_valid || !coverage_valid {
+                    self.live = None;
+                    self.live_archive = None;
+                    self.transport = None;
+                    self.active = None;
+                    return Some(Err((
+                        job_id,
+                        generation,
+                        "StorageCorrupt: retry barrier did not settle a valid confirmed prefix"
+                            .into(),
+                    )));
+                }
+                let attempt_number = self
+                    .active
+                    .as_ref()
+                    .map_or(0, |active| active.attempt_number);
+                if let Some(archive) = self.live_archive.as_mut()
+                    && let Err(error) = archive.retire_attempt(attempt_number)
+                {
+                    self.live = None;
+                    self.live_archive = None;
+                    self.transport = None;
+                    self.active = None;
+                    return Some(Err((job_id, generation, error)));
+                }
+                self.transport = None;
+                self.active = None;
+                if self.publication_gate.is_cancelled() {
+                    if let Some(live) = self.live.as_mut() {
+                        live.capture.stop();
+                    }
+                    self.live = None;
+                    self.live_archive = None;
+                    return Some(Ok(ImportEvent::Stopped { job_id, generation }));
+                }
+                if recovery == Some(LiveRecoveryState::AwaitingChoicePending) {
+                    if let Some(live) = self.live.as_mut() {
+                        live.recovery = LiveRecoveryState::AwaitingChoice;
+                        live.inference_admission_closed = true;
+                    }
+                    return Some(Ok(ImportEvent::AwaitingCpuChoice { job_id, generation }));
+                }
+                let stop_was_latched = self.live.as_ref().is_some_and(|live| live.stop_requested)
+                    || self.publication_gate.is_cancelled();
+                if stop_was_latched {
+                    if let Some(live) = self.live.as_mut() {
+                        live.capture.stop();
+                    }
+                    self.live = None;
+                    self.live_archive = None;
+                    return Some(Ok(ImportEvent::Stopped { job_id, generation }));
+                }
+                return Some(self.start_cpu_live_attempt(job_id, generation));
+            }
             let publish_result = self
                 .live_archive
                 .as_mut()
@@ -1504,8 +2670,20 @@ impl ImportRuntime {
                 job_id: j,
                 generation: g,
                 instance_id: i,
-                backend: BackendKind::Cpu,
-            } if (j, g, i) == (job_id, generation, instance_id) => {
+                backend,
+            } if (j, g, i) == (job_id, generation, instance_id)
+                && self
+                    .active
+                    .as_ref()
+                    .is_some_and(|active| active.backend == backend) =>
+            {
+                if let Some(live) = self
+                    .live
+                    .as_mut()
+                    .filter(|live| live.request.job_id == j && live.request.generation == g)
+                {
+                    live.worker_ready = true;
+                }
                 if self.pending_live.is_some()
                     && !self.publication_gate.is_cancelled()
                     && let Err(failure) = self.activate_live_after_ready()
@@ -1521,14 +2699,18 @@ impl ImportRuntime {
                     Ok(ImportEvent::Ready {
                         job_id: j,
                         generation: g,
-                        backend: "CPU".into(),
+                        backend: match backend {
+                            BackendKind::Cpu => "CPU",
+                            BackendKind::Cuda => "CUDA",
+                        }
+                        .into(),
                     })
                 }
             }
             WorkerEvent::Ready { .. } => Err((
                 job_id,
                 generation,
-                "BackendMismatch: worker did not attest CPU for this instance".into(),
+                "BackendMismatch: worker attestation differs from the selected backend".into(),
             )),
             WorkerEvent::Progress {
                 job_id: j,
@@ -1546,11 +2728,27 @@ impl ImportRuntime {
                 if (dto.job_id, dto.generation, dto.instance_id)
                     == (job_id, generation, instance_id) =>
             {
+                let sequence_base = self
+                    .live
+                    .as_ref()
+                    .filter(|live| {
+                        live.request.job_id == job_id && live.request.generation == generation
+                    })
+                    .map_or(1, |live| live.segment_sequence_base);
+                let Some(segment_sequence) =
+                    map_attempt_sequence(sequence_base, 0, dto.segment_id.0)
+                else {
+                    return Some(Err((
+                        job_id,
+                        generation,
+                        "ProtocolMismatch: live segment sequence exhausted".into(),
+                    )));
+                };
                 let segment = WorkerSegment {
                     job_id: dto.job_id,
                     generation: dto.generation,
                     instance_id: dto.instance_id,
-                    segment_id: dto.segment_id,
+                    segment_id: whisper_core::SegmentId(segment_sequence),
                     range: dto.range,
                     text: dto.text,
                 };
@@ -1605,30 +2803,15 @@ impl ImportRuntime {
                 generation: Some(g),
                 instance_id: Some(i),
                 message,
-                ..
+                code,
             } if (j, g, i) == (job_id, generation, instance_id) => {
-                if let Some(live) = self.live.as_mut() {
-                    live.capture.stop();
-                    let _ = live.staging.drain();
-                }
-                self.live = None;
-                self.pending_live = None;
-                self.live_archive = None;
-                self.transport = None;
-                self.active = None;
-                Err((j, g, message))
+                self.handle_worker_failure(j, g, code, message)
             }
-            WorkerEvent::Failed { message, .. } => {
-                if let Some(live) = self.live.as_mut() {
-                    live.capture.stop();
-                    let _ = live.staging.drain();
-                }
-                self.live = None;
-                self.live_archive = None;
-                self.transport = None;
-                self.active = None;
-                Err((job_id, generation, message))
-            }
+            WorkerEvent::Failed { .. } => Err((
+                job_id,
+                generation,
+                "ProtocolMismatch: worker failure lacks current attempt identity".into(),
+            )),
             _ => Err((
                 job_id,
                 generation,
@@ -1661,6 +2844,17 @@ pub struct AsyncImportIo {
 
 impl AsyncImportIo {
     pub fn start(worker_path: PathBuf) -> Self {
+        let gpu = worker_path
+            .parent()
+            .map(|parent| parent.join("whisper-worker-gpu.exe"))
+            .unwrap_or_else(|| PathBuf::from("whisper-worker-gpu.exe"));
+        Self::start_with_workers(WorkerPaths {
+            cpu: worker_path,
+            gpu,
+        })
+    }
+
+    pub fn start_with_workers(workers: WorkerPaths) -> Self {
         let (effect_tx, effect_rx) = mpsc::sync_channel(8);
         let (stop_tx, stop_rx) = mpsc::sync_channel(1);
         let (event_tx, event_rx) = mpsc::sync_channel(EVENTS_PER_STAGE);
@@ -1679,7 +2873,7 @@ impl AsyncImportIo {
         thread::spawn({
             let publication_gate = publication_gate.clone();
             move || {
-                let runtime = ImportRuntime::new(worker_path, publication_gate);
+                let runtime = ImportRuntime::new(workers, publication_gate);
                 service_loop(effect_rx, stop_rx, event_tx, runtime)
             }
         });
@@ -1721,7 +2915,10 @@ impl AsyncImportIo {
 
 impl ImportIoPort for AsyncImportIo {
     fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
-        let encoded = serde_json::to_vec(&effect).map_err(|e| PortError::Failed(e.to_string()))?;
+        let encoded = serialize_frame(&effect).map_err(|_| PortError::InvalidInput)?;
+        if encoded.len().saturating_add(1) > MAX_FRAME_BYTES {
+            return Err(PortError::InvalidInput);
+        }
         #[cfg(feature = "l01-memory-qualification")]
         memory_trace(
             "adapter.effect.serialized",
@@ -1732,9 +2929,6 @@ impl ImportIoPort for AsyncImportIo {
                 "frame_limit_bytes": MAX_FRAME_BYTES,
             }),
         );
-        if encoded.len() + 1 > MAX_FRAME_BYTES {
-            return Err(PortError::InvalidInput);
-        }
         if let ImportEffect::Stop { job_id, generation } = &effect {
             if self.active_identity != Some((*job_id, *generation)) {
                 return Err(PortError::StaleResponse);
@@ -1750,6 +2944,11 @@ impl ImportIoPort for AsyncImportIo {
                 }
             }
         } else {
+            if let ImportEffect::FinishLiveOnCpu { job_id, generation } = &effect
+                && self.active_identity != Some((*job_id, *generation))
+            {
+                return Err(PortError::StaleResponse);
+            }
             let active_identity = match &effect {
                 ImportEffect::StartLive(request) => Some((request.job_id, request.generation)),
                 ImportEffect::Prepare(request) | ImportEffect::ProcessQueued(request) => {
@@ -1798,6 +2997,14 @@ impl ServiceRuntime for ImportRuntime {
     }
 }
 
+fn effect_event_reservation(effect: &ImportEffect) -> usize {
+    match effect {
+        ImportEffect::ResumeInterrupted { .. } => 3,
+        ImportEffect::ProcessQueued(_) | ImportEffect::Publish { .. } => 2,
+        _ => 1,
+    }
+}
+
 fn service_loop<R: ServiceRuntime>(
     effect_rx: Receiver<ImportEffect>,
     stop_rx: Receiver<ImportEffect>,
@@ -1818,12 +3025,18 @@ fn service_loop<R: ServiceRuntime>(
         }),
     );
     loop {
-        let effect = if pending.len() < EVENTS_PER_STAGE {
-            deferred_effect.take().or_else(|| effect_rx.try_recv().ok())
+        let stop = if pending.len() < EVENTS_PER_STAGE {
+            stop_rx.try_recv().ok()
         } else {
             None
         };
-        let stop = stop_rx.try_recv().ok();
+        let mut effect = deferred_effect.take().or_else(|| effect_rx.try_recv().ok());
+        if effect.as_ref().is_some_and(|effect| {
+            pending.len() + effect_event_reservation(effect) + usize::from(stop.is_some())
+                > EVENTS_PER_STAGE
+        }) {
+            deferred_effect = effect.take();
+        }
         match (effect, stop) {
             (Some(effect @ ImportEffect::StartLive(_)), Some(stop)) => {
                 runtime.apply_effect(effect, &mut pending);
@@ -1894,11 +3107,465 @@ fn service_loop<R: ServiceRuntime>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::{Digest, Sha256};
     use std::io::Cursor;
     use whisper_core::{
         AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
         JobConfig, JobId, JobState, LanguageChoice,
     };
+
+    fn compile_fake_worker(root: &Path, mode: &str, marker: &Path) -> PathBuf {
+        let source = root.join(format!("{mode}-worker.rs"));
+        let executable = root.join(format!("{mode}-worker.exe"));
+        let marker = marker
+            .to_string_lossy()
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"");
+        let program = r#"
+use std::io::{self, BufRead, Write};
+const MODE: &str = "__MODE__";
+const MARKER: &str = "__MARKER__";
+fn field(line: &str, name: &str) -> String {
+    let token = format!("\"{name}\":");
+    let tail = line.split_once(&token).expect("wire identity field").1.trim_start();
+    tail.chars().take_while(|c| c.is_ascii_digit()).collect()
+}
+fn main() {
+    let stdin = io::stdin();
+    let mut lines = stdin.lock().lines();
+    let start = lines.next().expect("start command").expect("start frame");
+    let job = field(&start, "job_id");
+    let generation = field(&start, "generation");
+    let instance = field(&start, "instance_id");
+    if MODE == "gpu" {
+        println!("{{\"version\":2,\"message\":{{\"Failed\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"code\":\"BackendUnavailable\",\"message\":\"injected GPU pre-Ready failure\"}}}}}}");
+        let _ = io::stdout().flush();
+        return;
+    }
+    if !start.contains("\"compute\":\"Cpu\"") { return; }
+    std::fs::write(MARKER, format!("{job}:{generation}:{instance}")).expect("ready marker");
+    println!("{{\"version\":2,\"message\":{{\"Ready\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"backend\":\"Cpu\"}}}}}}");
+    let _ = io::stdout().flush();
+    if MODE == "cpu" { return; }
+    for command in lines.flatten() {
+        if command.contains("\"Stop\"") {
+            println!("{{\"version\":2,\"message\":{{\"Stopped\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance}}}}}}}");
+            let _ = io::stdout().flush();
+            return;
+        }
+    }
+}
+"#
+            .replace("__MODE__", mode)
+            .replace("__MARKER__", &marker);
+        std::fs::write(&source, program).unwrap();
+        let output = Command::new("rustc")
+            .args(["--edition=2021", "--crate-name", "whisper_test_worker"])
+            .arg(&source)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .expect("rustc test worker");
+        assert!(
+            output.status.success(),
+            "rustc test worker: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        executable
+    }
+
+    fn compile_verified_gpu_init_failure_worker(
+        root: &Path,
+        model_path: &Path,
+        model_bytes: &[u8],
+        model_sha256: [u8; 32],
+    ) -> PathBuf {
+        let source = root.join("gpu-init-failure-worker.rs");
+        let executable = root.join("gpu-init-failure-worker.exe");
+        let model_path = model_path.to_string_lossy();
+        let model_path_json = serde_json::to_string(&*model_path).unwrap();
+        let model_path_json_literal = serde_json::to_string(&model_path_json).unwrap();
+        let model_sha256_json = serde_json::to_string(&model_sha256).unwrap();
+        let model_sha256_json_literal = serde_json::to_string(&model_sha256_json).unwrap();
+        let model_bytes_literal =
+            serde_json::to_string(std::str::from_utf8(model_bytes).unwrap()).unwrap();
+        let program = r#"
+use std::io::{self, BufRead, Write};
+const MODEL_PATH_JSON: &str = __MODEL_PATH_JSON__;
+const MODEL_PATH: &str = __MODEL_PATH__;
+const MODEL_SHA256_JSON: &str = __MODEL_SHA256_JSON__;
+const MODEL_BYTES: &str = __MODEL_BYTES__;
+fn field(line: &str, name: &str) -> String {
+    let token = format!("\"{name}\":");
+    let tail = line.split_once(&token).expect("wire identity field").1.trim_start();
+    tail.chars().take_while(|c| c.is_ascii_digit()).collect()
+}
+fn main() {
+    let stdin = io::stdin();
+    let start = stdin.lock().lines().next().expect("start command").expect("start frame");
+    if !start.contains(&format!("\"model_path\":{MODEL_PATH_JSON}"))
+        || !start.contains(&format!("\"model_sha256\":{MODEL_SHA256_JSON}"))
+        || std::fs::read(MODEL_PATH).ok().as_deref()
+            != Some(MODEL_BYTES.as_bytes())
+    {
+        return;
+    }
+    let job = field(&start, "job_id");
+    let generation = field(&start, "generation");
+    let instance = field(&start, "instance_id");
+    println!("{{\"version\":2,\"message\":{{\"Failed\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"code\":\"BackendUnavailable\",\"message\":\"CUDA initialization failed after model hash verification\"}}}}}}");
+    let _ = io::stdout().flush();
+}
+"#
+        .replace("__MODEL_PATH_JSON__", &model_path_json_literal)
+        .replace("__MODEL_PATH__", &model_path_json)
+        .replace("__MODEL_SHA256_JSON__", &model_sha256_json_literal)
+        .replace("__MODEL_BYTES__", &model_bytes_literal);
+        std::fs::write(&source, program).unwrap();
+        let output = Command::new("rustc")
+            .args(["--edition=2021", "--crate-name", "whisper_gpu_init_failure"])
+            .arg(&source)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .expect("rustc test worker");
+        assert!(
+            output.status.success(),
+            "rustc test worker: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        executable
+    }
+
+    fn poll_until(
+        runtime: &mut ImportRuntime,
+        timeout: Duration,
+        mut predicate: impl FnMut(&Result<ImportEvent, (JobId, Generation, String)>) -> bool,
+    ) -> Result<ImportEvent, (JobId, Generation, String)> {
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            if let Some(event) = runtime.poll()
+                && predicate(&event)
+            {
+                return event;
+            }
+            if std::time::Instant::now() >= deadline {
+                let tail = runtime
+                    .transport
+                    .as_mut()
+                    .map(|transport| (transport.try_wait(), transport.receive()));
+                panic!(
+                    "worker transport timed out; tail={tail:?}; active={:?}",
+                    runtime.active.as_ref().map(|active| (
+                        active.job_id,
+                        active.generation,
+                        active.backend
+                    ))
+                );
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    fn prepared_import(job_id: JobId) -> ImportRequest {
+        let mut request = test_request(job_id, Generation::first());
+        request.source_sha256 = Some([7; 32]);
+        request.source_samples = Some(16_000);
+        request.config.compute = ComputeChoice::Auto;
+        request
+    }
+
+    fn stop_worker(runtime: &mut ImportRuntime, job_id: JobId, generation: Generation) {
+        let mut events = VecDeque::new();
+        runtime.stop(job_id, generation, &mut events).unwrap();
+        let stopped = poll_until(runtime, Duration::from_secs(3), |event| {
+            matches!(event, Ok(ImportEvent::Stopped { .. }) | Err(_))
+        });
+        assert!(matches!(stopped, Ok(ImportEvent::Stopped { .. }) | Err(_)));
+    }
+
+    #[test]
+    fn auto_without_gpu_starts_cpu_with_normalized_compute_and_same_identity() {
+        let root = std::env::temp_dir().join(format!("whisper-auto-no-gpu-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("cpu-ready");
+        let cpu = compile_fake_worker(&root, "cpu", &marker);
+        let gate = Arc::new(PublicationGate::default());
+        gate.activate();
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu,
+                gpu: root.join("missing-gpu.exe"),
+            },
+            gate,
+        );
+        let request = prepared_import(JobId(701));
+        runtime.start_worker(request.clone()).unwrap();
+        let ready = poll_until(&mut runtime, Duration::from_secs(3), |event| {
+            matches!(event, Ok(ImportEvent::Ready { .. }) | Err(_))
+        });
+        assert!(
+            matches!(ready, Ok(ImportEvent::Ready { .. })),
+            "transport event: {ready:?}"
+        );
+        assert!(matches!(
+            ready,
+            Ok(ImportEvent::Ready { job_id, generation, backend })
+                if job_id == request.job_id && generation == request.generation && backend == "CPU"
+        ));
+        let identity = std::fs::read_to_string(&marker).unwrap();
+        assert!(identity.starts_with("701:1:"));
+        stop_worker(&mut runtime, request.job_id, request.generation);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn gpu_import_failed_then_eof_retries_cpu_and_accepts_same_job_ready() {
+        let root =
+            std::env::temp_dir().join(format!("whisper-import-retry-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("cpu-ready");
+        let model_path = root.join("verified-model.bin");
+        let model_bytes = b"verified model fixture";
+        std::fs::write(&model_path, model_bytes).unwrap();
+        let model_sha256: [u8; 32] = Sha256::digest(model_bytes).into();
+        let cpu = compile_fake_worker(&root, "cpu", &marker);
+        let gpu =
+            compile_verified_gpu_init_failure_worker(&root, &model_path, model_bytes, model_sha256);
+        let gate = Arc::new(PublicationGate::default());
+        gate.activate();
+        let mut runtime = ImportRuntime::new(WorkerPaths { cpu, gpu }, gate);
+        let request = prepared_import(JobId(702));
+        let mut request = request;
+        request.model_path = model_path.to_string_lossy().into_owned();
+        request.model_sha256 = model_sha256;
+        runtime.start_worker(request.clone()).unwrap();
+        assert_eq!(runtime.active.as_ref().unwrap().backend, BackendKind::Cuda);
+        let ready = poll_until(&mut runtime, Duration::from_secs(5), |event| {
+            matches!(event, Ok(ImportEvent::Ready { .. }))
+        });
+        assert!(matches!(
+            ready,
+            Ok(ImportEvent::Ready { job_id, generation, backend })
+                if job_id == request.job_id && generation == request.generation && backend == "CPU"
+        ));
+        assert_eq!(runtime.active.as_ref().unwrap().backend, BackendKind::Cpu);
+        assert!(
+            std::fs::read_to_string(&marker)
+                .unwrap()
+                .starts_with("702:1:")
+        );
+        stop_worker(&mut runtime, request.job_id, request.generation);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn gpu_live_failed_then_eof_retries_cpu_and_accepts_ready_before_capture_activation() {
+        let root = std::env::temp_dir().join(format!("whisper-live-retry-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("cpu-ready");
+        let model_path = root.join("verified-model.bin");
+        let model_bytes = b"verified model fixture";
+        std::fs::write(&model_path, model_bytes).unwrap();
+        let model_sha256: [u8; 32] = Sha256::digest(model_bytes).into();
+        let cpu = compile_fake_worker(&root, "cpu", &marker);
+        let gpu =
+            compile_verified_gpu_init_failure_worker(&root, &model_path, model_bytes, model_sha256);
+        let gate = Arc::new(PublicationGate::default());
+        gate.activate();
+        let mut runtime = ImportRuntime::new(WorkerPaths { cpu, gpu }, gate);
+        let request = whisper_core::LiveRequest {
+            job_id: JobId(704),
+            generation: Generation::first(),
+            model_path: model_path.to_string_lossy().into_owned(),
+            model_sha256,
+            destination: root.to_string_lossy().into_owned(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Auto,
+            },
+        };
+        runtime.start_live(request.clone()).unwrap();
+        let observed = poll_until(&mut runtime, Duration::from_secs(5), |event| {
+            matches!(event, Ok(ImportEvent::Ready { backend, .. }) if backend == "CPU")
+                || event.is_err()
+        });
+        assert_eq!(runtime.active.as_ref().unwrap().backend, BackendKind::Cpu);
+        assert!(
+            std::fs::read_to_string(&marker)
+                .unwrap()
+                .starts_with("704:1:")
+        );
+        if let Ok(ImportEvent::Ready {
+            job_id,
+            generation,
+            backend,
+        }) = observed
+        {
+            assert_eq!((job_id, generation), (request.job_id, request.generation));
+            assert_eq!(backend, "CPU");
+        } else if let Err((job_id, generation, message)) = observed {
+            assert_eq!((job_id, generation), (request.job_id, request.generation));
+            assert!(
+                !message.contains("WorkerExited"),
+                "CPU Ready was consumed before capture activation failed: {message}"
+            );
+        } else {
+            panic!("unexpected event while awaiting CPU Ready after GPU EOF");
+        }
+        stop_worker(&mut runtime, request.job_id, request.generation);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn forced_gpu_initialization_failure_waits_for_explicit_cpu_choice() {
+        let root =
+            std::env::temp_dir().join(format!("whisper-forced-gpu-choice-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("cpu-ready");
+        let model_path = root.join("verified-model.bin");
+        let model_bytes = b"verified model fixture";
+        std::fs::write(&model_path, model_bytes).unwrap();
+        let model_sha256: [u8; 32] = Sha256::digest(model_bytes).into();
+        let cpu = compile_fake_worker(&root, "cpu", &marker);
+        let gpu =
+            compile_verified_gpu_init_failure_worker(&root, &model_path, model_bytes, model_sha256);
+        let gate = Arc::new(PublicationGate::default());
+        gate.activate();
+        let mut runtime = ImportRuntime::new(WorkerPaths { cpu, gpu }, gate);
+        let request = whisper_core::LiveRequest {
+            job_id: JobId(705),
+            generation: Generation::first(),
+            model_path: model_path.to_string_lossy().into_owned(),
+            model_sha256,
+            destination: root.to_string_lossy().into_owned(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Gpu,
+            },
+        };
+        runtime.start_live(request.clone()).unwrap();
+        let awaiting_choice = poll_until(&mut runtime, Duration::from_secs(5), |event| {
+            matches!(event, Ok(ImportEvent::AwaitingCpuChoice { .. }) | Err(_))
+        });
+        assert!(matches!(
+            awaiting_choice,
+            Ok(ImportEvent::AwaitingCpuChoice { job_id, generation })
+                if (job_id, generation) == (request.job_id, request.generation)
+        ));
+        assert!(
+            runtime
+                .pending_live
+                .as_ref()
+                .is_some_and(|pending| { pending.recovery == LiveRecoveryState::AwaitingChoice })
+        );
+        assert!(
+            !marker.exists(),
+            "forced GPU must wait for explicit CPU choice"
+        );
+
+        let choice = runtime
+            .finish_live_on_cpu(request.job_id, request.generation)
+            .unwrap();
+        assert!(matches!(
+            choice,
+            ImportEvent::LiveAttemptStarting { job_id, generation }
+                if (job_id, generation) == (request.job_id, request.generation)
+        ));
+        let cpu_ready = poll_until(&mut runtime, Duration::from_secs(5), |event| {
+            matches!(event, Ok(ImportEvent::Ready { backend, .. }) if backend == "CPU")
+                || event.is_err()
+        });
+        assert!(marker.exists(), "CPU starts only after the explicit choice");
+        match cpu_ready {
+            Ok(ImportEvent::Ready {
+                job_id,
+                generation,
+                backend,
+            }) => {
+                assert_eq!((job_id, generation), (request.job_id, request.generation));
+                assert_eq!(backend, "CPU");
+            }
+            Err((job_id, generation, message)) => {
+                assert_eq!((job_id, generation), (request.job_id, request.generation));
+                assert!(
+                    !message.contains("WorkerExited"),
+                    "CPU Ready was consumed before capture activation failed: {message}"
+                );
+            }
+            _ => panic!("unexpected event after explicit CPU choice"),
+        }
+        stop_worker(&mut runtime, request.job_id, request.generation);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn stop_latched_after_gpu_failure_prevents_cpu_worker_launch() {
+        let root =
+            std::env::temp_dir().join(format!("whisper-stop-no-retry-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("cpu-ready");
+        let cpu = compile_fake_worker(&root, "cpu", &marker);
+        let gpu = compile_fake_worker(&root, "gpu", &root.join("gpu-unused"));
+        let gate = Arc::new(PublicationGate::default());
+        gate.activate();
+        let mut runtime = ImportRuntime::new(WorkerPaths { cpu, gpu }, gate.clone());
+        let request = prepared_import(JobId(703));
+        runtime.start_worker(request.clone()).unwrap();
+        let _ = poll_until(&mut runtime, Duration::from_secs(3), |event| {
+            matches!(event, Ok(ImportEvent::LiveAttemptStarting { .. }))
+        });
+        gate.request_stop().unwrap();
+        let stopped = poll_until(&mut runtime, Duration::from_secs(5), |event| {
+            matches!(event, Ok(ImportEvent::Stopped { .. }) | Err(_))
+        });
+        assert!(matches!(stopped, Ok(ImportEvent::Stopped { .. })));
+        assert!(runtime.active.is_none());
+        assert!(!marker.exists(), "CPU retry must not launch after Stop");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn auto_import_gpu_failure_retains_request_until_correlated_stop_for_cpu_retry() {
+        let mut request = test_request(JobId(88), Generation::first());
+        request.config.compute = ComputeChoice::Auto;
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("cpu.exe"),
+                gpu: PathBuf::from("gpu.exe"),
+            },
+            Arc::new(PublicationGate::default()),
+        );
+        runtime.active = Some(ImportRequestState {
+            job_id: request.job_id,
+            generation: request.generation,
+            instance_id: 9,
+            backend: BackendKind::Cuda,
+            attempt_number: 0,
+            import_request: Some(request.clone()),
+            recovery: LiveRecoveryState::None,
+        });
+        let event = runtime
+            .handle_worker_failure(
+                request.job_id,
+                request.generation,
+                whisper_core::ipc::WorkerErrorCode::BackendUnavailable,
+                "GPU unavailable before Ready".into(),
+            )
+            .unwrap();
+        assert!(matches!(event, ImportEvent::LiveAttemptStarting { .. }));
+        let active = runtime.active.as_ref().unwrap();
+        assert_eq!(active.recovery, LiveRecoveryState::AutoRetryPending);
+        assert_eq!(active.import_request.as_ref(), Some(&request));
+        assert!(
+            runtime.transport.is_none(),
+            "retry must wait for correlated Stopped and child exit"
+        );
+    }
 
     #[test]
     fn queued_import_record_accepts_legacy_live_offset_field() {
@@ -1925,6 +3592,63 @@ mod tests {
             serde_json::from_value::<ImportRequest>(legacy).unwrap(),
             request
         );
+    }
+
+    #[test]
+    fn pending_reservation_rejects_three_event_burst_at_twenty_slots() {
+        let burst = ImportEffect::ResumeInterrupted {
+            previous: Box::new(test_request(JobId(1), Generation::first())),
+            request: test_request(JobId(2), Generation::first()),
+        };
+        assert_eq!(effect_event_reservation(&burst), 3);
+        assert!(20 + effect_event_reservation(&burst) > EVENTS_PER_STAGE);
+        assert!(18 + effect_event_reservation(&burst) <= EVENTS_PER_STAGE);
+    }
+
+    #[test]
+    fn stale_mp3_and_failed_events_have_old_attempt_identity() {
+        let old = (JobId(7), Generation::first(), 41);
+        let packet = WorkerEvent::LiveMp3Packet {
+            job_id: old.0,
+            generation: old.1,
+            instance_id: old.2,
+            sequence: 1,
+            bytes: vec![1, 2, 3],
+        };
+        let failed = WorkerEvent::Failed {
+            job_id: Some(old.0),
+            generation: Some(old.1),
+            instance_id: Some(old.2),
+            code: whisper_core::ipc::WorkerErrorCode::InvalidRequest,
+            message: "old attempt failed".into(),
+        };
+        let current = (JobId(7), Generation::first(), 42);
+        assert_ne!(worker_event_identity(&packet), Some(current));
+        assert_ne!(worker_event_identity(&failed), Some(current));
+    }
+
+    #[test]
+    fn failed_worker_message_does_not_hide_later_correlated_stop() {
+        let id = (JobId(8), Generation::first(), 51);
+        let failed = WorkerEvent::Failed {
+            job_id: Some(id.0),
+            generation: Some(id.1),
+            instance_id: Some(id.2),
+            code: whisper_core::ipc::WorkerErrorCode::InvalidRequest,
+            message: "reported failure".into(),
+        };
+        let stopped = WorkerEvent::Stopped {
+            job_id: id.0,
+            generation: id.1,
+            instance_id: id.2,
+        };
+        let mut bytes = Vec::new();
+        write_frame(&mut bytes, &IpcEnvelope::new(failed)).unwrap();
+        write_frame(&mut bytes, &IpcEnvelope::new(stopped.clone())).unwrap();
+        let (tx, rx) = mpsc::sync_channel(2);
+        read_events(Cursor::new(bytes), tx);
+        assert!(matches!(rx.recv().unwrap(), Ok(WorkerEvent::Failed { .. })));
+        assert_eq!(rx.recv().unwrap(), Ok(stopped));
     }
 
     #[test]
@@ -2068,6 +3792,14 @@ mod tests {
         assert_eq!(deferred, Some(stopped.clone()));
         assert_eq!(take_ready_live_stop(0, &mut deferred), Some(stopped));
         assert!(deferred.is_none());
+    }
+
+    #[test]
+    fn replay_windows_map_after_confirmed_prefix_without_duplicate_coverage() {
+        assert_eq!(map_attempt_sequence(4, 3, 4), Some(4));
+        assert_eq!(map_attempt_sequence(4, 3, 5), Some(5));
+        assert_eq!(map_attempt_sequence(4, 3, 3), None);
+        assert_eq!(map_attempt_sequence(u64::MAX, 0, 2), None);
     }
 
     #[test]
@@ -2284,7 +4016,13 @@ mod tests {
         let gate = Arc::new(PublicationGate::default());
         gate.activate();
         gate.request_stop().unwrap();
-        let mut runtime = ImportRuntime::new(PathBuf::from("missing-worker"), gate);
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("missing-cpu-worker"),
+                gpu: PathBuf::from("missing-gpu-worker"),
+            },
+            gate,
+        );
         let mut events = VecDeque::new();
         runtime.effect(
             ImportEffect::StartLive(whisper_core::LiveRequest {
@@ -2523,7 +4261,7 @@ mod tests {
             destination: "x".repeat(low),
         };
         assert_eq!(
-            serde_json::to_vec(&accepted).unwrap().len() + 1,
+            serialize_frame(&accepted).unwrap().len() + 1,
             MAX_FRAME_BYTES
         );
         io.submit(accepted).unwrap();

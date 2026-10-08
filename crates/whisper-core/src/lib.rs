@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod application;
+pub mod compute_policy;
 pub mod domain;
 pub mod ipc;
 pub mod ports;
@@ -9,12 +10,13 @@ pub use application::{
     AppCommand, AppFacade, AppView, Application, ApplicationError, CommandIdentity,
     ImportApplication,
 };
+pub use compute_policy::{BackendAttempt, BackendDecision, ComputePolicy, ComputePolicyError};
 pub use domain::{
     ComputeChoice, Generation, JobConfig, JobId, JobState, LanguageChoice, SegmentId, SourceRange,
     TransitionError,
 };
 pub use ports::{
-    ArchiveHistoryItem, Clock, DecodeRequest, DecodedPcmBlock, DecoderPort, ImportEffect,
-    ImportEvent, ImportIoPort, ImportRequest, JobRepository, LiveRecoveryInfo, LiveRequest,
-    SourceIdentity, WorkerPort,
+    ArchiveHistoryItem, Clock, DecodeRequest, DecodedPcmBlock, DecoderPort, DiagnosticNotice,
+    DiagnosticPhase, ImportEffect, ImportEvent, ImportIoPort, ImportRequest, JobRepository,
+    LiveRecoveryInfo, LiveRequest, SourceIdentity, WorkerPort,
 };

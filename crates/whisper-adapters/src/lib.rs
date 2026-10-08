@@ -5,6 +5,7 @@ pub mod journal;
 pub mod queue_store;
 pub mod recovery;
 pub mod staging;
+pub mod supervisor;
 pub mod vad;
 pub mod worker_ipc;
 

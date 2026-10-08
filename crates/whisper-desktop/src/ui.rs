@@ -19,6 +19,8 @@ pub struct DesktopApp<A> {
     language: String,
     auto_stop_enabled: bool,
     auto_stop_minutes: u64,
+    compute_choice: ComputeChoice,
+    quit_pending: bool,
     active_identity: Option<(JobId, Generation)>,
     scanned_destination: Option<String>,
     observed_job_state: Option<JobState>,
@@ -48,6 +50,8 @@ impl<A: Application> DesktopApp<A> {
             language: "fr".into(),
             auto_stop_enabled: false,
             auto_stop_minutes: 120,
+            compute_choice: ComputeChoice::Auto,
+            quit_pending: false,
             active_identity: None,
             scanned_destination: None,
             observed_job_state: None,
@@ -58,11 +62,20 @@ impl<A: Application> DesktopApp<A> {
         }
     }
 
-    fn dispatch(&mut self, command: AppCommand) {
+    fn dispatch(&mut self, command: AppCommand) -> bool {
         match self.application.dispatch(command) {
-            Ok(view) => self.view = view,
-            Err(ApplicationError::Failed(message)) => self.view.message = Some(message),
-            Err(error) => self.view.message = Some(format!("Commande impossible : {error:?}")),
+            Ok(view) => {
+                self.view = view;
+                true
+            }
+            Err(ApplicationError::Failed(message)) => {
+                self.view.message = Some(message);
+                false
+            }
+            Err(error) => {
+                self.view.message = Some(format!("Commande impossible : {error:?}"));
+                false
+            }
         }
     }
 
@@ -70,6 +83,13 @@ impl<A: Application> DesktopApp<A> {
         if let Some((job_id, generation)) = self.active_identity {
             self.dispatch(AppCommand::Stop { job_id, generation });
         }
+    }
+
+    fn request_quit(&mut self) -> bool {
+        let Some((job_id, generation)) = self.active_identity else {
+            return false;
+        };
+        self.dispatch(AppCommand::Quit { job_id, generation })
     }
 
     fn start_import(&mut self) {
@@ -82,7 +102,7 @@ impl<A: Application> DesktopApp<A> {
             } else {
                 LanguageChoice::Automatic
             },
-            compute: ComputeChoice::Cpu,
+            compute: self.compute_choice,
         };
         self.dispatch(AppCommand::EnqueueImport {
             request: ImportRequest {
@@ -126,7 +146,7 @@ impl<A: Application> DesktopApp<A> {
                 } else {
                     LanguageChoice::Automatic
                 },
-                compute: ComputeChoice::Cpu,
+                compute: self.compute_choice,
             },
         };
         self.active_identity = Some((job_id, generation));
@@ -162,6 +182,14 @@ impl<A: Application> DesktopApp<A> {
 impl<A: Application> eframe::App for DesktopApp<A> {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.dispatch(AppCommand::Refresh);
+        if let (Some((job_id, _)), Some(generation)) =
+            (self.view.active_job, self.view.active_generation)
+            && self
+                .active_identity
+                .is_some_and(|(active_job, _)| active_job == job_id)
+        {
+            self.active_identity = Some((job_id, generation));
+        }
         let state = self.view.active_job.map(|(_, state)| state);
         if state != self.observed_job_state
             && state.is_some_and(|state| {
@@ -174,16 +202,10 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             self.scanned_destination = None;
         }
         self.observed_job_state = state;
-        let busy = self.view.active_job.is_some_and(|(_, state)| {
-            matches!(
-                state,
-                JobState::Preparing
-                    | JobState::Queued
-                    | JobState::Running
-                    | JobState::Cancelling
-                    | JobState::Finalizing
-            )
-        });
+        let busy = self
+            .view
+            .active_job
+            .is_some_and(|(_, state)| window_must_remain_open(state));
         let busy_live = self.view.active_job.is_some_and(|(job_id, state)| {
             self.live_request
                 .as_ref()
@@ -199,16 +221,13 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 )
         });
         let can_enqueue = import_enqueue_enabled(busy, busy_live);
-        if ui.ctx().input(|input| input.viewport().close_requested())
-            && busy
-            && state != Some(JobState::Cancelling)
-        {
+        if ui.ctx().input(|input| input.viewport().close_requested()) && busy {
             ui.ctx()
                 .send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            if self.active_identity.is_some() {
-                self.stop_active();
+            if !self.quit_pending && self.request_quit() {
+                self.quit_pending = true;
                 self.view.message = Some(
-                    "Arrêt demandé ; la fenêtre reste ouverte jusqu’à la stabilisation du passage."
+                    "Fermeture en attente de l’arrêt coopératif et de la stabilisation du worker."
                         .into(),
                 );
             }
@@ -230,9 +249,12 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         }
         if !busy {
             self.active_identity = None;
+            if self.quit_pending {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+            }
         }
         ui.heading("Whisper — transcription locale");
-        ui.label("Import WAV ou MP3 sur le worker CPU avec le modèle D19 approuvé.");
+        ui.label("Import WAV ou MP3 avec le modèle local approuvé.");
 
         ui.add_enabled_ui(can_enqueue, |ui| {
             ui.horizontal(|ui| {
@@ -252,7 +274,30 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 if self.manual_language {
                     ui.text_edit_singleline(&mut self.language);
                 }
-                ui.label("Calcul : CPU");
+                ui.label("Calcul");
+                egui::ComboBox::from_id_salt("compute_choice")
+                    .selected_text(match self.compute_choice {
+                        ComputeChoice::Cpu => "CPU forcé",
+                        ComputeChoice::Auto => "Automatique",
+                        ComputeChoice::Gpu => "GPU forcé",
+                    })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut self.compute_choice,
+                            ComputeChoice::Auto,
+                            "Automatique",
+                        );
+                        ui.selectable_value(
+                            &mut self.compute_choice,
+                            ComputeChoice::Cpu,
+                            "CPU forcé",
+                        );
+                        ui.selectable_value(
+                            &mut self.compute_choice,
+                            ComputeChoice::Gpu,
+                            "GPU forcé",
+                        );
+                    });
             });
             ui.add_enabled_ui(!busy, |ui| {
                 ui.horizontal(|ui| {
@@ -355,11 +400,22 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
             if matches!(
                 state,
-                JobState::Preparing | JobState::Running | JobState::Finalizing
+                JobState::Preparing
+                    | JobState::Running
+                    | JobState::Finalizing
+                    | JobState::AwaitingChoice
             ) && ui.button("Arrêter").clicked()
                 && self.active_identity.is_some()
             {
                 self.stop_active();
+            }
+            if state == JobState::AwaitingChoice
+                && ui.button("Terminer ce passage sur CPU").clicked()
+            {
+                self.dispatch(AppCommand::FinishLiveOnCpu {
+                    job_id,
+                    generation: self.view.active_generation.unwrap_or(Generation::first()),
+                });
             }
         }
         if let Some(message) = &self.view.message {
@@ -388,6 +444,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         | whisper_core::ports::ImportQueueStatus::AwaitingChoice
                 ) && ui.button("Traiter").clicked()
                 {
+                    self.active_identity = Some(identity);
                     self.dispatch(AppCommand::ProcessQueued {
                         request: entry.request.clone(),
                     });
@@ -497,6 +554,20 @@ fn import_enqueue_enabled(busy: bool, busy_live: bool) -> bool {
     !busy || busy_live
 }
 
+fn window_must_remain_open(state: JobState) -> bool {
+    matches!(
+        state,
+        JobState::Preparing
+            | JobState::Queued
+            | JobState::Capturing
+            | JobState::Draining
+            | JobState::Running
+            | JobState::Cancelling
+            | JobState::Finalizing
+            | JobState::AwaitingChoice
+    )
+}
+
 fn unix_time_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -522,7 +593,10 @@ fn record_first_render(
 
 #[cfg(test)]
 mod tests {
-    use super::{DesktopApp, import_enqueue_enabled, record_first_render, speech_limit_samples};
+    use super::{
+        DesktopApp, import_enqueue_enabled, record_first_render, speech_limit_samples,
+        window_must_remain_open,
+    };
     use std::{cell::RefCell, rc::Rc};
     use whisper_core::{AppCommand, AppView, Application, ApplicationError, Generation, JobId};
 
@@ -533,6 +607,22 @@ mod tests {
         fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
             self.0.borrow_mut().push(command);
             Ok(AppView::default())
+        }
+
+        fn view(&self) -> AppView {
+            AppView::default()
+        }
+    }
+
+    struct RejectQuitApplication;
+
+    impl Application for RejectQuitApplication {
+        fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
+            if matches!(command, AppCommand::Quit { .. }) {
+                Err(ApplicationError::Failed("quit admission rejected".into()))
+            } else {
+                Ok(AppView::default())
+            }
         }
 
         fn view(&self) -> AppView {
@@ -552,6 +642,25 @@ mod tests {
         assert!(import_enqueue_enabled(true, true));
         assert!(!import_enqueue_enabled(true, false));
         assert!(import_enqueue_enabled(false, false));
+    }
+
+    #[test]
+    fn window_stays_open_through_capture_and_drain() {
+        assert!(window_must_remain_open(whisper_core::JobState::Capturing));
+        assert!(window_must_remain_open(whisper_core::JobState::Draining));
+        assert!(window_must_remain_open(
+            whisper_core::JobState::AwaitingChoice
+        ));
+        assert!(!window_must_remain_open(whisper_core::JobState::Complete));
+    }
+
+    #[test]
+    fn rejected_quit_admission_does_not_latch_pending_close() {
+        let mut app = DesktopApp::new(RejectQuitApplication);
+        app.active_identity = Some((JobId(22), Generation::first()));
+        assert!(!app.request_quit());
+        assert!(!app.quit_pending);
+        assert_eq!(app.view.message.as_deref(), Some("quit admission rejected"));
     }
 
     #[test]
