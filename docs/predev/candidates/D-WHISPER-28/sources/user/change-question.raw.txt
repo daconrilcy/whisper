@@ -1,0 +1,1 @@
+{"questions":[{"title":"Suite du lot L04","options":["Autoriser un CHANGE ciblé (recommandé)","Conserver la candidate partielle et arrêter"]}]}

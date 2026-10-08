@@ -1,0 +1,670 @@
+{
+  "schema": "rust-predev-execution/1",
+  "lot_id": "L-WHISPER-01",
+  "candidate_digests": {
+    "DESIGN": "903926ba27c70fc3a0cc6954d9e50914a64993e40c339683e557bc4c604d7529",
+    "PLANS": "5759cb207f39fe62fee921321dd90275a67a8d687133cf6fd23afd6ac09e3a93"
+  },
+  "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+  "outputs": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "821b32dc3bc5a3c6f60b997772902e1af5de8029cdf8171c5292050ec4bf82aa"
+    },
+    {
+      "path": "crates/whisper-adapters/Cargo.toml",
+      "sha256": "917120ec0edf7725143a2d9d0c8405dbf82238ce87a3134b3df86c6af2f6011e"
+    },
+    {
+      "path": "crates/whisper-adapters/src/archive.rs",
+      "sha256": "28ea92cd2e06a4c4206d42c78078c95ac77ae474869976d9045ec2c6aabb195a"
+    },
+    {
+      "path": "crates/whisper-adapters/src/decoder.rs",
+      "sha256": "548e111e4abb4aaab1170bf2e80cbf8c0e2603006e2f9fe80943feb450ae0288"
+    },
+    {
+      "path": "crates/whisper-adapters/src/lib.rs",
+      "sha256": "bd3ea83de0ea78e06fd7dc679590f731e1a4656bdcba814ca2757583dfc26699"
+    },
+    {
+      "path": "crates/whisper-adapters/src/worker_ipc.rs",
+      "sha256": "979431ac8b21ad4b81647c7fac2f9806481efa2585b6019fe2a0e5035b38e160"
+    },
+    {
+      "path": "crates/whisper-adapters/tests/import_cpu.rs",
+      "sha256": "dda1436e5e7df7d5472040773ec77857dcd895c2510ccad1e6f617e3a643209a"
+    },
+    {
+      "path": "crates/whisper-core/src/application.rs",
+      "sha256": "5ec3deb57c98e842e1bab592d9217c95b810cb6ad71717467f4a6489ea7abb8b"
+    },
+    {
+      "path": "crates/whisper-core/src/ipc.rs",
+      "sha256": "535b5f453f3a613a0859dd85690317b8abedcef04c1f3c4ad45fdd551d956737"
+    },
+    {
+      "path": "crates/whisper-core/src/lib.rs",
+      "sha256": "c5c83ee62d7609a8a8f01bfc433b3a7a3af8aec642c7ff5306bd9973134827e6"
+    },
+    {
+      "path": "crates/whisper-core/src/ports.rs",
+      "sha256": "94cb3ba7210ad755cf5273bdb2a8057ab2cb65f18983a499ea26be1e5c4adcb7"
+    },
+    {
+      "path": "crates/whisper-core/tests/import_contract.rs",
+      "sha256": "b520a2408b3103585ccbea4442d70d3f0a2d46dfe38b4f15b049f23caf64ee28"
+    },
+    {
+      "path": "crates/whisper-desktop/Cargo.toml",
+      "sha256": "8e47250d915042e928f8f40def2eb48a32884eaf0ee04362930ae4759c1456ac"
+    },
+    {
+      "path": "crates/whisper-desktop/src/main.rs",
+      "sha256": "9c6e5cbddbda59e41a610b187afb5f2e58dfbf1a01110e301c35c8ef9d5029a0"
+    },
+    {
+      "path": "crates/whisper-desktop/src/root.rs",
+      "sha256": "9a3713112e3dfc3872e15e3cb581c7c6a53222e5f62864144ba4d111caa98599"
+    },
+    {
+      "path": "crates/whisper-desktop/src/ui.rs",
+      "sha256": "67eac6aded566e0a0e3d5ed101321bb4134246d76af339b54271ae984302c7f8"
+    },
+    {
+      "path": "crates/whisper-worker-cpu/Cargo.toml",
+      "sha256": "c1181281797bf037e9ca35d6ee78927e6fc7d18af26b7445b76e54be0247fbe9"
+    },
+    {
+      "path": "crates/whisper-worker-cpu/src/decoder.rs",
+      "sha256": "bda03e8b8561f7912f5c8eaa21fc62215ea359eab047cb8771db9f9aea6f613a"
+    },
+    {
+      "path": "crates/whisper-worker-cpu/src/ipc.rs",
+      "sha256": "1b06be095f4586f8e2cddc128fcc9e7307ab208d87323e18f97eddca97f06f97"
+    },
+    {
+      "path": "crates/whisper-worker-cpu/src/main.rs",
+      "sha256": "d04bd322d92501991d8be526b510a670c228161e6caa2c5e61940dd1894f2e9a"
+    },
+    {
+      "path": "crates/whisper-worker-cpu/src/native_engine.rs",
+      "sha256": "9d415e118185e0c97917098bf79902f649722a909f1486ef619c3626e88203d7"
+    }
+  ],
+  "artifacts": [],
+  "environment_matrix": {
+    "schema": "rust-predev-build-env/1",
+    "checks": [
+      {
+        "id": "RUSTC",
+        "kind": "executable",
+        "name": "rustc",
+        "required": true,
+        "version_pattern": "^rustc 1\\.98\\.1(?:\\s|$)"
+      },
+      {
+        "id": "CARGO",
+        "kind": "executable",
+        "name": "cargo",
+        "required": true,
+        "version_pattern": "^cargo 1\\.98\\.1(?:\\s|$)"
+      },
+      {
+        "id": "RUSTUP_SELECTION",
+        "kind": "env",
+        "name": "RUSTUP_TOOLCHAIN",
+        "required": true
+      },
+      {
+        "id": "MSVC",
+        "kind": "executable",
+        "name": "cl",
+        "required": true
+      },
+      {
+        "id": "CMAKE",
+        "kind": "executable",
+        "name": "cmake",
+        "required": true
+      },
+      {
+        "id": "LIBCLANG",
+        "kind": "env",
+        "name": "LIBCLANG_PATH",
+        "path_type": "directory",
+        "required": true
+      },
+      {
+        "id": "TOOLCHAIN",
+        "kind": "path",
+        "path": "rust-toolchain.toml",
+        "entry_type": "file",
+        "required": true
+      },
+      {
+        "id": "LOCKFILE",
+        "kind": "path",
+        "path": "Cargo.lock",
+        "entry_type": "file",
+        "required": true
+      }
+    ]
+  },
+  "environment_result": {
+    "checks": [
+      {
+        "id": "RUSTC",
+        "kind": "executable",
+        "name": "rustc",
+        "path": "C:\\Users\\cyril\\.cargo\\bin\\rustup.exe",
+        "probe_exit": 0,
+        "required": true,
+        "status": "READY",
+        "version_line": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "version_match": true
+      },
+      {
+        "id": "CARGO",
+        "kind": "executable",
+        "name": "cargo",
+        "path": "C:\\Users\\cyril\\.cargo\\bin\\rustup.exe",
+        "probe_exit": 0,
+        "required": true,
+        "status": "READY",
+        "version_line": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "version_match": true
+      },
+      {
+        "configured": true,
+        "id": "RUSTUP_SELECTION",
+        "kind": "env",
+        "name": "RUSTUP_TOOLCHAIN",
+        "required": true,
+        "status": "READY"
+      },
+      {
+        "id": "MSVC",
+        "kind": "executable",
+        "name": "cl",
+        "path": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\VC\\Tools\\MSVC\\14.29.30133\\bin\\Hostx64\\x64\\cl.exe",
+        "probe_exit": 0,
+        "required": true,
+        "status": "READY",
+        "version_line": "Compilateur d'optimisation Microsoft (R) C/C++ versionÂ 19.29.30159 pour x64"
+      },
+      {
+        "id": "CMAKE",
+        "kind": "executable",
+        "name": "cmake",
+        "path": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe",
+        "probe_exit": 0,
+        "required": true,
+        "status": "READY",
+        "version_line": "cmake version 3.20.21032501-MSVC_2"
+      },
+      {
+        "configured": true,
+        "id": "LIBCLANG",
+        "kind": "env",
+        "name": "LIBCLANG_PATH",
+        "path_type": "directory",
+        "required": true,
+        "status": "READY",
+        "target_exists": true
+      },
+      {
+        "entry_type": "file",
+        "exists": true,
+        "id": "TOOLCHAIN",
+        "kind": "path",
+        "path": "rust-toolchain.toml",
+        "required": true,
+        "status": "READY"
+      },
+      {
+        "entry_type": "file",
+        "exists": true,
+        "id": "LOCKFILE",
+        "kind": "path",
+        "path": "Cargo.lock",
+        "required": true,
+        "status": "READY"
+      }
+    ],
+    "ok": true,
+    "root": "C:\\dev\\whisper",
+    "schema": "rust-predev-build-env/1",
+    "status": "PASS"
+  },
+  "commands": [
+    {
+      "id": "WORKSPACE-CPU",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "whisper-worker-gpu",
+        "--",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [
+        "default"
+      ],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "BUILD-FEATURE-OFF",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--no-default-features",
+        "-p",
+        "whisper-worker-cpu",
+        "-p",
+        "whisper-adapters",
+        "--target",
+        "x86_64-pc-windows-msvc"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "BUILD-MEMORY-WORKER",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--no-default-features",
+        "--features",
+        "l01-memory-qualification",
+        "-p",
+        "whisper-worker-cpu"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [
+        "l01-memory-qualification"
+      ],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "MEMORY-LONG",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--no-default-features",
+        "--features",
+        "l01-memory-qualification",
+        "-p",
+        "whisper-adapters",
+        "--test",
+        "import_cpu",
+        "generated_long_wav_runs_eight_full_native_windows_with_stage_memory_samples",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [
+        "l01-memory-qualification"
+      ],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "FORMAT",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "CLIPPY-STRICT",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "whisper-core",
+        "-p",
+        "whisper-adapters",
+        "-p",
+        "whisper-worker-cpu",
+        "-p",
+        "whisper-desktop",
+        "-p",
+        "whisper-bootstrap",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [
+        "all-features"
+      ],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "RELEASE-WORKER",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "--no-default-features",
+        "-p",
+        "whisper-worker-cpu",
+        "--target",
+        "x86_64-pc-windows-msvc"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "RELEASE-DESKTOP",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "--no-default-features",
+        "-p",
+        "whisper-desktop",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target-dir",
+        "target/validator-desktop"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "RELEASE-BOOTSTRAP",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "--no-default-features",
+        "-p",
+        "whisper-bootstrap",
+        "--target",
+        "x86_64-pc-windows-msvc"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "METADATA",
+      "argv": [
+        "cargo",
+        "metadata",
+        "--locked",
+        "--format-version",
+        "1",
+        "--no-deps"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "FEATURE-TREE-DESKTOP",
+      "argv": [
+        "cargo",
+        "tree",
+        "--locked",
+        "-p",
+        "whisper-desktop",
+        "-e",
+        "features"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [
+        "default"
+      ],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "FEATURE-TREE-BOOTSTRAP",
+      "argv": [
+        "cargo",
+        "tree",
+        "--locked",
+        "-p",
+        "whisper-bootstrap",
+        "-e",
+        "features"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [
+        "default"
+      ],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "FEATURE-TREE-WORKER",
+      "argv": [
+        "cargo",
+        "tree",
+        "--locked",
+        "-p",
+        "whisper-worker-cpu",
+        "-e",
+        "features"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [
+        "default"
+      ],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "FEATURE-TREE-ADAPTERS",
+      "argv": [
+        "cargo",
+        "tree",
+        "--locked",
+        "-p",
+        "whisper-adapters",
+        "-e",
+        "features"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [
+        "default"
+      ],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "CORE-MSVC",
+      "argv": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "whisper-core",
+        "--target",
+        "x86_64-pc-windows-msvc"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    },
+    {
+      "id": "DIFF-CHECK",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "C:\\dev\\whisper",
+      "target": "x86_64-pc-windows-msvc",
+      "features": [],
+      "required": true,
+      "status": "PASS",
+      "exit_code": 0,
+      "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+      "log": {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    }
+  ],
+  "review": {
+    "authority": "AUTH-REVIEWER-L01",
+    "verdict": "CLEAN",
+    "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+    "evidence": {
+      "path": "transports/T-WHISPER-L01-CLOSURE-02/review.md",
+      "sha256": "ca46eb0fe83059aaddc0a6da443c62c3653538997b1f8d82c51f37436e4af840"
+    }
+  },
+  "validation": {
+    "status": "CHECKS_PASSED",
+    "candidate_fingerprint": "ca361b9890ece948b804d2692625e38d0e2138493633d87014972d8d9343c5f5",
+    "evidence": [
+      {
+        "path": "transports/T-WHISPER-L01-CLOSURE-02/validation.md",
+        "sha256": "9c294effae8b9d347411d9da382b3afed3e8de22fb8aed3e61ad85e458bfc692"
+      }
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""Compare an exported UTF-8 source with a TRANSPORT proposal and saved raw file."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+sys.dont_write_bytecode = True
+import predev_control as pc
+
+
+def verify(source_path, proposal_path=None, transport_path=None, proposal_file=None):
+    pc.require(proposal_path is not None or transport_path is not None,
+               "proposal or transport is required")
+    source = Path(source_path).read_bytes()
+    source.decode("utf-8")
+    result = {"ok": True, "source_sha256": hashlib.sha256(source).hexdigest(),
+              "source_bytes": len(source)}
+    if proposal_path is not None:
+        proposal = pc.read_json(proposal_path)
+        pc.require(isinstance(proposal, dict) and proposal.get("scope") == "TRANSPORT",
+                   "proposal must have TRANSPORT scope")
+        files = proposal.get("files")
+        pc.require(isinstance(files, list), "proposal files must be an array")
+        matches = [entry for entry in files if isinstance(entry, dict) and
+                   (entry.get("path") == proposal_file if proposal_file else True)]
+        pc.require(len(matches) == 1, "select exactly one proposal file")
+        content = matches[0].get("content")
+        pc.require(isinstance(content, str), "proposal content must be text")
+        pc.require(content.encode("utf-8") == source,
+                   "proposal content differs from source bytes")
+        result["proposal_file"] = matches[0]["path"]
+        result["proposal_actor"] = proposal.get("actor")
+        result["proposal_base_candidate_id"] = proposal.get("base_candidate_id")
+    if transport_path is not None:
+        transport = Path(transport_path).read_bytes()
+        pc.require(transport == source, "transport file differs from source bytes")
+        result["transport_sha256"] = hashlib.sha256(transport).hexdigest()
+    return result
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", required=True, help="faithful UTF-8 export of the original contribution")
+    parser.add_argument("--proposal", help="TRANSPORT proposal JSON before persistence")
+    parser.add_argument("--proposal-file", help="path of the raw item in proposal.files")
+    parser.add_argument("--transport", help="raw file saved by the documentation host")
+    args = parser.parse_args(argv)
+    try:
+        result = verify(args.source, args.proposal, args.transport, args.proposal_file)
+    except (OSError, UnicodeError, pc.ControlError) as exc:
+        parser.exit(2, "raw handoff verification failed: " + str(exc) + "\n")
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,36 @@
+**R-WHISPER-D19-COMPAT-01 — v2.0 : CLEAN pour la compatibilité de CHANGE-L01-INTEGRATION-01 v2 avec D19. Aucun DESIGN_CHANGE_REQUIRED.**
+
+Objet exact : [proposition ARCH-L01-INTEGRATION v2](C:/dev/whisper/docs/predev/transports/T-WHISPER-ARCH-L01-INTEGRATION-02/CHANGE-L01-INTEGRATION-01-raw.md), SHA256 `1c8675f6d1e0f18e05556e8e3118d824e1c95591aca37e8d4e6823733787ea27`, **21 881 octets**. Manifest TRANSPORT : digest `da70de6c9dfbd81b11e8ccc1090ed318ff033420784f478cdf8efedd6fe101b5`, base `P-WHISPER-02`.
+
+Ce verdict constitue une **revue bornée de compatibilité**, sans remplacer la revue PLANS de P03 ni le préflight d’implémentation.
+
+Je confirme mon indépendance : aucune participation à la rédaction/correction de cette proposition, de D19/P02 ou de leurs bancs ; activité exclusivement en lecture seule. Le nouvel auteur est `/root/whisper_l01_integration_coordination/l01_architecture_contract`. Aucun fichier modifié et aucun sous-agent.
+
+| Partie examinée | Verdict et preuves |
+|---|---|
+| Assemblage | **Compatible.** `main.rs/root.rs` assemblent ; `ImportApplication` dans core possède transitions et décisions ; UI possède présentation ; adaptateurs possèdent les effets techniques. Proposition lignes 43–62 et 79, TECH-D18-04/08, RG-01. Aucun scheduler parallèle dans root/UI. |
+| IPC v2 | **Compatible.** Corrélation job/génération/instance, source hashée, backend attesté, segments/plages, End explicite, erreurs/Stopped corrélés et contrôle indépendant complètent le protocole versionné déjà exigé. Proposition lignes 101–112 ; D19 `03/08/50` et apport ARCH-D18-FINAL, contrat WorkerPort. |
+| Rupture V1→V2 | **Déclarée et bornée.** V1 refusé avec erreur ; parent/CPU revus ensemble ; GPU futur aligné en L04 ; DTO IPC distincts des schémas durables. Aucun contrat de compatibilité V1 accepté dans D19 n’est retiré. |
+| Durabilité et récupération | **Conservées.** Admission distincte de reçu durable ; sync avant reçu ; End et fragments persistés avant publication ; pointeur dernier ; anomalies Recoverable ; source intacte ; aucune reprise automatique. Proposition lignes 70–77 et 116–124, TECH-D18-06, RG-03/04/05. |
+| Arrêt et saturation | **Conservés.** Contrôle indépendant, UI non bloquante, refus explicite et cessation d’entrée ; aucun délai garanti pour FFI/disque, kill automatique ou join UI infini. Proposition lignes 85–95, TECH-D18-04 et RG-07. |
+| Migration des données préexistantes | **N/A justifié pour ce delta.** L00 n’a livré aucun écrivain durable ; la rupture des contrats IPC reste explicitement à vérifier. |
+| Ressources internes | **Détail encore à résoudre avant L01.** Les valeurs 8/64/1 MiB sont proposées ; `max_samples` et fenêtres PCM doivent recevoir une réponse attribuée à Q-L01-BOUNDS-01. Ce verdict ne les valide pas. |
+
+Les API choisies permettent l’admission non bloquante décrite ; leur seule présence ne prouve pas que les futurs consommateurs respecteront ce contrat. Les contrôles d’imports UI/root restent nécessaires puisque Cargo expose les dépendances du package à ses cibles. Sources primaires vérifiées : [SyncSender](https://doc.rust-lang.org/std/sync/mpsc/struct.SyncSender.html), [Cargo Targets](https://doc.rust-lang.org/cargo/reference/cargo-targets.html).
+
+La passe de couverture dans les deux sens conserve REQ-03/06/12/13/24 vers UC/AC, responsabilités et risques ; Q-05 est reliée aux snapshots. L02–L07 gardent les capacités restantes. Aucun ajout produit ou réduction GPU/garantie n’apparaît.
+
+**WHISPER-D19-COMPAT-001 : CLOSED.** J’ai personnellement retrouvé le message original `msg_063ac3ee09eb5fce016ac41c422a2c87d29266e99cdba9b1c3` dans la session `01a10e0a-fa08-75a1-9c55-fe5e88059e13` : égalité exacte source/proposition/TRANSPORT, taille et SHA conformes. Aucun REQUIRED nouveau ; aucun ADVISORY.
+
+D19 et P02 ont été revérifiés avant/après, inchangés aux digests `903926…7529` et `811364…2bad` ; parent P02 = D19. Le railguard actif conserve SHA `9fed5e…7c34`. Les sources L00 contrôlées correspondent aux empreintes de la proposition sur HEAD `e223166a08592048508865b480ecc53b101bdd0d`.
+
+Le coordinateur doit maintenant conserver ce résultat brut, lier le nouveau transport au checkpoint, résoudre Q-BOUNDS, puis faire produire/revoir P03 et vérifier mandat/inventaire/préflight. Les tests produit et qualifications restent **NOT RUN**.
+
+<oai-mem-citation>
+<citation_entries>
+MEMORY.md:111-111|note=[rappel des controles de provenance et de couverture]
+</citation_entries>
+<rollout_ids>
+01a10b44-3030-7da3-89f3-0d664e3bbf8d
+</rollout_ids>
+</oai-mem-citation>

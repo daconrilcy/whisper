@@ -1,0 +1,926 @@
+{
+  "schema": "whisper-loss-spike/1",
+  "source_sha256": "716e788c790b600fe472d0ebb868094c9d9b97fdf1d581133dd3df46a30de467",
+  "method": "100 independent child process exits after simulated 20 ms frames buffered in memory; confirm only synced+renamed whole audio chunks; recover by hash-verified metadata. Median is average of two central observations for even n; P95 is nearest rank (rank ceil(0.95*n)). No actual capture/engine/UI, no power loss or directory fsync.",
+  "seed": 20261005,
+  "groups": {
+    "500": {
+      "count": 50,
+      "lost_min_ms": 0,
+      "lost_median_ms": 260.0,
+      "lost_p95_ms": 480,
+      "lost_max_ms": 480,
+      "recovery_max_ms": 26.295
+    },
+    "1000": {
+      "count": 50,
+      "lost_min_ms": 0,
+      "lost_median_ms": 350.0,
+      "lost_p95_ms": 980,
+      "lost_max_ms": 980,
+      "recovery_max_ms": 30.64
+    }
+  },
+  "cases": [
+    {
+      "chunk_ms": 500,
+      "case": 0,
+      "captured_ms": 20,
+      "confirmed_ms": 0,
+      "lost_open_ms": 20,
+      "recovery_ms": 0.246,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 1,
+      "captured_ms": 480,
+      "confirmed_ms": 0,
+      "lost_open_ms": 480,
+      "recovery_ms": 0.124,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 2,
+      "captured_ms": 500,
+      "confirmed_ms": 500,
+      "lost_open_ms": 0,
+      "recovery_ms": 8.831,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 3,
+      "captured_ms": 520,
+      "confirmed_ms": 500,
+      "lost_open_ms": 20,
+      "recovery_ms": 4.624,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 4,
+      "captured_ms": 1480,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 480,
+      "recovery_ms": 13.577,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 5,
+      "captured_ms": 1500,
+      "confirmed_ms": 1500,
+      "lost_open_ms": 0,
+      "recovery_ms": 16.582,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 6,
+      "captured_ms": 720,
+      "confirmed_ms": 500,
+      "lost_open_ms": 220,
+      "recovery_ms": 4.51,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 7,
+      "captured_ms": 1400,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 400,
+      "recovery_ms": 7.258,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 8,
+      "captured_ms": 760,
+      "confirmed_ms": 500,
+      "lost_open_ms": 260,
+      "recovery_ms": 4.626,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 9,
+      "captured_ms": 1040,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 40,
+      "recovery_ms": 10.851,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 10,
+      "captured_ms": 400,
+      "confirmed_ms": 0,
+      "lost_open_ms": 400,
+      "recovery_ms": 0.155,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 11,
+      "captured_ms": 260,
+      "confirmed_ms": 0,
+      "lost_open_ms": 260,
+      "recovery_ms": 0.118,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 12,
+      "captured_ms": 1420,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 420,
+      "recovery_ms": 7.747,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 13,
+      "captured_ms": 1340,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 340,
+      "recovery_ms": 10.216,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 14,
+      "captured_ms": 60,
+      "confirmed_ms": 0,
+      "lost_open_ms": 60,
+      "recovery_ms": 0.167,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 15,
+      "captured_ms": 240,
+      "confirmed_ms": 0,
+      "lost_open_ms": 240,
+      "recovery_ms": 0.122,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 16,
+      "captured_ms": 300,
+      "confirmed_ms": 0,
+      "lost_open_ms": 300,
+      "recovery_ms": 0.122,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 17,
+      "captured_ms": 1840,
+      "confirmed_ms": 1500,
+      "lost_open_ms": 340,
+      "recovery_ms": 14.551,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 18,
+      "captured_ms": 740,
+      "confirmed_ms": 500,
+      "lost_open_ms": 240,
+      "recovery_ms": 5.9,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 19,
+      "captured_ms": 1380,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 380,
+      "recovery_ms": 8.254,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 20,
+      "captured_ms": 740,
+      "confirmed_ms": 500,
+      "lost_open_ms": 240,
+      "recovery_ms": 5.25,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 21,
+      "captured_ms": 1900,
+      "confirmed_ms": 1500,
+      "lost_open_ms": 400,
+      "recovery_ms": 13.041,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 22,
+      "captured_ms": 2280,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 280,
+      "recovery_ms": 20.933,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 23,
+      "captured_ms": 1140,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 140,
+      "recovery_ms": 8.053,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 24,
+      "captured_ms": 1660,
+      "confirmed_ms": 1500,
+      "lost_open_ms": 160,
+      "recovery_ms": 11.184,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 25,
+      "captured_ms": 1060,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 60,
+      "recovery_ms": 6.791,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 26,
+      "captured_ms": 1520,
+      "confirmed_ms": 1500,
+      "lost_open_ms": 20,
+      "recovery_ms": 10.993,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 27,
+      "captured_ms": 1820,
+      "confirmed_ms": 1500,
+      "lost_open_ms": 320,
+      "recovery_ms": 13.16,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 28,
+      "captured_ms": 2200,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 200,
+      "recovery_ms": 18.038,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 29,
+      "captured_ms": 980,
+      "confirmed_ms": 500,
+      "lost_open_ms": 480,
+      "recovery_ms": 4.581,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 30,
+      "captured_ms": 600,
+      "confirmed_ms": 500,
+      "lost_open_ms": 100,
+      "recovery_ms": 4.693,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 31,
+      "captured_ms": 2280,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 280,
+      "recovery_ms": 19.273,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 32,
+      "captured_ms": 40,
+      "confirmed_ms": 0,
+      "lost_open_ms": 40,
+      "recovery_ms": 0.207,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 33,
+      "captured_ms": 2280,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 280,
+      "recovery_ms": 16.167,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 34,
+      "captured_ms": 400,
+      "confirmed_ms": 0,
+      "lost_open_ms": 400,
+      "recovery_ms": 0.242,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 35,
+      "captured_ms": 940,
+      "confirmed_ms": 500,
+      "lost_open_ms": 440,
+      "recovery_ms": 4.983,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 36,
+      "captured_ms": 1040,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 40,
+      "recovery_ms": 10.528,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 37,
+      "captured_ms": 960,
+      "confirmed_ms": 500,
+      "lost_open_ms": 460,
+      "recovery_ms": 5.916,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 38,
+      "captured_ms": 760,
+      "confirmed_ms": 500,
+      "lost_open_ms": 260,
+      "recovery_ms": 6.049,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 39,
+      "captured_ms": 980,
+      "confirmed_ms": 500,
+      "lost_open_ms": 480,
+      "recovery_ms": 5.756,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 40,
+      "captured_ms": 720,
+      "confirmed_ms": 500,
+      "lost_open_ms": 220,
+      "recovery_ms": 7.311,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 41,
+      "captured_ms": 760,
+      "confirmed_ms": 500,
+      "lost_open_ms": 260,
+      "recovery_ms": 5.6,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 42,
+      "captured_ms": 400,
+      "confirmed_ms": 0,
+      "lost_open_ms": 400,
+      "recovery_ms": 0.221,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 43,
+      "captured_ms": 140,
+      "confirmed_ms": 0,
+      "lost_open_ms": 140,
+      "recovery_ms": 0.212,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 44,
+      "captured_ms": 1980,
+      "confirmed_ms": 1500,
+      "lost_open_ms": 480,
+      "recovery_ms": 14.955,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 45,
+      "captured_ms": 560,
+      "confirmed_ms": 500,
+      "lost_open_ms": 60,
+      "recovery_ms": 4.045,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 46,
+      "captured_ms": 2460,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 460,
+      "recovery_ms": 16.413,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 47,
+      "captured_ms": 1960,
+      "confirmed_ms": 1500,
+      "lost_open_ms": 460,
+      "recovery_ms": 26.295,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 48,
+      "captured_ms": 420,
+      "confirmed_ms": 0,
+      "lost_open_ms": 420,
+      "recovery_ms": 0.225,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 500,
+      "case": 49,
+      "captured_ms": 2500,
+      "confirmed_ms": 2500,
+      "lost_open_ms": 0,
+      "recovery_ms": 26.151,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 0,
+      "captured_ms": 20,
+      "confirmed_ms": 0,
+      "lost_open_ms": 20,
+      "recovery_ms": 0.129,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 1,
+      "captured_ms": 980,
+      "confirmed_ms": 0,
+      "lost_open_ms": 980,
+      "recovery_ms": 0.125,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 2,
+      "captured_ms": 1000,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 0,
+      "recovery_ms": 12.702,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 3,
+      "captured_ms": 1020,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 20,
+      "recovery_ms": 6.392,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 4,
+      "captured_ms": 2980,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 980,
+      "recovery_ms": 16.127,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 5,
+      "captured_ms": 3000,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 0,
+      "recovery_ms": 19.913,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 6,
+      "captured_ms": 1340,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 340,
+      "recovery_ms": 7.361,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 7,
+      "captured_ms": 1600,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 600,
+      "recovery_ms": 5.955,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 8,
+      "captured_ms": 3160,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 160,
+      "recovery_ms": 13.276,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 9,
+      "captured_ms": 3660,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 660,
+      "recovery_ms": 14.172,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 10,
+      "captured_ms": 3960,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 960,
+      "recovery_ms": 14.474,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 11,
+      "captured_ms": 2680,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 680,
+      "recovery_ms": 6.66,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 12,
+      "captured_ms": 3660,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 660,
+      "recovery_ms": 12.659,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 13,
+      "captured_ms": 3980,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 980,
+      "recovery_ms": 12.563,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 14,
+      "captured_ms": 2560,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 560,
+      "recovery_ms": 9.808,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 15,
+      "captured_ms": 1200,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 200,
+      "recovery_ms": 5.165,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 16,
+      "captured_ms": 80,
+      "confirmed_ms": 0,
+      "lost_open_ms": 80,
+      "recovery_ms": 0.24,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 17,
+      "captured_ms": 3880,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 880,
+      "recovery_ms": 15.903,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 18,
+      "captured_ms": 3820,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 820,
+      "recovery_ms": 18.551,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 19,
+      "captured_ms": 900,
+      "confirmed_ms": 0,
+      "lost_open_ms": 900,
+      "recovery_ms": 0.24,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 20,
+      "captured_ms": 2680,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 680,
+      "recovery_ms": 10.129,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 21,
+      "captured_ms": 2440,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 440,
+      "recovery_ms": 11.388,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 22,
+      "captured_ms": 3200,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 200,
+      "recovery_ms": 15.638,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 23,
+      "captured_ms": 700,
+      "confirmed_ms": 0,
+      "lost_open_ms": 700,
+      "recovery_ms": 0.212,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 24,
+      "captured_ms": 2180,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 180,
+      "recovery_ms": 11.12,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 25,
+      "captured_ms": 4040,
+      "confirmed_ms": 4000,
+      "lost_open_ms": 40,
+      "recovery_ms": 21.551,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 26,
+      "captured_ms": 2920,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 920,
+      "recovery_ms": 9.914,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 27,
+      "captured_ms": 1660,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 660,
+      "recovery_ms": 4.87,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 28,
+      "captured_ms": 1860,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 860,
+      "recovery_ms": 5.266,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 29,
+      "captured_ms": 1260,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 260,
+      "recovery_ms": 3.643,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 30,
+      "captured_ms": 1340,
+      "confirmed_ms": 1000,
+      "lost_open_ms": 340,
+      "recovery_ms": 5.467,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 31,
+      "captured_ms": 340,
+      "confirmed_ms": 0,
+      "lost_open_ms": 340,
+      "recovery_ms": 0.136,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 32,
+      "captured_ms": 5000,
+      "confirmed_ms": 5000,
+      "lost_open_ms": 0,
+      "recovery_ms": 30.64,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 33,
+      "captured_ms": 3140,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 140,
+      "recovery_ms": 14.862,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 34,
+      "captured_ms": 120,
+      "confirmed_ms": 0,
+      "lost_open_ms": 120,
+      "recovery_ms": 0.219,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 35,
+      "captured_ms": 3260,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 260,
+      "recovery_ms": 14.233,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 36,
+      "captured_ms": 280,
+      "confirmed_ms": 0,
+      "lost_open_ms": 280,
+      "recovery_ms": 0.234,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 37,
+      "captured_ms": 2220,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 220,
+      "recovery_ms": 12.696,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 38,
+      "captured_ms": 360,
+      "confirmed_ms": 0,
+      "lost_open_ms": 360,
+      "recovery_ms": 0.273,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 39,
+      "captured_ms": 300,
+      "confirmed_ms": 0,
+      "lost_open_ms": 300,
+      "recovery_ms": 0.218,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 40,
+      "captured_ms": 4220,
+      "confirmed_ms": 4000,
+      "lost_open_ms": 220,
+      "recovery_ms": 18.937,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 41,
+      "captured_ms": 3260,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 260,
+      "recovery_ms": 15.458,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 42,
+      "captured_ms": 2200,
+      "confirmed_ms": 2000,
+      "lost_open_ms": 200,
+      "recovery_ms": 7.307,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 43,
+      "captured_ms": 4780,
+      "confirmed_ms": 4000,
+      "lost_open_ms": 780,
+      "recovery_ms": 15.092,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 44,
+      "captured_ms": 380,
+      "confirmed_ms": 0,
+      "lost_open_ms": 380,
+      "recovery_ms": 0.138,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 45,
+      "captured_ms": 4640,
+      "confirmed_ms": 4000,
+      "lost_open_ms": 640,
+      "recovery_ms": 16.244,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 46,
+      "captured_ms": 3440,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 440,
+      "recovery_ms": 12.284,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 47,
+      "captured_ms": 940,
+      "confirmed_ms": 0,
+      "lost_open_ms": 940,
+      "recovery_ms": 0.269,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 48,
+      "captured_ms": 3020,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 20,
+      "recovery_ms": 14.04,
+      "exit_code": 42
+    },
+    {
+      "chunk_ms": 1000,
+      "case": 49,
+      "captured_ms": 3880,
+      "confirmed_ms": 3000,
+      "lost_open_ms": 880,
+      "recovery_ms": 10.797,
+      "exit_code": 42
+    }
+  ]
+}

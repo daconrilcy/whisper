@@ -1,0 +1,90 @@
+# Plan writer contribution — P-WHISPER-10 (raw)
+
+Actor `/root/plan_l03_scope`, role `rust_plan_writer`. Base: P-WHISPER-09 (`92c049ae7e6e407d5f2f87d7526747fc2898bd3817a94068b7bbac6c00b42594`), parent D-WHISPER-19 (`903926ba27c70fc3a0cc6954d9e50914a64993e40c339683e557bc4c604d7529`). User authorized the expanded plan after accepting the architect proposal. No L03 implementation authorization.
+
+## P10 recommendation
+
+Draft a new immutable P10; preserve P09. Update `00_PLANS_INDEX.md`, `01_LOTS.md` (L03 only), `02_VERIFICATION_AND_PREFLIGHT.md`, `04_OPEN_DETAILS.md`, `05_SOURCE_AND_RULE_INDEX.md`; add `10_L03_INTEGRATION_CONTRACTS.md`, `11_L03_SOURCE_BASELINE.md`, `12_BUILD_ENVIRONMENT_L03.md`, `build-environment-L03.json`, technical answer and acceptance sources, exact code snapshots, and a new manifest. L03 allowlist remains the exact 28 paths recorded in `01_LOTS.md`.
+
+## Budget correction and P02-GAP-BYTES-01
+
+Keep existing budgets as wire budgets: frames at most 1 MiB; eight pending effects with aggregate wire at most 8 MiB, plus one active effect outside the queue; 64 persistent events globally with 64 MiB global wire budget. Existing L02 runtime has three 21-entry stages plus one transfer place. None of these wire values bounds RSS. Preserve explicit measurement of local allocations, copies, and OS buffers.
+
+Add P02-GAP-BYTES-01 as PRODUCT_VALIDATION / NOT RUN: inventory and measure locally created persistent Queue/History vectors, in-flight event count, wire bytes and local allocations; exercise saturation/backpressure with large histories and over-capacity cases. If needed, bound admission or paginate by cursor without eviction or silent truncation of durable events. Executed L03 candidate and independent verification required.
+
+In the L03 sequence, inventory wire budgets/local allocations, run P02-GAP-BYTES-01, then regression-check FIFO/history/import from L02. Keep DETAIL-P02 answered and Q-07 unchanged. No DESIGN_CHANGE_REQUIRED for this technical detail; all live campaigns remain NOT RUN. New independent P10 review and promotion are required before L03 preflight.
+
+## Remaining work at contribution handoff
+
+The plan writer did not edit repository files or issue CLEAN/READY. Candidate author must finish source attribution, manifest, exact allowlist and snapshots. Independent reviewer must review P10 and own findings/closure. Any implementation remains separately gated.
+# Provenance addition — PW-WHISPER-L03-P10
+
+This note supplements the existing plan-writer contribution with its complete source context and handoff limits. Author `/root/plan_l03_scope`, rust_plan_writer, read-only. Its authored response was returned in the subagent transcript; this repository file is a coordinator transcription/structured preservation, not a byte-exact export. The original task response is the source of attribution.
+
+## Source set and base observation
+
+The author consulted the current state, active RAILGUARD, P09 plan documents 00–09, D19 domain/ports/decisions, adapter and worker manifests, targeted runtime IPC/application/ports, central rust-predev-design skill and implementation rules, and handoff/engineering/workflow/deliverable references. The exact source list is recorded in the original delegation response and the core documents are manifest-bound in P10. Author observed global `check-state` PASS for D19/P09 at its read, while noting this was not L03 preflight. State and candidate revisions may differ after that observation.
+
+## Complete planning decisions attributed to the author
+
+- New P10 DRAFT based on P09, D19 unchanged; new PLANS review and promotion required; no DESIGN_CHANGE_REQUIRED for resolved detail. Preserve P09, all historic reviews and evidence, the existing non-L03 lots and sequential DAG.
+- L03 scope: durable live capture, VAD, CPU worker, archives per passage. Preserve REQ-01/02/03/04/09/10/12/18/25, UC-01/02/03/04/08/10/13/20, AC-01/02/03/04/08/10/13/20, TECH-D18-04/05/06/07/08 and DEC-26/27/34/35.
+- Document inputs include exact D19/P10 and reviews, DETAIL-P02 answered with attributable evidence, Q-07, active railguard; EXECUTION input is controlled L02 completion evidence; CODE inputs are hash-bound L02 outputs, not inferred from plan/review alone.
+- Exact 28-path allowlist and ownership are enumerated in `01_LOTS.md`; no glob or `desktop/main.rs`/GPU worker. Core owns state/scheduler/admission/identity; ports and IPC pure contracts; capture owns single WASAPI handle/callback; staging/journal/archive/recovery perform disk effects; worker owns engine/codec; root composes, UI presents. No second scheduler.
+- Detail choices and capacities are in P10 contract: CPAL 0.18.2 WASAPI, rubato 0.16.2 FFT resampler, webrtc-vad 0.4.0, rusty_mp3 0.8.0; PCM16 mono 16 kHz, mode 1 / 320 i16 / 20 ms, callback ring 100 slots plus local slot, writer queue 50 frames plus local frame, staging 32 kB/s with nominal sync 25 frames, worker 80,000 samples plus next buffer. These are proposed code capacities; runtime/OS buffers and RSS must be separately measured.
+- Preserve IPC wire contract: eight pending effects <=8 MiB wire plus one active outside the channel; <=64 persistent events globally and <=64 MiB wire; frame <=1 MiB. L02 partition `21*3+1`. Wire is not total resident memory.
+- Add `P02-GAP-BYTES-01`, PRODUCT_VALIDATION / NOT RUN: inventory local Queue/History event construction/storage/transfer/consumption; measure count, wire, local allocations; exercise over-capacity and backpressure; if needed bounded admission/cursor pagination without losing durable entries; preserve exact execution evidence. Independent review required.
+- Campaigns remain NOT RUN; proposed checks must include live capture, VAD, archive, worker, core live contract, durability/import regression, strict clippy, builds, and real consumer evidence. Explicit stop on saturation/errors, no silent loss, Stop remains independently reachable, durable audio differs from confirmed transcript fragment.
+- Remaining work at handoff: persist candidate and contributor provenance, independently review/close findings, promote P10, perform L03 preflight, then only with separate authority implement and validate. No code or product campaign was run by the plan writer.
+
+This document is not an independent review or readiness verdict. Keep exact source identity/attribution, base, completed work, unfinished work and limits; don't convert the author’s observed historical PASS or proposed campaigns into current evidence.
+## Plan writer confirmation and corrections to this structured transcript
+
+After reading this coordinator-authored structured transcript, `/root/plan_l03_scope` confirmed that it preserves the essential planning points, but not the full contribution and not an exact export. It supplied these corrections, now incorporated:
+
+- Source list is P09 `00` through `08` (not `09_L02_SOURCE_BASELINE.md`, which the plan writer did not read). P10 baseline is a later coordinator addition.
+- P10 `01_LOTS.md` and `10_L03_INTEGRATION_CONTRACTS.md` are the authoritative exact path/contract references; their hashes are bound by the P10 manifest.
+- The plan writer saw DETAIL-P02 through coordinator-attributed messages only; it did not access the architect’s full raw output or certify fidelity. Primary sources/compatibility remain to validate in the technical corpus.
+- A 25-frame/0.5s sync cadence proves no maximum total loss of 0.5s. Track `captured`, `admitted`, `audio_durable`, `confirmed_fragment`; durable pending before capture; Stop closes input, drains, syncs, finalizes; publish marker last and scan idempotently without auto-start; no arbitrary FFI deadline or automatic kill.
+- At the plan writer’s handoff date, controlled L02 closure and EXECUTION evidence for L03 were still remaining. The later CLOSURE-03 promotion is recorded separately and must not be backdated into that observation.
+
+The plan writer confirms the essential points are faithful as a coordinator structured summary. It explicitly does not attest complete conservation, byte-exact transcription, independent review, manifest validity or readiness.
+
+## Exact proposed L03 allowlist (28 paths)
+
+```text
+Cargo.lock
+crates/whisper-adapters/Cargo.toml
+crates/whisper-adapters/src/archive.rs
+crates/whisper-adapters/src/capture.rs
+crates/whisper-adapters/src/journal.rs
+crates/whisper-adapters/src/lib.rs
+crates/whisper-adapters/src/recovery.rs
+crates/whisper-adapters/src/staging.rs
+crates/whisper-adapters/src/vad.rs
+crates/whisper-adapters/src/worker_ipc.rs
+crates/whisper-adapters/tests/durability.rs
+crates/whisper-adapters/tests/live_archive.rs
+crates/whisper-adapters/tests/live_capture.rs
+crates/whisper-adapters/tests/vad_contract.rs
+crates/whisper-core/src/application.rs
+crates/whisper-core/src/domain.rs
+crates/whisper-core/src/ipc.rs
+crates/whisper-core/src/lib.rs
+crates/whisper-core/src/ports.rs
+crates/whisper-core/tests/live_contract.rs
+crates/whisper-core/tests/scheduler_contract.rs
+crates/whisper-desktop/src/root.rs
+crates/whisper-desktop/src/ui.rs
+crates/whisper-worker-cpu/Cargo.toml
+crates/whisper-worker-cpu/src/encoder.rs
+crates/whisper-worker-cpu/src/ipc.rs
+crates/whisper-worker-cpu/src/main.rs
+crates/whisper-worker-cpu/tests/live_worker.rs
+```
+
+## Clarified durability and handoff state
+
+The plan writer received technical choices by coordinator-attributed messages and did not consult the architect’s complete raw contribution; primary source compatibility is not asserted by the plan writer. Preserve this provenance boundary.
+
+At its handoff, L02 closure and L03 EXECUTION evidence were remaining tasks. The later controlled L02 closure packet and state promotion are subsequent events. P10 does not authorize L03 implementation.

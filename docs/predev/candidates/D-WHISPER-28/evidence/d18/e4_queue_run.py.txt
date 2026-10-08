@@ -1,0 +1,24 @@
+from pathlib import Path
+import subprocess,tempfile,json
+here=Path(__file__).parent
+exe=here/'e4-archive/target/release/queue.exe'
+base=Path(tempfile.mkdtemp(prefix='whisper-e4-queue-'))
+def call(*args):return subprocess.run([str(exe),*map(str,args)],capture_output=True,text=True)
+rows=[]
+for cut in range(4):
+    root=base/f'cut-{cut}'
+    p=call('enqueue',root,'import-01',cut)
+    first=call('scan',root).stdout.strip()
+    second=call('scan',root).stdout.strip()
+    assert first==second
+    assert first==('RESTORED 0' if cut<2 else 'RESTORED 1 import-01')
+    if cut<3:assert p.returncode==91 and 'ACK' not in p.stdout
+    else:assert p.returncode==0 and 'ACK' in p.stdout
+    retry=call('enqueue',root,'import-01',99)
+    assert retry.returncode==0 and call('scan',root).stdout.strip()=='RESTORED 1 import-01'
+    rows.append({'cut':cut,'first_scan':first,'second_scan':second,'ack_before_cut':False if cut<3 else True,'retry_ack':retry.stdout.strip()})
+root=base/'cut-3';(root/'import-01.job').write_text('bad',encoding='utf-8')
+assert call('scan',root).stdout.strip()=='CORRUPT import-01'
+report={'schema':'whisper-e4-queue/1','rows':rows,'corrupt':'CORRUPT import-01','limits':['process exit injection, not power failure','single local job fixture','directory metadata durability not established']}
+(here/'e4-queue-report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps(report,indent=2))

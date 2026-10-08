@@ -1,0 +1,15 @@
+**L04 est partiellement implémenté, mais reste bloqué avant achèvement.** Le gate canonique passe après activation du script L04; les tests ciblés, `cargo check`, Clippy et les builds release CPU, GPU et desktop sont PASS. `git diff --check` passe aussi.
+
+Le delta final touche 15 chemins autorisés. Aucun fichier hors allowlist n’a été conservé comme modification; les entrées préexistantes hors lot ont été préservées. Aucun état contrôlé n’a été promu, et il n’y a pas encore de revue indépendante ni de validation distincte.
+
+Le critère Auto de reprise live reste incomplet : l’allowlist exclut [ports.rs](/C:/dev/whisper/crates/whisper-core/src/ports.rs), nécessaire pour transmettre le changement de génération et l’événement de fallback à l’application. Les tests de contrat live devraient également être autorisés dans [live_contract.rs](/C:/dev/whisper/crates/whisper-core/tests/live_contract.rs). Le fallback d’import Auto et d’autres critères de supervision restent à fermer.
+
+J’ai soumis la question de suite : autoriser un CHANGE ciblé du contrat et de l’allowlist pour ces deux chemins, ou garder la candidate partielle et arrêter. Je n’étendrai pas le périmètre sans cette décision.
+
+<oai-mem-citation>
+<citation_entries>
+MEMORY.md:77-78|note=[revalidated exact lot gates before implementation]
+</citation_entries>
+<rollout_ids>
+</rollout_ids>
+</oai-mem-citation>

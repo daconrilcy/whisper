@@ -1,0 +1,7 @@
+init_log=whisper_init_with_params_no_state: use gpu    = 1
+init_log=whisper_init_with_params_no_state: backends   = 2
+init_log=whisper_model_load:          CPU total size =  1623.92 MB
+init_log=whisper_backend_init_gpu: device 0: CPU (type: 0)
+init_log=whisper_backend_init_gpu: no GPU found
+backend_attestation_failed_before_full requested=gpu
+Error: "effective backend unverified"

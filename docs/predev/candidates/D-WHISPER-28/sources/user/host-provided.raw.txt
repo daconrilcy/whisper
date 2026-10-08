@@ -1,0 +1,1 @@
+J’ai créé un [hôte documentaire lancé dans Docker](C:/Users/cyril/.codex/tools/whisper-doc-host/invoke.ps1) et consigné sa [qualification](C:/Users/cyril/.codex/tools/whisper-doc-host/QUALIFICATION.md). Le dépôt et le pack sont montés en lecture seule ; seul le dossier documentaire nécessaire est accessible en écriture.  

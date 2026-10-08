@@ -1,0 +1,17 @@
+# Qualification du besoin
+
+Le périmètre est celui d'une version identifiée, avec résultats attendus, utilisateurs, parcours structurants, exclusions et éléments différés (version/condition de reprise). Exclu et différé sont distincts. Un petit outil peut regrouper les sections ; les contenus nécessaires restent traçables sans imposer dix fichiers.
+
+Le framer décrit les parcours et décisions produit structurantes. L'analyste décrit leurs états visibles : démarrage, attente, succès, erreur, annulation, fermeture, reprise selon le produit. Séparer état de présentation et état métier ; différer les préférences esthétiques réversibles.
+
+À chaque passage framer -> analyste, fournir la liste des capacités incluses et vérifier leur sort : REQ/UC/AC reliés à la source produit, ou exclusion/différé accepté avec condition de reprise. Couvrir les fonctions périphériques incluses (installation, démarrage, réglages, interfaces OS, archives et données locales) autant que le parcours central. Une capacité du brief sans destin explicite est un GAP. Un chiffre indicatif reste indicatif tant que l'autorité produit n'a pas accepté son effet sur le comportement.
+
+Toutes les étapes peuvent découvrir une question. Le coordinateur tient les questions identifiées, classifications BLOCKING/STRUCTURING/DETAIL, options et conséquences, sources/réponses, autorité de validation, échéance et lots concernés. Poser des groupes courts, réutiliser les réponses existantes ; les spécialistes retournent leurs questions au coordinateur, sans interviews parallèles. Le silence n'accepte jamais une hypothèse structurante.
+
+Examiner données, erreurs, concurrence, persistance, fichiers, cycle de vie, interruption/récupération, plateforme, matériel, confidentialité/sécurité, compatibilité, installation et mise à jour selon leur pertinence. Les contenus non pertinents exigent un motif.
+
+Identifier REQ/UC/AC/ASSUMPTION/DEC/RISK/CHANGE et les lier dans les deux sens : besoin -> scénario/acceptation -> responsabilité -> lot -> vérification ; chaque tâche significative -> besoin accepté ou préalable technique justifié. Signaler couverture manquante, lien inexistant et fonctionnalité ajoutée.
+
+Une exigence non fonctionnelle déterminante décrit charge/données, OS/matériel, métrique, seuil et méthode. Ne pas inventer les valeurs : demander celles qui structurent la conception, ou inscrire une question bornée avant le lot qui en dépend. Distinguer preuve de faisabilité avant décision et mesure du produit après implémentation.
+
+Un AC observable donne données ou scénario, déclencheur, résultat visible, méthode de constat et statut de la valeur cible. Si le seuil reste ouvert, l'AC ne prétend pas le tester ; il renvoie à une question Q avec owner/échéance. Convertir les listes « à préciser » en questions identifiées, classées et reliées aux éléments touchés.

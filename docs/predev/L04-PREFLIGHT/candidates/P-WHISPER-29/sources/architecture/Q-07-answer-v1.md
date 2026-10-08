@@ -1,0 +1,59 @@
+# Paquet `ARCH-Q07-v1` — réponse architecte Rust
+
+Auteur : `/root/q07_arch_answer` ; rôle : architecte Rust ; date : 2026-10-06. Aucun fichier produit n’a été modifié et aucun test n’a été exécuté.
+
+Owner technique : architecte Rust ; owner de suivi du registre : `AUTH-COORD`.
+
+## Base lue
+
+- DESIGN `D-WHISPER-19`, digest `903926ba27c70fc3a0cc6954d9e50914a64993e40c339683e557bc4c604d7529` ; manifest SHA-256 `7f6465f9254611d432da50ab64034c7ae92b088351396f2c3eb3249c71866cb7`.
+- PLANS `P-WHISPER-06`, digest `5759cb207f39fe62fee921321dd90275a67a8d687133cf6fd23afd6ac09e3a93` ; manifest SHA-256 `20f9522605eef84536570dd2752ac949f0589ac33e46565238f99597ad2575ba`.
+- État lu : SHA-256 `c89a439d4847d9e04d3ae9920510d20c199d69167e5bb56c368d30330a1efc61` ; `Q-07=open`, `reversible_detail`, avant L02, impacts L02/L03. Ces valeurs identifient la base lue ; elles ne prétendent pas vérifier exhaustivement les manifests.
+
+## Résolution technique recommandée
+
+Nature `reversible_detail`, version 1, option technique acceptée dans le mandat d’architecte pour fixer les profils à implémenter et à qualifier. Cette acceptation ne constitue pas une validation produit.
+
+| Entrée | Admission décidée ; qualification future |
+|---|---|
+| WAV RIFF/WAVE little-endian | PCM unsigned 8 bits, signed 16/24/32 bits ; IEEE float 32/64 bits ; A-law et μ-law ; WAVEFORMATEXTENSIBLE pour les sous-types reconnus par Symphonia. Fréquence positive et description de canaux reconnue par le décodeur ; mono, stéréo et multicanal convertis en mono. |
+| MP3 MPEG-1 Layer III | Mono, stéréo, joint stereo et dual channel ; 32/44,1/48 kHz ; débits standards 32/40/48/56/64/80/96/112/128/160/192/224/256/320 kbps, CBR ou VBR. |
+| MP3 MPEG-2/2.5 Layer III | 16/22,05/24 kHz et 8/11,025/12 kHz ; débits standards 8/16/24/32/40/48/56/64/80/96/112/128/144/160 kbps, CBR ou VBR. |
+| Refus explicites | MP3 free-format, MPEG Layer I/II avec les features actuelles, paramètres réservés/invalides ; WAV ADPCM ou autres codecs absents de `wav/pcm/mp3` ; RIFX/RF64/Wave64 non pris en charge par le lecteur RIFF retenu ; autre conteneur/codec, piste absente, paramètres illisibles, corruption ou troncature détectée. |
+
+L’admission dépend du contenu reconnu et de son décodage valide, jamais de la seule extension. Ne pas créer de limite nouvelle de durée, taille ou fréquence à partir de cette réponse. Le contrôle actuel `channels ≤ 32` ne démontre pas que chaque configuration jusqu’à 32 canaux est prise en charge : le masque doit également être reconnu.
+
+## Sortie live à qualifier en L03
+
+`rusty_mp3 = 0.8.0`, MP3 MPEG-2 Layer III, mono 16 kHz, cible CBR **64 kbps**, configuration `Mp3EncoderConfig { bitrate_kbps: 64, vbr_quality: None }`, un fichier immuable par passage. C’est le profil sélectionné pour qualification, déjà utilisé dans le banc E3 ; le profil effectif doit être vérifié sur les en-têtes produits. Aucun réglage produit supplémentaire ni promesse de qualité audio ou de compatibilité universelle.
+
+## Contrats et limites
+
+Le `DecoderPort` reste la propriété de l’application : source revalidée + job/génération/plage → blocs PCM16 mono 16 kHz bornés et correspondance temporelle. Décodage dans l’enfant, source en lecture seule, erreurs explicites, annulation par génération et résultats obsolètes rejetés avant journal. Réutiliser les bornes existantes ; les limites mémoire déjà documentées subsistent.
+
+Conserver l’axe temporel source lors du rééchantillonnage. Pour MP3, activer le traitement gapless lorsque les métadonnées utiles existent et éviter tout double retrait du padding ; sans ces métadonnées, conserver la chronologie décodée et sa limite connue. Ne pas comprimer les silences. La durée MP3 décodée par un lecteur tiers ne modifie jamais les offsets des passages suivants, fondés sur l’horloge PCM/capture et la pause persistée.
+
+Un `UnexpectedEof` du lecteur ne suffit pas à prouver que le fichier est complet : vérifier les longueurs/trames déclarées lorsqu’elles existent. Une corruption détectée doit devenir une erreur ou un état récupérable visible, sans faux Complete. Un fichier raccourci mais structurellement valide ne permet pas de déduire une durée originale inconnue.
+
+## Preuves et qualification
+
+Sources sous `docs/predev/` :
+
+- `candidates/P-WHISPER-06/04_OPEN_DETAILS.md`, Q-07 ; `01_LOTS.md`, L02 et correction MP3 ; `02_VERIFICATION_AND_PREFLIGHT.md`, V-IMPORT-MP3 ; `sources/architecture/DETAIL-P01-v3.md`, Symphonia 0.5.5 et features déjà décidés.
+- `candidates/D-WHISPER-19/10_QUESTIONS_RISKS_AND_READINESS.md`, absence de bitrate imposé ; `19_SPIKE_RESULTS.md` et `evidence/formats-run.log.txt`, seulement un WAV mono 16 kHz, un MP3 CBR stéréo 44,1 kHz et un MP3 VBR mono 16 kHz exécutés.
+- `candidates/P-WHISPER-06/sources/design/50_ARCH_DECISIONS_D18.md`, TECH-D18-05 ; `candidates/D-WHISPER-19/evidence/d18/e3-resume-main.rs.txt`, configuration 64 kbps/mono16k ; `49_TECHNICAL_EVIDENCE_D18.md` et `evidence/d18/e3-alignment.json`, padding et qualité non qualifiés.
+
+Sources primaires consultées le 2026-10-06 : Symphonia 0.5.5, plus sources locales de cette version :
+
+- `symphonia-bundle-mp3-0.5.5/src/header.rs`, SHA-256 `25f8ef88782796bb013ad3c3b6564cf7e83ba121f49f26fdd9c5b27edcd41de0`.
+- `symphonia-format-riff-0.5.5/src/wave/chunks.rs`, SHA-256 `45f6db6456300e02b35e5cc3cb44eedcb5c44f38db1f2b9723c48aebcb963b7d`.
+- `symphonia-format-riff-0.5.5/src/wave/mod.rs`, SHA-256 `abdfe224d9c30e9b73fd088dcc640f1dee07aa60c7c828fa79ac5107653916fd`.
+- `rusty_mp3-0.8.0/src/lib.rs`, `src/header.rs` et `Cargo.toml`.
+
+La documentation des profils ne prouve pas leur validation produit. L02 garde V-IMPORT-MP3 : vrai décodeur et worker CPU jusqu’à TXT/SRT, langue prioritaire, offsets, hash source inchangé, refus/troncature, source changée après enqueue, annulation/crash et absence de départ spontané. La commande P06 reste proposée et non exécutée : `cargo test --locked -p whisper-adapters --target x86_64-pc-windows-msvc --test import_mp3 -- --nocapture`. L03 qualifie les en-têtes effectifs 64 kbps/mono16k, décodabilité, silence, passages et récupération ; qualité d’écoute et lecteurs tiers restent explicitement non qualifiés. Aucun seuil sample-exact n’est ajouté.
+
+Ces codecs Rust n’ajoutent pas de runtime codec natif ni de FFmpeg distribué. Les notices MPL-2.0 de Symphonia et Apache-2.0 de rusty_mp3 restent à traiter en L06.
+
+## Verdict
+
+`ANSWERED_DETAIL`, sans `DESIGN_CHANGE_REQUIRED`. Q-07 délègue cette précision technique et ne fixe aucun codec/bitrate produit. Pour fermer le blocage de transfert, l’hôte doit persister ce paquet en TRANSPORT, vérifier reçu/hash, puis rattacher cette preuve à `Q-07=answered` et au checkpoint. Les campagnes produit restent `NOT RUN`. Aucune activation de railguard ni modification des candidats READY n’est demandée.

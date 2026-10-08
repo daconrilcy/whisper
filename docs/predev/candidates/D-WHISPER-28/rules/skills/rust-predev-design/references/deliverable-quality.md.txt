@@ -1,0 +1,41 @@
+# Qualité des contributions de cadrage
+
+Appliquer ces contrôles à chaque handoff et avant la revue DESIGN. Une lacune reste visible avec propriétaire, question et échéance ; elle n'est pas comblée par une synthèse du coordinateur. Les détails dépendent du produit : ne pas exiger de machine d'états, de worker ou de SPIKE si le besoin ne les justifie pas.
+
+## Attribution et continuité
+
+Chaque apport indique rôle/auteur, base_candidate_id et versions des entrées touchées, IDs/owner, sources vérifiables, statut proposé/accepté, points terminés et travail restant. Conserver le résultat brut hors du corpus revu, avec référence stable ; la synthèse du corpus renvoie à ces entrées. Après persistance, vérifier reçu/hash et checkpoint avant le handoff suivant. La reprise lit le dernier checkpoint valide : phase, next_actor, pending_tasks, candidats, sources, questions et findings. Une proposition sans reçu est non persistée.
+
+### Paquet brut obligatoire au passage de relais
+
+Chaque spécialiste remet son apport exact avant toute synthèse, même si cet apport conclut à un blocage. Le paquet identifie l'acteur et son rôle, la base lue, les versions/IDs dont il est propriétaire, les sources consultées ou manquantes, le contenu proposé, les questions avec conséquences, les éléments terminés et les tâches restantes. Il distingue les faits établis, les observations rapportées, les options et les décisions acceptées. Le coordinateur ne réécrit pas ce paquet : l'hôte autorisé le persiste en TRANSPORT, hors du corpus DESIGN/PLANS revu, avec reçu et hash. Le checkpoint et la synthèse citent sa référence stable et les IDs repris. Si le transport échoue, marquer l'apport non persisté, garder le dernier checkpoint valide et suspendre le handoff qui en dépend.
+
+Un apport intermédiaire peut être partiel : ses manques restent des tâches attribuées, jamais des lignes silencieusement omises. Avant d'envoyer le rôle suivant, le coordinateur compare le paquet brut, la synthèse et les inventaires ci-dessous ; il renvoie à l'auteur toute omission ou collision d'ownership. Un manifeste intègre les sources fondatrices qui justifient le produit et les règles effectives ; le TRANSPORT prouve la provenance des apports, sans remplacer ces sources ni une revue indépendante.
+
+Une décision produit acceptée cite sa réponse utilisateur ou une délégation explicite, capturée fidèlement dans un fichier source identifié. La source d'autorisation d'écrire des documents ne vaut pas source d'acceptation du produit. Inclure dans le manifeste les sources qui fondent réellement le périmètre, les règles effectives et les preuves de conception. Distinguer observation rapportée, source primaire consultée, essai exécuté et proposition ; ne pas convertir un essai d'une autre pile en preuve de la pile choisie.
+
+## Couverture et questions
+
+Construire une vue bidirectionnelle du brief : chaque capacité incluse a REQ, UC et AC ou une exclusion/différé accepté ; chaque REQ/UC/AC renvoie au besoin et à sa source. Les parcours appliquent nominal, attente, erreur, annulation, fermeture et reprise lorsqu'ils sont pertinents. Les exigences non fonctionnelles structurantes indiquent charge/données, cible, métrique, seuil accepté ou question ouverte, méthode et preuve attendue. Une préférence indicative ne devient pas un seuil obligatoire par reformulation.
+
+Le framer rend un inventaire exhaustif des capacités annoncées, y compris installation, démarrage OS, réglages, raccourcis, choix/indisponibilité du stockage, conservation et suppression. Pour chacune : source et statut produit, parcours structurant, inclus/exclu/différé et condition de reprise. L'analyste reprend cet inventaire ligne par ligne et fournit les IDs REQ/UC/AC ou signale un GAP attribué ; une simple cellule « critère observable » dans une table REQ ne tient pas lieu d'UC et d'AC. Les AC décrivent scénario, données, action, résultat observable et méthode de constat. Une cible chiffrée absente reste une question, jamais une valeur inventée.
+
+Transformer les « à préciser » en questions Q identifiées : classification blocking/structural/reversible_detail, options et conséquences, owner, autorité attendue, échéance, refs et lots impactés s'ils existent. Regrouper les questions à poser à l'utilisateur ; ne bloquer que les dépendances réelles. Après réponse, conserver source, statut et IDs modifiés.
+
+## Domaine et architecture
+
+Pour chaque flux à états non trivial, distinguer état métier, état opérationnel durable et état visible. Décrire événements, préconditions, transitions valides, effets, erreurs, annulation et récupération ; relier les invariants aux REQ/UC/AC. Préciser les points de confirmation et les données qui peuvent être perdues après interruption. Le choix exact des états reste adapté au produit.
+
+Lorsque le produit comprend capture, import, file et archives durables, rendre explicites le moment où un travail en attente peut commencer, la reprise après crash, l'échec de finalisation, le fallback, l'annulation, les résultats rejoués et les états partiels. Définir la portée réelle de la confirmation durable et de la publication d'un ensemble de fichiers, avec réconciliation/idempotence et résultats attendus après coupure. Ne pas promettre une atomicité entre plusieurs fichiers sans mécanisme qui la démontre.
+
+L'architecture porte une matrice des dépendances propre au projet et des contrats pour les ports pertinents : propriétaire, entrée/sortie, préconditions, erreurs, effet, annulation, thread/concurrence, bornes et durabilité. Décrire les contrôles futurs de ces frontières. Chaque décision technique structurante a options, justification, statut, source primaire datée ou preuve d'essai et conséquence sur la livraison. Si la documentation ne démontre pas une faisabilité structurante, proposer un SPIKE borné selon engineering-contract.md ; ne pas le déclarer réussi ni l'exécuter sans mandat.
+
+Pour un travail concurrent, la politique de saturation, l'arrêt borné, la supervision, les résultats obsolètes et les responsabilités de l'UI, du moteur et du stockage sont des contrats à rendre vérifiables lorsqu'ils portent une garantie produit. Un essai d'une autre pile reste une observation rapportée ; l'architecte cite les pages primaires précises et datées pour la pile proposée, ou marque la faisabilité structurante ouverte. Un SPIKE seulement proposé ne ferme pas le risque.
+
+Pour un nouveau projet ou un dépôt sans railguard, produire une proposition de règles vérifiables, avec contrôle, portée, exceptions permises et autorité d'activation. Une simple liste d'intentions est un brouillon, pas un railguard prêt à revoir.
+
+La proposition nomme aussi les responsables, le périmètre physique contrôlé, les vérifications/preflight, la gestion des changements et versions, le chemin cible et l'attestation d'activation attendue. Elle peut rester inactive au gate documentaire ; son activation est vérifiée avant l'exécution.
+
+## Revue et arrêt
+
+Avant la revue, vérifier la couverture du brief et le manifeste exact ; conserver les rubriques DESIGN avec applicabilité, PASS/GAP et preuves. Le reviewer vérifie aussi les omissions entre brief, REQ/UC/AC, domaine, architecture et risques ; il rend les findings par ID et liée au digest. Une faisabilité ouverte peut être examinée comme finding ou blocage. Une session ne s'arrête pas à « prêt pour revue » si la revue est autorisée et disponible. En arrêt réel, le checkpoint nomme la cause, le dernier candidat valide, next_actor et les tâches concrètes restantes.

@@ -1,0 +1,23 @@
+import json,hashlib,sys
+from pathlib import Path
+human=json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+auto=json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
+assert human['schema']=='whisper-human-annotations/1'
+files=human['files']; refs=auto['files']
+assert len(files)==len(refs)==26
+assert len({x['file'] for x in files})==26
+assert dict(human['source_sha256'])=={x['file']:x['sha256'] for x in refs}
+changed=0; total=0
+for x,y in zip(files,refs):
+ assert x['file']==y['file'] and x['sha256']==y['sha256'] and x['language']==y['language']
+ assert abs(x['duration_s']-y['duration_s'])<1e-6 and x['verified'] is True
+ previous=0
+ for a,b in x['intervals_s']:
+  assert 0<=a<b<=x['duration_s']+.001 and a>=previous
+  previous=b;total+=1
+ if x['intervals_s']!=y['candidate_intervals_s']:changed+=1
+ base=Path.home()/'AppData/Local/Temp/whisper-spikes'
+ path=(Path(r'C:\WhisperLive')/'micro_test.wav') if x['file']=='micro_test.wav' else ((base/'jfk.wav') if x['file']=='jfk.wav' else base/'fleurs-small'/x['file'])
+ assert path.is_file()
+ assert hashlib.sha256(path.read_bytes()).hexdigest()==x['sha256']
+print(json.dumps({'status':'VALID','files':len(files),'all_verified':True,'intervals':total,'changed_files':changed,'reviewed_at':human['reviewed_at'],'human_json_sha256':hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest()},ensure_ascii=False))

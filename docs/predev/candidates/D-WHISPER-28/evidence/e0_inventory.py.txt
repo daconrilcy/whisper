@@ -1,0 +1,48 @@
+import hashlib
+import json
+import os
+import platform
+import subprocess
+from pathlib import Path
+
+root = Path(__file__).resolve().parents[1]
+run = Path(__file__).resolve().parent
+names = [
+    'engine/Cargo.toml', 'engine/Cargo.lock', 'engine/src/main.rs',
+    'engine/src/bin/live_measure.rs', 'engine/target/release/whisper-engine-spike.exe',
+    'engine/target/release/live_measure.exe',
+    'mp3-encode/Cargo.toml', 'mp3-encode/Cargo.lock',
+    'mp3-encode/src/main.rs', 'formats/Cargo.toml',
+    'formats/Cargo.lock', 'formats/src/main.rs',
+    'package/whisper-engine-spike.exe', 'package/ggml-large-v3-turbo.bin',
+    'package/cublas64_12.dll', 'package/cublasLt64_12.dll',
+    'package/cudart64_12.dll',
+]
+
+def digest(path):
+    h = hashlib.sha256()
+    with path.open('rb') as f:
+        for block in iter(lambda: f.read(1024 * 1024), b''):
+            h.update(block)
+    return h.hexdigest()
+
+def command(args, cwd=None):
+    p = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=60)
+    return {'args': args, 'exit_code': p.returncode, 'stdout': p.stdout, 'stderr': p.stderr}
+
+result = {
+    'schema': 'whisper-spike-e0/1',
+    'status': 'INVENTORY_ONLY',
+    'platform': platform.platform(),
+    'files': [],
+    'commands': [command(['rustc', '-Vv']), command(['cargo', '-V'])],
+}
+for name in names:
+    path = root / name
+    result['files'].append({'path': name, 'present': path.is_file(), 'size': path.stat().st_size if path.is_file() else None, 'sha256': digest(path) if path.is_file() else None})
+for name in ('engine', 'mp3-encode', 'formats'):
+    result['commands'].append(command(['cargo', 'metadata', '--locked', '--format-version', '1', '--no-deps'], cwd=root / name))
+    result['commands'].append(command(['cargo', 'tree', '--locked'], cwd=root / name))
+(run / 'e0-inventory.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
+print('files', len(result['files']), 'missing', sum(not x['present'] for x in result['files']))
+print('commands', len(result['commands']), 'failures', sum(x['exit_code'] for x in result['commands']))

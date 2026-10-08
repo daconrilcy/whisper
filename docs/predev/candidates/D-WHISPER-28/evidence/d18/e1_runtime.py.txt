@@ -1,0 +1,17 @@
+from pathlib import Path
+import winreg,hashlib,json
+with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,r'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64') as key:
+    version=winreg.QueryValueEx(key,'Version')[0]
+    installed=winreg.QueryValueEx(key,'Installed')[0]
+rows=[]
+for name in ('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll'):
+    path=Path(r'C:\Windows\System32')/name
+    rows.append({'name':name,'exists':path.is_file(),'bytes':path.stat().st_size if path.is_file() else None,
+                 'sha256':hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None})
+report={'schema':'whisper-e1-runtime/1','host_vc_redist_x64_version':version,'host_installed':installed,
+        'native_build_toolset':'MSVC 19.29.30159.0 / VC Tools 14.29.30133 from cuda-build.log',
+        'runtime_dlls':rows,'assessment':'host has newer v14 runtime than build toolset; does not test prerequisite-missing installer branch',
+        'official_guidance':'https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170'}
+out=Path.home()/'AppData/Local/Temp/whisper-spikes/closure-008/e1-runtime.json'
+out.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps({'version':version,'installed':installed,'dlls_present':sum(row['exists'] for row in rows)}))
