@@ -35,6 +35,7 @@ pub struct PcmStaging {
     samples_written: u64,
     durable_samples: u64,
     checksum: Sha256,
+    campaign_identity: Option<(u128, u64)>,
 }
 
 enum WriterCommand {
@@ -71,6 +72,7 @@ impl PcmStaging {
             samples_written: 0,
             durable_samples: 0,
             checksum: Sha256::new(),
+            campaign_identity: None,
         };
         staging.persist_checkpoint()?;
         Ok(staging)
@@ -124,11 +126,55 @@ impl PcmStaging {
     }
 
     pub fn sync(&mut self) -> io::Result<()> {
-        self.file.sync_data()?;
+        if let Some((job_id, generation)) = self.campaign_identity {
+            crate::archive::l04_campaign_gate("pcm.before_sync_data", job_id, generation, 0)
+                .map_err(io::Error::other)?;
+        }
+        let sync_result = self.file.sync_data();
+        if let Some((job_id, generation)) = self.campaign_identity {
+            crate::archive::l04_campaign_operation_result(
+                "pcm.before_sync_data",
+                job_id,
+                generation,
+                0,
+                &sync_result,
+                Some(&self.path),
+            )
+            .map_err(io::Error::other)?;
+        }
+        sync_result?;
+        if let Some((job_id, generation)) = self.campaign_identity {
+            crate::archive::l04_campaign_gate("pcm.after_sync_data", job_id, generation, 0)
+                .map_err(io::Error::other)?;
+        }
         self.frames_since_sync = 0;
         self.durable_samples = self.samples_written;
-        self.persist_checkpoint()?;
+        if let Some((job_id, generation)) = self.campaign_identity {
+            crate::archive::l04_campaign_gate("pcm.before_checkpoint", job_id, generation, 0)
+                .map_err(io::Error::other)?;
+        }
+        let checkpoint_result = self.persist_checkpoint();
+        if let Some((job_id, generation)) = self.campaign_identity {
+            crate::archive::l04_campaign_operation_result(
+                "pcm.before_checkpoint",
+                job_id,
+                generation,
+                0,
+                &checkpoint_result,
+                Some(&checkpoint_path(&self.path)),
+            )
+            .map_err(io::Error::other)?;
+        }
+        checkpoint_result?;
+        if let Some((job_id, generation)) = self.campaign_identity {
+            crate::archive::l04_campaign_gate("pcm.after_checkpoint", job_id, generation, 0)
+                .map_err(io::Error::other)?;
+        }
         Ok(())
+    }
+    pub fn with_campaign_identity(mut self, job_id: u128, generation: u64) -> Self {
+        self.campaign_identity = Some((job_id, generation));
+        self
     }
     pub fn drain(&mut self) -> io::Result<u64> {
         self.sync()?;
@@ -396,4 +442,98 @@ fn checkpoint_path(path: &Path) -> PathBuf {
         .and_then(|name| name.to_str())
         .unwrap_or("passage.pcm");
     path.with_file_name(format!("{name}.state.json"))
+}
+
+#[cfg(test)]
+mod campaign_tests {
+    use super::*;
+
+    #[test]
+    fn periodic_pcm_sync_has_before_and_after_fault_points() {
+        if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {
+            return;
+        }
+        if let Ok(mode) = std::env::var("WHISPER_L04_PCM_TEST_CHILD") {
+            let run = PathBuf::from(std::env::var_os("WHISPER_L04_CAMPAIGN_RUN").unwrap());
+            let path = run.join("archive").join("passage-1.pcm");
+            let mut staging = PcmStaging::create(&path)
+                .unwrap()
+                .with_campaign_identity(7, 1);
+            for _ in 0..24 {
+                staging.append_frame(&[1; 320]).unwrap();
+            }
+            assert_eq!(staging.durable_samples(), 0);
+            let error = staging.append_frame(&[1; 320]).unwrap_err();
+            assert!(error.to_string().contains("CampaignInjected"));
+            assert_eq!(
+                PcmStaging::inspect_checkpoint(&path)
+                    .unwrap()
+                    .durable_samples,
+                0
+            );
+            assert!(run.join("entered.json").exists());
+            assert_eq!(run.join("operation-result.json").exists(), mode == "after");
+            if mode == "after" {
+                let started: serde_json::Value =
+                    serde_json::from_slice(&fs::read(run.join("operation-start.json")).unwrap())
+                        .unwrap();
+                let completed: serde_json::Value =
+                    serde_json::from_slice(&fs::read(run.join("operation-result.json")).unwrap())
+                        .unwrap();
+                assert!(
+                    started["started_unix_ms"].as_u64().unwrap()
+                        <= completed["completed_unix_ms"].as_u64().unwrap()
+                );
+                assert_eq!(completed["syscall_result"], "ok");
+                assert!(completed["artifact"]["sha256"].as_str().is_some());
+                assert!(started["archive_files"].as_array().is_some());
+                assert!(completed["archive_files"].as_array().is_some());
+            }
+            return;
+        }
+        let binary = std::env::current_exe().unwrap();
+        let sha = format!("{:x}", Sha256::digest(fs::read(&binary).unwrap()));
+        let runs = Path::new(r"C:\WhisperLive\L04-campaign\runs");
+        fs::create_dir_all(runs).unwrap();
+        for mode in ["before", "after"] {
+            let hook = if mode == "before" {
+                "pcm.before_sync_data"
+            } else {
+                "pcm.after_sync_data"
+            };
+            let run = runs.join(format!(
+                "pcm-sync-test-{}-{}-{}",
+                std::process::id(),
+                mode,
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+            ));
+            fs::create_dir(&run).unwrap();
+            fs::create_dir(run.join("archive")).unwrap();
+            fs::write(
+                run.join("run.json"),
+                serde_json::to_vec(&serde_json::json!({
+                    "schema":"whisper-l04-fault/1", "hook":hook, "job_id":"7",
+                    "generation":1, "instance_id":0, "trigger_count":1,
+                    "binary":{"sha256":sha},
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+            fs::write(run.join("decision.txt"), b"fail\n").unwrap();
+            let result = std::process::Command::new(&binary)
+                .args([
+                    "--exact",
+                    "staging::campaign_tests::periodic_pcm_sync_has_before_and_after_fault_points",
+                ])
+                .env("WHISPER_L04_PCM_TEST_CHILD", mode)
+                .env("WHISPER_L04_CAMPAIGN_RUN", &run)
+                .status()
+                .unwrap();
+            assert!(result.success(), "periodic sync {mode} child failed");
+            fs::remove_dir_all(run).unwrap();
+        }
+    }
 }

@@ -56,7 +56,7 @@ impl Pcm16Converter {
         let resampler = FftFixedInOut::new(rate as usize, 16_000, desired_chunk, 1)
             .map_err(|error| format!("CaptureConversion: {error}"))?;
         let chunk = resampler.input_frames_next();
-        let output = resampler.output_buffer_allocate(false);
+        let output = resampler.output_buffer_allocate(true);
         let delay_remaining = resampler.output_delay();
         Ok(Self {
             rate,
@@ -118,13 +118,15 @@ impl Pcm16Converter {
         }
         let target = ((u128::from(self.input_frames) * 16_000) / u128::from(self.rate)) as u64;
         let mut result = Vec::new();
-        let partial = [&self.pending[..]];
-        let (_, produced) = self
-            .resampler
-            .process_partial_into_buffer(Some(&partial), &mut self.output, None)
-            .map_err(|error| format!("CaptureConversion: final input pad failed: {error}"))?;
-        self.pending.clear();
-        self.collect_compensated(&mut result, produced, target);
+        if !self.pending.is_empty() {
+            let partial = [&self.pending[..]];
+            let (_, produced) = self
+                .resampler
+                .process_partial_into_buffer(Some(&partial), &mut self.output, None)
+                .map_err(|error| format!("CaptureConversion: final input pad failed: {error}"))?;
+            self.pending.clear();
+            self.collect_compensated(&mut result, produced, target);
+        }
         while self.emitted_frames < target {
             let (_, produced) = self
                 .resampler
@@ -328,6 +330,26 @@ impl CaptureStream {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_and_exact_chunk_capture_finish_without_an_empty_input_buffer() {
+        let mut empty = Pcm16Converter::new(48_000, 1).unwrap();
+        assert!(empty.finish().unwrap().is_empty());
+        assert!(empty.finish().unwrap().is_empty());
+
+        let mut complete = Pcm16Converter::new(48_000, 1).unwrap();
+        let input_frames = complete.chunk;
+        let emitted = complete
+            .push(&CapturedBlock {
+                sample_rate_hz: 48_000,
+                channels: 1,
+                samples: vec![0.0; input_frames],
+            })
+            .unwrap()
+            .len();
+        let tail = complete.finish().unwrap();
+        assert_eq!(emitted + tail.len(), input_frames / 3);
+    }
 
     #[test]
     fn callback_reuses_recycled_slots_without_blocking_or_saturating() {

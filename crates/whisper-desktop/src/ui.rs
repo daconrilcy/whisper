@@ -37,8 +37,14 @@ impl<A: Application> DesktopApp<A> {
         let model_path = std::env::var("LOCALAPPDATA")
             .map(|path| format!(r"{path}\Programs\WhisperBuildDeps\models\ggml-large-v3-turbo.bin"))
             .unwrap_or_default();
-        let destination = std::env::var("USERPROFILE")
-            .map(|path| format!(r"{path}\Documents\WhisperTranscriptions"))
+        let destination = std::env::var("WHISPER_L04_NORMAL_RUN_ARCHIVE")
+            .ok()
+            .filter(|path| !path.trim().is_empty())
+            .or_else(|| {
+                std::env::var("USERPROFILE")
+                    .ok()
+                    .map(|path| format!(r"{path}\Documents\WhisperTranscriptions"))
+            })
             .unwrap_or_default();
         Self {
             application,
@@ -77,6 +83,13 @@ impl<A: Application> DesktopApp<A> {
                 false
             }
         }
+    }
+
+    fn published_result(&self) -> Option<&str> {
+        self.view
+            .active_job
+            .filter(|(_, state)| *state == JobState::Complete)
+            .and(self.view.last_result.as_deref())
     }
 
     fn stop_active(&mut self) {
@@ -120,6 +133,11 @@ impl<A: Application> DesktopApp<A> {
     }
 
     fn start_live(&mut self, generation: Generation) {
+        if generation == Generation::first() {
+            // The new-recording button starts a new group. Recovery and continuation
+            // use a later generation and retain the previous durable identity.
+            self.live_request = None;
+        }
         let serial = NEXT_JOB.fetch_add(1, Ordering::Relaxed);
         let job_id = self.live_request.as_ref().map_or_else(
             || JobId(((std::process::id() as u128) << 64) | serial as u128),
@@ -344,6 +362,21 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
         });
 
+        if state.is_some_and(manual_stop_available) && self.active_identity.is_some() {
+            let label = if self.view.active_job.is_some_and(|(job_id, _)| {
+                self.live_request
+                    .as_ref()
+                    .is_some_and(|request| request.job_id == job_id)
+            }) {
+                "Arrêter le micro"
+            } else {
+                "Arrêter"
+            };
+            if ui.button(label).clicked() {
+                self.stop_active();
+            }
+        }
+
         if let Some((job_id, state)) = self.view.active_job {
             ui.separator();
             ui.label(format!("Import {job_id:?} — {state:?}"));
@@ -398,17 +431,6 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     ));
                 }
             }
-            if matches!(
-                state,
-                JobState::Preparing
-                    | JobState::Running
-                    | JobState::Finalizing
-                    | JobState::AwaitingChoice
-            ) && ui.button("Arrêter").clicked()
-                && self.active_identity.is_some()
-            {
-                self.stop_active();
-            }
             if state == JobState::AwaitingChoice
                 && ui.button("Terminer ce passage sur CPU").clicked()
             {
@@ -421,7 +443,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         if let Some(message) = &self.view.message {
             ui.colored_label(egui::Color32::LIGHT_RED, message);
         }
-        if let Some(result) = &self.view.last_result {
+        if let Some(result) = self.published_result() {
             ui.colored_label(egui::Color32::LIGHT_GREEN, result);
         }
 
@@ -554,6 +576,17 @@ fn import_enqueue_enabled(busy: bool, busy_live: bool) -> bool {
     !busy || busy_live
 }
 
+fn manual_stop_available(state: JobState) -> bool {
+    matches!(
+        state,
+        JobState::Preparing
+            | JobState::Capturing
+            | JobState::Running
+            | JobState::Finalizing
+            | JobState::AwaitingChoice
+    )
+}
+
 fn window_must_remain_open(state: JobState) -> bool {
     matches!(
         state,
@@ -594,8 +627,8 @@ fn record_first_render(
 #[cfg(test)]
 mod tests {
     use super::{
-        DesktopApp, import_enqueue_enabled, record_first_render, speech_limit_samples,
-        window_must_remain_open,
+        DesktopApp, import_enqueue_enabled, manual_stop_available, record_first_render,
+        speech_limit_samples, window_must_remain_open,
     };
     use std::{cell::RefCell, rc::Rc};
     use whisper_core::{AppCommand, AppView, Application, ApplicationError, Generation, JobId};
@@ -655,6 +688,27 @@ mod tests {
     }
 
     #[test]
+    fn manual_stop_is_available_while_micro_is_capturing() {
+        assert!(manual_stop_available(whisper_core::JobState::Capturing));
+        assert!(!manual_stop_available(whisper_core::JobState::Draining));
+        assert!(!manual_stop_available(whisper_core::JobState::Complete));
+    }
+
+    #[test]
+    fn starting_a_new_microphone_job_hides_the_previous_publication() {
+        let mut app = DesktopApp::new(RecordingApplication::default());
+        app.view.active_job = Some((JobId(1), whisper_core::JobState::Complete));
+        app.view.last_result = Some("Transcription publiée et vérifiée".into());
+        assert!(app.published_result().is_some());
+
+        app.start_live(Generation::first());
+        let next_job = app.live_request.as_ref().unwrap().job_id;
+        app.view.active_job = Some((next_job, whisper_core::JobState::Preparing));
+        app.view.last_result = Some("Transcription publiée et vérifiée".into());
+        assert_eq!(app.published_result(), None);
+    }
+
+    #[test]
     fn rejected_quit_admission_does_not_latch_pending_close() {
         let mut app = DesktopApp::new(RejectQuitApplication);
         app.active_identity = Some((JobId(22), Generation::first()));
@@ -683,6 +737,23 @@ mod tests {
                 generation: live.1,
             })
         );
+    }
+
+    #[test]
+    fn new_microphone_start_gets_a_new_group_while_continuation_keeps_its_identity() {
+        let recorder = RecordingApplication::default();
+        let mut app = DesktopApp::new(recorder.clone());
+        app.start_live(Generation::first());
+        let first = app.live_request.clone().unwrap();
+        app.start_live(Generation::first());
+        let second = app.live_request.clone().unwrap();
+        assert_ne!(first.job_id, second.job_id);
+        assert_eq!(second.group_offset_samples, 0);
+        app.start_live(second.generation.next().unwrap());
+        let continued = app.live_request.as_ref().unwrap();
+        assert_eq!(continued.job_id, second.job_id);
+        assert_eq!(continued.generation.get(), 2);
+        assert_eq!(recorder.0.borrow().len(), 3);
     }
 
     #[test]

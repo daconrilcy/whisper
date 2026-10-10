@@ -317,17 +317,22 @@ fn take_ready_live_stop(
 
 fn read_events(stdout: impl io::Read, tx: SyncSender<Result<WorkerEvent, PortError>>) {
     let mut input = BufReader::new(stdout);
+    let mut saw_stopped = false;
     #[cfg(feature = "l01-memory-qualification")]
     memory_trace(
         "adapter.worker_stdout_reader",
         serde_json::json!({ "bufreader_capacity_bytes": input.capacity() }),
     );
     loop {
-        let result = read_frame::<IpcEnvelope<WorkerEvent>>(&mut input).and_then(|item| {
-            item.ok_or_else(|| {
-                io::Error::new(io::ErrorKind::UnexpectedEof, "worker exited without End")
-            })
-        });
+        let result = match read_frame::<IpcEnvelope<WorkerEvent>>(&mut input) {
+            Ok(Some(envelope)) => Ok(envelope),
+            Ok(None) if saw_stopped => break,
+            Ok(None) => Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "worker exited without End",
+            )),
+            Err(error) => Err(error),
+        };
         let event = match result {
             Ok(envelope) if envelope.version == IPC_PROTOCOL_VERSION => Ok(envelope.message),
             Ok(envelope) => Err(PortError::Failed(format!(
@@ -338,11 +343,10 @@ fn read_events(stdout: impl io::Read, tx: SyncSender<Result<WorkerEvent, PortErr
                 "WorkerExited without End: {error}"
             ))),
         };
-        let terminal = event.is_err()
-            || matches!(
-                event,
-                Ok(WorkerEvent::End { .. } | WorkerEvent::Stopped { .. })
-            );
+        // A Stopped event may belong to an older worker instance. The runtime
+        // checks its identity; keep reading until its correlated terminal event.
+        let terminal = event.is_err() || matches!(event, Ok(WorkerEvent::End { .. }));
+        saw_stopped |= matches!(event, Ok(WorkerEvent::Stopped { .. }));
         if tx.send(event).is_err() || terminal {
             break;
         }
@@ -406,6 +410,26 @@ fn map_attempt_sequence(base: u64, replay_prefix: u64, attempt_sequence: u64) ->
         .checked_add(base)
 }
 
+fn campaign_reserve_attempt(
+    archive: &mut LiveArchive,
+    job_id: JobId,
+    generation: Generation,
+) -> Result<u64, String> {
+    crate::archive::l04_campaign_gate("live.before_reserve", job_id.0, generation.get(), 0)?;
+    let result = archive.reserve_attempt();
+    crate::archive::l04_campaign_operation_result(
+        "live.before_reserve",
+        job_id.0,
+        generation.get(),
+        0,
+        &result,
+        None,
+    )?;
+    let attempt = result?;
+    crate::archive::l04_campaign_gate("live.after_reserve", job_id.0, generation.get(), 0)?;
+    Ok(attempt)
+}
+
 fn spawn_live_attempt(
     request: &LiveRequest,
     selection: &crate::supervisor::WorkerSelection,
@@ -419,29 +443,50 @@ fn spawn_live_attempt(
             "WorkerExited: instance identity exhausted".into(),
         ));
     }
-    let mut transport = ChildWorkerTransport::spawn(&selection.path)
-        .map_err(|error| (identity.0, identity.1, format!("WorkerExited: {error:?}")))?;
+    crate::archive::l04_campaign_gate(
+        "live.before_spawn",
+        identity.0.0,
+        identity.1.get(),
+        instance_id,
+    )
+    .map_err(|error| (identity.0, identity.1, error))?;
     let mut worker_config = request.config.clone();
     worker_config.compute = match selection.backend {
         whisper_core::BackendAttempt::Cpu => whisper_core::ComputeChoice::Cpu,
         whisper_core::BackendAttempt::Gpu => whisper_core::ComputeChoice::Gpu,
     };
-    transport
-        .request(WorkerCommand::StartLiveWorker {
-            job_id: identity.0,
-            generation: identity.1,
-            instance_id,
-            model_path: request.model_path.clone(),
-            model_sha256: request.model_sha256,
-            config: worker_config,
-        })
-        .map_err(|error| {
-            (
-                identity.0,
-                identity.1,
-                format!("ProtocolMismatch: {error:?}"),
-            )
-        })?;
+    let spawn_result = (|| -> Result<ChildWorkerTransport, String> {
+        let mut transport = ChildWorkerTransport::spawn(&selection.path)
+            .map_err(|error| format!("WorkerExited: {error:?}"))?;
+        transport
+            .request(WorkerCommand::StartLiveWorker {
+                job_id: identity.0,
+                generation: identity.1,
+                instance_id,
+                model_path: request.model_path.clone(),
+                model_sha256: request.model_sha256,
+                config: worker_config,
+            })
+            .map_err(|error| format!("ProtocolMismatch: {error:?}"))?;
+        Ok(transport)
+    })();
+    crate::archive::l04_campaign_operation_result(
+        "live.before_spawn",
+        identity.0.0,
+        identity.1.get(),
+        instance_id,
+        &spawn_result,
+        None,
+    )
+    .map_err(|error| (identity.0, identity.1, error))?;
+    let transport = spawn_result.map_err(|error| (identity.0, identity.1, error))?;
+    crate::archive::l04_campaign_gate(
+        "live.after_spawn",
+        identity.0.0,
+        identity.1.get(),
+        instance_id,
+    )
+    .map_err(|error| (identity.0, identity.1, error))?;
     Ok((transport, instance_id))
 }
 
@@ -675,6 +720,9 @@ impl ImportRuntime {
             ImportEffect::Enqueue(mut request) => {
                 let id = (request.job_id, request.generation);
                 let result = crate::archive::ArchiveStore::identify_source(&mut request)
+                    .and_then(|()| {
+                        crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
+                    })
                     .and_then(|()| crate::queue_store::QueueStore::open(&request.destination))
                     .and_then(|mut queue| {
                         queue.enqueue(request)?;
@@ -693,10 +741,12 @@ impl ImportRuntime {
                 generation,
                 destination,
             } => {
-                match crate::queue_store::QueueStore::open(&destination).and_then(|mut queue| {
-                    queue.remove(job_id, generation)?;
-                    Ok(queue.entries())
-                }) {
+                match crate::archive::l04_campaign_assert_archive(Path::new(&destination))
+                    .and_then(|()| crate::queue_store::QueueStore::open(&destination))
+                    .and_then(|mut queue| {
+                        queue.remove(job_id, generation)?;
+                        Ok(queue.entries())
+                    }) {
                     Ok(queue) => {
                         events.push_back(ImportEvent::Queue(queue));
                         Ok(())
@@ -706,24 +756,45 @@ impl ImportRuntime {
             }
             ImportEffect::ProcessQueued(request) => {
                 let id = (request.job_id, request.generation);
-                let result = crate::queue_store::QueueStore::open(&request.destination)
-                    .and_then(|queue| {
-                        let entries = queue.entries();
-                        let first = entries.first().map(|entry| (entry.request.job_id, entry.request.generation));
-                        let entry = entries.into_iter().find(|entry| {
-                            entry.request.job_id == id.0 && entry.request.generation == id.1
-                        }).ok_or_else(|| "InvalidInput: queue entry no longer exists".to_owned())?;
-                        if first != Some(id) {
-                            return Err("InvalidInput: process queued jobs in FIFO order".into());
-                        }
-                        if entry.request != request {
-                            return Err("SourceChanged: queued request identity differs from the durable entry".into());
-                        }
-                        if !matches!(entry.status, crate::queue_store::QueueStatus::Queued | crate::queue_store::QueueStatus::AwaitingChoice) {
-                            return Err("InvalidInput: interrupted jobs require an explicit verified resume".into());
-                        }
-                        Ok(entry.request)
-                    });
+                let result =
+                    crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
+                        .and_then(|()| crate::queue_store::QueueStore::open(&request.destination))
+                        .and_then(|queue| {
+                            let entries = queue.entries();
+                            let first = entries
+                                .first()
+                                .map(|entry| (entry.request.job_id, entry.request.generation));
+                            let entry = entries
+                                .into_iter()
+                                .find(|entry| {
+                                    entry.request.job_id == id.0 && entry.request.generation == id.1
+                                })
+                                .ok_or_else(|| {
+                                    "InvalidInput: queue entry no longer exists".to_owned()
+                                })?;
+                            if first != Some(id) {
+                                return Err(
+                                    "InvalidInput: process queued jobs in FIFO order".into()
+                                );
+                            }
+                            if entry.request != request {
+                                return Err(
+                            "SourceChanged: queued request identity differs from the durable entry"
+                                .into(),
+                        );
+                            }
+                            if !matches!(
+                                entry.status,
+                                crate::queue_store::QueueStatus::Queued
+                                    | crate::queue_store::QueueStatus::AwaitingChoice
+                            ) {
+                                return Err(
+                            "InvalidInput: interrupted jobs require an explicit verified resume"
+                                .into(),
+                        );
+                            }
+                            Ok(entry.request)
+                        });
                 match result {
                     Ok(durable_request) => {
                         let mut archive = ArchiveStore::new(&durable_request.destination);
@@ -757,10 +828,12 @@ impl ImportRuntime {
             }
             ImportEffect::ResumeInterrupted { previous, request } => {
                 let id = (request.job_id, request.generation);
-                let queue_validation = crate::queue_store::QueueStore::open(&request.destination)
-                    .and_then(|queue| {
-                        queue.validate_resume(previous.job_id, previous.generation, &request)
-                    });
+                let queue_validation =
+                    crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
+                        .and_then(|()| crate::queue_store::QueueStore::open(&request.destination))
+                        .and_then(|queue| {
+                            queue.validate_resume(previous.job_id, previous.generation, &request)
+                        });
                 if let Err(error) = queue_validation {
                     events.push_back(ImportEvent::Failed {
                         job_id: id.0,
@@ -939,6 +1012,8 @@ impl ImportRuntime {
     }
     fn start_live(&mut self, request: LiveRequest) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
+        crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
+            .map_err(|error| (id.0, id.1, error))?;
         if self.active.is_some() || self.live.is_some() || self.pending_live.is_some() {
             return Err((
                 id.0,
@@ -972,12 +1047,12 @@ impl ImportRuntime {
         let live_archive = LiveArchive::prepare(&request.destination, request.clone())
             .map_err(|e| (id.0, id.1, e))?;
         let mut live_archive = live_archive;
-        let attempt_number = live_archive
-            .reserve_attempt()
+        let attempt_number = campaign_reserve_attempt(&mut live_archive, id.0, id.1)
             .map_err(|error| (id.0, id.1, error))?;
         let staging =
             PcmStaging::create(directory.join(format!("passage-{}.pcm", request.generation.get())))
                 .map_err(|e| (id.0, id.1, format!("StorageUnavailable: PCM staging: {e}")))?
+                .with_campaign_identity(id.0.0, id.1.get())
                 .into_writer();
         let (transport, instance_id) = spawn_live_attempt(&request, &selection)?;
         live_archive
@@ -1075,6 +1150,8 @@ impl ImportRuntime {
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
+        crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
+            .map_err(|error| (id.0, id.1, error))?;
         if self.publication_gate.is_cancelled() {
             events.push_back(ImportEvent::Stopped {
                 job_id: id.0,
@@ -1105,6 +1182,8 @@ impl ImportRuntime {
         force_cpu: bool,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
+        crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
+            .map_err(|error| (id.0, id.1, error))?;
         if self.publication_gate.is_cancelled() {
             return Err((
                 id.0,
@@ -1243,8 +1322,7 @@ impl ImportRuntime {
             let confirmed_samples = archive.confirmed_samples();
             let next_segment_sequence = archive.next_segment_sequence();
             let next_window_sequence = archive.next_window_sequence();
-            let attempt_number = archive
-                .reserve_attempt()
+            let attempt_number = campaign_reserve_attempt(archive, job_id, generation)
                 .map_err(|error| (job_id, generation, error))?;
             (
                 confirmed_samples,
@@ -1353,9 +1431,7 @@ impl ImportRuntime {
                 .map_err(|error| (job_id, generation, error))?;
             (
                 pending.request.clone(),
-                pending
-                    .live_archive
-                    .reserve_attempt()
+                campaign_reserve_attempt(&mut pending.live_archive, job_id, generation)
                     .map_err(|error| (job_id, generation, error))?,
             )
         };
@@ -1648,6 +1724,13 @@ impl ImportRuntime {
                 durable,
             )
             .map_err(|error| (id.0, id.1, error))?;
+        crate::archive::l04_campaign_gate(
+            "live.before_window_ticket",
+            id.0.0,
+            id.1.get(),
+            active.instance_id,
+        )
+        .map_err(|error| (id.0, id.1, error))?;
         if let Some(progress) = self.progress.as_mut() {
             progress.observe(
                 ProgressPhase::Draining,
@@ -1799,13 +1882,27 @@ impl ImportRuntime {
                     live.admitted += valid_len as u64;
                 }
             }
-            live.staging.drain().map_err(|e| {
+            crate::archive::l04_campaign_gate("pcm.before_drain", job.0, generation.get(), 0)
+                .map_err(|error| (job, generation, error))?;
+            let drain_result = live.staging.drain();
+            crate::archive::l04_campaign_operation_result(
+                "pcm.before_drain",
+                job.0,
+                generation.get(),
+                0,
+                &drain_result,
+                None,
+            )
+            .map_err(|error| (job, generation, error))?;
+            drain_result.map_err(|e| {
                 (
                     job,
                     generation,
                     format!("StorageUnavailable: drain failed: {e}"),
                 )
             })?;
+            crate::archive::l04_campaign_gate("pcm.after_drain", job.0, generation.get(), 0)
+                .map_err(|error| (job, generation, error))?;
             live.stop_requested = true;
             return Ok(());
         }
@@ -2524,7 +2621,27 @@ impl ImportRuntime {
                 self.active = None;
                 return Some(Err((job_id, generation, reason)));
             }
+            if let Err(error) = crate::archive::l04_campaign_gate(
+                "pcm.before_final_drain",
+                job_id.0,
+                generation.get(),
+                0,
+            ) {
+                return Some(Err((job_id, generation, error)));
+            }
             let final_drain = self.live.as_mut().map(|live| live.staging.drain());
+            if let Some(result) = &final_drain
+                && let Err(error) = crate::archive::l04_campaign_operation_result(
+                    "pcm.before_final_drain",
+                    job_id.0,
+                    generation.get(),
+                    0,
+                    result,
+                    None,
+                )
+            {
+                return Some(Err((job_id, generation, error)));
+            }
             if let Some(Err(error)) = final_drain {
                 if let Some(live) = self.live.as_mut() {
                     live.capture.stop();
@@ -2538,6 +2655,14 @@ impl ImportRuntime {
                     generation,
                     format!("StorageUnavailable: final audio sync: {error}"),
                 )));
+            }
+            if let Err(error) = crate::archive::l04_campaign_gate(
+                "pcm.after_final_drain",
+                job_id.0,
+                generation.get(),
+                0,
+            ) {
+                return Some(Err((job_id, generation, error)));
             }
             let (durable, confirmed, pcm_sha256) =
                 self.live.as_ref().map_or((0, 0, [0; 32]), |live| {
@@ -2933,6 +3058,8 @@ impl ImportIoPort for AsyncImportIo {
             if self.active_identity != Some((*job_id, *generation)) {
                 return Err(PortError::StaleResponse);
             }
+            crate::archive::l04_campaign_gate("stop.before_admit", job_id.0, generation.get(), 0)
+                .map_err(PortError::Failed)?;
             if !self.publication_gate.request_stop()? {
                 return Ok(());
             }
@@ -3649,6 +3776,29 @@ fn main() {
         read_events(Cursor::new(bytes), tx);
         assert!(matches!(rx.recv().unwrap(), Ok(WorkerEvent::Failed { .. })));
         assert_eq!(rx.recv().unwrap(), Ok(stopped));
+    }
+
+    #[test]
+    fn stale_stopped_does_not_hide_later_correlated_stop() {
+        let job_id = JobId(8);
+        let generation = Generation::first();
+        let stale = WorkerEvent::Stopped {
+            job_id,
+            generation,
+            instance_id: 52,
+        };
+        let current = WorkerEvent::Stopped {
+            job_id,
+            generation,
+            instance_id: 51,
+        };
+        let mut bytes = Vec::new();
+        write_frame(&mut bytes, &IpcEnvelope::new(stale.clone())).unwrap();
+        write_frame(&mut bytes, &IpcEnvelope::new(current.clone())).unwrap();
+        let (tx, rx) = mpsc::sync_channel(3);
+        read_events(Cursor::new(bytes), tx);
+        assert_eq!(rx.recv().unwrap(), Ok(stale));
+        assert_eq!(rx.recv().unwrap(), Ok(current));
     }
 
     #[test]

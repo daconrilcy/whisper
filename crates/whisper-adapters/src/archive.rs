@@ -19,6 +19,451 @@ const APPROVED_MODEL_SIZE: u64 = 1_624_555_275;
 const APPROVED_MODEL_SHA256: &str =
     "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69";
 const PCM_STAGING_HEADER: &[u8] = b"WHISPCM1\0\x80\x3e\0\0\x01\0";
+static L04_CAMPAIGN_OCCURRENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn l04_campaign_after(before: &str) -> Option<&'static str> {
+    match before {
+        "attempt.before_record" => Some("attempt.after_sync"),
+        "coverage.before_record" => Some("coverage.after_sync"),
+        "live.before_mp3_sync" => Some("live.after_mp3_sync"),
+        "live.before_manifest" => Some("live.after_manifest"),
+        "live.before_current" => Some("live.after_current"),
+        "import.before_manifest" => Some("import.after_manifest"),
+        "import.before_current" => Some("import.after_current"),
+        "recovery.before_coverage" => Some("recovery.after_coverage"),
+        "live.before_spawn" => Some("live.after_spawn"),
+        "live.before_reserve" => Some("live.after_reserve"),
+        "pcm.before_drain" => Some("pcm.after_drain"),
+        "pcm.before_final_drain" => Some("pcm.after_final_drain"),
+        "pcm.before_sync_data" => Some("pcm.after_sync_data"),
+        "pcm.before_checkpoint" => Some("pcm.after_checkpoint"),
+        _ => None,
+    }
+}
+
+fn l04_campaign_is_after(hook: &str) -> bool {
+    matches!(
+        hook,
+        "attempt.after_sync"
+            | "coverage.after_sync"
+            | "live.after_mp3_sync"
+            | "live.after_manifest"
+            | "live.after_current"
+            | "import.after_manifest"
+            | "import.after_current"
+            | "recovery.after_coverage"
+            | "live.after_spawn"
+            | "live.after_reserve"
+            | "pcm.after_drain"
+            | "pcm.after_final_drain"
+            | "pcm.after_sync_data"
+            | "pcm.after_checkpoint"
+    )
+}
+
+pub(crate) fn l04_campaign_assert_archive(root: &Path) -> Result<(), String> {
+    if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {
+        return Ok(());
+    }
+    let Some(directory) = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN") else {
+        return Ok(());
+    };
+    let run = PathBuf::from(directory)
+        .canonicalize()
+        .map_err(|error| format!("CampaignGuard: run path: {error}"))?;
+    let allowed = Path::new(r"C:\WhisperLive\L04-campaign\runs")
+        .canonicalize()
+        .map_err(|error| format!("CampaignGuard: runs root: {error}"))?;
+    if run.parent() != Some(allowed.as_path()) {
+        return Err("CampaignGuard: run must be a direct child of campaign runs".into());
+    }
+    let expected = run
+        .join("archive")
+        .canonicalize()
+        .map_err(|error| format!("CampaignGuard: run archive: {error}"))?;
+    if expected.parent() != Some(run.as_path()) {
+        return Err("CampaignGuard: run archive leaves the run directory".into());
+    }
+    let actual = root
+        .canonicalize()
+        .map_err(|error| format!("CampaignGuard: destination archive: {error}"))?;
+    if actual != expected {
+        return Err("CampaignGuard: destination is not the run archive".into());
+    }
+    Ok(())
+}
+
+fn l04_campaign_write_marker(path: &Path, value: &serde_json::Value) -> Result<(), String> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| format!("CampaignGuard: marker open: {error}"))?;
+    serde_json::to_writer(&mut file, value)
+        .map_err(|error| format!("CampaignGuard: marker write: {error}"))?;
+    file.sync_all()
+        .map_err(|error| format!("CampaignGuard: marker sync: {error}"))
+}
+
+fn l04_campaign_snapshot(run: &Path) -> Result<Vec<serde_json::Value>, String> {
+    let archive = run
+        .join("archive")
+        .canonicalize()
+        .map_err(|error| format!("CampaignGuard: archive path: {error}"))?;
+    let mut pending = vec![archive.clone()];
+    let mut records = Vec::new();
+    while let Some(directory) = pending.pop() {
+        for item in fs::read_dir(&directory)
+            .map_err(|error| format!("CampaignGuard: archive listing: {error}"))?
+        {
+            let item = item.map_err(|error| format!("CampaignGuard: archive item: {error}"))?;
+            let path = item
+                .path()
+                .canonicalize()
+                .map_err(|error| format!("CampaignGuard: archive item path: {error}"))?;
+            if !path.starts_with(&archive) || records.len() + pending.len() >= 1024 {
+                return Err("CampaignGuard: archive snapshot escapes bounds".into());
+            }
+            if path.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            // The live archive holds this coordination file locked for the
+            // whole passage. It is not a durable payload and cannot be read
+            // reliably while the writer is active on Windows.
+            if path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.ends_with(".writer.lock"))
+            {
+                continue;
+            }
+            let mut file = File::open(&path)
+                .map_err(|error| format!("CampaignGuard: archive file: {error}"))?;
+            let mut hasher = Sha256::new();
+            let mut buffer = [0_u8; 64 * 1024];
+            loop {
+                let count = file
+                    .read(&mut buffer)
+                    .map_err(|error| format!("CampaignGuard: archive hash: {error}"))?;
+                if count == 0 {
+                    break;
+                }
+                hasher.update(&buffer[..count]);
+            }
+            records.push(serde_json::json!({
+                "path": path.strip_prefix(&archive).unwrap().to_string_lossy(),
+                "bytes": file.metadata().map_err(|error| format!("CampaignGuard: archive metadata: {error}"))?.len(),
+                "sha256": format!("{:x}", hasher.finalize()),
+            }));
+        }
+    }
+    records.sort_by(|left, right| left["path"].as_str().cmp(&right["path"].as_str()));
+    Ok(records)
+}
+
+pub(crate) fn l04_campaign_operation_result<T, E: std::fmt::Display>(
+    before: &str,
+    job_id: u128,
+    generation: u64,
+    instance_id: u64,
+    result: &Result<T, E>,
+    artifact: Option<&Path>,
+) -> Result<(), String> {
+    if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {
+        return Ok(());
+    }
+    let Some(directory) = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN") else {
+        return Ok(());
+    };
+    let run = PathBuf::from(directory)
+        .canonicalize()
+        .map_err(|error| format!("CampaignGuard: result run: {error}"))?;
+    let allowed = Path::new(r"C:\WhisperLive\L04-campaign\runs")
+        .canonicalize()
+        .map_err(|error| format!("CampaignGuard: result root: {error}"))?;
+    if run.parent() != Some(allowed.as_path()) {
+        return Err("CampaignGuard: result run outside campaign".into());
+    }
+    let control: serde_json::Value = serde_json::from_slice(
+        &fs::read(run.join("run.json"))
+            .map_err(|error| format!("CampaignGuard: result control: {error}"))?,
+    )
+    .map_err(|error| format!("CampaignGuard: result control JSON: {error}"))?;
+    let selected = control.get("hook").and_then(|value| value.as_str());
+    if selected != Some(before) && selected != l04_campaign_after(before) {
+        return Ok(());
+    }
+    let target = control
+        .get("trigger_count")
+        .and_then(|value| value.as_u64())
+        .ok_or_else(|| "CampaignGuard: missing trigger count".to_owned())?;
+    if target == 0 || L04_CAMPAIGN_OCCURRENCE.load(std::sync::atomic::Ordering::Acquire) != target {
+        return Ok(());
+    }
+    if control.get("job_id").and_then(|value| value.as_str()) != Some(job_id.to_string().as_str())
+        || control.get("generation").and_then(|value| value.as_u64()) != Some(generation)
+        || control.get("instance_id").and_then(|value| value.as_u64()) != Some(instance_id)
+    {
+        return Err("CampaignGuard: result identity mismatch".into());
+    }
+    let artifact = artifact.and_then(|path| path.canonicalize().ok()).map(|path| -> Result<serde_json::Value, String> {
+        let archive = run.join("archive").canonicalize()
+            .map_err(|error| format!("CampaignGuard: archive path: {error}"))?;
+        if !path.starts_with(&archive) {
+            return Err("CampaignGuard: artifact outside run archive".into());
+        }
+        let mut file = File::open(&path)
+            .map_err(|error| format!("CampaignGuard: artifact open: {error}"))?;
+        let mut hasher = Sha256::new();
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            let read = file.read(&mut buffer)
+                .map_err(|error| format!("CampaignGuard: artifact read: {error}"))?;
+            if read == 0 { break; }
+            hasher.update(&buffer[..read]);
+        }
+        Ok(serde_json::json!({
+            "path": path.strip_prefix(&archive).unwrap().to_string_lossy(),
+            "bytes": file.metadata().map_err(|error| format!("CampaignGuard: artifact metadata: {error}"))?.len(),
+            "sha256": format!("{:x}", hasher.finalize()),
+        }))
+    }).transpose()?;
+    l04_campaign_write_marker(
+        &run.join("operation-result.json"),
+        &serde_json::json!({
+            "before_hook": before, "after_hook": l04_campaign_after(before),
+            "job_id": job_id.to_string(), "generation": generation,
+            "instance_id": instance_id, "pid": std::process::id(),
+            "completed_unix_ms": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH).map_or(0, |duration| duration.as_millis()),
+            "syscall_result": if result.is_ok() { "ok" } else { "error" },
+            "error": result.as_ref().err().map(ToString::to_string),
+            "artifact": artifact,
+            "archive_files": l04_campaign_snapshot(&run)?,
+        }),
+    )
+}
+
+/// A build-local, one-shot barrier for isolated L04 fault campaigns. The
+/// release build contains no usable gate unless the campaign build variable
+/// was present when rustc compiled this crate.
+pub(crate) fn l04_campaign_gate(
+    hook: &str,
+    job_id: u128,
+    generation: u64,
+    instance_id: u64,
+) -> Result<(), String> {
+    if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {
+        return Ok(());
+    }
+    let Some(directory) = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN") else {
+        return Ok(());
+    };
+    let directory = PathBuf::from(directory);
+    let allowed = Path::new(r"C:\WhisperLive\L04-campaign\runs")
+        .canonicalize()
+        .map_err(|error| format!("CampaignGuard: runs root: {error}"))?;
+    let actual = directory
+        .canonicalize()
+        .map_err(|error| format!("CampaignGuard: run path: {error}"))?;
+    if actual.parent() != Some(allowed.as_path()) {
+        return Err("CampaignGuard: run must be a direct child of campaign runs".into());
+    }
+    let run_file = actual
+        .join("run.json")
+        .canonicalize()
+        .map_err(|error| format!("CampaignGuard: run.json path: {error}"))?;
+    if run_file.parent() != Some(actual.as_path()) {
+        return Err("CampaignGuard: run.json leaves the run directory".into());
+    }
+    let control: serde_json::Value = serde_json::from_slice(
+        &fs::read(run_file).map_err(|error| format!("CampaignGuard: run.json: {error}"))?,
+    )
+    .map_err(|error| format!("CampaignGuard: invalid run.json: {error}"))?;
+    if control.get("schema").and_then(|value| value.as_str()) != Some("whisper-l04-fault/1") {
+        return Err("CampaignGuard: unknown schema".into());
+    }
+    let selected = control
+        .get("hook")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| "CampaignGuard: missing hook".to_owned())?;
+    if !matches!(
+        selected,
+        "attempt.before_record"
+            | "attempt.after_sync"
+            | "coverage.before_record"
+            | "coverage.after_sync"
+            | "live.before_mp3_sync"
+            | "live.after_mp3_sync"
+            | "live.before_manifest"
+            | "live.after_manifest"
+            | "live.before_current"
+            | "live.after_current"
+            | "import.before_manifest"
+            | "import.after_manifest"
+            | "import.before_current"
+            | "import.after_current"
+            | "recovery.before_scan_live"
+            | "recovery.before_coverage"
+            | "recovery.after_coverage"
+            | "live.before_spawn"
+            | "live.after_spawn"
+            | "live.before_reserve"
+            | "live.after_reserve"
+            | "stop.before_admit"
+            | "live.before_window_ticket"
+            | "diagnostic.before_startup_purge"
+            | "diagnostic.before_purge"
+            | "diagnostic.before_rotate"
+            | "diagnostic.before_append"
+            | "pcm.before_drain"
+            | "pcm.after_drain"
+            | "pcm.before_final_drain"
+            | "pcm.after_final_drain"
+            | "pcm.before_sync_data"
+            | "pcm.after_sync_data"
+            | "pcm.before_checkpoint"
+            | "pcm.after_checkpoint"
+            | "worker.before_command"
+            | "worker.before_encode"
+            | "worker.after_window"
+            | "worker.before_finish_encode"
+            | "worker.before_stopped"
+    ) {
+        return Err("CampaignGuard: unknown hook".into());
+    }
+    let paired_start = l04_campaign_after(hook) == Some(selected);
+    if selected != hook && !paired_start {
+        return Ok(());
+    }
+    if control.get("job_id").and_then(|value| value.as_str()) != Some(job_id.to_string().as_str())
+        || control.get("generation").and_then(|value| value.as_u64()) != Some(generation)
+        || control.get("instance_id").and_then(|value| value.as_u64()) != Some(instance_id)
+    {
+        return Err("CampaignGuard: identity mismatch".into());
+    }
+    let target = control
+        .get("trigger_count")
+        .and_then(|value| value.as_u64())
+        .ok_or_else(|| "CampaignGuard: missing trigger count".to_owned())?;
+    if target == 0 {
+        return Err("CampaignGuard: invalid trigger count".into());
+    }
+    let binary = std::env::current_exe()
+        .map_err(|error| format!("CampaignGuard: current executable: {error}"))?;
+    let binary_sha256 = format!(
+        "{:x}",
+        Sha256::digest(
+            fs::read(&binary)
+                .map_err(|error| format!("CampaignGuard: executable read: {error}"))?
+        )
+    );
+    if control
+        .get("binary")
+        .and_then(|value| value.get("sha256"))
+        .and_then(|value| value.as_str())
+        != Some(binary_sha256.as_str())
+    {
+        return Err("CampaignGuard: binary hash mismatch".into());
+    }
+    let occurrence = if paired_start || (selected == hook && !l04_campaign_is_after(hook)) {
+        L04_CAMPAIGN_OCCURRENCE.fetch_add(1, std::sync::atomic::Ordering::AcqRel) + 1
+    } else {
+        L04_CAMPAIGN_OCCURRENCE.load(std::sync::atomic::Ordering::Acquire)
+    };
+    if occurrence < target {
+        return Ok(());
+    }
+    if occurrence > target {
+        return Err("CampaignGuard: duplicate trigger count".into());
+    }
+    if paired_start || (selected == hook && l04_campaign_after(hook).is_some()) {
+        l04_campaign_write_marker(
+            &actual.join("operation-start.json"),
+            &serde_json::json!({
+                "before_hook": hook, "after_hook": l04_campaign_after(hook).unwrap_or(selected),
+                "job_id": job_id.to_string(), "generation": generation,
+                "instance_id": instance_id, "pid": std::process::id(),
+                "started_unix_ms": std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH).map_or(0, |duration| duration.as_millis()),
+                "binary_sha256": binary_sha256,
+                "trigger_count": occurrence,
+                "archive_files": l04_campaign_snapshot(&actual)?,
+            }),
+        )?;
+        if paired_start {
+            return Ok(());
+        }
+    }
+    let entered = actual.join("entered.json");
+    let mut marker = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&entered)
+        .map_err(|error| format!("CampaignGuard: duplicate trigger: {error}"))?;
+    serde_json::to_writer(
+        &mut marker,
+        &serde_json::json!({
+            "hook": hook, "job_id": job_id.to_string(), "generation": generation,
+            "instance_id": instance_id, "pid": std::process::id(),
+            "trigger_count": occurrence,
+            "binary": binary.to_string_lossy(), "binary_sha256": binary_sha256,
+            "entered_unix_ms": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH).map_or(0, |duration| duration.as_millis()),
+            "preceding_operation_result": if hook.contains(".after_") {
+                "returned_ok"
+            } else {
+                "not_attested_at_this_barrier"
+            },
+        }),
+    )
+    .map_err(|error| format!("CampaignGuard: marker: {error}"))?;
+    marker
+        .sync_all()
+        .map_err(|error| format!("CampaignGuard: marker sync: {error}"))?;
+    drop(marker);
+    let decision = actual.join("decision.txt");
+    for _ in 0..1200 {
+        if decision.exists() {
+            let decision_file = decision
+                .canonicalize()
+                .map_err(|error| format!("CampaignGuard: decision path: {error}"))?;
+            if decision_file.parent() != Some(actual.as_path()) {
+                return Err("CampaignGuard: decision leaves the run directory".into());
+            }
+            let action = fs::read_to_string(decision_file)
+                .map_err(|error| format!("CampaignGuard: decision read: {error}"))?;
+            let action = action.trim();
+            if !matches!(action, "release" | "fail" | "crash") {
+                return Err("CampaignGuard: unknown decision".into());
+            }
+            let observed = serde_json::json!({
+                "hook": hook, "action": action, "pid": std::process::id(),
+                "observed_unix_ms": std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH).map_or(0, |duration| duration.as_millis()),
+            });
+            let mut receipt = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(actual.join("decision-observed.json"))
+                .map_err(|error| format!("CampaignGuard: decision receipt: {error}"))?;
+            serde_json::to_writer(&mut receipt, &observed)
+                .map_err(|error| format!("CampaignGuard: decision receipt write: {error}"))?;
+            receipt
+                .sync_all()
+                .map_err(|error| format!("CampaignGuard: decision receipt sync: {error}"))?;
+            return match action {
+                "release" => Ok(()),
+                "fail" => Err(format!("CampaignInjected: {hook}")),
+                "crash" => std::process::abort(),
+                _ => unreachable!("validated above"),
+            };
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    Err("CampaignGuard: decision timeout".into())
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SegmentRecord {
@@ -152,6 +597,7 @@ pub struct LiveArchive {
 
 impl LiveArchive {
     pub fn prepare(root: impl AsRef<Path>, mut request: LiveRequest) -> Result<Self, String> {
+        l04_campaign_assert_archive(root.as_ref())?;
         let directory = root
             .as_ref()
             .join("transcriptions")
@@ -409,12 +855,34 @@ impl LiveArchive {
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(path)
+            .open(&path)
             .map_err(|error| format!("StorageUnavailable: attempt journal: {error}"))?;
-        file.write_all(&bytes)
+        l04_campaign_gate(
+            "attempt.before_record",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+        )?;
+        let operation = file
+            .write_all(&bytes)
             .and_then(|()| file.write_all(b"\n"))
             .and_then(|()| file.sync_all())
-            .map_err(|error| format!("StorageUnavailable: attempt journal sync: {error}"))?;
+            .map_err(|error| format!("StorageUnavailable: attempt journal sync: {error}"));
+        l04_campaign_operation_result(
+            "attempt.before_record",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+            &operation,
+            Some(&path),
+        )?;
+        operation?;
+        l04_campaign_gate(
+            "attempt.after_sync",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+        )?;
         self.next_attempt_record_sequence = self
             .next_attempt_record_sequence
             .checked_add(1)
@@ -537,15 +1005,38 @@ impl LiveArchive {
         if bytes.len() + 1 > 1_048_576 {
             return Err("StorageCorrupt: coverage confirmation exceeds record limit".into());
         }
+        let path = self.coverage_path();
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(self.coverage_path())
+            .open(&path)
             .map_err(|error| format!("StorageUnavailable: coverage confirmation: {error}"))?;
-        file.write_all(&bytes)
+        l04_campaign_gate(
+            "coverage.before_record",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+        )?;
+        let operation = file
+            .write_all(&bytes)
             .and_then(|()| file.write_all(b"\n"))
             .and_then(|()| file.sync_all())
-            .map_err(|error| format!("StorageUnavailable: coverage sync: {error}"))?;
+            .map_err(|error| format!("StorageUnavailable: coverage sync: {error}"));
+        l04_campaign_operation_result(
+            "coverage.before_record",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+            &operation,
+            Some(&path),
+        )?;
+        operation?;
+        l04_campaign_gate(
+            "coverage.after_sync",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+        )?;
         self.expected_window_sequence = self
             .expected_window_sequence
             .checked_add(1)
@@ -598,11 +1089,33 @@ impl LiveArchive {
         {
             return Err("StorageCorrupt: fragment confirmation does not cover the journal".into());
         }
-        self.mp3
+        l04_campaign_gate(
+            "live.before_mp3_sync",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+        )?;
+        let operation = self
+            .mp3
             .as_mut()
             .ok_or_else(|| "StorageUnavailable: MP3 passage is already finalized".to_owned())?
             .sync_all()
-            .map_err(|e| format!("StorageUnavailable: MP3 sync: {e}"))?;
+            .map_err(|e| format!("StorageUnavailable: MP3 sync: {e}"));
+        l04_campaign_operation_result(
+            "live.before_mp3_sync",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+            &operation,
+            Some(&self.mp3_pending_path),
+        )?;
+        operation?;
+        l04_campaign_gate(
+            "live.after_mp3_sync",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+        )?;
         drop(self.mp3.take());
         let mp3_path = self
             .directory
@@ -664,9 +1177,30 @@ impl LiveArchive {
         };
         let manifest_name = format!("manifest-{}.json", self.request.generation.get());
         let manifest_path = self.directory.join(&manifest_name);
-        write_replace_synced(
+        l04_campaign_gate(
+            "live.before_manifest",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+        )?;
+        let manifest_result = write_replace_synced(
             &manifest_path,
             &serde_json::to_vec(&record).map_err(|e| e.to_string())?,
+        );
+        l04_campaign_operation_result(
+            "live.before_manifest",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+            &manifest_result,
+            Some(&manifest_path),
+        )?;
+        manifest_result?;
+        l04_campaign_gate(
+            "live.after_manifest",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
         )?;
         verify_artifact(&self.directory, &record.mp3)?;
         verify_pcm_staging(
@@ -677,9 +1211,29 @@ impl LiveArchive {
         )?;
         verify_artifact(&self.directory, &record.text)?;
         verify_artifact(&self.directory, &record.srt)?;
-        write_replace_synced(
-            &self.directory.join("CURRENT"),
-            format!("{manifest_name}\n").as_bytes(),
+        l04_campaign_gate(
+            "live.before_current",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+        )?;
+        let current_path = self.directory.join("CURRENT");
+        let current_result =
+            write_replace_synced(&current_path, format!("{manifest_name}\n").as_bytes());
+        l04_campaign_operation_result(
+            "live.before_current",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
+            &current_result,
+            Some(&current_path),
+        )?;
+        current_result?;
+        l04_campaign_gate(
+            "live.after_current",
+            self.request.job_id.0,
+            self.request.generation.get(),
+            0,
         )?;
         // CURRENT is the commit point. Update compatibility aliases only after it;
         // scan_live repairs aliases from the committed immutable snapshot after a crash.
@@ -729,6 +1283,7 @@ impl ArchiveStore {
     }
 
     pub fn prepare(&mut self, mut request: ImportRequest) -> Result<ImportRequest, String> {
+        l04_campaign_assert_archive(&self.root)?;
         if self.current.is_some() {
             return Err("Busy: an import is already active".into());
         }
@@ -976,7 +1531,18 @@ impl ArchiveStore {
         };
         let manifest_bytes = serde_json::to_vec(&manifest).map_err(|e| e.to_string())?;
         let manifest_path = active.directory.join("manifest.json");
-        write_replace_synced(&manifest_path, &manifest_bytes)?;
+        l04_campaign_gate("import.before_manifest", job_id.0, generation.get(), 0)?;
+        let operation = write_replace_synced(&manifest_path, &manifest_bytes);
+        l04_campaign_operation_result(
+            "import.before_manifest",
+            job_id.0,
+            generation.get(),
+            0,
+            &operation,
+            Some(&manifest_path),
+        )?;
+        operation?;
+        l04_campaign_gate("import.after_manifest", job_id.0, generation.get(), 0)?;
         let verified: CompleteRecord =
             serde_json::from_slice(&fs::read(&manifest_path).map_err(|e| e.to_string())?)
                 .map_err(|e| format!("StorageCorrupt: manifest: {e}"))?;
@@ -993,7 +1559,19 @@ impl ArchiveStore {
         if active.job_id != job_id || active.generation != generation {
             return Err("StaleResponse: publish commit targets another generation".into());
         }
-        write_replace_synced(&active.directory.join("CURRENT"), b"manifest.json\n")?;
+        l04_campaign_gate("import.before_current", job_id.0, generation.get(), 0)?;
+        let current_path = active.directory.join("CURRENT");
+        let operation = write_replace_synced(&current_path, b"manifest.json\n");
+        l04_campaign_operation_result(
+            "import.before_current",
+            job_id.0,
+            generation.get(),
+            0,
+            &operation,
+            Some(&current_path),
+        )?;
+        operation?;
+        l04_campaign_gate("import.after_current", job_id.0, generation.get(), 0)?;
         self.current = None;
         Ok(())
     }
@@ -1009,6 +1587,7 @@ impl ArchiveStore {
     }
 
     pub fn scan(root: &Path) -> Result<Vec<ArchiveEntry>, String> {
+        l04_campaign_assert_archive(root)?;
         let mut entries = Vec::new();
         let base = root.join("transcriptions");
         if !base.exists() {
@@ -1080,6 +1659,7 @@ impl ArchiveStore {
 }
 
 fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, String> {
+    l04_campaign_gate("recovery.before_scan_live", expected_job.0, 0, 0)?;
     if format!("{:032x}", expected_job.0)
         != dir
             .parent()
@@ -1298,8 +1878,19 @@ pub fn scan_live_recoveries(
         let Ok(checkpoint) = crate::staging::PcmStaging::inspect_checkpoint(&pcm_path) else {
             continue;
         };
-        let confirmed_samples =
-            scan_confirmed_live_prefix(&dir, generation, &request, checkpoint.durable_samples)?;
+        l04_campaign_gate("recovery.before_coverage", job_id.0, generation, 0)?;
+        let scan_result =
+            scan_confirmed_live_prefix(&dir, generation, &request, checkpoint.durable_samples);
+        l04_campaign_operation_result(
+            "recovery.before_coverage",
+            job_id.0,
+            generation,
+            0,
+            &scan_result,
+            None,
+        )?;
+        let confirmed_samples = scan_result?;
+        l04_campaign_gate("recovery.after_coverage", job_id.0, generation, 0)?;
         recoveries.push(whisper_core::ports::LiveRecoveryInfo {
             request,
             durable_samples: checkpoint.durable_samples,
@@ -1825,6 +2416,32 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
+    fn campaign_snapshot_skips_an_active_writer_lock() {
+        let root = std::env::temp_dir().join(format!(
+            "whisper-campaign-snapshot-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let archive = root.join("archive");
+        fs::create_dir_all(&archive).unwrap();
+        let lock = File::create(archive.join("group-1.writer.lock")).unwrap();
+        lock.try_lock().unwrap();
+        fs::write(archive.join("passage-1.pcm"), b"durable pcm").unwrap();
+
+        let snapshot = l04_campaign_snapshot(&root).unwrap();
+        assert_eq!(snapshot.len(), 1);
+        assert_eq!(snapshot[0]["path"], "passage-1.pcm");
+        assert_eq!(snapshot[0]["bytes"], 11);
+
+        lock.unlock().unwrap();
+        drop(lock);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn segment_recovery_keeps_synced_prefix_and_drops_only_a_partial_tail() {
         let path = std::env::temp_dir().join(format!(
             "whisper-segments-{}-{}.jsonl",
@@ -2251,5 +2868,151 @@ mod tests {
             prefix
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn l04_campaign_gate_rejects_escape_and_duplicate_trigger() {
+        if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {
+            assert!(l04_campaign_gate("coverage.after_sync", 1, 1, 0).is_ok());
+            return;
+        }
+        if let Ok(mode) = std::env::var("WHISPER_L04_GATE_TEST_CHILD") {
+            if mode == "outside" {
+                assert!(
+                    l04_campaign_gate("coverage.after_sync", 1, 1, 0)
+                        .unwrap_err()
+                        .contains("direct child")
+                );
+            } else if mode == "zero" {
+                assert!(l04_campaign_gate("recovery.before_scan_live", 1, 0, 0).is_ok());
+            } else {
+                let control_path = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
+                    .map(PathBuf::from)
+                    .unwrap()
+                    .join("run.json");
+                let original_control = fs::read(&control_path).unwrap();
+                let archive = control_path.parent().unwrap().join("archive");
+                assert!(l04_campaign_assert_archive(&archive).is_ok());
+                assert!(l04_campaign_assert_archive(control_path.parent().unwrap()).is_err());
+                fs::write(
+                    &control_path,
+                    br#"{"schema":"whisper-l04-fault/1","hook":"coverage.after_sync","job_id":"1","generation":1,"instance_id":0,"binary":{"sha256":"invalid"}}"#,
+                )
+                .unwrap();
+                assert!(
+                    l04_campaign_gate("coverage.before_record", 1, 1, 0)
+                        .unwrap_err()
+                        .contains("missing trigger count")
+                );
+                fs::write(
+                    &control_path,
+                    br#"{"schema":"whisper-l04-fault/1","hook":"coverage.after_sync","job_id":"1","generation":1,"instance_id":0,"trigger_count":1,"binary":{"sha256":"invalid"}}"#,
+                )
+                .unwrap();
+                assert!(
+                    l04_campaign_gate("coverage.before_record", 1, 1, 0)
+                        .unwrap_err()
+                        .contains("binary hash mismatch")
+                );
+                fs::write(&control_path, original_control).unwrap();
+                assert!(l04_campaign_gate("coverage.before_record", 1, 1, 0).is_ok());
+                assert!(l04_campaign_gate("coverage.after_sync", 1, 1, 0).is_ok());
+                assert!(
+                    l04_campaign_gate("coverage.after_sync", 1, 1, 0)
+                        .unwrap_err()
+                        .contains("duplicate trigger")
+                );
+                assert!(
+                    l04_campaign_gate("coverage.after_sync", 2, 1, 0)
+                        .unwrap_err()
+                        .contains("identity mismatch")
+                );
+                fs::write(
+                    std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
+                        .map(PathBuf::from)
+                        .unwrap()
+                        .join("run.json"),
+                    br#"{"schema":"whisper-l04-fault/1","hook":"unknown","job_id":"1","generation":1,"instance_id":0}"#,
+                )
+                .unwrap();
+                assert!(
+                    l04_campaign_gate("coverage.after_sync", 1, 1, 0)
+                        .unwrap_err()
+                        .contains("unknown hook")
+                );
+            }
+            return;
+        }
+        let runs = Path::new(r"C:\WhisperLive\L04-campaign\runs");
+        fs::create_dir_all(runs).unwrap();
+        let binary = std::env::current_exe().unwrap();
+        let binary_sha256 = format!("{:x}", Sha256::digest(fs::read(&binary).unwrap()));
+        let test_name = "archive::tests::l04_campaign_gate_rejects_escape_and_duplicate_trigger";
+        let outside = std::process::Command::new(&binary)
+            .args(["--exact", test_name])
+            .env("WHISPER_L04_GATE_TEST_CHILD", "outside")
+            .env("WHISPER_L04_CAMPAIGN_RUN", std::env::temp_dir())
+            .status()
+            .unwrap();
+        assert!(outside.success());
+        let run = runs.join(format!(
+            "gate-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&run).unwrap();
+        fs::create_dir(run.join("archive")).unwrap();
+        fs::write(
+            run.join("run.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "schema":"whisper-l04-fault/1", "hook":"coverage.after_sync",
+                "job_id":"1", "generation":1, "instance_id":0, "trigger_count":1,
+                "binary":{"sha256":binary_sha256},
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(run.join("decision.txt"), b"release\n").unwrap();
+        let inside = std::process::Command::new(binary)
+            .args(["--exact", test_name])
+            .env("WHISPER_L04_GATE_TEST_CHILD", "inside")
+            .env("WHISPER_L04_CAMPAIGN_RUN", &run)
+            .status()
+            .unwrap();
+        assert!(inside.success());
+        let marker: serde_json::Value =
+            serde_json::from_slice(&fs::read(run.join("entered.json")).unwrap()).unwrap();
+        assert_eq!(marker["binary_sha256"], binary_sha256);
+        assert_eq!(marker["preceding_operation_result"], "returned_ok");
+        assert!(marker["entered_unix_ms"].as_u64().is_some());
+        let receipt: serde_json::Value =
+            serde_json::from_slice(&fs::read(run.join("decision-observed.json")).unwrap()).unwrap();
+        assert_eq!(receipt["action"], "release");
+        assert!(receipt["observed_unix_ms"].as_u64().is_some());
+        fs::remove_dir_all(run).unwrap();
+        let zero = runs.join(format!("gate-zero-{}", std::process::id()));
+        fs::create_dir(&zero).unwrap();
+        fs::write(
+            zero.join("run.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "schema":"whisper-l04-fault/1", "hook":"recovery.before_scan_live",
+                "job_id":"1", "generation":0, "instance_id":0, "trigger_count":1,
+                "binary":{"sha256":binary_sha256},
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(zero.join("decision.txt"), b"release\n").unwrap();
+        let zero_result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", test_name])
+            .env("WHISPER_L04_GATE_TEST_CHILD", "zero")
+            .env("WHISPER_L04_CAMPAIGN_RUN", &zero)
+            .status()
+            .unwrap();
+        assert!(zero_result.success());
+        fs::remove_dir_all(zero).unwrap();
     }
 }

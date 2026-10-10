@@ -130,6 +130,12 @@ pub struct DiagnosticRecord {
     total_samples: Option<u64>,
 }
 
+#[derive(serde::Deserialize)]
+struct CampaignDiagnosticIdentity {
+    job_id: u128,
+    generation: u64,
+}
+
 pub struct DiagnosticSink {
     sender: Option<SyncSender<Vec<u8>>>,
     writer: Option<JoinHandle<()>>,
@@ -139,9 +145,22 @@ pub struct DiagnosticSink {
 
 impl DiagnosticSink {
     pub fn start(destination: &Path) -> Result<Self, std::io::Error> {
+        crate::archive::l04_campaign_assert_archive(destination).map_err(std::io::Error::other)?;
         let directory = destination.join(".whisper-diagnostics");
         fs::create_dir_all(&directory)?;
-        expire_old_diagnostics(&directory, SystemTime::now())?;
+        crate::archive::l04_campaign_gate("diagnostic.before_startup_purge", 0, 0, 0)
+            .map_err(std::io::Error::other)?;
+        let purge_result = expire_old_diagnostics(&directory, SystemTime::now());
+        crate::archive::l04_campaign_operation_result(
+            "diagnostic.before_startup_purge",
+            0,
+            0,
+            0,
+            &purge_result,
+            None,
+        )
+        .map_err(std::io::Error::other)?;
+        purge_result?;
         let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(DIAGNOSTIC_QUEUE_CAPACITY);
         let dropped = Arc::new(AtomicU64::new(0));
         let degraded = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -235,25 +254,81 @@ impl DiagnosticRecord {
 }
 
 fn append_rotating(directory: &Path, line: &[u8]) -> Result<(), std::io::Error> {
+    crate::archive::l04_campaign_assert_archive(directory.parent().ok_or_else(|| {
+        std::io::Error::other("CampaignGuard: diagnostic directory has no parent")
+    })?)
+    .map_err(std::io::Error::other)?;
+    let identity: Option<CampaignDiagnosticIdentity> = if option_env!("WHISPER_L04_CAMPAIGN_BUILD")
+        .is_some()
+        && std::env::var_os("WHISPER_L04_CAMPAIGN_RUN").is_some()
+    {
+        Some(serde_json::from_slice(line).map_err(std::io::Error::other)?)
+    } else {
+        None
+    };
+    let job_id = identity.as_ref().map_or(0, |value| value.job_id);
+    let generation = identity.as_ref().map_or(0, |value| value.generation);
+    let gate = |hook| {
+        crate::archive::l04_campaign_gate(hook, job_id, generation, 0)
+            .map_err(std::io::Error::other)
+    };
+    gate("diagnostic.before_purge")?;
     let now = SystemTime::now();
-    expire_old_diagnostics(directory, now)?;
+    let purge_result = expire_old_diagnostics(directory, now);
+    crate::archive::l04_campaign_operation_result(
+        "diagnostic.before_purge",
+        job_id,
+        generation,
+        0,
+        &purge_result,
+        None,
+    )
+    .map_err(std::io::Error::other)?;
+    purge_result?;
     let active = diagnostic_path(directory, 0);
     let should_rotate = fs::metadata(&active).is_ok_and(|metadata| {
         metadata.len().saturating_add(line.len() as u64) > DIAGNOSTIC_FILE_LIMIT
     });
     if should_rotate {
-        let oldest = diagnostic_path(directory, DIAGNOSTIC_FILE_COUNT - 1);
-        remove_if_present(&oldest)?;
-        for index in (1..DIAGNOSTIC_FILE_COUNT).rev() {
-            let previous = diagnostic_path(directory, index - 1);
-            if previous.exists() {
-                fs::rename(previous, diagnostic_path(directory, index))?;
+        gate("diagnostic.before_rotate")?;
+        let rotate_result = (|| -> Result<(), std::io::Error> {
+            let oldest = diagnostic_path(directory, DIAGNOSTIC_FILE_COUNT - 1);
+            remove_if_present(&oldest)?;
+            for index in (1..DIAGNOSTIC_FILE_COUNT).rev() {
+                let previous = diagnostic_path(directory, index - 1);
+                if previous.exists() {
+                    fs::rename(previous, diagnostic_path(directory, index))?;
+                }
             }
-        }
+            Ok(())
+        })();
+        crate::archive::l04_campaign_operation_result(
+            "diagnostic.before_rotate",
+            job_id,
+            generation,
+            0,
+            &rotate_result,
+            None,
+        )
+        .map_err(std::io::Error::other)?;
+        rotate_result?;
     }
-    let mut file = OpenOptions::new().create(true).append(true).open(active)?;
-    file.write_all(line)?;
-    file.flush()
+    gate("diagnostic.before_append")?;
+    let append_result = (|| -> Result<(), std::io::Error> {
+        let mut file = OpenOptions::new().create(true).append(true).open(&active)?;
+        file.write_all(line)?;
+        file.flush()
+    })();
+    crate::archive::l04_campaign_operation_result(
+        "diagnostic.before_append",
+        job_id,
+        generation,
+        0,
+        &append_result,
+        None,
+    )
+    .map_err(std::io::Error::other)?;
+    append_result
 }
 
 fn expire_old_diagnostics(directory: &Path, now: SystemTime) -> Result<(), std::io::Error> {
@@ -373,6 +448,7 @@ impl ProgressSupervisor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::Digest;
     use std::{
         fs::FileTimes,
         sync::atomic::{AtomicU64, Ordering},
@@ -508,5 +584,59 @@ mod tests {
             thread::sleep(Duration::from_millis(5));
         }
         panic!("diagnostic writer did not report its I/O failure");
+    }
+
+    #[test]
+    fn campaign_startup_purge_can_fail_before_deleting_old_diagnostics() {
+        if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {
+            return;
+        }
+        if std::env::var_os("WHISPER_L04_STARTUP_TEST_CHILD").is_some() {
+            let destination = PathBuf::from(std::env::var_os("WHISPER_L04_CAMPAIGN_RUN").unwrap())
+                .join("archive");
+            let diagnostics = destination.join(".whisper-diagnostics");
+            fs::create_dir_all(&diagnostics).unwrap();
+            let stale = diagnostics.join("worker-0.jsonl");
+            let unknown = diagnostics.join("keep.txt");
+            fs::write(&stale, b"old").unwrap();
+            fs::write(&unknown, b"unknown").unwrap();
+            let old = SystemTime::now() - DIAGNOSTIC_MAX_AGE - Duration::from_secs(60);
+            fs::File::options()
+                .write(true)
+                .open(&stale)
+                .unwrap()
+                .set_times(FileTimes::new().set_modified(old))
+                .unwrap();
+            let error = DiagnosticSink::start(&destination).err().unwrap();
+            assert!(error.to_string().contains("CampaignInjected"));
+            assert_eq!(fs::read(stale).unwrap(), b"old");
+            assert_eq!(fs::read(unknown).unwrap(), b"unknown");
+            return;
+        }
+        let runs = Path::new(r"C:\WhisperLive\L04-campaign\runs");
+        fs::create_dir_all(runs).unwrap();
+        let binary = std::env::current_exe().unwrap();
+        let binary_sha256 = format!("{:x}", sha2::Sha256::digest(fs::read(&binary).unwrap()));
+        let run = runs.join(format!("purge-test-{}", std::process::id()));
+        fs::create_dir(&run).unwrap();
+        fs::create_dir(run.join("archive")).unwrap();
+        fs::write(
+            run.join("run.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "schema":"whisper-l04-fault/1", "hook":"diagnostic.before_startup_purge",
+                "job_id":"0", "generation":0, "instance_id":0, "trigger_count":1,
+                "binary":{"sha256":binary_sha256},
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(run.join("decision.txt"), b"fail\n").unwrap();
+        let result = std::process::Command::new(binary)
+            .args(["--exact", "supervisor::tests::campaign_startup_purge_can_fail_before_deleting_old_diagnostics"])
+            .env("WHISPER_L04_STARTUP_TEST_CHILD", "1")
+            .env("WHISPER_L04_CAMPAIGN_RUN", &run)
+            .status().unwrap();
+        assert!(result.success());
+        fs::remove_dir_all(run).unwrap();
     }
 }
