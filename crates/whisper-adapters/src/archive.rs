@@ -637,8 +637,7 @@ impl LiveArchive {
                 })?;
                 if current != format!("manifest-{}.json\n", request.generation.get() - 1) {
                     return Err(
-                        "StorageCorrupt: previous live passage is not the committed group tail"
-                            .into(),
+                        "Recoverable: previous live passage is not the committed group tail".into(),
                     );
                 }
                 verify_artifact(&directory, &record.staging)?;
@@ -674,31 +673,14 @@ impl LiveArchive {
                             "StorageCorrupt: previous recoverable passage identity mismatch".into(),
                         );
                     }
-                    let pcm_path =
-                        directory.join(format!("passage-{}.pcm", request.generation.get() - 1));
-                    let checkpoint = crate::staging::PcmStaging::inspect_checkpoint(&pcm_path)?;
-                    let old_segments = read_segments(&directory.join(format!(
-                        "passage-{}.segments.jsonl",
-                        request.generation.get() - 1
-                    )))?;
-                    if old_segments.iter().any(|segment| {
-                        segment.range.sample_rate_hz != 16_000
-                            || segment.range.end_sample <= previous_request.group_offset_samples
-                            || segment.range.end_sample - previous_request.group_offset_samples
-                                > checkpoint.durable_samples
-                    }) {
-                        return Err(
-                            "StorageCorrupt: confirmed text is outside the durable PCM checkpoint"
-                                .into(),
-                        );
-                    }
-                    request.group_offset_samples = previous_request
-                        .group_offset_samples
-                        .checked_add(checkpoint.durable_samples)
-                        .ok_or_else(|| {
-                            "StorageCorrupt: recovered live group offset overflow".to_owned()
-                        })?;
-                    previous_completed_at_ms = Some(checkpoint.synced_at_unix_ms);
+                    // A pending passage is not a committed group tail, even when
+                    // its current PCM and coverage happen to agree. Keep its exact
+                    // identity recoverable and require explicit reconciliation
+                    // before any later generation can be admitted.
+                    return Err(format!(
+                        "Recoverable: passage {} remains unresolved; reconcile this passage before starting the next one",
+                        previous_request.generation.get()
+                    ));
                 }
             }
         }
@@ -1266,6 +1248,75 @@ impl ArchiveStore {
         self.root.clone()
     }
 
+    /// Explicitly commits a verified live manifest that was durable before a
+    /// crash but was not yet selected by CURRENT.
+    pub fn resolve_live_publication(root: &Path, request: &LiveRequest) -> Result<(), String> {
+        l04_campaign_assert_archive(root)?;
+        let generation = request.generation.get();
+        let directory = root
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join("live");
+        let lock_path = directory.join(format!("group-{:032x}.writer.lock", request.job_id.0));
+        let writer_lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(lock_path)
+            .map_err(|error| format!("Recoverable: live writer lock unavailable: {error}"))?;
+        writer_lock.try_lock().map_err(|error| {
+            format!("Recoverable: another live archive writer owns the group: {error}")
+        })?;
+
+        let current = live_current_generation(&directory)?;
+        let expected_current = generation.checked_sub(1);
+        if current != expected_current {
+            return Err(
+                "Recoverable: live publication is no longer the next group generation".into(),
+            );
+        }
+        let pending_path = directory.join(format!("passage-{generation}.pending.json"));
+        let pending: LiveRequest =
+            serde_json::from_slice(&fs::read(&pending_path).map_err(|error| {
+                format!("Recoverable: live publication request unavailable: {error}")
+            })?)
+            .map_err(|error| format!("StorageCorrupt: live publication request: {error}"))?;
+        if pending != *request {
+            return Err("Recoverable: live publication request identity changed".into());
+        }
+
+        let record = read_verified_live_manifest(&directory, request.job_id, request.generation)?;
+        if record.confirmed_samples != record.audio_samples {
+            return Err("Recoverable: live publication does not cover all durable audio".into());
+        }
+        let entries = scan_live(&directory, request.job_id)?;
+        if entries
+            .iter()
+            .any(|entry| entry.generation.get() > generation)
+        {
+            return Err(
+                "Recoverable: a later live generation prevents publication resolution".into(),
+            );
+        }
+        let target = entries
+            .iter()
+            .find(|entry| entry.generation == request.generation)
+            .ok_or_else(|| "Recoverable: verified live publication is unavailable".to_owned())?;
+        if target.complete {
+            return Err("Recoverable: live publication is already committed".into());
+        }
+
+        let current_path = directory.join("CURRENT");
+        let manifest_name = format!("manifest-{generation}.json");
+        write_replace_synced(&current_path, format!("{manifest_name}\n").as_bytes())?;
+        reconcile_alias(&directory, &record.text, "transcript.txt")?;
+        reconcile_alias(&directory, &record.srt, "transcript.srt")?;
+        let _ = fs::remove_file(pending_path);
+        writer_lock
+            .unlock()
+            .map_err(|error| format!("StorageUnavailable: archive lock release: {error}"))?;
+        Ok(())
+    }
+
     /// Captures the source identity at durable queue admission without creating an archive.
     pub fn identify_source(request: &mut ImportRequest) -> Result<(), String> {
         let source = Path::new(&request.source_path);
@@ -1671,34 +1722,7 @@ fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, Strin
     }
     let mut entries = Vec::new();
     let mut verified = std::collections::BTreeSet::new();
-    let current_path = dir.join("CURRENT");
-    let committed_generation = if current_path.exists() {
-        let pointer = fs::read_to_string(&current_path).map_err(|e| e.to_string())?;
-        let target = pointer.strip_suffix('\n').ok_or_else(|| {
-            "StorageCorrupt: live CURRENT pointer is not newline terminated".to_owned()
-        })?;
-        if pointer != format!("{target}\n")
-            || !target.starts_with("manifest-")
-            || !target.ends_with(".json")
-            || !safe_artifact_path(target)
-        {
-            return Err("StorageCorrupt: live CURRENT pointer is invalid".into());
-        }
-        let number = target
-            .strip_prefix("manifest-")
-            .and_then(|s| s.strip_suffix(".json"))
-            .and_then(|s| s.parse::<u64>().ok())
-            .filter(|number| {
-                number.to_string()
-                    == target
-                        .trim_start_matches("manifest-")
-                        .trim_end_matches(".json")
-            })
-            .ok_or_else(|| "StorageCorrupt: live CURRENT target is invalid".to_owned())?;
-        Some(number)
-    } else {
-        None
-    };
+    let committed_generation = live_current_generation(dir)?;
     for item in fs::read_dir(dir).map_err(|error| error.to_string())? {
         let item = item.map_err(|error| error.to_string())?;
         let name = item.file_name().to_string_lossy().into_owned();
@@ -1714,33 +1738,7 @@ fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, Strin
             let generation: Generation =
                 serde_json::from_value(serde_json::Value::from(generation_number))
                     .map_err(|error| format!("invalid live generation: {error}"))?;
-            let record: LiveCompleteRecord =
-                serde_json::from_slice(&fs::read(item.path()).map_err(|e| e.to_string())?)
-                    .map_err(|error| format!("StorageCorrupt: live manifest: {error}"))?;
-            if record.version != 1
-                || record.job_id != expected_job
-                || record.generation != generation
-                || record.audio_samples == 0
-                || !is_sha256(&record.pcm_sha256)
-                || !safe_artifact_path(&record.staging.path)
-                || !safe_artifact_path(&record.mp3.path)
-                || !safe_artifact_path(&record.text.path)
-                || !safe_artifact_path(&record.srt.path)
-            {
-                return Err(format!(
-                    "StorageCorrupt: live manifest identity or shape mismatch: {name}"
-                ));
-            }
-            verify_artifact(dir, &record.staging)?;
-            verify_pcm_staging(
-                dir,
-                &record.staging,
-                record.audio_samples,
-                &record.pcm_sha256,
-            )?;
-            verify_artifact(dir, &record.mp3)?;
-            verify_artifact(dir, &record.text)?;
-            verify_artifact(dir, &record.srt)?;
+            read_verified_live_manifest(dir, expected_job, generation)?;
             verified.insert(generation_number);
             let complete =
                 committed_generation.is_some_and(|committed| generation_number <= committed);
@@ -1758,11 +1756,6 @@ fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, Strin
     if let Some(number) = committed_generation {
         if !verified.contains(&number) {
             return Err("StorageCorrupt: live CURRENT target is not a verified passage".into());
-        }
-        if verified.iter().any(|generation| *generation > number) {
-            return Err(
-                "StorageCorrupt: live manifest is newer than the committed group tail".into(),
-            );
         }
         let manifest_path = dir.join(format!("manifest-{number}.json"));
         let record: LiveCompleteRecord =
@@ -1813,6 +1806,75 @@ fn reconcile_alias(dir: &Path, source: &ArtifactRecord, alias: &str) -> Result<(
     Ok(())
 }
 
+fn live_current_generation(dir: &Path) -> Result<Option<u64>, String> {
+    let current_path = dir.join("CURRENT");
+    if !current_path.exists() {
+        return Ok(None);
+    }
+    let pointer = fs::read_to_string(&current_path).map_err(|e| e.to_string())?;
+    let target = pointer.strip_suffix('\n').ok_or_else(|| {
+        "StorageCorrupt: live CURRENT pointer is not newline terminated".to_owned()
+    })?;
+    if pointer != format!("{target}\n")
+        || !target.starts_with("manifest-")
+        || !target.ends_with(".json")
+        || !safe_artifact_path(target)
+    {
+        return Err("StorageCorrupt: live CURRENT pointer is invalid".into());
+    }
+    target
+        .strip_prefix("manifest-")
+        .and_then(|s| s.strip_suffix(".json"))
+        .and_then(|s| s.parse::<u64>().ok())
+        .filter(|number| {
+            *number > 0
+                && number.to_string()
+                    == target
+                        .trim_start_matches("manifest-")
+                        .trim_end_matches(".json")
+        })
+        .map(Some)
+        .ok_or_else(|| "StorageCorrupt: live CURRENT target is invalid".into())
+}
+
+fn read_verified_live_manifest(
+    dir: &Path,
+    expected_job: JobId,
+    generation: Generation,
+) -> Result<LiveCompleteRecord, String> {
+    let name = format!("manifest-{}.json", generation.get());
+    let record: LiveCompleteRecord = serde_json::from_slice(
+        &fs::read(dir.join(&name))
+            .map_err(|error| format!("StorageCorrupt: live manifest: {error}"))?,
+    )
+    .map_err(|error| format!("StorageCorrupt: live manifest: {error}"))?;
+    if record.version != 1
+        || record.job_id != expected_job
+        || record.generation != generation
+        || record.audio_samples == 0
+        || !is_sha256(&record.pcm_sha256)
+        || !safe_artifact_path(&record.staging.path)
+        || !safe_artifact_path(&record.mp3.path)
+        || !safe_artifact_path(&record.text.path)
+        || !safe_artifact_path(&record.srt.path)
+    {
+        return Err(format!(
+            "StorageCorrupt: live manifest identity or shape mismatch: {name}"
+        ));
+    }
+    verify_artifact(dir, &record.staging)?;
+    verify_pcm_staging(
+        dir,
+        &record.staging,
+        record.audio_samples,
+        &record.pcm_sha256,
+    )?;
+    verify_artifact(dir, &record.mp3)?;
+    verify_artifact(dir, &record.text)?;
+    verify_artifact(dir, &record.srt)?;
+    Ok(record)
+}
+
 pub fn scan_live_recoveries(
     root: &Path,
 ) -> Result<Vec<whisper_core::ports::LiveRecoveryInfo>, String> {
@@ -1833,6 +1895,7 @@ pub fn scan_live_recoveries(
         if !dir.is_dir() {
             continue;
         }
+        let current_generation = live_current_generation(&dir)?;
         let mut latest_generation = 0u64;
         let mut latest_pending: Option<(u64, PathBuf)> = None;
         let mut manifest_generations = std::collections::BTreeSet::new();
@@ -1865,7 +1928,11 @@ pub fn scan_live_recoveries(
         let Some((generation, pending_path)) = latest_pending else {
             continue;
         };
-        if generation != latest_generation || manifest_generations.contains(&generation) {
+        let is_next_generation = match current_generation {
+            Some(current) => current.checked_add(1) == Some(generation),
+            None => generation == 1,
+        };
+        if generation != latest_generation || !is_next_generation {
             continue;
         }
         let request: LiveRequest =
@@ -1877,6 +1944,16 @@ pub fn scan_live_recoveries(
         let pcm_path = dir.join(format!("passage-{generation}.pcm"));
         let Ok(checkpoint) = crate::staging::PcmStaging::inspect_checkpoint(&pcm_path) else {
             continue;
+        };
+        let publication_ready = manifest_generations.contains(&generation);
+        let manifest = if publication_ready {
+            Some(read_verified_live_manifest(
+                &dir,
+                job_id,
+                request.generation,
+            )?)
+        } else {
+            None
         };
         l04_campaign_gate("recovery.before_coverage", job_id.0, generation, 0)?;
         let scan_result =
@@ -1890,11 +1967,19 @@ pub fn scan_live_recoveries(
             None,
         )?;
         let confirmed_samples = scan_result?;
+        if let Some(manifest) = &manifest
+            && (manifest.audio_samples != checkpoint.durable_samples
+                || manifest.confirmed_samples != confirmed_samples
+                || manifest.confirmed_samples != manifest.audio_samples)
+        {
+            continue;
+        }
         l04_campaign_gate("recovery.after_coverage", job_id.0, generation, 0)?;
         recoveries.push(whisper_core::ports::LiveRecoveryInfo {
             request,
             durable_samples: checkpoint.durable_samples,
             confirmed_samples,
+            publication_ready,
         });
     }
     Ok(recoveries)

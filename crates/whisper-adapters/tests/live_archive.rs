@@ -90,6 +90,229 @@ fn a_live_group_has_one_archive_writer_at_a_time() {
 }
 
 #[test]
+fn next_passage_refuses_durable_pcm_without_verified_coverage() {
+    let root = test_root();
+    let request = LiveRequest {
+        job_id: JobId(0x106),
+        generation: Generation::first(),
+        model_path: "model.bin".into(),
+        model_sha256: [9; 32],
+        destination: root.to_string_lossy().into_owned(),
+        group_offset_samples: 0,
+        auto_stop_after_speech_samples: None,
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let archive = LiveArchive::prepare(&root, request.clone()).unwrap();
+    let live_dir = root
+        .join("transcriptions")
+        .join(format!("{:032x}", request.job_id.0))
+        .join("live");
+    let mut staging = PcmStaging::create(live_dir.join("passage-1.pcm")).unwrap();
+    for _ in 0..25 {
+        staging.append_frame(&[0; 320]).unwrap();
+    }
+    assert_eq!(staging.durable_samples(), 8_000);
+    drop(staging);
+    drop(archive);
+
+    let mut next = request;
+    next.generation = next.generation.next().unwrap();
+    assert!(matches!(
+        LiveArchive::prepare(&root, next),
+        Err(error) if error.starts_with("Recoverable:")
+    ));
+    assert!(!live_dir.join("passage-2.pending.json").exists());
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn fully_covered_but_unpublished_passage_stays_recoverable_and_blocks_next_generation() {
+    let root = test_root();
+    let request = LiveRequest {
+        job_id: JobId(0x10a),
+        generation: Generation::first(),
+        model_path: "model.bin".into(),
+        model_sha256: [9; 32],
+        destination: root.to_string_lossy().into_owned(),
+        group_offset_samples: 0,
+        auto_stop_after_speech_samples: None,
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let mut archive = LiveArchive::prepare(&root, request.clone()).unwrap();
+    let live_dir = root
+        .join("transcriptions")
+        .join(format!("{:032x}", request.job_id.0))
+        .join("live");
+    let mut staging = PcmStaging::create(live_dir.join("passage-1.pcm")).unwrap();
+    for _ in 0..25 {
+        staging.append_frame(&[0; 320]).unwrap();
+    }
+    archive
+        .persist_window_finished(
+            1,
+            SourceRange::new(0, 8_000, 16_000).unwrap(),
+            0,
+            staging.durable_samples(),
+        )
+        .unwrap();
+    drop(staging);
+    drop(archive);
+
+    let recoveries = whisper_adapters::archive::scan_live_recoveries(&root).unwrap();
+    assert_eq!(recoveries.len(), 1);
+    assert_eq!(recoveries[0].request, request);
+    assert!(!recoveries[0].publication_ready);
+    assert_eq!(
+        recoveries,
+        whisper_adapters::archive::scan_live_recoveries(&root).unwrap(),
+        "the unresolved passage remains stably discoverable under the same identity"
+    );
+
+    let mut next = request.clone();
+    next.generation = next.generation.next().unwrap();
+    let error = match LiveArchive::prepare(&root, next) {
+        Ok(_) => panic!("a fully covered but unpublished passage must block the next one"),
+        Err(error) => error,
+    };
+    assert!(error.starts_with("Recoverable:"), "{error}");
+    assert!(!live_dir.join("passage-2.pending.json").exists());
+    assert_eq!(
+        serde_json::from_slice::<LiveRequest>(
+            &std::fs::read(live_dir.join("passage-1.pending.json")).unwrap()
+        )
+        .unwrap(),
+        request,
+        "blocking the next generation preserves passage 1's replay identity"
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn next_passage_refuses_text_after_the_last_coverage_commit() {
+    let root = test_root();
+    let request = LiveRequest {
+        job_id: JobId(0x107),
+        generation: Generation::first(),
+        model_path: "model.bin".into(),
+        model_sha256: [9; 32],
+        destination: root.to_string_lossy().into_owned(),
+        group_offset_samples: 0,
+        auto_stop_after_speech_samples: None,
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let mut archive = LiveArchive::prepare(&root, request.clone()).unwrap();
+    let live_dir = root
+        .join("transcriptions")
+        .join(format!("{:032x}", request.job_id.0))
+        .join("live");
+    let mut staging = PcmStaging::create(live_dir.join("passage-1.pcm")).unwrap();
+    for _ in 0..25 {
+        staging.append_frame(&[0; 320]).unwrap();
+    }
+    archive
+        .persist_window_finished(
+            1,
+            SourceRange::new(0, 8_000, 16_000).unwrap(),
+            0,
+            staging.durable_samples(),
+        )
+        .unwrap();
+    archive
+        .persist_segment(
+            &WorkerSegment {
+                job_id: request.job_id,
+                generation: request.generation,
+                instance_id: 1,
+                segment_id: SegmentId(1),
+                range: SourceRange::new(7_000, 7_500, 16_000).unwrap(),
+                text: "unconfirmed".into(),
+            },
+            staging.durable_samples(),
+        )
+        .unwrap();
+    drop(staging);
+    drop(archive);
+
+    let mut next = request;
+    next.generation = next.generation.next().unwrap();
+    assert!(matches!(
+        LiveArchive::prepare(&root, next),
+        Err(error) if error.starts_with("Recoverable:")
+    ));
+    assert!(!live_dir.join("passage-2.pending.json").exists());
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn next_passage_refuses_unconfirmed_pcm_after_the_durable_checkpoint() {
+    use std::io::Write;
+
+    let root = test_root();
+    let request = LiveRequest {
+        job_id: JobId(0x108),
+        generation: Generation::first(),
+        model_path: "model.bin".into(),
+        model_sha256: [9; 32],
+        destination: root.to_string_lossy().into_owned(),
+        group_offset_samples: 0,
+        auto_stop_after_speech_samples: None,
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let mut archive = LiveArchive::prepare(&root, request.clone()).unwrap();
+    let live_dir = root
+        .join("transcriptions")
+        .join(format!("{:032x}", request.job_id.0))
+        .join("live");
+    let pcm_path = live_dir.join("passage-1.pcm");
+    let mut staging = PcmStaging::create(&pcm_path).unwrap();
+    for _ in 0..25 {
+        staging.append_frame(&[0; 320]).unwrap();
+    }
+    archive
+        .persist_window_finished(
+            1,
+            SourceRange::new(0, 8_000, 16_000).unwrap(),
+            0,
+            staging.durable_samples(),
+        )
+        .unwrap();
+    drop(staging);
+    drop(archive);
+    let checkpoint_len = std::fs::metadata(&pcm_path).unwrap().len();
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(&pcm_path)
+        .unwrap()
+        .write_all(&[1, 0])
+        .unwrap();
+
+    let mut next = request;
+    next.generation = next.generation.next().unwrap();
+    assert!(matches!(
+        LiveArchive::prepare(&root, next),
+        Err(error) if error.starts_with("Recoverable:")
+    ));
+    assert!(!live_dir.join("passage-2.pending.json").exists());
+    assert_eq!(
+        std::fs::metadata(&pcm_path).unwrap().len(),
+        checkpoint_len + 2
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation() {
     let root = test_root();
     let request = LiveRequest {
@@ -175,9 +398,9 @@ fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation() {
     assert!(live_dir.join("passage-1.mp3").is_file());
     assert!(!live_dir.join("passage-1.pending.json").exists());
 
-    let mut next_request = request;
+    let mut next_request = request.clone();
     next_request.generation = Generation::first().next().unwrap();
-    let mut next_archive = LiveArchive::prepare(&root, next_request).unwrap();
+    let mut next_archive = LiveArchive::prepare(&root, next_request.clone()).unwrap();
     next_archive.capture_started().unwrap();
     let next_pcm_path = live_dir.join("passage-2.pcm");
     let mut next_staging = PcmStaging::create(&next_pcm_path).unwrap();
@@ -205,6 +428,99 @@ fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation() {
             next_staging.checksum(),
         )
         .unwrap();
+
+    // Simulate a crash after generation 2's immutable artifacts and manifest
+    // were verified, but before CURRENT advanced from generation 1.
+    std::fs::write(live_dir.join("CURRENT"), b"manifest-1.json\n").unwrap();
+    std::fs::write(
+        live_dir.join("passage-2.pending.json"),
+        serde_json::to_vec(&next_request).unwrap(),
+    )
+    .unwrap();
+    let first_cut_scan = whisper_adapters::archive::ArchiveStore::scan(&root).unwrap();
+    let second_cut_scan = whisper_adapters::archive::ArchiveStore::scan(&root).unwrap();
+    assert_eq!(first_cut_scan, second_cut_scan);
+    let generation_one = first_cut_scan
+        .iter()
+        .find(|entry| entry.generation == Generation::first())
+        .unwrap();
+    let generation_two = first_cut_scan
+        .iter()
+        .find(|entry| entry.generation == Generation::first().next().unwrap())
+        .unwrap();
+    assert!(generation_one.complete);
+    assert!(!generation_two.complete);
+    assert!(
+        generation_two
+            .diagnostic
+            .as_deref()
+            .is_some_and(|diagnostic| diagnostic.starts_with("Recoverable:"))
+    );
+    assert_eq!(
+        std::fs::read(live_dir.join("CURRENT")).unwrap(),
+        b"manifest-1.json\n",
+        "scanning must never advance CURRENT"
+    );
+    assert_eq!(
+        std::fs::read(live_dir.join("transcript-1.txt")).unwrap(),
+        b"bonjour",
+        "the previously committed publication remains intact"
+    );
+
+    let recoveries = whisper_adapters::archive::scan_live_recoveries(&root).unwrap();
+    assert_eq!(recoveries.len(), 1);
+    assert!(recoveries[0].publication_ready);
+    assert_eq!(
+        recoveries,
+        whisper_adapters::archive::scan_live_recoveries(&root).unwrap(),
+        "recovery discovery must remain stable across scans"
+    );
+    assert_eq!(
+        std::fs::read(live_dir.join("CURRENT")).unwrap(),
+        b"manifest-1.json\n",
+        "recovery discovery must not change CURRENT"
+    );
+    let mut third_request = next_request;
+    third_request.generation = Generation::first().next().unwrap().next().unwrap();
+    let prepare_error = match LiveArchive::prepare(&root, third_request) {
+        Ok(_) => panic!("a passage after an unresolved publication must be blocked"),
+        Err(error) => error,
+    };
+    assert!(prepare_error.starts_with("Recoverable:"), "{prepare_error}");
+    assert!(!live_dir.join("passage-3.pending.json").exists());
+    assert_eq!(
+        std::fs::read(live_dir.join("CURRENT")).unwrap(),
+        b"manifest-1.json\n"
+    );
+    whisper_adapters::archive::ArchiveStore::resolve_live_publication(
+        &root,
+        &recoveries[0].request,
+    )
+    .unwrap();
+    assert_eq!(
+        std::fs::read(live_dir.join("CURRENT")).unwrap(),
+        b"manifest-2.json\n",
+        "only explicit resolution may advance CURRENT"
+    );
+    assert!(!live_dir.join("passage-2.pending.json").exists());
+    let resolved = whisper_adapters::archive::ArchiveStore::scan(&root).unwrap();
+    assert!(
+        resolved
+            .iter()
+            .filter(|entry| entry.complete)
+            .any(|entry| { entry.generation == Generation::first() })
+    );
+    assert!(
+        resolved
+            .iter()
+            .filter(|entry| entry.complete)
+            .any(|entry| { entry.generation == Generation::first().next().unwrap() })
+    );
+    assert!(
+        whisper_adapters::archive::scan_live_recoveries(&root)
+            .unwrap()
+            .is_empty()
+    );
 
     assert_eq!(
         std::fs::read_to_string(&generation_one_text).unwrap(),

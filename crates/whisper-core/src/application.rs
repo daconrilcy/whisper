@@ -52,6 +52,9 @@ pub enum AppCommand {
     ScanHistory {
         destination: String,
     },
+    ResolveLivePublication {
+        request: LiveRequest,
+    },
 }
 
 impl AppCommand {
@@ -83,10 +86,12 @@ impl AppCommand {
                 job_id: *job_id,
                 generation: *generation,
             }),
-            Self::StartLiveConfigured { request } => Some(CommandIdentity {
-                job_id: request.job_id,
-                generation: request.generation,
-            }),
+            Self::StartLiveConfigured { request } | Self::ResolveLivePublication { request } => {
+                Some(CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                })
+            }
             Self::ScanHistory { .. } => None,
         }
     }
@@ -102,6 +107,7 @@ pub struct AppView {
     pub active_generation: Option<Generation>,
     pub queued_jobs: usize,
     pub message: Option<String>,
+    pub diagnostics_degraded: bool,
     pub progress: Option<(u64, u64)>,
     pub last_result: Option<String>,
     pub history: Vec<ArchiveHistoryItem>,
@@ -231,17 +237,17 @@ impl<P: ImportIoPort> ImportApplication<P> {
             return Ok(());
         }
         match event {
-            ImportEvent::Diagnostic { notice, .. } => {
-                self.view.message = Some(match notice {
-                    DiagnosticNotice::ProgressStalled { phase, idle_ms } => format!(
+            ImportEvent::Diagnostic { notice, .. } => match notice {
+                DiagnosticNotice::ProgressStalled { phase, idle_ms } => {
+                    self.view.message = Some(format!(
                         "Aucun progrès observé pendant {} s ({phase:?}) ; l’opération continue.",
                         idle_ms / 1_000
-                    ),
-                    DiagnosticNotice::LoggingUnavailable => {
-                        "Les diagnostics locaux sont indisponibles ; l’opération continue.".into()
-                    }
-                });
-            }
+                    ));
+                }
+                DiagnosticNotice::LoggingUnavailable => {
+                    self.view.diagnostics_degraded = true;
+                }
+            },
             ImportEvent::LiveProvisional {
                 segment,
                 captured_at_unix_ms,
@@ -576,6 +582,18 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.history_scan_pending = true;
                 self.view.queue_scan_pending = true;
             }
+            AppCommand::ResolveLivePublication { request } => {
+                if self.active.is_some() || request.destination.trim().is_empty() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.io
+                    .submit(ImportEffect::ResolveLivePublication(request))
+                    .map_err(|error| self.fail(error))?;
+                self.view.history_scan_pending = true;
+                self.view.message = Some(
+                    "Vérification du passage récupérable et résolution explicite en cours…".into(),
+                );
+            }
             AppCommand::RemoveQueued { job_id, generation } => {
                 self.io
                     .submit(ImportEffect::RemoveQueued {
@@ -618,6 +636,7 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.ended_at = None;
                 self.final_source_samples = None;
                 self.view.progress = None;
+                self.view.diagnostics_degraded = false;
                 self.view.active_job = Some((identity.job_id, JobState::Preparing));
                 self.view.active_generation = Some(identity.generation);
                 self.view.captured_samples = 0;
@@ -671,6 +690,7 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.max_segment_offset = 0;
                 self.final_source_samples = None;
                 self.view.progress = None;
+                self.view.diagnostics_degraded = false;
                 self.view.active_job = Some((identity.job_id, JobState::Preparing));
                 self.view.active_generation = Some(identity.generation);
                 self.view.message = Some("Vérification de la source et du modèle…".into());
@@ -707,6 +727,7 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.max_segment_offset = 0;
                 self.final_source_samples = None;
                 self.view.progress = None;
+                self.view.diagnostics_degraded = false;
                 self.view.active_job = Some((identity.job_id, JobState::Queued));
                 self.view.active_generation = Some(identity.generation);
                 self.view.message = Some("Vérification du choix explicite et préparation…".into());
@@ -740,6 +761,7 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.max_segment_offset = 0;
                 self.final_source_samples = None;
                 self.view.progress = None;
+                self.view.diagnostics_degraded = false;
                 self.view.active_job = Some((identity.job_id, JobState::Queued));
                 self.view.active_generation = Some(identity.generation);
                 self.view.message = Some(
@@ -1084,6 +1106,69 @@ mod tests {
                 .as_deref()
                 .is_some_and(|text| text.contains("vérifiée"))
         );
+    }
+
+    #[test]
+    fn final_stop_counters_allow_last_window_and_match_published_view() {
+        let job_id = JobId(20);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::StartLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [1; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+        app.io.events.push_back(ImportEvent::LiveCounters {
+            job_id,
+            generation,
+            captured_samples: 248_640,
+            admitted_samples: 248_640,
+            audio_durable_samples: 248_640,
+            confirmed_fragment_samples: 160_000,
+            speech_samples: 0,
+            diagnostic: None,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.dispatch(AppCommand::Stop { job_id, generation })
+            .unwrap();
+        app.io.events.push_back(ImportEvent::LiveCounters {
+            job_id,
+            generation,
+            captured_samples: 254_240,
+            admitted_samples: 254_240,
+            audio_durable_samples: 254_240,
+            confirmed_fragment_samples: 160_000,
+            speech_samples: 0,
+            diagnostic: None,
+        });
+        app.io.events.push_back(ImportEvent::WindowFinished {
+            job_id,
+            generation,
+            window_sequence: 4,
+            confirmed_samples: 254_240,
+        });
+        app.io
+            .events
+            .push_back(ImportEvent::Published { job_id, generation });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.dispatch(AppCommand::Refresh).unwrap();
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.active_job, Some((job_id, JobState::Complete)));
+        assert_eq!(view.captured_samples, 254_240);
+        assert_eq!(view.admitted_samples, 254_240);
+        assert_eq!(view.audio_durable_samples, 254_240);
+        assert_eq!(view.confirmed_samples, 254_240);
     }
 
     #[test]

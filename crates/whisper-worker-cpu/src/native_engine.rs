@@ -56,6 +56,11 @@ impl CpuEngine {
         {
             return Err("UnsupportedLanguage: select a supported Whisper language code".into());
         }
+        // Whisper can hallucinate text on digital silence. Keep the window's
+        // coverage, but return no text without invoking the model.
+        if pcm.iter().all(|sample| *sample == 0.0) {
+            return Ok(Vec::new());
+        }
         #[cfg(feature = "l01-memory-qualification")]
         crate::memory_qualification::record(
             "native.state.create.begin",

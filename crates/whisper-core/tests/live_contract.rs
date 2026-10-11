@@ -125,6 +125,7 @@ fn restored_live_recovery_is_visible_without_automatically_starting_a_new_passag
                 request,
                 durable_samples: 16_000,
                 confirmed_samples: 0,
+                publication_ready: false,
             }),
         }]));
 
@@ -133,6 +134,26 @@ fn restored_live_recovery_is_visible_without_automatically_starting_a_new_passag
     assert_eq!(view.history.len(), 1);
     assert!(view.history[0].live_recovery.is_some());
     assert!(io.0.borrow().effects.is_empty());
+}
+
+#[test]
+fn explicit_live_publication_resolution_does_not_start_another_passage() {
+    let io = Fake::default();
+    let mut app = ImportApplication::new(io.clone());
+    let request = request();
+
+    let view = app
+        .dispatch(AppCommand::ResolveLivePublication {
+            request: request.clone(),
+        })
+        .unwrap();
+
+    assert!(view.active_job.is_none());
+    assert!(view.history_scan_pending);
+    assert!(matches!(
+        io.0.borrow().effects.last(),
+        Some(ImportEffect::ResolveLivePublication(observed)) if *observed == request
+    ));
 }
 
 #[test]
@@ -179,4 +200,32 @@ fn diagnostic_warning_is_visible_without_changing_job_state_and_stale_notice_is_
         view.active_job,
         Some((request.job_id, whisper_core::JobState::Preparing))
     );
+}
+
+#[test]
+fn logging_degradation_remains_visible_after_subsequent_progress() {
+    let io = Fake::default();
+    let mut app = ImportApplication::new(io.clone());
+    let request = request();
+    app.dispatch(AppCommand::StartLiveConfigured {
+        request: request.clone(),
+    })
+    .unwrap();
+
+    io.0.borrow_mut().events.push_back(ImportEvent::Diagnostic {
+        job_id: request.job_id,
+        generation: request.generation,
+        notice: DiagnosticNotice::LoggingUnavailable,
+    });
+    let view = app.dispatch(AppCommand::Refresh).unwrap();
+    assert!(view.diagnostics_degraded);
+
+    io.0.borrow_mut().events.push_back(ImportEvent::Ready {
+        job_id: request.job_id,
+        generation: request.generation,
+        backend: "cpu".into(),
+    });
+    let view = app.dispatch(AppCommand::Refresh).unwrap();
+    assert!(view.diagnostics_degraded);
+    assert_eq!(view.message.as_deref(), Some("Moteur actif : cpu"));
 }

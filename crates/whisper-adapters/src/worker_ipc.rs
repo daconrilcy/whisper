@@ -54,6 +54,52 @@ fn unix_time_ms() -> u64 {
         })
 }
 
+fn scan_archive_history(root: &Path) -> Vec<ArchiveHistoryItem> {
+    let entries = match ArchiveStore::scan(root) {
+        Ok(entries) => entries,
+        Err(message) => {
+            return vec![ArchiveHistoryItem {
+                job_id: JobId(0),
+                generation: Generation::first(),
+                complete: false,
+                source_sha256: String::new(),
+                diagnostic: Some(format!("StorageCorrupt: {message}")),
+                live_recovery: None,
+            }];
+        }
+    };
+    let recoveries = match crate::archive::scan_live_recoveries(root) {
+        Ok(recoveries) => recoveries,
+        Err(error) => {
+            return vec![ArchiveHistoryItem {
+                job_id: JobId(0),
+                generation: Generation::first(),
+                complete: false,
+                source_sha256: String::new(),
+                diagnostic: Some(error),
+                live_recovery: None,
+            }];
+        }
+    };
+    entries
+        .into_iter()
+        .map(|item| ArchiveHistoryItem {
+            job_id: item.job_id,
+            generation: item.generation,
+            complete: item.complete,
+            source_sha256: item.source_sha256,
+            diagnostic: item.diagnostic,
+            live_recovery: recoveries
+                .iter()
+                .find(|recovery| {
+                    recovery.request.job_id == item.job_id
+                        && recovery.request.generation == item.generation
+                })
+                .cloned(),
+        })
+        .collect()
+}
+
 #[cfg(feature = "l01-memory-qualification")]
 static MEMORY_REPORT: OnceLock<Option<Mutex<std::io::BufWriter<File>>>> = OnceLock::new();
 
@@ -353,6 +399,32 @@ fn read_events(stdout: impl io::Read, tx: SyncSender<Result<WorkerEvent, PortErr
     }
 }
 
+fn bind_unidentified_startup_failure(
+    event: WorkerEvent,
+    attempt: (JobId, Generation, u64),
+    startup_ready: bool,
+) -> WorkerEvent {
+    if startup_ready {
+        return event;
+    }
+    match event {
+        WorkerEvent::Failed {
+            job_id: None,
+            generation: None,
+            instance_id: None,
+            code,
+            message,
+        } => WorkerEvent::Failed {
+            job_id: Some(attempt.0),
+            generation: Some(attempt.1),
+            instance_id: Some(attempt.2),
+            code,
+            message,
+        },
+        event => event,
+    }
+}
+
 fn worker_event_identity(event: &WorkerEvent) -> Option<(JobId, Generation, u64)> {
     match event {
         WorkerEvent::Ready {
@@ -401,6 +473,10 @@ fn worker_event_identity(event: &WorkerEvent) -> Option<(JobId, Generation, u64)
         } => Some((*job_id, *generation, *instance_id)),
         WorkerEvent::Failed { .. } | WorkerEvent::DecodedBlock { .. } => None,
     }
+}
+
+fn worker_event_is_stale(event: &WorkerEvent, attempt: (JobId, Generation, u64)) -> bool {
+    worker_event_identity(event).is_some_and(|identity| identity != attempt)
 }
 
 fn map_attempt_sequence(base: u64, replay_prefix: u64, attempt_sequence: u64) -> Option<u64> {
@@ -600,6 +676,7 @@ struct ImportRuntime {
     live: Option<LiveCaptureState>,
     live_archive: Option<LiveArchive>,
     pending_attempt_reset: Option<ImportEvent>,
+    pending_recovery_counters: Option<ImportEvent>,
     live_pending_persistence: usize,
     deferred_live_stopped: Option<WorkerEvent>,
     deferred_live_window_finished: Option<FinishedLiveWindow>,
@@ -660,6 +737,7 @@ struct ImportRequestState {
     attempt_number: u64,
     import_request: Option<whisper_core::ports::ImportRequest>,
     recovery: LiveRecoveryState,
+    startup_ready: bool,
 }
 
 impl ImportRuntime {
@@ -679,6 +757,7 @@ impl ImportRuntime {
             live: None,
             live_archive: None,
             pending_attempt_reset: None,
+            pending_recovery_counters: None,
             live_pending_persistence: 0,
             deferred_live_stopped: None,
             deferred_live_window_finished: None,
@@ -891,56 +970,22 @@ impl ImportRuntime {
             ImportEffect::StartWorker(request) => self.start_worker(request),
             ImportEffect::ScanHistory { destination } => {
                 let root = PathBuf::from(destination);
-                match ArchiveStore::scan(&root) {
-                    Ok(entries) => {
-                        let recoveries = crate::archive::scan_live_recoveries(&root);
-                        let recoveries = match recoveries {
-                            Ok(recoveries) => recoveries,
-                            Err(error) => {
-                                events.push_back(ImportEvent::History(vec![ArchiveHistoryItem {
-                                    job_id: JobId(0),
-                                    generation: Generation::first(),
-                                    complete: false,
-                                    source_sha256: String::new(),
-                                    diagnostic: Some(error),
-                                    live_recovery: None,
-                                }]));
-                                return;
-                            }
-                        };
-                        events.push_back(ImportEvent::History(
-                            entries
-                                .into_iter()
-                                .map(|item| ArchiveHistoryItem {
-                                    job_id: item.job_id,
-                                    generation: item.generation,
-                                    complete: item.complete,
-                                    source_sha256: item.source_sha256,
-                                    diagnostic: item.diagnostic,
-                                    live_recovery: recoveries
-                                        .iter()
-                                        .find(|recovery| {
-                                            recovery.request.job_id == item.job_id
-                                                && recovery.request.generation == item.generation
-                                        })
-                                        .cloned(),
-                                })
-                                .collect(),
-                        ));
-                        Ok(())
-                    }
-                    Err(message) => {
-                        events.push_back(ImportEvent::History(vec![ArchiveHistoryItem {
-                            job_id: JobId(0),
-                            generation: Generation::first(),
-                            complete: false,
-                            source_sha256: String::new(),
-                            diagnostic: Some(format!("StorageCorrupt: {message}")),
-                            live_recovery: None,
-                        }]));
-                        Ok(())
-                    }
+                events.push_back(ImportEvent::History(scan_archive_history(&root)));
+                Ok(())
+            }
+            ImportEffect::ResolveLivePublication(request) => {
+                let root = PathBuf::from(&request.destination);
+                let resolution = ArchiveStore::resolve_live_publication(&root, &request);
+                let mut history = scan_archive_history(&root);
+                if let Err(error) = resolution
+                    && let Some(item) = history.iter_mut().find(|item| {
+                        item.job_id == request.job_id && item.generation == request.generation
+                    })
+                {
+                    item.diagnostic = Some(error);
                 }
+                events.push_back(ImportEvent::History(history));
+                Ok(())
             }
             ImportEffect::PersistSegment(segment) => self.persist_segment(segment, events),
             ImportEffect::Publish {
@@ -1036,6 +1081,7 @@ impl ImportRuntime {
         self.progress = Some(ProgressSupervisor::starting(std::time::Instant::now()));
         self.live_pending_persistence = 0;
         self.pending_attempt_reset = None;
+        self.pending_recovery_counters = None;
         self.deferred_live_stopped = None;
         self.deferred_live_window_finished = None;
         let directory = PathBuf::from(&request.destination)
@@ -1069,6 +1115,7 @@ impl ImportRuntime {
             attempt_number,
             import_request: None,
             recovery: LiveRecoveryState::None,
+            startup_ready: false,
         });
         if let Some(diagnostics) = &self.diagnostics {
             diagnostics.record(DiagnosticRecord::new(
@@ -1259,6 +1306,7 @@ impl ImportRuntime {
             attempt_number: 0,
             import_request: Some(retry_request),
             recovery: LiveRecoveryState::None,
+            startup_ready: false,
         });
         if let Some(diagnostics) = &self.diagnostics {
             diagnostics.record(DiagnosticRecord::new(
@@ -1362,6 +1410,7 @@ impl ImportRuntime {
             attempt_number,
             import_request: None,
             recovery: LiveRecoveryState::None,
+            startup_ready: false,
         });
         self.transport = Some(transport);
         let live = self.live.as_mut().ok_or((
@@ -1464,6 +1513,7 @@ impl ImportRuntime {
             attempt_number,
             import_request: None,
             recovery: LiveRecoveryState::None,
+            startup_ready: false,
         });
         self.transport = Some(transport);
         if let Some(pending) = self.pending_live.as_mut() {
@@ -1619,8 +1669,9 @@ impl ImportRuntime {
                 }
             }
             if decision == whisper_core::BackendDecision::AwaitUserChoice {
-                let mut ignored_events = VecDeque::new();
-                self.stop(job_id, generation, &mut ignored_events)?;
+                let mut stop_events = VecDeque::new();
+                self.stop(job_id, generation, &mut stop_events)?;
+                self.pending_recovery_counters = recovery_stop_counters(stop_events);
             }
             if let Some(transport) = self.transport.as_mut() {
                 let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
@@ -1903,6 +1954,18 @@ impl ImportRuntime {
             })?;
             crate::archive::l04_campaign_gate("pcm.after_drain", job.0, generation.get(), 0)
                 .map_err(|error| (job, generation, error))?;
+            let durable_samples = live.staging.durable_samples();
+            live.last_reported_durable = durable_samples;
+            events.push_back(ImportEvent::LiveCounters {
+                job_id: job,
+                generation,
+                captured_samples: live.captured,
+                admitted_samples: live.admitted,
+                audio_durable_samples: durable_samples,
+                confirmed_fragment_samples: live.confirmed_fragment_end,
+                speech_samples: live.speech,
+                diagnostic: None,
+            });
             live.stop_requested = true;
             return Ok(());
         }
@@ -2171,6 +2234,9 @@ impl ImportRuntime {
     }
 
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+        if let Some(event) = self.pending_recovery_counters.take() {
+            return Some(Ok(event));
+        }
         if self.live.as_ref().is_some_and(|live| live.worker_ready)
             && let Some(event) = self.pending_attempt_reset.take()
         {
@@ -2248,7 +2314,7 @@ impl ImportRuntime {
         if self.deferred_live_window_finished.is_some() && self.live_pending_persistence > 0 {
             return None;
         }
-        let event = if self.deferred_live_stopped.is_some() {
+        let mut event = if self.deferred_live_stopped.is_some() {
             if self.live_pending_persistence > 0
                 || self
                     .transport
@@ -2318,9 +2384,15 @@ impl ImportRuntime {
         let active = self.active.as_ref()?;
         let (job_id, generation, instance_id) =
             (active.job_id, active.generation, active.instance_id);
-        if worker_event_identity(&event)
-            .is_some_and(|identity| identity != (job_id, generation, instance_id))
-        {
+        // A failure received on the newly launched worker's own transport before
+        // Ready may omit its identity. Bind only a wholly uncorrelated startup
+        // failure to this attempt; partially or fully stale identities stay rejected.
+        event = bind_unidentified_startup_failure(
+            event,
+            (job_id, generation, instance_id),
+            active.startup_ready,
+        );
+        if worker_event_is_stale(&event, (job_id, generation, instance_id)) {
             return None;
         }
         if matches!(
@@ -2802,6 +2874,9 @@ impl ImportRuntime {
                     .as_ref()
                     .is_some_and(|active| active.backend == backend) =>
             {
+                if let Some(active) = self.active.as_mut() {
+                    active.startup_ready = true;
+                }
                 if let Some(live) = self
                     .live
                     .as_mut()
@@ -3124,10 +3199,17 @@ impl ServiceRuntime for ImportRuntime {
     }
 }
 
+fn recovery_stop_counters(events: VecDeque<ImportEvent>) -> Option<ImportEvent> {
+    events
+        .into_iter()
+        .find(|event| matches!(event, ImportEvent::LiveCounters { .. }))
+}
+
 fn effect_event_reservation(effect: &ImportEffect) -> usize {
     match effect {
         ImportEffect::ResumeInterrupted { .. } => 3,
         ImportEffect::ProcessQueued(_) | ImportEffect::Publish { .. } => 2,
+        ImportEffect::Stop { .. } => 2,
         _ => 1,
     }
 }
@@ -3140,6 +3222,7 @@ fn service_loop<R: ServiceRuntime>(
 ) {
     let mut pending = VecDeque::new();
     let mut deferred_effect = None;
+    let mut deferred_stop = None;
     #[cfg(feature = "l01-memory-qualification")]
     memory_trace(
         "adapter.pending.created",
@@ -3152,16 +3235,19 @@ fn service_loop<R: ServiceRuntime>(
         }),
     );
     loop {
-        let stop = if pending.len() < EVENTS_PER_STAGE {
-            stop_rx.try_recv().ok()
-        } else {
-            None
-        };
+        let mut stop = deferred_stop.take().or_else(|| stop_rx.try_recv().ok());
+        if stop.is_some() && pending.len() + 2 > EVENTS_PER_STAGE {
+            deferred_stop = stop.take();
+        }
         let mut effect = deferred_effect.take().or_else(|| effect_rx.try_recv().ok());
-        if effect.as_ref().is_some_and(|effect| {
-            pending.len() + effect_event_reservation(effect) + usize::from(stop.is_some())
-                > EVENTS_PER_STAGE
-        }) {
+        if deferred_stop.is_some()
+            || effect.as_ref().is_some_and(|effect| {
+                pending.len()
+                    + effect_event_reservation(effect)
+                    + if stop.is_some() { 2 } else { 0 }
+                    > EVENTS_PER_STAGE
+            })
+        {
             deferred_effect = effect.take();
         }
         match (effect, stop) {
@@ -3675,14 +3761,38 @@ fn main() {
             attempt_number: 0,
             import_request: Some(request.clone()),
             recovery: LiveRecoveryState::None,
+            startup_ready: false,
         });
+        let unbound = WorkerEvent::Failed {
+            job_id: None,
+            generation: None,
+            instance_id: None,
+            code: whisper_core::ipc::WorkerErrorCode::BackendUnavailable,
+            message: "GPU unavailable before Ready".into(),
+        };
+        let bound = bind_unidentified_startup_failure(
+            unbound,
+            (request.job_id, request.generation, 9),
+            false,
+        );
+        let WorkerEvent::Failed {
+            job_id: Some(job_id),
+            generation: Some(generation),
+            instance_id: Some(instance_id),
+            code,
+            message,
+        } = bound
+        else {
+            panic!("unidentified startup failure must bind to the launched attempt");
+        };
+        assert_eq!(
+            (job_id, generation, instance_id),
+            (request.job_id, request.generation, 9)
+        );
+        assert_eq!(code, whisper_core::ipc::WorkerErrorCode::BackendUnavailable);
+
         let event = runtime
-            .handle_worker_failure(
-                request.job_id,
-                request.generation,
-                whisper_core::ipc::WorkerErrorCode::BackendUnavailable,
-                "GPU unavailable before Ready".into(),
-            )
+            .handle_worker_failure(job_id, generation, code, message)
             .unwrap();
         assert!(matches!(event, ImportEvent::LiveAttemptStarting { .. }));
         let active = runtime.active.as_ref().unwrap();
@@ -3691,6 +3801,41 @@ fn main() {
         assert!(
             runtime.transport.is_none(),
             "retry must wait for correlated Stopped and child exit"
+        );
+
+        let stale = WorkerEvent::Failed {
+            job_id: Some(request.job_id),
+            generation: Some(request.generation),
+            instance_id: Some(8),
+            code: whisper_core::ipc::WorkerErrorCode::BackendUnavailable,
+            message: "stale GPU attempt".into(),
+        };
+        let stale_after_binding = bind_unidentified_startup_failure(
+            stale.clone(),
+            (request.job_id, request.generation, 9),
+            false,
+        );
+        assert_eq!(stale_after_binding, stale);
+        assert_ne!(
+            worker_event_identity(&stale_after_binding),
+            Some((request.job_id, request.generation, 9)),
+            "correlated stale failures remain rejectable"
+        );
+        let after_ready = WorkerEvent::Failed {
+            job_id: None,
+            generation: None,
+            instance_id: None,
+            code: whisper_core::ipc::WorkerErrorCode::BackendUnavailable,
+            message: "failure after Ready".into(),
+        };
+        assert_eq!(
+            bind_unidentified_startup_failure(
+                after_ready.clone(),
+                (request.job_id, request.generation, 9),
+                true,
+            ),
+            after_ready,
+            "identity binding is limited to the startup phase"
         );
     }
 
@@ -3752,6 +3897,8 @@ fn main() {
         let current = (JobId(7), Generation::first(), 42);
         assert_ne!(worker_event_identity(&packet), Some(current));
         assert_ne!(worker_event_identity(&failed), Some(current));
+        assert!(worker_event_is_stale(&packet, current));
+        assert!(worker_event_is_stale(&failed, current));
     }
 
     #[test]
@@ -4009,6 +4156,126 @@ fn main() {
             .join()
             .unwrap();
         assert_eq!(*order.lock().unwrap(), vec!["start", "stop"]);
+    }
+
+    #[test]
+    fn gpu_choice_keeps_drained_counters_ahead_of_following_events() {
+        let job_id = JobId(20);
+        let generation = Generation::first();
+        let mut stop_events = VecDeque::new();
+        stop_events.push_back(ImportEvent::LiveFinalizing { job_id, generation });
+        stop_events.push_back(ImportEvent::LiveCounters {
+            job_id,
+            generation,
+            captured_samples: 640,
+            admitted_samples: 640,
+            audio_durable_samples: 640,
+            confirmed_fragment_samples: 0,
+            speech_samples: 0,
+            diagnostic: None,
+        });
+        let gate = Arc::new(PublicationGate::default());
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu.exe"),
+                gpu: PathBuf::from("unused-gpu.exe"),
+            },
+            gate,
+        );
+        runtime.pending_recovery_counters = recovery_stop_counters(stop_events);
+        assert!(matches!(
+            runtime.poll(),
+            Some(Ok(ImportEvent::LiveCounters {
+                audio_durable_samples: 640,
+                ..
+            }))
+        ));
+        assert!(runtime.pending_recovery_counters.is_none());
+    }
+
+    #[test]
+    fn stop_counters_reach_application_before_final_window() {
+        struct Runtime {
+            stopped: bool,
+            window_sent: bool,
+        }
+        impl ServiceRuntime for Runtime {
+            fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+                if let ImportEffect::Stop { job_id, generation } = effect {
+                    self.stopped = true;
+                    pending.push_back(ImportEvent::LiveCounters {
+                        job_id,
+                        generation,
+                        captured_samples: 254_240,
+                        admitted_samples: 254_240,
+                        audio_durable_samples: 254_240,
+                        confirmed_fragment_samples: 160_000,
+                        speech_samples: 0,
+                        diagnostic: None,
+                    });
+                    pending.push_back(ImportEvent::LiveFinalizing { job_id, generation });
+                    assert!(pending.len() <= EVENTS_PER_STAGE);
+                }
+            }
+
+            fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+                if !self.stopped {
+                    return None;
+                }
+                if self.window_sent {
+                    return Some(Ok(ImportEvent::History(Vec::new())));
+                }
+                self.window_sent = true;
+                Some(Ok(ImportEvent::WindowFinished {
+                    job_id: JobId(20),
+                    generation: Generation::first(),
+                    window_sequence: 4,
+                    confirmed_samples: 254_240,
+                }))
+            }
+        }
+
+        let (effect_tx, effect_rx) = mpsc::sync_channel(1);
+        let (stop_tx, stop_rx) = mpsc::sync_channel(1);
+        let (event_tx, event_rx) = mpsc::sync_channel(EVENTS_PER_STAGE);
+        drop(effect_tx);
+        stop_tx
+            .send(ImportEffect::Stop {
+                job_id: JobId(20),
+                generation: Generation::first(),
+            })
+            .unwrap();
+        let service = thread::spawn(move || {
+            service_loop(
+                effect_rx,
+                stop_rx,
+                event_tx,
+                Runtime {
+                    stopped: false,
+                    window_sent: false,
+                },
+            )
+        });
+        assert!(matches!(
+            event_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            ImportEvent::LiveCounters {
+                audio_durable_samples: 254_240,
+                ..
+            }
+        ));
+        assert!(matches!(
+            event_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            ImportEvent::LiveFinalizing { .. }
+        ));
+        assert!(matches!(
+            event_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            ImportEvent::WindowFinished {
+                confirmed_samples: 254_240,
+                ..
+            }
+        ));
+        drop(event_rx);
+        service.join().unwrap();
     }
 
     #[test]

@@ -35,6 +35,11 @@ impl GpuEngine {
         {
             return Err("UnsupportedLanguage: select a supported Whisper language code".into());
         }
+        // Whisper can hallucinate text on digital silence. Keep the window's
+        // coverage, but return no text without invoking the model.
+        if pcm.iter().all(|sample| *sample == 0.0) {
+            return Ok(Vec::new());
+        }
         let mut state = self
             .context
             .create_state()

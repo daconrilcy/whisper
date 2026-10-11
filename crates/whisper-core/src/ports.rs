@@ -165,6 +165,7 @@ pub enum ImportEffect {
     ScanHistory {
         destination: String,
     },
+    ResolveLivePublication(LiveRequest),
     PersistSegment(WorkerSegment),
     Publish {
         job_id: JobId,
@@ -294,6 +295,8 @@ pub struct LiveRecoveryInfo {
     pub durable_samples: u64,
     #[serde(default)]
     pub confirmed_samples: u64,
+    #[serde(default)]
+    pub publication_ready: bool,
 }
 
 pub trait ImportIoPort {

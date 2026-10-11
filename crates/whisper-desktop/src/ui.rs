@@ -171,30 +171,6 @@ impl<A: Application> DesktopApp<A> {
         self.live_request = Some(request.clone());
         self.dispatch(AppCommand::StartLiveConfigured { request });
     }
-
-    fn continue_live_group(&mut self, previous: LiveRequest) {
-        let Some(generation) = previous.generation.next() else {
-            self.view.message =
-                Some("Le numéro de passage est épuisé ; le groupe reste récupérable.".into());
-            return;
-        };
-        self.model_path = previous.model_path.clone();
-        self.destination = previous.destination.clone();
-        match &previous.config.language {
-            LanguageChoice::Automatic => {
-                self.manual_language = false;
-                self.language.clear();
-            }
-            LanguageChoice::Manual(language) => {
-                self.manual_language = true;
-                self.language = language.clone();
-            }
-        }
-        // Keep the durable group identity and configuration. LiveArchive derives
-        // the new passage offset from the prior passage's confirmed checkpoint.
-        self.live_request = Some(previous);
-        self.start_live(generation);
-    }
 }
 
 impl<A: Application> eframe::App for DesktopApp<A> {
@@ -443,6 +419,12 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         if let Some(message) = &self.view.message {
             ui.colored_label(egui::Color32::LIGHT_RED, message);
         }
+        if self.view.diagnostics_degraded {
+            ui.colored_label(
+                egui::Color32::LIGHT_RED,
+                "Les diagnostics locaux sont indisponibles ; l’opération continue.",
+            );
+        }
         if let Some(result) = self.published_result() {
             ui.colored_label(egui::Color32::LIGHT_GREEN, result);
         }
@@ -514,7 +496,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
 
         if destination_scan_pending {
             self.scanned_destination = Some(destination.clone());
-            self.dispatch(AppCommand::ScanHistory { destination });
+            self.dispatch(AppCommand::ScanHistory {
+                destination: destination.clone(),
+            });
         }
         ui.separator();
         ui.heading("Historique local");
@@ -537,17 +521,55 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             if let Some(diagnostic) = &item.diagnostic {
                 ui.colored_label(egui::Color32::LIGHT_RED, diagnostic);
             }
-            if let Some(recovery) = item.live_recovery
-                && !busy
-                && self.view.active_job.is_none()
-                && ui
-                    .button(format!(
-                        "Continuer le groupe — nouveau passage ({} échantillons confirmés)",
-                        recovery.durable_samples
-                    ))
-                    .clicked()
-            {
-                self.continue_live_group(recovery.request);
+            if let Some(recovery) = item.live_recovery {
+                ui.label(format!(
+                    "Audio durable : {} échantillons ; audio confirmé : {} échantillons.",
+                    recovery.durable_samples, recovery.confirmed_samples
+                ));
+                if recovery.confirmed_samples < recovery.durable_samples {
+                    ui.colored_label(
+                        egui::Color32::LIGHT_RED,
+                        format!(
+                            "{} échantillons durables restent non confirmés ; le nouveau passage attend la reprise du passage en cours.",
+                            recovery.durable_samples - recovery.confirmed_samples
+                        ),
+                    );
+                } else if recovery.confirmed_samples > recovery.durable_samples {
+                    ui.colored_label(
+                        egui::Color32::LIGHT_RED,
+                        "Couverture confirmée incohérente avec l'audio durable ; reprise indisponible.",
+                    );
+                } else if recovery.request.destination.trim() != destination {
+                    ui.colored_label(
+                        egui::Color32::LIGHT_RED,
+                        "La destination enregistrée diffère du dossier consulté ; reprise indisponible.",
+                    );
+                } else if recovery.publication_ready
+                    && recovery.request.destination.trim() != destination
+                {
+                    ui.colored_label(
+                        egui::Color32::LIGHT_RED,
+                        "La destination enregistrée diffère du dossier consulté ; publication indisponible.",
+                    );
+                } else if recovery.publication_ready
+                    && !busy
+                    && self.view.active_job.is_none()
+                    && ui
+                        .button("Publier explicitement le passage récupérable")
+                        .clicked()
+                {
+                    self.dispatch(AppCommand::ResolveLivePublication {
+                        request: recovery.request,
+                    });
+                } else if !recovery.publication_ready {
+                    ui.colored_label(
+                        egui::Color32::YELLOW,
+                        format!(
+                            "Le passage {} reste récupérable ; réconciliez son point durable avant de démarrer le passage suivant.",
+                            recovery.request.generation.get()
+                        ),
+                    );
+                }
             }
         }
     }
