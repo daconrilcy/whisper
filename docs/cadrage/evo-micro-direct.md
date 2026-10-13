@@ -1,8 +1,8 @@
 # Évolution Whisper — micro en direct (proposition, 13 octobre 2026)
 
-Avancée : arrêt à un clic et WAV micro implémentés ; compilation native optimisée et fenêtres de 5 à 8 s testées en release.
-Blocage : l'objectif d'une minute de calcul par minute d'audio reste non atteint (micro 1,92× sur 30 s).
-Décision : choisir une évolution du modèle ou un GPU séparé avant toute nouvelle correction de vitesse ; l'essai dans la fenêtre revient à l'utilisateur.
+Avancée : arrêt à un clic, WAV micro et diagnostic CPU détaillé disponibles ; derniers réglages mesurés en release.
+Blocage : l'objectif d'une minute de calcul par minute d'audio reste non atteint (micro 2,24× sur 30 s, six blocs de 5 s).
+Décision : choisir une évolution du modèle, un GPU séparé ou réviser la vitesse cible ; l'essai dans la fenêtre revient à l'utilisateur.
 
 ## Besoin et périmètre
 
@@ -47,4 +47,4 @@ Le code offre déjà `LiveRequest`, états/événements et texte provisoire dans
 3. **Q3, AC3–AC5 — Fermeture/concurrence** : fermer équivaut à Arrêter ; la fenêtre attend l'enregistrement. Micro et import exclusifs ; pas de reprise après plantage.
 4. **Q4, AC1–AC4 — Prérequis** : micro Windows accessible, modèle local du MVP ; audio conservé en WAV à côté des TXT/SRT. Nouvelle dépendance ou téléchargement : décision utilisateur préalable.
 
-Sources : demande et décisions de cette session, `AGENTS.md`, `docs/cadrage/bilan-mvp.md`, inspection des crates ; contributions en lecture seule des spécialistes besoin, exigences, domaine et architecture. Mesures release sur 30 s : import initial 46,8× ; avec `/O2` 5,22× ; avec 24 fils 2,32× ; micro 5–8 s 1,92×. Statut : **seuil de vitesse non atteint** ; qualification dans la fenêtre réservée à l'utilisateur.
+Sources : demande et décisions de cette session, `AGENTS.md`, `docs/cadrage/bilan-mvp.md`, inspection des crates ; contributions en lecture seule des spécialistes besoin, exigences, domaine et architecture. Mesures release sur 30 s : import initial 46,8× ; avec `/O2` 5,22× ; avec 24 fils, import 2,25× et micro en six blocs de 5 s 2,24×. Le modèle n'est chargé qu'une fois par session, le décodage est déjà simple. Sur un bloc de 5 s : chargement du modèle 0,94 s une fois, encodage mesuré séparément 5,41 s, décodage et reste estimés 5,34 s ; état recréé 0,012 s. Essai `audio_ctx=250` : 1,63× mais texte dégradé ; 500/750 : 1,44×/1,62× et ponctuation changée ; valeurs écartées. `WHISPER_CPU_TIMINGS=1` affiche le détail dans le journal du worker, avec un encodage de diagnostic supplémentaire. Statut : **seuil de vitesse non atteint** ; qualification dans la fenêtre réservée à l'utilisateur.

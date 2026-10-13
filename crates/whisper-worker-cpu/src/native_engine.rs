@@ -1,3 +1,4 @@
+use std::time::Instant;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 pub const MAX_LIVE_WINDOW_SAMPLES: usize = 128_000;
@@ -14,6 +15,7 @@ pub struct TextSegment {
 
 impl CpuEngine {
     pub fn load(path: &str) -> Result<Self, String> {
+        let load_started = Instant::now();
         #[cfg(feature = "l01-memory-qualification")]
         let started = std::time::Instant::now();
         #[cfg(feature = "l01-memory-qualification")]
@@ -32,6 +34,12 @@ impl CpuEngine {
         context
             .create_state()
             .map_err(|e| format!("CPU state initialization failed: {e}"))?;
+        if std::env::var_os("WHISPER_CPU_TIMINGS").is_some() {
+            eprintln!(
+                "cpu_timing model_load_ms={:.1}",
+                load_started.elapsed().as_secs_f64() * 1000.0
+            );
+        }
         #[cfg(feature = "l01-memory-qualification")]
         crate::memory_qualification::record(
             "native.context.create.complete",
@@ -71,10 +79,12 @@ impl CpuEngine {
                 "native_state_allocation_bytes": "opaque; process counters sampled at stage",
             }),
         );
+        let state_started = Instant::now();
         let mut state = self
             .context
             .create_state()
             .map_err(|e| format!("CPU state creation failed: {e}"))?;
+        let state_ms = state_started.elapsed().as_secs_f64() * 1000.0;
         #[cfg(feature = "l01-memory-qualification")]
         let state_handle_bytes = std::mem::size_of_val(&state);
         #[cfg(feature = "l01-memory-qualification")]
@@ -110,9 +120,42 @@ impl CpuEngine {
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
+        let infer_started = Instant::now();
         state
             .full(params, pcm)
             .map_err(|e| format!("CPU inference failed: {e}"))?;
+        let full_ms = infer_started.elapsed().as_secs_f64() * 1000.0;
+        if std::env::var_os("WHISPER_CPU_TIMINGS").is_some() {
+            // The wrapper exposes encoder calls but not the native state's internal counters.
+            // Measure one separate encoder pass; the remaining full() time is an estimate.
+            let diagnostic_started = Instant::now();
+            let mut diagnostic = self
+                .context
+                .create_state()
+                .map_err(|e| format!("CPU diagnostic state creation failed: {e}"))?;
+            let diagnostic_state_ms = diagnostic_started.elapsed().as_secs_f64() * 1000.0;
+            let mel_started = Instant::now();
+            diagnostic
+                .pcm_to_mel(pcm, threads as usize)
+                .map_err(|e| format!("CPU diagnostic mel failed: {e}"))?;
+            let mel_ms = mel_started.elapsed().as_secs_f64() * 1000.0;
+            let encode_started = Instant::now();
+            diagnostic
+                .encode(0, threads as usize)
+                .map_err(|e| format!("CPU diagnostic encode failed: {e}"))?;
+            let encode_ms = encode_started.elapsed().as_secs_f64() * 1000.0;
+            eprintln!(
+                "cpu_timing pcm_samples={} threads={} state_ms={:.1} full_ms={:.1} diagnostic_state_ms={:.1} mel_ms={:.1} encode_ms={:.1} decode_and_overhead_estimate_ms={:.1}",
+                pcm.len(),
+                threads,
+                state_ms,
+                full_ms,
+                diagnostic_state_ms,
+                mel_ms,
+                encode_ms,
+                (full_ms - mel_ms - encode_ms).max(0.0)
+            );
+        }
         let segments = state
             .as_iter()
             .map(|segment| TextSegment {
