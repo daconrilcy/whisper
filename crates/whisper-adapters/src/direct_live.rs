@@ -254,7 +254,7 @@ impl DirectLive {
             } if self.matches(job_id, generation, instance_id) && backend == BackendKind::Cpu => {
                 self.worker_ready = true;
                 if !self.stop_requested {
-                    let capture = crate::capture::start_default().map_err(|error| {
+                    let capture = crate::capture::start_direct_default().map_err(|error| {
                         format!("Micro Windows indisponible. Vérifiez son branchement et son autorisation : {error}")
                     })?;
                     let converter =

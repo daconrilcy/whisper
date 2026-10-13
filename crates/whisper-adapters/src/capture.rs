@@ -189,15 +189,25 @@ fn capture_into<T: Copy>(
 }
 
 pub fn start_default() -> Result<CaptureStream, String> {
+    start_device(default_input_device()?)
+}
+
+pub fn start_direct_default() -> Result<CaptureStream, String> {
+    start_device_with_buffer(default_input_device()?, true)
+}
+
+fn default_input_device() -> Result<Device, String> {
     let host = cpal::host_from_id(cpal::HostId::Wasapi)
         .map_err(|error| format!("CaptureUnavailable: WASAPI: {error}"))?;
-    let device = host
-        .default_input_device()
-        .ok_or_else(|| "CaptureUnavailable: no default WASAPI input device".to_owned())?;
-    start_device(device)
+    host.default_input_device()
+        .ok_or_else(|| "CaptureUnavailable: no default WASAPI input device".to_owned())
 }
 
 pub fn start_device(device: Device) -> Result<CaptureStream, String> {
+    start_device_with_buffer(device, false)
+}
+
+fn start_device_with_buffer(device: Device, direct_live: bool) -> Result<CaptureStream, String> {
     let supported = device
         .default_input_config()
         .map_err(|error| format!("CaptureUnavailable: {error}"))?;
@@ -209,7 +219,12 @@ pub fn start_device(device: Device) -> Result<CaptureStream, String> {
         );
     }
     let format = supported.sample_format();
-    let config = supported.config();
+    let mut config = supported.config();
+    if direct_live {
+        // WASAPI shared mode keeps its callback period, but the larger capture
+        // buffer tolerates scheduling jitter while CPU inference starts.
+        config.buffer_size = cpal::BufferSize::Fixed((rate / 5).max(1));
+    }
     let slot_samples = ((rate as usize) * 20)
         .div_ceil(1000)
         .checked_mul(usize::from(channels))
