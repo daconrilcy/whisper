@@ -1,0 +1,5 @@
+[env]
+# whisper-rs-sys forwards CMAKE_* variables to its native CMake build.
+# Keep the C/C++ release code optimized with MSVC, including ggml-cpu.
+CMAKE_C_FLAGS_RELEASE = "/O2 /Ob2 /DNDEBUG"
+CMAKE_CXX_FLAGS_RELEASE = "/O2 /Ob2 /DNDEBUG"

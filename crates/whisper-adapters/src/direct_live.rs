@@ -18,7 +18,11 @@ use crate::{
     worker_ipc::ChildWorkerTransport,
 };
 
-const WINDOW_SAMPLES: usize = 32_000;
+const MIN_WINDOW_SAMPLES: usize = 80_000;
+const MAX_WINDOW_SAMPLES: usize = 128_000;
+const PAUSE_SAMPLES: usize = 3_200;
+const PAUSE_STEP_SAMPLES: usize = 1_600;
+const PAUSE_RMS_LIMIT: u64 = 400;
 const MAX_BUFFERED_SAMPLES: usize = 16_000 * 60 * 10;
 
 pub(crate) struct DirectLive {
@@ -193,11 +197,7 @@ impl DirectLive {
         if !self.worker_ready || self.inflight.is_some() || self.stop_sent {
             return Ok(());
         }
-        let count = if self.pending.len() >= WINDOW_SAMPLES {
-            WINDOW_SAMPLES
-        } else if self.stop_requested {
-            self.pending.len()
-        } else {
+        let Some(count) = window_size(&self.pending, self.stop_requested) else {
             return Ok(());
         };
         if count > 0 {
@@ -415,6 +415,25 @@ impl DirectLive {
     }
 }
 
+fn window_size(pending: &VecDeque<i16>, stopping: bool) -> Option<usize> {
+    let available = pending.len().min(MAX_WINDOW_SAMPLES);
+    if available >= MIN_WINDOW_SAMPLES {
+        for end in (MIN_WINDOW_SAMPLES..=available).step_by(PAUSE_STEP_SAMPLES) {
+            let energy: u64 = pending
+                .range(end - PAUSE_SAMPLES..end)
+                .map(|sample| i64::from(*sample).unsigned_abs().pow(2))
+                .sum();
+            if energy <= PAUSE_RMS_LIMIT.pow(2) * PAUSE_SAMPLES as u64 {
+                return Some(end);
+            }
+        }
+        if available == MAX_WINDOW_SAMPLES {
+            return Some(available);
+        }
+    }
+    stopping.then_some(available)
+}
+
 struct WavOutput {
     file: fs::File,
     path: PathBuf,
@@ -517,7 +536,8 @@ fn timestamp(samples: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{WavOutput, write_wav_header};
+    use super::{MAX_WINDOW_SAMPLES, MIN_WINDOW_SAMPLES, WavOutput, window_size, write_wav_header};
+    use std::collections::VecDeque;
     use whisper_core::{ComputeChoice, JobConfig, LanguageChoice};
 
     #[test]
@@ -575,5 +595,24 @@ mod tests {
         assert_eq!(u32::from_le_bytes(bytes[40..44].try_into().unwrap()), 6);
         assert_eq!(&bytes[44..], &[0, 128, 0, 0, 255, 127]);
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn live_window_waits_for_five_seconds_then_prefers_a_pause_before_eight() {
+        let mut pending = VecDeque::from(vec![1_000_i16; 96_000]);
+        assert_eq!(window_size(&pending, false), None);
+        for sample in pending.range_mut(80_000..90_000) {
+            *sample = 0;
+        }
+        let cut = window_size(&pending, false).unwrap();
+        assert!(cut > MIN_WINDOW_SAMPLES && cut < 90_000);
+        assert_eq!(
+            window_size(&VecDeque::from(vec![1_000; MAX_WINDOW_SAMPLES]), false),
+            Some(MAX_WINDOW_SAMPLES)
+        );
+        assert_eq!(
+            window_size(&VecDeque::from(vec![1_000; 32_000]), true),
+            Some(32_000)
+        );
     }
 }

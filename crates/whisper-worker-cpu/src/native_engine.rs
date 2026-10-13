@@ -1,5 +1,7 @@
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
+pub const MAX_LIVE_WINDOW_SAMPLES: usize = 128_000;
+
 pub struct CpuEngine {
     context: WhisperContext,
 }
@@ -48,7 +50,7 @@ impl CpuEngine {
         pcm: &[f32],
         language: Option<&str>,
     ) -> Result<Vec<TextSegment>, String> {
-        if pcm.is_empty() || pcm.len() > 80_000 {
+        if pcm.is_empty() || pcm.len() > MAX_LIVE_WINDOW_SAMPLES {
             return Err("invalid inference window size".into());
         }
         if let Some(language) = language
@@ -96,6 +98,12 @@ impl CpuEngine {
             }),
         );
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+        // The validated Windows target (i9-14900K) has 24 physical cores.
+        // Clamp for hosts with fewer logical processors.
+        let threads = std::thread::available_parallelism()
+            .map(|count| count.get().min(24) as i32)
+            .unwrap_or(24);
+        params.set_n_threads(threads);
         params.set_language(language);
         params.set_translate(false);
         params.set_no_context(true);

@@ -440,6 +440,7 @@ fn write_frame<T: serde::Serialize>(output: &mut impl io::Write, value: &T) -> i
 }
 
 fn main() {
+    eprintln!("{}", whisper_rs::print_system_info());
     let (tx, rx) = mpsc::sync_channel(8);
     thread::spawn(move || input_loop(tx));
     let stdout = io::stdout();
@@ -964,7 +965,7 @@ fn run_live_service(
                     || range.start_sample >= range.end_sample
                     || range.end_sample - range.start_sample != samples.len() as u64
                     || samples.is_empty()
-                    || samples.len() > 80_000
+                    || samples.len() > native_engine::MAX_LIVE_WINDOW_SAMPLES
                 {
                     return emit_failure(
                         output,
