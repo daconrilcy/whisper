@@ -427,7 +427,12 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
         }
         if let Some(message) = &self.view.message {
-            ui.colored_label(egui::Color32::LIGHT_RED, message);
+            let visible_message = if message.starts_with("ModelMissing:") {
+                "Modèle local introuvable. Vérifiez le chemin dans « Modèle local ». Pour cet import déjà en file, choisissez « Retirer », puis ajoutez de nouveau le fichier audio."
+            } else {
+                message
+            };
+            ui.colored_label(egui::Color32::LIGHT_RED, visible_message);
         }
         if self.view.diagnostics_degraded {
             ui.colored_label(
