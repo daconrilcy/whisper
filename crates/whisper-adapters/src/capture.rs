@@ -5,7 +5,7 @@ use cpal::{
 use rtrb::{Consumer, Producer, RingBuffer};
 use rubato::{FftFixedInOut, Resampler};
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicU8, Ordering},
 };
 
@@ -30,6 +30,7 @@ pub struct CaptureStream {
     ready: Consumer<Vec<f32>>,
     recycle: Producer<Vec<f32>>,
     status: Arc<AtomicU8>,
+    failure_detail: Arc<Mutex<Option<String>>>,
     rate: u32,
     channels: u16,
 }
@@ -225,6 +226,8 @@ pub fn start_device(device: Device) -> Result<CaptureStream, String> {
     let status = Arc::new(AtomicU8::new(0));
     let callback_status = status.clone();
     let error_status = status.clone();
+    let failure_detail = Arc::new(Mutex::new(None));
+    let callback_failure_detail = failure_detail.clone();
     let stream = match format {
         SampleFormat::F32 => device.build_input_stream(
             config,
@@ -239,7 +242,10 @@ pub fn start_device(device: Device) -> Result<CaptureStream, String> {
                     &callback_status,
                 )
             },
-            move |_| {
+            move |error| {
+                if let Ok(mut detail) = callback_failure_detail.lock() {
+                    *detail = Some(error.to_string());
+                }
                 error_status.fetch_or(CAPTURE_FAILED, Ordering::Release);
             },
             None,
@@ -257,7 +263,10 @@ pub fn start_device(device: Device) -> Result<CaptureStream, String> {
                     &callback_status,
                 )
             },
-            move |_| {
+            move |error| {
+                if let Ok(mut detail) = callback_failure_detail.lock() {
+                    *detail = Some(error.to_string());
+                }
                 error_status.fetch_or(CAPTURE_FAILED, Ordering::Release);
             },
             None,
@@ -275,7 +284,10 @@ pub fn start_device(device: Device) -> Result<CaptureStream, String> {
                     &callback_status,
                 )
             },
-            move |_| {
+            move |error| {
+                if let Ok(mut detail) = callback_failure_detail.lock() {
+                    *detail = Some(error.to_string());
+                }
                 error_status.fetch_or(CAPTURE_FAILED, Ordering::Release);
             },
             None,
@@ -291,6 +303,7 @@ pub fn start_device(device: Device) -> Result<CaptureStream, String> {
         ready,
         recycle,
         status,
+        failure_detail,
         rate,
         channels,
     })
@@ -321,6 +334,12 @@ impl CaptureStream {
     }
     pub fn failure(&self) -> bool {
         self.status.load(Ordering::Acquire) & CAPTURE_FAILED != 0
+    }
+    pub fn failure_detail(&self) -> Option<String> {
+        self.failure_detail
+            .lock()
+            .ok()
+            .and_then(|detail| detail.clone())
     }
     pub fn stop(&mut self) {
         self.stream.take();

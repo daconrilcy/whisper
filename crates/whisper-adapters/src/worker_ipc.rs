@@ -3248,6 +3248,9 @@ impl ImportIoPort for AsyncImportIo {
 trait ServiceRuntime {
     fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>);
     fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>>;
+    fn pump_realtime(&mut self) -> Option<(JobId, Generation, String)> {
+        None
+    }
 }
 
 impl ServiceRuntime for ImportRuntime {
@@ -3257,6 +3260,18 @@ impl ServiceRuntime for ImportRuntime {
 
     fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
         self.poll()
+    }
+
+    fn pump_realtime(&mut self) -> Option<(JobId, Generation, String)> {
+        let direct = self.direct_live.as_mut()?;
+        let (job_id, generation) = direct.identity();
+        match direct.pump_capture() {
+            Ok(()) => None,
+            Err(error) => {
+                self.direct_live = None;
+                Some((job_id, generation, error))
+            }
+        }
     }
 }
 
@@ -3284,6 +3299,7 @@ fn service_loop<R: ServiceRuntime>(
     let mut pending = VecDeque::new();
     let mut deferred_effect = None;
     let mut deferred_stop = None;
+    let mut deferred_realtime_failure = None;
     #[cfg(feature = "l01-memory-qualification")]
     memory_trace(
         "adapter.pending.created",
@@ -3323,6 +3339,18 @@ fn service_loop<R: ServiceRuntime>(
             (Some(effect), None) => runtime.apply_effect(effect, &mut pending),
             (None, Some(stop)) => runtime.apply_effect(stop, &mut pending),
             (None, None) => {}
+        }
+        if let Some((job_id, generation, message)) = runtime.pump_realtime() {
+            deferred_realtime_failure = Some(ImportEvent::Failed {
+                job_id,
+                generation,
+                message,
+            });
+        }
+        if pending.len() < EVENTS_PER_STAGE
+            && let Some(failure) = deferred_realtime_failure.take()
+        {
+            pending.push_back(failure);
         }
         if pending.len() < EVENTS_PER_STAGE {
             #[cfg(feature = "l01-memory-qualification")]

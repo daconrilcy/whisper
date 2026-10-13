@@ -119,6 +119,7 @@ impl DirectLive {
         if self.done {
             return Ok(None);
         }
+        self.pump_capture()?;
         if let Some(event) = self.ready_events.pop_front() {
             return Ok(Some(event));
         }
@@ -131,20 +132,31 @@ impl DirectLive {
                 return Ok(Some(result));
             }
         }
-        if !self.stop_requested && self.capture.is_some() {
-            self.drain_capture()?;
-        }
         self.send_next()?;
         Ok(None)
     }
 
+    pub(crate) fn pump_capture(&mut self) -> Result<(), String> {
+        if !self.stop_requested && self.capture.is_some() {
+            self.drain_capture()?;
+        }
+        Ok(())
+    }
+
     fn drain_capture(&mut self) -> Result<(), String> {
         let capture = self.capture.as_mut().expect("capture ready");
-        if capture.is_saturated() || capture.failure() {
+        if capture.is_saturated() {
             capture.stop();
-            return Err(
-                "Micro interrompu ou tampon audio saturé ; transcription incomplète".into(),
-            );
+            return Err("Tampon du micro saturé ; transcription incomplète".into());
+        }
+        if capture.failure() {
+            let detail = capture
+                .failure_detail()
+                .unwrap_or_else(|| "flux audio interrompu ou trame invalide".into());
+            capture.stop();
+            return Err(format!(
+                "Micro interrompu par Windows : {detail} ; transcription incomplète"
+            ));
         }
         for _ in 0..if self.stop_requested { 100 } else { 32 } {
             let Some(block) = capture.try_next_block() else {
