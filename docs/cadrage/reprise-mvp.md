@@ -1,5 +1,7 @@
 # Reprise Whisper — MVP import CPU (13 octobre 2026)
 
+Plan initial ; validation avec ajustements et exécution limitée du lot 1 consignées dans [reprise-mvp-lot1.md](reprise-mvp-lot1.md).
+
 Avancée : les parcours WAV et MP3 vers TXT/SRT fonctionnent en essai d'intégration sur ce PC.
 Blocage : l'usage dans la fenêtre Windows et la disponibilité du modèle au premier lancement restent à vérifier.
 Décision : valider le plan MVP ci-dessous avant tout développement.
