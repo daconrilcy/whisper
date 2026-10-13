@@ -37,6 +37,9 @@ pub enum AppCommand {
     StartLiveConfigured {
         request: LiveRequest,
     },
+    StartDirectLiveConfigured {
+        request: LiveRequest,
+    },
     FinishLiveOnCpu {
         job_id: JobId,
         generation: Generation,
@@ -86,12 +89,12 @@ impl AppCommand {
                 job_id: *job_id,
                 generation: *generation,
             }),
-            Self::StartLiveConfigured { request } | Self::ResolveLivePublication { request } => {
-                Some(CommandIdentity {
-                    job_id: request.job_id,
-                    generation: request.generation,
-                })
-            }
+            Self::StartLiveConfigured { request }
+            | Self::StartDirectLiveConfigured { request }
+            | Self::ResolveLivePublication { request } => Some(CommandIdentity {
+                job_id: request.job_id,
+                generation: request.generation,
+            }),
             Self::ScanHistory { .. } => None,
         }
     }
@@ -134,6 +137,7 @@ pub struct ImportApplication<P> {
     view: AppView,
     active: Option<CommandIdentity>,
     request: Option<ImportRequest>,
+    direct_live: bool,
     next_sequence: u64,
     pending_persistence: usize,
     pending_live_segments: std::collections::BTreeMap<u64, crate::ports::WorkerSegment>,
@@ -152,6 +156,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
             view: AppView::default(),
             active: None,
             request: None,
+            direct_live: false,
             next_sequence: 0,
             pending_persistence: 0,
             pending_live_segments: std::collections::BTreeMap::new(),
@@ -237,6 +242,36 @@ impl<P: ImportIoPort> ImportApplication<P> {
             return Ok(());
         }
         match event {
+            ImportEvent::DirectConfirmed(segment) => {
+                if segment.segment_id.0 != self.next_sequence
+                    || segment.range.sample_rate_hz != 16_000
+                    || segment.range.start_sample >= segment.range.end_sample
+                    || segment.text.trim().is_empty()
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.next_sequence = self
+                    .next_sequence
+                    .checked_add(1)
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                let text = self.view.confirmed_text.get_or_insert_with(String::new);
+                if !text.is_empty() {
+                    text.push('\n');
+                }
+                text.push_str(&segment.text);
+            }
+            ImportEvent::DirectPublished {
+                txt_path, srt_path, ..
+            } => {
+                self.view.active_job = Some((job_id, JobState::Complete));
+                self.view.last_result = Some(format!(
+                    "Transcription micro enregistrée : {txt_path} | {srt_path}"
+                ));
+                self.view.message = None;
+                self.active = None;
+                self.stopping = None;
+                self.direct_live = false;
+            }
             ImportEvent::Diagnostic { notice, .. } => match notice {
                 DiagnosticNotice::ProgressStalled { phase, idle_ms } => {
                     self.view.message = Some(format!(
@@ -500,6 +535,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     self.view.message = Some(message);
                     self.active = None;
                     self.stopping = None;
+                    self.direct_live = false;
                 }
             }
             ImportEvent::Stopped { .. } => {
@@ -612,7 +648,14 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     })
                     .map_err(|e| self.fail(e))?;
             }
-            AppCommand::StartLiveConfigured { request } => {
+            command @ (AppCommand::StartLiveConfigured { .. }
+            | AppCommand::StartDirectLiveConfigured { .. }) => {
+                let direct = matches!(&command, AppCommand::StartDirectLiveConfigured { .. });
+                let request = match command {
+                    AppCommand::StartLiveConfigured { request }
+                    | AppCommand::StartDirectLiveConfigured { request } => request,
+                    _ => unreachable!(),
+                };
                 if self.active.is_some() {
                     return Err(ApplicationError::InvalidCommand);
                 }
@@ -623,10 +666,14 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.auto_stop_after_speech_samples = request
                     .auto_stop_after_speech_samples
                     .filter(|limit| *limit > 0);
-                self.io
-                    .submit(ImportEffect::StartLive(request))
-                    .map_err(|e| self.fail(e))?;
+                let effect = if direct {
+                    ImportEffect::StartDirectLive(request)
+                } else {
+                    ImportEffect::StartLive(request)
+                };
+                self.io.submit(effect).map_err(|e| self.fail(e))?;
                 self.request = None;
+                self.direct_live = direct;
                 self.active = Some(identity);
                 self.stopping = None;
                 self.next_sequence = 1;
@@ -651,7 +698,11 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.provisional_captured_at_unix_ms = None;
                 self.view.provisional_available_at_unix_ms = None;
                 self.view.confirmed_text = None;
-                self.view.message = Some("Préparation du staging durable et du worker CPU…".into());
+                self.view.message = Some(if direct {
+                    "Préparation du micro et du moteur CPU…".into()
+                } else {
+                    "Préparation du staging durable et du worker CPU…".into()
+                });
             }
             AppCommand::FinishLiveOnCpu { job_id, generation } => {
                 let identity = CommandIdentity { job_id, generation };
@@ -696,6 +747,9 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.message = Some("Vérification de la source et du modèle…".into());
             }
             AppCommand::EnqueueImport { request } => {
+                if self.direct_live && self.active.is_some() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
                 let identity = CommandIdentity {
                     job_id: request.job_id,
                     generation: request.generation,
@@ -808,6 +862,10 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
 impl ImportEvent {
     fn identity(&self) -> (JobId, Generation) {
         match self {
+            Self::DirectConfirmed(segment) => (segment.job_id, segment.generation),
+            Self::DirectPublished {
+                job_id, generation, ..
+            } => (*job_id, *generation),
             Self::LiveProvisional { segment, .. } => (segment.job_id, segment.generation),
             Self::LiveCounters {
                 job_id, generation, ..

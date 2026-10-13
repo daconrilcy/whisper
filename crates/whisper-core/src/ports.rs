@@ -146,6 +146,7 @@ pub struct ImportQueueEntry {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEffect {
     StartLive(LiveRequest),
+    StartDirectLive(LiveRequest),
     Enqueue(ImportRequest),
     RemoveQueued {
         job_id: JobId,
@@ -184,6 +185,13 @@ pub enum ImportEffect {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEvent {
+    DirectConfirmed(WorkerSegment),
+    DirectPublished {
+        job_id: JobId,
+        generation: Generation,
+        txt_path: String,
+        srt_path: String,
+    },
     Diagnostic {
         job_id: JobId,
         generation: Generation,

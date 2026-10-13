@@ -155,22 +155,19 @@ impl<A: Application> DesktopApp<A> {
                     .group_offset_samples
                     .saturating_add(self.view.captured_samples)
             }),
-            auto_stop_after_speech_samples: speech_limit_samples(
-                self.auto_stop_enabled,
-                self.auto_stop_minutes,
-            ),
+            auto_stop_after_speech_samples: None,
             config: JobConfig {
                 language: if self.manual_language {
                     LanguageChoice::Manual(self.language.trim().to_owned())
                 } else {
                     LanguageChoice::Automatic
                 },
-                compute: self.compute_choice,
+                compute: ComputeChoice::Cpu,
             },
         };
         self.active_identity = Some((job_id, generation));
         self.live_request = Some(request.clone());
-        self.dispatch(AppCommand::StartLiveConfigured { request });
+        self.dispatch(AppCommand::StartDirectLiveConfigured { request });
     }
 }
 
@@ -201,21 +198,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             .view
             .active_job
             .is_some_and(|(_, state)| window_must_remain_open(state));
-        let busy_live = self.view.active_job.is_some_and(|(job_id, state)| {
-            self.live_request
-                .as_ref()
-                .is_some_and(|request| request.job_id == job_id)
-                && matches!(
-                    state,
-                    JobState::Preparing
-                        | JobState::Capturing
-                        | JobState::Draining
-                        | JobState::Running
-                        | JobState::Cancelling
-                        | JobState::Finalizing
-                )
-        });
-        let can_enqueue = import_enqueue_enabled(busy, busy_live);
+        let can_enqueue = import_enqueue_enabled(busy);
         if ui.ctx().input(|input| input.viewport().close_requested()) && busy {
             ui.ctx()
                 .send_viewport_cmd(egui::ViewportCommand::CancelClose);
@@ -244,12 +227,15 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         }
         if !busy {
             self.active_identity = None;
+            if self.quit_pending && state == Some(JobState::Recoverable) {
+                self.quit_pending = false;
+            }
             if self.quit_pending {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
         ui.heading("Whisper — transcription locale");
-        ui.label("Import WAV ou MP3 avec le modèle local approuvé.");
+        ui.label("Import WAV/MP3 ou micro en direct, sur CPU avec le modèle local.");
 
         ui.add_enabled_ui(can_enqueue, |ui| {
             ui.horizontal(|ui| {
@@ -324,7 +310,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             {
                 self.start_import();
             }
-            if !IMPORT_CPU_MVP {
+            {
                 let can_start_live = !busy
                     && !self.model_path.trim().is_empty()
                     && !self.destination.trim().is_empty()
@@ -334,15 +320,6 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     .clicked()
                 {
                     self.start_live(Generation::first());
-                }
-                if state == Some(JobState::Cancelled)
-                    && let Some(request) = self.live_request.as_ref()
-                    && let Some(next) = request.generation.next()
-                    && ui
-                        .button("Reprendre — démarrer un nouveau passage")
-                        .clicked()
-                {
-                    self.start_live(next);
                 }
             }
         });
@@ -364,8 +341,17 @@ impl<A: Application> eframe::App for DesktopApp<A> {
 
         if let Some((job_id, state)) = self.view.active_job {
             ui.separator();
-            ui.label(format!("Import {job_id:?} — {state:?}"));
-            if self.live_request.is_some() {
+            let source = if self
+                .live_request
+                .as_ref()
+                .is_some_and(|request| request.job_id == job_id)
+            {
+                "Micro"
+            } else {
+                "Import"
+            };
+            ui.label(format!("{source} {job_id:?} — {state:?}"));
+            if !IMPORT_CPU_MVP && self.live_request.is_some() {
                 ui.label(format!(
                     "Micro — capturés {} | admis {} | audio durable {} | fragment confirmé {} | parole {} échantillons",
                     self.view.captured_samples,
@@ -400,8 +386,28 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         ));
                     }
                 }
+            }
+            if self
+                .live_request
+                .as_ref()
+                .is_some_and(|request| request.job_id == job_id)
+            {
+                if matches!(
+                    state,
+                    JobState::Preparing
+                        | JobState::Capturing
+                        | JobState::Draining
+                        | JobState::Finalizing
+                ) {
+                    ui.label("Transcription en cours…");
+                }
                 if let Some(text) = self.view.confirmed_text.as_deref() {
-                    ui.label(format!("Texte confirmé : {text}"));
+                    ui.label("Texte confirmé :");
+                    egui::ScrollArea::vertical()
+                        .max_height(180.0)
+                        .show(ui, |ui| {
+                            ui.label(text);
+                        });
                 }
             }
             if let Some((completed, total)) = self.view.progress {
@@ -461,7 +467,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     entry.status,
                     whisper_core::ports::ImportQueueStatus::Queued
                         | whisper_core::ports::ImportQueueStatus::AwaitingChoice
-                ) && ui.button("Traiter").clicked()
+                ) && ui
+                    .add_enabled(!busy, egui::Button::new("Traiter"))
+                    .clicked()
                 {
                     self.active_identity = Some(identity);
                     self.dispatch(AppCommand::ProcessQueued {
@@ -606,12 +614,13 @@ fn hex_digit(value: u8) -> u8 {
     }
 }
 
+#[cfg(test)]
 fn speech_limit_samples(enabled: bool, minutes: u64) -> Option<u64> {
     enabled.then(|| minutes.max(1).saturating_mul(60 * 16_000))
 }
 
-fn import_enqueue_enabled(busy: bool, busy_live: bool) -> bool {
-    !busy || busy_live
+fn import_enqueue_enabled(busy: bool) -> bool {
+    !busy
 }
 
 fn manual_stop_available(state: JobState) -> bool {
@@ -711,10 +720,9 @@ mod tests {
     }
 
     #[test]
-    fn import_enqueue_stays_available_during_live_capture() {
-        assert!(import_enqueue_enabled(true, true));
-        assert!(!import_enqueue_enabled(true, false));
-        assert!(import_enqueue_enabled(false, false));
+    fn import_enqueue_waits_during_live_capture() {
+        assert!(!import_enqueue_enabled(true));
+        assert!(import_enqueue_enabled(false));
     }
 
     #[test]

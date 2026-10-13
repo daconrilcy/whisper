@@ -1,27 +1,27 @@
 # Évolution Whisper — micro en direct (proposition, 13 octobre 2026)
 
 Avancée : parcours et réemploi du code identifiés sur la branche `evo-micro-direct` issue de `main` (`dc51f4a`, tag MVP ancêtre `v0.1.0-mvp`).
-Blocage : critères de délai et comportement du texte/fermeture à décider ; aucun essai micro dans la fenêtre n'a été fait.
-Décision : valider les choix produit en fin de document avant d'autoriser la réalisation.
+Blocage : aucun essai micro dans la fenêtre n'a été fait.
+Décision : les choix produit ci-dessous sont acceptés dans cette session ; tâches 1 à 6 autorisées, sans qualification native ni push.
 
 ## Besoin et périmètre
 
-Dans Whisper Windows, l'utilisateur démarre le micro, parle et lit le texte pendant la capture ; à l'arrêt, l'application termine le traitement et fournit un TXT et un SRT. Calcul CPU et modèle déjà local, comme pour le MVP. Le résultat doit comprendre la dernière parole captée avant l'arrêt. Le parcours WAV/MP3 du MVP reste disponible. Les champs « critère de réussite » et « hors périmètre » de la demande étant laissés ouverts, les précisions ci-dessous sont **proposées**, pas acceptées. Différés proposés : GPU/Auto, tray, reprise après panne, sortie MP3, pause/reprise et capture audio système. Aucun installateur ou téléchargement n'entre dans ce lot. D-WHISPER-30 et P-WHISPER-31 ont été consultés comme inspiration, sans reprendre leur V1 ni leurs seuils.
+Dans Whisper Windows, l'utilisateur démarre le micro, parle et lit le texte pendant la capture ; à l'arrêt, l'application termine le traitement et fournit un TXT et un SRT. Calcul CPU et modèle déjà local, comme pour le MVP. Le résultat doit comprendre la dernière parole captée avant l'arrêt. Le parcours WAV/MP3 du MVP reste disponible. Différés : GPU/Auto, tray, reprise après panne, sortie MP3, pause/reprise et capture audio système. Aucun installateur ou téléchargement n'entre dans ce lot. D-WHISPER-30 et P-WHISPER-31 restent une inspiration, sans reprise de leur V1 ni de leurs seuils.
 
 ## Exigences et acceptation proposées
 
-Tous les AC sont à qualifier sur la fenêtre Windows avec micro et modèle locaux ; les tests automatiques actuels ne les valident pas.
+Tous les AC micro sont à qualifier par l'utilisateur dans la fenêtre Windows avec micro et modèle locaux ; compilation et tests existants ne les valident pas.
 
 | ID | Parcours et constat vérifiable |
 |---|---|
 | AC1 | **Démarrer** : avec micro et modèle disponibles, cliquer Démarrer ; l'état d'écoute apparaît et une phrase parlée donne du texte. Un second démarrage ne crée pas deux sessions. |
-| AC2 | **Lire pendant la capture** : prononcer deux phrases séparées par un silence ; voir des ajouts dans l'ordre **avant** Arrêter, sans doublon. Filmer/chronométrer parole et affichage pour caractériser le délai CPU, sans seuil encore accepté. |
+| AC2 | **Lire pendant la capture** : prononcer deux phrases séparées par un silence ; voir des blocs confirmés dans l'ordre **avant** Arrêter, sans doublon ni texte provisoire. Une indication « Transcription en cours » reste visible ; retard CPU accepté sans délai maximal. |
 | AC3 | **Arrêter et enregistrer** : prononcer une dernière phrase, cliquer Arrêter ; voir la finalisation, puis ouvrir les deux fichiers annoncés. Le TXT contient les passages confirmés et la dernière phrase ; le SRT a des intervalles croissants sur le temps de capture, silences compris. |
 | AC4 | **Échouer clairement** : micro absent, modèle absent ou dossier inaccessible donnent une cause et une action visibles ; aucun succès ne masque un export incomplet. |
-| AC5 | **Cycle de vie** : fermer pendant capture et demander un import concurrent ; constater la politique décidée, sans capture cachée ni texte présenté comme enregistré. |
+| AC5 | **Cycle de vie** : fermer pendant capture équivaut à Arrêter puis finaliser/enregistrer avant fermeture ; micro et import ne tournent pas ensemble. Sans reprise après plantage. |
 | AC6 | **Préserver le MVP** : deux séances micro distinctes produisent deux résultats distincts ; WAV et MP3 continuent chacun à produire TXT/SRT sur CPU. |
 
-Scénario de réussite proposé : séance courte avec parole, silence, reprise et phrase terminale ; texte observable avant l'arrêt, puis TXT/SRT lisibles et cohérents avec la session. Langue, durée, qualité de reconnaissance et délai maximal restent à fixer seulement si requis par l'usage.
+Scénario de réussite : séance courte avec parole, silence et phrase terminale ; blocs confirmés avant l'arrêt, puis TXT/SRT lisibles et cohérents avec la session, sans audio conservé. L'utilisateur fera l'essai dans la fenêtre.
 
 ## Domaine, architecture et réemploi
 
@@ -29,7 +29,7 @@ Une session porte une identité, une configuration CPU figée et des segments ho
 
 Le code offre déjà `LiveRequest`, états/événements et texte provisoire dans `whisper-core` ; capture micro CPAL, conversion mono 16 kHz et file bornée dans `whisper-adapters` ; traitement par fenêtres dans le worker CPU ; boutons et affichage micro dans `whisper-desktop`, masqués par `IMPORT_CPU_MVP`. La publication live actuelle entraîne aussi MP3, journalisation et reprise historiques : réafficher le bouton seul ne livre pas le périmètre TXT/SRT. Architecture proposée : cœur sans dépendance OS/UI pour identités et transitions ; application pour arrêt et coordination ; adaptateurs pour micro, worker et écriture ; UI pour états et texte. Le calcul reste hors du fil d'interface. Saturation ou erreur ferme la capture avec message et ne publie pas de succès ; finalisation attend le dernier fragment. Cadence CPU et arrêt réel sont à vérifier sur le matériel cible.
 
-## Plan proposé (réalisation ultérieure, 8 tâches)
+## Plan (tâches 1 à 6 autorisées dans cette session ; tâches 7 et 8 ultérieures)
 
 1. Fixer les choix ouverts et le protocole d'essai micro/modèle local — AC1–AC5.
 2. Définir états, identité des segments et contrat d'arrêt CPU dans le cœur — AC1–AC3, AC5.
@@ -40,11 +40,11 @@ Le code offre déjà `LiveRequest`, états/événements et texte provisoire dans
 7. Tester contrats de fin de capture, doublons, erreurs et non-régression import — AC1–AC6.
 8. Qualifier dans la fenêtre avec micro/modèle locaux et deux séances ; relever le délai observé — AC1–AC6.
 
-## Décisions attendues
+## Décisions acceptées le 13 octobre 2026
 
-1. **Q1, structure, avant tâches 2/6, AC2–AC3 — Texte** : passages confirmés ajoutés (recommandé, stables) ou provisoire révisable (plus rapide, corrections à gérer).
-2. **Q2, structure, avant tâches 3/8, AC2 — Délai** : accepter le retard CPU visible (recommandé) ou fixer un délai maximal avec scénario et seuil à démontrer ; préciser langue, durée et qualité si elles conditionnent la réussite.
-3. **Q3, structure, avant tâches 2/6, AC3–AC5 — Fermeture/concurrence** : fermer = arrêter puis finaliser, en gardant la fenêtre si échec ; import et micro exclusifs (recommandé), ou annulation/perte et calcul parallèle.
-4. **Q4, qualification, avant tâche 8, AC1–AC4 — Prérequis** : confirmer un micro Windows accessible et le modèle local du MVP ; si absents, choisir comment les obtenir. Toute installation ou acquisition fera l'objet d'un accord précis distinct.
+1. **Q1, AC2–AC3 — Texte** : blocs confirmés seulement, jamais de texte provisoire.
+2. **Q2, AC2–AC3 — Délai** : retard CPU visible accepté ; indication « Transcription en cours » ; arrêt suivi du traitement de tout audio restant avant TXT/SRT ; aucun délai maximal.
+3. **Q3, AC3–AC5 — Fermeture/concurrence** : fermer équivaut à Arrêter ; la fenêtre attend l'enregistrement. Micro et import exclusifs ; pas de reprise après plantage.
+4. **Q4, AC1–AC4 — Prérequis** : micro Windows accessible, modèle local du MVP ; audio non conservé. Nouvelle dépendance ou téléchargement : décision utilisateur préalable.
 
-Sources : demande de cette session, `AGENTS.md`, `docs/cadrage/bilan-mvp.md`, inspection des crates ; contributions en lecture seule des spécialistes besoin, exigences, domaine et architecture. Statut : **cadrage proposé**, code micro non qualifié, réalisation non autorisée.
+Sources : demande et décisions de cette session, `AGENTS.md`, `docs/cadrage/bilan-mvp.md`, inspection des crates ; contributions en lecture seule des spécialistes besoin, exigences, domaine et architecture. Statut : **lot 1 en réalisation** ; tâches 7–8 et essai de fenêtre non autorisés à Codex.

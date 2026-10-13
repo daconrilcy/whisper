@@ -44,6 +44,14 @@ pub enum WorkerCommand {
         model_sha256: [u8; 32],
         config: JobConfig,
     },
+    StartDirectLiveWorker {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        model_path: String,
+        model_sha256: [u8; 32],
+        config: JobConfig,
+    },
     LiveWindow {
         job_id: JobId,
         generation: Generation,

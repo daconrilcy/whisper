@@ -266,6 +266,11 @@ impl ChildWorkerTransport {
             .try_wait()
             .map_err(|e| PortError::Failed(format!("WorkerExited: {e}")))
     }
+
+    pub(crate) fn abort(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
 }
 
 impl WorkerTransport for ChildWorkerTransport {
@@ -675,6 +680,7 @@ struct ImportRuntime {
     pending_live: Option<PendingLiveState>,
     live: Option<LiveCaptureState>,
     live_archive: Option<LiveArchive>,
+    direct_live: Option<crate::direct_live::DirectLive>,
     pending_attempt_reset: Option<ImportEvent>,
     pending_recovery_counters: Option<ImportEvent>,
     live_pending_persistence: usize,
@@ -756,6 +762,7 @@ impl ImportRuntime {
             pending_live: None,
             live: None,
             live_archive: None,
+            direct_live: None,
             pending_attempt_reset: None,
             pending_recovery_counters: None,
             live_pending_persistence: 0,
@@ -789,6 +796,24 @@ impl ImportRuntime {
             _ => None,
         };
         let mut result = match effect {
+            ImportEffect::StartDirectLive(request) => {
+                let id = (request.job_id, request.generation);
+                if self.publication_gate.is_cancelled() {
+                    Ok(())
+                } else if self.active.is_some() || self.live.is_some() || self.direct_live.is_some()
+                {
+                    Err((id.0, id.1, "Une transcription est déjà en cours".into()))
+                } else {
+                    let instance = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
+                    match crate::direct_live::DirectLive::start(request, &self.workers, instance) {
+                        Ok(session) => {
+                            self.direct_live = Some(session);
+                            Ok(())
+                        }
+                        Err(error) => Err((id.0, id.1, error)),
+                    }
+                }
+            }
             ImportEffect::StartLive(request) => {
                 if self.publication_gate.is_cancelled() {
                     Ok(())
@@ -1003,20 +1028,34 @@ impl ImportRuntime {
                 }
             }
             ImportEffect::Stop { job_id, generation } => {
-                if let Some(progress) = self.progress.as_mut() {
-                    let now = std::time::Instant::now();
-                    progress.close(ProgressPhase::Capturing);
-                    progress.open(ProgressPhase::Draining, now);
-                    progress.open(ProgressPhase::Cancelling, now);
-                }
-                let live = self.live.as_ref().is_some_and(|live| {
-                    (live.request.job_id, live.request.generation) == (job_id, generation)
-                });
-                self.stop(job_id, generation, events).map(|()| {
-                    if live && self.live.is_some() {
-                        events.push_back(ImportEvent::LiveFinalizing { job_id, generation });
+                if let Some(direct) = self.direct_live.as_mut() {
+                    if direct.identity() != (job_id, generation) {
+                        Err((job_id, generation, "Arrêt micro périmé".into()))
+                    } else {
+                        direct
+                            .stop()
+                            .map_err(|error| (job_id, generation, error))
+                            .map(|()| {
+                                events
+                                    .push_back(ImportEvent::LiveFinalizing { job_id, generation });
+                            })
                     }
-                })
+                } else {
+                    if let Some(progress) = self.progress.as_mut() {
+                        let now = std::time::Instant::now();
+                        progress.close(ProgressPhase::Capturing);
+                        progress.open(ProgressPhase::Draining, now);
+                        progress.open(ProgressPhase::Cancelling, now);
+                    }
+                    let live = self.live.as_ref().is_some_and(|live| {
+                        (live.request.job_id, live.request.generation) == (job_id, generation)
+                    });
+                    self.stop(job_id, generation, events).map(|()| {
+                        if live && self.live.is_some() {
+                            events.push_back(ImportEvent::LiveFinalizing { job_id, generation });
+                        }
+                    })
+                }
             }
         };
         if persisted_live_segment.is_some() {
@@ -1031,6 +1070,13 @@ impl ImportRuntime {
             }
         }
         if let Err((job, generation, message)) = result {
+            if self
+                .direct_live
+                .as_ref()
+                .is_some_and(|direct| direct.identity() == (job, generation))
+            {
+                self.direct_live = None;
+            }
             let mut deferred_live_failure = false;
             if let Some(live) = self.live.as_mut()
                 && (live.request.job_id, live.request.generation) == (job, generation)
@@ -2234,6 +2280,19 @@ impl ImportRuntime {
     }
 
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+        if let Some(direct) = self.direct_live.as_mut() {
+            let id = direct.identity();
+            let result = direct.poll();
+            let done = direct.done() || result.is_err();
+            if done {
+                self.direct_live = None;
+            }
+            match result {
+                Ok(Some(event)) => return Some(Ok(event)),
+                Ok(None) => {}
+                Err(error) => return Some(Err((id.0, id.1, error))),
+            }
+        }
         if let Some(event) = self.pending_recovery_counters.take() {
             return Some(Ok(event));
         }
@@ -3152,7 +3211,9 @@ impl ImportIoPort for AsyncImportIo {
                 return Err(PortError::StaleResponse);
             }
             let active_identity = match &effect {
-                ImportEffect::StartLive(request) => Some((request.job_id, request.generation)),
+                ImportEffect::StartLive(request) | ImportEffect::StartDirectLive(request) => {
+                    Some((request.job_id, request.generation))
+                }
                 ImportEffect::Prepare(request) | ImportEffect::ProcessQueued(request) => {
                     Some((request.job_id, request.generation))
                 }

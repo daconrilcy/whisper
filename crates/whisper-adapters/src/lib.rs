@@ -1,6 +1,7 @@
 pub mod archive;
 pub mod capture;
 pub mod decoder;
+mod direct_live;
 pub mod journal;
 pub mod queue_store;
 pub mod recovery;
