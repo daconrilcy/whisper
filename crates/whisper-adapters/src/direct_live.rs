@@ -18,9 +18,11 @@ const MAX_BUFFERED_SAMPLES: usize = 16_000 * 60 * 10;
 
 pub(crate) struct DirectLive {
     request: LiveRequest,
+    worker_path: PathBuf,
     worker: ChildWorkerTransport,
     instance: u64,
     worker_ready: bool,
+    legacy_fallback: bool,
     capture: Option<CaptureStream>,
     converter: Option<Pcm16Converter>,
     pending: VecDeque<i16>,
@@ -63,9 +65,11 @@ impl DirectLive {
         }
         Ok(Self {
             request,
+            worker_path: workers.cpu.clone(),
             worker,
             instance,
             worker_ready: false,
+            legacy_fallback: false,
             capture: None,
             converter: None,
             pending: VecDeque::new(),
@@ -209,6 +213,27 @@ impl DirectLive {
 
     fn handle_worker(&mut self, event: WorkerEvent) -> Result<Option<ImportEvent>, String> {
         match event {
+            WorkerEvent::Failed { message, .. }
+                if !self.worker_ready
+                    && !self.legacy_fallback
+                    && message.contains("unknown variant `StartDirectLiveWorker`") =>
+            {
+                self.worker.abort();
+                self.worker = ChildWorkerTransport::spawn(&self.worker_path)
+                    .map_err(|error| format!("Moteur CPU indisponible : {error:?}"))?;
+                self.legacy_fallback = true;
+                self.worker
+                    .request(WorkerCommand::StartLiveWorker {
+                        job_id: self.request.job_id,
+                        generation: self.request.generation,
+                        instance_id: self.instance,
+                        model_path: self.request.model_path.clone(),
+                        model_sha256: self.request.model_sha256,
+                        config: self.request.config.clone(),
+                    })
+                    .map_err(|error| format!("Démarrage du moteur CPU impossible : {error:?}"))?;
+                Ok(None)
+            }
             WorkerEvent::Ready {
                 job_id,
                 generation,
@@ -231,6 +256,12 @@ impl DirectLive {
                     backend: "CPU (micro)".into(),
                 }))
             }
+            WorkerEvent::LiveMp3Packet {
+                job_id,
+                generation,
+                instance_id,
+                ..
+            } if self.legacy_fallback && self.matches(job_id, generation, instance_id) => Ok(None),
             WorkerEvent::Segment(dto)
                 if self.matches(dto.job_id, dto.generation, dto.instance_id) =>
             {
