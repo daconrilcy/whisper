@@ -14,7 +14,7 @@ Dans Whisper Windows, l'utilisateur choisit **CPU ou GPU** avant chaque import W
 | AC2 | Micro GPU avec parole, silence et phrase finale : blocs confirmés ordonnés avant Arrêter ; TXT/SRT/WAV de même nom, dernière phrase et SRT chronologique après arrêt ou fermeture. |
 | AC3 | Imports WAV/MP3 GPU : TXT/SRT lisibles, source intacte ; parcours CPU préservé. |
 | AC4 | Même fichier large-v3-turbo, langue et décodage CPU/GPU ; textes comparés selon Q2. |
-| AC5 | Sur ce PC, import et micro de **60 s** : temps de traitement GPU / durée audio **< 1**, résultat complet ; préparation et export relevés séparément. |
+| AC5 | Sur ce PC, import et micro de **60 s** : traitement GPU / durée audio **< 1**, résultat complet. Pour le micro, sommer le calcul des fenêtres ; relever préparation et export séparément. |
 | AC6 | Premier bloc micro confirmé **affiché** en **< 15 s** selon Q3 ; l'événement worker ne suffit pas. |
 | AC7 | GPU absent ou défaillant : cause et action visibles, aucun faux succès ; CPU disponible manuellement, sort de l'audio capté selon Q1. |
 
@@ -22,11 +22,11 @@ Dans Whisper Windows, l'utilisateur choisit **CPU ou GPU** avant chaque import W
 
 PC : **GTX 1080 Ti** (11 264 MiB), pilote 581.29 ; CUDA **12.9**, CMake 4.4.4, Rust 1.98.1, VS2022 BuildTools et modèle local présents. Le worker `whisper-rs 0.16.0`/CUDA compile en release **hors ligne**. Les traces natives confirment `using CUDA0 backend` et 1 623,92 Mo de tampon CUDA ; `Ready Cuda` seul ne prouve pas l'usage GPU.
 
-L'extrait CPU historique (`voice-sample.wav`, 26,3 s + silence) a été recréé à **30,000 s** dans `target/`. Même audio/modèle/langue, workers release séparés, 24 fils CPU. **GPU : 9,349 s total = 0,312× ; 7,252 s après `Ready`. CPU : 69,411 s total = 2,314× ; 67,706 s après `Ready` = 2,257×**, cohérent avec les 2,25× antérieurs. GPU **9,34 fois** plus rapide après `Ready`. Les **sept segments et leur texte sont identiques**. Premier segment worker GPU à 3,238 s : ni affichage micro ni qualité générale démontrés.
+Extrait CPU historique (`voice-sample.wav`, 26,3 s + silence) recréé à **30,000 s** dans `target/` ; même audio/modèle/langue, workers release séparés, CPU 24 fils. **GPU : 9,349 s total = 0,312× ; 7,252 s après `Ready`. CPU : 69,411 s total = 2,314× ; 67,706 s après `Ready` = 2,257×**, contre 2,25× antérieurs. GPU **9,34 fois** plus rapide après `Ready`. Sept segments chacun ; **textes concaténés identiques**. Premier texte worker GPU à 3,238 s ; affichage micro et qualité générale non démontrés.
 
-Réemploi : GPU `StartImport` et ancien `StartLiveWorker`, `ComputeChoice` et attente d'un choix utilisateur après échec GPU forcé. Le sélecteur CPU/GPU/Auto est masqué dans `ui.rs`, qui force CPU. Le **micro direct livré** (`direct_live.rs`) impose CPU ; le GPU ne reconnaît pas sa commande et limite les fenêtres à 5 s contre 8 s au micro. Raccorder ce parcours direct, sans réactiver MP3/reprise historiques ni Auto.
+Réemploi : GPU `StartImport` et ancien `StartLiveWorker` ; `ComputeChoice` et attente du choix utilisateur après échec GPU. `ui.rs` masque CPU/GPU/Auto et force CPU. Le **micro direct livré** (`direct_live.rs`) impose CPU ; le GPU ignore sa commande et borne les fenêtres à 5 s contre 8 s au micro. Raccorder le parcours direct sans réactiver MP3/reprise historiques ni Auto.
 
-Architecture : conserver capture 16 kHz, WAV et export ; figer le choix par requête et vérifier le worker avant capture ; préserver identité, ordre et confirmations des fenêtres, calcul hors UI. En erreur, arrêter la capture, signaler l'incomplet et laisser CPU sélectionnable. Succès micro seulement après trois exports. Détecter le repli natif silencieux sur CPU avant d'annoncer GPU disponible.
+Architecture : conserver capture 16 kHz, WAV et export ; figer le choix par requête, vérifier le worker avant capture, préserver identité/ordre des fenêtres et calcul hors UI. En erreur, arrêter la capture, signaler l'incomplet, laisser CPU sélectionnable. Succès après trois exports. Détecter le repli natif silencieux sur CPU.
 
 ## Plan proposé — 8 tâches, sans autorisation de coder
 
@@ -41,8 +41,10 @@ Architecture : conserver capture 16 kHz, WAV et export ; figer le choix par requ
 
 ## Décisions produit attendues
 
-- **Q1, panne GPU pendant le micro (AC2, AC7)** : A **recommandée** — arrêter la capture, conserver WAV et blocs confirmés comme résultat explicitement incomplet, puis permettre d'importer ce WAV en CPU sur action de l'utilisateur ; B — échouer sans résultat partiel ; C — finir le reliquat sur CPU dans la même séance après accord explicite, plus complexe.
-- **Q2, qualité comparable (AC4)** : A **recommandée** — comparer côte à côte CPU/GPU sur le même extrait puis sur une séance, accepter des différences de ponctuation sans omission ni changement de sens, avec validation utilisateur ; B — définir un corpus annoté et un seuil numérique, à fournir avant qualification.
-- **Q3, premier texte < 15 s (AC6)** : A **recommandée** — depuis le clic Démarrer, chargement inclus, avec parole dès la mise en écoute ; B — depuis la première parole, chargement mesuré à part. La cible concerne le micro ; préciser si elle doit aussi couvrir les imports.
+Q1–Q3 sont des décisions **structurantes**, proposées à l'utilisateur avant les tâches qui en dépendent.
 
-Sources : demande de cette session, `AGENTS.md`, cadrage et bilan micro, crates `whisper-core`, `whisper-adapters`, `whisper-worker-gpu`, `whisper-desktop` ; contributions en lecture seule des agents besoin, exigences et architecture ; essai local autorisé du 13 octobre 2026. `cargo test --workspace --locked --offline` réussi. Statut : **cadrage proposé**, critères produit non qualifiés dans la fenêtre ; aucune implémentation autorisée.
+- **Q1, panne GPU en micro (AC2, AC7)** : A **recommandée** — arrêter, conserver WAV et blocs confirmés marqués incomplets ; l'utilisateur peut réimporter le WAV en CPU. B — erreur sans résultat partiel. C — finir sur CPU dans la même séance après accord explicite.
+- **Q2, qualité (AC4)** : A **recommandée** — comparer CPU/GPU sur extrait et micro ; ponctuation tolérée, sans omission ni changement de sens, validation utilisateur. B — corpus annoté et seuil numérique à définir.
+- **Q3, premier texte (AC6)** : A **recommandée** — chrono depuis Démarrer, chargement inclus, parole dès l'écoute. B — depuis la première parole, chargement séparé. Préciser si la cible s'applique aussi aux imports.
+
+Sources : demande, `AGENTS.md`, bilan/cadrage micro, crates ; apports `PRODUCT-GPU-01 v0.2`, exigences v0.2, `ARCH-GPU-v1` (base `95933e3a`). Mesure IPC du 13 octobre : sortie de session non journalisée ; WAV dans `target/`. `cargo test --workspace --locked --offline` réussi. **Proposé** : critères produit non qualifiés, aucun code autorisé.
