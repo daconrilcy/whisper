@@ -324,12 +324,17 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
         });
 
-        if state.is_some_and(manual_stop_available) && self.active_identity.is_some() {
-            let label = if self.view.active_job.is_some_and(|(job_id, _)| {
-                self.live_request
-                    .as_ref()
-                    .is_some_and(|request| request.job_id == job_id)
-            }) {
+        let micro_active = self.view.active_job.is_some_and(|(job_id, _)| {
+            self.live_request
+                .as_ref()
+                .is_some_and(|request| request.job_id == job_id)
+        });
+        if micro_active
+            && state.is_some_and(|state| matches!(state, JobState::Draining | JobState::Finalizing))
+        {
+            ui.add_enabled(false, egui::Button::new("Arrêt en cours"));
+        } else if state.is_some_and(manual_stop_available) && self.active_identity.is_some() {
+            let label = if micro_active {
                 "Arrêter le micro"
             } else {
                 "Arrêter"

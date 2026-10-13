@@ -3328,7 +3328,10 @@ fn service_loop<R: ServiceRuntime>(
             deferred_effect = effect.take();
         }
         match (effect, stop) {
-            (Some(effect @ ImportEffect::StartLive(_)), Some(stop)) => {
+            (
+                Some(effect @ (ImportEffect::StartLive(_) | ImportEffect::StartDirectLive(_))),
+                Some(stop),
+            ) => {
                 runtime.apply_effect(effect, &mut pending);
                 runtime.apply_effect(stop, &mut pending);
             }
@@ -4363,6 +4366,65 @@ fn main() {
                 ..
             }
         ));
+        drop(event_rx);
+        service.join().unwrap();
+    }
+
+    #[test]
+    fn direct_micro_start_and_single_stop_are_applied_in_order() {
+        struct Runtime(mpsc::Sender<&'static str>);
+        impl ServiceRuntime for Runtime {
+            fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+                match effect {
+                    ImportEffect::StartDirectLive(_) => self.0.send("start").unwrap(),
+                    ImportEffect::Stop { job_id, generation } => {
+                        self.0.send("stop").unwrap();
+                        pending.push_back(ImportEvent::Stopped { job_id, generation });
+                    }
+                    _ => {}
+                }
+            }
+
+            fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+                Some(Ok(ImportEvent::History(Vec::new())))
+            }
+        }
+
+        let (effect_tx, effect_rx) = mpsc::sync_channel(1);
+        let (stop_tx, stop_rx) = mpsc::sync_channel(1);
+        let (event_tx, event_rx) = mpsc::sync_channel(2);
+        let (action_tx, action_rx) = mpsc::channel();
+        let job_id = JobId(25);
+        let generation = Generation::first();
+        effect_tx
+            .send(ImportEffect::StartDirectLive(whisper_core::LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.bin".into(),
+                model_sha256: [25; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            }))
+            .unwrap();
+        stop_tx
+            .send(ImportEffect::Stop { job_id, generation })
+            .unwrap();
+        let service =
+            thread::spawn(move || service_loop(effect_rx, stop_rx, event_tx, Runtime(action_tx)));
+
+        assert_eq!(
+            action_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            "start"
+        );
+        assert_eq!(
+            action_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            "stop"
+        );
         drop(event_rx);
         service.join().unwrap();
     }

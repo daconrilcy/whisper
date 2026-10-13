@@ -1,4 +1,9 @@
-use std::{collections::VecDeque, fs, path::PathBuf};
+use std::{
+    collections::VecDeque,
+    fs,
+    io::{Seek, SeekFrom, Write},
+    path::PathBuf,
+};
 
 use whisper_core::{
     Generation, ImportEvent, JobId, LiveRequest, SegmentId, SourceRange,
@@ -25,6 +30,7 @@ pub(crate) struct DirectLive {
     legacy_fallback: bool,
     capture: Option<CaptureStream>,
     converter: Option<Pcm16Converter>,
+    wav: Option<WavOutput>,
     pending: VecDeque<i16>,
     next_offset: u64,
     next_window: u64,
@@ -72,6 +78,7 @@ impl DirectLive {
             legacy_fallback: false,
             capture: None,
             converter: None,
+            wav: None,
             pending: VecDeque::new(),
             next_offset: 0,
             next_window: 1,
@@ -103,7 +110,9 @@ impl DirectLive {
             capture.stop();
             self.drain_capture()?;
             if let Some(converter) = self.converter.as_mut() {
-                self.pending.extend(converter.finish()?);
+                let tail = converter.finish()?;
+                self.wav.as_mut().expect("wav ready").append(&tail)?;
+                self.pending.extend(tail);
                 if self.pending.len() > MAX_BUFFERED_SAMPLES {
                     return Err(
                         "Transcription CPU en retard : tampon audio saturé ; session incomplète"
@@ -168,6 +177,7 @@ impl DirectLive {
                 .expect("converter ready")
                 .push(&block)?;
             capture.recycle_block(block)?;
+            self.wav.as_mut().expect("wav ready").append(&samples)?;
             self.pending.extend(samples);
             if self.pending.len() > MAX_BUFFERED_SAMPLES {
                 capture.stop();
@@ -253,6 +263,7 @@ impl DirectLive {
                 backend,
             } if self.matches(job_id, generation, instance_id) && backend == BackendKind::Cpu => {
                 self.worker_ready = true;
+                self.wav = Some(WavOutput::create(&self.request)?);
                 if !self.stop_requested {
                     let capture = crate::capture::start_direct_default().map_err(|error| {
                         format!("Micro Windows indisponible. Vérifiez son branchement et son autorisation : {error}")
@@ -335,6 +346,7 @@ impl DirectLive {
                 generation,
                 instance_id,
             } if self.matches(job_id, generation, instance_id) && self.stop_sent => {
+                let wav_path = self.wav.take().expect("wav ready").finish()?;
                 let (txt_path, srt_path) = self.export()?;
                 self.done = true;
                 Ok(Some(ImportEvent::DirectPublished {
@@ -342,6 +354,7 @@ impl DirectLive {
                     generation,
                     txt_path,
                     srt_path,
+                    wav_path,
                 }))
             }
             WorkerEvent::Failed {
@@ -402,6 +415,89 @@ impl DirectLive {
     }
 }
 
+struct WavOutput {
+    file: fs::File,
+    path: PathBuf,
+    samples: u64,
+}
+
+impl WavOutput {
+    fn create(request: &LiveRequest) -> Result<Self, String> {
+        let directory = PathBuf::from(&request.destination);
+        fs::create_dir_all(&directory)
+            .map_err(|error| format!("Dossier de sortie inaccessible : {error}"))?;
+        let path = directory.join(format!("micro-{:032x}.wav", request.job_id.0));
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map_err(|error| format!("WAV non créé : {error}"))?;
+        write_wav_header(&mut file, 0)?;
+        Ok(Self {
+            file,
+            path,
+            samples: 0,
+        })
+    }
+
+    fn append(&mut self, samples: &[i16]) -> Result<(), String> {
+        let total = self
+            .samples
+            .checked_add(samples.len() as u64)
+            .ok_or_else(|| "WAV trop long".to_owned())?;
+        if total > (u32::MAX as u64 - 36) / 2 {
+            return Err("WAV trop long pour le format PCM".into());
+        }
+        let mut bytes = Vec::with_capacity(samples.len() * 2);
+        for sample in samples {
+            bytes.extend_from_slice(&sample.to_le_bytes());
+        }
+        self.file
+            .write_all(&bytes)
+            .map_err(|error| format!("WAV non écrit : {error}"))?;
+        self.samples = total;
+        Ok(())
+    }
+
+    fn finish(mut self) -> Result<String, String> {
+        self.file
+            .seek(SeekFrom::Start(0))
+            .map_err(|error| format!("WAV non finalisé : {error}"))?;
+        write_wav_header(&mut self.file, self.samples as u32)?;
+        self.file
+            .flush()
+            .map_err(|error| format!("WAV non finalisé : {error}"))?;
+        Ok(self.path.to_string_lossy().into_owned())
+    }
+}
+
+impl Drop for WavOutput {
+    fn drop(&mut self) {
+        if self.file.seek(SeekFrom::Start(0)).is_ok() {
+            let _ = write_wav_header(&mut self.file, self.samples as u32);
+            let _ = self.file.flush();
+        }
+    }
+}
+
+fn write_wav_header(writer: &mut impl Write, samples: u32) -> Result<(), String> {
+    let data_bytes = samples * 2;
+    writer
+        .write_all(b"RIFF")
+        .and_then(|_| writer.write_all(&(36 + data_bytes).to_le_bytes()))
+        .and_then(|_| writer.write_all(b"WAVEfmt "))
+        .and_then(|_| writer.write_all(&16u32.to_le_bytes()))
+        .and_then(|_| writer.write_all(&1u16.to_le_bytes()))
+        .and_then(|_| writer.write_all(&1u16.to_le_bytes()))
+        .and_then(|_| writer.write_all(&16_000u32.to_le_bytes()))
+        .and_then(|_| writer.write_all(&32_000u32.to_le_bytes()))
+        .and_then(|_| writer.write_all(&2u16.to_le_bytes()))
+        .and_then(|_| writer.write_all(&16u16.to_le_bytes()))
+        .and_then(|_| writer.write_all(b"data"))
+        .and_then(|_| writer.write_all(&data_bytes.to_le_bytes()))
+        .map_err(|error| format!("En-tête WAV non écrit : {error}"))
+}
+
 impl Drop for DirectLive {
     fn drop(&mut self) {
         self.worker.abort();
@@ -417,4 +513,67 @@ fn timestamp(samples: u64) -> String {
         millis / 1_000 % 60,
         millis % 1_000
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{WavOutput, write_wav_header};
+    use whisper_core::{ComputeChoice, JobConfig, LanguageChoice};
+
+    #[test]
+    fn wav_header_describes_mono_16khz_pcm_and_exact_audio_length() {
+        let mut bytes = Vec::new();
+        write_wav_header(&mut bytes, 32_000).unwrap();
+        assert_eq!(bytes.len(), 44);
+        assert_eq!(&bytes[0..4], b"RIFF");
+        assert_eq!(u32::from_le_bytes(bytes[4..8].try_into().unwrap()), 64_036);
+        assert_eq!(&bytes[8..16], b"WAVEfmt ");
+        assert_eq!(u16::from_le_bytes(bytes[20..22].try_into().unwrap()), 1);
+        assert_eq!(u16::from_le_bytes(bytes[22..24].try_into().unwrap()), 1);
+        assert_eq!(
+            u32::from_le_bytes(bytes[24..28].try_into().unwrap()),
+            16_000
+        );
+        assert_eq!(u16::from_le_bytes(bytes[34..36].try_into().unwrap()), 16);
+        assert_eq!(&bytes[36..40], b"data");
+        assert_eq!(
+            u32::from_le_bytes(bytes[40..44].try_into().unwrap()),
+            64_000
+        );
+    }
+
+    #[test]
+    fn wav_output_keeps_the_exact_converted_samples() {
+        let directory =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/direct-live-tests");
+        let job_id = whisper_core::JobId(
+            ((std::process::id() as u128) << 64)
+                | std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+        );
+        let request = whisper_core::LiveRequest {
+            job_id,
+            generation: whisper_core::Generation::first(),
+            model_path: "unused".into(),
+            model_sha256: [0; 32],
+            destination: directory.to_string_lossy().into_owned(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        let mut wav = WavOutput::create(&request).unwrap();
+        wav.append(&[-32768, 0]).unwrap();
+        wav.append(&[32767]).unwrap();
+        let path = wav.finish().unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        assert_eq!(bytes.len(), 50);
+        assert_eq!(u32::from_le_bytes(bytes[40..44].try_into().unwrap()), 6);
+        assert_eq!(&bytes[44..], &[0, 128, 0, 0, 255, 127]);
+        std::fs::remove_file(path).unwrap();
+    }
 }

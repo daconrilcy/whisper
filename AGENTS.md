@@ -1,5 +1,5 @@
 # Whisper
-Objectif produit : dans l'application Windows existante, transcrire sur CPU un fichier WAV/MP3 ou la voix captée en direct par le micro ; afficher le texte micro au fil de l'eau et enregistrer la transcription en TXT et SRT à l'arrêt.
+Objectif produit : dans l'application Windows existante, transcrire sur CPU un fichier WAV/MP3 ou la voix captée en direct par le micro ; afficher le texte micro au fil de l'eau et enregistrer la transcription en TXT et SRT à l'arrêt, avec l'audio micro en WAV de même nom.
 Différés : GPU et mode Auto, tray, reprise après panne, sortie MP3.
 Évolution micro : cadrage en cours dans `docs/cadrage/evo-micro-direct.md` ; son parcours n'est pas encore validé dans la fenêtre Windows.
 État du produit : MVP atteint et validé dans la fenêtre Windows le 13 octobre 2026 ; version locale `v0.1.0-mvp`.

@@ -191,6 +191,7 @@ pub enum ImportEvent {
         generation: Generation,
         txt_path: String,
         srt_path: String,
+        wav_path: String,
     },
     Diagnostic {
         job_id: JobId,

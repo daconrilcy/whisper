@@ -261,11 +261,14 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 text.push_str(&segment.text);
             }
             ImportEvent::DirectPublished {
-                txt_path, srt_path, ..
+                txt_path,
+                srt_path,
+                wav_path,
+                ..
             } => {
                 self.view.active_job = Some((job_id, JobState::Complete));
                 self.view.last_result = Some(format!(
-                    "Transcription micro enregistrée : {txt_path} | {srt_path}"
+                    "Transcription micro enregistrée : {txt_path} | {srt_path} | {wav_path}"
                 ));
                 self.view.message = None;
                 self.active = None;
