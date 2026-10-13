@@ -7,6 +7,7 @@ use whisper_core::{
 
 const APPROVED_MODEL_SHA256: &str =
     "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69";
+const IMPORT_CPU_MVP: bool = true;
 static NEXT_JOB: AtomicU64 = AtomicU64::new(1);
 
 pub struct DesktopApp<A> {
@@ -56,7 +57,7 @@ impl<A: Application> DesktopApp<A> {
             language: "fr".into(),
             auto_stop_enabled: false,
             auto_stop_minutes: 120,
-            compute_choice: ComputeChoice::Auto,
+            compute_choice: ComputeChoice::Cpu,
             quit_pending: false,
             active_identity: None,
             scanned_destination: None,
@@ -115,7 +116,7 @@ impl<A: Application> DesktopApp<A> {
             } else {
                 LanguageChoice::Automatic
             },
-            compute: self.compute_choice,
+            compute: ComputeChoice::Cpu,
         };
         self.dispatch(AppCommand::EnqueueImport {
             request: ImportRequest {
@@ -268,45 +269,51 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 if self.manual_language {
                     ui.text_edit_singleline(&mut self.language);
                 }
-                ui.label("Calcul");
-                egui::ComboBox::from_id_salt("compute_choice")
-                    .selected_text(match self.compute_choice {
-                        ComputeChoice::Cpu => "CPU forcé",
-                        ComputeChoice::Auto => "Automatique",
-                        ComputeChoice::Gpu => "GPU forcé",
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut self.compute_choice,
-                            ComputeChoice::Auto,
-                            "Automatique",
-                        );
-                        ui.selectable_value(
-                            &mut self.compute_choice,
-                            ComputeChoice::Cpu,
-                            "CPU forcé",
-                        );
-                        ui.selectable_value(
-                            &mut self.compute_choice,
-                            ComputeChoice::Gpu,
-                            "GPU forcé",
-                        );
+                if IMPORT_CPU_MVP {
+                    ui.label("Calcul : CPU");
+                } else {
+                    ui.label("Calcul");
+                    egui::ComboBox::from_id_salt("compute_choice")
+                        .selected_text(match self.compute_choice {
+                            ComputeChoice::Cpu => "CPU forcé",
+                            ComputeChoice::Auto => "Automatique",
+                            ComputeChoice::Gpu => "GPU forcé",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut self.compute_choice,
+                                ComputeChoice::Auto,
+                                "Automatique",
+                            );
+                            ui.selectable_value(
+                                &mut self.compute_choice,
+                                ComputeChoice::Cpu,
+                                "CPU forcé",
+                            );
+                            ui.selectable_value(
+                                &mut self.compute_choice,
+                                ComputeChoice::Gpu,
+                                "GPU forcé",
+                            );
+                        });
+                }
+            });
+            if !IMPORT_CPU_MVP {
+                ui.add_enabled_ui(!busy, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut self.auto_stop_enabled, "Arrêt après durée de parole");
+                        if self.auto_stop_enabled {
+                            ui.add(
+                                egui::DragValue::new(&mut self.auto_stop_minutes)
+                                    .range(1..=u64::MAX)
+                                    .suffix(" min"),
+                            );
+                        } else {
+                            ui.label("sans limite");
+                        }
                     });
-            });
-            ui.add_enabled_ui(!busy, |ui| {
-                ui.horizontal(|ui| {
-                    ui.checkbox(&mut self.auto_stop_enabled, "Arrêt après durée de parole");
-                    if self.auto_stop_enabled {
-                        ui.add(
-                            egui::DragValue::new(&mut self.auto_stop_minutes)
-                                .range(1..=u64::MAX)
-                                .suffix(" min"),
-                        );
-                    } else {
-                        ui.label("sans limite");
-                    }
                 });
-            });
+            }
             let can_start = !self.source_path.trim().is_empty()
                 && !self.model_path.trim().is_empty()
                 && !self.destination.trim().is_empty()
@@ -317,24 +324,26 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             {
                 self.start_import();
             }
-            let can_start_live = !busy
-                && !self.model_path.trim().is_empty()
-                && !self.destination.trim().is_empty()
-                && (!self.manual_language || !self.language.trim().is_empty());
-            if ui
-                .add_enabled(can_start_live, egui::Button::new("Démarrer le micro"))
-                .clicked()
-            {
-                self.start_live(Generation::first());
-            }
-            if state == Some(JobState::Cancelled)
-                && let Some(request) = self.live_request.as_ref()
-                && let Some(next) = request.generation.next()
-                && ui
-                    .button("Reprendre — démarrer un nouveau passage")
+            if !IMPORT_CPU_MVP {
+                let can_start_live = !busy
+                    && !self.model_path.trim().is_empty()
+                    && !self.destination.trim().is_empty()
+                    && (!self.manual_language || !self.language.trim().is_empty());
+                if ui
+                    .add_enabled(can_start_live, egui::Button::new("Démarrer le micro"))
                     .clicked()
-            {
-                self.start_live(next);
+                {
+                    self.start_live(Generation::first());
+                }
+                if state == Some(JobState::Cancelled)
+                    && let Some(request) = self.live_request.as_ref()
+                    && let Some(next) = request.generation.next()
+                    && ui
+                        .button("Reprendre — démarrer un nouveau passage")
+                        .clicked()
+                {
+                    self.start_live(next);
+                }
             }
         });
 
@@ -407,7 +416,8 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     ));
                 }
             }
-            if state == JobState::AwaitingChoice
+            if !IMPORT_CPU_MVP
+                && state == JobState::AwaitingChoice
                 && ui.button("Terminer ce passage sur CPU").clicked()
             {
                 self.dispatch(AppCommand::FinishLiveOnCpu {
@@ -551,7 +561,8 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         egui::Color32::LIGHT_RED,
                         "La destination enregistrée diffère du dossier consulté ; publication indisponible.",
                     );
-                } else if recovery.publication_ready
+                } else if !IMPORT_CPU_MVP
+                    && recovery.publication_ready
                     && !busy
                     && self.view.active_job.is_none()
                     && ui
@@ -653,7 +664,9 @@ mod tests {
         speech_limit_samples, window_must_remain_open,
     };
     use std::{cell::RefCell, rc::Rc};
-    use whisper_core::{AppCommand, AppView, Application, ApplicationError, Generation, JobId};
+    use whisper_core::{
+        AppCommand, AppView, Application, ApplicationError, ComputeChoice, Generation, JobId,
+    };
 
     #[derive(Clone, Default)]
     struct RecordingApplication(Rc<RefCell<Vec<AppCommand>>>);
@@ -759,6 +772,20 @@ mod tests {
                 generation: live.1,
             })
         );
+    }
+
+    #[test]
+    fn import_uses_cpu_even_if_a_deferred_mode_was_selected() {
+        let recorder = RecordingApplication::default();
+        let mut app = DesktopApp::new(recorder.clone());
+        assert_eq!(app.compute_choice, ComputeChoice::Cpu);
+        app.compute_choice = ComputeChoice::Gpu;
+        app.start_import();
+        assert!(matches!(
+            recorder.0.borrow().first(),
+            Some(AppCommand::EnqueueImport { request })
+                if request.config.compute == ComputeChoice::Cpu
+        ));
     }
 
     #[test]
