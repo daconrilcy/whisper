@@ -6,7 +6,7 @@ use std::{
 };
 
 use whisper_core::{
-    Generation, ImportEvent, JobId, LiveRequest, SegmentId, SourceRange,
+    ComputeChoice, Generation, ImportEvent, JobId, LiveRequest, SegmentId, SourceRange,
     ipc::{BackendKind, WorkerCommand, WorkerErrorCode, WorkerEvent},
     ports::WorkerSegment,
 };
@@ -54,14 +54,23 @@ impl DirectLive {
         workers: &WorkerPaths,
         instance: u64,
     ) -> Result<Self, String> {
-        if request.config.compute != whisper_core::ComputeChoice::Cpu
+        if request.config.compute == ComputeChoice::Auto
             || request.destination.trim().is_empty()
             || request.model_path.trim().is_empty()
         {
             return Err("Micro : modèle ou dossier de sortie invalide".into());
         }
-        let mut worker = ChildWorkerTransport::spawn(&workers.cpu)
-            .map_err(|error| format!("Moteur CPU indisponible : {error:?}"))?;
+        let worker_path = match request.config.compute {
+            ComputeChoice::Cpu => &workers.cpu,
+            ComputeChoice::Gpu => &workers.gpu,
+            ComputeChoice::Auto => unreachable!(),
+        };
+        let mut worker = ChildWorkerTransport::spawn(worker_path).map_err(|error| {
+            format!(
+                "Moteur {} indisponible : {error:?}",
+                compute_name(request.config.compute)
+            )
+        })?;
         if let Err(error) = worker.request(WorkerCommand::StartDirectLiveWorker {
             job_id: request.job_id,
             generation: request.generation,
@@ -75,7 +84,7 @@ impl DirectLive {
         }
         Ok(Self {
             request,
-            worker_path: workers.cpu.clone(),
+            worker_path: worker_path.clone(),
             worker,
             instance,
             worker_ready: false,
@@ -119,8 +128,7 @@ impl DirectLive {
                 self.pending.extend(tail);
                 if self.pending.len() > MAX_BUFFERED_SAMPLES {
                     return Err(
-                        "Transcription CPU en retard : tampon audio saturé ; session incomplète"
-                            .into(),
+                        "Transcription en retard : tampon audio saturé ; session incomplète".into(),
                     );
                 }
             }
@@ -139,7 +147,7 @@ impl DirectLive {
         if let Some(event) = self
             .worker
             .receive()
-            .map_err(|error| format!("Moteur CPU interrompu : {error:?}"))?
+            .map_err(|error| format!("Moteur {} interrompu : {error:?}", self.engine_name()))?
         {
             if let Some(result) = self.handle_worker(event)? {
                 return Ok(Some(result));
@@ -186,7 +194,7 @@ impl DirectLive {
             if self.pending.len() > MAX_BUFFERED_SAMPLES {
                 capture.stop();
                 return Err(
-                    "Transcription CPU en retard : tampon audio saturé ; session incomplète".into(),
+                    "Transcription en retard : tampon audio saturé ; session incomplète".into(),
                 );
             }
         }
@@ -217,7 +225,7 @@ impl DirectLive {
                     range,
                     samples,
                 })
-                .map_err(|error| format!("Fenêtre CPU refusée : {error:?}"))?;
+                .map_err(|error| format!("Fenêtre {} refusée : {error:?}", self.engine_name()))?;
             self.inflight = Some((self.next_window, range));
             self.next_window += 1;
             self.next_offset = end;
@@ -227,7 +235,7 @@ impl DirectLive {
                     job_id: self.request.job_id,
                     generation: self.request.generation,
                 })
-                .map_err(|error| format!("Arrêt CPU refusé : {error:?}"))?;
+                .map_err(|error| format!("Arrêt {} refusé : {error:?}", self.engine_name()))?;
             self.stop_sent = true;
         }
         Ok(())
@@ -236,7 +244,8 @@ impl DirectLive {
     fn handle_worker(&mut self, event: WorkerEvent) -> Result<Option<ImportEvent>, String> {
         match event {
             WorkerEvent::Failed { message, .. }
-                if !self.worker_ready
+                if self.request.config.compute == ComputeChoice::Cpu
+                    && !self.worker_ready
                     && !self.legacy_fallback
                     && message.contains("unknown variant `StartDirectLiveWorker`") =>
             {
@@ -261,7 +270,9 @@ impl DirectLive {
                 generation,
                 instance_id,
                 backend,
-            } if self.matches(job_id, generation, instance_id) && backend == BackendKind::Cpu => {
+            } if self.matches(job_id, generation, instance_id)
+                && backend == self.backend_kind() =>
+            {
                 self.worker_ready = true;
                 self.wav = Some(WavOutput::create(&self.request)?);
                 if !self.stop_requested {
@@ -276,7 +287,7 @@ impl DirectLive {
                 Ok(Some(ImportEvent::Ready {
                     job_id,
                     generation,
-                    backend: "CPU (micro)".into(),
+                    backend: format!("{} (micro)", self.engine_name()),
                 }))
             }
             WorkerEvent::LiveMp3Packet {
@@ -306,7 +317,10 @@ impl DirectLive {
                                 || dto.range.end_sample < last.range.end_sample
                         })
                 {
-                    return Err("Moteur CPU : segment hors ordre".into());
+                    return Err(format!(
+                        "Moteur {} : segment hors ordre",
+                        self.engine_name()
+                    ));
                 }
                 self.next_segment += 1;
                 let segment = WorkerSegment {
@@ -331,7 +345,10 @@ impl DirectLive {
                 if self.inflight != Some((sequence, range))
                     || last_segment_sequence != self.next_segment - 1
                 {
-                    return Err("Moteur CPU : fin de fenêtre incohérente".into());
+                    return Err(format!(
+                        "Moteur {} : fin de fenêtre incohérente",
+                        self.engine_name()
+                    ));
                 }
                 self.inflight = None;
                 for segment in self.window_segments.drain(..) {
@@ -347,7 +364,7 @@ impl DirectLive {
                 instance_id,
             } if self.matches(job_id, generation, instance_id) && self.stop_sent => {
                 let wav_path = self.wav.take().expect("wav ready").finish()?;
-                let (txt_path, srt_path) = self.export()?;
+                let (txt_path, srt_path) = self.export(false)?;
                 self.done = true;
                 Ok(Some(ImportEvent::DirectPublished {
                     job_id,
@@ -365,9 +382,25 @@ impl DirectLive {
                 "Modèle local indisponible. Vérifiez le chemin du modèle du MVP : {message}"
             )),
             WorkerEvent::Failed { message, .. } => Err(format!(
-                "Moteur CPU interrompu. Réessayez après vérification : {message}"
+                "Moteur {} interrompu. Réessayez après vérification : {message}",
+                self.engine_name()
             )),
-            _ => Err("Moteur CPU : réponse inattendue ou périmée".into()),
+            _ => Err(format!(
+                "Moteur {} : réponse inattendue ou périmée",
+                self.engine_name()
+            )),
+        }
+    }
+
+    fn engine_name(&self) -> &'static str {
+        compute_name(self.request.config.compute)
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        match self.request.config.compute {
+            ComputeChoice::Cpu => BackendKind::Cpu,
+            ComputeChoice::Gpu => BackendKind::Cuda,
+            ComputeChoice::Auto => unreachable!(),
         }
     }
 
@@ -375,43 +408,107 @@ impl DirectLive {
         (job_id, generation) == self.identity() && instance == self.instance
     }
 
-    fn export(&self) -> Result<(String, String), String> {
-        let directory = PathBuf::from(&self.request.destination);
-        fs::create_dir_all(&directory)
-            .map_err(|error| format!("Dossier de sortie inaccessible : {error}"))?;
-        let stem = format!("micro-{:032x}", self.request.job_id.0);
-        let txt = directory.join(format!("{stem}.txt"));
-        let srt = directory.join(format!("{stem}.srt"));
-        let text = self
-            .segments
-            .iter()
-            .map(|segment| segment.text.as_str())
-            .collect::<Vec<_>>()
-            .join("\n");
-        let subtitles = self
-            .segments
-            .iter()
-            .enumerate()
-            .map(|(index, segment)| {
-                format!(
-                    "{}\n{} --> {}\n{}\n\n",
-                    index + 1,
-                    timestamp(segment.range.start_sample),
-                    timestamp(segment.range.end_sample),
-                    segment.text
-                )
-            })
-            .collect::<String>();
-        fs::write(&txt, text).map_err(|error| {
-            format!("TXT non enregistré. Vérifiez le dossier de sortie : {error}")
-        })?;
-        fs::write(&srt, subtitles).map_err(|error| {
-            format!("SRT non enregistré. Vérifiez le dossier de sortie : {error}")
-        })?;
-        Ok((
-            txt.to_string_lossy().into_owned(),
-            srt.to_string_lossy().into_owned(),
-        ))
+    pub(crate) fn fail(&mut self, error: String) -> String {
+        if self.request.config.compute != ComputeChoice::Gpu || self.wav.is_none() {
+            return error;
+        }
+        self.worker.abort();
+        if let Some(capture) = self.capture.as_mut() {
+            capture.stop();
+            while let Some(block) = capture.try_next_block() {
+                if let Some(converter) = self.converter.as_mut()
+                    && let Ok(samples) = converter.push(&block)
+                    && let Some(wav) = self.wav.as_mut()
+                {
+                    let _ = wav.append(&samples);
+                }
+                let _ = capture.recycle_block(block);
+            }
+        }
+        if let Some(converter) = self.converter.as_mut()
+            && let Ok(tail) = converter.finish()
+            && let Some(wav) = self.wav.as_mut()
+        {
+            let _ = wav.append(&tail);
+        }
+        let Some(wav) = self.wav.take() else {
+            return error;
+        };
+        finalize_incomplete_outputs(&self.request, wav, &self.segments, error)
+    }
+
+    fn export(&self, incomplete: bool) -> Result<(String, String), String> {
+        export_segments(&self.request, &self.segments, incomplete)
+    }
+}
+
+fn finalize_incomplete_outputs(
+    request: &LiveRequest,
+    wav: WavOutput,
+    segments: &[WorkerSegment],
+    error: String,
+) -> String {
+    let wav_path = match wav.finish() {
+        Ok(path) => path,
+        Err(save_error) => {
+            return format!("{error}. WAV incomplet non finalisé : {save_error}");
+        }
+    };
+    match export_segments(request, segments, true) {
+        Ok((txt, srt)) => format!(
+            "{error}. Session GPU arrêtée ; résultats incomplets : {wav_path} | {txt} | {srt}. Réimportez le WAV en CPU pour obtenir le texte complet."
+        ),
+        Err(save_error) => format!(
+            "{error}. Session GPU arrêtée ; WAV conservé : {wav_path}. TXT/SRT incomplets non enregistrés : {save_error}. Réimportez le WAV en CPU."
+        ),
+    }
+}
+
+fn export_segments(
+    request: &LiveRequest,
+    segments: &[WorkerSegment],
+    incomplete: bool,
+) -> Result<(String, String), String> {
+    let directory = PathBuf::from(&request.destination);
+    fs::create_dir_all(&directory)
+        .map_err(|error| format!("Dossier de sortie inaccessible : {error}"))?;
+    let stem = format!("micro-{:032x}", request.job_id.0);
+    let suffix = if incomplete { "-incomplet" } else { "" };
+    let txt = directory.join(format!("{stem}{suffix}.txt"));
+    let srt = directory.join(format!("{stem}{suffix}.srt"));
+    let text = segments
+        .iter()
+        .map(|segment| segment.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let subtitles = segments
+        .iter()
+        .enumerate()
+        .map(|(index, segment)| {
+            format!(
+                "{}\n{} --> {}\n{}\n\n",
+                index + 1,
+                timestamp(segment.range.start_sample),
+                timestamp(segment.range.end_sample),
+                segment.text
+            )
+        })
+        .collect::<String>();
+    fs::write(&txt, text)
+        .map_err(|error| format!("TXT non enregistré. Vérifiez le dossier de sortie : {error}"))?;
+    fs::write(&srt, subtitles)
+        .map_err(|error| format!("SRT non enregistré. Vérifiez le dossier de sortie : {error}"))?;
+    Ok((
+        txt.to_string_lossy().into_owned(),
+        srt.to_string_lossy().into_owned(),
+    ))
+}
+
+fn compute_name(choice: ComputeChoice) -> &'static str {
+    match choice {
+        ComputeChoice::Cpu => "CPU",
+        ComputeChoice::Gpu => "GPU",
+        ComputeChoice::Auto => "Auto",
     }
 }
 
@@ -536,9 +633,13 @@ fn timestamp(samples: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{MAX_WINDOW_SAMPLES, MIN_WINDOW_SAMPLES, WavOutput, window_size, write_wav_header};
+    use super::{
+        MAX_WINDOW_SAMPLES, MIN_WINDOW_SAMPLES, WavOutput, finalize_incomplete_outputs,
+        window_size, write_wav_header,
+    };
     use std::collections::VecDeque;
-    use whisper_core::{ComputeChoice, JobConfig, LanguageChoice};
+    use whisper_core::ports::WorkerSegment;
+    use whisper_core::{ComputeChoice, JobConfig, LanguageChoice, SegmentId, SourceRange};
 
     #[test]
     fn wav_header_describes_mono_16khz_pcm_and_exact_audio_length() {
@@ -595,6 +696,69 @@ mod tests {
         assert_eq!(u32::from_le_bytes(bytes[40..44].try_into().unwrap()), 6);
         assert_eq!(&bytes[44..], &[0, 128, 0, 0, 255, 127]);
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn simulated_gpu_failure_keeps_wav_and_confirmed_text_with_incomplete_suffix() {
+        let directory =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/direct-live-tests");
+        let job_id = whisper_core::JobId(
+            ((std::process::id() as u128) << 64)
+                | std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+        );
+        let generation = whisper_core::Generation::first();
+        let request = whisper_core::LiveRequest {
+            job_id,
+            generation,
+            model_path: "unused".into(),
+            model_sha256: [0; 32],
+            destination: directory.to_string_lossy().into_owned(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Gpu,
+            },
+        };
+        let mut wav = WavOutput::create(&request).unwrap();
+        wav.append(&[100, 200, 300, 400]).unwrap();
+        let confirmed = WorkerSegment {
+            job_id,
+            generation,
+            instance_id: 1,
+            segment_id: SegmentId(1),
+            range: SourceRange::new(0, 2, 16_000).unwrap(),
+            text: "parole confirmée".into(),
+        };
+        let message = finalize_incomplete_outputs(
+            &request,
+            wav,
+            &[confirmed],
+            "GPU interrompu après un bloc".into(),
+        );
+        let stem = format!("micro-{:032x}", job_id.0);
+        let wav_path = directory.join(format!("{stem}.wav"));
+        let txt_path = directory.join(format!("{stem}-incomplet.txt"));
+        let srt_path = directory.join(format!("{stem}-incomplet.srt"));
+        assert!(message.contains("Réimportez le WAV en CPU"));
+        assert!(message.contains(&wav_path.to_string_lossy().to_string()));
+        assert_eq!(std::fs::read(&wav_path).unwrap().len(), 52);
+        assert_eq!(
+            std::fs::read_to_string(&txt_path).unwrap(),
+            "parole confirmée"
+        );
+        assert!(
+            std::fs::read_to_string(&srt_path)
+                .unwrap()
+                .contains("parole confirmée")
+        );
+        assert!(!directory.join(format!("{stem}.txt")).exists());
+        for path in [wav_path, txt_path, srt_path] {
+            std::fs::remove_file(path).unwrap();
+        }
     }
 
     #[test]

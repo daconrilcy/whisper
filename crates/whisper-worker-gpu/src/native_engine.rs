@@ -1,5 +1,7 @@
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
+pub const MAX_LIVE_WINDOW_SAMPLES: usize = 128_000;
+
 pub struct GpuEngine {
     context: WhisperContext,
 }
@@ -27,7 +29,7 @@ impl GpuEngine {
         pcm: &[f32],
         language: Option<&str>,
     ) -> Result<Vec<TextSegment>, String> {
-        if pcm.is_empty() || pcm.len() > 80_000 {
+        if pcm.is_empty() || pcm.len() > MAX_LIVE_WINDOW_SAMPLES {
             return Err("invalid inference window size".into());
         }
         if let Some(language) = language

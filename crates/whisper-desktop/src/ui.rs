@@ -116,7 +116,7 @@ impl<A: Application> DesktopApp<A> {
             } else {
                 LanguageChoice::Automatic
             },
-            compute: ComputeChoice::Cpu,
+            compute: self.compute_choice,
         };
         self.dispatch(AppCommand::EnqueueImport {
             request: ImportRequest {
@@ -162,7 +162,7 @@ impl<A: Application> DesktopApp<A> {
                 } else {
                     LanguageChoice::Automatic
                 },
-                compute: ComputeChoice::Cpu,
+                compute: self.compute_choice,
             },
         };
         self.active_identity = Some((job_id, generation));
@@ -235,7 +235,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
         }
         ui.heading("Whisper — transcription locale");
-        ui.label("Import WAV/MP3 ou micro en direct, sur CPU avec le modèle local.");
+        ui.label("Import WAV/MP3 ou micro en direct, avec le modèle local.");
 
         ui.add_enabled_ui(can_enqueue, |ui| {
             ui.horizontal(|ui| {
@@ -255,34 +255,17 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 if self.manual_language {
                     ui.text_edit_singleline(&mut self.language);
                 }
-                if IMPORT_CPU_MVP {
-                    ui.label("Calcul : CPU");
-                } else {
-                    ui.label("Calcul");
-                    egui::ComboBox::from_id_salt("compute_choice")
-                        .selected_text(match self.compute_choice {
-                            ComputeChoice::Cpu => "CPU forcé",
-                            ComputeChoice::Auto => "Automatique",
-                            ComputeChoice::Gpu => "GPU forcé",
-                        })
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut self.compute_choice,
-                                ComputeChoice::Auto,
-                                "Automatique",
-                            );
-                            ui.selectable_value(
-                                &mut self.compute_choice,
-                                ComputeChoice::Cpu,
-                                "CPU forcé",
-                            );
-                            ui.selectable_value(
-                                &mut self.compute_choice,
-                                ComputeChoice::Gpu,
-                                "GPU forcé",
-                            );
-                        });
-                }
+                ui.label("Calcul");
+                egui::ComboBox::from_id_salt("compute_choice")
+                    .selected_text(match self.compute_choice {
+                        ComputeChoice::Cpu => "CPU",
+                        ComputeChoice::Gpu => "GPU",
+                        ComputeChoice::Auto => "CPU",
+                    })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.compute_choice, ComputeChoice::Cpu, "CPU");
+                        ui.selectable_value(&mut self.compute_choice, ComputeChoice::Gpu, "GPU");
+                    });
             });
             if !IMPORT_CPU_MVP {
                 ui.add_enabled_ui(!busy, |ui| {
@@ -793,7 +776,7 @@ mod tests {
     }
 
     #[test]
-    fn import_uses_cpu_even_if_a_deferred_mode_was_selected() {
+    fn import_uses_selected_gpu() {
         let recorder = RecordingApplication::default();
         let mut app = DesktopApp::new(recorder.clone());
         assert_eq!(app.compute_choice, ComputeChoice::Cpu);
@@ -802,7 +785,20 @@ mod tests {
         assert!(matches!(
             recorder.0.borrow().first(),
             Some(AppCommand::EnqueueImport { request })
-                if request.config.compute == ComputeChoice::Cpu
+                if request.config.compute == ComputeChoice::Gpu
+        ));
+    }
+
+    #[test]
+    fn microphone_uses_selected_gpu() {
+        let recorder = RecordingApplication::default();
+        let mut app = DesktopApp::new(recorder.clone());
+        app.compute_choice = ComputeChoice::Gpu;
+        app.start_live(Generation::first());
+        assert!(matches!(
+            recorder.0.borrow().first(),
+            Some(AppCommand::StartDirectLiveConfigured { request })
+                if request.config.compute == ComputeChoice::Gpu
         ));
     }
 

@@ -17,17 +17,17 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
-        Arc,
+        Arc, Condvar, Mutex,
         atomic::{AtomicU8, AtomicU64, Ordering},
         mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
     },
     thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 #[cfg(feature = "l01-memory-qualification")]
 use std::{
     fs::{File, OpenOptions},
-    sync::{Mutex, OnceLock},
+    sync::OnceLock,
     time::{SystemTime, UNIX_EPOCH},
 };
 use whisper_core::{
@@ -194,6 +194,13 @@ pub struct ChildWorkerTransport {
     commands: SyncSender<WorkerCommand>,
     stop_commands: SyncSender<WorkerCommand>,
     events: Receiver<Result<WorkerEvent, PortError>>,
+    cuda_log: Arc<(Mutex<CudaLogState>, Condvar)>,
+}
+
+#[derive(Default)]
+struct CudaLogState {
+    confirmed: bool,
+    ended: bool,
 }
 
 impl ChildWorkerTransport {
@@ -201,11 +208,35 @@ impl ChildWorkerTransport {
         let mut child = Command::new(executable)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| PortError::Failed(format!("WorkerExited: {e}")))?;
         let stdin = child.stdin.take().ok_or(PortError::Unavailable)?;
         let stdout = child.stdout.take().ok_or(PortError::Unavailable)?;
+        let stderr = child.stderr.take().ok_or(PortError::Unavailable)?;
+        let cuda_log = Arc::new((Mutex::new(CudaLogState::default()), Condvar::new()));
+        let cuda_log_reader = Arc::clone(&cuda_log);
+        thread::spawn(move || {
+            let mut stderr = BufReader::new(stderr);
+            let mut line = Vec::new();
+            while stderr
+                .read_until(b'\n', &mut line)
+                .is_ok_and(|size| size > 0)
+            {
+                if line
+                    .windows(b"whisper_backend_init_gpu: using CUDA0 backend".len())
+                    .any(|window| window == b"whisper_backend_init_gpu: using CUDA0 backend")
+                {
+                    let (state, wake) = &*cuda_log_reader;
+                    state.lock().unwrap().confirmed = true;
+                    wake.notify_all();
+                }
+                line.clear();
+            }
+            let (state, wake) = &*cuda_log_reader;
+            state.lock().unwrap().ended = true;
+            wake.notify_all();
+        });
         #[cfg(all(feature = "l01-memory-qualification", windows))]
         let stdin_pipe_handle = {
             use std::os::windows::io::AsRawHandle;
@@ -258,7 +289,22 @@ impl ChildWorkerTransport {
             commands,
             stop_commands,
             events,
+            cuda_log,
         })
+    }
+
+    fn cuda_backend_confirmed(&self) -> bool {
+        let (state, wake) = &*self.cuda_log;
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let mut state = state.lock().unwrap();
+        while !state.confirmed && !state.ended {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            state = wake.wait_timeout(state, remaining).unwrap().0;
+        }
+        state.confirmed
     }
 
     pub fn try_wait(&mut self) -> Result<Option<std::process::ExitStatus>, PortError> {
@@ -282,7 +328,22 @@ impl WorkerTransport for ChildWorkerTransport {
 
     fn receive(&mut self) -> Result<Option<WorkerEvent>, PortError> {
         match self.events.try_recv() {
-            Ok(Ok(event)) => Ok(Some(event)),
+            Ok(Ok(event)) => {
+                if matches!(
+                    &event,
+                    WorkerEvent::Ready {
+                        backend: BackendKind::Cuda,
+                        ..
+                    }
+                ) && !self.cuda_backend_confirmed()
+                {
+                    return Err(PortError::Failed(
+                        "GPU indisponible : le moteur CUDA n'a pas été confirmé ; choisissez CPU"
+                            .into(),
+                    ));
+                }
+                Ok(Some(event))
+            }
             Ok(Err(error)) => Err(error),
             Err(TryRecvError::Empty) => Ok(None),
             Err(TryRecvError::Disconnected) => {
@@ -1070,13 +1131,15 @@ impl ImportRuntime {
             }
         }
         if let Err((job, generation, message)) = result {
-            if self
-                .direct_live
-                .as_ref()
-                .is_some_and(|direct| direct.identity() == (job, generation))
+            let message = if let Some(direct) = self.direct_live.as_mut()
+                && direct.identity() == (job, generation)
             {
+                let message = direct.fail(message);
                 self.direct_live = None;
-            }
+                message
+            } else {
+                message
+            };
             let mut deferred_live_failure = false;
             if let Some(live) = self.live.as_mut()
                 && (live.request.job_id, live.request.generation) == (job, generation)
@@ -2282,7 +2345,7 @@ impl ImportRuntime {
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
         if let Some(direct) = self.direct_live.as_mut() {
             let id = direct.identity();
-            let result = direct.poll();
+            let result = direct.poll().map_err(|error| direct.fail(error));
             let done = direct.done() || result.is_err();
             if done {
                 self.direct_live = None;
@@ -3268,6 +3331,7 @@ impl ServiceRuntime for ImportRuntime {
         match direct.pump_capture() {
             Ok(()) => None,
             Err(error) => {
+                let error = direct.fail(error);
                 self.direct_live = None;
                 Some((job_id, generation, error))
             }

@@ -1135,6 +1135,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
         .map_err(|e| e.to_string())?;
         return Ok(());
     }
+    let direct_live = matches!(&first.message, WorkerCommand::StartDirectLiveWorker { .. });
     let (
         job_id,
         generation,
@@ -1153,6 +1154,14 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
             return run_decode_service(rx, output, request_id, request);
         }
         WorkerCommand::StartLiveWorker {
+            job_id,
+            generation,
+            instance_id,
+            model_path,
+            model_sha256,
+            config,
+        }
+        | WorkerCommand::StartDirectLiveWorker {
             job_id,
             generation,
             instance_id,
@@ -1194,7 +1203,16 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
                 }),
             )
             .map_err(|e| e.to_string())?;
-            return run_live_service(rx, output, engine, job_id, generation, instance_id, config);
+            return run_live_service(
+                rx,
+                output,
+                engine,
+                job_id,
+                generation,
+                instance_id,
+                config,
+                !direct_live,
+            );
         }
         WorkerCommand::StartImport {
             job_id,
@@ -1504,11 +1522,12 @@ fn run_live_service(
     generation: whisper_core::Generation,
     instance_id: u64,
     config: whisper_core::JobConfig,
+    encode_audio: bool,
 ) -> Result<(), String> {
     let mut expected_sequence = 1_u64;
     let mut next_segment_id = 1_u64;
     let mut next_packet_id = 1_u64;
-    let mut mp3 = encoder::LiveMp3Encoder::new();
+    let mut mp3 = encode_audio.then(encoder::LiveMp3Encoder::new);
     loop {
         let envelope = rx
             .recv()
@@ -1548,7 +1567,8 @@ fn run_live_service(
                     || range.start_sample >= range.end_sample
                     || range.end_sample - range.start_sample != samples.len() as u64
                     || samples.is_empty()
-                    || samples.len() > 80_000
+                    || samples.len() > native_engine::MAX_LIVE_WINDOW_SAMPLES
+                    || (!encode_audio && !transcribe_window)
                 {
                     return emit_failure(
                         output,
@@ -1559,37 +1579,39 @@ fn run_live_service(
                         "InvalidRequest: live PCM identity or window bounds are invalid",
                     );
                 }
-                for chunk in samples.chunks(16_000) {
-                    l04_campaign_gate(
-                        "worker.before_encode",
-                        job_id.0,
-                        generation.get(),
-                        instance_id,
-                    )?;
-                    let encoded = mp3.push_pcm(chunk);
-                    l04_campaign_worker_result(
-                        "worker.before_encode",
-                        job_id.0,
-                        generation.get(),
-                        instance_id,
-                        &encoded,
-                    )?;
-                    for bytes in encoded? {
-                        let sequence = next_packet_id;
-                        next_packet_id = next_packet_id
-                            .checked_add(1)
-                            .ok_or_else(|| "live MP3 packet sequence exhausted".to_owned())?;
-                        write_frame(
-                            output,
-                            &IpcEnvelope::new(WorkerEvent::LiveMp3Packet {
-                                job_id,
-                                generation,
-                                instance_id,
-                                sequence,
-                                bytes,
-                            }),
-                        )
-                        .map_err(|e| e.to_string())?;
+                if let Some(mp3) = mp3.as_mut() {
+                    for chunk in samples.chunks(16_000) {
+                        l04_campaign_gate(
+                            "worker.before_encode",
+                            job_id.0,
+                            generation.get(),
+                            instance_id,
+                        )?;
+                        let encoded = mp3.push_pcm(chunk);
+                        l04_campaign_worker_result(
+                            "worker.before_encode",
+                            job_id.0,
+                            generation.get(),
+                            instance_id,
+                            &encoded,
+                        )?;
+                        for bytes in encoded? {
+                            let sequence = next_packet_id;
+                            next_packet_id = next_packet_id
+                                .checked_add(1)
+                                .ok_or_else(|| "live MP3 packet sequence exhausted".to_owned())?;
+                            write_frame(
+                                output,
+                                &IpcEnvelope::new(WorkerEvent::LiveMp3Packet {
+                                    job_id,
+                                    generation,
+                                    instance_id,
+                                    sequence,
+                                    bytes,
+                                }),
+                            )
+                            .map_err(|e| e.to_string())?;
+                        }
                     }
                 }
                 expected_sequence = expected_sequence
@@ -1679,7 +1701,9 @@ fn run_live_service(
                     generation.get(),
                     instance_id,
                 )?;
-                let finished = mp3.finish();
+                let finished = mp3
+                    .as_mut()
+                    .map_or(Ok(Vec::new()), encoder::LiveMp3Encoder::finish);
                 l04_campaign_worker_result(
                     "worker.before_finish_encode",
                     job_id.0,
