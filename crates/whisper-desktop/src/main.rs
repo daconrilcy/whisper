@@ -12,6 +12,7 @@ fn main() -> eframe::Result {
         startup_message,
         paths,
         gpu_probe,
+        gpu_inventory,
     } = root::compose();
     whisper_desktop::run(
         application,
@@ -20,6 +21,7 @@ fn main() -> eframe::Result {
         paths,
         Box::new(whisper_adapters::capture::WasapiMicrophonePort),
         gpu_probe,
+        gpu_inventory,
         process_started_at_unix_ms,
     )
 }

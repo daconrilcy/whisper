@@ -3,10 +3,12 @@ use std::{
     sync::mpsc::{self, Receiver},
 };
 use whisper_adapters::{
+    gpu_inventory::WindowsGpuInventoryPort,
     path_settings::WindowsPathPort,
     supervisor::WorkerPaths,
     worker_ipc::{AsyncImportIo, probe_cuda_worker},
 };
+use whisper_core::gpu_inventory_app::GpuInventoryApp;
 use whisper_core::path_settings::{PathDefaults, PathSettingsApp};
 use whisper_core::{ComputeChoice, ImportApplication};
 
@@ -16,6 +18,7 @@ pub struct DesktopComposition {
     pub startup_message: Option<String>,
     pub paths: PathSettingsApp,
     pub gpu_probe: Receiver<Result<(), String>>,
+    pub gpu_inventory: GpuInventoryApp,
 }
 
 pub fn compose() -> DesktopComposition {
@@ -68,5 +71,6 @@ pub fn compose() -> DesktopComposition {
         startup_message: Some("Vérification du GPU en cours…".into()),
         paths,
         gpu_probe: receiver,
+        gpu_inventory: GpuInventoryApp::new(Box::new(WindowsGpuInventoryPort::default())),
     }
 }

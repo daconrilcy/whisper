@@ -2,6 +2,8 @@ use crate::reactivity_log::ReactivityLog;
 use eframe::egui;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
+use whisper_core::gpu_inventory::GpuState;
+use whisper_core::gpu_inventory_app::{GpuInventoryApp, GpuInventoryState};
 use whisper_core::path_settings::{PathDefaults, PathField, PathSettingsApp};
 use whisper_core::{
     AppCommand, AppFacade, AppView, Application, ApplicationError, ComputeChoice, Generation,
@@ -29,6 +31,7 @@ pub struct DesktopApp<A> {
     compute_choice_touched: bool,
     startup_message: Option<String>,
     gpu_probe: Option<Receiver<Result<(), String>>>,
+    gpu_inventory: Option<GpuInventoryApp>,
     quit_pending: bool,
     active_identity: Option<(JobId, Generation)>,
     scanned_destination: Option<String>,
@@ -78,6 +81,11 @@ impl<A: Application> DesktopApp<A> {
 
     pub fn with_gpu_probe(mut self, gpu_probe: Receiver<Result<(), String>>) -> Self {
         self.gpu_probe = Some(gpu_probe);
+        self
+    }
+
+    pub fn with_gpu_inventory(mut self, gpu_inventory: GpuInventoryApp) -> Self {
+        self.gpu_inventory = Some(gpu_inventory);
         self
     }
 
@@ -143,6 +151,7 @@ impl<A: Application> DesktopApp<A> {
             compute_choice_touched: false,
             startup_message,
             gpu_probe: None,
+            gpu_inventory: None,
             quit_pending: false,
             active_identity: None,
             scanned_destination: None,
@@ -350,6 +359,9 @@ impl<A: Application> DesktopApp<A> {
 impl<A: Application> eframe::App for DesktopApp<A> {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.paths.commit_all();
+        if let Some(inventory) = &mut self.gpu_inventory {
+            inventory.close();
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -360,6 +372,13 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             Some(self.process_started_at_unix_ms),
         );
         self.poll_gpu_probe();
+        if let Some(inventory) = &mut self.gpu_inventory {
+            inventory.poll();
+            if matches!(inventory.state(), GpuInventoryState::Loading) {
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(33));
+            }
+        }
         if self.gpu_probe.is_some() {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(33));
@@ -600,6 +619,10 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
         });
 
+        if let Some(inventory) = &self.gpu_inventory {
+            gpu_inventory_ui(ui, inventory.state());
+        }
+
         let micro_active = self.view.active_job.is_some_and(|(job_id, _)| {
             self.live_request
                 .as_ref()
@@ -733,6 +756,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         }
         if let Some(message) = &self.startup_message {
             ui.colored_label(egui::Color32::LIGHT_RED, message);
+        }
+        if let Some(inventory) = &self.gpu_inventory {
+            gpu_inventory_status(ui, inventory.state());
         }
         if let Some(message) = &self.path_notice {
             ui.colored_label(egui::Color32::YELLOW, message);
@@ -955,6 +981,74 @@ fn path_text_edit(ui: &mut egui::Ui, path: &mut String, width: f32) -> egui::Res
     .inner
 }
 
+pub fn gpu_inventory_ui(ui: &mut egui::Ui, state: &GpuInventoryState) {
+    ui.group(|ui| {
+        ui.heading("Cartes graphiques détectées par Windows");
+        match state {
+            GpuInventoryState::Complete(inventory) | GpuInventoryState::Partial(inventory) => {
+                render_inventory(
+                    ui,
+                    inventory.devices.iter().map(|device| {
+                        format!("{} — {}", device.name, gpu_state_label(&device.state))
+                    }),
+                );
+            }
+            GpuInventoryState::NotRequested
+            | GpuInventoryState::Loading
+            | GpuInventoryState::Failed(_) => {}
+        }
+    });
+    gpu_inventory_note(ui);
+}
+
+pub fn gpu_inventory_note(ui: &mut egui::Ui) {
+    ui.label("Note : la présence selon Windows ne confirme pas la compatibilité CUDA.");
+}
+
+pub fn gpu_inventory_status(ui: &mut egui::Ui, state: &GpuInventoryState) {
+    if let Some(message) = gpu_inventory_status_message(state) {
+        ui.label(message);
+    }
+}
+
+pub fn gpu_inventory_status_message(state: &GpuInventoryState) -> Option<String> {
+    match state {
+        GpuInventoryState::NotRequested => None,
+        GpuInventoryState::Loading => Some("Inventaire GPU en cours…".into()),
+        GpuInventoryState::Complete(inventory) if inventory.devices.is_empty() => {
+            Some("Aucun GPU présent selon Windows.".into())
+        }
+        GpuInventoryState::Complete(_) => Some("Inventaire GPU complet selon Windows.".into()),
+        GpuInventoryState::Partial(inventory) => {
+            let mut messages = Vec::new();
+            if inventory.devices.is_empty() {
+                messages.push("Aucun GPU confirmé présent".to_owned());
+            }
+            messages.extend(inventory.warnings.iter().cloned());
+            if messages.is_empty() {
+                messages.push("Certaines propriétés ou cartes restent incertaines.".into());
+            }
+            Some(format!("Inventaire GPU partiel : {}", messages.join(" ")))
+        }
+        GpuInventoryState::Failed(error) => Some(format!("Inventaire GPU indisponible : {error}")),
+    }
+}
+
+fn render_inventory(ui: &mut egui::Ui, rows: impl Iterator<Item = String>) {
+    for row in rows {
+        ui.label(row);
+    }
+}
+
+fn gpu_state_label(state: &GpuState) -> String {
+    match state {
+        GpuState::Ready => "fonctionnement normal".into(),
+        GpuState::Disabled => "désactivé".into(),
+        GpuState::Error(code) => format!("état Windows {code}"),
+        GpuState::Unknown => "état inconnu".into(),
+    }
+}
+
 pub fn default_model_path() -> String {
     std::env::var("LOCALAPPDATA")
         .map(|path| format!(r"{path}\Programs\WhisperBuildDeps\models\ggml-large-v3-turbo.bin"))
@@ -1073,7 +1167,11 @@ mod tests {
         DesktopApp, import_enqueue_enabled, manual_stop_available, microphone_device_label,
         record_first_render, speech_limit_samples, window_must_remain_open,
     };
-    use std::{cell::RefCell, rc::Rc};
+    use std::{cell::RefCell, collections::VecDeque, rc::Rc};
+    use whisper_core::gpu_inventory::{GpuObservation, GpuPresence, GpuState};
+    use whisper_core::gpu_inventory_app::{
+        GpuCollection, GpuInventoryApp, GpuInventoryPort, GpuInventoryState,
+    };
     use whisper_core::{
         AppCommand, AppView, Application, ApplicationError, ComputeChoice, Generation, JobId,
         MicrophoneChoice, MicrophoneDevice, MicrophonePort,
@@ -1097,6 +1195,19 @@ mod tests {
     struct RejectStartApplication;
 
     struct OneMicrophone;
+
+    #[derive(Clone, Default)]
+    struct ControlledGpuInventory(Rc<RefCell<VecDeque<(u64, Result<GpuCollection, String>)>>>);
+
+    impl GpuInventoryPort for ControlledGpuInventory {
+        fn start(&mut self, _generation: u64) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn poll(&mut self) -> Option<(u64, Result<GpuCollection, String>)> {
+            self.0.borrow_mut().pop_front()
+        }
+    }
 
     impl MicrophonePort for OneMicrophone {
         fn list_inputs(&self) -> Result<Vec<MicrophoneDevice>, String> {
@@ -1268,6 +1379,65 @@ mod tests {
             Some(AppCommand::EnqueueImport { request })
                 if request.config.compute == ComputeChoice::Gpu
         ));
+    }
+
+    #[test]
+    fn pending_and_late_gpu_inventory_does_not_change_compute_or_gate_transcription() {
+        for choice in [ComputeChoice::Auto, ComputeChoice::Cpu, ComputeChoice::Gpu] {
+            let recorder = RecordingApplication::default();
+            let port = ControlledGpuInventory::default();
+            let responses = Rc::clone(&port.0);
+            let mut app = DesktopApp::new(recorder.clone())
+                .with_gpu_inventory(GpuInventoryApp::new(Box::new(port)));
+            app.paths.audio = "sample.wav".into();
+            app.paths.model = "model.bin".into();
+            app.paths.destination = "output".into();
+            app.compute_choice = choice;
+
+            app.start_import();
+            app.start_live(Generation::first());
+            assert_eq!(app.compute_choice, choice);
+            assert!(matches!(
+                app.gpu_inventory.as_ref().unwrap().state(),
+                GpuInventoryState::Loading
+            ));
+            {
+                let commands = recorder.0.borrow();
+                assert!(
+                    matches!(&commands[0], AppCommand::EnqueueImport { request } if request.config.compute == choice)
+                );
+                assert!(
+                    matches!(&commands[1], AppCommand::StartDirectLiveConfigured { request } if request.config.compute == choice)
+                );
+            }
+
+            responses.borrow_mut().push_back((
+                1,
+                Ok(GpuCollection {
+                    observations: vec![GpuObservation {
+                        identity: "late-gpu".into(),
+                        name: Some("Late GPU".into()),
+                        state: Some(GpuState::Ready),
+                        presence: GpuPresence::Current,
+                    }],
+                    error: None,
+                }),
+            ));
+            app.gpu_inventory.as_mut().unwrap().poll();
+
+            assert!(matches!(
+                app.gpu_inventory.as_ref().unwrap().state(),
+                GpuInventoryState::Complete(_)
+            ));
+            assert_eq!(app.compute_choice, choice);
+            let commands = recorder.0.borrow();
+            assert!(
+                matches!(&commands[0], AppCommand::EnqueueImport { request } if request.config.compute == choice)
+            );
+            assert!(
+                matches!(&commands[1], AppCommand::StartDirectLiveConfigured { request } if request.config.compute == choice)
+            );
+        }
     }
 
     #[test]

@@ -10,6 +10,7 @@ pub fn run<A: whisper_core::Application + 'static>(
     paths: whisper_core::path_settings::PathSettingsApp,
     microphone_port: Box<dyn whisper_core::MicrophonePort>,
     gpu_probe: std::sync::mpsc::Receiver<Result<(), String>>,
+    gpu_inventory: whisper_core::gpu_inventory_app::GpuInventoryApp,
     process_started_at_unix_ms: u64,
 ) -> eframe::Result {
     eframe::run_native(
@@ -28,6 +29,7 @@ pub fn run<A: whisper_core::Application + 'static>(
                     microphone_port,
                 )
                 .with_gpu_probe(gpu_probe)
+                .with_gpu_inventory(gpu_inventory)
                 .with_process_started(process_started_at_unix_ms),
             ))
         }),
