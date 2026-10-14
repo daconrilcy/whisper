@@ -1,0 +1,92 @@
+Avancée : le besoin Intel, les exigences et le design conditionnel sont cadrés sur le code courant.
+Blocage : aucune inférence large-v3-turbo sur l'Intel UHD 770 n'a encore été attestée ni mesurée.
+Décision : Auto essaie NVIDIA, puis Intel, puis une seule fois CPU avant la première inférence ; le choix du moteur Intel attend une preuve locale.
+
+# Inférence sur GPU Intel intégré — cadrage du 14 octobre 2026
+
+**État : DESIGN DRAFT ; plan d'implémentation non READY.** Ce document n'autorise ni essai technique ni modification du code produit. Base lue : branche `evo-startup-perf`, commit `7d36e5a562586badad8396ea3793fb2b9afbb363`, arbre propre avant rédaction. Auteur Git : session Codex principale. Contributions en lecture seule : `PROD-INTEL-v0.2` (product framer), `REQ-INTEL-v0.2` (requirements analyst), `DOM-INTEL-v0.2` (domain architect), `ARCH-INTEL-v0.3` (Rust architect). Les réponses utilisateur de cette session fixent le choix explicite de carte, les objectifs Intel identiques à ceux du GPU existant et l'ordre Auto NVIDIA → Intel → CPU. Les propositions techniques ci-dessous ne sont pas des décisions produit acceptées.
+
+## Besoin et périmètre
+
+Whisper Windows doit pouvoir transcrire WAV, MP3 et microphone avec le modèle local `large-v3-turbo` sur un GPU Intel intégré **si une voie démontre** le calcul effectif, la qualité et les seuils requis. Première cible de preuve proposée : Intel UHD Graphics 770 observée sur ce PC. Un résultat sur cette carte et ce pilote ne qualifiera pas toute la famille Intel UHD.
+
+En mode GPU manuel, l'utilisateur choisit explicitement Intel ou NVIDIA avant la séance ; la carte choisie reste fixe, et un échec n'entraîne aucune substitution. Auto conserve sa préférence et essaie **NVIDIA, puis Intel, puis une seule fois CPU** si les choix précédents ne sont pas utilisables. Ces tentatives précèdent la première inférence ; aucune bascule n'a lieu après son engagement. Le moteur et la carte effectivement utilisés ainsi que les raisons des choix écartés sont visibles. La présélection au lancement reste GPU si CUDA est confirmé, sinon CPU avec message ; elle ne devient pas automatiquement Intel.
+
+Les contrats existants demeurent : CPU et NVIDIA, même modèle/langue/paramètres, import sans altérer la source, microphone à source fixe avec blocs confirmés et sorties TXT/SRT/WAV de même nom, arrêt et fermeture qui conservent l'audio admis, échec après début avec WAV/blocs et TXT/SRT `-incomplet` puis proposition d'un **nouveau** réimport CPU. La liste des GPU Windows reste informative ; elle ne certifie ni compatibilité ni calcul et ne sert pas de sélecteur de transcription. La capture anticipée et le réemploi compatible du moteur existants doivent rester cohérents avec cette évolution.
+
+Différés selon `AGENTS.md` : bascule en cours de transcription, supervision CPU/GPU, reprise après panne, changement de modèle, tray et sortie MP3. Persistance du choix de carte, prise en charge d'autres Intel et d'autres constructeurs, ordre entre plusieurs cartes d'une même famille et packaging Intel ne sont pas présumés acceptés. Aucun seuil nouveau d'abandon ou de stockage n'est introduit.
+
+## Exigences, parcours et acceptation future
+
+Les exigences et critères suivants sont des **propositions de cadrage** ; tous les critères Intel sont `NOT RUN`. `UC-I01` = choix manuel, `UC-I02` = Auto, `UC-I03` = import, `UC-I04` = micro, `UC-I05` = arrêt/fermeture, `UC-I06` = panne et réimport, `UC-I07` = qualité/vitesse, `UC-I08` = réemploi, `UC-I09` = inventaire, `UC-I10` = réouverture/présélection, `UC-I11` = absence de progrès.
+
+| Exigence et source | Résultat attendu | Critères observables et parcours |
+|---|---|---|
+| REQ-I01 ; demande Intel | Intel UHD 770 exécute réellement `large-v3-turbo` en import et micro ; couverture matérielle bornée | AC-I01 : version de Windows/pilote/modèle/moteur, carte exécutante et calcul natif concordants sur WAV et micro ; présence Windows et `Ready` ne suffisent pas. UC-I01/I03/I04. |
+| REQ-I02 ; réponse choix manuel | Carte Intel ou NVIDIA explicitement demandée et fixe | AC-I02 : import et micro sur chaque carte ; échec initial sans autre GPU ni CPU, nouveau choix possible. UC-I01/I06. |
+| REQ-I03 ; réponse Auto et `evo-auto.md` | NVIDIA → Intel → CPU une fois, avant première inférence ; Auto conservé | AC-I03 : quatre scénarios contrôlés (NVIDIA, Intel après échec NVIDIA, CPU après deux échecs GPU, échec CPU) et erreurs juste avant/après première inférence ; vérifier ordre, causes et absence de tentative tardive. UC-I02. |
+| REQ-I04 ; objectif produit | Préférence, moteur/carte effectifs, attente et causes distincts | AC-I01/I03/I07 : aucune carte annoncée sur seule découverte ni aucun succès pour sorties incomplètes. UC-I01/I02/I06. |
+| REQ-I05 ; objectif import | WAV/MP3 → TXT/SRT, source intacte | AC-I04 : WAV de référence de 60 s et MP3 correspondant, sorties lisibles et source inchangée ; AC-I16 : annulation import avant/pendant/après inférence, résultat exact à préciser. UC-I03. |
+| REQ-I06/I07 ; objectif micro, `evo-gpu.md`, `evo-startup-perf.md` | Source micro existante, capture annoncée seulement pour audio conservé, blocs ordonnés, arrêt/fermeture et fichiers cohérents | AC-I05 : séance de 60 s parole/silence/phrase finale, défaut et source explicite, blocs sans doublon, TXT/SRT/WAV ; AC-I06 : arrêt/fermeture avant moteur prêt et après début ; AC-I07 : panne après début, WAV/blocs gardés, textes `-incomplet`, réimport CPU explicite ; AC-I14 : égalité du préfixe PCM admis et WAV finalisé lors d'arrêt coopératif/panne worker. UC-I04/I05/I06. |
+| REQ-I08/I09 ; réponse seuils, GPU Q2/Q3 | Qualité comparable CPU ; calcul/audio < 1 ; premier bloc micro confirmé **affiché** < 15 s | AC-I08 : comparaison par l'utilisateur du micro Intel et du réimport CPU de son WAV, même modèle/paramètres ; AC-I09 : import et micro 60 s, somme des temps de calcul / durée audio < 1, préparation/file/export relevés séparément ; AC-I10 : clic « Démarrer », parole immédiate, premier bloc non vide réellement affiché < 15 s. UC-I07. |
+| REQ-I10 ; `AGENTS.md`, `evo-gpu-inventory.md` | CPU/NVIDIA, présélection et inventaire informatif préservés | AC-I11 : parcours CPU/NVIDIA/Auto et présélection CUDA/CPU ; AC-I12 : inventaire complet/vide/partiel/erreur/tardif sans effet sur calcul. UC-I09/I10. |
+| REQ-I11 ; `evo-startup-perf.md` | Réemploi cinq minutes seulement si backend, carte, modèle et paramètres compatibles | AC-I13 : deux séances Intel compatibles puis changement Intel/NVIDIA/CPU ; aucune carte ou texte périmé. UC-I08. |
+| REQ-I12 ; préparation/capture | Phase et absence de progrès visibles sans faux traitement ni destruction tacite de l'audio | AC-I15 : retarder préparation, fenêtre et export séparément ; vérifier phase, progrès réel, arrêt/fermeture et sort de l'audio après politique de délai à décider. UC-I11. |
+
+Pour AC-I09, le ratio porte sur le **calcul**, pas sur le délai total. Pour AC-I10, `t0` est le lancement accepté par l'interface et `t1` le premier bloc confirmé non vide dans le widget ; un événement du worker ne remplace pas `t1`. Le protocole doit fixer les répétitions et les états froid/chaud avant de conclure. Une mesure sur UHD 770 n'est pas extrapolée aux autres cartes.
+
+Traçabilité : la demande Intel couvre REQ-I01/I08/I09 et AC-I01/I08–I10 ; le choix manuel couvre REQ-I02 et AC-I02 ; l'ordre Auto couvre REQ-I03 et AC-I03 ; les contrats existants couvrent REQ-I04–I07/I10–I12 et AC-I04–I07/I11–I16. Les capacités différées ci-dessus n'ont pas de tâche d'implémentation dans ce cadrage. Les cas de sortie incomplète, d'audio admis et de faux GPU sont des risques produit concrets, pas de nouveaux livrables documentaires.
+
+## Domaine et invariants
+
+Trois identités restent séparées : **GPU recensé par Windows**, **carte adressable par un moteur**, **carte ayant effectivement calculé**. Un nom ou indice Windows n'est pas une clé moteur. La préférence (CPU, GPU manuel avec carte, Auto) est figée pour la demande ; le moteur effectif ne remplace pas la préférence Auto. Chaque séance possède une identité, chaque essai moteur une identité corrélée ; un résultat d'un ancien essai ou d'une séance réemployée ne peut être publié dans la nouvelle.
+
+États métier proposés : `pré-inférence → traitement → drainage → publication → complet`, avec `incomplet` ou `annulé` selon l'événement. Capture, moteur et état visible progressent séparément. La capture peut être active et son WAV alimenté pendant la préparation. `Ready` ne commence pas le traitement. Un verrou monotone se ferme **avant** la première commande de calcul pouvant être reçue ; si l'envoi est ambigu, aucun repli n'est autorisé sans preuve que le worker n'a rien reçu. Un échec certain avant cet envoi peut faire avancer Auto à la carte suivante ; en manuel, il termine la demande. Les erreurs communes de modèle, source ou stockage ne sont pas réparées par un changement de GPU.
+
+Arrêter ou fermer avant moteur prêt coupe la capture puis poursuit la préparation nécessaire pour transcrire l'audio déjà admis. Après première inférence, une panne arrête la capture, conserve WAV et blocs confirmés et signale les textes incomplets ; le CPU ne reprend pas cette séance. Stop répété ne crée pas de seconde publication. Un bloc confirmé vient d'une fenêtre terminée, identifiée et ordonnée. Un succès micro n'est publié qu'après WAV finalisé, TXT et SRT effectivement produits ; ces trois écritures ne sont pas atomiques entre elles. La garantie d'audio admis concerne l'arrêt coopératif et une panne du worker avec parent vivant et stockage utilisable ; aucune résistance à un crash OS/processus ou panne électrique n'est revendiquée.
+
+## Architecture Rust proposée, conditionnée à la voie Intel
+
+Le workspace conserve ses six crates actuels. Domaine et application restent dans `whisper-core` ; l'application possède la politique Auto, les identités, le verrou de première inférence et des ports de découverte/préparation. `whisper-adapters` possède processus workers, capture/WAV, stockage et observations de carte ; `whisper-desktop/src/ui.rs` affiche les choix et états via l'application ; `root.rs` assemble sans seconde politique. Les workers possèdent le modèle et les appels natifs. Aucun handle natif ne remonte dans le domaine ou l'UI. Les imports Cargo et les consommateurs de l'API application devront confirmer ces frontières.
+
+| Contrat proposé | Entrée, sortie et effets | Erreur et vérification future |
+|---|---|---|
+| CT-I01 — découverte moteur | Enumération hors UI des cartes adressables par backend, avec clé opaque et limite de correspondance à Windows ; résultat de génération propre | Runtime/pilote absent, identité ambiguë ou résultat tardif ; deux cartes homonymes et indices permutés ne changent pas un choix. AC-I02/I12. |
+| CT-I02 — préparation | Requête immuable (séance, essai, backend, carte moteur, modèle/hash, paramètres) ; `Ready` corrélé seulement après initialisation de la carte demandée | Erreur de capacité/initialisation fait avancer Auto avant verrou ; erreur commune termine. Aucun remplacement CPU silencieux. AC-I01/I03. |
+| CT-I03 — première inférence | Admission explicite après `Ready`, puis envoi `BeginImport` ou première fenêtre ; distinguer `NotDispatched` et `DispatchedOrUnknown` | Verrou avant envoi irréversible ; rupture/absence d'accusé après envoi ne permet aucun repli. AC-I03/I07. |
+| CT-I04 — capture/backlog | PCM mono 16 kHz admis en préfixe WAV, fenêtres ordonnées, texte confirmé après fin de fenêtre | Saturation/erreur disque arrête avec incomplet ; arrêt pré-Ready conserve et traite le préfixe. AC-I05/I06/I14. |
+| CT-I05 — publication | WAV/TXT/SRT publiés avec statut et chemin individuels ; succès seulement après tous les fichiers requis | Fichier absent/échec explicite, sorties déjà disponibles préservées. AC-I04–I07. |
+| CT-I06 — réemploi | Contexte inactif conservé cinq minutes après résultat terminal si backend/carte/modèle/paramètres compatibles | Nouvelle séance/essai et aucune contamination ; Auto réévalue NVIDIA avant de reprendre un Intel conservé. AC-I13. |
+
+La pile exacte observée est `whisper-rs 0.16.0` avec `whisper-rs-sys 0.15.0` et sources natives Whisper.cpp `1.8.3`. Le worker GPU actuel n'active que `cuda`/`raw-api`, `BackendKind` ne porte que CPU/CUDA, et la sonde de `root.rs` vérifie CUDA. `direct_live.rs` peut déjà capturer avant `Ready`, mais son repli actuel utilise `!worker_ready` : il ne représente pas encore le verrou de première inférence. Le cache de worker ne porte pas l'identité de carte. Dans la source native embarquée, le message `using … backend` précède l'initialisation effective du device ; un échec peut laisser poursuivre un backend CPU. Une chaîne de log ou un `Ready` isolé n'atteste donc pas le calcul sur Intel.
+
+Options **non retenues à ce stade** :
+
+1. **Vulkan via la feature existante de `whisper-rs`**, étudié en premier : même modèle GGML, backend multiconstructeur possible ; le build Windows exact requiert SDK Vulkan, `glslc` et pilote adapté. Aucun essai UHD 770.
+2. **SYCL Intel via la feature existante**, alternative : compilateurs et runtimes oneAPI/oneMKL requis par la pile exacte ; la [documentation whisper.cpp indique Windows « Ongoing »](https://github.com/ggml-org/whisper.cpp/blob/master/README_sycl.md). Aucun essai UHD 770 avec ce modèle.
+3. **OpenVINO**, réserve nécessitant une décision technique nouvelle : [Intel inclut les GPU UHD sous Windows](https://docs.openvino.ai/2026/about-openvino/release-notes-openvino/system-requirements.html), tandis que [l'intégration décrite par whisper.cpp porte sur l'encodeur](https://github.com/ggml-org/whisper.cpp/blob/master/README.md#openvino-support) et ajoute conversion/artefacts de modèle. Aucune prise en charge OpenVINO n'est observée dans le binding exact.
+
+Un worker Intel séparé est une **option conditionnelle** pour isoler les dépendances natives et l'attestation ; l'organisation physique attend la voie démontrée. Les features de `whisper-rs-sys` peuvent s'unifier si plusieurs workers sont compilés ensemble : les builds de livraison devront vérifier la séparation effective des backends. Toute FFI `raw-api` reste bornée à un module worker avec justification de chaque bloc `unsafe`, durée/libération des pointeurs et absence de partage concurrent. Aucun nouveau railguard n'est proposé.
+
+## Faisabilité à établir avant un plan exécutable
+
+La documentation indique des voies possibles, **pas** une inférence attestée sur ce PC. Le cadrage propose un essai Rust isolé de **Vulkan**, uniquement après accord précis de la session d'essai : exécutable distinct autorisé, chemin d'écriture borné sous `target/intel-feasibility/vulkan/`, modèle et données existants en lecture, budget proposé de quatre heures, sorties au plus 15 Gio et RAM de travail au plus 12 Gio si disponible. Ces valeurs sont des **propositions de bornage**, pas des opérations autorisées. Aucun téléchargement, installation, changement de pilote ou modification du produit n'est inclus. Un prérequis absent revient à une décision précise avant action. SYCL et OpenVINO exigeraient un mandat séparé.
+
+L'essai devra établir sur la pile exacte : (F1) compilation et chargement Windows ; (F2) sélection UHD 770 et **calcul natif effectivement attribuable** à elle, avec témoin CPU et refus de carte invalide ; (F3) même modèle/paramètres et texte/qualité comparables sur parole, silence et fin ; (F4) mesures de calcul et de première réponse avec marge crédible pour les seuils produit. Relever conditions froides/chaudes, préparation, inférence et ressources. Un log de sélection ou une activité GPU générale ne suffit pas. `PASS` exige F1–F4 ; `PARTIAL` conserve toute inconnue ; `FAIL` documente le motif et conduit à une proposition SYCL ou à un arbitrage produit. Même `PASS` ne prouve pas le premier affichage dans la fenêtre : cette validation reste à faire sur le candidat produit par l'utilisateur.
+
+Le cache du binding existe localement. Une inspection des chemins usuels n'a pas trouvé le compilateur SYCL ni `glslc`/SDK Vulkan ; cette inspection ne prouve pas leur absence ailleurs. **Aucun build, lancement natif, mesure Intel ou essai Windows n'a eu lieu pendant ce cadrage.**
+
+## Questions et readiness
+
+| ID / propriétaire | Question et options | Échéance |
+|---|---|---|
+| Q-I01 / architecte, décision utilisateur si compromis | F1–F4 réussissent-elles pour une voie Intel ? Si non, étudier autre voie sur nouveau mandat ou arbitrer les critères produit ; aucun seuil tacitement abaissé. | Avant DESIGN READY et choix moteur. |
+| Q-I02 / coordinateur, utilisateur | Limiter le premier support attesté à UHD 770 (recommandé) ou exiger toute la famille Intel, qui requiert d'autres matériels/pilotes. | Avant déclaration de couverture. |
+| Q-I03 / coordinateur, utilisateur | Choix manuel de carte valable pour l'instance seulement (proposé) ou mémorisé avec comportement si carte absente. | Avant lot préférences/UI. |
+| DOM-Q01 / architecte, utilisateur si extension | Ordre et nombre d'essais au sein de plusieurs cartes NVIDIA ou Intel ; ne pas prendre l'ordre Windows par défaut. | Avant généralisation multicarte. |
+| Q-RI01 / analyste, utilisateur | Conditions et répétitions froid/chaud des mesures ; conserver les seuils acceptés. | Avant essai de performance. |
+| Q-RI02 / architecte, utilisateur si changement | Avertir sans abandon automatique (proposé) ou arrêter après seuil à accepter ; les 60 s du code ne fixent pas une cible Intel. | Avant politique d'attente. |
+| Q-RI03 / analyste | Conserver l'annulation import actuelle et préciser ses sorties, ou modifier le contrat par décision produit. | Avant AC-I16/lot import. |
+| Q-RI04 / coordinateur, utilisateur si changement | Conservation durant arrêt coopératif/panne worker parent vivant (proposée) ou garantie contre crash parent/OS, qui élargit le périmètre. | Avant promesse de durabilité. |
+
+**Readiness :** contenu produit, exigences et design proposés ; faisabilité F1–F4 `NOT RUN`. Le design reste **DRAFT** et aucun plan Rust exécutable ne peut choisir honnêtement un moteur Intel. La revue indépendante du présent candidat doit précéder sa qualification documentaire. Le prochain travail à décider est l'essai borné ; ses résultats permettront soit de finaliser le design et de demander un plan d'implémentation de dix tâches maximum, soit d'exposer les compromis produit. Aucune implémentation du moteur n'est autorisée par ce document.
