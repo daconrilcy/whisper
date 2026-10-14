@@ -1,5 +1,6 @@
 mod root;
 
 fn main() -> eframe::Result {
-    whisper_desktop::run(root::compose())
+    let (application, compute_choice, startup_message) = root::compose();
+    whisper_desktop::run(application, compute_choice, startup_message)
 }

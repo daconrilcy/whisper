@@ -5,7 +5,7 @@ use whisper_core::{
     ImportRequest, JobConfig, JobId, JobState, LanguageChoice, LiveRequest,
 };
 
-const APPROVED_MODEL_SHA256: &str =
+pub const APPROVED_MODEL_SHA256: &str =
     "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69";
 const IMPORT_CPU_MVP: bool = true;
 static NEXT_JOB: AtomicU64 = AtomicU64::new(1);
@@ -21,6 +21,7 @@ pub struct DesktopApp<A> {
     auto_stop_enabled: bool,
     auto_stop_minutes: u64,
     compute_choice: ComputeChoice,
+    startup_message: Option<String>,
     quit_pending: bool,
     active_identity: Option<(JobId, Generation)>,
     scanned_destination: Option<String>,
@@ -33,11 +34,17 @@ pub struct DesktopApp<A> {
 
 impl<A: Application> DesktopApp<A> {
     pub fn new(application: A) -> Self {
+        Self::with_startup_compute(application, ComputeChoice::Cpu, None)
+    }
+
+    pub fn with_startup_compute(
+        application: A,
+        compute_choice: ComputeChoice,
+        startup_message: Option<String>,
+    ) -> Self {
         let application = AppFacade::new(application);
         let view = application.view();
-        let model_path = std::env::var("LOCALAPPDATA")
-            .map(|path| format!(r"{path}\Programs\WhisperBuildDeps\models\ggml-large-v3-turbo.bin"))
-            .unwrap_or_default();
+        let model_path = default_model_path();
         let destination = std::env::var("WHISPER_L04_NORMAL_RUN_ARCHIVE")
             .ok()
             .filter(|path| !path.trim().is_empty())
@@ -57,7 +64,8 @@ impl<A: Application> DesktopApp<A> {
             language: "fr".into(),
             auto_stop_enabled: false,
             auto_stop_minutes: 120,
-            compute_choice: ComputeChoice::Cpu,
+            compute_choice,
+            startup_message,
             quit_pending: false,
             active_identity: None,
             scanned_destination: None,
@@ -428,6 +436,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             };
             ui.colored_label(egui::Color32::LIGHT_RED, visible_message);
         }
+        if let Some(message) = &self.startup_message {
+            ui.colored_label(egui::Color32::LIGHT_RED, message);
+        }
         if self.view.diagnostics_degraded {
             ui.colored_label(
                 egui::Color32::LIGHT_RED,
@@ -585,6 +596,16 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
         }
     }
+}
+
+pub fn default_model_path() -> String {
+    std::env::var("LOCALAPPDATA")
+        .map(|path| format!(r"{path}\Programs\WhisperBuildDeps\models\ggml-large-v3-turbo.bin"))
+        .unwrap_or_default()
+}
+
+pub fn approved_model_sha256() -> [u8; 32] {
+    parse_sha256(APPROVED_MODEL_SHA256)
 }
 
 fn parse_sha256(value: &str) -> [u8; 32] {
@@ -787,6 +808,43 @@ mod tests {
             Some(AppCommand::EnqueueImport { request })
                 if request.config.compute == ComputeChoice::Gpu
         ));
+    }
+
+    #[test]
+    fn cuda_startup_selects_gpu_for_import_and_microphone() {
+        let recorder = RecordingApplication::default();
+        let mut app = DesktopApp::with_startup_compute(recorder.clone(), ComputeChoice::Gpu, None);
+        assert_eq!(app.compute_choice, ComputeChoice::Gpu);
+        app.start_import();
+        app.start_live(Generation::first());
+        let commands = recorder.0.borrow();
+        assert!(
+            matches!(&commands[0], AppCommand::EnqueueImport { request } if request.config.compute == ComputeChoice::Gpu)
+        );
+        assert!(
+            matches!(&commands[1], AppCommand::StartDirectLiveConfigured { request } if request.config.compute == ComputeChoice::Gpu)
+        );
+    }
+
+    #[test]
+    fn unavailable_cuda_leaves_cpu_usable_and_explains_choice() {
+        let recorder = RecordingApplication::default();
+        let message = "GPU indisponible : choisissez CPU".to_owned();
+        let mut app = DesktopApp::with_startup_compute(
+            recorder.clone(),
+            ComputeChoice::Cpu,
+            Some(message.clone()),
+        );
+        assert_eq!(app.startup_message.as_deref(), Some(message.as_str()));
+        app.start_import();
+        app.start_live(Generation::first());
+        let commands = recorder.0.borrow();
+        assert!(
+            matches!(&commands[0], AppCommand::EnqueueImport { request } if request.config.compute == ComputeChoice::Cpu)
+        );
+        assert!(
+            matches!(&commands[1], AppCommand::StartDirectLiveConfigured { request } if request.config.compute == ComputeChoice::Cpu)
+        );
     }
 
     #[test]

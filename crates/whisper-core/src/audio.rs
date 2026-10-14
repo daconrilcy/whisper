@@ -29,13 +29,16 @@ mod tests {
     use super::is_quiet_short_tail;
 
     #[test]
-    fn quiet_end_is_ignored_but_an_audible_short_phrase_is_kept() {
+    fn almost_silent_file_end_produces_no_text() {
         let mut quiet = vec![0.0; 2 * 16_000];
         quiet[..640].fill(0.03);
         assert!(is_quiet_short_tail(&quiet));
+    }
 
+    #[test]
+    fn short_word_after_silence_is_kept_for_transcription() {
         let mut phrase = vec![0.0; 2 * 16_000];
-        phrase[..1_920].fill(0.01);
+        phrase[16_000..16_000 + 1_920].fill(0.01);
         assert!(!is_quiet_short_tail(&phrase));
         assert!(!is_quiet_short_tail(&vec![0.0; 5 * 16_000]));
     }

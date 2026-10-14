@@ -353,6 +353,62 @@ impl WorkerTransport for ChildWorkerTransport {
     }
 }
 
+/// Check the shipped CUDA worker once, before opening the desktop window.
+/// The same Ready event and CUDA attestation used by a real job are required.
+pub fn probe_cuda_worker(
+    executable: &Path,
+    model_path: &str,
+    model_sha256: [u8; 32],
+) -> Result<(), String> {
+    use whisper_core::{ComputeChoice, JobConfig, LanguageChoice};
+
+    if !executable.is_file() {
+        return Err("GPU indisponible : worker CUDA introuvable ; choisissez CPU".into());
+    }
+    let mut worker = ChildWorkerTransport::spawn(executable)
+        .map_err(|error| format!("GPU indisponible : {error:?} ; choisissez CPU"))?;
+    let result = (|| {
+        worker
+            .request(WorkerCommand::StartDirectLiveWorker {
+                job_id: JobId(1),
+                generation: Generation::first(),
+                instance_id: 1,
+                model_path: model_path.to_owned(),
+                model_sha256,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Gpu,
+                },
+            })
+            .map_err(|error| format!("GPU indisponible : {error:?} ; choisissez CPU"))?;
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            match worker.receive() {
+                Ok(Some(WorkerEvent::Ready {
+                    job_id: JobId(1),
+                    generation,
+                    instance_id: 1,
+                    backend: BackendKind::Cuda,
+                })) if generation == Generation::first() => return Ok(()),
+                Ok(Some(WorkerEvent::Failed { message, .. })) => {
+                    return Err(format!("GPU indisponible : {message} ; choisissez CPU"));
+                }
+                Ok(Some(_)) | Ok(None) => {}
+                Err(error) => return Err(format!("GPU indisponible : {error:?} ; choisissez CPU")),
+            }
+            if Instant::now() >= deadline {
+                return Err(
+                    "GPU indisponible : délai d'initialisation CUDA dépassé ; choisissez CPU"
+                        .into(),
+                );
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+    })();
+    worker.abort();
+    result
+}
+
 impl ChildWorkerTransport {
     fn try_request(&self, command: WorkerCommand) -> Result<(), EnqueueError> {
         try_enqueue_worker_command(&self.commands, &self.stop_commands, command)
@@ -3482,6 +3538,15 @@ mod tests {
         AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
         JobConfig, JobId, JobState, LanguageChoice,
     };
+
+    #[test]
+    fn missing_cuda_worker_is_reported_without_changing_cpu_path() {
+        let missing = std::env::temp_dir().join("whisper-absent-gpu-worker-for-test.exe");
+        assert!(!missing.is_file());
+        let error = probe_cuda_worker(&missing, "unused-model", [0; 32]).unwrap_err();
+        assert!(error.contains("GPU indisponible"));
+        assert!(error.contains("choisissez CPU"));
+    }
 
     fn compile_fake_worker(root: &Path, mode: &str, marker: &Path) -> PathBuf {
         let source = root.join(format!("{mode}-worker.rs"));
