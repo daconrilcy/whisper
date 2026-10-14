@@ -555,6 +555,11 @@ fn worker_event_identity(event: &WorkerEvent) -> Option<(JobId, Generation, u64)
             instance_id,
             ..
         }
+        | WorkerEvent::ImportStarted {
+            job_id,
+            generation,
+            instance_id,
+        }
         | WorkerEvent::LiveMp3Packet {
             job_id,
             generation,
@@ -785,6 +790,7 @@ fn serialize_frame<T: Serialize>(value: &T) -> io::Result<Vec<u8>> {
 
 struct ImportRuntime {
     workers: WorkerPaths,
+    auto_fallback_reason: Option<String>,
     diagnostics: Option<DiagnosticSink>,
     diagnostic_start_failed: bool,
     diagnostic_degraded_reported: bool,
@@ -867,6 +873,7 @@ impl ImportRuntime {
     fn new(workers: WorkerPaths, publication_gate: Arc<PublicationGate>) -> Self {
         Self {
             workers,
+            auto_fallback_reason: None,
             diagnostics: None,
             diagnostic_start_failed: false,
             diagnostic_degraded_reported: false,
@@ -1394,6 +1401,9 @@ impl ImportRuntime {
         force_cpu: bool,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
+        if !force_cpu {
+            self.auto_fallback_reason = None;
+        }
         crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
             .map_err(|error| (id.0, id.1, error))?;
         if self.publication_gate.is_cancelled() {
@@ -1435,12 +1445,28 @@ impl ImportRuntime {
             whisper_core::BackendAttempt::Cpu => BackendKind::Cpu,
             whisper_core::BackendAttempt::Gpu => BackendKind::Cuda,
         };
+        if request.config.compute == whisper_core::ComputeChoice::Auto
+            && expected_backend == BackendKind::Cpu
+            && !force_cpu
+        {
+            self.auto_fallback_reason = Some("worker CUDA absent".into());
+        }
         let mut worker_config = request.config.clone();
         if expected_backend == BackendKind::Cpu {
             worker_config.compute = whisper_core::ComputeChoice::Cpu;
         }
-        let mut transport = ChildWorkerTransport::spawn(&selection.path)
-            .map_err(|e| (id.0, id.1, format!("WorkerExited: {e:?}")))?;
+        let mut transport = match ChildWorkerTransport::spawn(&selection.path) {
+            Ok(transport) => transport,
+            Err(error)
+                if request.config.compute == whisper_core::ComputeChoice::Auto
+                    && expected_backend == BackendKind::Cuda
+                    && !force_cpu =>
+            {
+                self.auto_fallback_reason = Some(format!("lancement CUDA impossible : {error:?}"));
+                return self.start_worker_with_cpu_override(request, true);
+            }
+            Err(error) => return Err((id.0, id.1, format!("WorkerExited: {error:?}"))),
+        };
         let instance_id = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
         if instance_id == 0 {
             return Err((
@@ -1450,19 +1476,27 @@ impl ImportRuntime {
             ));
         }
         let retry_request = request.clone();
-        transport
-            .request(WorkerCommand::StartImport {
-                job_id: id.0,
-                generation: id.1,
-                instance_id,
-                source_path: request.source_path,
-                source_sha256,
-                expected_source_samples,
-                model_path: request.model_path,
-                model_sha256,
-                config: worker_config,
-            })
-            .map_err(|e| (id.0, id.1, format!("ProtocolMismatch: {e:?}")))?;
+        if let Err(error) = transport.request(WorkerCommand::StartImport {
+            job_id: id.0,
+            generation: id.1,
+            instance_id,
+            source_path: request.source_path,
+            source_sha256,
+            expected_source_samples,
+            model_path: request.model_path,
+            model_sha256,
+            config: worker_config,
+        }) {
+            transport.abort();
+            if request.config.compute == whisper_core::ComputeChoice::Auto
+                && expected_backend == BackendKind::Cuda
+                && !force_cpu
+            {
+                self.auto_fallback_reason = Some(format!("commande CUDA refusée : {error:?}"));
+                return self.start_worker_with_cpu_override(retry_request, true);
+            }
+            return Err((id.0, id.1, format!("ProtocolMismatch: {error:?}")));
+        }
         self.active = Some(ImportRequestState {
             job_id: id.0,
             generation: id.1,
@@ -1734,6 +1768,7 @@ impl ImportRuntime {
                 whisper_core::ComputePolicy::after_failure(
                     pending.request.config.compute,
                     whisper_core::BackendAttempt::Gpu,
+                    false,
                 )
             } else {
                 whisper_core::BackendDecision::Fail
@@ -1767,6 +1802,7 @@ impl ImportRuntime {
             let retryable = matches!(
                 code,
                 whisper_core::ipc::WorkerErrorCode::BackendUnavailable
+                    | whisper_core::ipc::WorkerErrorCode::BackendMismatch
                     | whisper_core::ipc::WorkerErrorCode::WorkerExited
                     | whisper_core::ipc::WorkerErrorCode::InferenceFailed
             );
@@ -1779,11 +1815,14 @@ impl ImportRuntime {
                         .config
                         .compute,
                     whisper_core::BackendAttempt::Gpu,
+                    active.startup_ready,
                 )
             } else {
                 whisper_core::BackendDecision::Fail
             };
             if decision == whisper_core::BackendDecision::RetryCpu {
+                self.auto_fallback_reason
+                    .get_or_insert_with(|| message.clone());
                 active.recovery = LiveRecoveryState::AutoRetryPending;
                 if let Some(transport) = self.transport.as_mut() {
                     let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
@@ -1804,6 +1843,7 @@ impl ImportRuntime {
                 whisper_core::ComputePolicy::after_failure(
                     choice,
                     whisper_core::BackendAttempt::Gpu,
+                    true,
                 )
             } else {
                 whisper_core::BackendDecision::Fail
@@ -2573,6 +2613,26 @@ impl ImportRuntime {
         if worker_event_is_stale(&event, (job_id, generation, instance_id)) {
             return None;
         }
+        if let WorkerEvent::ImportStarted { .. } = &event {
+            let Some(active) = self.active.as_mut().filter(|active| {
+                active.job_id == job_id
+                    && active.generation == generation
+                    && active.instance_id == instance_id
+                    && active.backend == BackendKind::Cuda
+                    && active.import_request.as_ref().is_some_and(|request| {
+                        request.config.compute == whisper_core::ComputeChoice::Auto
+                    })
+                    && !active.startup_ready
+            }) else {
+                return Some(Err((
+                    job_id,
+                    generation,
+                    "ProtocolMismatch: unexpected Auto import admission acknowledgement".into(),
+                )));
+            };
+            active.startup_ready = true;
+            return None;
+        }
         if matches!(
             &event,
             WorkerEvent::Failed { job_id: None, .. }
@@ -3052,8 +3112,45 @@ impl ImportRuntime {
                     .as_ref()
                     .is_some_and(|active| active.backend == backend) =>
             {
-                if let Some(active) = self.active.as_mut() {
+                let auto_gpu_import = backend == BackendKind::Cuda
+                    && self
+                        .active
+                        .as_ref()
+                        .and_then(|active| active.import_request.as_ref())
+                        .is_some_and(|request| {
+                            request.config.compute == whisper_core::ComputeChoice::Auto
+                        });
+                if !auto_gpu_import && let Some(active) = self.active.as_mut() {
                     active.startup_ready = true;
+                }
+                if backend == BackendKind::Cuda
+                    && self
+                        .active
+                        .as_ref()
+                        .and_then(|active| active.import_request.as_ref())
+                        .is_some_and(|request| {
+                            request.config.compute == whisper_core::ComputeChoice::Auto
+                        })
+                    && !self.publication_gate.is_cancelled()
+                {
+                    let begin = WorkerCommand::BeginImport {
+                        job_id: j,
+                        generation: g,
+                        instance_id: i,
+                    };
+                    if let Err(error) = self
+                        .transport
+                        .as_mut()
+                        .expect("ready worker")
+                        .request(begin)
+                    {
+                        return Some(self.handle_worker_failure(
+                            j,
+                            g,
+                            whisper_core::ipc::WorkerErrorCode::WorkerExited,
+                            format!("WorkerExited before BeginImport admission: {error:?}"),
+                        ));
+                    }
                 }
                 if let Some(live) = self
                     .live
@@ -3081,15 +3178,26 @@ impl ImportRuntime {
                             BackendKind::Cpu => "CPU",
                             BackendKind::Cuda => "CUDA",
                         }
-                        .into(),
+                        .to_owned()
+                            + &self
+                                .auto_fallback_reason
+                                .as_ref()
+                                .filter(|_| backend == BackendKind::Cpu)
+                                .map(|reason| {
+                                    format!(
+                                        " — GPU non utilisable ({reason}) ; CPU prend le relais"
+                                    )
+                                })
+                                .unwrap_or_default(),
                     })
                 }
             }
-            WorkerEvent::Ready { .. } => Err((
+            WorkerEvent::Ready { .. } => self.handle_worker_failure(
                 job_id,
                 generation,
+                whisper_core::ipc::WorkerErrorCode::BackendMismatch,
                 "BackendMismatch: worker attestation differs from the selected backend".into(),
-            )),
+            ),
             WorkerEvent::Progress {
                 job_id: j,
                 generation: g,
@@ -3571,16 +3679,51 @@ fn main() {
     let job = field(&start, "job_id");
     let generation = field(&start, "generation");
     let instance = field(&start, "instance_id");
+    if MODE == "gpu-ready-exit" {
+        println!("{{\"version\":2,\"message\":{{\"Ready\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"backend\":\"Cuda\"}}}}}}");
+        let _ = io::stdout().flush();
+        return;
+    }
+    if MODE == "gpu-ready" {
+        eprintln!("whisper_backend_init_gpu: using CUDA0 backend");
+        println!("{{\"version\":2,\"message\":{{\"Ready\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"backend\":\"Cuda\"}}}}}}");
+        let _ = io::stdout().flush();
+        for command in lines.flatten() {
+            if command.contains("\"BeginImport\"") {
+                std::fs::write(MARKER, format!("{job}:{generation}:{instance}")).expect("begin marker");
+                println!("{{\"version\":2,\"message\":{{\"ImportStarted\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance}}}}}}}");
+                let _ = io::stdout().flush();
+            }
+            if command.contains("\"Stop\"") {
+                println!("{{\"version\":2,\"message\":{{\"Stopped\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance}}}}}}}");
+                let _ = io::stdout().flush();
+                return;
+            }
+        }
+        return;
+    }
     if MODE == "gpu" {
         println!("{{\"version\":2,\"message\":{{\"Failed\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"code\":\"BackendUnavailable\",\"message\":\"injected GPU pre-Ready failure\"}}}}}}");
         let _ = io::stdout().flush();
         return;
     }
+    if MODE == "cpu-fail" {
+        std::fs::write(MARKER, format!("{job}:{generation}:{instance}")).expect("failed CPU marker");
+        println!("{{\"version\":2,\"message\":{{\"Failed\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"code\":\"BackendUnavailable\",\"message\":\"injected CPU startup failure\"}}}}}}");
+        let _ = io::stdout().flush();
+        return;
+    }
     if !start.contains("\"compute\":\"Cpu\"") { return; }
-    std::fs::write(MARKER, format!("{job}:{generation}:{instance}")).expect("ready marker");
+    if MODE == "cpu-count" {
+        use std::io::Write as _;
+        let mut marker = std::fs::OpenOptions::new().create(true).append(true).open(MARKER).expect("ready marker");
+        writeln!(marker, "{job}:{generation}:{instance}").expect("append ready marker");
+    } else {
+        std::fs::write(MARKER, format!("{job}:{generation}:{instance}")).expect("ready marker");
+    }
     println!("{{\"version\":2,\"message\":{{\"Ready\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"backend\":\"Cpu\"}}}}}}");
     let _ = io::stdout().flush();
-    if MODE == "cpu" { return; }
+    if MODE == "cpu" || MODE == "cpu-count" { return; }
     for command in lines.flatten() {
         if command.contains("\"Stop\"") {
             println!("{{\"version\":2,\"message\":{{\"Stopped\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance}}}}}}}");
@@ -3745,10 +3888,161 @@ fn main() {
         assert!(matches!(
             ready,
             Ok(ImportEvent::Ready { job_id, generation, backend })
-                if job_id == request.job_id && generation == request.generation && backend == "CPU"
+                if job_id == request.job_id && generation == request.generation
+                    && backend.starts_with("CPU") && backend.contains("worker CUDA absent")
+                    && backend.contains("CPU prend le relais")
         ));
         let identity = std::fs::read_to_string(&marker).unwrap();
         assert!(identity.starts_with("701:1:"));
+        stop_worker(&mut runtime, request.job_id, request.generation);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn auto_cpu_startup_failure_ends_without_another_attempt() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target")
+            .join(format!("whisper-auto-cpu-fail-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("cpu-attempt");
+        let cpu = compile_fake_worker(&root, "cpu-fail", &marker);
+        let gate = Arc::new(PublicationGate::default());
+        gate.activate();
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu,
+                gpu: root.join("missing-gpu.exe"),
+            },
+            gate,
+        );
+        let request = prepared_import(JobId(709));
+        runtime.start_worker(request.clone()).unwrap();
+        let failure = poll_until(&mut runtime, Duration::from_secs(3), |event| event.is_err());
+        assert!(matches!(failure, Err((job_id, generation, _))
+            if (job_id, generation) == (request.job_id, request.generation)));
+        assert_eq!(runtime.active.as_ref().map(|active| active.backend), None);
+        assert!(
+            std::fs::read_to_string(&marker)
+                .unwrap()
+                .starts_with("709:1:")
+        );
+        if let Some(transport) = runtime.transport.as_mut() {
+            transport.abort();
+        }
+        drop(runtime);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn auto_gpu_ready_is_attested_and_explicitly_admitted() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target")
+            .join(format!("whisper-auto-gpu-ready-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("begin-import");
+        let gpu = compile_fake_worker(&root, "gpu-ready", &marker);
+        let gate = Arc::new(PublicationGate::default());
+        gate.activate();
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: root.join("unused-cpu.exe"),
+                gpu,
+            },
+            gate,
+        );
+        let request = prepared_import(JobId(706));
+        runtime.start_worker(request.clone()).unwrap();
+        let ready = poll_until(&mut runtime, Duration::from_secs(3), |event| {
+            matches!(event, Ok(ImportEvent::Ready { .. }) | Err(_))
+        });
+        assert!(matches!(ready, Ok(ImportEvent::Ready { backend, .. }) if backend == "CUDA"));
+        let started = std::time::Instant::now();
+        while !marker.is_file() && started.elapsed() < Duration::from_secs(3) {
+            let _ = runtime.poll();
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(
+            marker.is_file(),
+            "BeginImport must reach the attested GPU worker"
+        );
+        let started = std::time::Instant::now();
+        while !runtime.active.as_ref().unwrap().startup_ready
+            && started.elapsed() < Duration::from_secs(3)
+        {
+            let _ = runtime.poll();
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(runtime.active.as_ref().unwrap().startup_ready);
+        runtime.transport.as_mut().unwrap().abort();
+        runtime.transport = None;
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn auto_import_gpu_exit_after_ready_before_begin_retries_once_on_cpu() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target")
+            .join(format!(
+                "whisper-auto-gpu-exit-before-begin-{}",
+                std::process::id()
+            ));
+        std::fs::create_dir_all(&root).unwrap();
+        let gpu_begin = root.join("gpu-begin");
+        let cpu_started = root.join("cpu-started");
+        let cpu = compile_fake_worker(&root, "cpu-count", &cpu_started);
+        let gpu = compile_fake_worker(&root, "gpu-ready-exit", &gpu_begin);
+        let gate = Arc::new(PublicationGate::default());
+        gate.activate();
+        let mut runtime = ImportRuntime::new(WorkerPaths { cpu, gpu }, gate);
+        let request = prepared_import(JobId(709));
+        runtime.start_worker(request.clone()).unwrap();
+        let ready = poll_until(&mut runtime, Duration::from_secs(5), |event| {
+            matches!(event, Ok(ImportEvent::Ready { .. }) | Err(_))
+        });
+        assert!(
+            matches!(ready, Ok(ImportEvent::Ready { job_id, generation, backend })
+            if job_id == request.job_id && generation == request.generation
+                && backend.starts_with("CPU") && backend.contains("GPU non utilisable")
+                && backend.contains("CPU prend le relais"))
+        );
+        let active = runtime.active.as_ref().unwrap();
+        assert_eq!(active.backend, BackendKind::Cpu);
+        assert!(cpu_started.is_file(), "CPU worker reached Ready");
+        assert_eq!(
+            std::fs::read_to_string(&cpu_started)
+                .unwrap()
+                .lines()
+                .count(),
+            1,
+            "the single CPU fallback starts once"
+        );
+        assert!(!gpu_begin.exists(), "GPU never admitted audio processing");
+        stop_worker(&mut runtime, request.job_id, request.generation);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn auto_import_unlaunchable_gpu_uses_one_cpu_attempt() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target")
+            .join(format!("whisper-auto-gpu-spawn-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("cpu-ready");
+        let cpu = compile_fake_worker(&root, "cpu", &marker);
+        let gpu = root.join("broken-gpu.exe");
+        std::fs::write(&gpu, b"not an executable").unwrap();
+        let gate = Arc::new(PublicationGate::default());
+        gate.activate();
+        let mut runtime = ImportRuntime::new(WorkerPaths { cpu, gpu }, gate);
+        let request = prepared_import(JobId(708));
+        runtime.start_worker(request.clone()).unwrap();
+        let ready = poll_until(&mut runtime, Duration::from_secs(3), |event| {
+            matches!(event, Ok(ImportEvent::Ready { .. }) | Err(_))
+        });
+        assert!(matches!(ready, Ok(ImportEvent::Ready { backend, .. })
+            if backend.starts_with("CPU") && backend.contains("lancement CUDA impossible")
+                && backend.contains("CPU prend le relais")));
+        assert!(marker.is_file());
         stop_worker(&mut runtime, request.job_id, request.generation);
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -3781,7 +4075,9 @@ fn main() {
         assert!(matches!(
             ready,
             Ok(ImportEvent::Ready { job_id, generation, backend })
-                if job_id == request.job_id && generation == request.generation && backend == "CPU"
+                if job_id == request.job_id && generation == request.generation
+                    && backend.starts_with("CPU") && backend.contains("GPU non utilisable")
+                    && backend.contains("CPU prend le relais")
         ));
         assert_eq!(runtime.active.as_ref().unwrap().backend, BackendKind::Cpu);
         assert!(
@@ -4058,6 +4354,37 @@ fn main() {
             after_ready,
             "identity binding is limited to the startup phase"
         );
+    }
+
+    #[test]
+    fn auto_import_does_not_retry_cpu_after_gpu_ready() {
+        let request = prepared_import(JobId(707));
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("cpu.exe"),
+                gpu: PathBuf::from("gpu.exe"),
+            },
+            Arc::new(PublicationGate::default()),
+        );
+        runtime.active = Some(ImportRequestState {
+            job_id: request.job_id,
+            generation: request.generation,
+            instance_id: 10,
+            backend: BackendKind::Cuda,
+            attempt_number: 0,
+            import_request: Some(request.clone()),
+            recovery: LiveRecoveryState::None,
+            startup_ready: true,
+        });
+        let result = runtime.handle_worker_failure(
+            request.job_id,
+            request.generation,
+            whisper_core::ipc::WorkerErrorCode::InferenceFailed,
+            "injected failure after audio started".into(),
+        );
+        assert!(result.is_err());
+        assert!(runtime.active.is_none());
+        assert!(runtime.auto_fallback_reason.is_none());
     }
 
     #[test]

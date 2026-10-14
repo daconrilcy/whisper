@@ -1319,6 +1319,64 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
         }),
     )
     .map_err(|e| e.to_string())?;
+    if config.compute == ComputeChoice::Auto {
+        // Ready attests initialization only. Audio must wait for the parent's
+        // decision so a failed GPU attempt can still switch to CPU beforehand.
+        let incoming = rx
+            .recv()
+            .map_err(|_| "parent closed IPC before BeginImport".to_owned())??;
+        if incoming.version != IPC_PROTOCOL_VERSION {
+            return emit_failure(
+                output,
+                job_id,
+                generation,
+                instance_id,
+                WorkerErrorCode::UnsupportedProtocol,
+                "ProtocolMismatch: unsupported BeginImport version",
+            );
+        }
+        match incoming.message {
+            WorkerCommand::BeginImport {
+                job_id: j,
+                generation: g,
+                instance_id: i,
+            } if (j, g, i) == (job_id, generation, instance_id) => {}
+            WorkerCommand::Stop {
+                job_id: j,
+                generation: g,
+            } if (j, g) == (job_id, generation) => {
+                return write_frame(
+                    output,
+                    &IpcEnvelope::new(WorkerEvent::Stopped {
+                        job_id,
+                        generation,
+                        instance_id,
+                    }),
+                )
+                .map_err(|e| e.to_string());
+            }
+            WorkerCommand::Shutdown => return Ok(()),
+            _ => {
+                return emit_failure(
+                    output,
+                    job_id,
+                    generation,
+                    instance_id,
+                    WorkerErrorCode::InvalidRequest,
+                    "InvalidRequest: expected correlated BeginImport",
+                );
+            }
+        }
+        write_frame(
+            output,
+            &IpcEnvelope::new(WorkerEvent::ImportStarted {
+                job_id,
+                generation,
+                instance_id,
+            }),
+        )
+        .map_err(|e| e.to_string())?;
+    }
     if take_stop(&rx, job_id, generation, instance_id, output)? {
         return write_frame(
             output,

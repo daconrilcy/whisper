@@ -41,11 +41,15 @@ impl ComputePolicy {
     }
 
     /// Decide recovery only after a backend failure has been established.
-    pub fn after_failure(choice: ComputeChoice, attempted: BackendAttempt) -> BackendDecision {
-        match (choice, attempted) {
-            (ComputeChoice::Auto, BackendAttempt::Gpu) => BackendDecision::RetryCpu,
-            (ComputeChoice::Gpu, BackendAttempt::Gpu) => BackendDecision::AwaitUserChoice,
-            (ComputeChoice::Cpu, BackendAttempt::Cpu) => BackendDecision::Fail,
+    pub fn after_failure(
+        choice: ComputeChoice,
+        attempted: BackendAttempt,
+        audio_started: bool,
+    ) -> BackendDecision {
+        match (choice, attempted, audio_started) {
+            (ComputeChoice::Auto, BackendAttempt::Gpu, false) => BackendDecision::RetryCpu,
+            (ComputeChoice::Gpu, BackendAttempt::Gpu, _) => BackendDecision::AwaitUserChoice,
+            (ComputeChoice::Cpu, BackendAttempt::Cpu, _) => BackendDecision::Fail,
             _ => BackendDecision::Fail,
         }
     }

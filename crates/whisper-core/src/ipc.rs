@@ -36,6 +36,12 @@ pub enum WorkerCommand {
         model_sha256: [u8; 32],
         config: JobConfig,
     },
+    /// Admit audio only after an Auto GPU worker has attested its backend.
+    BeginImport {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+    },
     StartLiveWorker {
         job_id: JobId,
         generation: Generation,
@@ -97,6 +103,12 @@ pub enum WorkerEvent {
         generation: Generation,
         instance_id: u64,
         backend: BackendKind,
+    },
+    /// Confirms that an attested Auto GPU import accepted BeginImport.
+    ImportStarted {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
     },
     Segment(WorkerSegmentDto),
     WindowFinished {

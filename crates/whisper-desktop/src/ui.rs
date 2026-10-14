@@ -308,9 +308,10 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     .selected_text(match self.compute_choice {
                         ComputeChoice::Cpu => "CPU",
                         ComputeChoice::Gpu => "GPU",
-                        ComputeChoice::Auto => "CPU",
+                        ComputeChoice::Auto => "Auto",
                     })
                     .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.compute_choice, ComputeChoice::Auto, "Auto");
                         ui.selectable_value(&mut self.compute_choice, ComputeChoice::Cpu, "CPU");
                         ui.selectable_value(&mut self.compute_choice, ComputeChoice::Gpu, "GPU");
                     });
@@ -474,7 +475,12 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             } else {
                 message
             };
-            ui.colored_label(egui::Color32::LIGHT_RED, visible_message);
+            let color = if visible_message.contains("CPU prend le relais") {
+                egui::Color32::YELLOW
+            } else {
+                egui::Color32::LIGHT_RED
+            };
+            ui.colored_label(color, visible_message);
         }
         if let Some(message) = &self.startup_message {
             ui.colored_label(egui::Color32::LIGHT_RED, message);
@@ -884,6 +890,23 @@ mod tests {
             Some(AppCommand::EnqueueImport { request })
                 if request.config.compute == ComputeChoice::Gpu
         ));
+    }
+
+    #[test]
+    fn auto_preference_is_sent_to_both_paths_without_becoming_cpu() {
+        let recorder = RecordingApplication::default();
+        let mut app = DesktopApp::new(recorder.clone());
+        app.compute_choice = ComputeChoice::Auto;
+        app.start_import();
+        app.start_live(Generation::first());
+        let commands = recorder.0.borrow();
+        assert!(matches!(&commands[0], AppCommand::EnqueueImport { request }
+            if request.config.compute == ComputeChoice::Auto));
+        assert!(
+            matches!(&commands[1], AppCommand::StartDirectLiveConfigured { request }
+            if request.config.compute == ComputeChoice::Auto)
+        );
+        assert_eq!(app.compute_choice, ComputeChoice::Auto);
     }
 
     #[test]

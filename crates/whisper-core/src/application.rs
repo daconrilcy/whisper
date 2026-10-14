@@ -424,7 +424,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
                         .submit(ImportEffect::StartWorker(request))
                         .map_err(|e| self.fail(e))?;
                     self.view.active_job = Some((job_id, JobState::Preparing));
-                    self.view.message = Some("Source vérifiée ; démarrage du moteur CPU…".into());
+                    self.view.message = Some("Source vérifiée ; préparation du moteur…".into());
                 }
             }
             ImportEvent::Ready { backend, .. } => {
@@ -702,9 +702,9 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.provisional_available_at_unix_ms = None;
                 self.view.confirmed_text = None;
                 self.view.message = Some(if direct {
-                    "Préparation du micro et du moteur CPU…".into()
+                    "Préparation du micro et du moteur…".into()
                 } else {
-                    "Préparation du staging durable et du worker CPU…".into()
+                    "Préparation du staging durable et du worker…".into()
                 });
             }
             AppCommand::FinishLiveOnCpu { job_id, generation } => {

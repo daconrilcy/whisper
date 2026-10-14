@@ -9,7 +9,7 @@ fn forced_cpu_never_selects_or_initializes_gpu() {
         Ok(BackendAttempt::Cpu)
     );
     assert_eq!(
-        ComputePolicy::after_failure(ComputeChoice::Cpu, BackendAttempt::Cpu),
+        ComputePolicy::after_failure(ComputeChoice::Cpu, BackendAttempt::Cpu, false),
         BackendDecision::Fail
     );
 }
@@ -21,8 +21,12 @@ fn auto_uses_gpu_when_available_and_allows_only_gpu_to_cpu_fallback() {
         Ok(BackendAttempt::Gpu)
     );
     assert_eq!(
-        ComputePolicy::after_failure(ComputeChoice::Auto, BackendAttempt::Gpu),
+        ComputePolicy::after_failure(ComputeChoice::Auto, BackendAttempt::Gpu, false),
         BackendDecision::RetryCpu
+    );
+    assert_eq!(
+        ComputePolicy::after_failure(ComputeChoice::Auto, BackendAttempt::Gpu, true),
+        BackendDecision::Fail
     );
     assert_eq!(
         ComputePolicy::validate_fallback(
@@ -53,7 +57,7 @@ fn forced_gpu_failure_waits_for_a_human_choice() {
         Err(ComputePolicyError::GpuUnavailable)
     );
     assert_eq!(
-        ComputePolicy::after_failure(ComputeChoice::Gpu, BackendAttempt::Gpu),
+        ComputePolicy::after_failure(ComputeChoice::Gpu, BackendAttempt::Gpu, false),
         BackendDecision::AwaitUserChoice
     );
 }
