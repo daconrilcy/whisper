@@ -11,7 +11,7 @@ pub mod ports;
 
 pub use application::{
     AppCommand, AppFacade, AppView, Application, ApplicationError, CommandIdentity,
-    ImportApplication,
+    DirectCapturePhase, DirectEnginePhase, ImportApplication,
 };
 pub use compute_policy::{BackendAttempt, BackendDecision, ComputePolicy, ComputePolicyError};
 pub use domain::{

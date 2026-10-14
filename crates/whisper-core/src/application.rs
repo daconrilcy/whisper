@@ -129,6 +129,27 @@ pub struct AppView {
     pub provisional_captured_at_unix_ms: Option<u64>,
     pub provisional_available_at_unix_ms: Option<u64>,
     pub confirmed_text: Option<String>,
+    pub direct_first_sample_at_unix_ms: Option<u64>,
+    pub direct_first_admitted_at_unix_ms: Option<u64>,
+    pub direct_ready_at_unix_ms: Option<u64>,
+    pub direct_capture_phase: Option<DirectCapturePhase>,
+    pub direct_engine_phase: Option<DirectEnginePhase>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DirectCapturePhase {
+    Initializing,
+    Active,
+    Stopped,
+    Failed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DirectEnginePhase {
+    Preparing,
+    Ready,
+    Failed,
+    Released,
 }
 
 /// Owns queue admission and import lifecycle. Adapters only execute effects.
@@ -242,6 +263,19 @@ impl<P: ImportIoPort> ImportApplication<P> {
             return Ok(());
         }
         match event {
+            ImportEvent::DirectCaptureActive {
+                first_sample_at_unix_ms,
+                first_admitted_at_unix_ms,
+                ..
+            } => {
+                self.view.direct_first_sample_at_unix_ms = Some(first_sample_at_unix_ms);
+                self.view.direct_first_admitted_at_unix_ms = Some(first_admitted_at_unix_ms);
+                if self.stopping != Some(identity) {
+                    self.view.direct_capture_phase = Some(DirectCapturePhase::Active);
+                    self.view.active_job = Some((job_id, JobState::Capturing));
+                    self.view.message = Some("Capture active — moteur en préparation".into());
+                }
+            }
             ImportEvent::DirectConfirmed(segment) => {
                 if segment.segment_id.0 != self.next_sequence
                     || segment.range.sample_rate_hz != 16_000
@@ -266,6 +300,8 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 wav_path,
                 ..
             } => {
+                self.view.direct_capture_phase = Some(DirectCapturePhase::Stopped);
+                self.view.direct_engine_phase = Some(DirectEnginePhase::Released);
                 self.view.active_job = Some((job_id, JobState::Complete));
                 self.view.last_result = Some(format!(
                     "Transcription micro enregistrée : {txt_path} | {srt_path} | {wav_path}"
@@ -428,6 +464,14 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
             }
             ImportEvent::Ready { backend, .. } => {
+                if self.direct_live {
+                    self.view.direct_engine_phase = Some(DirectEnginePhase::Ready);
+                    self.view.direct_ready_at_unix_ms = Some(
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map_or(0, |elapsed| elapsed.as_millis() as u64),
+                    );
+                }
                 if self.stopping != Some(identity) {
                     self.view.active_job = Some((
                         job_id,
@@ -437,7 +481,11 @@ impl<P: ImportIoPort> ImportApplication<P> {
                             JobState::Running
                         },
                     ));
-                    self.view.message = Some(format!("Moteur actif : {backend}"));
+                    self.view.message = Some(if self.direct_live {
+                        format!("Capture et transcription opérationnelles — moteur : {backend}")
+                    } else {
+                        format!("Moteur actif : {backend}")
+                    });
                 }
             }
             ImportEvent::Progress {
@@ -524,6 +572,10 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
             }
             ImportEvent::Failed { message, .. } => {
+                if self.direct_live {
+                    self.view.direct_capture_phase = Some(DirectCapturePhase::Failed);
+                    self.view.direct_engine_phase = Some(DirectEnginePhase::Failed);
+                }
                 if self.pending_enqueues.contains(&identity) {
                     self.pending_enqueues.retain(|pending| *pending != identity);
                     self.view.message = Some(message);
@@ -701,8 +753,13 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.provisional_captured_at_unix_ms = None;
                 self.view.provisional_available_at_unix_ms = None;
                 self.view.confirmed_text = None;
+                self.view.direct_first_sample_at_unix_ms = None;
+                self.view.direct_first_admitted_at_unix_ms = None;
+                self.view.direct_ready_at_unix_ms = None;
+                self.view.direct_capture_phase = direct.then_some(DirectCapturePhase::Initializing);
+                self.view.direct_engine_phase = direct.then_some(DirectEnginePhase::Preparing);
                 self.view.message = Some(if direct {
-                    "Préparation du micro et du moteur…".into()
+                    "Microphone en cours d'initialisation".into()
                 } else {
                     "Préparation du staging durable et du worker…".into()
                 });
@@ -851,6 +908,9 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                         JobState::Cancelling
                     },
                 ));
+                if self.direct_live {
+                    self.view.direct_capture_phase = Some(DirectCapturePhase::Stopped);
+                }
             }
             _ => return Err(ApplicationError::InvalidCommand),
         }
@@ -865,6 +925,9 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
 impl ImportEvent {
     fn identity(&self) -> (JobId, Generation) {
         match self {
+            Self::DirectCaptureActive {
+                job_id, generation, ..
+            } => (*job_id, *generation),
             Self::DirectConfirmed(segment) => (segment.job_id, segment.generation),
             Self::DirectPublished {
                 job_id, generation, ..
@@ -1600,6 +1663,77 @@ mod tests {
             .push_back(ImportEvent::Stopped { job_id, generation });
         let view = app.dispatch(AppCommand::Refresh).unwrap();
         assert_eq!(view.active_job, Some((job_id, JobState::Cancelled)));
+    }
+
+    #[test]
+    fn direct_capture_and_engine_progress_independently_through_pre_ready_stop() {
+        let job_id = JobId(19);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let request = LiveRequest {
+            job_id,
+            generation,
+            model_path: "model.bin".into(),
+            model_sha256: [9; 32],
+            destination: "archive".into(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: Default::default(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        let view = app
+            .dispatch(AppCommand::StartDirectLiveConfigured { request })
+            .unwrap();
+        assert_eq!(
+            view.direct_capture_phase,
+            Some(DirectCapturePhase::Initializing)
+        );
+        assert_eq!(view.direct_engine_phase, Some(DirectEnginePhase::Preparing));
+        app.io.events.push_back(ImportEvent::DirectCaptureActive {
+            job_id,
+            generation,
+            first_sample_at_unix_ms: 100,
+            first_admitted_at_unix_ms: 110,
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.direct_capture_phase, Some(DirectCapturePhase::Active));
+        assert_eq!(view.direct_engine_phase, Some(DirectEnginePhase::Preparing));
+        let view = app
+            .dispatch(AppCommand::Stop { job_id, generation })
+            .unwrap();
+        assert_eq!(view.direct_capture_phase, Some(DirectCapturePhase::Stopped));
+        assert_eq!(view.direct_engine_phase, Some(DirectEnginePhase::Preparing));
+        app.io.events.push_back(ImportEvent::DirectCaptureActive {
+            job_id,
+            generation,
+            first_sample_at_unix_ms: 100,
+            first_admitted_at_unix_ms: 110,
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.direct_capture_phase, Some(DirectCapturePhase::Stopped));
+        assert_eq!(view.direct_first_sample_at_unix_ms, Some(100));
+        assert_eq!(view.direct_first_admitted_at_unix_ms, Some(110));
+        app.io.events.push_back(ImportEvent::Ready {
+            job_id,
+            generation,
+            backend: "CPU".into(),
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.active_job, Some((job_id, JobState::Draining)));
+        assert_eq!(view.direct_engine_phase, Some(DirectEnginePhase::Ready));
+        app.io.events.push_back(ImportEvent::DirectPublished {
+            job_id,
+            generation,
+            txt_path: "a.txt".into(),
+            srt_path: "a.srt".into(),
+            wav_path: "a.wav".into(),
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.active_job, Some((job_id, JobState::Complete)));
+        assert_eq!(view.direct_engine_phase, Some(DirectEnginePhase::Released));
     }
 
     #[test]

@@ -14,9 +14,12 @@ whisper-core.workspace = true
 serde_json.workspace = true
 serde = { version = "=1.0.228", features = ["derive"] }
 sha2 = "=0.10.9"
-whisper-rs = { version = "=0.16.0", default-features = false, features = ["cuda"] }
+whisper-rs = { version = "=0.16.0", default-features = false, features = ["cuda", "raw-api"] }
 symphonia = { version = "=0.5.5", default-features = false, features = ["wav", "pcm", "mp3"] }
 rusty_mp3 = "=0.8.0"
 
-[lints]
-workspace = true
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = "warn"

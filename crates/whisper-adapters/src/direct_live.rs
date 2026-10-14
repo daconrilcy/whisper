@@ -1,7 +1,7 @@
 use std::{
     collections::VecDeque,
     fs,
-    io::{Seek, SeekFrom, Write},
+    io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
 
@@ -23,7 +23,8 @@ const MAX_WINDOW_SAMPLES: usize = 128_000;
 const PAUSE_SAMPLES: usize = 3_200;
 const PAUSE_STEP_SAMPLES: usize = 1_600;
 const PAUSE_RMS_LIMIT: u64 = 400;
-const MAX_BUFFERED_SAMPLES: usize = 16_000 * 60 * 10;
+// Only the next inference window is cached in RAM. The WAV is the backlog.
+const MAX_BUFFERED_SAMPLES: usize = MAX_WINDOW_SAMPLES;
 const MICROPHONE_ERROR: &str = "Microphone déconnecté, indisponible ou incompatible. Vérifiez sa connexion, son mode micro et l'autorisation Windows ; transcription incomplète";
 
 pub(crate) struct DirectLive {
@@ -32,7 +33,7 @@ pub(crate) struct DirectLive {
     fallback_reason: Option<String>,
     cpu_worker_path: PathBuf,
     worker_path: PathBuf,
-    worker: ChildWorkerTransport,
+    worker: Option<ChildWorkerTransport>,
     instance: u64,
     worker_ready: bool,
     legacy_fallback: bool,
@@ -48,6 +49,8 @@ pub(crate) struct DirectLive {
     segments: Vec<WorkerSegment>,
     window_segments: Vec<WorkerSegment>,
     ready_events: VecDeque<ImportEvent>,
+    capture_announced: bool,
+    first_admitted_at_unix_ms: Option<u64>,
     stop_requested: bool,
     stop_sent: bool,
     done: bool,
@@ -58,6 +61,7 @@ impl DirectLive {
         mut request: LiveRequest,
         workers: &WorkerPaths,
         instance: u64,
+        reusable_worker: Option<ChildWorkerTransport>,
     ) -> Result<Self, String> {
         if request.destination.trim().is_empty() || request.model_path.trim().is_empty() {
             return Err("Micro : modèle ou dossier de sortie invalide".into());
@@ -87,24 +91,52 @@ impl DirectLive {
             ComputeChoice::Gpu => workers.gpu.clone(),
             ComputeChoice::Auto => unreachable!(),
         };
-        let worker = match spawn_direct_worker(&request, &worker_path, instance) {
-            Ok(worker) => worker,
-            Err(reason) if auto_preference && request.config.compute == ComputeChoice::Gpu => {
-                fallback_reason = Some(reason);
-                request.config.compute = ComputeChoice::Cpu;
-                worker_path = workers.cpu.clone();
-                spawn_direct_worker(&request, &worker_path, instance).map_err(|error| {
-                    format!(
-                        "GPU non utilisable ({}) ; CPU indisponible : {error}",
-                        fallback_reason.as_deref().unwrap_or("raison inconnue")
-                    )
-                })?
-            }
+        let mut worker =
+            match spawn_direct_worker(&request, &worker_path, instance, reusable_worker) {
+                Ok(worker) => worker,
+                Err(reason) if auto_preference && request.config.compute == ComputeChoice::Gpu => {
+                    fallback_reason = Some(reason);
+                    request.config.compute = ComputeChoice::Cpu;
+                    worker_path = workers.cpu.clone();
+                    spawn_direct_worker(&request, &worker_path, instance, None).map_err(
+                        |error| {
+                            format!(
+                                "GPU non utilisable ({}) ; CPU indisponible : {error}",
+                                fallback_reason.as_deref().unwrap_or("raison inconnue")
+                            )
+                        },
+                    )?
+                }
+                Err(error) => {
+                    return Err(format!(
+                        "Moteur {} indisponible : {error}",
+                        compute_name(request.config.compute)
+                    ));
+                }
+            };
+        let mut capture = match crate::capture::start_direct(&request.microphone) {
+            Ok(capture) => capture,
             Err(error) => {
+                worker.abort();
                 return Err(format!(
-                    "Moteur {} indisponible : {error}",
-                    compute_name(request.config.compute)
+                    "{MICROPHONE_ERROR} : ouverture impossible : {error}"
                 ));
+            }
+        };
+        let converter = match Pcm16Converter::new(capture.sample_rate_hz(), capture.channels()) {
+            Ok(converter) => converter,
+            Err(error) => {
+                capture.stop();
+                worker.abort();
+                return Err(error);
+            }
+        };
+        let wav = match WavOutput::create(&request) {
+            Ok(wav) => wav,
+            Err(error) => {
+                capture.stop();
+                worker.abort();
+                return Err(error);
             }
         };
         Ok(Self {
@@ -114,13 +146,13 @@ impl DirectLive {
             fallback_reason,
             cpu_worker_path: workers.cpu.clone(),
             worker_path,
-            worker,
+            worker: Some(worker),
             instance,
             worker_ready: false,
             legacy_fallback: false,
-            capture: None,
-            converter: None,
-            wav: None,
+            capture: Some(capture),
+            converter: Some(converter),
+            wav: Some(wav),
             pending: VecDeque::new(),
             next_offset: 0,
             next_window: 1,
@@ -129,6 +161,8 @@ impl DirectLive {
             segments: Vec::new(),
             window_segments: Vec::new(),
             ready_events: VecDeque::new(),
+            capture_announced: false,
+            first_admitted_at_unix_ms: None,
             stop_requested: false,
             stop_sent: false,
             done: false,
@@ -143,6 +177,18 @@ impl DirectLive {
         self.done
     }
 
+    pub(crate) fn take_idle_worker(&mut self) -> Option<ChildWorkerTransport> {
+        self.done.then(|| self.worker.take()).flatten()
+    }
+
+    pub(crate) fn cache_identity(&self) -> (ComputeChoice, &str, [u8; 32]) {
+        (
+            self.request.config.compute,
+            &self.request.model_path,
+            self.request.model_sha256,
+        )
+    }
+
     pub(crate) fn stop(&mut self) -> Result<(), String> {
         if self.stop_requested {
             return Ok(());
@@ -154,12 +200,6 @@ impl DirectLive {
             if let Some(converter) = self.converter.as_mut() {
                 let tail = converter.finish()?;
                 self.wav.as_mut().expect("wav ready").append(&tail)?;
-                self.pending.extend(tail);
-                if self.pending.len() > MAX_BUFFERED_SAMPLES {
-                    return Err(
-                        "Transcription en retard : tampon audio saturé ; session incomplète".into(),
-                    );
-                }
             }
         }
         Ok(())
@@ -169,19 +209,25 @@ impl DirectLive {
         if self.done {
             return Ok(None);
         }
-        if self.stop_requested && !self.worker_ready {
-            self.worker.abort();
-            self.done = true;
-            return Ok(Some(ImportEvent::Stopped {
-                job_id: self.request.job_id,
-                generation: self.request.generation,
-            }));
-        }
         self.pump_capture()?;
+        if !self.capture_announced && self.wav.as_ref().is_some_and(|wav| wav.samples > 0) {
+            self.capture_announced = true;
+            self.ready_events
+                .push_back(ImportEvent::DirectCaptureActive {
+                    job_id: self.request.job_id,
+                    generation: self.request.generation,
+                    first_sample_at_unix_ms: self
+                        .capture
+                        .as_ref()
+                        .and_then(CaptureStream::first_sample_at_unix_ms)
+                        .unwrap_or(0),
+                    first_admitted_at_unix_ms: self.first_admitted_at_unix_ms.unwrap_or(0),
+                });
+        }
         if let Some(event) = self.ready_events.pop_front() {
             return Ok(Some(event));
         }
-        let received = match self.worker.receive() {
+        let received = match self.worker.as_mut().expect("worker owned").receive() {
             Ok(event) => event,
             Err(error)
                 if self.auto_preference
@@ -246,11 +292,11 @@ impl DirectLive {
                 .push(&block)?;
             capture.recycle_block(block)?;
             self.wav.as_mut().expect("wav ready").append(&samples)?;
-            self.pending.extend(samples);
-            if self.pending.len() > MAX_BUFFERED_SAMPLES {
-                capture.stop();
-                return Err(
-                    "Transcription en retard : tampon audio saturé ; session incomplète".into(),
+            if !samples.is_empty() && self.first_admitted_at_unix_ms.is_none() {
+                self.first_admitted_at_unix_ms = Some(
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map_or(0, |elapsed| elapsed.as_millis() as u64),
                 );
             }
         }
@@ -303,6 +349,7 @@ impl DirectLive {
         if !self.worker_ready || self.inflight.is_some() || self.stop_sent {
             return Ok(());
         }
+        self.fill_pending_from_wav()?;
         let Some(count) = window_size(&self.pending, self.stop_requested) else {
             return Ok(());
         };
@@ -315,6 +362,8 @@ impl DirectLive {
             let range = SourceRange::new(self.next_offset, end, 16_000)
                 .ok_or_else(|| "Intervalle micro invalide".to_owned())?;
             self.worker
+                .as_mut()
+                .expect("worker owned")
                 .request(WorkerCommand::LiveWindow {
                     job_id: self.request.job_id,
                     generation: self.request.generation,
@@ -329,6 +378,8 @@ impl DirectLive {
             self.next_offset = end;
         } else if self.stop_requested {
             self.worker
+                .as_mut()
+                .expect("worker owned")
                 .request(WorkerCommand::Stop {
                     job_id: self.request.job_id,
                     generation: self.request.generation,
@@ -339,6 +390,13 @@ impl DirectLive {
         Ok(())
     }
 
+    fn fill_pending_from_wav(&mut self) -> Result<(), String> {
+        match self.wav.as_mut() {
+            Some(wav) => fill_pending_from_wav(wav, self.next_offset, &mut self.pending),
+            None => Ok(()),
+        }
+    }
+
     fn handle_worker(&mut self, event: WorkerEvent) -> Result<Option<ImportEvent>, String> {
         match event {
             WorkerEvent::Failed { message, .. }
@@ -347,11 +405,15 @@ impl DirectLive {
                     && !self.legacy_fallback
                     && message.contains("unknown variant `StartDirectLiveWorker`") =>
             {
-                self.worker.abort();
-                self.worker = ChildWorkerTransport::spawn(&self.worker_path)
-                    .map_err(|error| format!("Moteur CPU indisponible : {error:?}"))?;
+                self.worker.as_mut().expect("worker owned").abort();
+                self.worker = Some(
+                    ChildWorkerTransport::spawn(&self.worker_path)
+                        .map_err(|error| format!("Moteur CPU indisponible : {error:?}"))?,
+                );
                 self.legacy_fallback = true;
                 self.worker
+                    .as_mut()
+                    .expect("worker owned")
                     .request(WorkerCommand::StartLiveWorker {
                         job_id: self.request.job_id,
                         generation: self.request.generation,
@@ -372,22 +434,6 @@ impl DirectLive {
                 && backend == self.backend_kind() =>
             {
                 self.worker_ready = true;
-                self.wav = Some(WavOutput::create(&self.request)?);
-                if !self.stop_requested {
-                    let capture = crate::capture::start_direct(&self.request.microphone).map_err(
-                        |error| {
-                            self.record_capture_issue(
-                                DiagnosticCode::CaptureFailed,
-                                format!("Ouverture impossible : {error}"),
-                            );
-                            self.microphone_error()
-                        },
-                    )?;
-                    let converter =
-                        Pcm16Converter::new(capture.sample_rate_hz(), capture.channels())?;
-                    self.capture = Some(capture);
-                    self.converter = Some(converter);
-                }
                 Ok(Some(ImportEvent::Ready {
                     job_id,
                     generation,
@@ -537,7 +583,7 @@ impl DirectLive {
     }
 
     fn retry_cpu(&mut self, reason: String) -> Result<(), String> {
-        self.worker.abort();
+        self.worker.as_mut().expect("worker owned").abort();
         if !self.cpu_worker_path.is_file() {
             return Err(format!("GPU non utilisable ({reason}) ; CPU indisponible"));
         }
@@ -546,11 +592,11 @@ impl DirectLive {
             .checked_add(1)
             .ok_or("Identité worker épuisée")?;
         self.request.config.compute = ComputeChoice::Cpu;
-        let worker = spawn_direct_worker(&self.request, &self.cpu_worker_path, self.instance)
+        let worker = spawn_direct_worker(&self.request, &self.cpu_worker_path, self.instance, None)
             .map_err(|error| {
                 format!("GPU non utilisable ({reason}) ; CPU indisponible : {error}")
             })?;
-        self.worker = worker;
+        self.worker = Some(worker);
         self.worker_path = self.cpu_worker_path.clone();
         self.fallback_reason = Some(reason);
         Ok(())
@@ -569,13 +615,10 @@ impl DirectLive {
     }
 
     pub(crate) fn fail(&mut self, error: String) -> String {
-        if self.wav.is_none()
-            || (self.request.config.compute != ComputeChoice::Gpu
-                && !error.starts_with(MICROPHONE_ERROR))
-        {
+        if self.wav.is_none() {
             return error;
         }
-        self.worker.abort();
+        self.worker.as_mut().expect("worker owned").abort();
         if let Some(capture) = self.capture.as_mut() {
             capture.stop();
             while let Some(block) = capture.try_next_block() {
@@ -678,9 +721,13 @@ fn spawn_direct_worker(
     request: &LiveRequest,
     worker_path: &std::path::Path,
     instance: u64,
+    reusable_worker: Option<ChildWorkerTransport>,
 ) -> Result<ChildWorkerTransport, String> {
-    let mut worker = ChildWorkerTransport::spawn(worker_path)
-        .map_err(|error| format!("lancement impossible : {error:?}"))?;
+    let mut worker = match reusable_worker {
+        Some(worker) => worker,
+        None => ChildWorkerTransport::spawn(worker_path)
+            .map_err(|error| format!("lancement impossible : {error:?}"))?,
+    };
     if let Err(error) = worker.request(WorkerCommand::StartDirectLiveWorker {
         job_id: request.job_id,
         generation: request.generation,
@@ -722,6 +769,23 @@ fn window_size(pending: &VecDeque<i16>, stopping: bool) -> Option<usize> {
     stopping.then_some(available)
 }
 
+fn fill_pending_from_wav(
+    wav: &mut WavOutput,
+    next_offset: u64,
+    pending: &mut VecDeque<i16>,
+) -> Result<(), String> {
+    let loaded_until = next_offset
+        .checked_add(pending.len() as u64)
+        .ok_or_else(|| "Backlog WAV hors limites".to_owned())?;
+    let available = wav.samples.saturating_sub(loaded_until);
+    let free = MAX_BUFFERED_SAMPLES.saturating_sub(pending.len());
+    let count = available.min(free as u64) as usize;
+    if count > 0 {
+        pending.extend(wav.read_samples(loaded_until, count)?);
+    }
+    Ok(())
+}
+
 struct WavOutput {
     file: fs::File,
     path: PathBuf,
@@ -735,6 +799,7 @@ impl WavOutput {
             .map_err(|error| format!("Dossier de sortie inaccessible : {error}"))?;
         let path = directory.join(format!("micro-{:032x}.wav", request.job_id.0));
         let mut file = fs::OpenOptions::new()
+            .read(true)
             .write(true)
             .create_new(true)
             .open(&path)
@@ -764,6 +829,34 @@ impl WavOutput {
             .map_err(|error| format!("WAV non écrit : {error}"))?;
         self.samples = total;
         Ok(())
+    }
+
+    fn read_samples(&mut self, offset: u64, count: usize) -> Result<Vec<i16>, String> {
+        if offset
+            .checked_add(count as u64)
+            .is_none_or(|end| end > self.samples)
+        {
+            return Err("Backlog WAV hors limites".into());
+        }
+        self.file
+            .flush()
+            .map_err(|error| format!("WAV non synchronisé : {error}"))?;
+        self.file
+            .seek(SeekFrom::Start(44 + offset * 2))
+            .map_err(|error| format!("Backlog WAV inaccessible : {error}"))?;
+        let mut bytes = vec![0; count * 2];
+        self.file
+            .read_exact(&mut bytes)
+            .map_err(|error| format!("Backlog WAV tronqué : {error}"))?;
+        self.file
+            .seek(SeekFrom::End(0))
+            .map_err(|error| format!("WAV non repositionné : {error}"))?;
+        Ok(bytes
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| i16::from_le_bytes(*pair))
+            .collect())
     }
 
     fn finish(mut self) -> Result<String, String> {
@@ -807,7 +900,9 @@ fn write_wav_header(writer: &mut impl Write, samples: u32) -> Result<(), String>
 
 impl Drop for DirectLive {
     fn drop(&mut self) {
-        self.worker.abort();
+        if let Some(worker) = self.worker.as_mut() {
+            worker.abort();
+        }
     }
 }
 
@@ -825,14 +920,13 @@ fn timestamp(samples: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        MAX_WINDOW_SAMPLES, MIN_WINDOW_SAMPLES, WavOutput, finalize_incomplete_outputs,
-        window_size, write_wav_header,
+        DirectLive, MAX_BUFFERED_SAMPLES, MAX_WINDOW_SAMPLES, MIN_WINDOW_SAMPLES, PathBuf,
+        Pcm16Converter, WavOutput, fill_pending_from_wav, finalize_incomplete_outputs, window_size,
+        write_wav_header,
     };
     use std::collections::VecDeque;
     use whisper_core::ports::WorkerSegment;
-    use whisper_core::{
-        ComputeChoice, ImportEvent, JobConfig, LanguageChoice, SegmentId, SourceRange,
-    };
+    use whisper_core::{ComputeChoice, JobConfig, LanguageChoice, SegmentId, SourceRange};
 
     fn startup_request(
         destination: &std::path::Path,
@@ -910,9 +1004,11 @@ fn main() {
     }
 
     #[test]
-    fn auto_microphone_falls_back_before_capture_and_keeps_auto_preference() {
-        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/direct-live-auto-startup");
+    fn auto_microphone_falls_back_while_capture_is_open_and_keeps_auto_preference() {
+        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "../../target/direct-live-auto-startup-{}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&directory).unwrap();
         let cpu = startup_worker(&directory, "cpu");
         let gpu = startup_worker(&directory, "gpu");
@@ -924,6 +1020,7 @@ fn main() {
             startup_request(&directory, ComputeChoice::Auto),
             &workers,
             1,
+            None,
         )
         .unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
@@ -940,7 +1037,7 @@ fn main() {
                 .as_ref()
                 .is_some_and(|reason| reason.contains("CUDA"))
         );
-        assert!(!live.worker_ready && live.capture.is_none());
+        assert!(!live.worker_ready && live.capture.is_some());
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
         let mut cpu_failure = None;
         while std::time::Instant::now() < deadline {
@@ -958,26 +1055,36 @@ fn main() {
                 .is_some_and(|error| error.contains("CPU"))
         );
         assert_eq!(live.request.config.compute, ComputeChoice::Cpu);
-        live.worker.abort();
+        live.worker.as_mut().unwrap().abort();
         drop(live);
+        std::fs::remove_file(directory.join(format!("micro-{:032x}.wav", 800))).unwrap();
         let absent = crate::supervisor::WorkerPaths {
             cpu,
             gpu: directory.join("missing-gpu.exe"),
         };
-        let mut without_gpu =
-            super::DirectLive::start(startup_request(&directory, ComputeChoice::Auto), &absent, 3)
-                .unwrap();
+        let mut without_gpu = super::DirectLive::start(
+            startup_request(&directory, ComputeChoice::Auto),
+            &absent,
+            3,
+            None,
+        )
+        .unwrap();
         assert_eq!(without_gpu.request.config.compute, ComputeChoice::Cpu);
         assert_eq!(
             without_gpu.fallback_reason.as_deref(),
             Some("worker CUDA absent")
         );
-        assert!(!without_gpu.worker_ready && without_gpu.capture.is_none());
-        without_gpu.worker.abort();
+        assert!(!without_gpu.worker_ready && without_gpu.capture.is_some());
+        without_gpu.worker.as_mut().unwrap().abort();
         drop(without_gpu);
-        let mut forced =
-            super::DirectLive::start(startup_request(&directory, ComputeChoice::Gpu), &workers, 4)
-                .unwrap();
+        std::fs::remove_file(directory.join(format!("micro-{:032x}.wav", 800))).unwrap();
+        let mut forced = super::DirectLive::start(
+            startup_request(&directory, ComputeChoice::Gpu),
+            &workers,
+            4,
+            None,
+        )
+        .unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
         let mut failed = false;
         while std::time::Instant::now() < deadline {
@@ -990,13 +1097,13 @@ fn main() {
         assert!(failed && !forced.auto_preference);
         assert_eq!(forced.request.config.compute, ComputeChoice::Gpu);
         assert!(forced.fallback_reason.is_none());
-        forced.worker.abort();
+        forced.worker.as_mut().unwrap().abort();
         drop(forced);
         std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
-    fn auto_microphone_stop_before_gpu_ready_prevents_cpu_retry() {
+    fn auto_microphone_stop_before_gpu_ready_keeps_cpu_retry_for_recorded_audio() {
         let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../target")
             .join(format!(
@@ -1013,6 +1120,7 @@ fn main() {
             startup_request(&directory, ComputeChoice::Auto),
             &workers,
             20,
+            None,
         )
         .unwrap();
         live.stop().unwrap();
@@ -1024,17 +1132,17 @@ fn main() {
             failure_marker.is_file(),
             "GPU failure was emitted after Stop"
         );
-        assert!(matches!(
-            live.poll().unwrap(),
-            Some(ImportEvent::Stopped {
-                job_id: whisper_core::JobId(800),
-                ..
-            })
-        ));
-        assert!(live.done());
-        assert_eq!(live.request.config.compute, ComputeChoice::Gpu);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while !cpu_marker.exists() && std::time::Instant::now() < deadline {
+            let _ = live.poll();
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(
+            cpu_marker.exists(),
+            "Stop keeps a CPU attempt before inference"
+        );
+        assert_eq!(live.request.config.compute, ComputeChoice::Cpu);
         assert!(live.auto_preference);
-        assert!(!cpu_marker.exists(), "Stop must prevent launching CPU");
         drop(live);
         std::fs::remove_dir_all(directory).unwrap();
     }
@@ -1088,12 +1196,108 @@ fn main() {
         };
         let mut wav = WavOutput::create(&request).unwrap();
         wav.append(&[-32768, 0]).unwrap();
+        assert_eq!(wav.read_samples(0, 2).unwrap(), [-32768, 0]);
         wav.append(&[32767]).unwrap();
+        assert_eq!(wav.read_samples(1, 2).unwrap(), [0, 32767]);
         let path = wav.finish().unwrap();
         let bytes = std::fs::read(&path).unwrap();
         assert_eq!(bytes.len(), 50);
         assert_eq!(u32::from_le_bytes(bytes[40..44].try_into().unwrap()), 6);
         assert_eq!(&bytes[44..], &[0, 128, 0, 0, 255, 127]);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn stop_before_engine_ready_flushes_captured_audio_to_the_wav() {
+        let directory =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/direct-live-tests");
+        let mut request = startup_request(&directory, ComputeChoice::Cpu);
+        request.job_id = whisper_core::JobId(
+            ((std::process::id() as u128) << 64)
+                | std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+        );
+        let capture =
+            crate::capture::CaptureStream::from_test_blocks(16_000, 1, vec![vec![0.25; 16_000]]);
+        let converter = Pcm16Converter::new(16_000, 1).unwrap();
+        let wav = WavOutput::create(&request).unwrap();
+        let job_id = request.job_id;
+        let mut live = DirectLive {
+            request,
+            auto_preference: false,
+            fallback_reason: None,
+            cpu_worker_path: PathBuf::new(),
+            worker_path: PathBuf::new(),
+            worker: None,
+            instance: 1,
+            worker_ready: false,
+            legacy_fallback: false,
+            capture: Some(capture),
+            converter: Some(converter),
+            wav: Some(wav),
+            diagnostics: None,
+            pending: VecDeque::new(),
+            next_offset: 0,
+            next_window: 1,
+            inflight: None,
+            next_segment: 1,
+            segments: Vec::new(),
+            window_segments: Vec::new(),
+            ready_events: VecDeque::new(),
+            capture_announced: false,
+            first_admitted_at_unix_ms: None,
+            stop_requested: false,
+            stop_sent: false,
+            done: false,
+        };
+
+        live.stop().unwrap();
+
+        assert!(!live.worker_ready);
+        assert!(live.stop_requested);
+        assert_eq!(live.wav.as_ref().unwrap().samples, 16_000);
+        let samples = live.wav.as_mut().unwrap().read_samples(0, 16_000).unwrap();
+        assert_eq!(samples.len(), 16_000);
+        assert!(samples[320..15_680].iter().all(|sample| *sample == 8_192));
+        drop(live);
+        let path = directory.join(format!("micro-{:032x}.wav", job_id.0));
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn wav_backlog_fills_bounded_windows_without_drops_or_reordering() {
+        let directory =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/direct-live-tests");
+        let job_id = whisper_core::JobId(
+            ((std::process::id() as u128) << 64)
+                | std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+        );
+        let request = startup_request(&directory, ComputeChoice::Cpu);
+        let mut request = request;
+        request.job_id = job_id;
+        let mut wav = WavOutput::create(&request).unwrap();
+        let samples: Vec<i16> = (0..(MAX_BUFFERED_SAMPLES * 2 + 731))
+            .map(|sample| (sample % 30_000) as i16)
+            .collect();
+        wav.append(&samples).unwrap();
+
+        let mut pending = VecDeque::new();
+        let mut next_offset = 0_u64;
+        let mut observed = Vec::with_capacity(samples.len());
+        while observed.len() < samples.len() {
+            fill_pending_from_wav(&mut wav, next_offset, &mut pending).unwrap();
+            assert!(!pending.is_empty());
+            let count = pending.len().min(MAX_WINDOW_SAMPLES);
+            observed.extend(pending.drain(..count));
+            next_offset += count as u64;
+        }
+        assert_eq!(observed, samples);
+        let path = wav.finish().unwrap();
         std::fs::remove_file(path).unwrap();
     }
 

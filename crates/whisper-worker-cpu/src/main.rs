@@ -511,9 +511,61 @@ fn input_loop(tx: SyncSender<Incoming>) {
 }
 
 fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String> {
-    let first = rx
-        .recv()
-        .map_err(|_| "parent closed IPC before StartImport".to_owned())??;
+    let mut cached_engine: Option<(String, [u8; 32], CpuEngine)> = None;
+    loop {
+        let first = match rx.recv() {
+            Ok(Ok(first)) => first,
+            Ok(Err(error)) => return Err(error),
+            Err(_) => return Ok(()),
+        };
+        if first.version == IPC_PROTOCOL_VERSION
+            && matches!(&first.message, WorkerCommand::Shutdown)
+        {
+            return Ok(());
+        }
+        let reusable = matches!(
+            &first.message,
+            WorkerCommand::StartDirectLiveWorker { .. }
+                | WorkerCommand::StartImport {
+                    retain_after_publish: true,
+                    ..
+                }
+        );
+        run_session(&rx, output, first, &mut cached_engine)?;
+        if !reusable {
+            return Ok(());
+        }
+    }
+}
+
+fn cached_cpu_engine<'a>(
+    cache: &'a mut Option<(String, [u8; 32], CpuEngine)>,
+    model_path: &str,
+    model_sha256: [u8; 32],
+) -> Result<&'a CpuEngine, String> {
+    if cache
+        .as_ref()
+        .is_none_or(|(path, hash, _)| path != model_path || hash != &model_sha256)
+    {
+        *cache = None;
+        eprintln!("startup_perf model_cache=load backend=cpu");
+        *cache = Some((
+            model_path.to_owned(),
+            model_sha256,
+            CpuEngine::load(model_path)?,
+        ));
+    } else {
+        eprintln!("startup_perf model_cache=hit backend=cpu");
+    }
+    Ok(&cache.as_ref().expect("cached engine").2)
+}
+
+fn run_session(
+    rx: &Receiver<Incoming>,
+    output: &mut impl io::Write,
+    first: IpcEnvelope<WorkerCommand>,
+    cached_engine: &mut Option<(String, [u8; 32], CpuEngine)>,
+) -> Result<(), String> {
     if first.version != IPC_PROTOCOL_VERSION {
         write_frame(
             output,
@@ -577,7 +629,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
                     "ModelHashMismatch: live model identity could not be verified",
                 );
             }
-            let engine = match CpuEngine::load(&model_path) {
+            let engine = match cached_cpu_engine(cached_engine, &model_path, model_sha256) {
                 Ok(engine) => engine,
                 Err(error) => {
                     return emit_failure(
@@ -621,6 +673,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
             model_path,
             model_sha256,
             config,
+            ..
         } => (
             job_id,
             generation,
@@ -686,7 +739,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
             "model_context_native_bytes": "opaque; process counters characterize total",
         }),
     );
-    let engine = match CpuEngine::load(&model_path) {
+    let engine = match cached_cpu_engine(cached_engine, &model_path, model_sha256) {
         Ok(engine) => engine,
         Err(error) => {
             return emit_failure(
@@ -717,7 +770,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
         }),
     )
     .map_err(|e| e.to_string())?;
-    if take_stop(&rx, job_id, generation, instance_id, output)? {
+    if take_stop(rx, job_id, generation, instance_id, output)? {
         return write_frame(
             output,
             &IpcEnvelope::new(WorkerEvent::Stopped {
@@ -735,7 +788,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
     let mut sequence = 0_u64;
     let mut stopped = false;
     let result = decoder::decode_wav_windows(Path::new(&source_path), |window_start, pcm| {
-        if take_stop(&rx, job_id, generation, instance_id, output)? {
+        if take_stop(rx, job_id, generation, instance_id, output)? {
             stopped = true;
             return Err("cancelled".into());
         }
@@ -811,7 +864,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
             }),
         )
         .map_err(|e| e.to_string())?;
-        if take_stop(&rx, job_id, generation, instance_id, output)? {
+        if take_stop(rx, job_id, generation, instance_id, output)? {
             stopped = true;
             return Err("cancelled".into());
         }
@@ -841,7 +894,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
             return emit_failure(output, job_id, generation, instance_id, code, &error);
         }
     };
-    if take_stop(&rx, job_id, generation, instance_id, output)? {
+    if take_stop(rx, job_id, generation, instance_id, output)? {
         return write_frame(
             output,
             &IpcEnvelope::new(WorkerEvent::Stopped {
@@ -913,9 +966,9 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
 }
 
 fn run_live_service(
-    rx: Receiver<Incoming>,
+    rx: &Receiver<Incoming>,
     output: &mut impl io::Write,
-    engine: CpuEngine,
+    engine: &CpuEngine,
     job_id: whisper_core::JobId,
     generation: whisper_core::Generation,
     instance_id: u64,
@@ -1295,7 +1348,7 @@ fn handle_decode(
 }
 
 fn run_decode_service(
-    rx: Receiver<Incoming>,
+    rx: &Receiver<Incoming>,
     output: &mut impl io::Write,
     mut request_id: u64,
     mut request: DecodeRequest,
@@ -1392,6 +1445,17 @@ fn emit_failure(
 #[cfg(test)]
 mod bounded_writer_tests {
     use super::*;
+
+    #[test]
+    fn idle_worker_shutdown_exits_without_an_error_frame() {
+        let (tx, rx) = mpsc::channel();
+        tx.send(Ok(IpcEnvelope::new(WorkerCommand::Shutdown)))
+            .unwrap();
+        drop(tx);
+        let mut output = Vec::new();
+        assert!(run(rx, &mut output).is_ok());
+        assert!(output.is_empty());
+    }
 
     #[test]
     fn writer_accepts_limit_and_rejects_limit_plus_one_without_growing_past_it() {

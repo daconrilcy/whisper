@@ -1114,10 +1114,101 @@ fn input_loop(tx: SyncSender<Incoming>) {
     }
 }
 
+#[allow(unsafe_code)]
+fn probe_cuda_backend() -> Result<(), String> {
+    use std::ffi::CStr;
+    use whisper_rs::whisper_rs_sys as sys;
+
+    // SAFETY: ggml owns the registry and the NUL-terminated device names. The
+    // device and backend pointers are used only in this call, and the backend
+    // returned by dev_init is released once before returning.
+    unsafe {
+        for index in 0..sys::ggml_backend_dev_count() {
+            let device = sys::ggml_backend_dev_get(index);
+            if device.is_null()
+                || sys::ggml_backend_dev_type(device)
+                    != sys::ggml_backend_dev_type_GGML_BACKEND_DEVICE_TYPE_GPU
+            {
+                continue;
+            }
+            let name = sys::ggml_backend_dev_name(device);
+            if name.is_null() || !CStr::from_ptr(name).to_bytes().starts_with(b"CUDA") {
+                continue;
+            }
+            let backend = sys::ggml_backend_dev_init(device, std::ptr::null());
+            if !backend.is_null() {
+                sys::ggml_backend_free(backend);
+                return Ok(());
+            }
+        }
+    }
+    Err("Aucun backend CUDA initialisable dans le worker GPU".into())
+}
+
 fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String> {
-    let first = rx
-        .recv()
-        .map_err(|_| "parent closed IPC before StartImport".to_owned())??;
+    let mut cached_engine: Option<(String, [u8; 32], GpuEngine)> = None;
+    loop {
+        let first = match rx.recv() {
+            Ok(Ok(first)) => first,
+            Ok(Err(error)) => return Err(error),
+            Err(_) => return Ok(()),
+        };
+        if first.version == IPC_PROTOCOL_VERSION
+            && matches!(&first.message, WorkerCommand::Shutdown)
+        {
+            return Ok(());
+        }
+        let reusable = matches!(
+            &first.message,
+            WorkerCommand::StartDirectLiveWorker { .. }
+                | WorkerCommand::StartImport {
+                    retain_after_publish: true,
+                    ..
+                }
+        );
+        run_session(&rx, output, first, &mut cached_engine)?;
+        if !reusable {
+            return Ok(());
+        }
+    }
+}
+
+fn cached_gpu_engine<'a>(
+    cache: &'a mut Option<(String, [u8; 32], GpuEngine)>,
+    model_path: &str,
+    model_sha256: [u8; 32],
+) -> Result<&'a GpuEngine, String> {
+    if cache
+        .as_ref()
+        .is_some_and(|(path, hash, _)| path == model_path && hash == &model_sha256)
+        && let Err(error) = cache.as_ref().expect("cached GPU engine").2.attest()
+    {
+        *cache = None;
+        return Err(error);
+    }
+    if cache
+        .as_ref()
+        .is_none_or(|(path, hash, _)| path != model_path || hash != &model_sha256)
+    {
+        *cache = None;
+        eprintln!("startup_perf model_cache=load backend=gpu");
+        *cache = Some((
+            model_path.to_owned(),
+            model_sha256,
+            GpuEngine::load(model_path)?,
+        ));
+    } else {
+        eprintln!("startup_perf model_cache=hit backend=gpu");
+    }
+    Ok(&cache.as_ref().expect("cached engine").2)
+}
+
+fn run_session(
+    rx: &Receiver<Incoming>,
+    output: &mut impl io::Write,
+    first: IpcEnvelope<WorkerCommand>,
+    cached_engine: &mut Option<(String, [u8; 32], GpuEngine)>,
+) -> Result<(), String> {
     if first.version != IPC_PROTOCOL_VERSION {
         write_frame(
             output,
@@ -1134,6 +1225,23 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
         )
         .map_err(|e| e.to_string())?;
         return Ok(());
+    }
+    if matches!(first.message, WorkerCommand::ProbeCuda) {
+        return match probe_cuda_backend() {
+            Ok(()) => write_frame(output, &IpcEnvelope::new(WorkerEvent::CudaAvailable))
+                .map_err(|error| error.to_string()),
+            Err(message) => write_frame(
+                output,
+                &IpcEnvelope::new(WorkerEvent::Failed {
+                    job_id: None,
+                    generation: None,
+                    instance_id: None,
+                    code: WorkerErrorCode::BackendUnavailable,
+                    message,
+                }),
+            )
+            .map_err(|error| error.to_string()),
+        };
     }
     let direct_live = matches!(&first.message, WorkerCommand::StartDirectLiveWorker { .. });
     let (
@@ -1181,7 +1289,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
                     "ModelHashMismatch: live model identity could not be verified",
                 );
             }
-            let engine = match GpuEngine::load(&model_path) {
+            let engine = match cached_gpu_engine(cached_engine, &model_path, model_sha256) {
                 Ok(engine) => engine,
                 Err(error) => {
                     return emit_gpu_initialization_failure(
@@ -1224,6 +1332,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
             model_path,
             model_sha256,
             config,
+            ..
         } => (
             job_id,
             generation,
@@ -1289,7 +1398,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
             "model_context_native_bytes": "opaque; process counters characterize total",
         }),
     );
-    let engine = match GpuEngine::load(&model_path) {
+    let engine = match cached_gpu_engine(cached_engine, &model_path, model_sha256) {
         Ok(engine) => engine,
         Err(error) => {
             return emit_gpu_initialization_failure(
@@ -1377,7 +1486,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
         )
         .map_err(|e| e.to_string())?;
     }
-    if take_stop(&rx, job_id, generation, instance_id, output)? {
+    if take_stop(rx, job_id, generation, instance_id, output)? {
         return write_frame(
             output,
             &IpcEnvelope::new(WorkerEvent::Stopped {
@@ -1395,7 +1504,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
     let mut sequence = 0_u64;
     let mut stopped = false;
     let result = decoder::decode_wav_windows(Path::new(&source_path), |window_start, pcm| {
-        if take_stop(&rx, job_id, generation, instance_id, output)? {
+        if take_stop(rx, job_id, generation, instance_id, output)? {
             stopped = true;
             return Err("cancelled".into());
         }
@@ -1471,7 +1580,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
             }),
         )
         .map_err(|e| e.to_string())?;
-        if take_stop(&rx, job_id, generation, instance_id, output)? {
+        if take_stop(rx, job_id, generation, instance_id, output)? {
             stopped = true;
             return Err("cancelled".into());
         }
@@ -1501,7 +1610,7 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
             return emit_failure(output, job_id, generation, instance_id, code, &error);
         }
     };
-    if take_stop(&rx, job_id, generation, instance_id, output)? {
+    if take_stop(rx, job_id, generation, instance_id, output)? {
         return write_frame(
             output,
             &IpcEnvelope::new(WorkerEvent::Stopped {
@@ -1573,9 +1682,9 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
 }
 
 fn run_live_service(
-    rx: Receiver<Incoming>,
+    rx: &Receiver<Incoming>,
     output: &mut impl io::Write,
-    engine: GpuEngine,
+    engine: &GpuEngine,
     job_id: whisper_core::JobId,
     generation: whisper_core::Generation,
     instance_id: u64,
@@ -1956,7 +2065,7 @@ fn handle_decode(
 }
 
 fn run_decode_service(
-    rx: Receiver<Incoming>,
+    rx: &Receiver<Incoming>,
     output: &mut impl io::Write,
     mut request_id: u64,
     mut request: DecodeRequest,
@@ -2071,6 +2180,17 @@ fn emit_gpu_initialization_failure(
 mod gpu_startup_tests {
     use super::*;
     use sha2::Digest;
+
+    #[test]
+    fn idle_worker_shutdown_exits_without_an_error_frame() {
+        let (tx, rx) = mpsc::channel();
+        tx.send(Ok(IpcEnvelope::new(WorkerCommand::Shutdown)))
+            .unwrap();
+        drop(tx);
+        let mut output = Vec::new();
+        assert!(run(rx, &mut output).is_ok());
+        assert!(output.is_empty());
+    }
 
     #[test]
     fn verified_model_gpu_initialization_failure_is_retryable_and_correlated() {

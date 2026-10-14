@@ -187,6 +187,12 @@ pub enum ImportEffect {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEvent {
+    DirectCaptureActive {
+        job_id: JobId,
+        generation: Generation,
+        first_sample_at_unix_ms: u64,
+        first_admitted_at_unix_ms: u64,
+    },
     DirectConfirmed(WorkerSegment),
     DirectPublished {
         job_id: JobId,

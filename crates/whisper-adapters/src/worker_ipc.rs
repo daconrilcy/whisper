@@ -193,8 +193,15 @@ pub struct ChildWorkerTransport {
     child: Child,
     commands: SyncSender<WorkerCommand>,
     stop_commands: SyncSender<WorkerCommand>,
-    events: Receiver<Result<WorkerEvent, PortError>>,
+    events: Receiver<WorkerReaderMessage>,
+    transport_ended: bool,
     cuda_log: Arc<(Mutex<CudaLogState>, Condvar)>,
+}
+
+#[derive(Debug, PartialEq)]
+enum WorkerReaderMessage {
+    Event(Result<WorkerEvent, PortError>),
+    TransportEnded,
 }
 
 #[derive(Default)]
@@ -296,6 +303,7 @@ impl ChildWorkerTransport {
             commands,
             stop_commands,
             events,
+            transport_ended: false,
             cuda_log,
         })
     }
@@ -326,6 +334,12 @@ impl ChildWorkerTransport {
     }
 }
 
+impl Drop for ChildWorkerTransport {
+    fn drop(&mut self) {
+        self.abort();
+    }
+}
+
 impl WorkerTransport for ChildWorkerTransport {
     fn request(&mut self, command: WorkerCommand) -> Result<(), PortError> {
         self.commands
@@ -335,7 +349,7 @@ impl WorkerTransport for ChildWorkerTransport {
 
     fn receive(&mut self) -> Result<Option<WorkerEvent>, PortError> {
         match self.events.try_recv() {
-            Ok(Ok(event)) => {
+            Ok(WorkerReaderMessage::Event(Ok(event))) => {
                 if matches!(
                     &event,
                     WorkerEvent::Ready {
@@ -351,24 +365,27 @@ impl WorkerTransport for ChildWorkerTransport {
                 }
                 Ok(Some(event))
             }
-            Ok(Err(error)) => Err(error),
+            Ok(WorkerReaderMessage::Event(Err(error))) => Err(error),
+            Ok(WorkerReaderMessage::TransportEnded) => {
+                self.transport_ended = true;
+                Err(PortError::Failed(
+                    "WorkerExited: worker transport ended after session End".into(),
+                ))
+            }
             Err(TryRecvError::Empty) => Ok(None),
             Err(TryRecvError::Disconnected) => {
-                Err(PortError::Failed("WorkerExited without End".into()))
+                if self.transport_ended {
+                    Ok(None)
+                } else {
+                    Err(PortError::Failed("WorkerExited without End".into()))
+                }
             }
         }
     }
 }
 
-/// Check the shipped CUDA worker once, before opening the desktop window.
-/// The same Ready event and CUDA attestation used by a real job are required.
-pub fn probe_cuda_worker(
-    executable: &Path,
-    model_path: &str,
-    model_sha256: [u8; 32],
-) -> Result<(), String> {
-    use whisper_core::{ComputeChoice, JobConfig, LanguageChoice};
-
+/// Check the shipped CUDA backend without loading or discarding the model.
+pub fn probe_cuda_worker(executable: &Path) -> Result<(), String> {
     if !executable.is_file() {
         return Err("GPU indisponible : worker CUDA introuvable ; choisissez CPU".into());
     }
@@ -376,27 +393,12 @@ pub fn probe_cuda_worker(
         .map_err(|error| format!("GPU indisponible : {error:?} ; choisissez CPU"))?;
     let result = (|| {
         worker
-            .request(WorkerCommand::StartDirectLiveWorker {
-                job_id: JobId(1),
-                generation: Generation::first(),
-                instance_id: 1,
-                model_path: model_path.to_owned(),
-                model_sha256,
-                config: JobConfig {
-                    language: LanguageChoice::Automatic,
-                    compute: ComputeChoice::Gpu,
-                },
-            })
+            .request(WorkerCommand::ProbeCuda)
             .map_err(|error| format!("GPU indisponible : {error:?} ; choisissez CPU"))?;
         let deadline = Instant::now() + Duration::from_secs(30);
         loop {
             match worker.receive() {
-                Ok(Some(WorkerEvent::Ready {
-                    job_id: JobId(1),
-                    generation,
-                    instance_id: 1,
-                    backend: BackendKind::Cuda,
-                })) if generation == Generation::first() => return Ok(()),
+                Ok(Some(WorkerEvent::CudaAvailable)) => return Ok(()),
                 Ok(Some(WorkerEvent::Failed { message, .. })) => {
                     return Err(format!("GPU indisponible : {message} ; choisissez CPU"));
                 }
@@ -490,9 +492,10 @@ fn take_ready_live_stop(
         .flatten()
 }
 
-fn read_events(stdout: impl io::Read, tx: SyncSender<Result<WorkerEvent, PortError>>) {
+fn read_events(stdout: impl io::Read, tx: SyncSender<WorkerReaderMessage>) {
     let mut input = BufReader::new(stdout);
     let mut saw_stopped = false;
+    let mut saw_end = false;
     #[cfg(feature = "l01-memory-qualification")]
     memory_trace(
         "adapter.worker_stdout_reader",
@@ -502,6 +505,7 @@ fn read_events(stdout: impl io::Read, tx: SyncSender<Result<WorkerEvent, PortErr
         let result = match read_frame::<IpcEnvelope<WorkerEvent>>(&mut input) {
             Ok(Some(envelope)) => Ok(envelope),
             Ok(None) if saw_stopped => break,
+            Ok(None) if saw_end => break,
             Ok(None) => Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 "worker exited without End",
@@ -520,12 +524,14 @@ fn read_events(stdout: impl io::Read, tx: SyncSender<Result<WorkerEvent, PortErr
         };
         // A Stopped event may belong to an older worker instance. The runtime
         // checks its identity; keep reading until its correlated terminal event.
-        let terminal = event.is_err() || matches!(event, Ok(WorkerEvent::End { .. }));
+        let terminal = event.is_err();
         saw_stopped |= matches!(event, Ok(WorkerEvent::Stopped { .. }));
-        if tx.send(event).is_err() || terminal {
+        saw_end |= matches!(event, Ok(WorkerEvent::End { .. }));
+        if tx.send(WorkerReaderMessage::Event(event)).is_err() || terminal {
             break;
         }
     }
+    let _ = tx.send(WorkerReaderMessage::TransportEnded);
 }
 
 fn bind_unidentified_startup_failure(
@@ -605,7 +611,9 @@ fn worker_event_identity(event: &WorkerEvent) -> Option<(JobId, Generation, u64)
             instance_id: Some(instance_id),
             ..
         } => Some((*job_id, *generation, *instance_id)),
-        WorkerEvent::Failed { .. } | WorkerEvent::DecodedBlock { .. } => None,
+        WorkerEvent::Failed { .. }
+        | WorkerEvent::DecodedBlock { .. }
+        | WorkerEvent::CudaAvailable => None,
     }
 }
 
@@ -797,6 +805,8 @@ fn serialize_frame<T: Serialize>(value: &T) -> io::Result<Vec<u8>> {
 
 struct ImportRuntime {
     workers: WorkerPaths,
+    idle_worker: Option<IdleWorker>,
+    pending_idle_worker: Option<IdleWorker>,
     auto_fallback_reason: Option<String>,
     diagnostics: Option<DiagnosticSink>,
     diagnostic_start_failed: bool,
@@ -816,6 +826,46 @@ struct ImportRuntime {
     live_pending_persistence: usize,
     deferred_live_stopped: Option<WorkerEvent>,
     deferred_live_window_finished: Option<FinishedLiveWindow>,
+}
+const WORKER_IDLE_RETENTION: Duration = Duration::from_secs(5 * 60);
+
+struct IdleWorker {
+    transport: ChildWorkerTransport,
+    compute: whisper_core::ComputeChoice,
+    model_path: String,
+    model_sha256: [u8; 32],
+    expires_at: Instant,
+}
+
+impl IdleWorker {
+    fn matches(&mut self, request: &LiveRequest, workers: &WorkerPaths) -> bool {
+        let compute = if request.config.compute == whisper_core::ComputeChoice::Auto {
+            if workers.gpu.is_file() {
+                whisper_core::ComputeChoice::Gpu
+            } else {
+                whisper_core::ComputeChoice::Cpu
+            }
+        } else {
+            request.config.compute
+        };
+        self.matches_identity(compute, &request.model_path, request.model_sha256)
+    }
+
+    fn matches_identity(
+        &mut self,
+        compute: whisper_core::ComputeChoice,
+        model_path: &str,
+        model_sha256: [u8; 32],
+    ) -> bool {
+        self.expires_at > Instant::now()
+            && self.compute == compute
+            && self.model_path == model_path
+            && self.model_sha256 == model_sha256
+            && self
+                .transport
+                .try_wait()
+                .is_ok_and(|status| status.is_none())
+    }
 }
 #[derive(Clone, Copy)]
 struct FinishedLiveWindow {
@@ -880,6 +930,8 @@ impl ImportRuntime {
     fn new(workers: WorkerPaths, publication_gate: Arc<PublicationGate>) -> Self {
         Self {
             workers,
+            idle_worker: None,
+            pending_idle_worker: None,
             auto_fallback_reason: None,
             diagnostics: None,
             diagnostic_start_failed: false,
@@ -915,6 +967,9 @@ impl ImportRuntime {
         }
     }
     fn effect(&mut self, effect: ImportEffect, events: &mut VecDeque<ImportEvent>) {
+        if matches!(&effect, ImportEffect::StartLive(_)) {
+            self.idle_worker = None;
+        }
         let persisted_live_segment = match &effect {
             ImportEffect::PersistSegment(segment)
                 if self.live.as_ref().is_some_and(|live| {
@@ -936,7 +991,16 @@ impl ImportRuntime {
                     Err((id.0, id.1, "Une transcription est déjà en cours".into()))
                 } else {
                     let instance = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
-                    match crate::direct_live::DirectLive::start(request, &self.workers, instance) {
+                    let reusable_worker = self.idle_worker.take().and_then(|mut idle| {
+                        idle.matches(&request, &self.workers)
+                            .then_some(idle.transport)
+                    });
+                    match crate::direct_live::DirectLive::start(
+                        request,
+                        &self.workers,
+                        instance,
+                        reusable_worker,
+                    ) {
                         Ok(session) => {
                             self.direct_live = Some(session);
                             Ok(())
@@ -1462,7 +1526,14 @@ impl ImportRuntime {
         if expected_backend == BackendKind::Cpu {
             worker_config.compute = whisper_core::ComputeChoice::Cpu;
         }
-        let mut transport = match ChildWorkerTransport::spawn(&selection.path) {
+        let cached = self.idle_worker.take().and_then(|mut idle| {
+            idle.matches_identity(worker_config.compute, &request.model_path, model_sha256)
+                .then_some(idle.transport)
+        });
+        let mut transport = match cached
+            .map(Ok)
+            .unwrap_or_else(|| ChildWorkerTransport::spawn(&selection.path))
+        {
             Ok(transport) => transport,
             Err(error)
                 if request.config.compute == whisper_core::ComputeChoice::Auto
@@ -1484,6 +1555,7 @@ impl ImportRuntime {
         }
         let retry_request = request.clone();
         if let Err(error) = transport.request(WorkerCommand::StartImport {
+            retain_after_publish: true,
             job_id: id.0,
             generation: id.1,
             instance_id,
@@ -2016,40 +2088,60 @@ impl ImportRuntime {
         count: u64,
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
-        if let Some(progress) = self.progress.as_mut() {
-            progress.close(ProgressPhase::Draining);
-            progress.close(ProgressPhase::Finalizing);
-        }
-        self.archive
-            .prepare_publish(job, generation, count)
-            .map_err(|e| (job, generation, e))?;
-        self.publication_gate
-            .commit(|| self.archive.commit_publish(job, generation))
-            .map_err(|e| (job, generation, e))?;
-        let root = self.archive_root();
-        if let Ok(mut queue) = crate::queue_store::QueueStore::open(&root)
-            && queue.remove(job, generation).is_ok()
-        {
-            events.push_back(ImportEvent::Queue(queue.entries()));
-        }
-        let first = ArchiveStore::scan(&root).map_err(|e| (job, generation, e))?;
-        let second = ArchiveStore::scan(&root).map_err(|e| (job, generation, e))?;
-        if first != second
-            || !first.iter().any(|entry| {
-                entry.job_id == job && entry.generation == generation && entry.complete
-            })
-        {
-            return Err((
-                job,
+        let result = (|| {
+            if let Some(progress) = self.progress.as_mut() {
+                progress.close(ProgressPhase::Draining);
+                progress.close(ProgressPhase::Finalizing);
+            }
+            self.archive
+                .prepare_publish(job, generation, count)
+                .map_err(|e| (job, generation, e))?;
+            self.publication_gate
+                .commit(|| self.archive.commit_publish(job, generation))
+                .map_err(|e| (job, generation, e))?;
+            let root = self.archive_root();
+            if let Ok(mut queue) = crate::queue_store::QueueStore::open(&root)
+                && queue.remove(job, generation).is_ok()
+            {
+                events.push_back(ImportEvent::Queue(queue.entries()));
+            }
+            let first = ArchiveStore::scan(&root).map_err(|e| (job, generation, e))?;
+            let second = ArchiveStore::scan(&root).map_err(|e| (job, generation, e))?;
+            if first != second
+                || !first.iter().any(|entry| {
+                    entry.job_id == job && entry.generation == generation && entry.complete
+                })
+            {
+                return Err((
+                    job,
+                    generation,
+                    "StorageCorrupt: archive scan did not verify stable published generation"
+                        .into(),
+                ));
+            }
+            events.push_back(ImportEvent::Published {
+                job_id: job,
                 generation,
-                "StorageCorrupt: archive scan did not verify stable published generation".into(),
-            ));
+            });
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                if let Some(mut worker) = self.pending_idle_worker.take() {
+                    worker.expires_at = Instant::now() + WORKER_IDLE_RETENTION;
+                    self.idle_worker = Some(worker);
+                }
+                Ok(())
+            }
+            Err(error) => {
+                // End alone does not start the retention period: an unpublished
+                // result must not leave a model resident or allow a second worker.
+                self.pending_idle_worker = None;
+                self.idle_worker = None;
+                Err(error)
+            }
         }
-        events.push_back(ImportEvent::Published {
-            job_id: job,
-            generation,
-        });
-        Ok(())
     }
     fn archive_root(&self) -> PathBuf {
         self.archive.root_path()
@@ -2446,11 +2538,31 @@ impl ImportRuntime {
     }
 
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+        if self
+            .idle_worker
+            .as_ref()
+            .is_some_and(|idle| idle.expires_at <= Instant::now())
+        {
+            self.idle_worker = None;
+        }
         if let Some(direct) = self.direct_live.as_mut() {
             let id = direct.identity();
             let result = direct.poll().map_err(|error| direct.fail(error));
             let done = direct.done() || result.is_err();
             if done {
+                if direct.done() && result.is_ok() {
+                    let (compute, model_path, model_sha256) = direct.cache_identity();
+                    let model_path = model_path.to_owned();
+                    if let Some(transport) = direct.take_idle_worker() {
+                        self.idle_worker = Some(IdleWorker {
+                            transport,
+                            compute,
+                            model_path,
+                            model_sha256,
+                            expires_at: Instant::now() + WORKER_IDLE_RETENTION,
+                        });
+                    }
+                }
                 self.direct_live = None;
             }
             match result {
@@ -3268,7 +3380,21 @@ impl ImportRuntime {
                 last_sequence,
                 last_offset,
             } if (j, g, i) == (job_id, generation, instance_id) => {
-                self.transport = None;
+                if let (Some(active), Some(transport)) =
+                    (self.active.as_ref(), self.transport.take())
+                    && let Some(request) = active.import_request.as_ref()
+                {
+                    self.pending_idle_worker = Some(IdleWorker {
+                        transport,
+                        compute: match active.backend {
+                            BackendKind::Cpu => whisper_core::ComputeChoice::Cpu,
+                            BackendKind::Cuda => whisper_core::ComputeChoice::Gpu,
+                        },
+                        model_path: request.model_path.clone(),
+                        model_sha256: request.model_sha256,
+                        expires_at: Instant::now(),
+                    });
+                }
                 self.active = None;
                 Ok(ImportEvent::End {
                     job_id: j,
@@ -3658,7 +3784,7 @@ mod tests {
     fn missing_cuda_worker_is_reported_without_changing_cpu_path() {
         let missing = std::env::temp_dir().join("whisper-absent-gpu-worker-for-test.exe");
         assert!(!missing.is_file());
-        let error = probe_cuda_worker(&missing, "unused-model", [0; 32]).unwrap_err();
+        let error = probe_cuda_worker(&missing).unwrap_err();
         assert!(error.contains("GPU indisponible"));
         assert!(error.contains("choisissez CPU"));
     }
@@ -3756,6 +3882,192 @@ fn main() {
             String::from_utf8_lossy(&output.stderr)
         );
         executable
+    }
+
+    fn compile_multi_session_worker(root: &Path, marker: &Path) -> PathBuf {
+        let source = root.join("multi-session-worker.rs");
+        let executable = root.join("multi-session-worker.exe");
+        let marker = serde_json::to_string(&marker.to_string_lossy().to_string()).unwrap();
+        let program = r#"
+use std::io::{self, BufRead, Write};
+const MARKER: &str = __MARKER__;
+fn field(line: &str, name: &str) -> String {
+    let token = format!("\"{name}\":");
+    let tail = line.split_once(&token).expect("wire identity field").1.trim_start();
+    tail.chars().take_while(|c| c.is_ascii_digit()).collect()
+}
+fn event(name: &str, job: &str, generation: &str, instance: &str) {
+    let body = match name {
+        "Ready" => format!("\"Ready\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"backend\":\"Cpu\"}}"),
+        _ => format!("\"End\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"last_sequence\":0,\"last_offset\":0}}"),
+    };
+    println!("{{\"version\":2,\"message\":{{{body}}}}}");
+    let _ = io::stdout().flush();
+}
+fn main() {
+    let stdin = io::stdin();
+    let mut lines = stdin.lock().lines();
+    let mut cached_identity: Option<String> = None;
+    for line in lines.flatten() {
+        if line.contains("\"Shutdown\"") { return; }
+        if line.contains("\"StartImport\"") {
+            let job = field(&line, "job_id");
+            let generation = field(&line, "generation");
+            let instance = field(&line, "instance_id");
+            let identity = format!("{}:{}", line.contains("model.bin"), line.contains("[9,9,9,9]"));
+            let result = if cached_identity.as_ref() == Some(&identity) { "hit" } else { "load" };
+            cached_identity = Some(identity);
+            use std::io::Write as _;
+            let mut file = std::fs::OpenOptions::new().create(true).append(true).open(MARKER).unwrap();
+            writeln!(file, "{result}").unwrap();
+            event("Ready", &job, &generation, &instance);
+            event("End", &job, &generation, &instance);
+        }
+    }
+}
+"#
+        .replace("__MARKER__", &marker);
+        std::fs::write(&source, program).unwrap();
+        let output = Command::new("rustc")
+            .args([
+                "--edition=2021",
+                "--crate-name",
+                "whisper_test_multi_session_worker",
+            ])
+            .arg(&source)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .expect("rustc multi-session test worker");
+        assert!(
+            output.status.success(),
+            "rustc test worker: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        executable
+    }
+
+    fn receive_worker_event(
+        worker: &mut ChildWorkerTransport,
+        timeout: Duration,
+    ) -> Result<WorkerEvent, PortError> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(event) = worker.receive()? {
+                return Ok(event);
+            }
+            assert!(Instant::now() < deadline, "worker IPC event timed out");
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    fn retained_import_command(job_id: u128, instance_id: u64) -> WorkerCommand {
+        WorkerCommand::StartImport {
+            retain_after_publish: true,
+            job_id: JobId(job_id),
+            generation: Generation::first(),
+            instance_id,
+            source_path: "source.wav".into(),
+            source_sha256: [7; 32],
+            expected_source_samples: 16_000,
+            model_path: "model.bin".into(),
+            model_sha256: [9; 32],
+            config: JobConfig {
+                language: LanguageChoice::Manual("fr".into()),
+                compute: ComputeChoice::Cpu,
+            },
+        }
+    }
+
+    #[test]
+    fn retained_worker_reads_two_correlated_import_sessions_and_hits_model_cache() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target")
+            .join(format!("whisper-retained-imports-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("cache-events.txt");
+        let executable = compile_multi_session_worker(&root, &marker);
+        let mut worker = ChildWorkerTransport::spawn(&executable).unwrap();
+
+        for (job_id, instance_id) in [(801_u128, 41_u64), (802, 42)] {
+            worker
+                .request(retained_import_command(job_id, instance_id))
+                .unwrap();
+            assert!(matches!(
+                receive_worker_event(&mut worker, Duration::from_secs(3)).unwrap(),
+                WorkerEvent::Ready { job_id: actual, generation, instance_id: actual_instance, backend: BackendKind::Cpu }
+                    if actual == JobId(job_id) && generation == Generation::first() && actual_instance == instance_id
+            ));
+            assert!(matches!(
+                receive_worker_event(&mut worker, Duration::from_secs(3)).unwrap(),
+                WorkerEvent::End { job_id: actual, generation, instance_id: actual_instance, .. }
+                    if actual == JobId(job_id) && generation == Generation::first() && actual_instance == instance_id
+            ));
+        }
+
+        assert_eq!(std::fs::read_to_string(&marker).unwrap(), "load\nhit\n");
+        worker.request(WorkerCommand::Shutdown).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            if worker.try_wait().unwrap().is_some() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "retained worker did not shut down"
+            );
+            thread::sleep(Duration::from_millis(2));
+        }
+        drop(worker);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn failed_publish_drops_pending_worker_without_starting_retention() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target")
+            .join(format!(
+                "whisper-publish-failure-cache-{}",
+                std::process::id()
+            ));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("cache-events.txt");
+        let executable = compile_multi_session_worker(&root, &marker);
+        let mut transport = ChildWorkerTransport::spawn(&executable).unwrap();
+        transport.request(retained_import_command(803, 43)).unwrap();
+        assert!(matches!(
+            receive_worker_event(&mut transport, Duration::from_secs(3)).unwrap(),
+            WorkerEvent::Ready { .. }
+        ));
+
+        let gate = Arc::new(PublicationGate::default());
+        gate.activate();
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: executable.clone(),
+                gpu: root.join("missing-gpu.exe"),
+            },
+            gate,
+        );
+        runtime.archive = ArchiveStore::new(root.join("archive"));
+        runtime.pending_idle_worker = Some(IdleWorker {
+            transport,
+            compute: ComputeChoice::Cpu,
+            model_path: "model.bin".into(),
+            model_sha256: [9; 32],
+            expires_at: Instant::now(),
+        });
+
+        let error = runtime
+            .publish(JobId(803), Generation::first(), 0, &mut VecDeque::new())
+            .expect_err("an unprepared archive cannot publish");
+
+        assert_eq!((error.0, error.1), (JobId(803), Generation::first()));
+        assert!(runtime.pending_idle_worker.is_none());
+        assert!(runtime.idle_worker.is_none());
+        assert!(runtime.transport.is_none());
+        drop(runtime);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     fn compile_verified_gpu_init_failure_worker(
@@ -4476,10 +4788,13 @@ fn main() {
         let mut bytes = Vec::new();
         write_frame(&mut bytes, &IpcEnvelope::new(failed)).unwrap();
         write_frame(&mut bytes, &IpcEnvelope::new(stopped.clone())).unwrap();
-        let (tx, rx) = mpsc::sync_channel(2);
+        let (tx, rx) = mpsc::sync_channel(4);
         read_events(Cursor::new(bytes), tx);
-        assert!(matches!(rx.recv().unwrap(), Ok(WorkerEvent::Failed { .. })));
-        assert_eq!(rx.recv().unwrap(), Ok(stopped));
+        assert!(matches!(
+            rx.recv().unwrap(),
+            WorkerReaderMessage::Event(Ok(WorkerEvent::Failed { .. }))
+        ));
+        assert_eq!(rx.recv().unwrap(), WorkerReaderMessage::Event(Ok(stopped)));
     }
 
     #[test]
@@ -4501,8 +4816,38 @@ fn main() {
         write_frame(&mut bytes, &IpcEnvelope::new(current.clone())).unwrap();
         let (tx, rx) = mpsc::sync_channel(3);
         read_events(Cursor::new(bytes), tx);
-        assert_eq!(rx.recv().unwrap(), Ok(stale));
-        assert_eq!(rx.recv().unwrap(), Ok(current));
+        assert_eq!(rx.recv().unwrap(), WorkerReaderMessage::Event(Ok(stale)));
+        assert_eq!(rx.recv().unwrap(), WorkerReaderMessage::Event(Ok(current)));
+        assert!(matches!(
+            rx.recv().unwrap(),
+            WorkerReaderMessage::TransportEnded
+        ));
+    }
+
+    #[test]
+    fn worker_reader_signals_transport_end_after_session_end() {
+        let mut bytes = Vec::new();
+        write_frame(
+            &mut bytes,
+            &IpcEnvelope::new(WorkerEvent::End {
+                job_id: JobId(18),
+                generation: Generation::first(),
+                instance_id: 1,
+                last_sequence: 0,
+                last_offset: 0,
+            }),
+        )
+        .unwrap();
+        let (tx, rx) = mpsc::sync_channel(2);
+        read_events(Cursor::new(bytes), tx);
+        assert!(matches!(
+            rx.recv().unwrap(),
+            WorkerReaderMessage::Event(Ok(WorkerEvent::End {
+                job_id: JobId(18),
+                ..
+            }))
+        ));
+        assert_eq!(rx.recv().unwrap(), WorkerReaderMessage::TransportEnded);
     }
 
     #[test]
@@ -5108,7 +5453,7 @@ fn main() {
     #[test]
     fn event_65_backpressures_all_production_stages_then_delivers_in_order() {
         struct WireRuntime {
-            worker_events: Receiver<Result<WorkerEvent, PortError>>,
+            worker_events: Receiver<WorkerReaderMessage>,
             consumed: Arc<std::sync::atomic::AtomicUsize>,
             shutdown: Receiver<()>,
         }
@@ -5117,13 +5462,13 @@ fn main() {
 
             fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
                 match self.worker_events.try_recv() {
-                    Ok(Ok(WorkerEvent::Progress {
+                    Ok(WorkerReaderMessage::Event(Ok(WorkerEvent::Progress {
                         job_id,
                         generation,
                         completed_samples,
                         total_samples,
                         ..
-                    })) => {
+                    }))) => {
                         self.consumed.fetch_add(1, Ordering::AcqRel);
                         Some(Ok(ImportEvent::Progress {
                             job_id,
@@ -5132,21 +5477,23 @@ fn main() {
                             total_samples,
                         }))
                     }
-                    Ok(Ok(WorkerEvent::Failed {
+                    Ok(WorkerReaderMessage::Event(Ok(WorkerEvent::Failed {
                         job_id: Some(job_id),
                         generation: Some(generation),
                         message,
                         ..
-                    })) => {
+                    }))) => {
                         self.consumed.fetch_add(1, Ordering::AcqRel);
                         Some(Err((job_id, generation, message)))
                     }
-                    Ok(Err(error)) => Some(Err((
+                    Ok(WorkerReaderMessage::Event(Err(error))) => Some(Err((
                         JobId(903),
                         Generation::first(),
                         format!("worker reader: {error:?}"),
                     ))),
-                    Ok(Ok(_)) => None,
+                    Ok(WorkerReaderMessage::Event(Ok(_)) | WorkerReaderMessage::TransportEnded) => {
+                        None
+                    }
                     Err(TryRecvError::Empty) => match self.shutdown.try_recv() {
                         Ok(()) => Some(Ok(ImportEvent::History(Vec::new()))),
                         Err(_) => None,
@@ -5326,10 +5673,10 @@ fn main() {
 
     #[test]
     fn worker_eof_without_end_is_reported_as_failure() {
-        let (tx, rx) = mpsc::sync_channel(1);
+        let (tx, rx) = mpsc::sync_channel(2);
         read_events(Cursor::new(Vec::<u8>::new()), tx);
         assert!(
-            matches!(rx.try_recv(), Ok(Err(PortError::Failed(message))) if message.contains("without End"))
+            matches!(rx.try_recv(), Ok(WorkerReaderMessage::Event(Err(PortError::Failed(message)))) if message.contains("without End"))
         );
     }
 

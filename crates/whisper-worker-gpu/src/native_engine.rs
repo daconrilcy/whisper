@@ -13,14 +13,38 @@ pub struct TextSegment {
 }
 
 impl GpuEngine {
+    pub fn attest(&self) -> Result<(), String> {
+        let started = std::time::Instant::now();
+        let result = self
+            .context
+            .create_state()
+            .map(|_| ())
+            .map_err(|error| format!("CUDA state initialization failed: {error}"));
+        eprintln!(
+            "startup_perf phase=gpu_state_attest elapsed_ms={}",
+            started.elapsed().as_millis()
+        );
+        result
+    }
+
     pub fn load(path: &str) -> Result<Self, String> {
+        let started = std::time::Instant::now();
         let mut params = WhisperContextParameters::default();
         params.use_gpu(true);
         let context = WhisperContext::new_with_params(path, params)
             .map_err(|e| format!("CUDA model initialization failed: {e}"))?;
+        eprintln!(
+            "startup_perf phase=gpu_context_load elapsed_ms={}",
+            started.elapsed().as_millis()
+        );
+        let state_started = std::time::Instant::now();
         context
             .create_state()
             .map_err(|e| format!("CUDA state initialization failed: {e}"))?;
+        eprintln!(
+            "startup_perf phase=gpu_initial_state elapsed_ms={}",
+            state_started.elapsed().as_millis()
+        );
         Ok(Self { context })
     }
 

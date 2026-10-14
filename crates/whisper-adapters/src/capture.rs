@@ -14,6 +14,12 @@ pub const CAPTURE_SLOTS: usize = 100;
 const CAPTURE_SATURATED: u8 = 1;
 const CAPTURE_FAILED: u8 = 2;
 
+#[derive(Default)]
+struct CaptureStatus {
+    flags: AtomicU8,
+    first_sample_at_unix_ms: AtomicU64,
+}
+
 pub struct CapturedBlock {
     pub sample_rate_hz: u32,
     pub channels: u16,
@@ -30,7 +36,7 @@ pub struct CaptureStream {
     stream: Option<Stream>,
     ready: Consumer<Vec<f32>>,
     recycle: Producer<Vec<f32>>,
-    status: Arc<AtomicU8>,
+    status: Arc<CaptureStatus>,
     xruns: Arc<AtomicU64>,
     failure_detail: Arc<Mutex<Option<String>>>,
     rate: u32,
@@ -164,27 +170,38 @@ fn capture_into<T: Copy>(
     capacity: usize,
     free: &mut Consumer<Vec<f32>>,
     ready: &mut Producer<Vec<f32>>,
-    status: &AtomicU8,
+    status: &CaptureStatus,
 ) {
     let channels = usize::from(channels);
     if channels == 0 || !data.len().is_multiple_of(channels) {
-        status.fetch_or(CAPTURE_FAILED, Ordering::Release);
+        status.flags.fetch_or(CAPTURE_FAILED, Ordering::Release);
         return;
+    }
+    if !data.is_empty() && status.first_sample_at_unix_ms.load(Ordering::Relaxed) == 0 {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_millis() as u64);
+        let _ = status.first_sample_at_unix_ms.compare_exchange(
+            0,
+            now,
+            Ordering::Release,
+            Ordering::Relaxed,
+        );
     }
     for samples in data.chunks(capacity) {
         let Ok(mut block) = free.pop() else {
-            status.fetch_or(CAPTURE_SATURATED, Ordering::Release);
+            status.flags.fetch_or(CAPTURE_SATURATED, Ordering::Release);
             return;
         };
         if samples.len() > block.capacity() {
-            status.fetch_or(CAPTURE_FAILED, Ordering::Release);
+            status.flags.fetch_or(CAPTURE_FAILED, Ordering::Release);
             return;
         }
         block.clear();
         block.extend(samples.iter().copied().map(&convert));
         if let Err(error) = ready.push(block) {
             drop(error); // Impossible while the two 100-slot pools remain balanced.
-            status.fetch_or(CAPTURE_SATURATED, Ordering::Release);
+            status.flags.fetch_or(CAPTURE_SATURATED, Ordering::Release);
             return;
         }
     }
@@ -316,7 +333,7 @@ fn start_device_with_buffer(device: Device, direct_live: bool) -> Result<Capture
             .push(Vec::with_capacity(slot_samples))
             .map_err(|_| "CaptureUnavailable: cannot initialize bounded slot pool")?;
     }
-    let status = Arc::new(AtomicU8::new(0));
+    let status = Arc::new(CaptureStatus::default());
     let callback_status = status.clone();
     let error_status = status.clone();
     let xruns = Arc::new(AtomicU64::new(0));
@@ -398,7 +415,7 @@ fn start_device_with_buffer(device: Device, direct_live: bool) -> Result<Capture
 
 fn record_stream_error(
     error: cpal::Error,
-    status: &AtomicU8,
+    status: &CaptureStatus,
     failure_detail: &Mutex<Option<String>>,
     xruns: &AtomicU64,
 ) {
@@ -410,10 +427,37 @@ fn record_stream_error(
     if let Ok(mut detail) = failure_detail.lock() {
         *detail = Some(format!("{:?}: {error}", error.kind()));
     }
-    status.fetch_or(CAPTURE_FAILED, Ordering::Release);
+    status.flags.fetch_or(CAPTURE_FAILED, Ordering::Release);
 }
 
 impl CaptureStream {
+    #[cfg(test)]
+    pub(crate) fn from_test_blocks(rate: u32, channels: u16, blocks: Vec<Vec<f32>>) -> Self {
+        let (mut ready_tx, ready) = RingBuffer::new(CAPTURE_SLOTS);
+        for block in blocks {
+            ready_tx
+                .push(block)
+                .expect("test capture ring has capacity");
+        }
+        let (recycle, _free) = RingBuffer::new(CAPTURE_SLOTS);
+        let status = Arc::new(CaptureStatus::default());
+        status.first_sample_at_unix_ms.store(1, Ordering::Release);
+        Self {
+            stream: None,
+            ready,
+            recycle,
+            status,
+            xruns: Arc::new(AtomicU64::new(0)),
+            failure_detail: Arc::new(Mutex::new(None)),
+            rate,
+            channels,
+        }
+    }
+
+    pub fn first_sample_at_unix_ms(&self) -> Option<u64> {
+        let value = self.status.first_sample_at_unix_ms.load(Ordering::Acquire);
+        (value != 0).then_some(value)
+    }
     pub fn sample_rate_hz(&self) -> u32 {
         self.rate
     }
@@ -434,10 +478,10 @@ impl CaptureStream {
             .map_err(|_| "CaptureInterrupted: callback slot pool could not be recycled".to_owned())
     }
     pub fn is_saturated(&self) -> bool {
-        self.status.load(Ordering::Acquire) & CAPTURE_SATURATED != 0
+        self.status.flags.load(Ordering::Acquire) & CAPTURE_SATURATED != 0
     }
     pub fn failure(&self) -> bool {
-        self.status.load(Ordering::Acquire) & CAPTURE_FAILED != 0
+        self.status.flags.load(Ordering::Acquire) & CAPTURE_FAILED != 0
     }
     pub fn take_xruns(&self) -> u64 {
         self.xruns.swap(0, Ordering::Relaxed)
@@ -484,7 +528,7 @@ mod tests {
         for _ in 0..CAPTURE_SLOTS {
             recycle_tx.push(Vec::with_capacity(4)).unwrap();
         }
-        let status = AtomicU8::new(0);
+        let status = CaptureStatus::default();
 
         for value in 0..CAPTURE_SLOTS * 2 {
             let data = [value as f32; 4];
@@ -504,7 +548,7 @@ mod tests {
             recycle_tx.push(block).expect("consumer returns its slot");
         }
 
-        assert_eq!(status.load(Ordering::Acquire), 0);
+        assert_eq!(status.flags.load(Ordering::Acquire), 0);
     }
 
     #[test]
@@ -512,7 +556,7 @@ mod tests {
         let (mut captured_tx, _captured_rx) = RingBuffer::new(CAPTURE_SLOTS);
         let (mut recycle_tx, mut free_rx) = RingBuffer::new(CAPTURE_SLOTS);
         recycle_tx.push(Vec::with_capacity(4)).unwrap();
-        let status = AtomicU8::new(0);
+        let status = CaptureStatus::default();
 
         capture_into(
             &[0.0f32; 3],
@@ -524,12 +568,12 @@ mod tests {
             &status,
         );
 
-        assert_ne!(status.load(Ordering::Acquire) & CAPTURE_FAILED, 0);
+        assert_ne!(status.flags.load(Ordering::Acquire) & CAPTURE_FAILED, 0);
     }
 
     #[test]
     fn wasapi_xrun_is_counted_without_terminating_the_stream() {
-        let status = AtomicU8::new(0);
+        let status = CaptureStatus::default();
         let detail = Mutex::new(None);
         let xruns = AtomicU64::new(0);
         record_stream_error(
@@ -538,7 +582,7 @@ mod tests {
             &detail,
             &xruns,
         );
-        assert_eq!(status.load(Ordering::Acquire), 0);
+        assert_eq!(status.flags.load(Ordering::Acquire), 0);
         assert_eq!(xruns.load(Ordering::Relaxed), 1);
         record_stream_error(
             cpal::Error::new(cpal::ErrorKind::DeviceNotAvailable),
@@ -546,7 +590,7 @@ mod tests {
             &detail,
             &xruns,
         );
-        assert_ne!(status.load(Ordering::Acquire) & CAPTURE_FAILED, 0);
+        assert_ne!(status.flags.load(Ordering::Acquire) & CAPTURE_FAILED, 0);
         assert!(
             detail
                 .lock()

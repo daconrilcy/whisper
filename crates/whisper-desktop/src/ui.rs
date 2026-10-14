@@ -1,3 +1,4 @@
+use crate::reactivity_log::ReactivityLog;
 use eframe::egui;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -25,6 +26,7 @@ pub struct DesktopApp<A> {
     auto_stop_enabled: bool,
     auto_stop_minutes: u64,
     compute_choice: ComputeChoice,
+    compute_choice_touched: bool,
     startup_message: Option<String>,
     gpu_probe: Option<Receiver<Result<(), String>>>,
     quit_pending: bool,
@@ -35,6 +37,10 @@ pub struct DesktopApp<A> {
     live_request: Option<LiveRequest>,
     provisional_first_rendered_at_unix_ms: Option<u64>,
     provisional_render_identity: Option<(JobId, Generation, u64)>,
+    process_started_at_unix_ms: u64,
+    live_clicked_at_unix_ms: Option<u64>,
+    live_attempt_counter: u64,
+    reactivity_log: ReactivityLog,
 }
 
 impl<A: Application> DesktopApp<A> {
@@ -75,6 +81,11 @@ impl<A: Application> DesktopApp<A> {
         self
     }
 
+    pub fn with_process_started(mut self, started_at_unix_ms: u64) -> Self {
+        self.process_started_at_unix_ms = started_at_unix_ms;
+        self
+    }
+
     fn poll_gpu_probe(&mut self) {
         let result = self
             .gpu_probe
@@ -90,11 +101,15 @@ impl<A: Application> DesktopApp<A> {
             self.gpu_probe = None;
             match result {
                 Ok(()) => {
-                    self.compute_choice = ComputeChoice::Gpu;
+                    if !self.compute_choice_touched {
+                        self.compute_choice = ComputeChoice::Gpu;
+                    }
                     self.startup_message = None;
                 }
                 Err(message) => {
-                    self.compute_choice = ComputeChoice::Cpu;
+                    if !self.compute_choice_touched {
+                        self.compute_choice = ComputeChoice::Cpu;
+                    }
                     self.startup_message = Some(message);
                 }
             }
@@ -125,6 +140,7 @@ impl<A: Application> DesktopApp<A> {
             auto_stop_enabled: false,
             auto_stop_minutes: 120,
             compute_choice,
+            compute_choice_touched: false,
             startup_message,
             gpu_probe: None,
             quit_pending: false,
@@ -135,6 +151,10 @@ impl<A: Application> DesktopApp<A> {
             live_request: None,
             provisional_first_rendered_at_unix_ms: None,
             provisional_render_identity: None,
+            process_started_at_unix_ms: unix_time_ms(),
+            live_clicked_at_unix_ms: None,
+            live_attempt_counter: 0,
+            reactivity_log: ReactivityLog::start(),
         }
     }
 
@@ -182,7 +202,65 @@ impl<A: Application> DesktopApp<A> {
         }
     }
 
+    fn record_reactivity_milestones(&mut self) {
+        let Some(request) = self.live_request.as_ref() else {
+            return;
+        };
+        if self.view.active_job.map(|(job_id, _)| job_id) != Some(request.job_id)
+            || self.view.active_generation != Some(request.generation)
+        {
+            return;
+        }
+        let session = live_log_session(
+            request.job_id,
+            request.generation,
+            self.live_attempt_counter,
+        );
+        let clicked_at = self.live_clicked_at_unix_ms;
+        let milestones = [
+            ("first_sample", self.view.direct_first_sample_at_unix_ms),
+            (
+                "first_wav_block_admitted",
+                self.view.direct_first_admitted_at_unix_ms,
+            ),
+            ("engine_ready", self.view.direct_ready_at_unix_ms),
+        ];
+        for (event, timestamp) in milestones {
+            if let Some(timestamp) = timestamp {
+                self.reactivity_log
+                    .record_once(session.clone(), event, timestamp, clicked_at);
+            }
+        }
+        if let (Some(captured), Some(available)) = (
+            self.view.provisional_captured_at_unix_ms,
+            self.view.provisional_available_at_unix_ms,
+        ) {
+            let sequence = self.view.provisional_sequence.unwrap_or(0);
+            self.reactivity_log.record_once(
+                session.clone(),
+                format!("provisional_available_sequence_{sequence}"),
+                available,
+                Some(captured),
+            );
+        }
+        if let Some(rendered_at) = self.provisional_first_rendered_at_unix_ms {
+            let sequence = self.view.provisional_sequence.unwrap_or(0);
+            if self.provisional_render_identity
+                == Some((request.job_id, request.generation, sequence))
+            {
+                let available = self.view.provisional_available_at_unix_ms;
+                self.reactivity_log.record_once(
+                    session.clone(),
+                    format!("provisional_first_render_sequence_{sequence}"),
+                    rendered_at,
+                    available,
+                );
+            }
+        }
+    }
+
     fn start_import(&mut self) {
+        self.compute_choice_touched = true;
         let serial = NEXT_JOB.fetch_add(1, Ordering::Relaxed);
         let job_id = JobId(((std::process::id() as u128) << 64) | serial as u128);
         let generation = Generation::first();
@@ -194,7 +272,7 @@ impl<A: Application> DesktopApp<A> {
             },
             compute: self.compute_choice,
         };
-        self.dispatch(AppCommand::EnqueueImport {
+        if self.dispatch(AppCommand::EnqueueImport {
             request: ImportRequest {
                 job_id,
                 generation,
@@ -206,10 +284,21 @@ impl<A: Application> DesktopApp<A> {
                 destination: self.paths.destination.trim().to_owned(),
                 config,
             },
-        });
+        }) {
+            self.reactivity_log.record_once(
+                process_log_session(),
+                "first_command_accepted",
+                unix_time_ms(),
+                Some(self.process_started_at_unix_ms),
+            );
+        }
     }
 
     fn start_live(&mut self, generation: Generation) {
+        let clicked_at = unix_time_ms();
+        self.live_clicked_at_unix_ms = Some(clicked_at);
+        self.live_attempt_counter = self.live_attempt_counter.saturating_add(1);
+        self.compute_choice_touched = true;
         if generation == Generation::first() {
             // The new-recording button starts a new group. Recovery and continuation
             // use a later generation and retain the previous durable identity.
@@ -242,9 +331,19 @@ impl<A: Application> DesktopApp<A> {
                 compute: self.compute_choice,
             },
         };
+        let session = live_log_session(job_id, generation, self.live_attempt_counter);
+        self.reactivity_log
+            .record_once(session, "micro_clicked", clicked_at, None);
         self.active_identity = Some((job_id, generation));
         self.live_request = Some(request.clone());
-        self.dispatch(AppCommand::StartDirectLiveConfigured { request });
+        if self.dispatch(AppCommand::StartDirectLiveConfigured { request }) {
+            self.reactivity_log.record_once(
+                process_log_session(),
+                "first_command_accepted",
+                unix_time_ms(),
+                Some(self.process_started_at_unix_ms),
+            );
+        }
     }
 }
 
@@ -254,6 +353,12 @@ impl<A: Application> eframe::App for DesktopApp<A> {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.reactivity_log.record_once(
+            process_log_session(),
+            "first_ui_callback",
+            unix_time_ms(),
+            Some(self.process_started_at_unix_ms),
+        );
         self.poll_gpu_probe();
         if self.gpu_probe.is_some() {
             ui.ctx()
@@ -267,6 +372,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 .request_repaint_after(std::time::Duration::from_millis(100));
         }
         self.dispatch(AppCommand::Refresh);
+        self.record_reactivity_milestones();
         if let (Some((job_id, _)), Some(generation)) =
             (self.view.active_job, self.view.active_generation)
             && self
@@ -291,7 +397,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             .view
             .active_job
             .is_some_and(|(_, state)| window_must_remain_open(state));
-        let can_enqueue = import_enqueue_enabled(busy) && self.gpu_probe.is_none();
+        let can_enqueue = import_enqueue_enabled(busy);
         if ui.ctx().input(|input| input.viewport().close_requested()) && busy {
             ui.ctx()
                 .send_viewport_cmd(egui::ViewportCommand::CancelClose);
@@ -375,6 +481,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     ui.text_edit_singleline(&mut self.language);
                 }
                 ui.label("Calcul");
+                let previous_compute = self.compute_choice;
                 egui::ComboBox::from_id_salt("compute_choice")
                     .selected_text(match self.compute_choice {
                         ComputeChoice::Cpu => "CPU",
@@ -386,6 +493,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         ui.selectable_value(&mut self.compute_choice, ComputeChoice::Cpu, "CPU");
                         ui.selectable_value(&mut self.compute_choice, ComputeChoice::Gpu, "GPU");
                     });
+                self.compute_choice_touched |= self.compute_choice != previous_compute;
             });
             ui.group(|ui| {
                 ui.heading("Microphone");
@@ -480,7 +588,6 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
             {
                 let can_start_live = !busy
-                    && self.gpu_probe.is_none()
                     && !self.paths.model.trim().is_empty()
                     && !self.paths.destination.trim().is_empty()
                     && (!self.manual_language || !self.language.trim().is_empty());
@@ -549,16 +656,6 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         &mut self.provisional_render_identity,
                         &mut self.provisional_first_rendered_at_unix_ms,
                     );
-                    if let (Some(captured), Some(available)) = (
-                        self.view.provisional_captured_at_unix_ms,
-                        self.view.provisional_available_at_unix_ms,
-                    ) {
-                        let first_rendered =
-                            self.provisional_first_rendered_at_unix_ms.unwrap_or(0);
-                        ui.label(format!(
-                            "Capture Unix {captured} ms | disponibilité Unix {available} ms | premier affichage Unix {first_rendered} ms"
-                        ));
-                    }
                 }
             }
             if self
@@ -577,11 +674,26 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 }
                 if let Some(text) = self.view.confirmed_text.as_deref() {
                     ui.label("Texte confirmé :");
+                    let mut text_was_visible = false;
                     egui::ScrollArea::vertical()
                         .max_height(180.0)
                         .show(ui, |ui| {
-                            ui.label(text);
+                            let response = ui.label(text);
+                            text_was_visible =
+                                response.rect.width() > 0.0 && response.rect.height() > 0.0;
                         });
+                    if text_was_visible && let Some(request) = self.live_request.as_ref() {
+                        self.reactivity_log.record_once(
+                            live_log_session(
+                                request.job_id,
+                                request.generation,
+                                self.live_attempt_counter,
+                            ),
+                            "first_confirmed_text_displayed",
+                            unix_time_ms(),
+                            self.live_clicked_at_unix_ms,
+                        );
+                    }
                 }
             }
             if let Some((completed, total)) = self.view.progress {
@@ -928,6 +1040,18 @@ fn unix_time_ms() -> u64 {
         })
 }
 
+fn process_log_session() -> String {
+    format!("process-{}", std::process::id())
+}
+
+fn live_log_session(job_id: JobId, generation: Generation, attempt: u64) -> String {
+    format!(
+        "job-{}-generation-{}-attempt-{attempt}",
+        job_id.0,
+        generation.get()
+    )
+}
+
 fn record_first_render(
     identity: (JobId, Generation, u64),
     response: &egui::Response,
@@ -970,6 +1094,7 @@ mod tests {
     }
 
     struct RejectQuitApplication;
+    struct RejectStartApplication;
 
     struct OneMicrophone;
 
@@ -990,6 +1115,16 @@ mod tests {
             } else {
                 Ok(AppView::default())
             }
+        }
+
+        fn view(&self) -> AppView {
+            AppView::default()
+        }
+    }
+
+    impl Application for RejectStartApplication {
+        fn dispatch(&mut self, _command: AppCommand) -> Result<AppView, ApplicationError> {
+            Err(ApplicationError::Failed("start admission rejected".into()))
         }
 
         fn view(&self) -> AppView {
@@ -1255,5 +1390,16 @@ mod tests {
         });
         assert_eq!(identity, Some((JobId(21), Generation::first(), 1)));
         assert!(first_render.is_some());
+    }
+
+    #[test]
+    fn first_effective_action_is_not_recorded_when_application_rejects_start() {
+        let mut app = DesktopApp::new(RejectStartApplication);
+        app.start_live(Generation::first());
+        assert!(app.live_clicked_at_unix_ms.is_some());
+        assert_eq!(
+            app.view.message.as_deref(),
+            Some("start admission rejected")
+        );
     }
 }

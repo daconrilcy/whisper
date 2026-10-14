@@ -58,13 +58,8 @@ pub fn compose() -> DesktopComposition {
     };
     let (sender, receiver) = mpsc::channel();
     let gpu_worker = workers.gpu.clone();
-    let model = paths.model.clone();
     std::thread::spawn(move || {
-        let result = probe_cuda_worker(
-            &gpu_worker,
-            &model,
-            whisper_desktop::ui::approved_model_sha256(),
-        );
+        let result = probe_cuda_worker(&gpu_worker);
         let _ = sender.send(result);
     });
     DesktopComposition {

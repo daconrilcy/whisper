@@ -25,7 +25,11 @@ impl<T> IpcEnvelope<T> {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum WorkerCommand {
+    /// Inspect the linked CUDA backend without loading the Whisper model.
+    ProbeCuda,
     StartImport {
+        #[serde(default)]
+        retain_after_publish: bool,
         job_id: JobId,
         generation: Generation,
         instance_id: u64,
@@ -98,6 +102,7 @@ pub enum WorkerCommand {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum WorkerEvent {
+    CudaAvailable,
     Ready {
         job_id: JobId,
         generation: Generation,

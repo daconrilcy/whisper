@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod reactivity_log;
 pub mod ui;
 
 pub fn run<A: whisper_core::Application + 'static>(
@@ -9,6 +10,7 @@ pub fn run<A: whisper_core::Application + 'static>(
     paths: whisper_core::path_settings::PathSettingsApp,
     microphone_port: Box<dyn whisper_core::MicrophonePort>,
     gpu_probe: std::sync::mpsc::Receiver<Result<(), String>>,
+    process_started_at_unix_ms: u64,
 ) -> eframe::Result {
     eframe::run_native(
         "Whisper",
@@ -25,7 +27,8 @@ pub fn run<A: whisper_core::Application + 'static>(
                     paths,
                     microphone_port,
                 )
-                .with_gpu_probe(gpu_probe),
+                .with_gpu_probe(gpu_probe)
+                .with_process_started(process_started_at_unix_ms),
             ))
         }),
     )
