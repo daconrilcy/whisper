@@ -1,6 +1,6 @@
 Avancée : la base CPU/GPU et plusieurs composants Auto existent ; le parcours Windows ne propose pas encore Auto.
-Blocage : l'échec d'initialisation GPU en Auto demande une décision avant toute implémentation.
-Décision : recommander un repli CPU informé, seulement avant le début de la transcription.
+Blocage : aucun pour finaliser le cadrage ; l'implémentation attend une autorisation distincte.
+Décision : un seul repli CPU informé est accepté avant le début du traitement audio.
 
 # Évolution Auto — cadrage (14 octobre 2026)
 
@@ -14,7 +14,7 @@ Avant chaque import WAV/MP3 ou séance micro, **Auto** vérifie qu'un GPU est ut
 |---|---|
 | CA1 | Sélecteur Auto/CPU/GPU et modes manuels préservés. |
 | CA2 | Avec GPU compatible, Auto obtient `Ready` CUDA attesté et affiché, sur micro/import. |
-| CA3 | Sans GPU compatible, CPU démarre sans choix ni erreur GPU bloquante. |
+| CA3 | GPU absent ou initialisation échouée : une seule tentative CPU avant traitement, sans choix ni erreur GPU bloquante. |
 | CA4 | Micro/import : même modèle, paramètres, qualité et sorties. |
 | CA5 | Auto persiste après CPU ; une nouvelle session réévalue le GPU. |
 
@@ -30,17 +30,17 @@ Avant chaque import WAV/MP3 ou séance micro, **Auto** vérifie qu'un GPU est ut
 
 **Vérification.** `cargo build --offline --locked --workspace` et `cargo test --offline --locked --workspace` réussissent à `4f0a0d2c`. Tests de politique et workers simulés : observés ; fonctionnement Auto Windows : déduit du code, non essayé. Le bilan GPU du 14 octobre qualifie seulement les modes manuels sur ce PC. Absence de GPU : non testable ici sans modifier le système ; aucune simulation système effectuée.
 
-## Architecture et plan proposé — 8 tâches, non autorisées
+## Architecture et plan proposé — 8 tâches, implémentation non autorisée
 
-Le domaine sépare préférence et moteur (`ComputeChoice`, `ComputePolicy`) ; l'application publie le moteur ; les adaptateurs sondent/démarrent ; la composition garde la présélection ; l'interface affiche Auto, cause et moteur. Réutiliser l'attestation CUDA avec erreurs typées. Pour l'import, `Ready` précède une inférence lancée aussitôt : si Q1 accepte le repli, étendre le worker existant avec une étape explicite « commencer » après attestation. Le micro direct attend déjà `Ready` avant capture. Une sonde préalable séparée chargerait deux fois le modèle sans garantir la seconde initialisation. Vérifier que le premier texte GPU reste sous 15 s ; erreur de modèle bloquante.
+Le domaine sépare préférence et moteur (`ComputeChoice`, `ComputePolicy`) ; l'application publie le moteur ; les adaptateurs sondent/démarrent ; la composition garde la présélection ; l'interface affiche Auto, cause et moteur. Réutiliser l'attestation CUDA avec erreurs typées à chaque session. Pour l'import, `Ready` précède une inférence lancée aussitôt : étendre le worker existant avec une étape explicite « commencer » après attestation, afin de garder le repli avant traitement. Le micro direct attend déjà `Ready` avant capture. Une sonde préalable séparée chargerait deux fois le modèle sans garantir la seconde initialisation. Mutualiser la décision Auto et l'unique tentative CPU ; annulation et échec CPU arrêtent sans nouvel essai. Les erreurs de modèle restent bloquantes, les modes manuels inchangés. Vérifier que le premier texte GPU reste sous 15 s.
 
-1. Borner la décision Q1 et les états « préparation / transcription commencée » dans la politique existante — CA2–CA5 ; tests de frontière.
-2. Étendre l'attestation CUDA avec erreurs typées à chaque départ — CA2–CA3 ; tests injectés et sonde native.
-3. Étendre l'IPC import avec autorisation explicite de commencer, puis raccorder `ImportRuntime` sans reprise après début — CA2–CA4 ; tests WAV/MP3 et panne simulée.
-4. Raccorder Auto au micro direct via `DirectLive`, avant capture, sans bascule en cours — CA2–CA4 ; tests de démarrage, arrêt et erreur.
-5. Afficher Auto, préférence conservée et moteur réel dans `ui.rs`/`application.rs` — CA1, CA5 ; tests UI et parcours.
+1. Borner les états « préparation / traitement commencé » dans `ComputePolicy` et l'unique repli — CA2–CA5 ; tests de frontière et échec CPU.
+2. Étendre l'attestation CUDA avec causes typées à chaque départ — CA2–CA3 ; tests injectés et sonde native.
+3. Étendre l'IPC import avec autorisation explicite de commencer, puis raccorder `ImportRuntime` sans reprise après début — CA2–CA4 ; tests WAV/MP3 et échecs simulés.
+4. Raccorder Auto au micro direct via `DirectLive`, avant capture, sans bascule en cours — CA2–CA4 ; tests de démarrage, arrêt et échecs simulés.
+5. Afficher Auto, préférence conservée, raison du repli et moteur réel dans `ui.rs`/`application.rs` — CA1, CA5 ; tests UI et parcours.
 6. Préserver les modes manuels et la présélection de `root.rs` — CA1 ; tests de non-régression CPU/GPU.
 7. Vérifier modèle, paramètres, blocs confirmés et sorties sur micro/import — CA4 ; tests existants complétés et comparaison de qualité.
 8. Qualifier dans la fenêtre Windows les deux parcours et les messages ; vérifier l'absence GPU sur une cible appropriée sans modifier ce PC — CA1–CA5 ; constat utilisateur.
 
-**Q1 — GPU détecté puis échec d'initialisation, décision attendue avant code.** Recommandation : en Auto, tenter CPU une fois **avant toute transcription ou capture**, afficher la cause et « CPU actif », garder Auto ; si CPU échoue, afficher son erreur. Alternative : arrêter et demander le choix CPU manuel. Après début, garder la règle GPU existante : arrêt et sortie micro incomplète avec WAV/blocs confirmés et réimport CPU proposé, sans bascule automatique. Hors périmètre : supervision continue, reprise, benchmark, changement de modèle, tray et MP3 de sortie.
+**Q1 — décision acceptée le 14 octobre 2026.** En Auto, vérifier le GPU réel avant chaque transcription. S'il est absent, incompatible ou échoue à l'initialisation, tenter CPU **une seule fois avant tout traitement audio** ; afficher sans bloquer la cause et « CPU prend le relais ». Si CPU échoue, arrêter avec une erreur explicite. Garder la préférence Auto pour la prochaine session. Après début du traitement, aucun changement automatique : la panne micro garde le WAV/blocs confirmés, les TXT/SRT incomplets et la proposition de réimport CPU existants. GPU manuel ne replie jamais. Hors périmètre : supervision, reprise, benchmark, autre modèle, tray et MP3 de sortie. **Cette décision ne vaut pas autorisation d'implémenter.**
