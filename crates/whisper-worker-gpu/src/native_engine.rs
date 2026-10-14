@@ -37,9 +37,10 @@ impl GpuEngine {
         {
             return Err("UnsupportedLanguage: select a supported Whisper language code".into());
         }
-        // Whisper can hallucinate text on digital silence. Keep the window's
-        // coverage, but return no text without invoking the model.
-        if pcm.iter().all(|sample| *sample == 0.0) {
+        // Whisper can hallucinate on silence or a short quiet tail. Keep the
+        // window's coverage, but return no text without invoking the model.
+        if pcm.iter().all(|sample| *sample == 0.0) || whisper_core::audio::is_quiet_short_tail(pcm)
+        {
             return Ok(Vec::new());
         }
         let mut state = self

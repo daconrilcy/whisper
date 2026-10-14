@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod application;
+pub mod audio;
 pub mod compute_policy;
 pub mod domain;
 pub mod ipc;
