@@ -3,6 +3,7 @@ Objectif produit : dans l'application Windows existante, transcrire un fichier W
 Différés : mode Auto et bascule automatique, supervision CPU/GPU, tray, reprise après panne, changement de modèle, sortie MP3.
 Évolution micro : livrée avec réserves, validée par l'utilisateur dans la fenêtre Windows ; bilan dans `docs/cadrage/bilan-evo-micro-direct.md`. Le cadrage initial reste dans `docs/cadrage/evo-micro-direct.md`.
 Évolution GPU : livrée et validée par l'utilisateur dans la fenêtre Windows ; bilan dans `docs/cadrage/bilan-evo-gpu.md`. Le cadrage initial est dans `docs/cadrage/evo-gpu.md`.
+Évolution navigation des chemins : cadrage en cours dans `docs/cadrage/evo-arbo.md`. L'utilisateur doit choisir l'audio WAV/MP3, le fichier du modèle local approuvé et le dossier de sortie avec les fenêtres standard de Windows, puis retrouver automatiquement ses derniers choix au lancement suivant ; les chemins manquants reviennent aux valeurs par défaut avec un message clair. Aucun code produit n'est autorisé par ce cadrage.
 État du produit : MVP validé le 13 octobre 2026 (`v0.1.0-mvp`) ; évolution micro locale `v0.2.0-micro`, livrée avec réserve de vitesse ; évolution GPU locale `v0.3.0-gpu`.
 Historique : design D-WHISPER-30, plan P-WHISPER-31 et state.json en phase IMPLEMENTATION ; L00–L03 completed, L04–L07 planned. Ces documents décrivent une V1 plus large et ne donnent pas d'autorisations nouvelles.
 Les nouveaux livrables de cadrage vont dans `docs/cadrage/`, suivis par Git. `docs/predev/` reste une archive historique en lecture.
