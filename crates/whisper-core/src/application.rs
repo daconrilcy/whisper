@@ -1112,6 +1112,7 @@ mod tests {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -1183,6 +1184,7 @@ mod tests {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -1246,6 +1248,7 @@ mod tests {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -1299,6 +1302,7 @@ mod tests {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -1341,6 +1345,7 @@ mod tests {
                     destination: "archive".into(),
                     group_offset_samples: 0,
                     auto_stop_after_speech_samples: limit,
+                    microphone: Default::default(),
                     config: JobConfig {
                         language: LanguageChoice::Automatic,
                         compute: ComputeChoice::Cpu,
@@ -1395,6 +1400,7 @@ mod tests {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -1452,6 +1458,7 @@ mod tests {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: config.clone(),
             },
         })
@@ -1495,6 +1502,7 @@ mod tests {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: config.clone(),
             },
         })
@@ -1608,6 +1616,7 @@ mod tests {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -1640,6 +1649,7 @@ mod tests {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,

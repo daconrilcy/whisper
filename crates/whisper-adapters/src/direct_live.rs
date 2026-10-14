@@ -2,7 +2,7 @@ use std::{
     collections::VecDeque,
     fs,
     io::{Seek, SeekFrom, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use whisper_core::{
@@ -14,7 +14,7 @@ use whisper_core::{
 use crate::{
     WorkerTransport,
     capture::{CaptureStream, Pcm16Converter},
-    supervisor::WorkerPaths,
+    supervisor::{DiagnosticCode, DiagnosticPhase, DiagnosticRecord, DiagnosticSink, WorkerPaths},
     worker_ipc::ChildWorkerTransport,
 };
 
@@ -24,6 +24,7 @@ const PAUSE_SAMPLES: usize = 3_200;
 const PAUSE_STEP_SAMPLES: usize = 1_600;
 const PAUSE_RMS_LIMIT: u64 = 400;
 const MAX_BUFFERED_SAMPLES: usize = 16_000 * 60 * 10;
+const MICROPHONE_ERROR: &str = "Microphone déconnecté, indisponible ou incompatible. Vérifiez sa connexion, son mode micro et l'autorisation Windows ; transcription incomplète";
 
 pub(crate) struct DirectLive {
     request: LiveRequest,
@@ -38,6 +39,7 @@ pub(crate) struct DirectLive {
     capture: Option<CaptureStream>,
     converter: Option<Pcm16Converter>,
     wav: Option<WavOutput>,
+    diagnostics: Option<DiagnosticSink>,
     pending: VecDeque<i16>,
     next_offset: u64,
     next_window: u64,
@@ -106,6 +108,7 @@ impl DirectLive {
             }
         };
         Ok(Self {
+            diagnostics: DiagnosticSink::start(Path::new(&request.destination)).ok(),
             request,
             auto_preference,
             fallback_reason,
@@ -212,6 +215,13 @@ impl DirectLive {
     }
 
     fn drain_capture(&mut self) -> Result<(), String> {
+        let xruns = self.capture.as_ref().expect("capture ready").take_xruns();
+        if xruns > 0 {
+            self.record_capture_issue(
+                DiagnosticCode::CaptureWarning,
+                format!("WASAPI Xrun: {xruns} discontinuity event(s); stream still active"),
+            );
+        }
         let capture = self.capture.as_mut().expect("capture ready");
         if capture.is_saturated() {
             capture.stop();
@@ -222,9 +232,8 @@ impl DirectLive {
                 .failure_detail()
                 .unwrap_or_else(|| "flux audio interrompu ou trame invalide".into());
             capture.stop();
-            return Err(format!(
-                "Micro interrompu par Windows : {detail} ; transcription incomplète"
-            ));
+            self.record_capture_issue(DiagnosticCode::CaptureFailed, detail);
+            return Err(self.microphone_error());
         }
         for _ in 0..if self.stop_requested { 100 } else { 32 } {
             let Some(block) = capture.try_next_block() else {
@@ -246,6 +255,48 @@ impl DirectLive {
             }
         }
         Ok(())
+    }
+
+    fn record_capture_issue(&self, code: DiagnosticCode, detail: String) {
+        let context = format!(
+            "microphone={:?}; compute={:?}; input_rate={:?}; input_channels={:?}; {detail}",
+            self.request.microphone,
+            self.request.config.compute,
+            self.capture.as_ref().map(CaptureStream::sample_rate_hz),
+            self.capture.as_ref().map(CaptureStream::channels),
+        );
+        if let Some(diagnostics) = &self.diagnostics {
+            diagnostics.record(
+                DiagnosticRecord::new(
+                    self.request.job_id.0,
+                    self.request.generation.get(),
+                    DiagnosticPhase::Capturing,
+                    code,
+                    Some(if self.request.config.compute == ComputeChoice::Gpu {
+                        "cuda"
+                    } else {
+                        "cpu"
+                    }),
+                    None,
+                )
+                .with_detail(context.clone()),
+            );
+        }
+        eprintln!("Capture microphone : {context}");
+    }
+
+    fn microphone_error(&self) -> String {
+        if self.diagnostics.is_some() {
+            format!(
+                "{MICROPHONE_ERROR}. Détails : {}",
+                Path::new(&self.request.destination)
+                    .join(".whisper-diagnostics")
+                    .join("worker-0.jsonl")
+                    .display()
+            )
+        } else {
+            MICROPHONE_ERROR.into()
+        }
     }
 
     fn send_next(&mut self) -> Result<(), String> {
@@ -323,9 +374,15 @@ impl DirectLive {
                 self.worker_ready = true;
                 self.wav = Some(WavOutput::create(&self.request)?);
                 if !self.stop_requested {
-                    let capture = crate::capture::start_direct_default().map_err(|error| {
-                        format!("Micro Windows indisponible. Vérifiez son branchement et son autorisation : {error}")
-                    })?;
+                    let capture = crate::capture::start_direct(&self.request.microphone).map_err(
+                        |error| {
+                            self.record_capture_issue(
+                                DiagnosticCode::CaptureFailed,
+                                format!("Ouverture impossible : {error}"),
+                            );
+                            self.microphone_error()
+                        },
+                    )?;
                     let converter =
                         Pcm16Converter::new(capture.sample_rate_hz(), capture.channels())?;
                     self.capture = Some(capture);
@@ -512,7 +569,10 @@ impl DirectLive {
     }
 
     pub(crate) fn fail(&mut self, error: String) -> String {
-        if self.request.config.compute != ComputeChoice::Gpu || self.wav.is_none() {
+        if self.wav.is_none()
+            || (self.request.config.compute != ComputeChoice::Gpu
+                && !error.starts_with(MICROPHONE_ERROR))
+        {
             return error;
         }
         self.worker.abort();
@@ -557,12 +617,19 @@ fn finalize_incomplete_outputs(
             return format!("{error}. WAV incomplet non finalisé : {save_error}");
         }
     };
+    let gpu = request.config.compute == ComputeChoice::Gpu;
     match export_segments(request, segments, true) {
-        Ok((txt, srt)) => format!(
+        Ok((txt, srt)) if gpu => format!(
             "{error}. Session GPU arrêtée ; résultats incomplets : {wav_path} | {txt} | {srt}. Réimportez le WAV en CPU pour obtenir le texte complet."
         ),
-        Err(save_error) => format!(
+        Ok((txt, srt)) => format!(
+            "{error}. Session micro arrêtée ; résultats incomplets : {wav_path} | {txt} | {srt}."
+        ),
+        Err(save_error) if gpu => format!(
             "{error}. Session GPU arrêtée ; WAV conservé : {wav_path}. TXT/SRT incomplets non enregistrés : {save_error}. Réimportez le WAV en CPU."
+        ),
+        Err(save_error) => format!(
+            "{error}. Session micro arrêtée ; WAV conservé : {wav_path}. TXT/SRT incomplets non enregistrés : {save_error}."
         ),
     }
 }
@@ -779,6 +846,7 @@ mod tests {
             destination: destination.to_string_lossy().into_owned(),
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
+            microphone: Default::default(),
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute,
@@ -1012,6 +1080,7 @@ fn main() {
             destination: directory.to_string_lossy().into_owned(),
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
+            microphone: Default::default(),
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute: ComputeChoice::Cpu,
@@ -1048,6 +1117,7 @@ fn main() {
             destination: directory.to_string_lossy().into_owned(),
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
+            microphone: Default::default(),
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute: ComputeChoice::Gpu,
@@ -1087,6 +1157,39 @@ fn main() {
         );
         assert!(!directory.join(format!("{stem}.txt")).exists());
         for path in [wav_path, txt_path, srt_path] {
+            std::fs::remove_file(path).unwrap();
+        }
+    }
+
+    #[test]
+    fn microphone_interruption_finalizes_cpu_outputs_without_gpu_message() {
+        let directory =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/direct-live-tests");
+        let mut request = startup_request(&directory, ComputeChoice::Cpu);
+        request.job_id = whisper_core::JobId(
+            ((std::process::id() as u128) << 64)
+                | std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+        );
+        let mut wav = WavOutput::create(&request).unwrap();
+        wav.append(&[100, 200]).unwrap();
+        let message = finalize_incomplete_outputs(
+            &request,
+            wav,
+            &[],
+            "Micro interrompu par Windows : périphérique déconnecté".into(),
+        );
+        assert!(message.contains("Session micro arrêtée"));
+        assert!(!message.contains("Session GPU"));
+        let stem = format!("micro-{:032x}", request.job_id.0);
+        for path in [
+            directory.join(format!("{stem}.wav")),
+            directory.join(format!("{stem}-incomplet.txt")),
+            directory.join(format!("{stem}-incomplet.srt")),
+        ] {
+            assert!(path.is_file());
             std::fs::remove_file(path).unwrap();
         }
     }

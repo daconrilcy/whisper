@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::mpsc::{self, Receiver},
+};
 use whisper_adapters::{
     path_settings::WindowsPathPort,
     supervisor::WorkerPaths,
@@ -7,12 +10,15 @@ use whisper_adapters::{
 use whisper_core::path_settings::{PathDefaults, PathSettingsApp};
 use whisper_core::{ComputeChoice, ImportApplication};
 
-pub fn compose() -> (
-    ImportApplication<AsyncImportIo>,
-    ComputeChoice,
-    Option<String>,
-    PathSettingsApp,
-) {
+pub struct DesktopComposition {
+    pub application: ImportApplication<AsyncImportIo>,
+    pub compute_choice: ComputeChoice,
+    pub startup_message: Option<String>,
+    pub paths: PathSettingsApp,
+    pub gpu_probe: Receiver<Result<(), String>>,
+}
+
+pub fn compose() -> DesktopComposition {
     let paths = PathSettingsApp::new(
         PathDefaults {
             audio_directory: whisper_desktop::ui::default_audio_directory(),
@@ -50,19 +56,22 @@ pub fn compose() -> (
         cpu: worker_path("whisper-worker-cpu.exe"),
         gpu: worker_path("whisper-worker-gpu.exe"),
     };
-    let gpu_status = probe_cuda_worker(
-        &workers.gpu,
-        &paths.model,
-        whisper_desktop::ui::approved_model_sha256(),
-    );
-    let (choice, message) = match gpu_status {
-        Ok(()) => (ComputeChoice::Gpu, None),
-        Err(message) => (ComputeChoice::Cpu, Some(message)),
-    };
-    (
-        ImportApplication::new(AsyncImportIo::start_with_workers(workers)),
-        choice,
-        message,
+    let (sender, receiver) = mpsc::channel();
+    let gpu_worker = workers.gpu.clone();
+    let model = paths.model.clone();
+    std::thread::spawn(move || {
+        let result = probe_cuda_worker(
+            &gpu_worker,
+            &model,
+            whisper_desktop::ui::approved_model_sha256(),
+        );
+        let _ = sender.send(result);
+    });
+    DesktopComposition {
+        application: ImportApplication::new(AsyncImportIo::start_with_workers(workers)),
+        compute_choice: ComputeChoice::Cpu,
+        startup_message: Some("Vérification du GPU en cours…".into()),
         paths,
-    )
+        gpu_probe: receiver,
+    }
 }

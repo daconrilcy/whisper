@@ -205,7 +205,14 @@ struct CudaLogState {
 
 impl ChildWorkerTransport {
     pub fn spawn(executable: &Path) -> Result<Self, PortError> {
-        let mut child = Command::new(executable)
+        let mut command = Command::new(executable);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+        let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -4112,6 +4119,7 @@ fn main() {
             destination: root.to_string_lossy().into_owned(),
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
+            microphone: Default::default(),
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute: ComputeChoice::Auto,
@@ -4173,6 +4181,7 @@ fn main() {
             destination: root.to_string_lossy().into_owned(),
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
+            microphone: Default::default(),
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute: ComputeChoice::Gpu,
@@ -4689,6 +4698,7 @@ fn main() {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -4861,6 +4871,7 @@ fn main() {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -4955,6 +4966,7 @@ fn main() {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -4998,6 +5010,7 @@ fn main() {
                 destination: "archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -5057,6 +5070,7 @@ fn main() {
                 destination: "unused-archive".into(),
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,

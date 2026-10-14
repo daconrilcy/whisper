@@ -6,8 +6,9 @@ use rtrb::{Consumer, Producer, RingBuffer};
 use rubato::{FftFixedInOut, Resampler};
 use std::sync::{
     Arc, Mutex,
-    atomic::{AtomicU8, Ordering},
+    atomic::{AtomicU8, AtomicU64, Ordering},
 };
+use whisper_core::microphone::{MicrophoneChoice, MicrophoneDevice, MicrophonePort};
 
 pub const CAPTURE_SLOTS: usize = 100;
 const CAPTURE_SATURATED: u8 = 1;
@@ -30,6 +31,7 @@ pub struct CaptureStream {
     ready: Consumer<Vec<f32>>,
     recycle: Producer<Vec<f32>>,
     status: Arc<AtomicU8>,
+    xruns: Arc<AtomicU64>,
     failure_detail: Arc<Mutex<Option<String>>>,
     rate: u32,
     channels: u16,
@@ -193,12 +195,88 @@ pub fn start_default() -> Result<CaptureStream, String> {
 }
 
 pub fn start_direct_default() -> Result<CaptureStream, String> {
-    start_device_with_buffer(default_input_device()?, true)
+    start_direct(&MicrophoneChoice::WindowsDefault)
+}
+
+pub struct WasapiMicrophonePort;
+
+impl MicrophonePort for WasapiMicrophonePort {
+    fn list_inputs(&self) -> Result<Vec<MicrophoneDevice>, String> {
+        let host = wasapi_host()?;
+        let inputs = host
+            .input_devices()
+            .map_err(|error| format!("Périphériques d'entrée indisponibles : {error}"))?;
+        let mut devices = Vec::new();
+        let mut failures = Vec::new();
+        for device in inputs {
+            match (device.id(), device.description()) {
+                (Ok(id), Ok(description)) => devices.push(MicrophoneDevice {
+                    id: id.to_string(),
+                    name: description.name().to_owned(),
+                    unavailable_reason: capture_compatibility(&device).err(),
+                }),
+                (Err(error), _) | (_, Err(error)) => failures.push(error.to_string()),
+            }
+        }
+        if devices.is_empty() && !failures.is_empty() {
+            return Err(format!(
+                "Entrées audio illisibles : {}",
+                failures.join("; ")
+            ));
+        }
+        Ok(devices)
+    }
+}
+
+pub fn start_direct(choice: &MicrophoneChoice) -> Result<CaptureStream, String> {
+    let host = wasapi_host()?;
+    let id = match choice {
+        MicrophoneChoice::WindowsDefault => host
+            .default_input_device()
+            .ok_or("Aucun microphone Windows par défaut disponible")?
+            .id()
+            .map_err(|error| format!("Microphone par défaut indisponible : {error}"))?,
+        MicrophoneChoice::Device(id) => id
+            .parse::<cpal::DeviceId>()
+            .map_err(|error| format!("Identifiant de microphone invalide : {error}"))?,
+    };
+    if id.host() != cpal::HostId::Wasapi {
+        return Err("Identifiant de microphone étranger à WASAPI".into());
+    }
+    let device = host
+        .input_devices()
+        .map_err(|error| format!("Périphériques d'entrée indisponibles : {error}"))?
+        .find(|device| device.id().is_ok_and(|candidate| candidate == id))
+        .ok_or("Microphone choisi déconnecté ou désactivé")?;
+    start_device_with_buffer(device, true)
+}
+
+fn capture_compatibility(device: &Device) -> Result<(), String> {
+    let config = device
+        .default_input_config()
+        .map_err(|error| error.to_string())?;
+    if config.sample_rate() < 16_000 || config.channels() == 0 {
+        return Err("format d'entrée incompatible avec le mono 16 kHz".into());
+    }
+    if !matches!(
+        config.sample_format(),
+        SampleFormat::F32 | SampleFormat::I16 | SampleFormat::U16
+    ) {
+        return Err(format!(
+            "format d'échantillon non pris en charge : {:?}",
+            config.sample_format()
+        ));
+    }
+    Ok(())
+}
+
+fn wasapi_host() -> Result<cpal::Host, String> {
+    cpal::host_from_id(cpal::HostId::Wasapi)
+        .map_err(|error| format!("CaptureUnavailable: WASAPI: {error}"))
 }
 
 fn default_input_device() -> Result<Device, String> {
-    let host = cpal::host_from_id(cpal::HostId::Wasapi)
-        .map_err(|error| format!("CaptureUnavailable: WASAPI: {error}"))?;
+    let host = wasapi_host()?;
     host.default_input_device()
         .ok_or_else(|| "CaptureUnavailable: no default WASAPI input device".to_owned())
 }
@@ -241,6 +319,8 @@ fn start_device_with_buffer(device: Device, direct_live: bool) -> Result<Capture
     let status = Arc::new(AtomicU8::new(0));
     let callback_status = status.clone();
     let error_status = status.clone();
+    let xruns = Arc::new(AtomicU64::new(0));
+    let error_xruns = xruns.clone();
     let failure_detail = Arc::new(Mutex::new(None));
     let callback_failure_detail = failure_detail.clone();
     let stream = match format {
@@ -258,10 +338,7 @@ fn start_device_with_buffer(device: Device, direct_live: bool) -> Result<Capture
                 )
             },
             move |error| {
-                if let Ok(mut detail) = callback_failure_detail.lock() {
-                    *detail = Some(error.to_string());
-                }
-                error_status.fetch_or(CAPTURE_FAILED, Ordering::Release);
+                record_stream_error(error, &error_status, &callback_failure_detail, &error_xruns);
             },
             None,
         ),
@@ -279,10 +356,7 @@ fn start_device_with_buffer(device: Device, direct_live: bool) -> Result<Capture
                 )
             },
             move |error| {
-                if let Ok(mut detail) = callback_failure_detail.lock() {
-                    *detail = Some(error.to_string());
-                }
-                error_status.fetch_or(CAPTURE_FAILED, Ordering::Release);
+                record_stream_error(error, &error_status, &callback_failure_detail, &error_xruns);
             },
             None,
         ),
@@ -300,10 +374,7 @@ fn start_device_with_buffer(device: Device, direct_live: bool) -> Result<Capture
                 )
             },
             move |error| {
-                if let Ok(mut detail) = callback_failure_detail.lock() {
-                    *detail = Some(error.to_string());
-                }
-                error_status.fetch_or(CAPTURE_FAILED, Ordering::Release);
+                record_stream_error(error, &error_status, &callback_failure_detail, &error_xruns);
             },
             None,
         ),
@@ -318,10 +389,28 @@ fn start_device_with_buffer(device: Device, direct_live: bool) -> Result<Capture
         ready,
         recycle,
         status,
+        xruns,
         failure_detail,
         rate,
         channels,
     })
+}
+
+fn record_stream_error(
+    error: cpal::Error,
+    status: &AtomicU8,
+    failure_detail: &Mutex<Option<String>>,
+    xruns: &AtomicU64,
+) {
+    if error.kind() == cpal::ErrorKind::Xrun {
+        // WASAPI reports a discontinuous packet, then continues delivering data.
+        xruns.fetch_add(1, Ordering::Relaxed);
+        return;
+    }
+    if let Ok(mut detail) = failure_detail.lock() {
+        *detail = Some(format!("{:?}: {error}", error.kind()));
+    }
+    status.fetch_or(CAPTURE_FAILED, Ordering::Release);
 }
 
 impl CaptureStream {
@@ -349,6 +438,9 @@ impl CaptureStream {
     }
     pub fn failure(&self) -> bool {
         self.status.load(Ordering::Acquire) & CAPTURE_FAILED != 0
+    }
+    pub fn take_xruns(&self) -> u64 {
+        self.xruns.swap(0, Ordering::Relaxed)
     }
     pub fn failure_detail(&self) -> Option<String> {
         self.failure_detail
@@ -433,5 +525,78 @@ mod tests {
         );
 
         assert_ne!(status.load(Ordering::Acquire) & CAPTURE_FAILED, 0);
+    }
+
+    #[test]
+    fn wasapi_xrun_is_counted_without_terminating_the_stream() {
+        let status = AtomicU8::new(0);
+        let detail = Mutex::new(None);
+        let xruns = AtomicU64::new(0);
+        record_stream_error(
+            cpal::Error::new(cpal::ErrorKind::Xrun),
+            &status,
+            &detail,
+            &xruns,
+        );
+        assert_eq!(status.load(Ordering::Acquire), 0);
+        assert_eq!(xruns.load(Ordering::Relaxed), 1);
+        record_stream_error(
+            cpal::Error::new(cpal::ErrorKind::DeviceNotAvailable),
+            &status,
+            &detail,
+            &xruns,
+        );
+        assert_ne!(status.load(Ordering::Acquire) & CAPTURE_FAILED, 0);
+        assert!(
+            detail
+                .lock()
+                .unwrap()
+                .as_deref()
+                .unwrap()
+                .contains("DeviceNotAvailable")
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    #[ignore = "inventaire matériel local, sans ouverture de flux"]
+    fn native_wasapi_input_catalog_has_stable_parseable_ids() {
+        let started = std::time::Instant::now();
+        let devices = WasapiMicrophonePort.list_inputs().unwrap();
+        println!("Inventaire WASAPI : {:?}", started.elapsed());
+        assert!(!devices.is_empty(), "aucune entrée WASAPI sur ce PC");
+        let mut ids = std::collections::HashSet::new();
+        for device in devices {
+            println!(
+                "{} | {} | {:?}",
+                device.name, device.id, device.unavailable_reason
+            );
+            assert!(ids.insert(device.id.clone()), "ID dupliqué");
+            let parsed: cpal::DeviceId = device.id.parse().unwrap();
+            assert_eq!(parsed.host(), cpal::HostId::Wasapi);
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    #[ignore = "ouvre pendant trois secondes le micro défini par WHISPER_TEST_MIC_ID"]
+    fn native_selected_microphone_survives_initial_discontinuity() {
+        let id = std::env::var("WHISPER_TEST_MIC_ID").expect("WHISPER_TEST_MIC_ID requis");
+        let mut capture = start_direct(&MicrophoneChoice::Device(id)).unwrap();
+        let started = std::time::Instant::now();
+        let mut blocks = 0;
+        let mut xruns = 0;
+        while started.elapsed() < std::time::Duration::from_secs(3) {
+            xruns += capture.take_xruns();
+            assert!(!capture.failure(), "{:?}", capture.failure_detail());
+            while let Some(block) = capture.try_next_block() {
+                blocks += 1;
+                capture.recycle_block(block).unwrap();
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        capture.stop();
+        println!("Blocs reçus : {blocks}; discontinuités : {xruns}");
+        assert!(blocks > 0);
     }
 }

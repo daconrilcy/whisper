@@ -115,6 +115,8 @@ pub enum DiagnosticCode {
     WorkerStopped,
     LogDegraded,
     ProgressWarning,
+    CaptureWarning,
+    CaptureFailed,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -128,6 +130,8 @@ pub struct DiagnosticRecord {
     backend: Option<&'static str>,
     completed_samples: Option<u64>,
     total_samples: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    detail: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -249,7 +253,13 @@ impl DiagnosticRecord {
             backend,
             completed_samples: progress.map(|value| value.0),
             total_samples: progress.map(|value| value.1),
+            detail: None,
         }
+    }
+
+    pub fn with_detail(mut self, detail: String) -> Self {
+        self.detail = Some(detail);
+        self
     }
 }
 
@@ -537,12 +547,29 @@ mod tests {
             backend: Some("cpu"),
             completed_samples: Some(u64::MAX),
             total_samples: Some(u64::MAX),
+            detail: None,
         };
         for _ in 0..(DIAGNOSTIC_QUEUE_CAPACITY + 1_000) {
             sink.record(oversized.clone());
         }
         assert!(sink.dropped_count() > 0);
         assert!(sink.is_degraded());
+    }
+
+    #[test]
+    fn capture_failure_diagnostic_keeps_the_technical_detail() {
+        let record = DiagnosticRecord::new(
+            7,
+            1,
+            DiagnosticPhase::Capturing,
+            DiagnosticCode::CaptureFailed,
+            Some("cuda"),
+            None,
+        )
+        .with_detail("DeviceNotAvailable: microphone disconnected".into());
+        let json = serde_json::to_string(&record).unwrap();
+        assert!(json.contains("capture_failed"));
+        assert!(json.contains("DeviceNotAvailable"));
     }
 
     #[test]

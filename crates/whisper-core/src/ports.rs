@@ -104,6 +104,8 @@ pub struct LiveRequest {
     /// Optional speech-only auto-stop limit. `None` means unlimited capture.
     #[serde(default)]
     pub auto_stop_after_speech_samples: Option<u64>,
+    #[serde(default)]
+    pub microphone: crate::microphone::MicrophoneChoice,
     pub config: JobConfig,
 }
 

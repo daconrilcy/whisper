@@ -13,6 +13,8 @@ pub struct StoredPaths {
     pub audio_directory: Option<String>,
     pub model_path: String,
     pub destination: String,
+    #[serde(default)]
+    pub microphone_id: Option<String>,
 }
 
 pub trait PathPort {
@@ -79,6 +81,7 @@ impl PathSettingsApp {
                 audio_directory: Some(defaults.audio_directory.clone()),
                 model_path: defaults.model_path.clone(),
                 destination: defaults.destination.clone(),
+                microphone_id: None,
             },
             port,
             notice: None,
@@ -139,6 +142,7 @@ impl PathSettingsApp {
             audio_directory: Some(self.audio_directory.clone()),
             model_path: self.model.clone(),
             destination: self.destination.clone(),
+            microphone_id: saved.microphone_id,
         };
     }
 
@@ -237,6 +241,21 @@ impl PathSettingsApp {
         self.commit_manual(PathField::Destination);
     }
 
+    pub fn microphone_preference(&self) -> crate::microphone::MicrophoneChoice {
+        match &self.saved.microphone_id {
+            Some(id) => crate::microphone::MicrophoneChoice::Device(id.clone()),
+            None => crate::microphone::MicrophoneChoice::WindowsDefault,
+        }
+    }
+
+    pub fn set_microphone_preference(&mut self, choice: &crate::microphone::MicrophoneChoice) {
+        self.saved.microphone_id = match choice {
+            crate::microphone::MicrophoneChoice::WindowsDefault => None,
+            crate::microphone::MicrophoneChoice::Device(id) => Some(id.clone()),
+        };
+        self.save();
+    }
+
     pub fn poll_notice(&mut self) -> Option<String> {
         self.notice.take().or_else(|| self.port.take_save_error())
     }
@@ -253,5 +272,64 @@ impl PathSettingsApp {
         if let Err(error) = self.port.save(self.saved.clone()) {
             self.notice = Some(format!("Chemins utilisés, mais non mémorisés : {error}"));
         }
+    }
+}
+
+#[cfg(test)]
+mod microphone_tests {
+    use super::{PathDefaults, PathField, PathPort, PathSettingsApp, StoredPaths};
+    use crate::MicrophoneChoice;
+    use std::{
+        cell::RefCell,
+        path::{Path, PathBuf},
+        rc::Rc,
+    };
+
+    struct MemoryPort(Rc<RefCell<Option<StoredPaths>>>);
+
+    impl PathPort for MemoryPort {
+        fn load(&self) -> Result<Option<StoredPaths>, String> {
+            Ok(self.0.borrow().clone())
+        }
+
+        fn save(&mut self, paths: StoredPaths) -> Result<(), String> {
+            *self.0.borrow_mut() = Some(paths);
+            Ok(())
+        }
+
+        fn pick(&mut self, _field: PathField, _directory: &Path) -> Option<PathBuf> {
+            None
+        }
+
+        fn exists(&self, _path: &Path, _field: PathField) -> bool {
+            true
+        }
+
+        fn take_save_error(&mut self) -> Option<String> {
+            None
+        }
+
+        fn has_pending_save(&self) -> bool {
+            false
+        }
+    }
+
+    #[test]
+    fn microphone_preference_survives_path_save_and_reopen() {
+        let state = Rc::new(RefCell::new(None));
+        let defaults = || PathDefaults {
+            audio_directory: "audio".into(),
+            model_path: "model".into(),
+            destination: "output".into(),
+        };
+        let mut first = PathSettingsApp::new(defaults(), Box::new(MemoryPort(state.clone())));
+        first.set_microphone_preference(&MicrophoneChoice::Device("wasapi:one".into()));
+        first.commit_manual(PathField::Model);
+        let reopened = PathSettingsApp::new(defaults(), Box::new(MemoryPort(state)));
+        assert_eq!(
+            reopened.microphone_preference(),
+            MicrophoneChoice::Device("wasapi:one".into())
+        );
+        assert_eq!(reopened.model, "model");
     }
 }

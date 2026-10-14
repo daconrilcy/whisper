@@ -1,9 +1,11 @@
 use eframe::egui;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, TryRecvError};
 use whisper_core::path_settings::{PathDefaults, PathField, PathSettingsApp};
 use whisper_core::{
     AppCommand, AppFacade, AppView, Application, ApplicationError, ComputeChoice, Generation,
-    ImportRequest, JobConfig, JobId, JobState, LanguageChoice, LiveRequest,
+    ImportRequest, JobConfig, JobId, JobState, LanguageChoice, LiveRequest, MicrophoneChoice,
+    MicrophoneDevice, MicrophonePort, MicrophoneSettings, NullMicrophonePort,
 };
 
 pub const APPROVED_MODEL_SHA256: &str =
@@ -15,13 +17,16 @@ pub struct DesktopApp<A> {
     application: AppFacade<A>,
     view: AppView,
     paths: PathSettingsApp,
+    microphones: MicrophoneSettings,
     path_notice: Option<String>,
+    microphone_notice: Option<String>,
     manual_language: bool,
     language: String,
     auto_stop_enabled: bool,
     auto_stop_minutes: u64,
     compute_choice: ComputeChoice,
     startup_message: Option<String>,
+    gpu_probe: Option<Receiver<Result<(), String>>>,
     quit_pending: bool,
     active_identity: Option<(JobId, Generation)>,
     scanned_destination: Option<String>,
@@ -56,19 +61,72 @@ impl<A: Application> DesktopApp<A> {
         startup_message: Option<String>,
         paths: PathSettingsApp,
     ) -> Self {
+        Self::with_microphones(
+            application,
+            compute_choice,
+            startup_message,
+            paths,
+            Box::new(NullMicrophonePort),
+        )
+    }
+
+    pub fn with_gpu_probe(mut self, gpu_probe: Receiver<Result<(), String>>) -> Self {
+        self.gpu_probe = Some(gpu_probe);
+        self
+    }
+
+    fn poll_gpu_probe(&mut self) {
+        let result = self
+            .gpu_probe
+            .as_ref()
+            .and_then(|probe| match probe.try_recv() {
+                Ok(result) => Some(result),
+                Err(TryRecvError::Empty) => None,
+                Err(TryRecvError::Disconnected) => Some(Err(
+                    "GPU indisponible : vérification interrompue ; choisissez CPU".into(),
+                )),
+            });
+        if let Some(result) = result {
+            self.gpu_probe = None;
+            match result {
+                Ok(()) => {
+                    self.compute_choice = ComputeChoice::Gpu;
+                    self.startup_message = None;
+                }
+                Err(message) => {
+                    self.compute_choice = ComputeChoice::Cpu;
+                    self.startup_message = Some(message);
+                }
+            }
+        }
+    }
+
+    pub fn with_microphones(
+        application: A,
+        compute_choice: ComputeChoice,
+        startup_message: Option<String>,
+        paths: PathSettingsApp,
+        microphone_port: Box<dyn MicrophonePort>,
+    ) -> Self {
+        let mut microphones =
+            MicrophoneSettings::new(microphone_port, paths.microphone_preference());
+        let microphone_notice = microphones.take_notice();
         let application = AppFacade::new(application);
         let view = application.view();
         Self {
             application,
             view,
             paths,
+            microphones,
             path_notice: None,
+            microphone_notice,
             manual_language: false,
             language: "fr".into(),
             auto_stop_enabled: false,
             auto_stop_minutes: 120,
             compute_choice,
             startup_message,
+            gpu_probe: None,
             quit_pending: false,
             active_identity: None,
             scanned_destination: None,
@@ -115,6 +173,13 @@ impl<A: Application> DesktopApp<A> {
             return false;
         };
         self.dispatch(AppCommand::Quit { job_id, generation })
+    }
+
+    fn refresh_microphones(&mut self) {
+        match self.microphones.refresh() {
+            Ok(()) => self.microphone_notice = None,
+            Err(_) => self.microphone_notice = self.microphones.take_notice(),
+        }
     }
 
     fn start_import(&mut self) {
@@ -167,6 +232,7 @@ impl<A: Application> DesktopApp<A> {
                     .saturating_add(self.view.captured_samples)
             }),
             auto_stop_after_speech_samples: None,
+            microphone: self.microphones.effective().clone(),
             config: JobConfig {
                 language: if self.manual_language {
                     LanguageChoice::Manual(self.language.trim().to_owned())
@@ -188,6 +254,11 @@ impl<A: Application> eframe::App for DesktopApp<A> {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.poll_gpu_probe();
+        if self.gpu_probe.is_some() {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(33));
+        }
         if let Some(message) = self.paths.poll_notice() {
             self.path_notice = Some(message);
         }
@@ -220,7 +291,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             .view
             .active_job
             .is_some_and(|(_, state)| window_must_remain_open(state));
-        let can_enqueue = import_enqueue_enabled(busy);
+        let can_enqueue = import_enqueue_enabled(busy) && self.gpu_probe.is_none();
         if ui.ctx().input(|input| input.viewport().close_requested()) && busy {
             ui.ctx()
                 .send_viewport_cmd(egui::ViewportCommand::CancelClose);
@@ -316,6 +387,71 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         ui.selectable_value(&mut self.compute_choice, ComputeChoice::Gpu, "GPU");
                     });
             });
+            ui.group(|ui| {
+                ui.heading("Microphone");
+                if ui.button("Actualiser les microphones").clicked() {
+                    self.refresh_microphones();
+                }
+                ui.horizontal(|ui| {
+                    ui.label("Source microphone");
+                    let mut choice = self.microphones.preferred().clone();
+                    let mut choice_requested = false;
+                    let selected_text = microphone_choice_label(
+                        self.microphones.effective(),
+                        self.microphones.devices(),
+                    );
+                    egui::ComboBox::from_id_salt("microphone_choice")
+                        .selected_text(selected_text)
+                        .show_ui(ui, |ui| {
+                            choice_requested |= ui
+                                .selectable_value(
+                                    &mut choice,
+                                    MicrophoneChoice::WindowsDefault,
+                                    "Microphone par défaut de Windows",
+                                )
+                                .clicked();
+                            for device in self.microphones.devices() {
+                                ui.add_enabled_ui(device.selectable(), |ui| {
+                                    choice_requested |= ui
+                                        .selectable_value(
+                                            &mut choice,
+                                            MicrophoneChoice::Device(device.id.clone()),
+                                            microphone_device_label(
+                                                device,
+                                                self.microphones.devices(),
+                                            ),
+                                        )
+                                        .clicked();
+                                });
+                            }
+                        });
+                    if choice_requested {
+                        match self.microphones.select(choice) {
+                            Ok(()) => {
+                                self.paths
+                                    .set_microphone_preference(self.microphones.preferred());
+                                self.microphone_notice = None;
+                            }
+                            Err(error) => self.microphone_notice = Some(error),
+                        }
+                    }
+                });
+                if let MicrophoneChoice::Device(_) = self.microphones.preferred()
+                    && self.microphones.effective() == &MicrophoneChoice::WindowsDefault
+                {
+                    ui.label(
+                        "Source préférée indisponible. Le microphone par défaut de Windows est utilisé.",
+                    );
+                }
+                if self.microphones.devices().is_empty() && !self.microphones.list_failed() {
+                    ui.label("Aucun microphone d'entrée disponible.");
+                }
+                for device in self.microphones.devices() {
+                    if let Some(reason) = &device.unavailable_reason {
+                        ui.label(format!("{} : {reason}", device.name));
+                    }
+                }
+            });
             if !IMPORT_CPU_MVP {
                 ui.add_enabled_ui(!busy, |ui| {
                     ui.horizontal(|ui| {
@@ -344,6 +480,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
             {
                 let can_start_live = !busy
+                    && self.gpu_probe.is_none()
                     && !self.paths.model.trim().is_empty()
                     && !self.paths.destination.trim().is_empty()
                     && (!self.manual_language || !self.language.trim().is_empty());
@@ -486,6 +623,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             ui.colored_label(egui::Color32::LIGHT_RED, message);
         }
         if let Some(message) = &self.path_notice {
+            ui.colored_label(egui::Color32::YELLOW, message);
+        }
+        if let Some(message) = &self.microphone_notice {
             ui.colored_label(egui::Color32::YELLOW, message);
         }
         if self.view.diagnostics_degraded {
@@ -647,6 +787,47 @@ impl<A: Application> eframe::App for DesktopApp<A> {
     }
 }
 
+fn microphone_device_label(device: &MicrophoneDevice, devices: &[MicrophoneDevice]) -> String {
+    if devices
+        .iter()
+        .filter(|other| other.name == device.name)
+        .count()
+        > 1
+    {
+        let suffix = (8..=device.id.chars().count())
+            .find_map(|length| {
+                let suffix = device
+                    .id
+                    .chars()
+                    .rev()
+                    .take(length)
+                    .collect::<String>()
+                    .chars()
+                    .rev()
+                    .collect::<String>();
+                devices
+                    .iter()
+                    .filter(|other| other.name == device.name)
+                    .all(|other| other.id == device.id || !other.id.ends_with(&suffix))
+                    .then_some(suffix)
+            })
+            .unwrap_or_else(|| device.id.clone());
+        format!("{} ({suffix})", device.name)
+    } else {
+        device.name.clone()
+    }
+}
+
+fn microphone_choice_label(choice: &MicrophoneChoice, devices: &[MicrophoneDevice]) -> String {
+    match choice {
+        MicrophoneChoice::WindowsDefault => "Microphone par défaut de Windows".into(),
+        MicrophoneChoice::Device(id) => devices.iter().find(|device| device.id == *id).map_or_else(
+            || "Microphone sélectionné indisponible".into(),
+            |device| microphone_device_label(device, devices),
+        ),
+    }
+}
+
 fn path_text_edit(ui: &mut egui::Ui, path: &mut String, width: f32) -> egui::Response {
     ui.scope(|ui| {
         let border = egui::Stroke::new(1.0, ui.visuals().weak_text_color());
@@ -765,12 +946,13 @@ fn record_first_render(
 #[cfg(test)]
 mod tests {
     use super::{
-        DesktopApp, import_enqueue_enabled, manual_stop_available, record_first_render,
-        speech_limit_samples, window_must_remain_open,
+        DesktopApp, import_enqueue_enabled, manual_stop_available, microphone_device_label,
+        record_first_render, speech_limit_samples, window_must_remain_open,
     };
     use std::{cell::RefCell, rc::Rc};
     use whisper_core::{
         AppCommand, AppView, Application, ApplicationError, ComputeChoice, Generation, JobId,
+        MicrophoneChoice, MicrophoneDevice, MicrophonePort,
     };
 
     #[derive(Clone, Default)]
@@ -788,6 +970,18 @@ mod tests {
     }
 
     struct RejectQuitApplication;
+
+    struct OneMicrophone;
+
+    impl MicrophonePort for OneMicrophone {
+        fn list_inputs(&self) -> Result<Vec<MicrophoneDevice>, String> {
+            Ok(vec![MicrophoneDevice {
+                id: "wasapi:chosen".into(),
+                name: "Microphone de test".into(),
+                unavailable_reason: None,
+            }])
+        }
+    }
 
     impl Application for RejectQuitApplication {
         fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
@@ -845,6 +1039,55 @@ mod tests {
         app.view.active_job = Some((next_job, whisper_core::JobState::Preparing));
         app.view.last_result = Some("Transcription publiée et vérifiée".into());
         assert_eq!(app.published_result(), None);
+    }
+
+    #[test]
+    fn direct_live_request_uses_explicit_microphone_without_changing_compute() {
+        let recorder = RecordingApplication::default();
+        let paths = whisper_core::path_settings::PathSettingsApp::with_defaults(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: String::new(),
+                model_path: "model".into(),
+                destination: "output".into(),
+            },
+        );
+        let mut app = DesktopApp::with_microphones(
+            recorder.clone(),
+            ComputeChoice::Gpu,
+            None,
+            paths,
+            Box::new(OneMicrophone),
+        );
+        app.microphones
+            .select(MicrophoneChoice::Device("wasapi:chosen".into()))
+            .unwrap();
+        app.start_live(Generation::first());
+        assert!(matches!(
+            recorder.0.borrow().last(),
+            Some(AppCommand::StartDirectLiveConfigured { request })
+                if request.microphone == MicrophoneChoice::Device("wasapi:chosen".into())
+                    && request.config.compute == ComputeChoice::Gpu
+        ));
+    }
+
+    #[test]
+    fn homonymous_microphones_have_distinct_labels() {
+        let devices = vec![
+            MicrophoneDevice {
+                id: "wasapi:one".into(),
+                name: "Micro".into(),
+                unavailable_reason: None,
+            },
+            MicrophoneDevice {
+                id: "wasapi:two".into(),
+                name: "Micro".into(),
+                unavailable_reason: None,
+            },
+        ];
+        assert_ne!(
+            microphone_device_label(&devices[0], &devices),
+            microphone_device_label(&devices[1], &devices)
+        );
     }
 
     #[test]
@@ -923,6 +1166,24 @@ mod tests {
         assert!(
             matches!(&commands[1], AppCommand::StartDirectLiveConfigured { request } if request.config.compute == ComputeChoice::Gpu)
         );
+    }
+
+    #[test]
+    fn asynchronous_gpu_probe_sets_the_existing_startup_choice() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let mut app = DesktopApp::with_startup_compute(
+            RecordingApplication::default(),
+            ComputeChoice::Cpu,
+            Some("Vérification du GPU en cours…".into()),
+        )
+        .with_gpu_probe(receiver);
+        app.poll_gpu_probe();
+        assert!(app.gpu_probe.is_some());
+        sender.send(Ok(())).unwrap();
+        app.poll_gpu_probe();
+        assert!(app.gpu_probe.is_none());
+        assert_eq!(app.compute_choice, ComputeChoice::Gpu);
+        assert!(app.startup_message.is_none());
     }
 
     #[test]

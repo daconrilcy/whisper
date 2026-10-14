@@ -5,6 +5,7 @@ pub mod audio;
 pub mod compute_policy;
 pub mod domain;
 pub mod ipc;
+pub mod microphone;
 pub mod path_settings;
 pub mod ports;
 
@@ -16,6 +17,9 @@ pub use compute_policy::{BackendAttempt, BackendDecision, ComputePolicy, Compute
 pub use domain::{
     ComputeChoice, Generation, JobConfig, JobId, JobState, LanguageChoice, SegmentId, SourceRange,
     TransitionError,
+};
+pub use microphone::{
+    MicrophoneChoice, MicrophoneDevice, MicrophonePort, MicrophoneSettings, NullMicrophonePort,
 };
 pub use ports::{
     ArchiveHistoryItem, Clock, DecodeRequest, DecodedPcmBlock, DecoderPort, DiagnosticNotice,
