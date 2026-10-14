@@ -4,7 +4,7 @@ Décision : conserver ce cadrage DRAFT, sans plan exécutable ni autorisation d'
 
 # Qualification et sélection des GPU — cadrage du 14 octobre 2026
 
-**État : DRAFT ; gate DESIGN BLOCKED.** Base inspectée : branche `evo-startup-perf`, commit `ecae272270c9db441fc957ab10e7c099e1d45ee5`, dépôt propre au préflight. Auteur Git : session Codex principale. Apports en lecture seule : product framer `PROD-GPUSEL-v0.2`, requirements analyst `GPUSEL-REQ-v0.2`, domain architect `DOM-GS-v0.2`, Rust architect `ARCH-GS-v0.1`. Les vérifications du produit, l'essai matériel et la revue indépendante de ce document sont **NOT RUN** à cette version.
+**État : DRAFT ; gate DESIGN BLOCKED.** Base inspectée : branche `evo-startup-perf`, commit `ecae272270c9db441fc957ab10e7c099e1d45ee5`, dépôt propre au préflight. Auteur Git : session Codex principale. Apports en lecture seule : product framer `PROD-GPUSEL-v0.2`, requirements analyst `GPUSEL-REQ-v0.2`, domain architect `DOM-GS-v0.2`, Rust architect `ARCH-GS-v0.1`. Les vérifications du produit et l'essai matériel sont **NOT RUN** ; les verdicts documentaires concernent leurs commits exacts, pas ce libellé d'état à lui seul.
 
 ## Besoin, autorités et périmètre
 
@@ -23,6 +23,8 @@ L'inventaire Windows existant montre les cartes présentes, mais leur présence 
 | S-GS09, `evo-intel-gpu.md` | Git : décision utilisateur du 14 octobre 2026 d'arrêter l'implémentation Intel. |
 
 Le périmètre comprend la qualification, le choix pour WAV/MP3 et microphone, l'ordre par défaut, la préférence durable, la substitution temporaire avant sélection, l'attestation de la carte réellement utilisée et la continuité des parcours CPU/Auto/GPU. Intel peut rester visible dans l'inventaire ; sa présence ne réactive ni un moteur Intel ni une étape NVIDIA → Intel → CPU. Restent différés : changement de GPU pendant une transcription, supervision continue, reprise après crash, autre modèle, tray et sortie MP3. Les contrats large-v3-turbo, blocs confirmés et TXT/SRT/WAV restent applicables.
+
+**Capacités du brief, owner product framer.** BF-GS01 : qualifier et montrer les cartes ; BF-GS02 : rendre l'incertitude visible ; BF-GS03 : choisir une carte et identifier celle qui calcule ; BF-GS04 : appliquer l'ordre Windows sans choix ; BF-GS05 : respecter les règles sans GPU ou après échec ; BF-GS06 : mémoriser et substituer temporairement ; BF-GS07 : garder la séance fixe ; BF-GS08 : préserver l'audio, les sorties et la réactivité. BF-GS05 renvoie donc à REQ/UC/AC-GS06, tandis que BF-GS06 renvoie à REQ/UC/AC-GS05 : les numéros décrivent deux inventaires d'owners différents, explicitement reliés dans la matrice.
 
 ## Exigences, parcours et acceptation
 
@@ -45,6 +47,29 @@ Parcours : UC01 consulter les cartes, UC02 comprendre le partiel, UC03 choisir, 
 
 Owner : domain architect. `DOM-GS01..07` couvrent carte/identité Windows, qualification, catalogue, préférence, candidat et séance. `INV-GS01..10` relient ces concepts aux exigences ci-dessus.
 
+| Concept | Définition et propriétaire |
+|---|---|
+| DOM-GS01, domaine | Carte observée : identité Windows opaque, présence, nom/état facultatifs et rang sourcé ; homonymes possibles. |
+| DOM-GS02, domaine | Qualification attribuée à une carte et au moteur : utilisable confirmée, non prise en charge confirmée ou indéterminée ; disponibilité séparée. |
+| DOM-GS03, application | Catalogue d'une génération avec couverture complète/partielle/échec et causes. |
+| DOM-GS04, domaine/application | Préférence durable : absence de choix ou identité Windows choisie, distincte d'une substitution. |
+| DOM-GS05, domaine | Résolution de séance : mode, préférence et catalogue vers GPU candidat, CPU, attente ou refus motivé. |
+| DOM-GS06, domaine/application | Moteur effectif CPU ou GPU identifié, attesté pour une séance précise. |
+| DOM-GS07, application/domaine | Séance : identité, mode, candidat, moteur attesté, début du traitement, tentative CPU et intention d'arrêt. |
+
+| Invariant | Garantie et lien principal |
+|---|---|
+| INV-GS01 | Présence ≠ support ≠ disponibilité ≠ moteur prêt ; l'incertitude n'est jamais un positif par défaut — GS01–02. |
+| INV-GS02 | Une identité, et jamais le nom ou le rang seuls, rattache préférence, qualification, candidat et attestation — GS01/03. |
+| INV-GS03 | Préférence compatible prioritaire ; sinon première compatible selon l'ordre Windows, sans tri substitutif — GS04/05. |
+| INV-GS04 | Substitution temporaire avec message sans changer la préférence — GS05. |
+| INV-GS05 | Candidat fixe après résolution ; une panne d'initialisation ne relance pas une recherche d'autre GPU — GS03/06/07. |
+| INV-GS06 | Auto : une tentative CPU avant traitement ; aucune en GPU manuel ni après ce début — GS06. |
+| INV-GS07 | Admission unique après attestation de la bonne carte et séance ; résultats obsolètes sans effet — GS03/07. |
+| INV-GS08 | Réemploi seulement pour carte/configuration compatibles ; le cache ne remplace pas le choix — GS03/07. |
+| INV-GS09 | Les couleurs et états visibles proviennent de l'application, sans politique parallèle en UI/composition — GS01/02/08. |
+| INV-GS10 | L'audio et les exports suivent leurs contrats existants ; la qualification ne les modifie pas — GS07/08. |
+
 - Présence Windows, support du moteur, disponibilité temporaire et préparation avec large-v3-turbo sont des états distincts. Une désactivation, un pilote inaccessible ou une VRAM insuffisante ne prouvent pas à eux seuls un non-support définitif.
 - Préférence durable ≠ candidat de séance ≠ GPU effectif attesté. Nom commercial, rang, `CUDA0` et état « Ready Cuda » ne prouvent pas l'identité de la carte.
 - Catalogue : `non demandé → en cours(génération) → complet | partiel | échec`. Une erreur après observations conserve le partiel ; résultat obsolète ou doublon sans effet. La fermeture invalide la publication de cette instance.
@@ -55,6 +80,30 @@ Owner : domain architect. `DOM-GS01..07` couvrent carte/identité Windows, quali
 ## Architecture Rust proposée
 
 Owner : Rust architect. Les modules ci-dessous sont des **frontières candidates**, pas une liste d'écriture autorisée. `whisper-core` conserve les règles pures et les ports applicatifs ; `whisper-adapters` porte Windows, le transport et les préférences ; `whisper-worker-gpu` prépare/atteste le moteur ; `desktop/ui.rs` affiche les vues ; `desktop/root.rs` compose. Les contrôles futurs combinent graphe Cargo, imports, visibilités et consommateurs réels. Le code natif éventuel doit conserver les lints `unsafe` existants ; aucune exception nouvelle n'est acceptée par ce document.
+
+| Module physique | Dépendances permises | Dépendances interdites | Contrôle futur |
+|---|---|---|---|
+| Core, domaine pur (`gpu_inventory.rs`, sélection) | `std`, types purs, sérialisation justifiée | WMI, DXGI, CUDA, IO, UI et couche application | Imports/visibilité et graphe Cargo |
+| Core, application (`gpu_inventory_app.rs`, ports de préférence/séance) | Domaine et ports qu'elle possède | Adaptateurs concrets, `eframe`, worker natif | Imports et API publiques |
+| Adapters, inventaire/transport | API core, Windows, IPC | UI/root, règles métier parallèles | Cargo/features et imports |
+| Adapters, stockage des réglages | Contrat application, JSON et fichier profil | Résolution GPU/substitution métier | Propriétaire des données et revues des écritures |
+| Worker GPU, orchestration IPC | Types IPC purs, moteur natif | UI, préférences, recherche silencieuse d'un autre GPU | Chemin d'admission et événements |
+| Worker GPU, moteur/façade native | `whisper-rs`/sys et types purs nécessaires | UI, persistance | Pointeurs/retours/handles et lints `unsafe` |
+| Desktop `ui.rs`/`lib.rs` | API/vues core | Adaptateurs concrets, appels Windows/natifs bloquants | Imports des consommateurs |
+| Desktop `root.rs`/`main.rs` | Couches nécessaires à la composition | État métier parallèle | Injection et sélection effective |
+
+`whisper-core` contient domaine **et** application : vérifier les imports internes, car un build core ne prouve pas leur séparation. La dépendance Cargo de `whisper-desktop` à `adapters` sert à `root.rs`/`main.rs` ; elle n'autorise pas son usage direct dans `ui.rs`.
+
+| Choix architecte et statut documentaire | Option retenue / alternative | Justification et preuve ; limite |
+|---|---|---|
+| ARCH-GS-D01, choix technique proposé | Garder les crates existantes / créer des crates de domaine et qualification | Les frontières physiques et les imports restent vérifiables ; aucun besoin produit de nouvelle crate (`Cargo.toml`, modules courants). |
+| ARCH-GS-D02, choix technique proposé | Passer l'ordinal résolu à `gpu_device` / modifier `CUDA_VISIBLE_DEVICES` ou accepter GPU implicite | API présente dans `whisper-rs 0.16.0` ; le chemin entier jusqu'à la carte Windows reste à prouver. |
+| ARCH-GS-D03, hypothèse structurante ouverte | WMI pour couverture et DXGI pour rang / ordre de réception WMI | DXGI documente un ordre ; la fusion et la couverture WMI/DXGI restent partielles. Aucun ordre WMI n'est présumé. |
+| ARCH-GS-D04, choix technique proposé | Mémoriser le Device Instance ID / nom, index ou LUID | Microsoft documente sa persistance entre redémarrages ; réinstallation/déplacement non garantis. |
+| ARCH-GS-D05, hypothèse structurante ouverte | Apparier PnP↔DXGI↔GGML par identité matérielle univoque / autre source vérifiable | Propriétés PCI/LUID disponibles dans leur portée ; chemin complet et encapsulation native compatibles avec les lints non démontrés. |
+| ARCH-GS-D06, choix technique proposé | Inclure carte/config dans la clé de cache et attester chaque séance / conserver cache chemin/hash seul | Le cache courant ne distingue pas A de B ; pas de pool multicarte exigé. |
+
+Les choix techniques proposés sont sous délégation de conception, **non acceptés comme implémentation ou faisabilité démontrée**. D03/D05 doivent être résolus avant DESIGN READY. Aucune nouvelle dépendance directe Windows ou exception `unsafe` n'est autorisée par cette table.
 
 | Contrat / owner | Entrée, effet et refus |
 |---|---|
@@ -90,7 +139,15 @@ Sources techniques lues par l'architecte le 14 octobre 2026 ; aucune exécution 
 
 Risques fonctionnels : faux vert, mauvaise carte malgré homonymes, faux premier Windows, préférence écrasée, repli CPU ou GPU hors règle, résultat tardif/cache d'une autre carte, attente/capture trompeuse, conclusion multicarte tirée d'une machine monoCUDA. Ces risques renvoient respectivement à GS01, GS03, GS04, GS05, GS06, GS07 et GS08.
 
-Questions attribuées : **Q-GS01**, architecte, ordre Windows et fusion complète ; **Q-GS02**, architecte, jointure PnP/moteur et attestation par séance ; **Q-GS03**, architecte/domaine, support durable contre indisponibilité temporaire ; **Q-GS04**, UI/stockage, état visuel indéterminé et accusé de sauvegarde (détail avant lot). L'incapacité temporaire après choix d'un candidat compatible suit l'erreur de préparation de GS06, sans chercher arbitrairement un autre GPU. L'annulation/fermeture de l'import demande une lecture contractuelle avant plan ; les bornes d'absence de progrès et le corpus final ne sont pas élargis par ce document.
+| Question, classification, owner | GS et échéance | Options / fermeture attendue |
+|---|---|---|
+| Q-GS01, STRUCTURING, architecte | GS01/04/05 ; avant gate DESIGN | WMI+DXGI avec fusion et rang démontrés, ou autre API Windows à ordre documenté ; un autre ordre produit demande l'utilisateur. |
+| Q-GS02, STRUCTURING, architecte | GS03/04/07 ; avant gate DESIGN | Jointure PnP↔worker et preuve native par séance, ou autre chemin démontré ; réduction de la garantie demande l'utilisateur. |
+| Q-GS03, STRUCTURING, architecte et domaine | GS01/02/06 ; avant gate DESIGN | Séparer non-support de l'incapacité temporaire ; après choix d'un candidat compatible, erreur de préparation puis manuel erreur/CPU Auto, sans autre GPU arbitraire. |
+| Q-GS04, DETAIL, présentation et stockage | GS01/02/05 ; avant lots UI/persistance futurs | Libellé indéterminé neutre accessible et accusé de sauvegarde révisionné ; aucun état vert/gris inféré d'une donnée inconnue. |
+| Q-AN-GS06, GAP de contrat, analyste et architecte | GS07/08 ; avant plan d'un lot import | Lire le comportement courant d'annulation et fermeture import (`desktop/src/ui.rs` retient actuellement la fermeture pendant occupation), puis définir le résultat observable sans modifier implicitement ce contrat. |
+
+Les bornes d'absence de progrès et le corpus/matériel de validation finale ne sont pas élargis par ce document. Les questions STRUCTURING bloquent uniquement les dépendances indiquées ; le DETAIL reste borné à ses lots. Aucun choix technique ouvert n'est présenté comme une nouvelle décision produit acceptée.
 
 ### Traçabilité
 
@@ -110,4 +167,4 @@ Questions attribuées : **Q-GS01**, architecte, ordre Windows et fusion complèt
 
 La référence `C:\Users\cyril\.codex\skills\rust-predev-design\references\workflow-schema.md`, requise par `agent-rules/IMPLEMENTATION_RULES.md`, est absente. Aucun fichier historique n'est substitué. Ce manque bloque le gate et le plan writer ; il ne retire pas le contenu de cadrage ci-dessus. Le `RAILGUARD.md` courant contient par ailleurs des formulations historiques sur MP3 et l'ancien outillage : à analyser avant un lot affecté, sans réactiver G1.
 
-**Readiness : DRAFT / DESIGN BLOCKED.** Les questions structurantes et le schéma requis restent ouverts. Revue indépendante de ce fichier Git : **NOT RUN** à cette version. Aucun plan exécutable ni autorisation de coder n'est créé. La suite possible est un essai de faisabilité précisément mandaté et la résolution du cadre ; le plan, sa revue, l'implémentation et l'essai final dans la fenêtre Windows restent distincts.
+**Readiness : DRAFT / DESIGN BLOCKED.** Les questions structurantes et le schéma requis restent ouverts. Une revue indépendante juge la qualité documentaire d'un commit précis ; elle ne ferme pas à elle seule ces préalables. Aucun plan exécutable ni autorisation de coder n'est créé. La suite possible est un essai de faisabilité précisément mandaté et la résolution du cadre ; le plan, sa revue, l'implémentation et l'essai final dans la fenêtre Windows restent distincts.
