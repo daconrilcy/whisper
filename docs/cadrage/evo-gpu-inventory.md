@@ -4,7 +4,7 @@ Décision : la liste est informative, près de « Calcul », et exclut les ancie
 
 # Inventaire des GPU Windows — cadrage du 14 octobre 2026
 
-**État : DESIGN DRAFT.** Ce cadrage n'autorise aucune implémentation. Base : branche `evo-startup-perf`, commit `49797d4264791dbad9fff16c9f44cd2eb4f1a89c` avant ce document. Sources : demande et réponses de l'utilisateur du 14 octobre 2026, expression de besoin revue PASS avec réserve sur l'inventaire partiel, `AGENTS.md`, `docs/cadrage/evo-gpu.md`, `docs/cadrage/evo-auto.md`, `docs/cadrage/evo-startup-perf.md`, `docs/cadrage/bilan-evo-gpu.md` et code courant. Contributions en lecture seule : product framer `PROD-GPUINV-v1.1`, requirements analyst `GPUINV-REQ-v1.1`, domain architect `DOM-GI-v0.3`, Rust architect `ARCHGI-v0.3`. L'auteur de ce document est la session principale.
+**État : DESIGN READY** après revue indépendante CLEAN du candidat `51dd0bdbdebef400690d03b65772d9b9f00a9909` ; plan futur en préparation. Ce cadrage n'autorise aucune implémentation. Base : branche `evo-startup-perf`, commit `49797d4264791dbad9fff16c9f44cd2eb4f1a89c` avant ce document. Sources : demande et réponses de l'utilisateur du 14 octobre 2026, expression de besoin revue PASS avec réserve sur l'inventaire partiel, `AGENTS.md`, `docs/cadrage/evo-gpu.md`, `docs/cadrage/evo-auto.md`, `docs/cadrage/evo-startup-perf.md`, `docs/cadrage/bilan-evo-gpu.md` et code courant. Contributions en lecture seule : product framer `PROD-GPUINV-v1.1`, requirements analyst `GPUINV-REQ-v1.1`, domain architect `DOM-GI-v0.3`, Rust architect `ARCHGI-v0.3`. L'auteur de ce document est la session principale.
 
 ## Besoin, décisions et périmètre
 
