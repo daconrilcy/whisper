@@ -1,15 +1,26 @@
 use std::path::PathBuf;
 use whisper_adapters::{
+    path_settings::WindowsPathPort,
     supervisor::WorkerPaths,
     worker_ipc::{AsyncImportIo, probe_cuda_worker},
 };
+use whisper_core::path_settings::{PathDefaults, PathSettingsApp};
 use whisper_core::{ComputeChoice, ImportApplication};
 
 pub fn compose() -> (
     ImportApplication<AsyncImportIo>,
     ComputeChoice,
     Option<String>,
+    PathSettingsApp,
 ) {
+    let paths = PathSettingsApp::new(
+        PathDefaults {
+            audio_directory: whisper_desktop::ui::default_audio_directory(),
+            model_path: whisper_desktop::ui::default_model_path(),
+            destination: whisper_desktop::ui::default_destination(),
+        },
+        Box::new(WindowsPathPort::new()),
+    );
     let executable = std::env::current_exe().ok();
     let worker_path = |worker_name: &str| {
         let sibling = executable
@@ -41,7 +52,7 @@ pub fn compose() -> (
     };
     let gpu_status = probe_cuda_worker(
         &workers.gpu,
-        &whisper_desktop::ui::default_model_path(),
+        &paths.model,
         whisper_desktop::ui::approved_model_sha256(),
     );
     let (choice, message) = match gpu_status {
@@ -52,5 +63,6 @@ pub fn compose() -> (
         ImportApplication::new(AsyncImportIo::start_with_workers(workers)),
         choice,
         message,
+        paths,
     )
 }

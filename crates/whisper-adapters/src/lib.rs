@@ -3,6 +3,7 @@ pub mod capture;
 pub mod decoder;
 mod direct_live;
 pub mod journal;
+pub mod path_settings;
 pub mod queue_store;
 pub mod recovery;
 pub mod staging;

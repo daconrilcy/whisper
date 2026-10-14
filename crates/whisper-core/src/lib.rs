@@ -5,6 +5,7 @@ pub mod audio;
 pub mod compute_policy;
 pub mod domain;
 pub mod ipc;
+pub mod path_settings;
 pub mod ports;
 
 pub use application::{

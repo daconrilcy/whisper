@@ -20,5 +20,8 @@ rubato = { version = "=0.16.2", default-features = false, features = ["fft_resam
 webrtc-vad = "=0.4.0"
 rtrb = "=0.4.0"
 
+[target.'cfg(target_os = "windows")'.dependencies]
+rfd = { version = "=0.17.2", default-features = false }
+
 [lints]
 workspace = true

@@ -1,5 +1,6 @@
 use eframe::egui;
 use std::sync::atomic::{AtomicU64, Ordering};
+use whisper_core::path_settings::{PathDefaults, PathField, PathSettingsApp};
 use whisper_core::{
     AppCommand, AppFacade, AppView, Application, ApplicationError, ComputeChoice, Generation,
     ImportRequest, JobConfig, JobId, JobState, LanguageChoice, LiveRequest,
@@ -13,9 +14,8 @@ static NEXT_JOB: AtomicU64 = AtomicU64::new(1);
 pub struct DesktopApp<A> {
     application: AppFacade<A>,
     view: AppView,
-    source_path: String,
-    model_path: String,
-    destination: String,
+    paths: PathSettingsApp,
+    path_notice: Option<String>,
     manual_language: bool,
     language: String,
     auto_stop_enabled: bool,
@@ -42,24 +42,27 @@ impl<A: Application> DesktopApp<A> {
         compute_choice: ComputeChoice,
         startup_message: Option<String>,
     ) -> Self {
+        let paths = PathSettingsApp::with_defaults(PathDefaults {
+            audio_directory: default_audio_directory(),
+            model_path: default_model_path(),
+            destination: default_destination(),
+        });
+        Self::with_paths(application, compute_choice, startup_message, paths)
+    }
+
+    pub fn with_paths(
+        application: A,
+        compute_choice: ComputeChoice,
+        startup_message: Option<String>,
+        paths: PathSettingsApp,
+    ) -> Self {
         let application = AppFacade::new(application);
         let view = application.view();
-        let model_path = default_model_path();
-        let destination = std::env::var("WHISPER_L04_NORMAL_RUN_ARCHIVE")
-            .ok()
-            .filter(|path| !path.trim().is_empty())
-            .or_else(|| {
-                std::env::var("USERPROFILE")
-                    .ok()
-                    .map(|path| format!(r"{path}\Documents\WhisperTranscriptions"))
-            })
-            .unwrap_or_default();
         Self {
             application,
             view,
-            source_path: String::new(),
-            model_path,
-            destination,
+            paths,
+            path_notice: None,
             manual_language: false,
             language: "fr".into(),
             auto_stop_enabled: false,
@@ -130,12 +133,12 @@ impl<A: Application> DesktopApp<A> {
             request: ImportRequest {
                 job_id,
                 generation,
-                source_path: self.source_path.trim().to_owned(),
+                source_path: self.paths.audio.trim().to_owned(),
                 source_sha256: None,
                 source_samples: None,
-                model_path: self.model_path.trim().to_owned(),
+                model_path: self.paths.model.trim().to_owned(),
                 model_sha256: parse_sha256(APPROVED_MODEL_SHA256),
-                destination: self.destination.trim().to_owned(),
+                destination: self.paths.destination.trim().to_owned(),
                 config,
             },
         });
@@ -155,9 +158,9 @@ impl<A: Application> DesktopApp<A> {
         let request = LiveRequest {
             job_id,
             generation,
-            model_path: self.model_path.trim().to_owned(),
+            model_path: self.paths.model.trim().to_owned(),
             model_sha256: parse_sha256(APPROVED_MODEL_SHA256),
-            destination: self.destination.trim().to_owned(),
+            destination: self.paths.destination.trim().to_owned(),
             group_offset_samples: self.live_request.as_ref().map_or(0, |previous| {
                 previous
                     .group_offset_samples
@@ -180,7 +183,18 @@ impl<A: Application> DesktopApp<A> {
 }
 
 impl<A: Application> eframe::App for DesktopApp<A> {
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.paths.commit_all();
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if let Some(message) = self.paths.poll_notice() {
+            self.path_notice = Some(message);
+        }
+        if self.paths.has_pending_save() {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(100));
+        }
         self.dispatch(AppCommand::Refresh);
         if let (Some((job_id, _)), Some(generation)) =
             (self.view.active_job, self.view.active_generation)
@@ -218,7 +232,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 );
             }
         }
-        let destination = self.destination.trim().to_owned();
+        let destination = self.paths.destination.trim().to_owned();
         let destination_scan_pending = !destination.is_empty()
             && self.scanned_destination.as_deref() != Some(destination.as_str());
         // Refresh consumes asynchronous scan and lifecycle events. Schedule a
@@ -248,15 +262,39 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         ui.add_enabled_ui(can_enqueue, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Fichier audio (WAV ou MP3)");
-                ui.text_edit_singleline(&mut self.source_path);
+                let response = ui.text_edit_singleline(&mut self.paths.audio);
+                if ui.button("Parcourir…").clicked() {
+                    self.paths.browse(PathField::Audio);
+                } else if response.lost_focus()
+                    || (response.has_focus()
+                        && ui.input(|input| input.key_pressed(egui::Key::Enter)))
+                {
+                    self.paths.commit_manual(PathField::Audio);
+                }
             });
             ui.horizontal(|ui| {
                 ui.label("Modèle local");
-                ui.text_edit_singleline(&mut self.model_path);
+                let response = ui.text_edit_singleline(&mut self.paths.model);
+                if ui.button("Parcourir…").clicked() {
+                    self.paths.browse(PathField::Model);
+                } else if response.lost_focus()
+                    || (response.has_focus()
+                        && ui.input(|input| input.key_pressed(egui::Key::Enter)))
+                {
+                    self.paths.commit_manual(PathField::Model);
+                }
             });
             ui.horizontal(|ui| {
                 ui.label("Dossier des transcriptions");
-                ui.text_edit_singleline(&mut self.destination);
+                let response = ui.text_edit_singleline(&mut self.paths.destination);
+                if ui.button("Parcourir…").clicked() {
+                    self.paths.browse(PathField::Destination);
+                } else if response.lost_focus()
+                    || (response.has_focus()
+                        && ui.input(|input| input.key_pressed(egui::Key::Enter)))
+                {
+                    self.paths.commit_manual(PathField::Destination);
+                }
             });
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.manual_language, "Langue manuelle");
@@ -291,9 +329,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     });
                 });
             }
-            let can_start = !self.source_path.trim().is_empty()
-                && !self.model_path.trim().is_empty()
-                && !self.destination.trim().is_empty()
+            let can_start = !self.paths.audio.trim().is_empty()
+                && !self.paths.model.trim().is_empty()
+                && !self.paths.destination.trim().is_empty()
                 && (!self.manual_language || !self.language.trim().is_empty());
             if ui
                 .add_enabled(can_start, egui::Button::new("Importer et transcrire"))
@@ -303,8 +341,8 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
             {
                 let can_start_live = !busy
-                    && !self.model_path.trim().is_empty()
-                    && !self.destination.trim().is_empty()
+                    && !self.paths.model.trim().is_empty()
+                    && !self.paths.destination.trim().is_empty()
                     && (!self.manual_language || !self.language.trim().is_empty());
                 if ui
                     .add_enabled(can_start_live, egui::Button::new("Démarrer le micro"))
@@ -438,6 +476,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         }
         if let Some(message) = &self.startup_message {
             ui.colored_label(egui::Color32::LIGHT_RED, message);
+        }
+        if let Some(message) = &self.path_notice {
+            ui.colored_label(egui::Color32::YELLOW, message);
         }
         if self.view.diagnostics_degraded {
             ui.colored_label(
@@ -601,6 +642,24 @@ impl<A: Application> eframe::App for DesktopApp<A> {
 pub fn default_model_path() -> String {
     std::env::var("LOCALAPPDATA")
         .map(|path| format!(r"{path}\Programs\WhisperBuildDeps\models\ggml-large-v3-turbo.bin"))
+        .unwrap_or_default()
+}
+
+pub fn default_audio_directory() -> String {
+    std::env::var("USERPROFILE")
+        .map(|path| format!(r"{path}\Documents"))
+        .unwrap_or_default()
+}
+
+pub fn default_destination() -> String {
+    std::env::var("WHISPER_L04_NORMAL_RUN_ARCHIVE")
+        .ok()
+        .filter(|path| !path.trim().is_empty())
+        .or_else(|| {
+            std::env::var("USERPROFILE")
+                .ok()
+                .map(|path| format!(r"{path}\Documents\WhisperTranscriptions"))
+        })
         .unwrap_or_default()
 }
 
