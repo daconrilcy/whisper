@@ -260,9 +260,10 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         ui.label("Import WAV/MP3 ou micro en direct, avec le modèle local.");
 
         ui.add_enabled_ui(can_enqueue, |ui| {
-            ui.horizontal(|ui| {
+            let path_field_width = (ui.available_width() - 320.0).clamp(100.0, 640.0);
+            egui::Grid::new("path_fields").show(ui, |ui| {
                 ui.label("Fichier audio (WAV ou MP3)");
-                let response = ui.text_edit_singleline(&mut self.paths.audio);
+                let response = path_text_edit(ui, &mut self.paths.audio, path_field_width);
                 if ui.button("Parcourir…").clicked() {
                     self.paths.browse(PathField::Audio);
                 } else if response.lost_focus()
@@ -271,10 +272,10 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 {
                     self.paths.commit_manual(PathField::Audio);
                 }
-            });
-            ui.horizontal(|ui| {
+                ui.end_row();
+
                 ui.label("Modèle local");
-                let response = ui.text_edit_singleline(&mut self.paths.model);
+                let response = path_text_edit(ui, &mut self.paths.model, path_field_width);
                 if ui.button("Parcourir…").clicked() {
                     self.paths.browse(PathField::Model);
                 } else if response.lost_focus()
@@ -283,10 +284,10 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 {
                     self.paths.commit_manual(PathField::Model);
                 }
-            });
-            ui.horizontal(|ui| {
+                ui.end_row();
+
                 ui.label("Dossier des transcriptions");
-                let response = ui.text_edit_singleline(&mut self.paths.destination);
+                let response = path_text_edit(ui, &mut self.paths.destination, path_field_width);
                 if ui.button("Parcourir…").clicked() {
                     self.paths.browse(PathField::Destination);
                 } else if response.lost_focus()
@@ -295,6 +296,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 {
                     self.paths.commit_manual(PathField::Destination);
                 }
+                ui.end_row();
             });
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.manual_language, "Langue manuelle");
@@ -637,6 +639,21 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
         }
     }
+}
+
+fn path_text_edit(ui: &mut egui::Ui, path: &mut String, width: f32) -> egui::Response {
+    ui.scope(|ui| {
+        let border = egui::Stroke::new(1.0, ui.visuals().weak_text_color());
+        let widgets = &mut ui.style_mut().visuals.widgets;
+        widgets.inactive.bg_stroke = border;
+        widgets.hovered.bg_stroke = border;
+        widgets.active.bg_stroke = border;
+        ui.add_sized(
+            [width, ui.spacing().interact_size.y],
+            egui::TextEdit::singleline(path),
+        )
+    })
+    .inner
 }
 
 pub fn default_model_path() -> String {
