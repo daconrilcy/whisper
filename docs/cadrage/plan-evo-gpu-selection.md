@@ -1,10 +1,12 @@
 Avancée : design et plan revus CLEAN sur `3ef5d24c` ; cinq lots GPU décrits et aucune vérification du produit exécutée.
-Blocage : le plan attend l'acceptation de l'utilisateur et l'accord précis de code pour chaque lot.
-Décision : PLANS READY pour examen ; les lots ne sont pas encore autorisés à coder.
+Blocage : aucun pour démarrer L01 ; les prérequis de chaque lot et la validation produit restent à vérifier à leur échéance.
+Décision : plan accepté le 15 octobre 2026 ; implémentation séquentielle L01–L04 autorisée dans leurs chemins, L05 et push non autorisés par cette décision.
 
 # Sélecteur GPU — plan proposé (15 octobre 2026)
 
-**État : PLANS READY, acceptation utilisateur en attente.** Le reviewer indépendant a rendu **PLANS CLEAN** sur le contenu exact du commit `3ef5d24ce0cc0567d3959364090a4fba7e844afe`, blob `ce50fb17eff279a59fe3022addfb76c26030332d`, contre le design D08 du même commit ; R-PGS-001 et R-PGS-002 sont fermés. Le présent changement enregistre ces verdicts sans modifier les lots. Auteur Git : session Codex principale. Proposition initiale en lecture seule : `rust_plan_writer`, base `c42ad968cf0886399a66b515bb6792e89f475ec3`, version `PLAN-GPUSEL-v0.1` ; résolution de GS-ARCH-01 proposée en lecture seule par l'architecte `ARCH-GS-GAP-v0.3`. Ce plan n'est ni une acceptation utilisateur ni une autorisation de code, de téléchargement, d'installation, de changement système, de push ou de qualification de la fenêtre par l'agent.
+**État : PLANS READY et accepté pour L01–L04.** Le reviewer indépendant a rendu **PLANS CLEAN** sur le contenu exact du commit `3ef5d24ce0cc0567d3959364090a4fba7e844afe`, blob `ce50fb17eff279a59fe3022addfb76c26030332d`, contre le design D08 du même commit ; R-PGS-001 et R-PGS-002 sont fermés. Le commit `bd00b96a` a enregistré ce verdict sans modifier les lots, puis son delta a été revu CLEAN. Auteur Git : session Codex principale. Proposition initiale en lecture seule : `rust_plan_writer`, base `c42ad968cf0886399a66b515bb6792e89f475ec3`, version `PLAN-GPUSEL-v0.1` ; résolution de GS-ARCH-01 proposée en lecture seule par l'architecte `ARCH-GS-GAP-v0.3`. La décision utilisateur du 15 octobre 2026 ci-dessous autorise le code L01–L04, pas L05, l'installation, le push ou l'essai final dans la fenêtre par l'agent.
+
+**Acceptation et autorisation de session.** À la question « validez-vous ce plan et autorisez-vous l’implémentation séquentielle des lots L01 à L04, dans les chemins indiqués pour chacun, y compris les deux modules natifs et les exceptions `unsafe` bornées de l’option B ? », l'utilisateur a répondu « oui je t autorise » le 15 octobre 2026. Portée : L01 puis L02 puis L03 puis L04, après préflight de chacun, sur les chemins d'écriture ci-dessous ; les vérifications prévues et la revue indépendante sont comprises dans ces lots. Aucun changement de chemin, de contrat ou de technologie n'est autorisé par cette réponse ; traiter ces écarts selon `PLAN_CHANGE` ou `DESIGN_CHANGE`. L'essai final dans la fenêtre Windows reste réservé à l'utilisateur. Cette ligne enregistre la décision sans changer les tâches revues.
 
 ## Périmètre, autorités et points à résoudre
 
@@ -50,7 +52,7 @@ Graphe principal `L01 → L02 → L03 → L04 → L05`, sans édition parallèle
 
 ## L02 — jointure Windows et qualification du build, sept tâches
 
-**Objectif.** Montrer une liste réelle dont chaque état découle du build moteur livré et de la carte logique Windows. **Exclusions :** moteur Intel, inférence multicarte finale. **Owner futur :** `rust_implementer`. Contrats : D03/D05/D07/D08, PORT-GS01/02 ; AC-GS01/02/04/08. **Statut : description complète proposée, revue D08 et accord de code du lot encore requis.**
+**Objectif.** Montrer une liste réelle dont chaque état découle du build moteur livré et de la carte logique Windows. **Exclusions :** moteur Intel, inférence multicarte finale. **Owner futur :** `rust_implementer`. Contrats : D03/D05/D07/D08, PORT-GS01/02 ; AC-GS01/02/04/08. **Statut : D08 revu CLEAN et code du lot autorisé le 15 octobre 2026, sous réserve du préflight L02.**
 
 1. Joindre PnP, rang DXGI et ID logique DisplayConfig/SetupAPI par la façade privée `gpu_inventory/windows_native.rs` de D08 ; ne jamais identifier par nom ou matériel KMT sous-jacent seul.
 2. Collecter hors UI avec génération, un résultat terminal et fermeture sans attendre un appel Windows bloqué.
@@ -77,7 +79,7 @@ Graphe principal `L01 → L02 → L03 → L04 → L05`, sans édition parallèle
 
 ## L04 — séance, attestation du même état et cache, huit tâches
 
-**Objectif.** En GPU manuel et Auto, la carte candidate est celle qui exécute réellement import et micro. **Exclusions :** recherche silencieuse d'un deuxième GPU après échec et changement en cours de séance. **Owner futur :** `rust_implementer`. Contrats D08, PORT-GS05, CONTRACT-GS06/08, INV-GS05–08/10 ; AC-GS03/04/06/07/08. **Statut : revue D08 et accord de code du lot encore requis.**
+**Objectif.** En GPU manuel et Auto, la carte candidate est celle qui exécute réellement import et micro. **Exclusions :** recherche silencieuse d'un deuxième GPU après échec et changement en cours de séance. **Owner futur :** `rust_implementer`. Contrats D08, PORT-GS05, CONTRACT-GS06/08, INV-GS05–08/10 ; AC-GS03/04/06/07/08. **Statut : D08 revu CLEAN et code du lot autorisé le 15 octobre 2026, sous réserve du préflight L04.**
 
 1. Transmettre séance, candidat, ordinal résolu et configuration par IPC ; rejeter résultats obsolètes.
 2. Revalider identité logique, LUID/PCI et ordinal dans **le worker lancé** avant chargement du modèle.
@@ -122,6 +124,6 @@ Les durées sont des budgets de campagne proposés, jamais des seuils produit. L
 
 ## Revue, arrêt et récupération
 
-La revue indépendante a rendu **DESIGN CLEAN**, puis **PLANS CLEAN**, sur `3ef5d24c` ; R-PGS-001/002 sont fermés. Elle a conservé le conseil A-PGS-001 (Low) : préciser avant L05 les commandes finales de qualification et la méthode de packaging selon le candidat effectivement construit. Les AC, tâches, chemins, données, observations et limites ci-dessus ont été rapprochés. Deux cycles revue/correction maximum par livrable ; seul le reviewer déclare CLEAN. Le présent changement d'état n'ajoute aucun contrat de code. L'acceptation du plan et l'autorisation écrite de chaque lot restent nécessaires avant toute délégation à l'implémenteur.
+La revue indépendante a rendu **DESIGN CLEAN**, puis **PLANS CLEAN**, sur `3ef5d24c` ; R-PGS-001/002 sont fermés. Elle a conservé le conseil A-PGS-001 (Low) : préciser avant L05 les commandes finales de qualification et la méthode de packaging selon le candidat effectivement construit. Les AC, tâches, chemins, données, observations et limites ci-dessus ont été rapprochés. Deux cycles revue/correction maximum par livrable ; seul le reviewer déclare CLEAN. L'acceptation et l'autorisation L01–L04 sont enregistrées ci-dessus ; préflight, chemins et revues propres à chaque lot restent applicables. L05, le push et la validation de la fenêtre ne découlent pas de cette autorisation.
 
 En cas d'échec d'un essai futur, préserver sources et sorties, isoler le delta fautif, corriger seulement les chemins autorisés et rejouer les cartes invalidées. Arrêter uniquement les processus de la campagne ; aucun `git reset`, nettoyage Cargo global, suppression récursive ou remplacement de réglages utilisateur. L'essai final dans la fenêtre Windows reste à l'utilisateur.
