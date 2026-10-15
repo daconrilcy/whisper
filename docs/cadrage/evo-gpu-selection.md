@@ -1,10 +1,10 @@
-Avancée : D08 et son extension L04 revus DESIGN CLEAN, respectivement sur `3ef5d24c` et `3052c41f`.
-Blocage : essais du produit, multicarte et qualification de livraison restent à exécuter.
-Décision : DESIGN READY pour la révision L04 autorisée ; le push exige un accord distinct.
+Avancée : CHANGE-GS03 revu DESIGN CLEAN sur `f84187e4` ; le code L01–L04 a reçu ses revues CLEAN.
+Blocage : le correctif CHANGE-GS03 attend l'acceptation du lot ; essais du produit, multicarte et qualification de livraison restent à exécuter.
+Décision : DESIGN READY pour CHANGE-GS03 ; le push exige un accord distinct.
 
 # Qualification et sélection des GPU — cadrage du 14 octobre 2026
 
-**État de la présente révision : DESIGN READY.** La revue indépendante a rendu **DESIGN CLEAN** sur l'extension D08-L04 du commit `3052c41f8b1c013abda6d296d0a79138f24e002c`, blob `2f46ace75adb5b0ececfbe8a26a109ed1748ff69`. Le design D08 antérieur était CLEAN sur `3ef5d24ce0cc0567d3959364090a4fba7e844afe`, blob `fe31ba569ed7e61e3d2a0d2da4124f315cb78f13`. Le présent changement enregistre ce verdict sans modifier le contrat revu. Auteur Git : session Codex principale. Apports en lecture seule : product framer `PROD-GPUSEL-v0.2`, requirements analyst `GPUSEL-REQ-v0.2`, domain architect `DOM-GS-v0.2`, Rust architect `ARCH-GS-v0.1` puis interprétations `ARCH-GS-v0.2`, `ARCH-GS-v0.4`, `ARCH-GS-QUAL-v0.1`, `ARCH-GS-v0.5` et `ARCH-GS-GAP-v0.3`. Les vérifications du **produit L04** sont **NOT RUN**. Les SPIKE-GS01/02/03 sous `target/gpu-selection-feasibility/` prouvent seulement les scénarios locaux annoncés.
+**État de la présente révision : DESIGN READY.** La revue indépendante a rendu **DESIGN CLEAN** sur CHANGE-GS03 du commit `f84187e4f48f39b1950fb5de2bc4bdc9b02bee19`, blob `c50f717d2330ddac5f3b83109b77c37b2c40a6df`, sans constat requis. Elle a également rendu **DESIGN CLEAN** sur l'extension D08-L04 du commit `3052c41f8b1c013abda6d296d0a79138f24e002c`, blob `2f46ace75adb5b0ececfbe8a26a109ed1748ff69`. Le design D08 antérieur était CLEAN sur `3ef5d24ce0cc0567d3959364090a4fba7e844afe`, blob `fe31ba569ed7e61e3d2a0d2da4124f315cb78f13`. Le présent état enregistre le verdict CHANGE-GS03 sans modifier son contrat revu. Auteur Git : session Codex principale. Apports en lecture seule : product framer `PROD-GPUSEL-v0.2`, requirements analyst `GPUSEL-REQ-v0.2`, domain architect `DOM-GS-v0.2`, Rust architect `ARCH-GS-v0.1` puis interprétations `ARCH-GS-v0.2`, `ARCH-GS-v0.4`, `ARCH-GS-QUAL-v0.1`, `ARCH-GS-v0.5` et `ARCH-GS-GAP-v0.3`. Les vérifications du **produit L04** sont **NOT RUN**. Les SPIKE-GS01/02/03 sous `target/gpu-selection-feasibility/` prouvent seulement les scénarios locaux annoncés.
 
 ## Besoin, autorités et périmètre
 
