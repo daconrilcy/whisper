@@ -1,10 +1,10 @@
-Avancée : plan proposé en cinq lots, ajusté à l'option B de frontière Windows/CUDA ; aucune vérification du produit exécutée.
-Blocage : la révision du design et du plan attend sa revue indépendante ; aucun lot n'est autorisé à coder.
-Décision : soumettre les deux documents à revue, puis le plan à validation du périmètre et des lots par l'utilisateur.
+Avancée : design et plan revus CLEAN sur `3ef5d24c` ; cinq lots GPU décrits et aucune vérification du produit exécutée.
+Blocage : le plan attend l'acceptation de l'utilisateur et l'accord précis de code pour chaque lot.
+Décision : PLANS READY pour examen ; les lots ne sont pas encore autorisés à coder.
 
 # Sélecteur GPU — plan proposé (15 octobre 2026)
 
-**État : PLANS DRAFT — revue du design D08 et du plan en attente.** Auteur Git : session Codex principale. Proposition initiale en lecture seule : `rust_plan_writer`, base `c42ad968cf0886399a66b515bb6792e89f475ec3`, version `PLAN-GPUSEL-v0.1` ; résolution de GS-ARCH-01 proposée en lecture seule par l'architecte `ARCH-GS-GAP-v0.3`. Le design parent [evo-gpu-selection.md](evo-gpu-selection.md) est révisé dans le même candidat ; son ancien CLEAN ne couvre pas D08. Le présent document n'est ni une acceptation du plan ni une autorisation de code, de téléchargement, d'installation, de changement système, de push ou de qualification de la fenêtre par l'agent.
+**État : PLANS READY, acceptation utilisateur en attente.** Le reviewer indépendant a rendu **PLANS CLEAN** sur le contenu exact du commit `3ef5d24ce0cc0567d3959364090a4fba7e844afe`, blob `ce50fb17eff279a59fe3022addfb76c26030332d`, contre le design D08 du même commit ; R-PGS-001 et R-PGS-002 sont fermés. Le présent changement enregistre ces verdicts sans modifier les lots. Auteur Git : session Codex principale. Proposition initiale en lecture seule : `rust_plan_writer`, base `c42ad968cf0886399a66b515bb6792e89f475ec3`, version `PLAN-GPUSEL-v0.1` ; résolution de GS-ARCH-01 proposée en lecture seule par l'architecte `ARCH-GS-GAP-v0.3`. Ce plan n'est ni une acceptation utilisateur ni une autorisation de code, de téléchargement, d'installation, de changement système, de push ou de qualification de la fenêtre par l'agent.
 
 ## Périmètre, autorités et points à résoudre
 
@@ -14,12 +14,12 @@ Le plan suit le design et les règles `AGENTS.md`, `RAILGUARD.md` et le contrat 
 
 | ID | État, owner, échéance et conséquence |
 |---|---|
-| GS-ARCH-01 | **STRUCTURING, architecte Rust, proposition D08 pour L02/L04.** L'utilisateur a autorisé le 15 octobre 2026 la révision documentaire selon l'option B : `windows = 0.62.2`, façades privées `gpu_inventory/windows_native.rs` et `native_ffi.rs`, adapters `forbid` hérité → `deny` local, worker `deny` conservé, exceptions `unsafe` bornées aux deux modules. API/features, ressources, threads, erreurs et chemins figurent dans D08. La revue indépendante de cette modification du design reste nécessaire ; aucune écriture produit ne découle de cet accord. |
+| GS-ARCH-01 | **STRUCTURING résolu pour le plan, architecte Rust, D08 DESIGN CLEAN.** L'utilisateur a autorisé le 15 octobre 2026 la révision documentaire selon l'option B : `windows = 0.62.2`, façades privées `gpu_inventory/windows_native.rs` et `native_ffi.rs`, adapters `forbid` hérité → `deny` local, worker `deny` conservé, exceptions `unsafe` bornées aux deux modules. API/features, ressources, threads, erreurs et chemins figurent dans D08, revu CLEAN sur `3ef5d24c`. Aucune écriture produit ne découle de cet accord. |
 | GS-BUILD-01 | **Détail technique délégué, architecte Rust, avant L02.** Fixer dans Git la valeur explicite des architectures CUDA D07, commune aux flags du build natif et à la déclaration worker, sans réduire silencieusement la couverture promise. Construire ensuite une cible native neuve et vérifier les flags liés. La valeur n'est pas inventée dans ce plan. |
 | Q-GS04 | **DETAIL, application/UI/stockage, avant L03.** Fixer le libellé accessible de l'indéterminé et le retour de sauvegarde par révision, sans faux vert/gris ni confirmation prématurée. |
 | Q-AN-GS06 | **Constat documentaire confirmé par l'analyste/application, entrée L04.** `ui.rs` retient la fermeture pendant un import occupé ; après admission de Quit, l'UI le demande une fois, attend l'arrêt coopératif/stabilisation, puis ferme quand l'occupation cesse ; `Recoverable` efface cette intention. Stop/Quit admis avant commit annulent sans admission/repli tardif. Si la publication est déjà en commit, `Finalizing` attend son issue et l'arrêt n'est pas annoncé réussi. Conserver la source et les données pending selon le contrat existant. Aucun délai d'abandon nouveau. Produit NOT RUN. |
 
-Un écart de design prouvé suspend seulement les lots touchés. L01 peut être détaillé sur les contrats antérieurs ; L03 peut préparer des essais simulés, mais sa preuve réelle attend L02. D08 devra recevoir une revue DESIGN CLEAN avant que L02/L04 soient proposés comme exécutables. Tout changement de contrat, chemin ou dépendance après revue relève de `PLAN_CHANGE`; tout changement d'exigence ou d'architecture relève de `DESIGN_CHANGE`.
+Un écart de design prouvé suspend seulement les lots touchés. L01 peut être détaillé sur les contrats antérieurs ; L03 peut préparer des essais simulés, mais sa preuve réelle attend L02. D08 a reçu la revue DESIGN CLEAN ; L02/L04 attendent encore l'acceptation du plan et l'accord précis de code pour leurs chemins. Tout changement de contrat, chemin ou dépendance après revue relève de `PLAN_CHANGE`; tout changement d'exigence ou d'architecture relève de `DESIGN_CHANGE`.
 
 ## Préflight commun et graphe
 
@@ -28,9 +28,9 @@ Avant chaque lot : comparer `HEAD`, branche, état Git, design et plan versionn�
 | Lot | Sortie vérifiable | Prérequis DOCUMENT | Prérequis CODE / EXECUTION |
 |---|---|---|---|
 | L01 | Catalogue, qualification et résolution purs prouvés sur données contrôlées | Design courant, GS01–04 | Base Git propre ou écarts attribués / toolchain offline |
-| L02 | Cartes Windows réellement jointes et qualifiées, CPU utilisable pendant collecte | D08 revu CLEAN ; GS-BUILD-01 | L01 / API et build natif disponibles, accord précis de lot et des chemins natifs |
+| L02 | Cartes Windows réellement jointes et qualifiées, CPU utilisable pendant collecte | D08 DESIGN CLEAN ; GS-BUILD-01 | L01 / API et build natif disponibles, accord précis de lot et des chemins natifs |
 | L03 | Sélecteur, préférence durable et substitution visible | Q-GS04 fixé ; contrat de stockage partagé | L01, L02 pour démonstration réelle / réglages isolés |
-| L04 | Même état GPU sélectionné, attesté et utilisé pour import et micro | D08 revu CLEAN, Q-AN-GS06 ; contrats GS03/05/06/08 | L01–L03 / workers, modèle et audio locaux, accord précis de lot |
+| L04 | Même état GPU sélectionné, attesté et utilisé pour import et micro | D08 DESIGN CLEAN, Q-AN-GS06 ; contrats GS03/05/06/08 | L01–L03 / workers, modèle et audio locaux, accord précis de lot |
 | L05 | Validation produit et qualification du paquet candidat | Corpus et matériel de campagne identifiés | L04 / build réel et essais utilisateur de la fenêtre |
 
 Graphe principal `L01 → L02 → L03 → L04 → L05`, sans édition parallèle annoncée : les lots partagent inventaire, IPC, UI et worker. Les lots contiennent respectivement 6, 7, 6, 8 et 5 tâches, sous la limite de dix. L05 n'est pas un permis de publier ; commit de code, push et release restent distincts selon l'autorité applicable.
@@ -122,6 +122,6 @@ Les durées sont des budgets de campagne proposés, jamais des seuils produit. L
 
 ## Revue, arrêt et récupération
 
-La revue indépendante DESIGN puis PLANS confronte D08 aux exigences et chaque AC aux tâches, chemins, données, observations et limites ci-dessus. Elle vérifie aussi l'absence de décision technique ou produit dissimulée, les chemins de tests/fixtures, la frontière native et le graphe. Deux cycles revue/correction maximum par livrable ; seul le reviewer peut déclarer CLEAN. Un constat BLOQUANT cite AC, exigence ou risque produit. Avant CLEAN du design révisé et du plan exact, ne pas déclarer PLANS READY ni déléguer L02/L04 au code ; un CLEAN documentaire n'est pas une autorisation de coder.
+La revue indépendante a rendu **DESIGN CLEAN**, puis **PLANS CLEAN**, sur `3ef5d24c` ; R-PGS-001/002 sont fermés. Elle a conservé le conseil A-PGS-001 (Low) : préciser avant L05 les commandes finales de qualification et la méthode de packaging selon le candidat effectivement construit. Les AC, tâches, chemins, données, observations et limites ci-dessus ont été rapprochés. Deux cycles revue/correction maximum par livrable ; seul le reviewer déclare CLEAN. Le présent changement d'état n'ajoute aucun contrat de code. L'acceptation du plan et l'autorisation écrite de chaque lot restent nécessaires avant toute délégation à l'implémenteur.
 
 En cas d'échec d'un essai futur, préserver sources et sorties, isoler le delta fautif, corriger seulement les chemins autorisés et rejouer les cartes invalidées. Arrêter uniquement les processus de la campagne ; aucun `git reset`, nettoyage Cargo global, suppression récursive ou remplacement de réglages utilisateur. L'essai final dans la fenêtre Windows reste à l'utilisateur.
