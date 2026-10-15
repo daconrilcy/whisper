@@ -58,7 +58,7 @@ Chaque ligne relie la capacité incluse du brief (`CAP-PARA-N`) à `REQ-PARA-N`,
 | 08 | Profil neuf : Turbo par défaut. Parakeet choisi explicitement avec Auto : Parakeet et Auto sont retrouvés après redémarrage et réellement utilisés, sans écrasement par une sonde GPU tardive. |
 | 09 | Pour chaque combinaison admise, WAV/MP3 restent intacts et les TXT/SRT exportés sont lisibles ; micro et import ne se lancent pas simultanément. |
 | 10 | Pendant la capture, des phrases séparées par silence donnent des blocs confirmés ordonnés, sans doublon ni texte provisoire présenté comme confirmé. Capture réelle et moteur prêt sont distingués. |
-| 11 | Stop, y compris avant moteur prêt, ferme l'admission, conserve l'audio déjà admis, draine le reliquat et produit TXT/SRT/WAV de même base, dont la fin de séance ; aucun succès si sortie manque. |
+| 11 | Stop, y compris avant moteur prêt, ferme la source puis draine les paquets déjà reçus ; seuls ceux écrits intégralement rejoignent l'audio admis. Le reliquat admis est traité et produit TXT/SRT/WAV de même base, dont la fin de séance ; aucun succès si sortie manque. |
 | 12 | Préparation, capture, traitement, finalisation, arrêt et fermeture normale sont visibles ; un résultat ancien ne modifie pas une nouvelle séance. L'annulation d'import dépend de Q-PARA-06. |
 | 13 | Distribution, modèle, moteur, capture, saturation et export en erreur donnent cause, action, fichiers conservés et statut incomplet ; aucun faux succès. |
 | 14 | Le choix micro Windows, son défaut de réouverture et l'absence de substitution pendant la séance restent identiques pour les deux modèles. |
@@ -70,7 +70,46 @@ Chaque ligne relie la capacité incluse du brief (`CAP-PARA-N`) à `REQ-PARA-N`,
 
 **États visibles requis :** prêt ; préparation sans capture ; initialisation micro ; audio admis et moteur en préparation ; transcription active ; capture arrêtée avec audio restant ; exports ; terminé ; erreur/incomplet ; fermeture normale ; réouverture. « Fenêtre ouverte », « worker Ready » et « audio annoncé capturé » sont trois constats différents. La dernière phrase du micro est un cas de contrôle. La reprise après panne demeure différée ; une fermeture normale suit le contrat Stop.
 
-**Risques fonctionnels ouverts :** préférence écrasée par Auto ou migration ; faux GPU ou repli tardif ; catalogue trompeur ; audio perdu/doublé à l'arrêt ; SRT désynchronisé ; corpus de qualité biaisé ; attente présentée comme panne ; réemploi d'un contexte incompatible. Chaque risque renvoie aux AC 03–05, 08, 10–13, 16–19 selon le scénario. Les résultats d'acceptation restent NOT RUN avant code.
+**Risques fonctionnels ouverts :**
+
+| ID | Risque produit et critères qui le contrôlent |
+| --- | --- |
+| RISK-F-01 | Auto, migration ou découverte tardive écrase le modèle voulu : AC 04/08/17. |
+| RISK-F-02 | `Ready` ou inventaire confondu avec inférence GPU, ou repli tardif : AC 03/04/15. |
+| RISK-F-03 | Distribution incohérente ou modèle arbitraire proposé : AC 05–08. |
+| RISK-F-04 | Audio admis perdu/doublé à l'arrêt ou fermeture : AC 10–13/17. |
+| RISK-F-05 | Sorties incomplètes ou SRT désynchronisé annoncés comme succès : AC 09/11/13/16. |
+| RISK-F-06 | Corpus non représentatif masque une perte de qualité : AC 16/19. |
+| RISK-F-07 | Attente moteur ou silence pris pour absence de capture ou panne : AC 12/13/17/18. |
+| RISK-F-08 | Contexte réutilisé pour un autre modèle ou résultats tardifs mélangés : AC 08/12/17. |
+| RISK-F-09 | Nouveau backend modifie le micro choisi ou substitue un calcul manuel : AC 14/15. |
+| RISK-F-10 | Sondes interprétées comme campagne ou preuve de gain : AC 18/19. |
+
+Les résultats d'acceptation restent NOT RUN avant code.
+
+**Traçabilité inverse du design proposé :** chaque numéro renvoie à CAP/REQ/UC/AC de la table ci-dessus ; `PORT-*` désigne les contrats décrits en section 5. Une question ouverte n'est pas une acceptation.
+
+| REQ/AC | Domaine | Contrat d'architecture | Risque ou question ouverte |
+| --- | --- | --- | --- |
+| 01 | INV-01/08/12 | PORT-MOT, PORT-QUAL | RISK-F-06 ; Q-05 |
+| 02 | INV-03/08 | PORT-MOT, PORT-WIN | RISK-T-01b |
+| 03 | INV-03/08 | PORT-MOT, PORT-WIN | RISK-T-01c, RISK-F-02 |
+| 04 | INV-01/03 | PORT-MOT | RISK-F-01/02 |
+| 05 | INV-02 | PORT-CAT | RISK-F-03 ; Q-03 |
+| 06 | INV-02 | PORT-CAT, PORT-PREF, UI | RISK-F-03 ; Q-07 |
+| 07 | INV-10 | PORT-CAT, distribution | RISK-T-02 ; Q-02 |
+| 08 | INV-01 | PORT-PREF | RISK-F-01 ; Q-03/07 |
+| 09 | INV-07 | PORT-PUB, PORT-MOT | RISK-F-05 ; Q-06 |
+| 10 | INV-04/05 | PORT-CAP, PORT-WIN | RISK-F-04/07, RISK-T-01d |
+| 11 | INV-04/06/07 | PORT-CAP, PORT-RUN, PORT-PUB | RISK-F-04/05, RISK-T-01d |
+| 12 | INV-05/06 | PORT-RUN, PORT-PUB | RISK-F-04/07/08 ; Q-06 |
+| 13 | INV-04/07 | PORT-CAP, PORT-RUN, PORT-PUB | RISK-F-04/05 |
+| 14 | INV-11 | PORT-MIC, PORT-CAP | RISK-F-09 |
+| 15 | INV-01/03 | PORT-MOT | RISK-F-02/09 |
+| 16 | INV-09 | PORT-WIN, PORT-QUAL | RISK-F-05/06 ; Q-04/05 |
+| 17 | INV-03/08 | PORT-MOT, PORT-RUN | RISK-F-01/08 |
+| 18 | INV-09 | PORT-DIAG | RISK-F-07/10 |
+| 19 | INV-12 | PORT-QUAL | RISK-F-06/10 ; Q-05 |
 
 ## 4. Domaine et invariants
 
@@ -83,13 +122,17 @@ Le domaine distingue `ModelId` (Turbo/Parakeet), révision de l'artefact, préf�
 | INV-PARA-03 | Configuration figée après admission de la séance ; au plus un repli CPU du **même modèle** avant toute inférence ; aucun repli manuel ou après première inférence. 02–04/15. Le début de capture micro peut précéder ce jalon. |
 | INV-PARA-04 | Audio reçu de Windows ≠ audio admis ; capture active n'est annoncée qu'après conservation réussie. Plages admises, traitées et confirmées sont ordonnées sans trou ni doublon silencieux. 10–11/17. |
 | INV-PARA-05 | Une fenêtre n'est confirmée qu'après validation de son identité, de sa plage et de sa fin ; un résultat périmé ou contradictoire ne modifie pas la séance. 10–13/16. |
-| INV-PARA-06 | Stop ferme l'admission puis draine. Avant Ready, le WAV déjà admis reste à traiter. Fermer normalement suit Stop. 11–12/17. |
+| INV-PARA-06 | Stop ferme la source de nouveaux paquets, draine ceux déjà reçus vers le WAV si leur écriture réussit, puis fige la frontière admise. Avant Ready, le WAV admis reste à traiter. Fermer normalement suit Stop. 11–12/17. |
 | INV-PARA-07 | Succès implique toutes les sorties requises acquittées ; l'import conserve l'original ; un export partiel est annoncé incomplet. 09/11–13. |
 | INV-PARA-08 | Contexte réutilisé seulement si modèle/révision/runtime/calcul/périphérique/options sont compatibles ; aucun résultat de séance antérieure n'est repris. 17. |
 | INV-PARA-09 | Horodatages SRT valides et ordonnés sur la référence audio ; une sonde nomme uniquement le fait observé. 16/18. |
 | INV-PARA-10 | Une livraison active ne mélange pas versions app, worker, runtime et modèles ; aucun remplacement multi-fichiers n'est présumé atomique. 07. |
+| INV-PARA-11 | Source micro explicite absente à la réouverture : défaut Windows avec message et préférence conservée ; perte en séance : aucune autre source choisie automatiquement. 14. |
+| INV-PARA-12 | Turbo est la référence premium ; les écarts de qualité sont rapportés sans seuil initial, et aucun gain de durée/charge n'est déclaré sans mesure ultérieure. 01/19. |
 
-**Transitions de séance :** configurer → figer → préparer le moteur tout en pouvant admettre le micro → moteur prêt/attesté → inférence → arrêt de capture et drainage → publication → complet ou incomplet. Auto peut sélectionner CPU avant la première inférence même si la capture a déjà commencé. En cas d'échec GPU manuel ou après première inférence, la séance devient erreur/incomplet et préserve l'audio admis et le texte déjà confirmé selon le contrat existant. Stop répété est idempotent ; un événement d'une ancienne génération ne rouvre pas la capture. La réussite d'écriture du WAV constitue une admission pour l'arrêt normal, sans promettre de durabilité après coupure de courant.
+**Transitions de séance :** configurer → figer → préparer le moteur tout en pouvant admettre le micro → moteur prêt/attesté → inférence → arrêt de capture et drainage → publication → complet ou incomplet. Auto peut sélectionner CPU avant la première inférence même si la capture a déjà commencé. En cas d'échec GPU manuel ou après première inférence, la séance devient erreur/incomplet et préserve l'audio admis et le texte déjà confirmé selon le contrat existant. Stop répété est idempotent ; un événement d'une ancienne génération ne rouvre pas la capture. La réussite **complète** d'écriture du WAV constitue une admission pour l'arrêt normal, sans promettre de durabilité après coupure de courant.
+
+**Admission et erreur :** les échantillons reçus, ceux en file de capture, ceux écrits intégralement dans le WAV et ceux inférés sont quatre frontières différentes. Seule la troisième avance l'audio admis. À saturation de la file, limite du format WAV ou refus du disque, la capture cesse sans trou silencieux : le paquet refusé n'est pas annoncé comme admis ; l'application signale cause et dernière plage acquittée. Si une écriture est partielle, elle revient à cette frontière avant finalisation ; si cette réparation échoue, le WAV est conservé mais déclaré potentiellement illisible. La finalisation est tentée seulement si possible. Aucun audio non acquitté n'est envoyé à l'inférence ni présenté comme préservé. La garantie concerne l'arrêt normal, pas une coupure de courant ni une reprise après panne.
 
 ## 5. Architecture proposée et frontières
 
@@ -104,7 +147,23 @@ Le domaine distingue `ModelId` (Turbo/Parakeet), révision de l'artefact, préf�
 | Composition / `whisper-desktop/src/root.rs` | Assemble catalogue, préférences et workers depuis la racine de release. | Revue des dépendances et du démarrage. |
 | Worker Parakeet proposé | IPC, moteur sûr et façade `native_ffi.rs` privée ; CPU/CUDA chargés dans des processus/variantes distincts. Aucun `whisper-rs`. | Signatures ABI, durée de vie des handles, aucune `unsafe` hors façade. |
 
-**Contrats sensibles :** un snapshot de catalogue immuable est produit hors thread UI depuis un ensemble versionné, sans balayage libre de Downloads. Les préférences migrent de `model_path` v1 à `ModelId` v2 en préservant destination, audio, micro et GPU ; un acquittement d'écriture ancien n'écrase pas le choix récent. L'IPC nouveau doit relier release, modèle/révision, séance/génération, tentative, calcul et périphérique, et refuser un worker d'une ancienne version incompatible. Les fenêtres Parakeet reçoivent PCM mono 16 kHz avec plage absolue ; texte et positions sont copiés hors de l'ABI, convertis dans la timebase source, validés puis confirmés. Le WAV reste backlog borné ; le nombre de fenêtres simultanées est borné. Une ressource native n'est réutilisée que pour une clé compatible, après réinitialisation des états de séance. Les écritures TXT/SRT/WAV restent distinctes ; aucun succès avant leurs acquittements.
+**Contrats sensibles :** un snapshot de catalogue immuable est produit hors thread UI depuis un ensemble versionné, sans balayage libre de Downloads. Les préférences migrent de `model_path` v1 à `ModelId` v2 en préservant destination, audio, micro et GPU ; un acquittement d'écriture ancien n'écrase pas le choix récent. L'IPC nouveau doit relier release, modèle/révision, séance/génération, tentative, calcul et périphérique, et refuser un worker d'une ancienne version incompatible. Les fenêtres Parakeet reçoivent PCM mono 16 kHz avec plage absolue ; texte et positions sont copiés hors de l'ABI, convertis dans la timebase source, validés puis confirmés. Les **fenêtres RAM** sont bornées (candidat existant : 128 000 échantillons mono 16 kHz et une fenêtre en vol) ; le **WAV sur disque** constitue un backlog dont la durée n'est pas bornée par cette limite RAM. Une ressource native n'est réutilisée que pour une clé compatible, après réinitialisation des états de séance. Les écritures TXT/SRT/WAV restent distinctes ; aucun succès avant leurs acquittements.
+
+**PORT-CAT / PORT-PREF — catalogue et préférences.** Owner application, réalisation adaptateurs fichiers. Entrées : racine absolue de release résolue depuis l'exécutable et version du catalogue ; snapshot de préférence avec révision croissante. Sorties : identités des seuls modèles connus/validés et acquittement de la révision effectivement sauvegardée. Absence, corruption ou mélange de versions produit une erreur de distribution, sans chemin libre ni substitution. Un modèle disparu après inventaire est recontrôlé avant ouverture. La migration v1 reconnaît seulement Turbo connu ; un ancien chemin arbitraire n'est pas importé. Une erreur d'écriture garde le choix de la séance mais interdit d'annoncer qu'il sera retrouvé au redémarrage. Les choix visibles sont construits par l'application, non par l'UI depuis le disque.
+
+**PORT-MOT / PORT-WIN — tentative moteur et fenêtre.** Owner application, réalisation routeur IPC et worker. Entrées : release, modèle/révision, job/génération/tentative, politique de calcul, identité GPU attendue, PCM mono 16 kHz et plage absolue. Sorties : moteur prêt, attestation de calcul effectif, résultat possédé et couverture confirmée, ou erreur typée. La première admission dans l'appel d'inférence, **distincte de la capture**, ferme la possibilité de repli Auto. Un worker ou résultat d'une autre génération/version est refusé. Un GPU affiché sans inférence native corrélée n'est pas attesté. Une fenêtre invalide, hors plage ou aux temps inversés n'est pas confirmée. Les appels natifs et IPC restent hors UI, sous un propriétaire unique du contexte.
+
+**PORT-CAP — capture et admission.** Owner application ; adaptateurs capture et WAV possèdent respectivement la file et les écritures. Entrée : blocs micro et configuration de séance figée. Sortie : plages écrites intégralement et acquittées, arrêt capture ou erreur typée. Le callback ne bloque pas. Les files RAM sont finies ; le WAV croît jusqu'aux limites disque/format. À saturation ou écriture partielle/échouée, stopper capture/admission, conserver la dernière frontière valide et les blocs confirmés, rapporter précisément la perte non admise ; si le WAV ne peut être réparé/finalisé, signaler son état potentiellement illisible avec son chemin. Stop normal ferme la source puis draine les paquets déjà reçus et écrits avec succès ; après ce drainage, figer la dernière plage admise à inférer.
+
+**PORT-RUN — supervision et arrêt.** Owner application ; routeur IPC et superviseur possèdent le processus, worker possède l'appel natif. Les appels natifs, IPC, `kill`, `try_wait` et toute attente sont hors thread UI. Un canal de contrôle distinct des files audio permet Stop/annulation même en saturation. Une stagnation est visible, mais le temps seul ne prouve pas une panne et ne déclenche pas un nouveau calcul. Stop normal traite toutes les plages admises puis publie ; sa durée maximale n'est **pas** promise, car le backlog disque peut être grand. Un appel natif qui ne retourne pas garde l'état « traitement restant » et interdit le succès et la libération du contexte. Une annulation ou erreur qui abandonne le reliquat ferme l'admission, invalide la tentative, préserve WAV et blocs confirmés et marque les sorties incomplètes. La politique technique de grâce/terminaison/surveillance est à fixer avant le lot moteur (Q-PARA-09), puis vérifier : si la fin du processus n'est pas constatée, état `ErreurArrêtNonConfirmé`, handle conservé et surveillé hors UI, aucune annonce d'arrêt physique ni nouvelle inférence avant ce constat. Le `wait()` bloquant actuel n'est pas une preuve de ce contrat.
+
+**PORT-PUB — publication.** Owner application, réalisation adaptateur fichiers. Entrées : séance, plages admises/confirmées, texte, timebase et motif de fin. Sortie structurée : complet/incomplet, plage conservée et traitée, état et chemin de chaque TXT/SRT/WAV. Les écritures sont séparées : l'échec de SRT après TXT ne supprime pas fictivement TXT ou WAV. Succès uniquement après chaque sortie requise ; échec de finalisation du WAV garde son chemin avec avertissement d'illisibilité possible.
+
+**PORT-MIC — microphone Windows.** Owner application, réalisation adaptateur de capture existant. Entrée : défaut Windows ou identifiant explicite persisté. Sortie : source réellement ouverte ou cause d'échec. À la réouverture, micro explicite absent utilise le défaut avec message tout en conservant l'identifiant préféré ; perte pendant séance ne choisit aucune autre source. Parakeet reçoit le PCM de PORT-CAP et n'ouvre pas son propre microphone. Vérification future avec deux sources distinguables pour les deux modèles.
+
+**PORT-QUAL — comparaison de qualité.** Owner application pour l'identité des résultats, analyste pour le corpus et la méthode acceptés. Entrées : corpus gelé, références annotées, règles de normalisation et sorties identifiées par extrait/langue/modèle/révision/calcul. Sortie : écarts de texte et d'horodatage traçables, avec échec `NonComparable` explicite si une transcription manque. Aucun échec n'est compté comme zéro erreur et aucune mesure de durée/charge n'est déclenchée. Cette validation produit reste NOT RUN.
+
+**PORT-DIAG — sondes.** Owner application, réalisation diagnostic existant à examiner. Entrée : événements d'admission, moteur, inférence, confirmation, Stop et publication réellement observés. Sortie : faits corrélés à séance/release/modèle/calcul avec pertes de journal signalées. La collecte ne bloque pas la capture ; aucun pourcentage CPU/GPU supposé observé.
 
 **Distribution proposée, pas encore décidée :** une release autonome contient exécutable, workers, variantes natives privées et les deux modèles dans un dossier relatif à l'exécutable ; préférences et sorties restent séparées. Le lancement d'une nouvelle release se fait après fermeture de l'ancienne. Le catalogue vérifie identité/version et fichiers attendus ; le chargement recontrôle le fichier avant inférence. Cette proposition ne crée ni installateur, ni service, ni ACL, ni téléchargement automatique, ni manifeste d'empreintes documentaire. Une copie multi-fichiers en place n'est pas atomique ; le mécanisme exact de préparation/activation doit être spécifié avant livraison. Les licences et DLL redistribuées doivent être qualifiées sur le paquet réel : NeMo Apache-2.0, modèle CC BY 4.0, composants CUDA selon [l'EULA 12.9](https://docs.nvidia.com/cuda/archive/12.9.1/eula/index.html#attachment-a).
 
@@ -128,15 +187,17 @@ Le domaine distingue `ModelId` (Turbo/Parakeet), révision de l'artefact, préf�
 
 ## 7. Questions et gates
 
-| ID / owner / échéance | Décision nécessaire, options et recommandation |
+| ID / classe / portée | Autorité, options, conséquence et échéance ; REQ/AC affectés |
 | --- | --- |
-| Q-PARA-01 / utilisateur + architecte, avant essai | **Pile native** : autoriser un futur SPIKE borné sur NeMo-Speech.cpp C++17/C ABI, CUDA et `unsafe` Rust encapsulé ; ou choisir une autre piste à cadrer. Recommandation technique : SPIKE proposé, après accord explicite pour technologie hors stack et actions exactes. |
-| Q-PARA-02 / utilisateur, avant design distribution | **Livraison commune** : dossier de release autonome avec modèles voisins, ou emplacement séparé lié par une version. Recommandation : release autonome, sans supposer un installateur. |
-| Q-PARA-03 / utilisateur, avant design catalogue | **Livraison endommagée sans modèle préféré** : bloquer la transcription et demander réparation, ou demander un nouveau choix explicite parmi les seuls modèles valides. Aucune entrée indisponible ni substitution silencieuse. Recommandation : bloquer si la release attendue est incohérente. |
-| Q-PARA-04 / utilisateur, avant contrat langues | **Langue manuelle avec Parakeet** : désactiver ce réglage avec explication de la détection automatique, ou exiger un forçage dont la faisabilité reste à démontrer. Recommandation : désactiver le forçage pour Parakeet si l'API ne le prouve pas. |
-| Q-PARA-05 / utilisateur + analyste, avant essai qualité | **Corpus et méthode** : définir langues/extraits, référence humaine, normalisation et restitution des écarts sans seuil ; recommandation : petit corpus représentatif incluant français, silences, noms et nombres, mêmes extraits pour les deux modèles. La mesure de qualité est prévue dans le futur lot, durée/charge différées. |
-| Q-PARA-06 / analyste + utilisateur si changement produit, avant lot import | **Annulation d'import** : constater le comportement actuel et fixer le sort des sorties partielles sans faux succès. |
-| Q-PARA-07 / domaine + application, avant migration | **Ancien chemin mémorisé** : reconnaître Turbo historique et migrer son identité, ou revenir au défaut avec message. Recommandation : reconnaître Turbo connu, ne jamais admettre un autre fichier arbitraire. |
+| Q-PARA-01 / **BLOCKING DESIGN READY** | **Utilisateur**, architecte auteur : autoriser un futur SPIKE borné sur NeMo-Speech.cpp C++17/C ABI, CUDA et `unsafe` Rust encapsulé, ou cadrer une autre piste. Sans accord précis, aucune preuve du moteur ni design prêt. Avant SPIKE et REQ/AC 02/03/10/11/16. Recommandation technique : SPIKE décrit en §6. |
+| Q-PARA-02 / **STRUCTURING distribution** | **Utilisateur** pour le résultat de livraison, architecte pour le mécanisme : dossier de release autonome avec modèles voisins, ou emplacement séparé lié par une version. L'option séparée exige une cohérence entre versions plus complexe. Avant figer PORT-CAT/distribution, REQ/AC 05–07. Recommandation : release autonome sans installateur implicite. |
+| Q-PARA-03 / **STRUCTURING catalogue** | **Utilisateur** : si une livraison anormale omet le modèle préféré, bloquer la transcription et demander réparation, ou demander un nouveau choix parmi les seuls modèles valides. Les deux évitent ligne indisponible et substitution silencieuse ; la seconde permet un usage partiel. Avant PORT-CAT/PREF, REQ/AC 05/08/13. Recommandation : bloquer si la release attendue est incohérente. |
+| Q-PARA-04 / **STRUCTURING langues** | **Utilisateur** : désactiver « Langue manuelle » pour Parakeet avec explication de sa détection automatique, ou exiger un forçage à prouver/une autre voie. Sans décision, le contrôle pourrait promettre un effet absent. Avant contrat langues, REQ/AC 16/19 et RISK-T-01e. Recommandation : détection automatique affichée tant que le forçage n'est pas prouvé. |
+| Q-PARA-05 / **STRUCTURING qualité** | **Utilisateur** valide représentativité et échéance ; analyste propose corpus, langues/extraits, référence humaine, normalisation et restitution. Petit corpus représentatif avec français, silences, noms et nombres recommandé ; alternative : corpus plus large, coût d'annotation supérieur. Avant exécution de l'AC 19, et avant conclusion sur qualité, REQ/AC 01/16/19. Pas de mesure de durée/charge. |
+| Q-PARA-06 / **DETAIL avant lot import** | **Analyste**, utilisateur seulement si comportement visible change : constater l'annulation d'import actuelle, puis conserver les résultats partiels signalés ou ne rien publier comme final. Original toujours préservé, aucun faux succès. Avant lot import, REQ/AC 09/12/13. |
+| Q-PARA-07 / **DETAIL avant migration** | **Domaine/application**, utilisateur si ancienne préférence inconnue est abandonnée : reconnaître Turbo historique et migrer son identité, ou revenir au défaut avec message. La seconde perd l'intention d'un chemin non reconnu ; ne jamais importer un autre fichier arbitraire. Avant PORT-PREF, REQ/AC 06/08. Recommandation : reconnaître Turbo connu. |
+| Q-PARA-08 / **STRUCTURING admission/arrêt** | **Architecte**, avant DESIGN READY pour les garanties micro : préciser taille/pression de la file capture, limites du format et du stockage, point de refus du paquet et traitement d'une écriture WAV partielle. Sans ces règles, AC 11–13 risque de promettre un audio non conservé. PORT-CAP, REQ/AC 10–13/17. Les chiffres qui exigent une preuve restent à vérifier au lot. |
+| Q-PARA-09 / **STRUCTURING supervision** | **Architecte**, avant DESIGN READY pour l'arrêt : fixer politique de constat de stagnation, annulation/erreur, escalade et surveillance d'un worker bloqué, sans confondre attente normale et panne. Grâce coopérative 2 s puis surveillance 5 s sont des **valeurs techniques candidates non acceptées**, non une borne de drainage ; aucune durée de terminaison physique n'est promise. PORT-RUN, REQ/AC 11–13/17. Les contrôles effectifs restent NOT RUN. |
 
 Le design, sa revue indépendante et les réponses produit peuvent progresser ; **aucun plan exécutable** ne peut être déclaré READY avant la fermeture des preuves de faisabilité structurantes. Après DESIGN READY et autorisation de planifier, le `rust_plan_writer` proposera au plus dix tâches reliées aux AC, puis une revue de plan séparée. Un plan accepté n'autoriserait toujours pas le code Rust : le lot et ses chemins nécessitent un accord écrit précis dans la session concernée.
 
@@ -144,4 +205,6 @@ Le design, sa revue indépendante et les réponses produit peuvent progresser ; 
 
 Les profils `rust_product_framer` (PRODUCT-PARA v0.2), `rust_requirements_analyst` (REQ-PARA v0.2), `rust_domain_architect` (DOM-PARA v0.2) et `rust_architect` (ARCH-PARA v0.4) ont contribué **en lecture seule**. La session principale a rapproché leurs IDs et rédigé ce document. Les spécialistes ont reçu des résumés de relais plutôt qu'un fichier Git complet ; leurs paquets bruts indiquent cette limite et aucune comparaison exacte caractère à caractère n'est revendiquée. La racine active des règles `C:\Users\cyril\.codex\agent-rules\` a été résolue après le premier relais ; les copies historiques `whisper-doc-host` n'ont pas été adoptées.
 
-La revue indépendante de **ce document Git** reste à faire. Aucun build, test, essai UI, benchmark, SPIKE, téléchargement ou déplacement de modèle n'a été exécuté dans ce cadrage. Résultats produit et faisabilité pratique : **NOT RUN**.
+La première revue indépendante du commit `f948e42c` a rendu `BLOCKED` pour DESIGN READY, avec les constats `PARA-REV-01` à `04`. Cette révision documentaire propose la fermeture de `02` à `04` ; seul le reviewer peut la confirmer sur le nouveau commit. `01` reste ouvert jusqu'aux preuves techniques autorisées. Aucun build, test, essai UI, benchmark, SPIKE, téléchargement ou déplacement de modèle n'a été exécuté dans ce cadrage. Résultats produit et faisabilité pratique : **NOT RUN**.
+
+`RAILGUARD.md` doit être lu pour ses frontières actives ; ses passages historiques relatifs au live MP3 ou à la reprise après panne ne réintroduisent pas ces fonctions dans cette évolution. Aucun nouveau railguard, manifeste d'empreintes ou mécanisme documentaire n'est proposé.
