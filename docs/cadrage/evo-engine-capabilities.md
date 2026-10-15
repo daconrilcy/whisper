@@ -81,6 +81,8 @@ Une comparaison n'autorise `Insufficient` que si besoin et observation portent m
 
 ## 6. Exigences et acceptation futures
 
+Les liens de décision sont : `DEC-CAP-01 → CAP-31/34`, `DEC-CAP-02 → CAP-31/32/34`, `DEC-CAP-03 → CAP-33` et `DEC-CAP-04 → CAP-32`. Cette matrice sert à contrôler aussi les moteurs futurs ; elle n'attribue aucune capacité qualifiée aux deux moteurs actuels.
+
 | IDs proposés | Critère observable, état actuel |
 | --- | --- |
 | REQ/UC/AC-CAP-31 | Chaque moteur intégré a une fiche liée à son candidat exact, avec support et qualification distincts ; une autre révision n'hérite pas d'une preuve non justifiée. Tester CPU qualifié/GPU inconnu, manuel absent/Auto présent et valeur RAM inconnue. NOT RUN. |
@@ -100,3 +102,5 @@ Une comparaison n'autorise `Insufficient` que si besoin et observation portent m
 | Q-CAP-04 / STRUCTURING UI | L'UI actuelle saisit librement la langue ; le nouvel affichage de langues grisées demande une liste. Conserver saisie et ajouter liste, ou remplacer la saisie par la liste : réponse utilisateur demandée. Les deux doivent refuser les valeurs non supportées dans l'application. |
 
 **Revue et plan :** DESIGN DRAFT. Le constat `PARA-REV-01` et le FAIL linguistique restent ouverts dans le cadrage Parakeet. Après revue indépendante de ce document et décisions nécessaires, le plan Rust peut découper le registre, ses contrôles et la qualification des moteurs en lots bornés. L'implémentation du code, une campagne de mesure ou un téléchargement demandent toujours le plan accepté, les chemins/lot et l'accord précis applicables.
+
+**Attribution et revue :** `rust_product_framer` (PRODUCT-PARA v0.5), `rust_requirements_analyst` (REQ-PARA v0.5), `rust_domain_architect` (DOM-PARA v0.6) et `rust_architect` (ARCH-PARA v0.8) ont contribué en lecture seule ; la session principale a rédigé et versionné. Le reviewer indépendant a examiné le commit `50b8dfdf` et n'a relevé aucun nouveau finding documentaire REQUIRED ; verdict **BLOCKED pour DESIGN READY** en raison de `Q-CAP-01–04`, des ressources non qualifiées et de `PARA-REV-01`. Les AC restent **NOT RUN**. Ce constat ne clôt aucune question en attente ni ne qualifie le produit dans la fenêtre Windows.
