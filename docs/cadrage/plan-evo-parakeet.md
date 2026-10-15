@@ -4,9 +4,11 @@ Décision : `DESIGN_CHANGE_REQUIRED` ; ce document n'est ni `PLANS READY`, ni un
 
 # Plan d'implémentation Parakeet — projet conditionnel du 15 octobre 2026
 
+**Dernier essai ciblé :** [bilan GO/NO-GO FR/EN](bilan-parakeet-fr-en-go.md) ; les critères de temps et de frontières échouent, donc `G-DESIGN` reste ouvert et ce plan reste non exécutable.
+
 **Identité :** `P-PARA-DRAFT-02`. **Objectif produit :** ajouter Parakeet TDT 0.6B v3 à Turbo dans l'application Windows, pour import et micro, CPU/GPU/Auto calcul, avec catalogue fermé, Auto langue Parakeet seulement après qualification, acquisition finale et conservation des garanties audio et de sorties. **Parents historiques Git :** `docs/cadrage/evo-parakeet.md` à `60c0134b` (résultat intermédiaire SPIKE-PARA-02) et `docs/cadrage/evo-engine-capabilities.md` à `79f64a9a` (gate CAP-02/03). Le présent rapprochement prend aussi en compte le résultat final de faisabilité dans le design modifié non encore revu. **Propriétaire du découpage :** `rust_plan_writer`, contributions `PLAN-PARA-DRAFT v0.2` et rapprochement L1–L4 en lecture seule ; auteur Git : session principale. **Statut :** DRAFT, non exécutable. Une modification du design parent impose de rapprocher ce plan du nouveau commit avant revue `PLANS READY`.
 
-Le choix DEC-PARA-19 retient la transcription multilingue sans langue imposée pour Parakeet. Le banc NeMo-Speech.cpp v0.2.0 et GGUF exact l'a montrée sur FR/EN CPU et CUDA0 ; le paquet final doit encore passer `AC-PARA-16F`. Le manuel de ce couple reste `Unsupported` ; aucun parcours Parakeet ne démarre avant qualification de sa configuration livrée. Aucun identifiant de langue détectée n'a été obtenu. Les comparaisons de vitesse et de charge sont différées ; aucun seuil de perte de qualité n'est inventé.
+Le choix DEC-PARA-19 retient la transcription multilingue sans langue imposée pour Parakeet. Le banc NeMo-Speech.cpp v0.2.0 et GGUF exact l'a montrée sur FR/EN CPU et CUDA0 ; le paquet final doit encore passer `AC-PARA-16F`. Le manuel de ce couple reste `Unsupported` ; aucun parcours Parakeet ne démarre avant qualification de sa configuration livrée. L'absence d'identifiant de langue détectée (`language_count=0`) est attendue et n'est pas un critère d'échec. Si le produit a besoin d'un code de langue, un module de détection séparé devra être cadré. Les comparaisons de vitesse et de charge sont différées ; aucun seuil de perte de qualité n'est inventé.
 
 ## 1. Entrées à fermer avant un plan READY
 
