@@ -1,6 +1,6 @@
-Avancée : LCORR-GS03 autorisé, implémenté et revu ; R1/R2 fermés après une correction.
-Blocage : R3 mineur reste ouvert ; validation produit L05 dans la fenêtre à exécuter.
-Décision : LCORR-GS03 livré avec réserves ; aucun push autorisé.
+Avancée : LCORR-GS04 délimite la finition du menu après le retour utilisateur.
+Blocage : LCORR-GS04 attend revue et accord précis de code ; R3 mineur de LCORR-GS03 reste ouvert.
+Décision : soumettre le nouveau lot à la revue du plan ; aucun push autorisé.
 
 # Sélecteur GPU — plan et suivi (15 octobre 2026)
 
@@ -104,6 +104,16 @@ Graphe principal initial `L01 → L02 → L03 → L04 → L05`, sans édition pa
 4. Tester le rendu et l'interaction : compatible sélectionnable, incompatible grisé non sélectionnable, incertain neutre, homonymes à identités internes distinctes et nom seul visible. Tester deux inventaires successifs ajoutés sans écrasement, une collecte partielle et l'échappement JSON d'un nom matériel, sous `target/gpu-selection-tests/`. Garder la validation finale de la fenêtre à l'utilisateur.
 
 **Chemins d'écriture proposés :** `crates/whisper-desktop/src/ui.rs`, `tests/gpu_selection_ui.rs`, `tests/gpu_inventory_ui.rs` ; `crates/whisper-adapters/src/gpu_inventory.rs`. Aucun nouveau crate, module natif, fichier de réglages ou chemin source. Les essais ciblés proposés sont `cargo test --offline --locked -p whisper-desktop --test gpu_selection_ui --test gpu_inventory_ui` et les tests de journalisation du module adapter sous une cible isolée, puis `cargo fmt --all -- --check`, `cargo check --offline --locked -p whisper-desktop -p whisper-adapters`, `git diff --check`. Un nouveau chemin requis provoque `PLAN_CHANGE` avant édition. Aucun commit de code, push ou publication n'est inclus.
+
+## LCORR-GS04 — finition du menu GPU, trois tâches proposées
+
+**Origine.** Après essai de l'EXE LCORR-GS03, l'utilisateur confirme le fonctionnement et demande quatre retouches de présentation illustrées par trois captures. Il a précisé que la première ligne « Aucune préférence — ordre Windows » doit être retirée. **Statut : plan proposé, en attente de revue indépendante et d'accord précis de code.** CHANGE-GS04 borne le changement aux libellés et à la suppression du bloc fixe ; identité, qualification, préférence enregistrée, résolution métier et journal matériel restent inchangés.
+
+1. Dans le menu « GPU préféré », retirer l'option « Aucune préférence — ordre Windows ». Une préférence absente continue à signifier l'ordre Windows en interne et le sélecteur affiche une invite courte ; une préférence déjà choisie ne peut plus être effacée depuis ce menu. Numéroter les noms homonymes parmi toutes les cartes du catalogue, dans leur ordre d'affichage, avec suffixes ` - 1`, ` - 2`, etc. ; nom unique sans suffixe. Employer le même libellé pour chaque entrée, le texte sélectionné et la phrase de prochaine transcription, sans changer l'identité interne. Les cartes incompatibles et incertaines restent visibles et inertes selon CHANGE-GS03.
+2. Retirer le bloc fixe « Cartes graphiques détectées par Windows » et ses lignes d'état Windows, qui répètent le menu. Conserver les états de qualification utiles dans la zone de statut existante. Remplacer les messages de résolution du menu par des phrases utilisateur courtes sans identifiant matériel ni termes internes, qui distinguent GPU prévu, substitution temporaire avec préférence conservée, CPU prévu, attente et refus. Ne pas présenter un GPU prévu comme déjà utilisé.
+3. Tester l'absence de l'option retirée et du bloc fixe, les suffixes pour deux ou plusieurs homonymes et l'absence de suffixe pour un nom unique, la conservation d'identités distinctes, les états désactivés, les libellés sélectionné/résolution, et les cinq issues de résolution. La validation finale de la fenêtre Windows reste à l'utilisateur.
+
+**Chemins d'écriture proposés :** `crates/whisper-desktop/src/ui.rs`, `crates/whisper-desktop/tests/gpu_selection_ui.rs`, `crates/whisper-desktop/tests/gpu_inventory_ui.rs`. Aucun autre code source, fichier de réglages, journal ou dépendance. Vérifications : `cargo test --offline --locked -p whisper-desktop --test gpu_selection_ui --test gpu_inventory_ui`, `cargo fmt --all -- --check`, `cargo check --offline --locked -p whisper-desktop`, `git diff --check` ; paquet EXE de test en nouveau dossier sous `target/gpu-selection-build/` après revue du code. Aucun commit de code ni push inclus.
 
 ## L05 — validation et qualification de livraison, cinq tâches
 
