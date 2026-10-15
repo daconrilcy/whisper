@@ -17,6 +17,7 @@ fn microphone_id_is_kept_in_the_same_settings_snapshot() {
         model_path: "C:\\Model.bin".into(),
         destination: "C:\\Output".into(),
         microphone_id: Some("wasapi:{device-one}".into()),
+        gpu_device_id: None,
     };
     let json = serde_json::to_string(&settings).unwrap();
     let restored: StoredPaths = serde_json::from_str(&json).unwrap();

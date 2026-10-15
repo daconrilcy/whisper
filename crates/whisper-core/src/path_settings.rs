@@ -15,15 +15,31 @@ pub struct StoredPaths {
     pub destination: String,
     #[serde(default)]
     pub microphone_id: Option<String>,
+    #[serde(default)]
+    pub gpu_device_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SaveStatus {
+    NotSaved,
+    Pending { revision: u64 },
+    Saved { revision: u64 },
+    Failed { revision: u64, error: String },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveAcknowledgement {
+    pub revision: u64,
+    pub result: Result<(), String>,
 }
 
 pub trait PathPort {
     fn load(&self) -> Result<Option<StoredPaths>, String>;
-    fn save(&mut self, paths: StoredPaths) -> Result<(), String>;
+    fn save(&mut self, revision: u64, paths: StoredPaths) -> Result<(), String>;
     fn pick(&mut self, field: PathField, directory: &Path) -> Option<PathBuf>;
     fn exists(&self, path: &Path, field: PathField) -> bool;
-    fn take_save_error(&mut self) -> Option<String>;
     fn has_pending_save(&self) -> bool;
+    fn poll_save_acknowledgement(&mut self) -> Option<SaveAcknowledgement>;
 }
 
 pub struct PathDefaults {
@@ -38,7 +54,7 @@ impl PathPort for NullPathPort {
     fn load(&self) -> Result<Option<StoredPaths>, String> {
         Ok(None)
     }
-    fn save(&mut self, _paths: StoredPaths) -> Result<(), String> {
+    fn save(&mut self, _revision: u64, _paths: StoredPaths) -> Result<(), String> {
         Ok(())
     }
     fn pick(&mut self, _field: PathField, _directory: &Path) -> Option<PathBuf> {
@@ -47,11 +63,11 @@ impl PathPort for NullPathPort {
     fn exists(&self, _path: &Path, _field: PathField) -> bool {
         false
     }
-    fn take_save_error(&mut self) -> Option<String> {
-        None
-    }
     fn has_pending_save(&self) -> bool {
         false
+    }
+    fn poll_save_acknowledgement(&mut self) -> Option<SaveAcknowledgement> {
+        None
     }
 }
 
@@ -63,6 +79,8 @@ pub struct PathSettingsApp {
     audio_directory: String,
     saved: StoredPaths,
     notice: Option<String>,
+    save_revision: u64,
+    save_status: SaveStatus,
 }
 
 impl PathSettingsApp {
@@ -82,9 +100,12 @@ impl PathSettingsApp {
                 model_path: defaults.model_path.clone(),
                 destination: defaults.destination.clone(),
                 microphone_id: None,
+                gpu_device_id: None,
             },
             port,
             notice: None,
+            save_revision: 0,
+            save_status: SaveStatus::NotSaved,
         };
         match app.port.load() {
             Ok(Some(saved)) if saved.version == 1 => app.restore(saved),
@@ -143,6 +164,7 @@ impl PathSettingsApp {
             model_path: self.model.clone(),
             destination: self.destination.clone(),
             microphone_id: saved.microphone_id,
+            gpu_device_id: saved.gpu_device_id,
         };
     }
 
@@ -256,8 +278,44 @@ impl PathSettingsApp {
         self.save();
     }
 
+    pub fn gpu_preference(&self) -> Option<&str> {
+        self.saved.gpu_device_id.as_deref()
+    }
+
+    pub fn set_gpu_preference(&mut self, identity: Option<String>) {
+        self.saved.gpu_device_id = identity;
+        self.save();
+    }
+
+    pub fn save_status(&self) -> &SaveStatus {
+        &self.save_status
+    }
+
     pub fn poll_notice(&mut self) -> Option<String> {
-        self.notice.take().or_else(|| self.port.take_save_error())
+        let mut latest_notice = self.notice.take();
+        while let Some(acknowledgement) = self.port.poll_save_acknowledgement() {
+            if acknowledgement.revision != self.save_revision {
+                continue;
+            }
+            match acknowledgement.result {
+                Ok(()) => {
+                    self.save_status = SaveStatus::Saved {
+                        revision: acknowledgement.revision,
+                    };
+                }
+                Err(error) => {
+                    self.save_status = SaveStatus::Failed {
+                        revision: acknowledgement.revision,
+                        error: error.clone(),
+                    };
+                    latest_notice = Some(format!(
+                        "Réglages utilisés, mais la révision {} n'a pas été mémorisée : {error}",
+                        acknowledgement.revision
+                    ));
+                }
+            }
+        }
+        latest_notice
     }
 
     pub fn has_pending_save(&self) -> bool {
@@ -269,8 +327,27 @@ impl PathSettingsApp {
     }
 
     fn save(&mut self) {
-        if let Err(error) = self.port.save(self.saved.clone()) {
-            self.notice = Some(format!("Chemins utilisés, mais non mémorisés : {error}"));
+        let Some(revision) = self.save_revision.checked_add(1) else {
+            self.save_status = SaveStatus::Failed {
+                revision: self.save_revision,
+                error: "compteur de révision épuisé".into(),
+            };
+            self.notice =
+                Some("Réglages utilisés, mais non mémorisés : compteur de révision épuisé.".into());
+            return;
+        };
+        self.save_revision = revision;
+        match self.port.save(revision, self.saved.clone()) {
+            Ok(()) => self.save_status = SaveStatus::Pending { revision },
+            Err(error) => {
+                self.save_status = SaveStatus::Failed {
+                    revision,
+                    error: error.clone(),
+                };
+                self.notice = Some(format!(
+                    "Réglages utilisés, mais la révision {revision} n'a pas été mémorisée : {error}"
+                ));
+            }
         }
     }
 }
@@ -292,7 +369,7 @@ mod microphone_tests {
             Ok(self.0.borrow().clone())
         }
 
-        fn save(&mut self, paths: StoredPaths) -> Result<(), String> {
+        fn save(&mut self, _revision: u64, paths: StoredPaths) -> Result<(), String> {
             *self.0.borrow_mut() = Some(paths);
             Ok(())
         }
@@ -305,12 +382,12 @@ mod microphone_tests {
             true
         }
 
-        fn take_save_error(&mut self) -> Option<String> {
-            None
-        }
-
         fn has_pending_save(&self) -> bool {
             false
+        }
+
+        fn poll_save_acknowledgement(&mut self) -> Option<super::SaveAcknowledgement> {
+            None
         }
     }
 

@@ -658,6 +658,25 @@ impl<P: ImportIoPort> ImportApplication<P> {
 }
 
 impl<P: ImportIoPort> Application for ImportApplication<P> {
+    fn set_gpu_candidate(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        candidate: Option<crate::gpu_inventory::GpuRuntimeIdentity>,
+    ) -> Result<(), ApplicationError> {
+        self.io
+            .submit(ImportEffect::SetGpuCandidate {
+                job_id,
+                generation,
+                candidate,
+            })
+            .map_err(|error| {
+                self.view.message =
+                    Some(format!("Sélection GPU non transmise au worker : {error:?}"));
+                ApplicationError::PortUnavailable
+            })
+    }
+
     fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
         match command {
             AppCommand::Refresh => self.poll_once()?,
@@ -987,6 +1006,16 @@ pub enum ApplicationError {
 pub trait Application {
     fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError>;
     fn view(&self) -> AppView;
+
+    fn set_gpu_candidate(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        candidate: Option<crate::gpu_inventory::GpuRuntimeIdentity>,
+    ) -> Result<(), ApplicationError> {
+        let _ = (job_id, generation, candidate);
+        Ok(())
+    }
 }
 
 pub struct AppFacade<A> {
@@ -1004,6 +1033,16 @@ impl<A: Application> AppFacade<A> {
 
     pub fn view(&self) -> AppView {
         self.application.view()
+    }
+
+    pub fn set_gpu_candidate(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        candidate: Option<crate::gpu_inventory::GpuRuntimeIdentity>,
+    ) -> Result<(), ApplicationError> {
+        self.application
+            .set_gpu_candidate(job_id, generation, candidate)
     }
 }
 

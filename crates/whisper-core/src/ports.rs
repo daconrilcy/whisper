@@ -147,6 +147,11 @@ pub struct ImportQueueEntry {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEffect {
+    SetGpuCandidate {
+        job_id: JobId,
+        generation: Generation,
+        candidate: Option<crate::gpu_inventory::GpuRuntimeIdentity>,
+    },
     StartLive(LiveRequest),
     StartDirectLive(LiveRequest),
     Enqueue(ImportRequest),

@@ -5,12 +5,12 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
     thread::{self, JoinHandle},
 };
-use whisper_core::path_settings::{PathField, PathPort, StoredPaths};
+use whisper_core::path_settings::{PathField, PathPort, SaveAcknowledgement, StoredPaths};
 
 pub struct WindowsPathPort {
     file: PathBuf,
-    sender: Option<Sender<StoredPaths>>,
-    results: Receiver<Result<(), String>>,
+    sender: Option<Sender<(u64, StoredPaths)>>,
+    results: Receiver<SaveAcknowledgement>,
     worker: Option<JoinHandle<()>>,
     pending: usize,
 }
@@ -22,13 +22,17 @@ impl WindowsPathPort {
             .unwrap_or_default()
             .join("Whisper")
             .join("settings.json");
+        Self::new_at(file)
+    }
+
+    pub fn new_at(file: PathBuf) -> Self {
         let (sender, receiver) = mpsc::channel();
         let (result_sender, results) = mpsc::channel();
         let path = file.clone();
         let worker = thread::spawn(move || {
-            for (sequence, paths) in receiver.into_iter().enumerate() {
-                let result = write_settings(&path, sequence, &paths);
-                let _ = result_sender.send(result);
+            for (revision, paths) in receiver {
+                let result = write_settings(&path, revision, &paths);
+                let _ = result_sender.send(SaveAcknowledgement { revision, result });
             }
         });
         Self {
@@ -75,14 +79,14 @@ impl PathPort for WindowsPathPort {
             .map_err(|error| error.to_string())
     }
 
-    fn save(&mut self, paths: StoredPaths) -> Result<(), String> {
+    fn save(&mut self, revision: u64, paths: StoredPaths) -> Result<(), String> {
         if !self.file.is_absolute() {
             return Err("LOCALAPPDATA indisponible".into());
         }
         self.sender
             .as_ref()
             .ok_or_else(|| "écriture arrêtée".to_owned())?
-            .send(paths)
+            .send((revision, paths))
             .map_err(|error| error.to_string())?;
         self.pending += 1;
         Ok(())
@@ -129,26 +133,25 @@ impl PathPort for WindowsPathPort {
         }
     }
 
-    fn take_save_error(&mut self) -> Option<String> {
-        let mut error = None;
-        while let Ok(result) = self.results.try_recv() {
-            self.pending = self.pending.saturating_sub(1);
-            if let Err(message) = result {
-                error = Some(format!("Chemins utilisés, mais non mémorisés : {message}"));
-            }
-        }
-        error
-    }
-
     fn has_pending_save(&self) -> bool {
         self.pending > 0
     }
+
+    fn poll_save_acknowledgement(&mut self) -> Option<SaveAcknowledgement> {
+        match self.results.try_recv() {
+            Ok(acknowledgement) => {
+                self.pending = self.pending.saturating_sub(1);
+                Some(acknowledgement)
+            }
+            Err(mpsc::TryRecvError::Empty | mpsc::TryRecvError::Disconnected) => None,
+        }
+    }
 }
 
-fn write_settings(path: &Path, sequence: usize, paths: &StoredPaths) -> Result<(), String> {
+fn write_settings(path: &Path, revision: u64, paths: &StoredPaths) -> Result<(), String> {
     let parent = path.parent().ok_or("profil utilisateur introuvable")?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    let temporary = parent.join(format!("settings-{}-{sequence}.tmp", std::process::id()));
+    let temporary = parent.join(format!("settings-{}-{revision}.tmp", std::process::id()));
     let result = (|| {
         let mut file = OpenOptions::new()
             .write(true)

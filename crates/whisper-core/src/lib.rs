@@ -6,6 +6,7 @@ pub mod compute_policy;
 pub mod domain;
 pub mod gpu_inventory;
 pub mod gpu_inventory_app;
+pub mod gpu_selection;
 pub mod ipc;
 pub mod microphone;
 pub mod path_settings;

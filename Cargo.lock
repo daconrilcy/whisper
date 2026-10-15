@@ -3795,6 +3795,7 @@ dependencies = [
  "symphonia",
  "webrtc-vad",
  "whisper-core",
+ "windows",
  "wmi",
 ]
 
@@ -3868,6 +3869,7 @@ dependencies = [
  "symphonia",
  "whisper-core",
  "whisper-rs",
+ "windows",
 ]
 
 [[package]]

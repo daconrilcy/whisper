@@ -33,9 +33,11 @@ pub(crate) struct DirectLive {
     fallback_reason: Option<String>,
     cpu_worker_path: PathBuf,
     worker_path: PathBuf,
+    gpu_candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     worker: Option<ChildWorkerTransport>,
     instance: u64,
     worker_ready: bool,
+    gpu_attested: bool,
     legacy_fallback: bool,
     capture: Option<CaptureStream>,
     converter: Option<Pcm16Converter>,
@@ -62,6 +64,7 @@ impl DirectLive {
         workers: &WorkerPaths,
         instance: u64,
         reusable_worker: Option<ChildWorkerTransport>,
+        mut gpu_candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     ) -> Result<Self, String> {
         if request.destination.trim().is_empty() || request.model_path.trim().is_empty() {
             return Err("Micro : modèle ou dossier de sortie invalide".into());
@@ -85,35 +88,53 @@ impl DirectLive {
                 whisper_core::BackendAttempt::Cpu => ComputeChoice::Cpu,
                 whisper_core::BackendAttempt::Gpu => ComputeChoice::Gpu,
             };
+            if request.config.compute == ComputeChoice::Cpu {
+                gpu_candidate = None;
+            }
+        }
+        if request.config.compute == ComputeChoice::Gpu && gpu_candidate.is_none() {
+            if auto_preference {
+                request.config.compute = ComputeChoice::Cpu;
+                gpu_candidate = None;
+                fallback_reason = Some("GPU identity proof unavailable before processing".into());
+            } else {
+                return Err("BackendMismatch: selected GPU has no current identity proof".into());
+            }
         }
         let mut worker_path = match request.config.compute {
             ComputeChoice::Cpu => workers.cpu.clone(),
             ComputeChoice::Gpu => workers.gpu.clone(),
             ComputeChoice::Auto => unreachable!(),
         };
-        let mut worker =
-            match spawn_direct_worker(&request, &worker_path, instance, reusable_worker) {
-                Ok(worker) => worker,
-                Err(reason) if auto_preference && request.config.compute == ComputeChoice::Gpu => {
-                    fallback_reason = Some(reason);
-                    request.config.compute = ComputeChoice::Cpu;
-                    worker_path = workers.cpu.clone();
-                    spawn_direct_worker(&request, &worker_path, instance, None).map_err(
-                        |error| {
-                            format!(
-                                "GPU non utilisable ({}) ; CPU indisponible : {error}",
-                                fallback_reason.as_deref().unwrap_or("raison inconnue")
-                            )
-                        },
-                    )?
-                }
-                Err(error) => {
-                    return Err(format!(
-                        "Moteur {} indisponible : {error}",
-                        compute_name(request.config.compute)
-                    ));
-                }
-            };
+        let mut worker = match spawn_direct_worker(
+            &request,
+            &worker_path,
+            instance,
+            reusable_worker,
+            gpu_candidate.clone(),
+        ) {
+            Ok(worker) => worker,
+            Err(reason) if auto_preference && request.config.compute == ComputeChoice::Gpu => {
+                fallback_reason = Some(reason);
+                request.config.compute = ComputeChoice::Cpu;
+                gpu_candidate = None;
+                worker_path = workers.cpu.clone();
+                spawn_direct_worker(&request, &worker_path, instance, None, None).map_err(
+                    |error| {
+                        format!(
+                            "GPU non utilisable ({}) ; CPU indisponible : {error}",
+                            fallback_reason.as_deref().unwrap_or("raison inconnue")
+                        )
+                    },
+                )?
+            }
+            Err(error) => {
+                return Err(format!(
+                    "Moteur {} indisponible : {error}",
+                    compute_name(request.config.compute)
+                ));
+            }
+        };
         let mut capture = match crate::capture::start_direct(&request.microphone) {
             Ok(capture) => capture,
             Err(error) => {
@@ -146,9 +167,11 @@ impl DirectLive {
             fallback_reason,
             cpu_worker_path: workers.cpu.clone(),
             worker_path,
+            gpu_candidate,
             worker: Some(worker),
             instance,
             worker_ready: false,
+            gpu_attested: false,
             legacy_fallback: false,
             capture: Some(capture),
             converter: Some(converter),
@@ -399,6 +422,31 @@ impl DirectLive {
 
     fn handle_worker(&mut self, event: WorkerEvent) -> Result<Option<ImportEvent>, String> {
         match event {
+            WorkerEvent::GpuSessionAttested {
+                job_id,
+                generation,
+                instance_id,
+                candidate,
+                dxgi_rank,
+                luid,
+                pci_id,
+                cuda_ordinal,
+                ggml_ordinal,
+            } if self.matches(job_id, generation, instance_id) => {
+                let verified = self.gpu_candidate.as_ref().is_some_and(|expected| {
+                    expected.pnp_instance_id == candidate
+                        && expected.dxgi_rank == dxgi_rank
+                        && expected.luid == luid
+                        && expected.pci_id.eq_ignore_ascii_case(&pci_id)
+                        && expected.cuda_ordinal == cuda_ordinal
+                        && expected.ggml_ordinal == ggml_ordinal
+                });
+                if !verified {
+                    return Err("BackendMismatch: worker attested a different GPU candidate".into());
+                }
+                self.gpu_attested = true;
+                Ok(None)
+            }
             WorkerEvent::Failed { message, .. }
                 if self.request.config.compute == ComputeChoice::Cpu
                     && !self.worker_ready
@@ -433,6 +481,11 @@ impl DirectLive {
             } if self.matches(job_id, generation, instance_id)
                 && backend == self.backend_kind() =>
             {
+                if gpu_ready_requires_attestation(self.gpu_candidate.is_some(), self.gpu_attested) {
+                    return Err(
+                        "BackendMismatch: GPU Ready arrived before candidate attestation".into(),
+                    );
+                }
                 self.worker_ready = true;
                 Ok(Some(ImportEvent::Ready {
                     job_id,
@@ -554,15 +607,12 @@ impl DirectLive {
                 "Modèle local indisponible. Vérifiez le chemin du modèle du MVP : {message}"
             )),
             WorkerEvent::Failed { code, message, .. }
-                if self.auto_preference
-                    && !self.worker_ready
-                    && self.request.config.compute == ComputeChoice::Gpu
-                    && matches!(
-                        code,
-                        WorkerErrorCode::BackendUnavailable
-                            | WorkerErrorCode::WorkerExited
-                            | WorkerErrorCode::InferenceFailed
-                    ) =>
+                if should_retry_auto_gpu_before_ready(
+                    self.auto_preference,
+                    self.worker_ready,
+                    self.request.config.compute,
+                    code,
+                ) =>
             {
                 self.retry_cpu(message)?;
                 Ok(None)
@@ -592,12 +642,17 @@ impl DirectLive {
             .checked_add(1)
             .ok_or("Identité worker épuisée")?;
         self.request.config.compute = ComputeChoice::Cpu;
-        let worker = spawn_direct_worker(&self.request, &self.cpu_worker_path, self.instance, None)
-            .map_err(|error| {
-                format!("GPU non utilisable ({reason}) ; CPU indisponible : {error}")
-            })?;
+        let worker = spawn_direct_worker(
+            &self.request,
+            &self.cpu_worker_path,
+            self.instance,
+            None,
+            None,
+        )
+        .map_err(|error| format!("GPU non utilisable ({reason}) ; CPU indisponible : {error}"))?;
         self.worker = Some(worker);
         self.worker_path = self.cpu_worker_path.clone();
+        clear_gpu_proof_for_cpu(&mut self.gpu_candidate, &mut self.gpu_attested);
         self.fallback_reason = Some(reason);
         Ok(())
     }
@@ -646,6 +701,36 @@ impl DirectLive {
     fn export(&self, incomplete: bool) -> Result<(String, String), String> {
         export_segments(&self.request, &self.segments, incomplete)
     }
+}
+
+fn gpu_ready_requires_attestation(has_candidate: bool, attested: bool) -> bool {
+    has_candidate && !attested
+}
+
+fn should_retry_auto_gpu_before_ready(
+    auto_preference: bool,
+    worker_ready: bool,
+    compute: ComputeChoice,
+    code: WorkerErrorCode,
+) -> bool {
+    auto_preference
+        && !worker_ready
+        && compute == ComputeChoice::Gpu
+        && matches!(
+            code,
+            WorkerErrorCode::BackendUnavailable
+                | WorkerErrorCode::BackendMismatch
+                | WorkerErrorCode::WorkerExited
+                | WorkerErrorCode::InferenceFailed
+        )
+}
+
+fn clear_gpu_proof_for_cpu(
+    candidate: &mut Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+    attested: &mut bool,
+) {
+    *candidate = None;
+    *attested = false;
 }
 
 fn finalize_incomplete_outputs(
@@ -722,20 +807,35 @@ fn spawn_direct_worker(
     worker_path: &std::path::Path,
     instance: u64,
     reusable_worker: Option<ChildWorkerTransport>,
+    gpu_candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
 ) -> Result<ChildWorkerTransport, String> {
     let mut worker = match reusable_worker {
         Some(worker) => worker,
         None => ChildWorkerTransport::spawn(worker_path)
             .map_err(|error| format!("lancement impossible : {error:?}"))?,
     };
-    if let Err(error) = worker.request(WorkerCommand::StartDirectLiveWorker {
-        job_id: request.job_id,
-        generation: request.generation,
-        instance_id: instance,
-        model_path: request.model_path.clone(),
-        model_sha256: request.model_sha256,
-        config: request.config.clone(),
-    }) {
+    let command = match gpu_candidate {
+        Some(candidate) if request.config.compute == ComputeChoice::Gpu => {
+            WorkerCommand::StartGpuDirectLiveWorker {
+                job_id: request.job_id,
+                generation: request.generation,
+                instance_id: instance,
+                model_path: request.model_path.clone(),
+                model_sha256: request.model_sha256,
+                config: request.config.clone(),
+                candidate,
+            }
+        }
+        _ => WorkerCommand::StartDirectLiveWorker {
+            job_id: request.job_id,
+            generation: request.generation,
+            instance_id: instance,
+            model_path: request.model_path.clone(),
+            model_sha256: request.model_sha256,
+            config: request.config.clone(),
+        },
+    };
+    if let Err(error) = worker.request(command) {
         worker.abort();
         return Err(format!("commande de démarrage refusée : {error:?}"));
     }
@@ -921,12 +1021,56 @@ fn timestamp(samples: u64) -> String {
 mod tests {
     use super::{
         DirectLive, MAX_BUFFERED_SAMPLES, MAX_WINDOW_SAMPLES, MIN_WINDOW_SAMPLES, PathBuf,
-        Pcm16Converter, WavOutput, fill_pending_from_wav, finalize_incomplete_outputs, window_size,
-        write_wav_header,
+        Pcm16Converter, WavOutput, clear_gpu_proof_for_cpu, fill_pending_from_wav,
+        finalize_incomplete_outputs, gpu_ready_requires_attestation,
+        should_retry_auto_gpu_before_ready, window_size, write_wav_header,
     };
     use std::collections::VecDeque;
     use whisper_core::ports::WorkerSegment;
     use whisper_core::{ComputeChoice, JobConfig, LanguageChoice, SegmentId, SourceRange};
+
+    #[test]
+    fn cpu_ready_after_auto_fallback_needs_no_gpu_candidate_attestation() {
+        let mut candidate = Some(whisper_core::gpu_inventory::GpuRuntimeIdentity {
+            generation: 1,
+            pnp_instance_id: "PCI\\VEN_10DE&DEV_A".into(),
+            dxgi_rank: 0,
+            luid: 1,
+            pci_id: "0000:01:00.0".into(),
+            cuda_ordinal: 0,
+            ggml_ordinal: 1,
+        });
+        let mut attested = false;
+        assert!(gpu_ready_requires_attestation(
+            candidate.is_some(),
+            attested
+        ));
+        clear_gpu_proof_for_cpu(&mut candidate, &mut attested);
+        assert!(candidate.is_none());
+        assert!(!attested);
+        assert!(!gpu_ready_requires_attestation(
+            candidate.is_some(),
+            attested
+        ));
+        assert!(should_retry_auto_gpu_before_ready(
+            true,
+            false,
+            ComputeChoice::Gpu,
+            super::WorkerErrorCode::BackendMismatch,
+        ));
+        assert!(!should_retry_auto_gpu_before_ready(
+            false,
+            false,
+            ComputeChoice::Gpu,
+            super::WorkerErrorCode::BackendMismatch,
+        ));
+        assert!(!should_retry_auto_gpu_before_ready(
+            true,
+            true,
+            ComputeChoice::Gpu,
+            super::WorkerErrorCode::BackendMismatch,
+        ));
+    }
 
     fn startup_request(
         destination: &std::path::Path,
@@ -945,6 +1089,18 @@ mod tests {
                 language: LanguageChoice::Automatic,
                 compute,
             },
+        }
+    }
+
+    fn startup_gpu_candidate() -> whisper_core::gpu_inventory::GpuRuntimeIdentity {
+        whisper_core::gpu_inventory::GpuRuntimeIdentity {
+            generation: 1,
+            pnp_instance_id: "PCI\\VEN_10DE&DEV_TEST".into(),
+            dxgi_rank: 0,
+            luid: 1,
+            pci_id: "0000:01:00.0".into(),
+            cuda_ordinal: 0,
+            ggml_ordinal: 0,
         }
     }
 
@@ -976,6 +1132,18 @@ fn main() {
     }
     if "__NAME__" == "cpu-marker" {
         std::fs::write(MARKER, "cpu-started").unwrap();
+    }
+    if "__NAME__" == "cpu-ready" {
+        println!("{{\"version\":2,\"message\":{{\"Ready\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"backend\":\"Cpu\"}}}}}}");
+        io::stdout().flush().unwrap();
+        for command in io::stdin().lock().lines().flatten() {
+            if command.contains("\"Stop\"") {
+                println!("{{\"version\":2,\"message\":{{\"Stopped\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance}}}}}}}");
+                io::stdout().flush().unwrap();
+                return;
+            }
+        }
+        return;
     }
     if "__NAME__" == "gpu" {
         println!("{{\"version\":2,\"message\":{{\"Failed\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"code\":\"BackendUnavailable\",\"message\":\"injected CUDA initialization failure\"}}}}}}");
@@ -1021,6 +1189,7 @@ fn main() {
             &workers,
             1,
             None,
+            Some(startup_gpu_candidate()),
         )
         .unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
@@ -1067,6 +1236,7 @@ fn main() {
             &absent,
             3,
             None,
+            None,
         )
         .unwrap();
         assert_eq!(without_gpu.request.config.compute, ComputeChoice::Cpu);
@@ -1083,6 +1253,7 @@ fn main() {
             &workers,
             4,
             None,
+            Some(startup_gpu_candidate()),
         )
         .unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
@@ -1099,6 +1270,46 @@ fn main() {
         assert!(forced.fallback_reason.is_none());
         forced.worker.as_mut().unwrap().abort();
         drop(forced);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn auto_without_gpu_worker_clears_candidate_and_accepts_cpu_ready() {
+        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "../../target/direct-live-no-gpu-worker-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let cpu = startup_worker(&directory, "cpu-ready");
+        let workers = crate::supervisor::WorkerPaths {
+            cpu,
+            gpu: directory.join("missing-gpu-worker.exe"),
+        };
+        let mut live = super::DirectLive::start(
+            startup_request(&directory, ComputeChoice::Auto),
+            &workers,
+            21,
+            None,
+            Some(startup_gpu_candidate()),
+        )
+        .unwrap();
+        assert_eq!(live.request.config.compute, ComputeChoice::Cpu);
+        assert!(live.auto_preference);
+        assert_eq!(live.fallback_reason.as_deref(), Some("worker CUDA absent"));
+        assert!(live.gpu_candidate.is_none());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while !live.worker_ready && std::time::Instant::now() < deadline {
+            let _ = live.poll().unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(
+            live.worker_ready,
+            "CPU Ready must be accepted after Auto fallback"
+        );
+        assert_eq!(live.request.config.compute, ComputeChoice::Cpu);
+        assert_eq!(live.fallback_reason.as_deref(), Some("worker CUDA absent"));
+        live.stop().unwrap();
+        drop(live);
         std::fs::remove_dir_all(directory).unwrap();
     }
 
@@ -1121,6 +1332,7 @@ fn main() {
             &workers,
             20,
             None,
+            Some(startup_gpu_candidate()),
         )
         .unwrap();
         live.stop().unwrap();
@@ -1233,6 +1445,8 @@ fn main() {
             worker: None,
             instance: 1,
             worker_ready: false,
+            gpu_attested: false,
+            gpu_candidate: None,
             legacy_fallback: false,
             capture: Some(capture),
             converter: Some(converter),

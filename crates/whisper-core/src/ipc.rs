@@ -27,6 +27,18 @@ impl<T> IpcEnvelope<T> {
 pub enum WorkerCommand {
     /// Inspect the linked CUDA backend without loading the Whisper model.
     ProbeCuda,
+    /// Qualify a bounded set of Windows GPU identities against this worker's linked backend.
+    QualifyGpus {
+        generation: u64,
+        targets: Vec<GpuQualificationTarget>,
+    },
+    /// Re-attest a selected adapter in the worker that will process its session.
+    AttestGpuCandidate {
+        session_id: u64,
+        model_path: String,
+        model_sha256: [u8; 32],
+        candidate: crate::gpu_inventory::GpuRuntimeIdentity,
+    },
     StartImport {
         #[serde(default)]
         retain_after_publish: bool,
@@ -39,6 +51,21 @@ pub enum WorkerCommand {
         model_path: String,
         model_sha256: [u8; 32],
         config: JobConfig,
+    },
+    /// Start an import on the exact selected Windows/CUDA adapter.
+    StartGpuImport {
+        #[serde(default)]
+        retain_after_publish: bool,
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        source_path: String,
+        source_sha256: [u8; 32],
+        expected_source_samples: u64,
+        model_path: String,
+        model_sha256: [u8; 32],
+        config: JobConfig,
+        candidate: crate::gpu_inventory::GpuRuntimeIdentity,
     },
     /// Admit audio only after an Auto GPU worker has attested its backend.
     BeginImport {
@@ -61,6 +88,24 @@ pub enum WorkerCommand {
         model_path: String,
         model_sha256: [u8; 32],
         config: JobConfig,
+    },
+    StartGpuLiveWorker {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        model_path: String,
+        model_sha256: [u8; 32],
+        config: JobConfig,
+        candidate: crate::gpu_inventory::GpuRuntimeIdentity,
+    },
+    StartGpuDirectLiveWorker {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        model_path: String,
+        model_sha256: [u8; 32],
+        config: JobConfig,
+        candidate: crate::gpu_inventory::GpuRuntimeIdentity,
     },
     LiveWindow {
         job_id: JobId,
@@ -103,6 +148,31 @@ pub enum WorkerCommand {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum WorkerEvent {
     CudaAvailable,
+    GpusQualified {
+        generation: u64,
+        build_architectures: String,
+        devices: Vec<GpuQualificationResult>,
+    },
+    GpuCandidateAttested {
+        session_id: u64,
+        candidate: String,
+        dxgi_rank: u32,
+        luid: u64,
+        pci_id: String,
+        cuda_ordinal: u32,
+        ggml_ordinal: u32,
+    },
+    GpuSessionAttested {
+        job_id: JobId,
+        generation: Generation,
+        instance_id: u64,
+        candidate: String,
+        dxgi_rank: u32,
+        luid: u64,
+        pci_id: String,
+        cuda_ordinal: u32,
+        ggml_ordinal: u32,
+    },
     Ready {
         job_id: JobId,
         generation: Generation,
@@ -161,6 +231,32 @@ pub enum WorkerEvent {
         code: WorkerErrorCode,
         message: String,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GpuQualificationTarget {
+    pub generation: u64,
+    pub identity: String,
+    pub name: Option<String>,
+    pub state: Option<String>,
+    pub presence: String,
+    pub windows_rank: Option<u32>,
+    pub luid: Option<u64>,
+    pub pci_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GpuQualificationResult {
+    pub identity: String,
+    pub windows_rank: Option<u32>,
+    pub luid: Option<u64>,
+    pub pci_id: Option<String>,
+    pub cuda_ordinal: Option<u32>,
+    pub ggml_ordinal: Option<u32>,
+    pub identity_match: String,
+    pub support: String,
+    pub availability: String,
+    pub cause: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

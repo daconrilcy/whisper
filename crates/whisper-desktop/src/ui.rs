@@ -2,9 +2,12 @@ use crate::reactivity_log::ReactivityLog;
 use eframe::egui;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
-use whisper_core::gpu_inventory::GpuState;
-use whisper_core::gpu_inventory_app::{GpuInventoryApp, GpuInventoryState};
-use whisper_core::path_settings::{PathDefaults, PathField, PathSettingsApp};
+use whisper_core::gpu_inventory::GpuQualifiedDevice;
+use whisper_core::gpu_inventory_app::{
+    GpuInventoryApp, GpuInventoryState, GpuQualifiedInventoryState,
+};
+use whisper_core::gpu_selection::{SelectionResolution, SessionCandidate};
+use whisper_core::path_settings::{PathDefaults, PathField, PathSettingsApp, SaveStatus};
 use whisper_core::{
     AppCommand, AppFacade, AppView, Application, ApplicationError, ComputeChoice, Generation,
     ImportRequest, JobConfig, JobId, JobState, LanguageChoice, LiveRequest, MicrophoneChoice,
@@ -168,6 +171,49 @@ impl<A: Application> DesktopApp<A> {
     }
 
     fn dispatch(&mut self, command: AppCommand) -> bool {
+        let gpu_selection_command = matches!(
+            &command,
+            AppCommand::StartImport { .. }
+                | AppCommand::EnqueueImport { .. }
+                | AppCommand::ProcessQueued { .. }
+                | AppCommand::ResumeInterrupted { .. }
+                | AppCommand::StartLive { .. }
+                | AppCommand::StartLiveConfigured { .. }
+                | AppCommand::StartDirectLiveConfigured { .. }
+        );
+        if gpu_selection_command
+            && let Some((job_id, generation)) =
+                command.identity().map(|id| (id.job_id, id.generation))
+        {
+            let candidate = if self.compute_choice == ComputeChoice::Cpu {
+                None
+            } else {
+                self.gpu_inventory.as_ref().and_then(|inventory| {
+                    let preferred = self.paths.gpu_preference();
+                    match inventory.resolve_selection(self.compute_choice, preferred) {
+                        SelectionResolution::Candidate(SessionCandidate::Gpu(candidate)) => {
+                            inventory
+                                .runtime_identities()
+                                .iter()
+                                .find(|proof| {
+                                    proof
+                                        .pnp_instance_id
+                                        .eq_ignore_ascii_case(&candidate.identity)
+                                })
+                                .cloned()
+                        }
+                        _ => None,
+                    }
+                })
+            };
+            if let Err(error) = self
+                .application
+                .set_gpu_candidate(job_id, generation, candidate)
+            {
+                self.view.message = Some(format!("Sélection GPU non transmise : {error:?}"));
+                return false;
+            }
+        }
         match self.application.dispatch(command) {
             Ok(view) => {
                 self.view = view;
@@ -514,6 +560,23 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     });
                 self.compute_choice_touched |= self.compute_choice != previous_compute;
             });
+            let gpu_preferences = self
+                .gpu_inventory
+                .as_ref()
+                .map(|inventory| qualified_devices(inventory.qualified_state()))
+                .unwrap_or_default();
+            let mut preferred_gpu = self.paths.gpu_preference().map(str::to_owned);
+            gpu_preference_combo(ui, &gpu_preferences, &mut preferred_gpu);
+            if preferred_gpu.as_deref() != self.paths.gpu_preference() {
+                self.paths.set_gpu_preference(preferred_gpu);
+            }
+            if let Some(inventory) = &self.gpu_inventory {
+                let resolution = inventory.resolve_selection(
+                    self.compute_choice,
+                    self.paths.gpu_preference(),
+                );
+                ui.label(gpu_selection_resolution_label(&resolution, &gpu_preferences));
+            }
             ui.group(|ui| {
                 ui.heading("Microphone");
                 if ui.button("Actualiser les microphones").clicked() {
@@ -618,10 +681,6 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 }
             }
         });
-
-        if let Some(inventory) = &self.gpu_inventory {
-            gpu_inventory_ui(ui, inventory.state());
-        }
 
         let micro_active = self.view.active_job.is_some_and(|(job_id, _)| {
             self.live_request
@@ -759,9 +818,14 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         }
         if let Some(inventory) = &self.gpu_inventory {
             gpu_inventory_status(ui, inventory.state());
+            gpu_qualified_status(ui, inventory.qualified_state());
         }
         if let Some(message) = &self.path_notice {
             ui.colored_label(egui::Color32::YELLOW, message);
+        }
+        let save_status = path_save_status_label(self.paths.save_status());
+        if !save_status.is_empty() {
+            ui.label(save_status);
         }
         if let Some(message) = &self.microphone_notice {
             ui.colored_label(egui::Color32::YELLOW, message);
@@ -925,6 +989,221 @@ impl<A: Application> eframe::App for DesktopApp<A> {
     }
 }
 
+pub fn gpu_qualified_status(ui: &mut egui::Ui, state: &GpuQualifiedInventoryState) {
+    use whisper_core::gpu_inventory::GpuCatalogueCoverage;
+    match state {
+        GpuQualifiedInventoryState::NotRequested => {}
+        GpuQualifiedInventoryState::Loading => {
+            ui.label("Qualification GPU en cours ; CPU reste utilisable.");
+        }
+        GpuQualifiedInventoryState::Failed(error) => {
+            ui.label(format!(
+                "Qualification GPU indisponible : {error} ; CPU reste utilisable."
+            ));
+        }
+        GpuQualifiedInventoryState::Complete(catalogue)
+        | GpuQualifiedInventoryState::Partial(catalogue) => {
+            let labels = gpu_preference_labels(&catalogue.devices);
+            for (device, name) in catalogue.devices.iter().zip(labels) {
+                let (color, label) = gpu_qualified_presentation(device);
+                let text = format!("{name} : {label}.");
+                if let Some(color) = color {
+                    ui.colored_label(color, text);
+                } else {
+                    ui.label(text);
+                }
+            }
+            if catalogue.coverage != GpuCatalogueCoverage::Complete || !catalogue.causes.is_empty()
+            {
+                ui.label("Inventaire GPU partiel ou indéterminé ; CPU reste utilisable.");
+            }
+        }
+    }
+}
+
+fn qualified_devices(state: &GpuQualifiedInventoryState) -> Vec<GpuQualifiedDevice> {
+    match state {
+        GpuQualifiedInventoryState::Complete(catalogue)
+        | GpuQualifiedInventoryState::Partial(catalogue) => catalogue.devices.clone(),
+        GpuQualifiedInventoryState::NotRequested
+        | GpuQualifiedInventoryState::Loading
+        | GpuQualifiedInventoryState::Failed(_) => Vec::new(),
+    }
+}
+
+pub fn gpu_preference_labels(devices: &[GpuQualifiedDevice]) -> Vec<String> {
+    use std::collections::HashMap;
+
+    let mut totals = HashMap::<&str, usize>::new();
+    for device in devices {
+        *totals.entry(&device.device.name).or_default() += 1;
+    }
+    let mut seen = HashMap::<&str, usize>::new();
+    devices
+        .iter()
+        .map(|device| {
+            let name = device.device.name.as_str();
+            let total = totals[name];
+            if total == 1 {
+                return name.to_owned();
+            }
+            let index = seen.entry(name).or_default();
+            *index += 1;
+            format!("{name} - {}", *index)
+        })
+        .collect()
+}
+
+pub fn gpu_preference_combo(
+    ui: &mut egui::Ui,
+    devices: &[GpuQualifiedDevice],
+    preferred: &mut Option<String>,
+) {
+    let labels = gpu_preference_labels(devices);
+    let selected_label = preferred.as_deref().map_or_else(
+        || "Choisir un GPU".to_owned(),
+        |identity| {
+            devices
+                .iter()
+                .position(|device| device.device.identity == identity)
+                .map(|index| labels[index].clone())
+                .unwrap_or_else(|| "GPU indisponible".to_owned())
+        },
+    );
+    ui.horizontal(|ui| {
+        ui.label("GPU préféré");
+        egui::ComboBox::from_id_salt("gpu_preference")
+            .selected_text(selected_label)
+            .show_ui(ui, |ui| {
+                gpu_preference_options(ui, devices, &labels, preferred);
+            });
+    });
+}
+
+pub fn gpu_preference_options(
+    ui: &mut egui::Ui,
+    devices: &[GpuQualifiedDevice],
+    labels: &[String],
+    preferred: &mut Option<String>,
+) {
+    for (device, label) in devices.iter().zip(labels.iter().cloned()) {
+        let identity = &device.device.identity;
+        if gpu_preference_selectable(device) {
+            ui.selectable_value(preferred, Some(identity.clone()), label);
+        } else if device.support == whisper_core::gpu_inventory::GpuSupport::ConfirmedUnsupported {
+            ui.add_enabled_ui(false, |ui| {
+                ui.colored_label(egui::Color32::GRAY, label);
+            });
+        } else {
+            ui.add_enabled_ui(false, |ui| {
+                ui.label(label);
+            });
+        }
+    }
+}
+
+pub fn gpu_preference_selectable(device: &whisper_core::gpu_inventory::GpuQualifiedDevice) -> bool {
+    use whisper_core::gpu_inventory::{GpuAvailability, GpuIdentityMatch, GpuState, GpuSupport};
+    device.identity_match == GpuIdentityMatch::Unique
+        && !device.device.identity.trim().is_empty()
+        && device.device.state == GpuState::Ready
+        && device.windows_rank.is_some()
+        && device.support == GpuSupport::ConfirmedSupported
+        && device.availability == GpuAvailability::Available
+}
+
+pub fn gpu_selection_resolution_label(
+    resolution: &SelectionResolution,
+    devices: &[GpuQualifiedDevice],
+) -> String {
+    let labels = gpu_preference_labels(devices);
+    let candidate_label = |candidate: &whisper_core::gpu_selection::GpuCandidate| {
+        devices
+            .iter()
+            .position(|device| device.device.identity == candidate.identity)
+            .map(|index| labels[index].clone())
+            .unwrap_or_else(|| candidate.name.clone())
+    };
+    match resolution {
+        SelectionResolution::Candidate(SessionCandidate::Cpu) => {
+            "Pour la prochaine transcription, le CPU est prévu.".into()
+        }
+        SelectionResolution::Candidate(SessionCandidate::Gpu(candidate))
+            if candidate.preference_substituted =>
+        {
+            format!(
+                "Pour la prochaine transcription, {} est prévu temporairement ; préférence conservée.",
+                candidate_label(candidate)
+            )
+        }
+        SelectionResolution::Candidate(SessionCandidate::Gpu(candidate)) => format!(
+            "Pour la prochaine transcription, {} est prévu.",
+            candidate_label(candidate)
+        ),
+        SelectionResolution::CpuFallback { .. } => {
+            "Pour la prochaine transcription, le CPU est prévu.".into()
+        }
+        SelectionResolution::Waiting(_) => "Vérification du choix GPU en cours.".into(),
+        SelectionResolution::Refused(_) => {
+            "Le choix GPU n'est pas disponible pour la prochaine transcription.".into()
+        }
+    }
+}
+
+pub fn path_save_status_label(status: &SaveStatus) -> String {
+    match status {
+        SaveStatus::NotSaved => String::new(),
+        SaveStatus::Pending { revision } => {
+            format!("Sauvegarde des réglages en cours (révision {revision}).")
+        }
+        SaveStatus::Saved { revision } => {
+            format!("Réglages enregistrés (révision {revision}).")
+        }
+        SaveStatus::Failed { revision, error } => {
+            format!("Réglages non mémorisés (révision {revision}) : {error}.")
+        }
+    }
+}
+
+pub fn gpu_qualified_presentation(
+    device: &whisper_core::gpu_inventory::GpuQualifiedDevice,
+) -> (Option<egui::Color32>, &'static str) {
+    use whisper_core::gpu_inventory::{
+        GpuAvailability as Availability, GpuIdentityMatch, GpuState, GpuSupport as Support,
+    };
+    let rank_present = device.windows_rank.is_some();
+    let windows_ready = device.device.state == GpuState::Ready;
+    if !rank_present || !windows_ready {
+        return (
+            None,
+            "qualification incomplète ; sélection GPU indisponible",
+        );
+    }
+    match (device.identity_match, device.support, device.availability) {
+        (GpuIdentityMatch::Unique, Support::ConfirmedSupported, Availability::Available) => {
+            (Some(egui::Color32::GREEN), "compatible et disponible")
+        }
+        (
+            GpuIdentityMatch::Unique | GpuIdentityMatch::Missing,
+            Support::ConfirmedUnsupported,
+            _,
+        ) => (
+            Some(egui::Color32::GRAY),
+            "exclu : non pris en charge par ce build",
+        ),
+        (_, Support::ConfirmedSupported, Availability::Unavailable) => {
+            (None, "support confirmé, mais indisponible")
+        }
+        (_, Support::ConfirmedSupported, Availability::NotVerified) => {
+            (None, "support confirmé, disponibilité non vérifiée")
+        }
+        (_, Support::Undetermined, Availability::Unavailable) => {
+            (None, "indéterminé, temporairement indisponible")
+        }
+        _ => (None, "indéterminé"),
+    }
+}
+
 fn microphone_device_label(device: &MicrophoneDevice, devices: &[MicrophoneDevice]) -> String {
     if devices
         .iter()
@@ -981,30 +1260,6 @@ fn path_text_edit(ui: &mut egui::Ui, path: &mut String, width: f32) -> egui::Res
     .inner
 }
 
-pub fn gpu_inventory_ui(ui: &mut egui::Ui, state: &GpuInventoryState) {
-    ui.group(|ui| {
-        ui.heading("Cartes graphiques détectées par Windows");
-        match state {
-            GpuInventoryState::Complete(inventory) | GpuInventoryState::Partial(inventory) => {
-                render_inventory(
-                    ui,
-                    inventory.devices.iter().map(|device| {
-                        format!("{} — {}", device.name, gpu_state_label(&device.state))
-                    }),
-                );
-            }
-            GpuInventoryState::NotRequested
-            | GpuInventoryState::Loading
-            | GpuInventoryState::Failed(_) => {}
-        }
-    });
-    gpu_inventory_note(ui);
-}
-
-pub fn gpu_inventory_note(ui: &mut egui::Ui) {
-    ui.label("Note : la présence selon Windows ne confirme pas la compatibilité CUDA.");
-}
-
 pub fn gpu_inventory_status(ui: &mut egui::Ui, state: &GpuInventoryState) {
     if let Some(message) = gpu_inventory_status_message(state) {
         ui.label(message);
@@ -1031,21 +1286,6 @@ pub fn gpu_inventory_status_message(state: &GpuInventoryState) -> Option<String>
             Some(format!("Inventaire GPU partiel : {}", messages.join(" ")))
         }
         GpuInventoryState::Failed(error) => Some(format!("Inventaire GPU indisponible : {error}")),
-    }
-}
-
-fn render_inventory(ui: &mut egui::Ui, rows: impl Iterator<Item = String>) {
-    for row in rows {
-        ui.label(row);
-    }
-}
-
-fn gpu_state_label(state: &GpuState) -> String {
-    match state {
-        GpuState::Ready => "fonctionnement normal".into(),
-        GpuState::Disabled => "désactivé".into(),
-        GpuState::Error(code) => format!("état Windows {code}"),
-        GpuState::Unknown => "état inconnu".into(),
     }
 }
 

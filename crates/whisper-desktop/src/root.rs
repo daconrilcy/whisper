@@ -59,6 +59,7 @@ pub fn compose() -> DesktopComposition {
         cpu: worker_path("whisper-worker-cpu.exe"),
         gpu: worker_path("whisper-worker-gpu.exe"),
     };
+    let inventory_worker = workers.gpu.clone();
     let (sender, receiver) = mpsc::channel();
     let gpu_worker = workers.gpu.clone();
     std::thread::spawn(move || {
@@ -71,6 +72,8 @@ pub fn compose() -> DesktopComposition {
         startup_message: Some("Vérification du GPU en cours…".into()),
         paths,
         gpu_probe: receiver,
-        gpu_inventory: GpuInventoryApp::new(Box::new(WindowsGpuInventoryPort::default())),
+        gpu_inventory: GpuInventoryApp::new(Box::new(WindowsGpuInventoryPort::new(
+            inventory_worker,
+        ))),
     }
 }

@@ -644,6 +644,7 @@ mod ipc {
         }
     }
 }
+mod gpu_attestation;
 mod native_engine;
 static L04_CAMPAIGN_OCCURRENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -1114,39 +1115,8 @@ fn input_loop(tx: SyncSender<Incoming>) {
     }
 }
 
-#[allow(unsafe_code)]
-fn probe_cuda_backend() -> Result<(), String> {
-    use std::ffi::CStr;
-    use whisper_rs::whisper_rs_sys as sys;
-
-    // SAFETY: ggml owns the registry and the NUL-terminated device names. The
-    // device and backend pointers are used only in this call, and the backend
-    // returned by dev_init is released once before returning.
-    unsafe {
-        for index in 0..sys::ggml_backend_dev_count() {
-            let device = sys::ggml_backend_dev_get(index);
-            if device.is_null()
-                || sys::ggml_backend_dev_type(device)
-                    != sys::ggml_backend_dev_type_GGML_BACKEND_DEVICE_TYPE_GPU
-            {
-                continue;
-            }
-            let name = sys::ggml_backend_dev_name(device);
-            if name.is_null() || !CStr::from_ptr(name).to_bytes().starts_with(b"CUDA") {
-                continue;
-            }
-            let backend = sys::ggml_backend_dev_init(device, std::ptr::null());
-            if !backend.is_null() {
-                sys::ggml_backend_free(backend);
-                return Ok(());
-            }
-        }
-    }
-    Err("Aucun backend CUDA initialisable dans le worker GPU".into())
-}
-
 fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String> {
-    let mut cached_engine: Option<(String, [u8; 32], GpuEngine)> = None;
+    let mut cached_engine: Option<CachedGpuEngine> = None;
     loop {
         let first = match rx.recv() {
             Ok(Ok(first)) => first,
@@ -1161,7 +1131,13 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
         let reusable = matches!(
             &first.message,
             WorkerCommand::StartDirectLiveWorker { .. }
+                | WorkerCommand::StartGpuDirectLiveWorker { .. }
+                | WorkerCommand::StartGpuLiveWorker { .. }
                 | WorkerCommand::StartImport {
+                    retain_after_publish: true,
+                    ..
+                }
+                | WorkerCommand::StartGpuImport {
                     retain_after_publish: true,
                     ..
                 }
@@ -1173,41 +1149,82 @@ fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result<(), String
     }
 }
 
+struct CachedGpuEngine {
+    model_path: String,
+    model_sha256: [u8; 32],
+    candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+    engine: GpuEngine,
+}
+
+fn same_gpu_target(
+    previous: Option<&whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+    current: Option<&whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+) -> bool {
+    match (previous, current) {
+        (None, None) => true,
+        (Some(previous), Some(current)) => {
+            previous
+                .pnp_instance_id
+                .eq_ignore_ascii_case(&current.pnp_instance_id)
+                && previous.dxgi_rank == current.dxgi_rank
+                && previous.luid == current.luid
+                && previous.pci_id.eq_ignore_ascii_case(&current.pci_id)
+                && previous.cuda_ordinal == current.cuda_ordinal
+                && previous.ggml_ordinal == current.ggml_ordinal
+        }
+        _ => false,
+    }
+}
+
 fn cached_gpu_engine<'a>(
-    cache: &'a mut Option<(String, [u8; 32], GpuEngine)>,
+    cache: &'a mut Option<CachedGpuEngine>,
     model_path: &str,
     model_sha256: [u8; 32],
+    candidate: Option<&whisper_core::gpu_inventory::GpuRuntimeIdentity>,
 ) -> Result<&'a GpuEngine, String> {
-    if cache
-        .as_ref()
-        .is_some_and(|(path, hash, _)| path == model_path && hash == &model_sha256)
-        && let Err(error) = cache.as_ref().expect("cached GPU engine").2.attest()
-    {
-        *cache = None;
-        return Err(error);
-    }
-    if cache
-        .as_ref()
-        .is_none_or(|(path, hash, _)| path != model_path || hash != &model_sha256)
-    {
+    let selected_candidate = candidate.cloned();
+    let (selected_ordinal, expected_backend) = match selected_candidate.as_ref() {
+        Some(identity) => {
+            native_ffi::whisper_gpu_device_index(identity.ggml_ordinal, &identity.pci_id)?
+        }
+        None => (0, "CUDA0".to_owned()),
+    };
+    let matches_cache = cache.as_ref().is_some_and(|cached| {
+        cached.model_path == model_path
+            && cached.model_sha256 == model_sha256
+            && same_gpu_target(cached.candidate.as_ref(), selected_candidate.as_ref())
+            && cached
+                .engine
+                .matches_device(selected_ordinal, &expected_backend)
+    });
+    if matches_cache {
+        if let Err(error) = cache.as_ref().expect("cached GPU engine").engine.attest() {
+            *cache = None;
+            return Err(error);
+        }
+    } else {
         *cache = None;
         eprintln!("startup_perf model_cache=load backend=gpu");
-        *cache = Some((
-            model_path.to_owned(),
+        let engine = GpuEngine::load(model_path, selected_ordinal, expected_backend)?;
+        engine.attest()?;
+        *cache = Some(CachedGpuEngine {
+            model_path: model_path.to_owned(),
             model_sha256,
-            GpuEngine::load(model_path)?,
-        ));
-    } else {
+            candidate: selected_candidate,
+            engine,
+        });
+    }
+    if matches_cache {
         eprintln!("startup_perf model_cache=hit backend=gpu");
     }
-    Ok(&cache.as_ref().expect("cached engine").2)
+    Ok(&cache.as_ref().expect("cached engine").engine)
 }
 
 fn run_session(
     rx: &Receiver<Incoming>,
     output: &mut impl io::Write,
     first: IpcEnvelope<WorkerCommand>,
-    cached_engine: &mut Option<(String, [u8; 32], GpuEngine)>,
+    cached_engine: &mut Option<CachedGpuEngine>,
 ) -> Result<(), String> {
     if first.version != IPC_PROTOCOL_VERSION {
         write_frame(
@@ -1227,23 +1244,135 @@ fn run_session(
         return Ok(());
     }
     if matches!(first.message, WorkerCommand::ProbeCuda) {
-        return match probe_cuda_backend() {
-            Ok(()) => write_frame(output, &IpcEnvelope::new(WorkerEvent::CudaAvailable))
+        return match native_ffi::cuda_backend_available() {
+            true => write_frame(output, &IpcEnvelope::new(WorkerEvent::CudaAvailable))
                 .map_err(|error| error.to_string()),
-            Err(message) => write_frame(
+            false => write_frame(
                 output,
                 &IpcEnvelope::new(WorkerEvent::Failed {
                     job_id: None,
                     generation: None,
                     instance_id: None,
                     code: WorkerErrorCode::BackendUnavailable,
-                    message,
+                    message: "Aucun backend CUDA initialisable dans le worker GPU".into(),
                 }),
             )
             .map_err(|error| error.to_string()),
         };
     }
-    let direct_live = matches!(&first.message, WorkerCommand::StartDirectLiveWorker { .. });
+    if let WorkerCommand::AttestGpuCandidate {
+        session_id,
+        model_path,
+        model_sha256,
+        candidate,
+    } = first.message
+    {
+        if let Err(error) = verify_sha256(Path::new(&model_path), &model_sha256) {
+            return write_frame(
+                output,
+                &IpcEnvelope::new(WorkerEvent::Failed {
+                    job_id: None,
+                    generation: None,
+                    instance_id: None,
+                    code: WorkerErrorCode::ModelHashMismatch,
+                    message: format!("ModelHashMismatch: {error}"),
+                }),
+            )
+            .map_err(|error| error.to_string());
+        }
+        if let Err(error) = native_ffi::verify_windows_identity(&candidate) {
+            return write_frame(
+                output,
+                &IpcEnvelope::new(WorkerEvent::Failed {
+                    job_id: None,
+                    generation: None,
+                    instance_id: None,
+                    code: WorkerErrorCode::BackendMismatch,
+                    message: format!("BackendMismatch: {error}"),
+                }),
+            )
+            .map_err(|error| error.to_string());
+        }
+        let cuda = native_ffi::cuda_devices()?;
+        gpu_attestation::attest_native_identity(&candidate, &cuda, &native_ffi::ggml_devices())?;
+        return write_frame(
+            output,
+            &IpcEnvelope::new(WorkerEvent::GpuCandidateAttested {
+                session_id,
+                candidate: candidate.pnp_instance_id.clone(),
+                dxgi_rank: candidate.dxgi_rank,
+                luid: candidate.luid,
+                pci_id: candidate.pci_id.clone(),
+                cuda_ordinal: candidate.cuda_ordinal,
+                ggml_ordinal: candidate.ggml_ordinal,
+            }),
+        )
+        .map_err(|error| error.to_string());
+    }
+    if let WorkerCommand::QualifyGpus {
+        generation,
+        targets,
+    } = first.message
+    {
+        let devices = gpu_qualification::qualify(&targets);
+        return write_frame(
+            output,
+            &IpcEnvelope::new(WorkerEvent::GpusQualified {
+                generation,
+                build_architectures: gpu_qualification::BUILD_ARCHITECTURES.into(),
+                devices,
+            }),
+        )
+        .map_err(|error| error.to_string());
+    }
+    let gpu_candidate = match &first.message {
+        WorkerCommand::StartGpuImport { candidate, .. } => Some(candidate.clone()),
+        WorkerCommand::StartGpuLiveWorker { candidate, .. }
+        | WorkerCommand::StartGpuDirectLiveWorker { candidate, .. } => Some(candidate.clone()),
+        _ => None,
+    };
+    let startup_identity = match &first.message {
+        WorkerCommand::StartGpuImport {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        }
+        | WorkerCommand::StartGpuLiveWorker {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        }
+        | WorkerCommand::StartGpuDirectLiveWorker {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        } => Some((*job_id, *generation, *instance_id)),
+        _ => None,
+    };
+    if let Some(candidate) = &gpu_candidate {
+        let validation = native_ffi::verify_windows_identity(candidate)
+            .and_then(|()| native_ffi::cuda_devices())
+            .and_then(|cuda| {
+                gpu_attestation::attest_native_identity(
+                    candidate,
+                    &cuda,
+                    &native_ffi::ggml_devices(),
+                )
+            });
+        if let Err(error) = validation {
+            let (job_id, generation, instance_id) =
+                startup_identity.expect("GPU startup command has correlated identity");
+            return emit_gpu_revalidation_failure(output, job_id, generation, instance_id, &error);
+        }
+    }
+    let direct_live = matches!(
+        &first.message,
+        WorkerCommand::StartDirectLiveWorker { .. }
+            | WorkerCommand::StartGpuDirectLiveWorker { .. }
+    );
     let (
         job_id,
         generation,
@@ -1289,7 +1418,12 @@ fn run_session(
                     "ModelHashMismatch: live model identity could not be verified",
                 );
             }
-            let engine = match cached_gpu_engine(cached_engine, &model_path, model_sha256) {
+            let engine = match cached_gpu_engine(
+                cached_engine,
+                &model_path,
+                model_sha256,
+                gpu_candidate.as_ref(),
+            ) {
                 Ok(engine) => engine,
                 Err(error) => {
                     return emit_gpu_initialization_failure(
@@ -1322,7 +1456,114 @@ fn run_session(
                 !direct_live,
             );
         }
+        WorkerCommand::StartGpuLiveWorker {
+            job_id,
+            generation,
+            instance_id,
+            model_path,
+            model_sha256,
+            config,
+            ..
+        }
+        | WorkerCommand::StartGpuDirectLiveWorker {
+            job_id,
+            generation,
+            instance_id,
+            model_path,
+            model_sha256,
+            config,
+            ..
+        } => {
+            if config.compute == ComputeChoice::Cpu
+                || verify_sha256(Path::new(&model_path), &model_sha256).is_err()
+            {
+                return emit_failure(
+                    output,
+                    job_id,
+                    generation,
+                    instance_id,
+                    WorkerErrorCode::ModelHashMismatch,
+                    "ModelHashMismatch: live model identity could not be verified",
+                );
+            }
+            let engine = match cached_gpu_engine(
+                cached_engine,
+                &model_path,
+                model_sha256,
+                gpu_candidate.as_ref(),
+            ) {
+                Ok(engine) => engine,
+                Err(error) => {
+                    return emit_gpu_initialization_failure(
+                        output,
+                        job_id,
+                        generation,
+                        instance_id,
+                        &error,
+                    );
+                }
+            };
+            if let Some(candidate) = &gpu_candidate {
+                write_frame(
+                    output,
+                    &IpcEnvelope::new(WorkerEvent::GpuSessionAttested {
+                        job_id,
+                        generation,
+                        instance_id,
+                        candidate: candidate.pnp_instance_id.clone(),
+                        dxgi_rank: candidate.dxgi_rank,
+                        luid: candidate.luid,
+                        pci_id: candidate.pci_id.clone(),
+                        cuda_ordinal: candidate.cuda_ordinal,
+                        ggml_ordinal: candidate.ggml_ordinal,
+                    }),
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            write_frame(
+                output,
+                &IpcEnvelope::new(WorkerEvent::Ready {
+                    job_id,
+                    generation,
+                    instance_id,
+                    backend: BackendKind::Cuda,
+                }),
+            )
+            .map_err(|e| e.to_string())?;
+            return run_live_service(
+                rx,
+                output,
+                engine,
+                job_id,
+                generation,
+                instance_id,
+                config,
+                !direct_live,
+            );
+        }
         WorkerCommand::StartImport {
+            job_id,
+            generation,
+            instance_id,
+            source_path,
+            source_sha256,
+            expected_source_samples,
+            model_path,
+            model_sha256,
+            config,
+            ..
+        } => (
+            job_id,
+            generation,
+            instance_id,
+            source_path,
+            source_sha256,
+            expected_source_samples,
+            model_path,
+            model_sha256,
+            config,
+        ),
+        WorkerCommand::StartGpuImport {
             job_id,
             generation,
             instance_id,
@@ -1398,7 +1639,12 @@ fn run_session(
             "model_context_native_bytes": "opaque; process counters characterize total",
         }),
     );
-    let engine = match cached_gpu_engine(cached_engine, &model_path, model_sha256) {
+    let engine = match cached_gpu_engine(
+        cached_engine,
+        &model_path,
+        model_sha256,
+        gpu_candidate.as_ref(),
+    ) {
         Ok(engine) => engine,
         Err(error) => {
             return emit_gpu_initialization_failure(
@@ -1410,6 +1656,23 @@ fn run_session(
             );
         }
     };
+    if let Some(candidate) = gpu_candidate {
+        write_frame(
+            output,
+            &IpcEnvelope::new(WorkerEvent::GpuSessionAttested {
+                job_id,
+                generation,
+                instance_id,
+                candidate: candidate.pnp_instance_id.clone(),
+                dxgi_rank: candidate.dxgi_rank,
+                luid: candidate.luid,
+                pci_id: candidate.pci_id.clone(),
+                cuda_ordinal: candidate.cuda_ordinal,
+                ggml_ordinal: candidate.ggml_ordinal,
+            }),
+        )
+        .map_err(|error| error.to_string())?;
+    }
     #[cfg(feature = "l01-memory-qualification")]
     memory_qualification::record(
         "model_context.load.complete",
@@ -2176,6 +2439,23 @@ fn emit_gpu_initialization_failure(
     )
 }
 
+fn emit_gpu_revalidation_failure(
+    output: &mut impl io::Write,
+    job_id: whisper_core::JobId,
+    generation: whisper_core::Generation,
+    instance_id: u64,
+    error: &str,
+) -> Result<(), String> {
+    emit_failure(
+        output,
+        job_id,
+        generation,
+        instance_id,
+        WorkerErrorCode::BackendMismatch,
+        &format!("BackendMismatch: selected GPU identity changed before admission: {error}"),
+    )
+}
+
 #[cfg(test)]
 mod gpu_startup_tests {
     use super::*;
@@ -2239,4 +2519,31 @@ mod gpu_startup_tests {
         assert!(verify_sha256(&model, &bad_digest).is_err());
         std::fs::remove_dir_all(root).unwrap();
     }
+
+    #[test]
+    fn gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt() {
+        let mut output = Vec::new();
+        let generation = whisper_core::Generation::first();
+        emit_gpu_revalidation_failure(
+            &mut output,
+            whisper_core::JobId(91),
+            generation,
+            17,
+            "LUID changed",
+        )
+        .unwrap();
+        let event: IpcEnvelope<WorkerEvent> = serde_json::from_slice(&output).unwrap();
+        assert!(matches!(
+            event.message,
+            WorkerEvent::Failed {
+                job_id: Some(whisper_core::JobId(91)),
+                generation: Some(actual_generation),
+                instance_id: Some(17),
+                code: WorkerErrorCode::BackendMismatch,
+                ..
+            } if actual_generation == generation
+        ));
+    }
 }
+mod gpu_qualification;
+mod native_ffi;
