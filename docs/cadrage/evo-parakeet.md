@@ -12,6 +12,8 @@ L'application Windows conserve **large-v3-turbo comme modèle premium et référ
 
 Le **modèle** et le **calcul** sont deux choix distincts. Auto décide CPU/GPU pour le modèle choisi, sans changer de modèle. Sans préférence de modèle, Turbo est le défaut ; si l'utilisateur choisit Parakeet, ce choix est conservé après fermeture, y compris lorsque le calcul reste Auto. Cette règle ne change pas à elle seule la présélection actuelle du calcul GPU/CPU au démarrage.
 
+**Règle transversale ajoutée :** `docs/cadrage/evo-engine-capabilities.md` cadre le registre applicatif versionné pour tous les moteurs, leurs langues, possibilités CPU/GPU, besoins RAM/VRAM/disque et qualification obligatoire à l'intégration. Les choix grisés et la compatibilité avec le PC en découlent. Ce registre ne lève pas à lui seul l'exigence particulière DEC-PARA-16 ni le FAIL du couple Parakeet/NeMo sur la langue manuelle.
+
 Le futur lot recherché comporte le backend Parakeet, son raccordement aux parcours existants, un catalogue solidaire de la livraison et des sondes. **La qualité** sera comparée à Turbo sur un corpus et une méthode à fixer, avec écarts rapportés sans seuil initial. **Les campagnes de durée et de charge CPU/GPU sont différées.** « Plus rapide que Turbo » est un objectif futur, pas un succès affirmé ni un seuil du premier lot. Les cibles historiques de réactivité et de premier texte restent documentées pour leurs évolutions d'origine ; elles ne deviennent pas, par silence, de nouveaux seuils Parakeet.
 
 | ID | Décision utilisateur acceptée | Source dans la session |
