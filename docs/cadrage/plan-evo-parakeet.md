@@ -1,10 +1,10 @@
 Avancée : séquencement DRAFT de l'évolution Parakeet et du registre commun, proposé par `rust_plan_writer`.
-Blocage : design parent `DESIGN BLOCKED` ; faisabilités natives et contrats structurants non fermés, chemins de distribution encore à définir.
+Blocage : design parent `DESIGN BLOCKED` ; faisabilité native et composition du paquet final non démontrées.
 Décision : `DESIGN_CHANGE_REQUIRED` ; ce document n'est ni `PLANS READY`, ni une autorisation de coder, d'essayer le moteur ou de publier.
 
 # Plan d'implémentation Parakeet — projet conditionnel du 15 octobre 2026
 
-**Identité :** `P-PARA-DRAFT-01`. **Objectif produit :** ajouter Parakeet TDT 0.6B v3 à Turbo dans l'application Windows, pour import et micro, CPU/GPU/Auto calcul, avec catalogue fermé, Auto langue Parakeet seulement après qualification, acquisition finale et conservation des garanties audio et de sorties. **Parents Git :** `docs/cadrage/evo-parakeet.md` et `docs/cadrage/evo-engine-capabilities.md` à `87f46877dcc8d96f1170da4b97eda6bb1b3c6712`. **Propriétaire du découpage :** `rust_plan_writer`, contribution `PLAN-PARA-DRAFT v0.1` en lecture seule ; auteur Git : session principale. **Statut :** DRAFT, non exécutable. Une modification du design parent impose de rapprocher ce plan du nouveau commit avant revue `PLANS READY`.
+**Identité :** `P-PARA-DRAFT-02`. **Objectif produit :** ajouter Parakeet TDT 0.6B v3 à Turbo dans l'application Windows, pour import et micro, CPU/GPU/Auto calcul, avec catalogue fermé, Auto langue Parakeet seulement après qualification, acquisition finale et conservation des garanties audio et de sorties. **Parents Git :** `docs/cadrage/evo-parakeet.md` à `df3f5ccf` et `docs/cadrage/evo-engine-capabilities.md` à `79f64a9a` (correction du gate CAP-02/03 ; revue en cours). **Propriétaire du découpage :** `rust_plan_writer`, contribution `PLAN-PARA-DRAFT v0.2` en lecture seule ; auteur Git : session principale. **Statut :** DRAFT, non exécutable. Une modification du design parent impose de rapprocher ce plan du nouveau commit avant revue `PLANS READY`.
 
 Le choix DEC-PARA-19 retient la transcription multilingue sans langue imposée pour Parakeet. Il ne démontre pas que le GGUF et NeMo-Speech.cpp v0.2.0 intégrés la réalisent. Le manuel de ce couple reste `Unsupported` ; aucun parcours Parakeet ne démarre avant qualification d'Auto pour la configuration exacte. La restitution d'un identifiant de langue détectée est facultative et distincte. Les comparaisons de vitesse et de charge sont différées ; aucun seuil de perte de qualité n'est inventé.
 
@@ -12,13 +12,13 @@ Le choix DEC-PARA-19 retient la transcription multilingue sans langue imposée p
 
 | Gate | Fermeture nécessaire ; owner | Lots concernés |
 | --- | --- | --- |
-| G-DESIGN | `PARA-REV-01` et `RISK-T-01a–e` : artefact/DLL, inférence CPU, GPU réel sur la cible, fenêtres et queue micro, Auto langue du candidat exact. Un essai ciblé doit avoir un mandat distinct et une revue indépendante ; la compilation partielle antérieure ne suffit pas. Architecte et exécutant autorisé. | L2–L4, puis L6 |
-| G-CAP | `Q-CAP-02/03` : politique d'admission des capacités `Unknown/Partial`, besoins/observations RAM, VRAM et disque comparables, sans seuil inventé. Architecte ; utilisateur si la politique change le risque produit. | L1–L4 |
-| G-CAPTURE | `Q-PARA-08/09` : pression de file, limite WAV, écriture partielle, Stop, stagnation et constat de fin du worker. Architecte ; aucun délai candidat 2 s/5 s n'est accepté par ce plan. | L4 |
-| G-ACQ | `Q-PARA-02/10/11`, `RISK-T-ACQ01` : magasin/publication et fermeture pendant acquisition, source/empreinte/licence des deux modèles, mécanisme de distribution et modification ciblée de RG-08 pour la réparation applicative. Architecte ; utilisateur pour le cadre. | L1 pour identité finale ; L5–L6 |
-| G-QUAL | `Q-PARA-05` : corpus, langues, référence annotée, normalisation et méthode de restitution acceptés ; `Q-PARA-06/07` fermées avant import/migration. Analyste, domaine et utilisateur pour représentativité ou comportement visible. | L1–L2, L7 |
+| G-DESIGN | `PARA-REV-01` et `RISK-T-01a–e` : artefact/DLL, inférence CPU, GPU réel sur la cible, fenêtres et queue micro, Auto langue du candidat exact. `SPIKE-PARA-02` est proposé, non autorisé et `NOT RUN`. Architecte, exécutant technique distinct et revue indépendante. | Tous avant readiness |
+| G-CAP | `Q-CAP-02/03` fermées côté produit/contrat : capacités CPU/GPU/langue non qualifiées bloquées ; adéquation RAM/VRAM seulement indéterminée permet de préparer une configuration qualifiée, avec erreur réelle expliquée. Revue du delta requise. | L1–L4 |
+| G-CAPTURE | `Q-PARA-08/09` fermées comme contrats proposés : pool fini, refus définitif après trou, frontière WAV, restauration partielle et constat de fin physique. Tests futurs `NOT RUN` ; aucun délai candidat 2 s/5 s. | L4 |
+| G-ACQ | `Q-PARA-02/10/11` et références distantes des deux modèles définies. Magasin, annulation et publication proposés ; choix réseau et mécanisme d'installation à figer par l'architecte. RG-08 actif à modifier avec accord précis avant réseau applicatif. | L1, L5–L6 |
+| G-QUAL | `Q-PARA-05/06/07` fermées : corpus FR/EN ciblé, import avant/après publication et ancien chemin inconnu conservé pour diagnostic avec choix explicite. Données et références à préparer ; tests `NOT RUN`. | L1–L2, L7 |
 
-Le parent n'est pas `DESIGN READY` et la revue du plan n'a pas eu lieu. Les lignes ci-dessous sont des **hypothèses de découpage**, pas des décisions structurantes cachées dans des tâches. `G-DESIGN` doit être fermé puis le design revu avant de convertir ces lots en `lot.paths` autorisés. La source native C++/CUDA, le FFI Rust, leurs dépendances, essais et installations nécessitent les accords précis applicables dans la session d'exécution ; l'ancien SPIKE n'en donne pas de nouveaux.
+Le parent n'est pas `DESIGN READY` et la revue du plan révisé n'a pas eu lieu. Les lignes ci-dessous sont des **hypothèses de découpage**, pas des décisions structurantes cachées dans des tâches. `G-DESIGN` doit être fermé puis le design revu avant de convertir ces lots en `lot.paths` autorisés. Les gates `CODE` (dépendances et interfaces des lots précédents) et `EXECUTION` (autorisation précise des chemins, données, ressources et écritures) sont à contrôler avant chaque campagne. La source native C++/CUDA, le FFI Rust, leurs dépendances, essais et installations nécessitent les accords précis applicables dans la session d'exécution ; l'ancien SPIKE n'en donne pas de nouveaux.
 
 ## 2. Index et dépendances
 
@@ -43,7 +43,7 @@ L1–L6 modifient potentiellement les mêmes contrats IPC, workers, `ui.rs` et `
 | L1.1 | Types purs `ModelId`, révision, qualification, préférence et causes de refus ; distinguer présence, moteur, ressources et calcul. | `crates/whisper-core/src/domain.rs`, `ports.rs`, `lib.rs`, modules dédiés à définir ; tests purs de CAP-31/34. |
 | L1.2 | Évaluation applicative unique des modèles et modes linguistiques ; refus identique dans le widget et avant séance, sans substitution. | `crates/whisper-core/src/application.rs`, `ports.rs` ; tests Auto qualifié, manuel absent et aucun mode (PARA-05/16, CAP-33). |
 | L1.3 | Constat des artefacts et du PC injecté par composition, avec `Unknown` distinct d'`Insufficient`. | `crates/whisper-adapters/src/lib.rs`, modules catalogue/hôte à nommer, `crates/whisper-desktop/src/root.rs` ; tests absent, invalide, mesure manquante/tardive (CAP-32). |
-| L1.4 | Migration du chemin modèle Turbo connu vers préférence `ModelId`, distincte d'Auto calcul ; préférence Parakeet absente conservée. | `crates/whisper-core/src/path_settings.rs`, `crates/whisper-adapters/src/path_settings.rs` ; fixture de migration isolée, réouverture et échec d'écriture (PARA-08). |
+| L1.4 | Migrer v1 vers v2 : Turbo exact vérifié ou intention du chemin historique connu → `ModelId::Turbo` ; le fichier manquant ne devient pas source alternative. Chemin inconnu/invérifiable → valeur diagnostique conservée, lancement bloqué et choix explicite demandé. Préserver audio/destination/micro/calcul ; acquittement périmé ignoré et échec de sauvegarde expliqué. | `crates/whisper-core/src/path_settings.rs`, `crates/whisper-adapters/src/path_settings.rs`, tests `crates/whisper-core/tests/model_preferences.rs` et `crates/whisper-adapters/tests/model_preferences.rs` ; migration/réouverture isolées (PARA-08). |
 | L1.5 | Liste de modèles et de langues issue de l'application ; retirer chemin modèle et langue libre, préserver champs audio/sortie. | `crates/whisper-desktop/src/ui.rs`, `root.rs` ; inspection du vrai widget et refus côté application (PARA-05/06/16). |
 | L1.6 | Vérifier non-régression Turbo, sélections périmées, modèle absent et source de test exclusivement locale. | Tests `crates/whisper-core/tests/`, `crates/whisper-adapters/tests/`, `crates/whisper-desktop/tests/` à nommer exactement ; AC-PARA-07A/08 et CAP-31–34. |
 
@@ -56,7 +56,7 @@ L1–L6 modifient potentiellement les mêmes contrats IPC, workers, `ui.rs` et `
 | L2.1 | Implémenter le worker et la façade du backend CPU acceptés par le design, avec propriété/libération des handles natifs. | Nouveau module/worker Parakeet à choisir après G-DESIGN, `Cargo.toml`/`Cargo.lock` seulement si approuvés ; essai CPU natif attribué. |
 | L2.2 | Versionner IPC : release, modèle/révision, séance/tentative, Auto langue et calcul ; refuser worker/version incompatible. | `crates/whisper-core/src/ipc.rs`, `crates/whisper-adapters/src/worker_ipc.rs`, worker retenu ; test identité fausse et résultat périmé. |
 | L2.3 | Router l'import WAV/MP3 vers le modèle sélectionné, sans secours Turbo ; recontrôler l'artefact à l'ouverture. | `crates/whisper-core/src/application.rs`, `crates/whisper-adapters/src/worker_ipc.rs`, `decoder.rs`, `crates/whisper-desktop/src/root.rs` selon nécessité ; modèle/CPU attestés. |
-| L2.4 | Publier TXT/SRT lisibles et source importée intacte ; annulation et sortie incomplète selon Q-PARA-06. | `crates/whisper-adapters/src/archive.rs`, `supervisor.rs` si requis ; WAV/MP3 annotés et source avant/après. |
+| L2.4 | Publier TXT/SRT lisibles et garder la source importée intacte. Stop/Quit avant engagement conserve pending et rejette tout résultat tardif ; après engagement, annoncer « arrêt trop tardif » et rapporter la vraie issue. | `crates/whisper-adapters/src/archive.rs`, `supervisor.rs`, `crates/whisper-core/src/application.rs`, test `crates/whisper-adapters/tests/import_cancellation.rs` ; barrières déterministes avant/après publication et source avant/après. |
 | L2.5 | Émettre les sondes réellement observées sans annonce de gain. | Journal existant, `crates/whisper-desktop/src/reactivity_log.rs` et raccords nécessaires ; modèle, CPU, première inférence et sorties corrélés. |
 | L2.6 | Vérifier refus de mode manuel Parakeet, Auto non qualifié, erreurs moteur et non-régression Turbo. | `crates/whisper-core/tests/import_contract.rs`, `crates/whisper-adapters/tests/import_cpu.rs`, `import_mp3.rs`, `worker_control.rs`, tests worker à fixer. |
 
@@ -87,32 +87,46 @@ L1–L6 modifient potentiellement les mêmes contrats IPC, workers, `ui.rs` et `
 
 **Gate L4 :** RISK-T-01d, Q-PARA-08/09 et contrat de fenêtres/arrêt acceptés. La limite RAM d'une fenêtre ne borne pas le WAV conservé sur disque ; aucune durée maximale de drainage n'est promise.
 
-### L5 — acquisition et réparation finale (découpage pendant, 4 résultats)
+### L5 — acquisition et réparation explicite (6 tâches)
 
-1. Vérifier à l'installation uniquement les artefacts absents, via sources/révisions/tailles/empreintes et licences figées ; préserver tout modèle valide.
-2. Télécharger vers un temporaire privé, valider avant publication locale ; fichier partiel, réseau interrompu ou disque plein ne deviennent jamais `Ready`.
-3. Offrir la réparation **explicitement déclenchée** dans l'application après modification autorisée de RG-08 ; annulation et publication sérialisées, sans résultat tardif activé.
-4. Rendre causes et états visibles ; l'échec d'un modèle laisse utilisable un autre modèle valide et conserve la préférence.
+**Entrées :** L1, `PORT-CAT`, `PORT-ACQ`, sources/révisions/tailles/SHA/licences des deux modèles, choix réseau/stockage revus et modification précise autorisée de RG-08 avant réparation réseau dans l'application. Une acquisition globale et un verrou Windows détenu par handle protègent le magasin ; aucun modèle valide utilisé n'est remplacé.
 
-**Gate L5 :** G-ACQ. `crates/whisper-bootstrap/src/main.rs`, `crates/whisper-adapters/src/` et `crates/whisper-desktop/src/` sont des surfaces à examiner, **pas** des chemins autorisés : mécanisme de magasin, réseau, concurrence, fermeture et fichiers exacts restent à concevoir. Le plan writer devra convertir ces quatre résultats en tâches avec `lot.paths`, tests et erreurs observables avant `PLANS READY`.
+| Tâche | Travail et résultat | Chemins d'écriture candidats ; contrôle futur |
+| --- | --- | --- |
+| L5.1 | Magasin Test/Final et catalogue fermé ; Test ne lit que `models/`, Final la racine du design ; taille/SHA revérifiés avant ouverture. | `crates/whisper-adapters/src/model_store.rs`, `src/lib.rs`, `.gitignore` si requis ; absence/corruption et isolation des provenances. |
+| L5.2 | Verrou détenu physiquement, exclusivité globale et seconde opération `Busy`. | `crates/whisper-adapters/src/model_acquisition.rs`, `Cargo.toml` si feature autorisée ; deux consommateurs installateur/application. |
+| L5.3 | Transfert HTTPS à tampon borné vers `.part-<operation_id>` ; taille, SHA, synchronisation et fermeture avant publication sous verrou. Destination valide → `AlreadyReady` ; invalide sans lecteur → quarantaine ciblée ; erreurs typées. | `model_acquisition.rs`, `model_store.rs`, `Cargo.lock` si résolution justifiée ; réseau/TLS, hash, taille, accès et disque. |
+| L5.4 | Sérialiser annulation, publication et fermeture : annulation acceptée invalide la génération, confirmation après fin IO ; publication engagée donne l'issue réelle. | `crates/whisper-core/src/application.rs`, `ports.rs`, adaptateur acquisition ; barrières avant/après engagement et résultat tardif. |
+| L5.5 | Raccorder vérification/acquisition à l'installation et réparation explicitement déclenchée ; afficher progrès, cause et issue, préserver autre modèle valide et préférence. | `crates/whisper-bootstrap/src/main.rs`, `crates/whisper-desktop/src/root.rs`, `ui.rs` ; installation/réparation/fermeture. |
+| L5.6 | Fermer AC-PARA-07B–E/12/13/18 et non-régression de provenance, sans audio ni texte réseau. | `crates/whisper-adapters/tests/model_acquisition.rs`, `model_store.rs`, `crates/whisper-core/tests/acquisition_contract.rs`, `crates/whisper-desktop/tests/model_acquisition_ui.rs` ; E7a–d. |
 
-### L6 — distribution Windows et paquet réel (découpage pendant, 4 résultats)
+**`lot.paths.write` candidat L5 :** `.gitignore`, `Cargo.lock`, `crates/whisper-adapters/{Cargo.toml,src/lib.rs,src/model_store.rs,src/model_acquisition.rs,tests/model_store.rs,tests/model_acquisition.rs}`, `crates/whisper-core/{src/application.rs,src/ports.rs,tests/acquisition_contract.rs}`, `crates/whisper-bootstrap/src/main.rs`, `crates/whisper-desktop/{src/root.rs,src/ui.rs,tests/model_acquisition_ui.rs}`. Les chemins réellement requis sont à figer après choix du transport et du design ; aucun ajout implicite. `RAILGUARD.md` est une entrée documentaire distincte. L5 partage `application.rs`, `ports.rs`, `root.rs` et `ui.rs` avec L1–L4 ; réconcilier ces interfaces avant intégration.
 
-1. Composer l'installation par utilisateur courant sous `%LOCALAPPDATA%\Programs\Whisper`, workers et DLL privés ; aucune dépendance globale ou secours Downloads/Test.
-2. Vérifier compte standard, chemin avec espaces, installation hors ligne avec modèles déjà valides et réouverture.
-3. Exécuter `AC-PARA-16F` sur le **paquet complet**, avec au moins français et seconde langue annotée, pour chaque variante CPU/GPU annoncée ; rapporter PASS/FAIL/INCONCLUSIVE séparément et ne pas inventer d'identifiant de langue.
-4. Vérifier isolation Test/Final, contenu, licences, empreintes et la disponibilité réelle après réparation/annulation.
+### L6 — distribution Windows et paquet réel (6 tâches)
 
-**Gate L6 :** mécanisme d'installation, contenu du paquet, chemins/tests exacts et droits du magasin définis par l'architecte. Aucun essai ou écriture sous `%LOCALAPPDATA%` n'est autorisé par ce plan. Les résultats ci-dessus ne constituent pas encore un `lot.paths` exécutable.
+**Entrées :** L3–L5 ; mécanisme d'installation, layout et composition ABI versionnés par l'architecte après preuve native. Compte standard et droits réels à éprouver ; aucune écriture sous `%LOCALAPPDATA%` n'est autorisée par ce plan.
+
+| Tâche | Travail et résultat | Chemins d'écriture candidats ; contrôle futur |
+| --- | --- | --- |
+| L6.1 | Composer la release exacte : desktop, bootstrap, workers Turbo/Parakeet, variantes/DLL privées, catalogue et notices ; refuser versions incompatibles ou payload incomplet. | `crates/whisper-bootstrap/src/package.rs`, `src/lib.rs`, `Cargo.toml` ; inventaire/version. |
+| L6.2 | Installer sous `%LOCALAPPDATA%\Programs\Whisper` pour l'utilisateur courant, sans élévation ; préserver modèles valides et expliquer accès ou paquet partiel. | `crates/whisper-bootstrap/src/main.rs`, `install.rs` ; racine injectée, chemin avec espaces, accès refusé. |
+| L6.3 | Raccorder profil Final, racine et workers privés au desktop ; aucun secours Test/Downloads ni dépendance globale. | `crates/whisper-desktop/src/root.rs`, `crates/whisper-bootstrap/src/package.rs` ; témoins Test/Downloads seulement. |
+| L6.4 | Vérifier installation/réparation avec compte standard, modèles déjà valides, réseau absent et réouverture depuis paquet. | `crates/whisper-bootstrap/tests/install_contract.rs`, `package_contract.rs` ; E8a/b. |
+| L6.5 | Qualifier `AC-PARA-16F` sur le paquet exact en FR et EN, CPU puis GPU annoncés, sans langue imposée et avec identité effective. | Entrée native/arguments et test à figer après faisabilité ; E8c. |
+| L6.6 | Rapporter issue par variante, licences/notices et limites ; une configuration non éprouvée reste indisponible. | Plan/bilan existant ; E8a–c. |
+
+**`lot.paths.write` candidat L6 :** `crates/whisper-bootstrap/{Cargo.toml,src/main.rs,src/lib.rs,src/package.rs,src/install.rs,tests/install_contract.rs,tests/package_contract.rs}`, `crates/whisper-desktop/src/root.rs` ; le test `package_language.rs` et le bilan documentaire sont candidats supplémentaires. Format de l'installateur, composition DLL, entrée/arguments natifs et fichiers exacts restent `PLAN_CHANGE_REQUIRED` après design. Aucun script/outillage de paquet nouveau n'est présumé.
 
 ### L7 — qualité et recette (4 tâches)
 
-1. Geler corpus, références humaines, langues et méthode après Q-PARA-05 ; conserver la source et attribuer chaque variante réellement qualifiée.
-2. Comparer sorties Turbo/Parakeet : texte et horodatages par langue/calcul, erreurs et limites, sans seuil de perte initial ni promesse de vitesse.
-3. Vérifier les régressions import/micro, sortie, préférence, modèle indisponible et qualité de la dernière phrase.
-4. Soumettre la fenêtre Windows à l'utilisateur pour l'essai final ; consigner ce qui a été observé et les sous-cas `NOT RUN`.
+| Tâche | Travail et résultat | Chemins candidats |
+| --- | --- | --- |
+| L7.1 | Préparer FR lu/spontané et EN lu/spontané, silences et phrase aux frontières ; références humaines relues, WAV maîtres et MP3 dérivés, mêmes octets aux deux moteurs. | `crates/whisper-adapters/tests/fixtures/parakeet_quality/{README.md,references.json}` candidats ; audio local sous `target/parakeet-quality/corpus/` hors Git. |
+| L7.2 | Comparer WER/CER par extrait/langue et écarts SRT appariables selon normalisation NFC/casse/ponctuation ; attribuer calcul et variante. | `crates/whisper-adapters/tests/parakeet_quality.rs` candidat ; résultats sous `target/parakeet-quality/results/`. |
+| L7.3 | Sortie absente, calcul non attesté, langue non qualifiée ou segment non appariable → `NonComparable` motivé, jamais score fabriqué. | Même test et corpus. |
+| L7.4 | Soumettre import/micro, dernière phrase et sorties à l'utilisateur dans la vraie fenêtre Windows ; consigner observations et `NOT RUN`, sans seuil qualité/vitesse ajouté. | `docs/cadrage/bilan-evo-parakeet.md` candidat, unique bilan L7. |
 
-Les chemins des fixtures/résultats et le budget de comparaison dépendent du corpus accepté. Aucun parcours UI Windows n'est réputé validé par un test de build.
+Les sources audio autorisées et références sont des prérequis matériels, pas des fichiers présumés disponibles. Aucun parcours UI Windows n'est réputé validé par un test de build.
 
 ## 4. Cartes de vérification et couverture
 
@@ -121,7 +135,7 @@ Toutes les cartes sont **NOT RUN**. Les chemins de tests ajoutés et les donnée
 | Carte / lot | Stimulus et témoin | Observation et attendu | Owner / prérequis |
 | --- | --- | --- | --- |
 | E1 / L1 | Turbo/Parakeet valide, absent, invalide, fichier arbitraire ; demande contournant UI. | Deux entrées, seules configurations admises lançables ; cause et refus applicatif identiques. AC-05/07A ; CAP-31/34. | Implémenteur, reviewer ; G-CAP. |
-| E2 / L1 | Auto langue qualifié seul, manuel seul, aucun mode, mesure ressource absente, résultat tardif. | Grisage/autorisation cohérents, `Unknown` non traité comme insuffisant, préférence inchangée. AC-08/16 ; CAP-32/33. | Implémenteur ; Q-CAP-02/03. |
+| E2 / L1 | Auto langue qualifié seul, manuel seul, aucun mode, RAM/VRAM indéterminée après contrôles, résultat tardif. | Capacité obligatoire inconnue bloquée ; ressources seules indéterminées permettent préparation, dont échec réel expliqué ; préférence inchangée. AC-08/16 ; CAP-32/33. | Implémenteur ; Q-CAP-02/03. |
 | E3 / L2 | WAV/MP3 annotés français et autre langue, source intacte, runtime absent ou IPC incompatible. | Texte et TXT/SRT ordonnés ; modèle/CPU effectifs ; aucune substitution ni faux succès. AC-01/02/09/13/16/18. | Implémenteur, validateur ; G-DESIGN CPU/Auto. |
 | E4 / L3 | GPU visé, identité fausse, échec avant/après première inférence. | GPU natif attesté ; refus manuel ; Auto au plus une tentative CPU même modèle avant audio seulement. AC-03/04/15. | Validateur, reviewer ; RISK-T-01c. |
 | E5 / L4 | Parole aux bords, silence, queue courte, Stop avant Ready, saturation/écriture partielle ; tentative d'import pendant micro actif et de micro pendant import actif. | Blocs sans doublon, dernière plage admise conservée, TXT/SRT/WAV cohérents ou incomplet annoncé ; second parcours concurrent refusé sans perturber le premier. AC-09/10/11/13/16. | Implémenteur, validateur ; Q-PARA-08 et RISK-T-01d. |
@@ -132,12 +146,30 @@ Toutes les cartes sont **NOT RUN**. Les chemins de tests ajoutés et les donnée
 
 La couverture inverse est : PARA-01–04 → E3/E4/E9 ; 05–08 → E1/E2/E7/E8 ; 09 → E3/E9 ; 10–15 → E4–E6/E7 ; 16 → E2/E3/E5/E8 ; 17 → E6 ; 18 → E3/E7 ; 19 → E9. CAP-31–34 → E1/E2/E8. Toute carte sans données/chemins observables lors de la révision impose `PLAN_CHANGE_REQUIRED` ; un code retour nul ne vaut pas réussite d'AC.
 
+**Sous-cartes nécessaires au plan final, toutes `NOT RUN`.** Les budgets ci-dessous sont des plafonds candidats hors compilation et préparation des données ; ils ne sont pas des délais promis au produit. Les chemins sous `target/` sont des écritures de campagne à inclure dans `lot.paths.runtime_write` avant exécution.
+
+| Carte | Stimulus, chemins et observation | Budget candidat / prérequis |
+| --- | --- | --- |
+| E1m / L1.4 | Fixtures v1 Turbo exact, historique absent, inconnu/invérifiable, échec sauvegarde et ACK ancien ; `target/parakeet-tests/migration/`. Réouverture v2, diagnostic/choix explicite, aucune ouverture de l'ancien chemin, autres réglages préservés. | ≤10 min ; API de migration/injection. |
+| E3c / L2.4 | WAV/MP3 et barrières avant/après publication ; `target/parakeet-tests/import/`. Avant : source et pending intacts, annulation, résultat tardif rejeté ; après : arrêt trop tardif et issue réelle ; Quit identique. | ≤15 min ; hooks déterministes et worker qualifié. |
+| E7a / L5.1–3 | Petits artefacts synthétiques du catalogue de test, corruption, écritures courtes, accès refusé ; `target/parakeet-tests/acquisition/`. Seul fichier entier validé publié ; autre modèle valide inchangé. | ≤15 min ; IO/transport injectables. |
+| E7b / L5.2/4 | Deux consommateurs et barrières avant/après publication ; `Busy` ou verrou réel refusé, annulation acceptée interdit publication, confirmation après fin IO, événement périmé sans effet. | ≤15 min ; handles Windows, aucun jugement par durée. |
+| E7c / L5.3/5 | Certificat/nom refusé, HTTP et redirection interdits, interruption/disque plein ; erreurs typées, aucun `Ready`, aucun audio/texte réseau, partiel ignoré après relance. | ≤15 min ; politique transport figée ; double réseau distinct du TLS réel. |
+| E7d / L5.4/5 | Réparation explicite puis fermeture pendant IO ; fermeture en cours visible, fin physique constatée, autre modèle conservé. | ≤15 min ; barrière déterministe et fenêtre utilisateur distincte. |
+| E8a / L6.1–4 | Paquet complet puis worker/DLL absent ou version incompatible ; `target/parakeet-package/install space/`, témoins seulement dans Test/Downloads. Erreur expliquée, aucun secours, réouverture offline si modèles Finals valides. | ≤30 min ; paquet/layout figés. |
+| E8b / L6.2/4 | Compte standard et `%LOCALAPPDATA%\Programs\Whisper`, réparation/réouverture, chemin avec espaces ; droits réels et profil Final seuls observés. | ≤30 min ; accord écrit précis pour écritures hors dépôt ; sinon `NOT RUN`. |
+| E8c / L6.5/6 | FR/EN annotés, CPU puis GPU du paquet exact ; `target/parakeet-package/results/`. Appels et sorties corrélés à calcul/paquet, verdict par variante, aucune langue détectée inventée. | ≤45 min ; entrée native/arguments et GPU attendu figés. |
+| E9a / L7.1–3 | Même corpus gelé pour les deux moteurs ; `target/parakeet-quality/results/`. WER/CER, SRT et `NonComparable` attribués, aucune extrapolation. | ≤60 min ; audio/références autorisés et paquet qualifié. |
+| E9b / L7.4 | Fenêtre Windows réelle import/micro ; blocs, dernière phrase et sorties observés, réserves et sous-cas non exécutés consignés. | ≤30 min ; utilisateur et écritures runtime autorisées. |
+
+Rapprochement inverse : E1m → migration L1 ; E3c → application/supervisor/archive L2 ; E7a–d → store/acquisition/bootstrap/UI L5 ; E8a–c → package/install/composition L6 ; E9a/b → corpus/test/bilan L7. Les journaux, réglages, modèles, DLL et sorties sont des chemins indirects à déclarer. Tout chemin découvert hors lot entraîne `PLAN_CHANGE_REQUIRED` avec cause, impact et owner.
+
 ## 5. Préflight, commandes et reprise futurs
 
 **Pour chaque lot, avant toute écriture :** relire `AGENTS.md`, `RAILGUARD.md`, les deux parents Git et leurs revues exactes ; relever HEAD, branche et changements locaux ; vérifier les gates DOCUMENT/CODE/EXECUTION, `lot.paths`, dépendances, source des modèles, cible Windows et matériel. Le lot et ses chemins nécessitent un accord écrit précis **dans la session d'exécution**. Les nouveaux crates, FFI et code C++/CUDA, dépendances Cargo, scripts/installateur, téléchargements, écritures hors dépôt ou changement de RG-08 nécessitent les accords particuliers applicables. Ne pas inférer ces accords de la validation future du plan.
 
-**Commandes proposées, toutes NOT RUN :** depuis `C:\dev\whisper` dans PowerShell, `git status --short --branch`, `git rev-parse HEAD`, `git diff --check`, puis, après code autorisé, `cargo fmt --all -- --check`, `cargo build --offline --locked --workspace`, `cargo test --offline --locked --workspace`. Ces commandes contrôlent le format, la compilation et les contrats exécutés ; elles ne prouvent ni l'inférence native, ni l'identité GPU, ni la capture réelle, ni la qualité dans la fenêtre. Les commandes des essais natifs, données, arguments, sorties et attentes doivent être fixés à partir du design révisé et du paquet retenu ; aucun téléchargement automatique n'est déduit d'un échec offline.
+**Commandes proposées, toutes NOT RUN :** depuis `C:\dev\whisper` dans PowerShell, `git status --short --branch`, `git rev-parse HEAD`, `git diff --check`, puis, après code autorisé, `cargo fmt --all -- --check`, `cargo build --offline --locked --workspace`, `cargo test --offline --locked --workspace`. Après création des cibles annoncées, les tests ciblés proposés sont `cargo test --offline --locked -p whisper-adapters --test model_preferences`, `--test import_cancellation`, `--test model_store`, `--test model_acquisition`, `cargo test --offline --locked -p whisper-core --test acquisition_contract`, et `cargo test --offline --locked -p whisper-bootstrap --test install_contract` puis `--test package_contract`. Leur réussite signifie que les assertions des branches et effets E1m/E3c/E7/E8 concernés passent, pas seulement qu'un processus sort à zéro. Ces commandes ne prouvent ni l'inférence native, ni l'identité GPU, ni la capture réelle, ni la qualité dans la fenêtre. Les commandes des essais natifs, données, arguments, sorties et attentes doivent être fixés à partir du design révisé et du paquet retenu ; aucun téléchargement automatique n'est déduit d'un échec offline.
 
 **Routage de réalisation après autorisation :** la session principale confie chaque lot borné à `rust_implementer` en mode `IMPLEMENT`, puis le candidat concret à `rust_review_coordinator`, qui organise `rust_reviewer` indépendant et les corrections par `rust_implementer` ; deux cycles revue/correction au maximum. Validation native et produit restent distinctes ; la fenêtre Windows finale appartient à l'utilisateur. En cas d'échec, préserver Git, modèles valides, audio et sorties ; corriger seulement les chemins du lot ou soumettre un `PLAN_CHANGE`, sans reset global ni suppression générale de `target/`.
 
-**Travail de plan restant :** après DESIGN READY, figer pour chaque lot ses chemins directs/indirects et fichiers de tests, cartes d'exécution avec données et observations, mécanisme L5/L6, dépendances sans cycle, puis demander une revue indépendante sur le plan Git. Tant que ces éléments manquent, verdict `DESIGN_CHANGE_REQUIRED` et `PLANS NOT READY`.
+**Travail de plan restant :** obtenir l'accord précis puis les preuves et la revue de `SPIKE-PARA-02` ; figer dans le design le mécanisme d'installation, la composition ABI, le transport et l'entrée native réelle ; obtenir `DESIGN READY`. Figer ensuite pour chaque lot les chemins directs/indirects et fichiers de tests, les sources FR/EN annotées, les commandes natives et les dépendances sans cycle, puis demander une revue indépendante sur le plan Git. Tant que ces éléments manquent, verdict `DESIGN_CHANGE_REQUIRED` et `PLANS NOT READY`. La modification proposée de RG-08 est une décision séparée à autoriser avant tout réseau applicatif ; aucun résultat ici ne l'active.
