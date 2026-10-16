@@ -2,9 +2,9 @@ Avancée : design CPU/import L2 relu CLEAN ; L1b-1 et L1b-2 sont committés.
 Blocage : l'intégration native, la qualification du candidat Test et la VAD longue ne sont pas exécutées.
 Décision : proposer L2a-1, puis L2a-2, puis L2b, avec accords d'implémentation distincts ; ce plan ne les autorise pas.
 
-# PLAN-PARA-L2 DRAFT v4 — import Parakeet CPU
+# PLAN-PARA-L2 v4 — import Parakeet CPU
 
-**Parents Git :** design `docs/cadrage/evo-parakeet.md` §9 et `docs/cadrage/evo-engine-capabilities.md` §8 au commit `3c47f272`, verdict indépendant **CLEAN — DESIGN READY-L2** sur CPU/import FR/EN ; L1b-2 `84e5444d` et L1b-1 `7de28359`, tous deux revus CLEAN. Le bilan `bilan-parakeet-faisabilite-cloture.md` est une preuve de faisabilité isolée, pas une qualification produit. Contributions en lecture seule `ARCH-PARA-L2 v1`, `VAD-L2 v1`, `REQ-PARA-L2 v1` et `rust_plan_writer` ; rédaction/versionnement par la session principale. **Statut : DRAFT v4, modifications demandées par l'utilisateur à relire indépendamment.** Le verdict CLEAN v3 à `5a321bd2` ne couvre pas ce découpage. Aucun code L2 n'est autorisé par ce document.
+**Parents Git :** design `docs/cadrage/evo-parakeet.md` §9 et `docs/cadrage/evo-engine-capabilities.md` §8 au commit `3c47f272`, verdict indépendant **CLEAN — DESIGN READY-L2** sur CPU/import FR/EN ; L1b-2 `84e5444d` et L1b-1 `7de28359`, tous deux revus CLEAN. Le bilan `bilan-parakeet-faisabilite-cloture.md` est une preuve de faisabilité isolée, pas une qualification produit. Contributions en lecture seule `ARCH-PARA-L2 v1`, `VAD-L2 v1`, `REQ-PARA-L2 v1` et `rust_plan_writer` ; rédaction/versionnement par la session principale. **Statut : CLEAN — PLANS READY-L2a-1 / L2a-2 / L2b**, verdict indépendant sur `e6e95050`, sans REQUIRED ni advisory. Aucun code L2 n'est autorisé par ce document.
 
 ## 1. Résultat, limites et gates
 
