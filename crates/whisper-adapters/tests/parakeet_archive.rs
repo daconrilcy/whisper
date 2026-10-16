@@ -41,6 +41,20 @@ fn qualified_key() -> ArchiveQualificationKey {
     ArchiveQualificationKey::parakeet_cpu_test()
 }
 
+fn qualified_vad_key() -> ArchiveQualificationKey {
+    let mut key = qualified_key();
+    key.inference_profile = whisper_core::parakeet_windows::PROFILE_IMPORT_VAD.into();
+    key.worker_build = "aa8dfdf317649eabbfe670c5109df46c70d3f1908064bee61d26fe7aa059bf31".into();
+    key
+}
+
+fn qualified_l2b_single_pass_key() -> ArchiveQualificationKey {
+    let mut key = qualified_key();
+    key.runtime_build = "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff".into();
+    key.worker_build = "aa8dfdf317649eabbfe670c5109df46c70d3f1908064bee61d26fe7aa059bf31".into();
+    key
+}
+
 #[test]
 fn parakeet_model_identity_prepares_persists_and_publishes_txt_srt() {
     let root = archive_root().join("parakeet-archive-pass");
@@ -160,6 +174,7 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
     };
     let mut wrong_key = qualified_key();
     wrong_key.worker_build = "0".repeat(64);
+    assert!(!wrong_key.is_parakeet_import_test());
     assert!(
         ArchiveStore::new(&rejected_root)
             .prepare_with_qualification(make_request(&rejected_root, 0x1a9), None, Some(wrong_key),)
@@ -167,6 +182,45 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
             .contains("exact Test worker/runtime key")
     );
     assert!(!rejected_root.exists());
+
+    let exact_vad_key = qualified_vad_key();
+    assert!(exact_vad_key.is_parakeet_vad_test());
+    let mut wrong_vad_key = exact_vad_key.clone();
+    wrong_vad_key.worker_build = "0".repeat(64);
+    assert!(!wrong_vad_key.is_parakeet_vad_test());
+
+    let exact_l2b_single_pass_key = qualified_l2b_single_pass_key();
+    assert!(!exact_l2b_single_pass_key.is_parakeet_import_test());
+    assert!(!exact_l2b_single_pass_key.is_parakeet_vad_test());
+    let mut wrong_l2b_runtime = exact_l2b_single_pass_key.clone();
+    wrong_l2b_runtime.runtime_build = "0".repeat(64);
+    assert!(!wrong_l2b_runtime.is_parakeet_import_test());
+    let mut wrong_l2b_worker = exact_l2b_single_pass_key.clone();
+    wrong_l2b_worker.worker_build = "0".repeat(64);
+    assert!(!wrong_l2b_worker.is_parakeet_import_test());
+
+    let l2b_root = archive_root().join("parakeet-l2b-single-pass-key");
+    let _ = fs::remove_dir_all(&l2b_root);
+    let source_sha = whisper_adapters::archive::sha256_file(&source).unwrap();
+    assert!(
+        ArchiveStore::new(&l2b_root)
+            .prepare_with_qualification(
+                make_request(&l2b_root, 0x1ab),
+                None,
+                Some(exact_l2b_single_pass_key),
+            )
+            .unwrap_err()
+            .contains("exact Test worker/runtime key"),
+        "the L2b short key is refused with an explicit qualification error"
+    );
+    assert!(
+        !l2b_root.exists(),
+        "refused L2b key must not create a destination or pending record"
+    );
+    assert_eq!(
+        whisper_adapters::archive::sha256_file(&source).unwrap(),
+        source_sha
+    );
 
     let root = archive_root().join("parakeet-key-scan-resume");
     let _ = fs::remove_dir_all(&root);
@@ -181,8 +235,12 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
         .join("pending.json");
     let mut pending: serde_json::Value =
         serde_json::from_slice(&fs::read(&pending_path).unwrap()).unwrap();
-    pending["qualification"]["worker_build"] = serde_json::json!("0".repeat(64));
-    fs::write(&pending_path, serde_json::to_vec(&pending).unwrap()).unwrap();
+    pending["qualification"]["runtime_build"] =
+        serde_json::json!("d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff");
+    pending["qualification"]["worker_build"] =
+        serde_json::json!("aa8dfdf317649eabbfe670c5109df46c70d3f1908064bee61d26fe7aa059bf31");
+    let pending_bytes = serde_json::to_vec(&pending).unwrap();
+    fs::write(&pending_path, &pending_bytes).unwrap();
 
     let scan = ArchiveStore::scan(&root).unwrap();
     assert!(scan.iter().any(|entry| {
@@ -192,6 +250,11 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
                 .as_deref()
                 .is_some_and(|message| message.contains("pending identity/schema"))
     }));
+    assert_eq!(fs::read(&pending_path).unwrap(), pending_bytes);
+    assert_eq!(
+        whisper_adapters::archive::sha256_file(&source).unwrap(),
+        source_sha
+    );
     let mut resumed = prepared.clone();
     resumed.generation = prepared.generation.next().unwrap();
     assert!(
@@ -204,6 +267,19 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
             )
             .unwrap_err()
             .contains("pending identity/schema")
+    );
+    assert!(
+        source.exists(),
+        "refused resume must preserve its source file"
+    );
+    assert!(
+        pending_path.exists(),
+        "refused resume must preserve the old pending record"
+    );
+    assert_eq!(fs::read(&pending_path).unwrap(), pending_bytes);
+    assert_eq!(
+        whisper_adapters::archive::sha256_file(&source).unwrap(),
+        source_sha
     );
 }
 

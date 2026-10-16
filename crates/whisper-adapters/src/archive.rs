@@ -496,6 +496,31 @@ struct PendingRecord {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct ImportVadWindowPayload {
+    version: u32,
+    job_id: JobId,
+    generation: Generation,
+    sequence: u64,
+    central_start_sample: u64,
+    central_end_sample: u64,
+    native_start_sample: u64,
+    native_end_sample: u64,
+    last_segment_sequence: u64,
+    qualification: ArchiveQualificationKey,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ImportVadWindowRecord {
+    payload: ImportVadWindowPayload,
+    sha256: String,
+}
+
+const PARAKEET_L2B_VAD_WORKER_SHA256: &str =
+    "aa8dfdf317649eabbfe670c5109df46c70d3f1908064bee61d26fe7aa059bf31";
+const PARAKEET_L2B_RUNTIME_SHA256: &str =
+    "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff";
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ArchiveQualificationKey {
     pub model: String,
     pub artifact: String,
@@ -530,6 +555,35 @@ impl ArchiveQualificationKey {
             backend: "CPU".into(),
             inference_profile: key.inference_profile,
         }
+    }
+
+    pub fn is_parakeet_import_test(&self) -> bool {
+        let expected = Self::parakeet_cpu_test();
+        let build_matches_profile = match self.inference_profile.as_str() {
+            "import-single-pass" => {
+                self.runtime_build == expected.runtime_build
+                    && self.worker_build == expected.worker_build
+            }
+            whisper_core::parakeet_windows::PROFILE_IMPORT_VAD => {
+                self.runtime_build == expected.runtime_build
+                    && self.runtime_build == PARAKEET_L2B_RUNTIME_SHA256
+                    && self.worker_build == PARAKEET_L2B_VAD_WORKER_SHA256
+            }
+            _ => false,
+        };
+        self.model == expected.model
+            && self.artifact == expected.artifact
+            && self.artifact_revision == expected.artifact_revision
+            && self.runtime == expected.runtime
+            && self.worker == expected.worker
+            && build_matches_profile
+            && self.worker_protocol == expected.worker_protocol
+            && self.backend == "CPU"
+    }
+
+    pub fn is_parakeet_vad_test(&self) -> bool {
+        self.is_parakeet_import_test()
+            && self.inference_profile == whisper_core::parakeet_windows::PROFILE_IMPORT_VAD
     }
 }
 
@@ -1296,6 +1350,95 @@ impl ArchiveStore {
         self.root.clone()
     }
 
+    pub fn next_segment_sequence(&self) -> u64 {
+        self.current
+            .as_ref()
+            .map_or(1, |active| active.expected_sequence)
+    }
+
+    /// Durably records that a central VAD interval is fully processed after all
+    /// of its transcript segments have been persisted.
+    pub fn confirm_import_vad_window(
+        &mut self,
+        window: whisper_core::parakeet_windows::Window,
+        last_segment_sequence: u64,
+    ) -> Result<(), String> {
+        let active = self
+            .current
+            .as_ref()
+            .ok_or_else(|| "StorageUnavailable: import archive is not active".to_owned())?;
+        let pending: PendingRecord = serde_json::from_slice(
+            &fs::read(active.directory.join("pending.json"))
+                .map_err(|error| format!("StorageCorrupt: pending record: {error}"))?,
+        )
+        .map_err(|error| format!("StorageCorrupt: pending record: {error}"))?;
+        validate_pending(&pending, active.job_id, active.generation.get())?;
+        let qualification = pending
+            .qualification
+            .clone()
+            .filter(ArchiveQualificationKey::is_parakeet_vad_test)
+            .ok_or_else(|| "ModelNotQualified: import-vad archive key is absent".to_owned())?;
+        let records = read_import_vad_windows(&active.directory, &pending)?;
+        let expected_start = records.last().map_or(0, |record| record.central_end_sample);
+        let expected_sequence = records.len() as u64 + 1;
+        if window.index as u64 + 1 != expected_sequence
+            || window.central_start_sample != expected_start
+            || window.central_start_sample >= window.central_end_sample
+            || window.central_end_sample > active.source_samples
+            || window.native_start_sample > window.central_start_sample
+            || window.native_end_sample < window.central_end_sample
+            || window.native_end_sample - window.native_start_sample
+                > whisper_core::parakeet_windows::MAX_NATIVE_SAMPLES
+            || last_segment_sequence.checked_add(1) != Some(active.expected_sequence)
+        {
+            return Err("StorageCorrupt: import-vad window confirmation is not contiguous".into());
+        }
+        let payload = ImportVadWindowPayload {
+            version: 1,
+            job_id: active.job_id,
+            generation: active.generation,
+            sequence: expected_sequence,
+            central_start_sample: window.central_start_sample,
+            central_end_sample: window.central_end_sample,
+            native_start_sample: window.native_start_sample,
+            native_end_sample: window.native_end_sample,
+            last_segment_sequence,
+            qualification,
+        };
+        let canonical = serde_json::to_vec(&payload).map_err(|error| error.to_string())?;
+        let bytes = serde_json::to_vec(&ImportVadWindowRecord {
+            payload,
+            sha256: format!("{:x}", Sha256::digest(canonical)),
+        })
+        .map_err(|error| error.to_string())?;
+        let path = active.directory.join("vad-windows.jsonl");
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map_err(|error| format!("StorageUnavailable: VAD checkpoint: {error}"))?;
+        file.write_all(&bytes)
+            .and_then(|()| file.write_all(b"\n"))
+            .and_then(|()| file.sync_all())
+            .map_err(|error| format!("StorageUnavailable: VAD checkpoint sync: {error}"))?;
+        Ok(())
+    }
+
+    pub fn confirmed_import_vad_offset(&self) -> Result<u64, String> {
+        let active = self
+            .current
+            .as_ref()
+            .ok_or_else(|| "StorageUnavailable: import archive is not active".to_owned())?;
+        let pending: PendingRecord = serde_json::from_slice(
+            &fs::read(active.directory.join("pending.json"))
+                .map_err(|error| format!("StorageCorrupt: pending record: {error}"))?,
+        )
+        .map_err(|error| format!("StorageCorrupt: pending record: {error}"))?;
+        Ok(read_import_vad_windows(&active.directory, &pending)?
+            .last()
+            .map_or(0, |record| record.central_end_sample))
+    }
+
     /// Explicitly commits a verified live manifest that was durable before a
     /// crash but was not yet selected by CURRENT.
     pub fn resolve_live_publication(root: &Path, request: &LiveRequest) -> Result<(), String> {
@@ -1441,16 +1584,27 @@ impl ArchiveStore {
         let model_path = executable_model_path.unwrap_or(&request.model_path);
         let model_meta = fs::metadata(model_path).map_err(|e| format!("ModelMissing: {e}"))?;
         let model_hash = sha256_file(Path::new(model_path))?;
-        if hex(&model_hash)
+        let is_parakeet_model = hex(&model_hash)
             == whisper_core::model_registry::model(
                 whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
             )
             .artifact
-            .sha256
-            && source_samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
+            .sha256;
+        let vad_qualification = qualification
+            .as_ref()
+            .is_some_and(ArchiveQualificationKey::is_parakeet_vad_test);
+        let single_pass_qualification = qualification.as_ref().is_some_and(|key| {
+            key.is_parakeet_import_test() && key.inference_profile == "import-single-pass"
+        });
+        if is_parakeet_model
+            && ((source_samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
+                && !vad_qualification)
+                || (source_samples
+                    <= whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
+                    && vad_qualification))
         {
             return Err(
-                "DurationUnsupported: Parakeet import-single-pass est limité à 30 minutes".into(),
+                "DurationUnsupported: la durée et le profil Parakeet ne correspondent pas".into(),
             );
         }
         if !is_registered_model(&hex(&model_hash), model_meta.len())
@@ -1464,8 +1618,7 @@ impl ArchiveStore {
             )
             .artifact
             .sha256;
-        if (is_parakeet
-            && qualification.as_ref() != Some(&ArchiveQualificationKey::parakeet_cpu_test()))
+        if (is_parakeet && !single_pass_qualification && !vad_qualification)
             || (!is_parakeet && qualification.is_some())
         {
             return Err("ModelNotQualified: exact Test worker/runtime key is required".into());
@@ -1478,7 +1631,13 @@ impl ArchiveStore {
             .join(request.generation.get().to_string());
         fs::create_dir_all(&directory).map_err(|e| format!("StorageUnavailable: {e}"))?;
         let pending = PendingRecord {
-            version: if qualification.is_some() { 2 } else { 1 },
+            version: if vad_qualification {
+                3
+            } else if qualification.is_some() {
+                2
+            } else {
+                1
+            },
             job_id: request.job_id,
             generation: request.generation,
             source_path: request.source_path.clone(),
@@ -1559,7 +1718,20 @@ impl ArchiveStore {
                 "SourceChanged: resume checkpoint identity differs from the queued request".into(),
             );
         }
-        let prefix = read_segments(&previous_dir.join("segments.jsonl"))?;
+        let mut prefix = read_segments(&previous_dir.join("segments.jsonl"))?;
+        if pending
+            .qualification
+            .as_ref()
+            .is_some_and(ArchiveQualificationKey::is_parakeet_vad_test)
+        {
+            let windows = read_import_vad_windows(&previous_dir, &pending)?;
+            let confirmed_segments = windows
+                .last()
+                .map_or(0, |window| window.last_segment_sequence);
+            prefix.truncate(usize::try_from(confirmed_segments).map_err(|_| {
+                "StorageCorrupt: VAD confirmed segment prefix exceeds address space".to_owned()
+            })?);
+        }
         if prefix.iter().enumerate().any(|(index, segment)| {
             segment.sequence != index as u64 + 1
                 || segment.range.sample_rate_hz != 16_000
@@ -1576,6 +1748,22 @@ impl ArchiveStore {
         }
         let prepared = self.prepare_inner(request, executable_model_path, qualification)?;
         self.copy_resume_prefix(&prepared, &prefix)?;
+        if pending
+            .qualification
+            .as_ref()
+            .is_some_and(ArchiveQualificationKey::is_parakeet_vad_test)
+        {
+            let records = read_import_vad_windows(&previous_dir, &pending)?;
+            if !records.is_empty() {
+                let target = PathBuf::from(&prepared.destination)
+                    .join("transcriptions")
+                    .join(format!("{:032x}", prepared.job_id.0))
+                    .join(prepared.generation.get().to_string())
+                    .join("vad-windows.jsonl");
+                fs::copy(previous_dir.join("vad-windows.jsonl"), target)
+                    .map_err(|error| format!("StorageUnavailable: copy VAD checkpoint: {error}"))?;
+            }
+        }
         Ok((prepared, prefix))
     }
 
@@ -2259,6 +2447,7 @@ fn scan_generation(
             serde_json::from_slice(&fs::read(dir.join("pending.json")).map_err(|e| e.to_string())?)
                 .map_err(|e| format!("StorageCorrupt: pending: {e}"))?;
         validate_pending(&pending, expected_job, expected_generation)?;
+        let _ = read_import_vad_windows(dir, &pending)?;
         if manifest.version != 1
             || manifest.job_id != expected_job
             || manifest.job_id != pending.job_id
@@ -2314,6 +2503,7 @@ fn scan_generation(
             serde_json::from_slice(&fs::read(dir.join("pending.json")).map_err(|e| e.to_string())?)
                 .map_err(|e| format!("StorageCorrupt: pending: {e}"))?;
         validate_pending(&pending, expected_job, expected_generation)?;
+        let _ = read_import_vad_windows(dir, &pending)?;
         return Ok(Some(ArchiveEntry {
             job_id: pending.job_id,
             generation: pending.generation,
@@ -2334,12 +2524,18 @@ fn validate_pending(pending: &PendingRecord, job_id: JobId, generation: u64) -> 
             .artifact
             .sha256;
     let qualification_valid = if pending.model_sha256 == parakeet_sha {
-        pending.version == 2
-            && pending.qualification.as_ref() == Some(&ArchiveQualificationKey::parakeet_cpu_test())
+        (pending.version == 2
+            && pending.qualification.as_ref()
+                == Some(&ArchiveQualificationKey::parakeet_cpu_test()))
+            || (pending.version == 3
+                && pending
+                    .qualification
+                    .as_ref()
+                    .is_some_and(ArchiveQualificationKey::is_parakeet_vad_test))
     } else {
         pending.version == 1 && pending.qualification.is_none()
     };
-    if !matches!(pending.version, 1 | 2)
+    if !matches!(pending.version, 1 | 2 | 3)
         || pending.job_id != job_id
         || pending.generation.get() != generation
         || !is_sha256(&pending.source_sha256)
@@ -2350,6 +2546,70 @@ fn validate_pending(pending: &PendingRecord, job_id: JobId, generation: u64) -> 
         return Err("StorageCorrupt: pending identity/schema is invalid".into());
     }
     Ok(())
+}
+
+fn read_import_vad_windows(
+    directory: &Path,
+    pending: &PendingRecord,
+) -> Result<Vec<ImportVadWindowPayload>, String> {
+    let Some(qualification) = pending
+        .qualification
+        .as_ref()
+        .filter(|key| key.is_parakeet_vad_test())
+    else {
+        if directory.join("vad-windows.jsonl").exists() {
+            return Err("StorageCorrupt: VAD checkpoint exists without an import-vad key".into());
+        }
+        return Ok(Vec::new());
+    };
+    let path = directory.join("vad-windows.jsonl");
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let entries = read_bounded_jsonl::<ImportVadWindowRecord>(&path)?;
+    let segments = read_segments(&directory.join("segments.jsonl"))?;
+    let mut output = Vec::with_capacity(entries.len());
+    let mut previous_end = 0_u64;
+    let mut previous_segment_sequence = 0_u64;
+    for (index, entry) in entries.into_iter().enumerate() {
+        let canonical = serde_json::to_vec(&entry.payload).map_err(|error| error.to_string())?;
+        let expected_hash = format!("{:x}", Sha256::digest(canonical));
+        let payload = entry.payload;
+        if entry.sha256 != expected_hash
+            || payload.version != 1
+            || payload.job_id != pending.job_id
+            || payload.generation != pending.generation
+            || payload.sequence != index as u64 + 1
+            || payload.central_start_sample != previous_end
+            || payload.central_start_sample >= payload.central_end_sample
+            || payload.central_end_sample > pending.source_samples
+            || payload.native_start_sample > payload.central_start_sample
+            || payload.native_end_sample < payload.central_end_sample
+            || payload.native_end_sample - payload.native_start_sample
+                > whisper_core::parakeet_windows::MAX_NATIVE_SAMPLES
+            || payload.last_segment_sequence < previous_segment_sequence
+            || payload.last_segment_sequence > segments.len() as u64
+            || payload.qualification != *qualification
+        {
+            return Err("StorageCorrupt: import-vad checkpoint identity/range is invalid".into());
+        }
+        let owned_segments = segments
+            .get(previous_segment_sequence as usize..payload.last_segment_sequence as usize)
+            .ok_or_else(|| {
+                "StorageCorrupt: VAD window references missing transcript segments".to_owned()
+            })?;
+        if owned_segments.iter().any(|segment| {
+            let center = segment.range.start_sample
+                + (segment.range.end_sample - segment.range.start_sample) / 2;
+            center < payload.central_start_sample || center >= payload.central_end_sample
+        }) {
+            return Err("StorageCorrupt: transcript segment belongs to another VAD window".into());
+        }
+        previous_end = payload.central_end_sample;
+        previous_segment_sequence = payload.last_segment_sequence;
+        output.push(payload);
+    }
+    Ok(output)
 }
 
 fn initialize_pending(directory: &Path, pending: &PendingRecord) -> Result<u64, String> {
@@ -2554,7 +2814,7 @@ pub fn sha256_file(path: &Path) -> Result<[u8; 32], String> {
     Ok(hash.finalize().into())
 }
 
-fn source_output_samples(path: &Path) -> Result<u64, String> {
+pub(crate) fn source_output_samples(path: &Path) -> Result<u64, String> {
     let file = File::open(path).map_err(|e| format!("SourceMissing: {e}"))?;
     let source = MediaSourceStream::new(Box::new(file), Default::default());
     let hint = Hint::new();

@@ -13,6 +13,7 @@ use whisper_core::parakeet_ipc::{
     Command as WorkerCommand, Envelope, Event, PARAKEET_IPC_VERSION, PARAKEET_MAX_FRAME_BYTES,
     PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity,
 };
+use whisper_core::parakeet_windows::{PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE};
 
 #[derive(Clone, Debug)]
 pub struct ParakeetWorkerPaths {
@@ -31,14 +32,34 @@ impl ParakeetWorkerPaths {
         for (label, path) in [
             ("worker", self.executable.as_path()),
             ("native directory", self.native_dir.as_path()),
-            ("model", self.model.as_path()),
         ] {
             let canonical = path
                 .canonicalize()
                 .map_err(|error| format!("{label} unavailable: {error}"))?;
             if !canonical.starts_with(&root) {
-                return Err(format!("PathOutsideRuntime: {label} is outside L2a-2"));
+                return Err(format!(
+                    "PathOutsideRuntime: {label} is outside the active L2 runtime"
+                ));
             }
+        }
+        let model = self
+            .model
+            .canonicalize()
+            .map_err(|error| format!("model unavailable: {error}"))?;
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .canonicalize()
+            .map_err(|error| format!("RepositoryRoot: {error}"))?;
+        let l2b_root = repository.join("target/parakeet-tests/l2/l2b");
+        let shared_l2b_model = repository
+            .join("models/parakeet-tdt-0.6b-v3.q8_0.gguf")
+            .canonicalize()
+            .ok()
+            .is_some_and(|expected| model == expected)
+            && l2b_root.canonicalize().ok().as_ref() == Some(&root);
+        if !model.starts_with(&root) && !shared_l2b_model {
+            return Err("PathOutsideRuntime: model must be under runtime or the read-only L2b models directory".into());
         }
         Ok(())
     }
@@ -56,6 +77,54 @@ impl ParakeetWorkerPaths {
             return Err(format!("QualificationMismatch: model={model_sha}"));
         }
         Ok(())
+    }
+
+    /// Builds the exact per-run archive key for the private L2b Test candidate.
+    /// The profile is kept in the key so VAD pending work cannot resume as single-pass.
+    pub fn qualification_key(
+        &self,
+        profile: &str,
+    ) -> Result<crate::archive::ArchiveQualificationKey, String> {
+        if ![PARAKEET_PROFILE_IMPORT_SINGLE_PASS, PROFILE_IMPORT_VAD].contains(&profile) {
+            return Err("ProfileUnavailable: archive key profile is not an import profile".into());
+        }
+        self.validate()?;
+        if !self.is_l2b_runtime()? {
+            if profile == PARAKEET_PROFILE_IMPORT_SINGLE_PASS {
+                return Ok(crate::archive::ArchiveQualificationKey::parakeet_cpu_test());
+            }
+            return Err(
+                "ProfileUnavailable: import-vad requires the isolated L2b Test runtime".into(),
+            );
+        }
+        let record = whisper_core::model_registry::model(
+            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+        );
+        let model_sha = sha256_file(&self.model)?;
+        if !model_sha.eq_ignore_ascii_case(record.artifact.sha256) {
+            return Err(format!("ModelHashMismatch: {model_sha}"));
+        }
+        let mut key = crate::archive::ArchiveQualificationKey::parakeet_cpu_test();
+        key.artifact_revision = model_sha;
+        key.runtime_build = runtime_sha256(&self.native_dir)?;
+        key.worker_build = sha256_file(&self.executable)?;
+        key.inference_profile = profile.to_owned();
+        Ok(key)
+    }
+
+    fn is_l2b_runtime(&self) -> Result<bool, String> {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .canonicalize()
+            .map_err(|error| format!("RepositoryRoot: {error}"))?;
+        let expected = repository.join("target/parakeet-tests/l2/l2b");
+        Ok(
+            self.runtime_root.canonicalize().ok() == expected.canonicalize().ok()
+                && std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
+                    .and_then(|root| PathBuf::from(root).canonicalize().ok())
+                    == expected.canonicalize().ok(),
+        )
     }
 
     /// Rechecks the mutable native runtime key without rehashing the large model artifact.
@@ -109,24 +178,68 @@ pub struct ParakeetProcess {
     acceptance_sender: SyncSender<Result<Event, String>>,
     runtime_root: PathBuf,
     identity: Option<WorkerIdentity>,
+    expected_profile: String,
     request_id: u64,
 }
 
 impl ParakeetProcess {
     pub fn spawn(paths: &ParakeetWorkerPaths) -> Result<Self, String> {
+        Self::spawn_profile(paths, PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
+    }
+
+    /// Private L2b harness entry point. It cannot be used outside the canonical L2b runtime.
+    #[doc(hidden)]
+    pub fn spawn_for_qualification(
+        paths: &ParakeetWorkerPaths,
+        profile: &str,
+    ) -> Result<Self, String> {
+        if ![PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE].contains(&profile) {
+            return Err("ProfileUnavailable: unsupported private qualification profile".into());
+        }
+        let runtime = paths
+            .runtime_root
+            .canonicalize()
+            .map_err(|error| format!("MissingRuntime: {error}"))?;
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .canonicalize()
+            .map_err(|error| format!("RepositoryRoot: {error}"))?;
+        let l2b_root = repository
+            .join("target/parakeet-tests/l2/l2b")
+            .canonicalize()
+            .map_err(|error| format!("MissingRuntime: {error}"))?;
+        let configured = std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
+            .ok_or("MissingRuntime: PARAKEET_L2_RUNTIME_ROOT")?;
+        if runtime != l2b_root || PathBuf::from(configured).canonicalize().ok() != Some(l2b_root) {
+            return Err(
+                "PathOutsideRuntime: qualification profile requires canonical L2b root".into(),
+            );
+        }
+        Self::spawn_profile(paths, profile)
+    }
+
+    fn spawn_profile(paths: &ParakeetWorkerPaths, profile: &str) -> Result<Self, String> {
         paths.validate()?;
         let model_sha256 = whisper_core::model_registry::model(
             whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
         )
         .artifact
         .sha256;
-        let mut child = Command::new(&paths.executable)
+        let mut command = Command::new(&paths.executable);
+        command
             .arg("--model")
             .arg(&paths.model)
             .arg("--model-sha256")
             .arg(model_sha256)
             .arg("--native-dir")
-            .arg(&paths.native_dir)
+            .arg(&paths.native_dir);
+        if profile == PROFILE_IMPORT_VAD {
+            command.args(["--profile", PROFILE_IMPORT_VAD]);
+        } else if profile == PROFILE_QUALIFICATION_REFERENCE {
+            command.arg("--qualification-reference");
+        }
+        let mut child = command
             .env("PARAKEET_L2_RUNTIME_ROOT", &paths.runtime_root)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -182,6 +295,7 @@ impl ParakeetProcess {
                 format!("MissingRuntime: unable to resolve worker runtime: {error}")
             })?,
             identity: None,
+            expected_profile: profile.to_owned(),
             request_id: 0,
         })
     }
@@ -230,7 +344,7 @@ impl ParakeetProcess {
     }
 
     pub fn accept_ready(&mut self, identity: WorkerIdentity) -> Result<(), String> {
-        if identity.profile != PARAKEET_PROFILE_IMPORT_SINGLE_PASS {
+        if identity.profile != self.expected_profile {
             return Err("ProfileMismatch".into());
         }
         self.identity = Some(identity);
@@ -330,7 +444,7 @@ mod tests {
     fn paths_reject_a_worker_outside_the_runtime_root() {
         let root = std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
             .map(PathBuf::from)
-            .expect("PARAKEET_L2_RUNTIME_ROOT is required by the L2a-2 test environment");
+            .expect("PARAKEET_L2_RUNTIME_ROOT is required by the L2b test environment");
         let paths = ParakeetWorkerPaths {
             executable: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
             native_dir: root.join("native"),

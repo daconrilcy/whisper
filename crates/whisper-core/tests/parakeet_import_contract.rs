@@ -118,7 +118,7 @@ fn only_qualified_cpu_import_with_automatic_language_is_admitted() {
 }
 
 #[test]
-fn parakeet_import_rejects_over_thirty_minutes_and_wrong_hash() {
+fn parakeet_import_admits_long_product_input_but_rejects_wrong_hash() {
     let guard = qualified_guard();
     let mut long = import(
         JobConfig {
@@ -128,14 +128,14 @@ fn parakeet_import_rejects_over_thirty_minutes_and_wrong_hash() {
         PARA_PATH,
     );
     long.source_samples = Some(whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64 + 1);
-    assert!(guard.admit_import(&long, InferencePath::Import).is_err());
+    assert!(guard.admit_import(&long, InferencePath::Import).is_ok());
     long.source_samples = None;
     long.model_sha256[0] ^= 1;
     assert!(guard.admit_import(&long, InferencePath::Import).is_err());
 }
 
 #[test]
-fn parakeet_thirty_minute_boundary_is_inclusive() {
+fn parakeet_duration_selects_adapter_profile_not_core_admission() {
     let guard = qualified_guard();
     let mut request = import(
         JobConfig {
@@ -148,7 +148,7 @@ fn parakeet_thirty_minute_boundary_is_inclusive() {
     assert!(guard.admit_import(&request, InferencePath::Import).is_ok());
     request.source_samples =
         Some(whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64 + 1);
-    assert!(guard.admit_import(&request, InferencePath::Import).is_err());
+    assert!(guard.admit_import(&request, InferencePath::Import).is_ok());
 }
 
 #[test]

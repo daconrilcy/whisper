@@ -5,6 +5,8 @@ use whisper_core::parakeet_ipc::Word;
 use crate::{decoder::DecodedAudio, native_ffi::NativeRecognizer};
 
 pub const MAX_DURATION_MS: u64 = 1_800_000;
+#[cfg(feature = "parakeet-qualification-reference")]
+pub const MAX_REFERENCE_DURATION_MS: u64 = 3_600_000;
 pub const TDT_FRAME_MS: u32 = 80;
 
 pub struct Engine {
@@ -27,9 +29,28 @@ impl Engine {
     }
 
     pub fn transcribe(&mut self, audio: &DecodedAudio) -> Result<(String, Vec<Word>), String> {
+        self.transcribe_bounded(audio, MAX_DURATION_MS)
+    }
+
+    #[cfg(feature = "parakeet-qualification-reference")]
+    pub fn transcribe_reference(
+        &mut self,
+        audio: &DecodedAudio,
+    ) -> Result<(String, Vec<Word>), String> {
+        self.transcribe_bounded(audio, MAX_REFERENCE_DURATION_MS)
+    }
+
+    fn transcribe_bounded(
+        &mut self,
+        audio: &DecodedAudio,
+        duration_limit_ms: u64,
+    ) -> Result<(String, Vec<Word>), String> {
         let duration_ms = (audio.samples.len() as u64 * 1000) / 16_000;
-        if duration_ms == 0 || duration_ms > MAX_DURATION_MS {
-            return Err("AudioTooLong: input must be at most 1,800 seconds".into());
+        if duration_ms == 0 || duration_ms > duration_limit_ms {
+            return Err(format!(
+                "AudioTooLong: input must be at most {} seconds",
+                duration_limit_ms / 1_000
+            ));
         }
         let result = self.recognizer.transcribe(&audio.samples)?;
         let words = validate_words(&result.words, duration_ms)?;

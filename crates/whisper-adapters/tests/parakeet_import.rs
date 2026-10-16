@@ -34,9 +34,14 @@ fn parakeet_worker_configuration_is_confined_to_the_l2a2_runtime() {
     assert!(paths.validate().is_ok());
     let record =
         whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3);
-    let key = whisper_core::model_registry::configuration_key(
-        record,
-        whisper_core::model_catalog::Backend::Cpu,
+    let key = paths
+        .qualification_key(whisper_core::parakeet_windows::PROFILE_IMPORT_VAD)
+        .expect("the exact L2b import-vad Test key is present");
+    assert!(
+        paths
+            .qualification_key(whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE)
+            .unwrap_err()
+            .starts_with("ProfileUnavailable")
     );
     paths
         .verify_qualification(

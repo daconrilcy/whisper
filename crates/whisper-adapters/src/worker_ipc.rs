@@ -34,10 +34,76 @@ use whisper_core::{
     ArchiveHistoryItem, DiagnosticNotice, Generation, ImportEffect, ImportEvent, ImportIoPort,
     JobId,
     ipc::{BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerEvent},
-    ports::{ImportRequest, LiveRequest, PortError, WorkerSegment},
+    ports::{
+        DecodeRequest, DecoderPort, ImportRequest, LiveRequest, PortError, SourceIdentity,
+        WorkerSegment,
+    },
 };
 
 const MAX_FRAME_BYTES: usize = 1_048_576;
+const TDT_FRAME_OVERLAP_SAMPLES: u64 = 1_280;
+const SINGLE_PASS_OVERLAP_TOLERANCE_SAMPLES: u64 = 80;
+
+fn vad_word_overlap_within_one_tdt_frame(start_sample: u64, previous_end_sample: u64) -> bool {
+    start_sample.saturating_add(TDT_FRAME_OVERLAP_SAMPLES) >= previous_end_sample
+}
+
+fn append_vad_parakeet_word_group(
+    groups: &mut Vec<(u64, u64, Vec<String>)>,
+    start_sample: u64,
+    end_sample: u64,
+    token: &str,
+) -> Result<(), String> {
+    if start_sample >= end_sample {
+        return Err("InvalidTimestamp: Parakeet word range is empty".into());
+    }
+    let boundary = groups.last().is_some_and(|(_, _, tokens)| {
+        tokens
+            .last()
+            .is_some_and(|last| last.ends_with('.') || last.ends_with('!') || last.ends_with('?'))
+    });
+    if groups.is_empty() || (boundary && start_sample >= groups.last().unwrap().1) {
+        groups.push((start_sample, end_sample, vec![token.to_owned()]));
+    } else if let Some((group_start, group_end, tokens)) = groups.last_mut() {
+        *group_start = (*group_start).min(start_sample);
+        *group_end = (*group_end).max(end_sample);
+        tokens.push(token.to_owned());
+    }
+    Ok(())
+}
+
+fn single_pass_word_overlap_matches_baseline(start_sample: u64, previous_end_sample: u64) -> bool {
+    start_sample.saturating_add(SINGLE_PASS_OVERLAP_TOLERANCE_SAMPLES) >= previous_end_sample
+}
+
+fn append_single_pass_parakeet_word_group(
+    groups: &mut Vec<(u64, u64, Vec<String>)>,
+    start_sample: u64,
+    end_sample: u64,
+    previous_end_sample: u64,
+    token: &str,
+) -> Result<(), String> {
+    let boundary = groups.last().is_some_and(|(_, _, tokens)| {
+        tokens
+            .last()
+            .is_some_and(|last| last.ends_with('.') || last.ends_with('!') || last.ends_with('?'))
+    });
+    let start_sample = if boundary {
+        start_sample.max(previous_end_sample)
+    } else {
+        start_sample
+    };
+    if start_sample >= end_sample {
+        return Err("InvalidTimestamp: sentence boundary leaves an empty word range".into());
+    }
+    if groups.is_empty() || boundary {
+        groups.push((start_sample, end_sample, vec![token.to_owned()]));
+    } else if let Some((_, group_end, tokens)) = groups.last_mut() {
+        *group_end = end_sample;
+        tokens.push(token.to_owned());
+    }
+    Ok(())
+}
 const EVENTS_PER_STAGE: usize = 21;
 const GATE_IDLE: u8 = 0;
 const GATE_ACTIVE: u8 = 1;
@@ -1033,6 +1099,7 @@ struct ImportRuntime {
     parakeet_events: VecDeque<WorkerEvent>,
     parakeet_end: Option<(JobId, Generation, u64, u64)>,
     parakeet_stopped_ack: bool,
+    parakeet_vad: Option<ParakeetVadRun>,
     idle_worker: Option<IdleWorker>,
     pending_idle_worker: Option<IdleWorker>,
     auto_fallback_reason: Option<String>,
@@ -1058,6 +1125,33 @@ struct ImportRuntime {
         (JobId, u64),
         Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     >,
+}
+
+struct ParakeetVadRun {
+    request: ImportRequest,
+    decoder: Option<crate::decoder::DecoderProxy<ChildWorkerTransport>>,
+    decode_offset: u64,
+    total_samples: u64,
+    source_sha256: String,
+    pcm: Vec<i16>,
+    windows: Vec<whisper_core::parakeet_windows::Window>,
+    next_window: usize,
+    next_segment_sequence: u64,
+    request_count: u64,
+    current_attempt: u64,
+    current_path: Option<PathBuf>,
+    current_source_sha256: Option<String>,
+    pending_confirmation: Option<(whisper_core::parakeet_windows::Window, u64)>,
+    worker_ready: bool,
+    ready_event_sent: bool,
+}
+
+impl Drop for ParakeetVadRun {
+    fn drop(&mut self) {
+        if let Some(path) = self.current_path.take() {
+            let _ = fs::remove_file(path);
+        }
+    }
 }
 
 struct RuntimeModelCatalog {
@@ -1101,18 +1195,26 @@ impl RuntimeModelCatalog {
             return Err("ModelUnknown: modèle non reconnu".into());
         }
         let record = whisper_core::model_registry::model(id);
-        let key = whisper_core::model_registry::configuration_key(
-            record,
-            whisper_core::model_catalog::Backend::Cpu,
-        );
-        self.parakeet_paths
+        let source_samples = request.source_samples.or_else(|| {
+            crate::archive::source_output_samples(Path::new(&request.source_path)).ok()
+        });
+        let profile = if source_samples.is_some_and(|samples| {
+            samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
+        }) {
+            whisper_core::parakeet_windows::PROFILE_IMPORT_VAD
+        } else {
+            whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+        };
+        let paths = self
+            .parakeet_paths
             .as_ref()
-            .ok_or_else(|| "ModelNotQualified: worker Test Parakeet absent".to_owned())?
-            .verify_qualification(
-                record.artifact.sha256,
-                &key.runtime_build,
-                &key.worker_build,
-            )?;
+            .ok_or_else(|| "ModelNotQualified: worker Test Parakeet absent".to_owned())?;
+        let key = paths.qualification_key(profile)?;
+        paths.verify_qualification(
+            record.artifact.sha256,
+            &key.runtime_build,
+            &key.worker_build,
+        )?;
         if request.config.compute != whisper_core::ComputeChoice::Cpu
             || !matches!(
                 &request.config.language,
@@ -1124,12 +1226,10 @@ impl RuntimeModelCatalog {
                     .into(),
             );
         }
-        if request.source_samples.is_some_and(|samples| {
-            samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
-        }) {
-            return Err(
-                "DurationUnsupported: Parakeet import-single-pass est limité à 30 minutes".into(),
-            );
+        if profile == whisper_core::parakeet_windows::PROFILE_IMPORT_VAD
+            && !key.is_parakeet_vad_test()
+        {
+            return Err("ModelNotQualified: import-vad Test key is unavailable".into());
         }
         if !matches!(
             record.admission,
@@ -1186,6 +1286,95 @@ fn format_sha256(value: &[u8; 32]) -> String {
     value.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+fn write_pcm16_wav(path: &Path, samples: &[i16]) -> Result<(), String> {
+    let data_bytes = samples
+        .len()
+        .checked_mul(2)
+        .and_then(|bytes| u32::try_from(bytes).ok())
+        .ok_or_else(|| "InvalidInput: VAD WAV exceeds RIFF size limit".to_owned())?;
+    let riff_size = data_bytes
+        .checked_add(36)
+        .ok_or_else(|| "InvalidInput: VAD WAV exceeds RIFF size limit".to_owned())?;
+    let mut file = fs::File::create(path)
+        .map_err(|error| format!("StorageUnavailable: create VAD WAV: {error}"))?;
+    file.write_all(b"RIFF")
+        .and_then(|()| file.write_all(&riff_size.to_le_bytes()))
+        .and_then(|()| file.write_all(b"WAVEfmt "))
+        .and_then(|()| file.write_all(&16_u32.to_le_bytes()))
+        .and_then(|()| file.write_all(&1_u16.to_le_bytes()))
+        .and_then(|()| file.write_all(&1_u16.to_le_bytes()))
+        .and_then(|()| file.write_all(&16_000_u32.to_le_bytes()))
+        .and_then(|()| file.write_all(&32_000_u32.to_le_bytes()))
+        .and_then(|()| file.write_all(&2_u16.to_le_bytes()))
+        .and_then(|()| file.write_all(&16_u16.to_le_bytes()))
+        .and_then(|()| file.write_all(b"data"))
+        .and_then(|()| file.write_all(&data_bytes.to_le_bytes()))
+        .map_err(|error| format!("StorageUnavailable: write VAD WAV header: {error}"))?;
+    let mut bytes = Vec::with_capacity(samples.len().min(32_000) * 2);
+    for chunk in samples.chunks(16_000) {
+        bytes.clear();
+        bytes.extend(chunk.iter().flat_map(|sample| sample.to_le_bytes()));
+        file.write_all(&bytes)
+            .map_err(|error| format!("StorageUnavailable: write VAD WAV samples: {error}"))?;
+    }
+    file.sync_all()
+        .map_err(|error| format!("StorageUnavailable: sync VAD WAV: {error}"))
+}
+
+fn parakeet_vad_segments(
+    words: &[whisper_core::parakeet_ipc::Word],
+    window: whisper_core::parakeet_windows::Window,
+    total_samples: u64,
+    job_id: JobId,
+    generation: Generation,
+    instance_id: u64,
+    first_sequence: u64,
+) -> Result<Vec<whisper_core::ipc::WorkerSegmentDto>, String> {
+    let absolute =
+        whisper_core::parakeet_windows::absolute_word_samples(&window, total_samples, words)
+            .map_err(|error| format!("InvalidTimestamp: {error}"))?;
+    let mut groups: Vec<(u64, u64, Vec<String>)> = Vec::new();
+    let mut previous_end = 0_u64;
+    for (word, time) in words.iter().zip(absolute) {
+        let token = word.text.trim();
+        if token.is_empty()
+            || !vad_word_overlap_within_one_tdt_frame(time.start_sample, previous_end)
+            || time.start_sample >= time.end_sample
+        {
+            return Err("InvalidTimestamp: Parakeet VAD word is empty or unordered".into());
+        }
+        previous_end = previous_end.max(time.end_sample);
+        if !whisper_core::parakeet_windows::word_belongs_to_central_range(
+            time.start_sample,
+            time.end_sample,
+            window.central_start_sample,
+            window.central_end_sample,
+        ) {
+            continue;
+        }
+        append_vad_parakeet_word_group(&mut groups, time.start_sample, time.end_sample, token)?;
+    }
+    groups
+        .into_iter()
+        .enumerate()
+        .map(|(index, (start, end, tokens))| {
+            let sequence = first_sequence
+                .checked_add(index as u64)
+                .ok_or_else(|| "InvalidInput: Parakeet segment sequence exhausted".to_owned())?;
+            let range = whisper_core::SourceRange::new(start, end, 16_000)
+                .ok_or_else(|| "InvalidTimestamp: VAD segment range is invalid".to_owned())?;
+            Ok(whisper_core::ipc::WorkerSegmentDto {
+                job_id,
+                generation,
+                instance_id,
+                segment_id: whisper_core::SegmentId(sequence),
+                range,
+                text: tokens.join(" "),
+            })
+        })
+        .collect()
+}
+
 fn request_is_parakeet(request: &ImportRequest) -> bool {
     decode_sha256(
         whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
@@ -1197,8 +1386,25 @@ fn request_is_parakeet(request: &ImportRequest) -> bool {
 
 fn archive_qualification_for_request(
     request: &ImportRequest,
+    parakeet_paths: Option<&crate::parakeet_import::ParakeetWorkerPaths>,
 ) -> Option<crate::archive::ArchiveQualificationKey> {
-    request_is_parakeet(request).then(crate::archive::ArchiveQualificationKey::parakeet_cpu_test)
+    if !request_is_parakeet(request) {
+        return None;
+    }
+    let samples = request
+        .source_samples
+        .or_else(|| crate::archive::source_output_samples(Path::new(&request.source_path)).ok())?;
+    let profile = if samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64 {
+        whisper_core::parakeet_windows::PROFILE_IMPORT_VAD
+    } else {
+        whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+    };
+    parakeet_paths
+        .and_then(|paths| paths.qualification_key(profile).ok())
+        .or_else(|| {
+            (profile == whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
+                .then(crate::archive::ArchiveQualificationKey::parakeet_cpu_test)
+        })
 }
 const WORKER_IDLE_RETENTION: Duration = Duration::from_secs(5 * 60);
 
@@ -1330,6 +1536,7 @@ impl ImportRuntime {
             parakeet_events: VecDeque::new(),
             parakeet_end: None,
             parakeet_stopped_ack: false,
+            parakeet_vad: None,
             idle_worker: None,
             pending_idle_worker: None,
             auto_fallback_reason: None,
@@ -1591,7 +1798,10 @@ impl ImportRuntime {
                         match archive.prepare_with_qualification(
                             durable_request.clone(),
                             executable_model_path,
-                            archive_qualification_for_request(&durable_request),
+                            archive_qualification_for_request(
+                                &durable_request,
+                                self.parakeet_paths.as_ref(),
+                            ),
                         ) {
                             Ok(prepared) => {
                                 let queue_result =
@@ -1699,7 +1909,10 @@ impl ImportRuntime {
                         &previous,
                         durable_request.clone(),
                         executable_model_path,
-                        archive_qualification_for_request(&durable_request),
+                        archive_qualification_for_request(
+                            &durable_request,
+                            self.parakeet_paths.as_ref(),
+                        ),
                     )
                     .and_then(|(prepared, prefix)| {
                         crate::queue_store::QueueStore::open(&prepared.destination).and_then(
@@ -1732,8 +1945,13 @@ impl ImportRuntime {
                 match result {
                     Ok((prepared, prefix, queue)) => {
                         let confirmed_segments = prefix.len() as u64;
-                        let confirmed_offset =
-                            prefix.last().map_or(0, |segment| segment.range.end_sample);
+                        let confirmed_offset = if prepared.source_samples.is_some_and(|samples| {
+                            samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
+                        }) {
+                            archive.confirmed_import_vad_offset().unwrap_or(0)
+                        } else {
+                            prefix.last().map_or(0, |segment| segment.range.end_sample)
+                        };
                         self.archive = archive;
                         self.resume_prefix = prefix.into();
                         events.push_back(ImportEvent::Queue(queue));
@@ -1800,7 +2018,17 @@ impl ImportRuntime {
             }
             ImportEffect::PersistSegment(segment) => {
                 let id = (segment.job_id, segment.generation);
+                let sequence = segment.segment_id.0;
                 self.persist_segment(segment, events).and_then(|()| {
+                    let confirmation = self
+                        .parakeet_vad
+                        .as_ref()
+                        .and_then(|run| run.pending_confirmation)
+                        .filter(|(_, last_sequence)| *last_sequence == sequence);
+                    if let Some((window, last_sequence)) = confirmation {
+                        self.confirm_and_advance_parakeet_vad_window(window, last_sequence)
+                            .map_err(|error| (id.0, id.1, error))?;
+                    }
                     l2a2_acceptance_barrier(
                         "resume-prefix-confirmed",
                         self.archive.root_path().as_path(),
@@ -1838,6 +2066,11 @@ impl ImportRuntime {
                     self.parakeet_events.clear();
                     self.parakeet_end = None;
                     self.parakeet_stopped_ack = false;
+                    if let Some(mut run) = self.parakeet_vad.take()
+                        && let Some(path) = run.current_path.take()
+                    {
+                        let _ = fs::remove_file(path);
+                    }
                     self.progress = None;
                     match termination {
                         Ok(_status) => {
@@ -2134,7 +2367,8 @@ impl ImportRuntime {
             return Ok(());
         }
         let mut archive = ArchiveStore::new(&request.destination);
-        let qualification = archive_qualification_for_request(&request);
+        let qualification =
+            archive_qualification_for_request(&request, self.parakeet_paths.as_ref());
         match archive.prepare_with_qualification(request, None, qualification) {
             Ok(prepared) => {
                 self.archive = archive;
@@ -2401,14 +2635,8 @@ impl ImportRuntime {
             id.1,
             "InvalidInput: source duration was not prepared".into(),
         ))?;
-        if source_samples == 0
-            || source_samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
-        {
-            return Err((
-                id.0,
-                id.1,
-                "DurationUnsupported: Parakeet import-single-pass est limité à 30 minutes".into(),
-            ));
+        if source_samples == 0 {
+            return Err((id.0, id.1, "InvalidInput: source duration is empty".into()));
         }
         if self.publication_gate.is_cancelled() {
             return Err((
@@ -2425,10 +2653,15 @@ impl ImportRuntime {
         let record = whisper_core::model_registry::model(
             whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
         );
-        let qualification = whisper_core::model_registry::configuration_key(
-            record,
-            whisper_core::model_catalog::Backend::Cpu,
-        );
+        let profile =
+            if source_samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64 {
+                whisper_core::parakeet_windows::PROFILE_IMPORT_VAD
+            } else {
+                whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+            };
+        let qualification = paths
+            .qualification_key(profile)
+            .map_err(|error| (id.0, id.1, error))?;
         paths
             .verify_qualification(
                 record.artifact.sha256,
@@ -2438,8 +2671,40 @@ impl ImportRuntime {
             .map_err(|error| (id.0, id.1, error))?;
         crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
             .map_err(|error| (id.0, id.1, error))?;
-        let process = crate::parakeet_import::ParakeetProcess::spawn(paths)
-            .map_err(|error| (id.0, id.1, format!("WorkerExited: {error}")))?;
+        let process = if profile == whisper_core::parakeet_windows::PROFILE_IMPORT_VAD {
+            crate::parakeet_import::ParakeetProcess::spawn_for_qualification(paths, profile)
+        } else {
+            crate::parakeet_import::ParakeetProcess::spawn(paths)
+        }
+        .map_err(|error| (id.0, id.1, format!("WorkerExited: {error}")))?;
+        let vad_run = if profile == whisper_core::parakeet_windows::PROFILE_IMPORT_VAD {
+            let source_sha256 = request
+                .source_sha256
+                .map(|sha| format_sha256(&sha))
+                .ok_or((id.0, id.1, "SourceMissing: source hash is absent".into()))?;
+            let decoder_transport = ChildWorkerTransport::spawn(&self.workers.cpu)
+                .map_err(|error| (id.0, id.1, format!("DecoderUnavailable: {error:?}")))?;
+            Some(ParakeetVadRun {
+                request: request.clone(),
+                decoder: Some(crate::decoder::DecoderProxy::new(decoder_transport)),
+                decode_offset: 0,
+                total_samples: source_samples,
+                source_sha256,
+                pcm: Vec::new(),
+                windows: Vec::new(),
+                next_window: 0,
+                next_segment_sequence: self.archive.next_segment_sequence(),
+                request_count: 0,
+                current_attempt: 0,
+                current_path: None,
+                current_source_sha256: None,
+                pending_confirmation: None,
+                worker_ready: false,
+                ready_event_sent: false,
+            })
+        } else {
+            None
+        };
         let instance_id = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
         if instance_id == 0 {
             return Err((
@@ -2464,6 +2729,10 @@ impl ImportRuntime {
         });
         let _ = source_samples;
         self.parakeet = Some(process);
+        self.parakeet_vad = vad_run;
+        if self.parakeet_vad.is_some() {
+            self.resume_prefix.clear();
+        }
         Ok(())
     }
 
@@ -3417,6 +3686,314 @@ impl ImportRuntime {
         }
     }
 
+    fn advance_parakeet_vad_decode(&mut self) -> Result<(), (JobId, Generation, String)> {
+        let Some(vad) = self.parakeet_vad.as_mut() else {
+            return Ok(());
+        };
+        if vad.decode_offset >= vad.total_samples || vad.decoder.is_none() {
+            return Ok(());
+        }
+        let request = vad.request.clone();
+        let start = vad.decode_offset;
+        let end = start.saturating_add(80_000).min(vad.total_samples);
+        let Some(range) = whisper_core::SourceRange::new(start, end, 16_000) else {
+            return Err((
+                request.job_id,
+                request.generation,
+                "InvalidInput: invalid VAD decode range".into(),
+            ));
+        };
+        let sha256 = decode_sha256(&vad.source_sha256)
+            .map_err(|error| (request.job_id, request.generation, error))?;
+        let decoded = vad
+            .decoder
+            .as_mut()
+            .ok_or((
+                request.job_id,
+                request.generation,
+                "DecoderUnavailable".into(),
+            ))?
+            .decode(DecodeRequest {
+                source: SourceIdentity {
+                    source_id: request.source_path.clone(),
+                    sha256,
+                },
+                job_id: request.job_id,
+                generation: request.generation,
+                range,
+                max_samples: 80_000,
+            })
+            .map_err(|error| {
+                (
+                    request.job_id,
+                    request.generation,
+                    format!("DecoderFailed: {error:?}"),
+                )
+            })?;
+        let Some(block) = decoded.into_iter().next() else {
+            return Err((
+                request.job_id,
+                request.generation,
+                "DecoderFailed: empty VAD decode block".into(),
+            ));
+        };
+        if block.block.range.start_sample != start
+            || block.block.range.end_sample != end
+            || block.block.samples.len() as u64 != end - start
+        {
+            return Err((
+                request.job_id,
+                request.generation,
+                "DecoderFailed: VAD decode block has a gap or wrong length".into(),
+            ));
+        }
+        vad.pcm
+            .try_reserve(block.block.samples.len())
+            .map_err(|error| {
+                (
+                    request.job_id,
+                    request.generation,
+                    format!("MemoryUnavailable: VAD PCM allocation: {error}"),
+                )
+            })?;
+        vad.pcm.extend(block.block.samples);
+        vad.decode_offset = end;
+        if vad.decode_offset == vad.total_samples {
+            vad.decoder = None;
+            if vad.pcm.len() as u64 != vad.total_samples {
+                return Err((
+                    request.job_id,
+                    request.generation,
+                    "DecoderFailed: decoded sample count differs from inspected duration".into(),
+                ));
+            }
+            vad.windows = whisper_core::parakeet_windows::plan_windows(&vad.pcm)
+                .map_err(|error| (request.job_id, request.generation, format!("{error}")))?;
+            let confirmed = self
+                .archive
+                .confirmed_import_vad_offset()
+                .map_err(|error| (request.job_id, request.generation, error))?;
+            if confirmed > 0 {
+                let next = vad
+                    .windows
+                    .iter()
+                    .position(|window| window.central_start_sample == confirmed)
+                    .or_else(|| (confirmed == vad.total_samples).then_some(vad.windows.len()))
+                    .ok_or((
+                        request.job_id,
+                        request.generation,
+                        "StorageCorrupt: confirmed VAD offset is not a planned boundary".into(),
+                    ))?;
+                vad.next_window = next;
+            }
+            vad.next_segment_sequence = self.archive.next_segment_sequence();
+        }
+        Ok(())
+    }
+
+    fn begin_next_parakeet_vad_window(&mut self) -> Result<(), (JobId, Generation, String)> {
+        let Some(vad) = self.parakeet_vad.as_mut() else {
+            return Ok(());
+        };
+        let request = vad.request.clone();
+        if vad.next_window >= vad.windows.len() {
+            let last_sequence = vad.next_segment_sequence.saturating_sub(1);
+            self.parakeet_events.push_back(WorkerEvent::Progress {
+                job_id: request.job_id,
+                generation: request.generation,
+                instance_id: self.active.as_ref().map_or(0, |active| active.instance_id),
+                completed_samples: vad.total_samples,
+                total_samples: vad.total_samples,
+            });
+            self.parakeet_end = Some((
+                request.job_id,
+                request.generation,
+                last_sequence,
+                vad.total_samples,
+            ));
+            self.parakeet
+                .as_mut()
+                .ok_or((
+                    request.job_id,
+                    request.generation,
+                    "WorkerExited: Parakeet process is absent".into(),
+                ))?
+                .shutdown()
+                .map_err(|error| (request.job_id, request.generation, error))?;
+            return Ok(());
+        }
+        let window = vad.windows[vad.next_window];
+        let start = usize::try_from(window.native_start_sample).map_err(|_| {
+            (
+                request.job_id,
+                request.generation,
+                "InvalidInput: VAD offset exceeds address space".into(),
+            )
+        })?;
+        let end = usize::try_from(window.native_end_sample).map_err(|_| {
+            (
+                request.job_id,
+                request.generation,
+                "InvalidInput: VAD offset exceeds address space".into(),
+            )
+        })?;
+        let samples = vad.pcm.get(start..end).ok_or((
+            request.job_id,
+            request.generation,
+            "StorageCorrupt: VAD window is outside decoded PCM".into(),
+        ))?;
+        let directory = PathBuf::from(&request.destination)
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string())
+            .join(".parakeet-vad");
+        fs::create_dir_all(&directory).map_err(|error| {
+            (
+                request.job_id,
+                request.generation,
+                format!("StorageUnavailable: VAD temp directory: {error}"),
+            )
+        })?;
+        let path = directory.join(format!("window-{:06}.wav", window.index));
+        write_pcm16_wav(&path, samples)
+            .map_err(|error| (request.job_id, request.generation, error))?;
+        let source_sha256 = crate::archive::sha256_file(&path)
+            .map(|sha| format_sha256(&sha))
+            .map_err(|error| {
+                (
+                    request.job_id,
+                    request.generation,
+                    format!("StorageUnavailable: VAD window hash: {error}"),
+                )
+            })?;
+        vad.current_source_sha256 = Some(source_sha256.clone());
+        let attempt = window.index as u64 + 1;
+        let process = self.parakeet.as_mut().ok_or((
+            request.job_id,
+            request.generation,
+            "WorkerExited: Parakeet process is absent".into(),
+        ))?;
+        process
+            .transcribe(
+                format!("{:032x}", request.job_id.0),
+                request.generation.get(),
+                attempt,
+                &path,
+                source_sha256,
+            )
+            .map_err(|error| (request.job_id, request.generation, error))?;
+        vad.current_attempt = attempt;
+        vad.request_count = vad.request_count.saturating_add(1);
+        vad.current_path = Some(path);
+        Ok(())
+    }
+
+    fn handle_parakeet_vad_result(
+        &mut self,
+        request_id: u64,
+        job_id: String,
+        generation: u64,
+        attempt: u64,
+        identity: whisper_core::parakeet_ipc::WorkerIdentity,
+        source_sha256: String,
+        duration_samples: u64,
+        words: Vec<whisper_core::parakeet_ipc::Word>,
+    ) -> Option<Result<WorkerEvent, PortError>> {
+        let active = self.active.as_ref()?;
+        let id = (active.job_id, active.generation, active.instance_id);
+        let Some(run) = self.parakeet_vad.as_mut() else {
+            return Some(Err(PortError::Failed(
+                "StaleResponse: VAD state disappeared".into(),
+            )));
+        };
+        let Some(window) = run.windows.get(run.next_window).copied() else {
+            return Some(Err(PortError::Failed(
+                "ProtocolMismatch: VAD result has no pending window".into(),
+            )));
+        };
+        let expected_identity = self
+            .parakeet
+            .as_ref()
+            .and_then(|process| process.identity());
+        let expected_duration = window.native_end_sample - window.native_start_sample;
+        if request_id != run.request_count
+            || job_id != format!("{:032x}", active.job_id.0)
+            || generation != active.generation.get()
+            || attempt != run.current_attempt
+            || Some(&identity) != expected_identity
+            || run.current_source_sha256.as_deref() != Some(source_sha256.as_str())
+            || duration_samples != expected_duration
+        {
+            return Some(Err(PortError::Failed(
+                "ProtocolMismatch: Parakeet VAD result identity, source, attempt, or duration differs".into(),
+            )));
+        }
+        if let Some(path) = run.current_path.take() {
+            let _ = fs::remove_file(path);
+        }
+        run.current_source_sha256 = None;
+        let segments = match parakeet_vad_segments(
+            &words,
+            window,
+            run.total_samples,
+            id.0,
+            id.1,
+            id.2,
+            run.next_segment_sequence,
+        ) {
+            Ok(segments) => segments,
+            Err(error) => return Some(Err(PortError::Failed(error))),
+        };
+        run.next_segment_sequence =
+            match run.next_segment_sequence.checked_add(segments.len() as u64) {
+                Some(next) => next,
+                None => {
+                    return Some(Err(PortError::Failed(
+                        "InvalidInput: Parakeet segment sequence exhausted".into(),
+                    )));
+                }
+            };
+        let last_sequence = run.next_segment_sequence.saturating_sub(1);
+        run.pending_confirmation = Some((window, last_sequence));
+        self.parakeet_events.push_back(WorkerEvent::Progress {
+            job_id: id.0,
+            generation: id.1,
+            instance_id: id.2,
+            completed_samples: window.central_end_sample,
+            total_samples: 0,
+        });
+        for segment in segments {
+            self.parakeet_events
+                .push_back(WorkerEvent::Segment(segment));
+        }
+        if self.parakeet_events.len() == 1 {
+            if let Err(error) = self.confirm_and_advance_parakeet_vad_window(window, last_sequence)
+            {
+                return Some(Err(PortError::Failed(error)));
+            }
+        }
+        self.parakeet_events.pop_front().map(Ok)
+    }
+
+    fn confirm_and_advance_parakeet_vad_window(
+        &mut self,
+        window: whisper_core::parakeet_windows::Window,
+        last_segment_sequence: u64,
+    ) -> Result<(), String> {
+        self.archive
+            .confirm_import_vad_window(window, last_segment_sequence)?;
+        let Some(run) = self.parakeet_vad.as_mut() else {
+            return Err("StaleResponse: VAD state disappeared at confirmation".into());
+        };
+        run.pending_confirmation = None;
+        run.next_window = run
+            .next_window
+            .checked_add(1)
+            .ok_or_else(|| "InvalidInput: VAD window sequence exhausted".to_owned())?;
+        self.begin_next_parakeet_vad_window()
+            .map_err(|(_, _, error)| error)
+    }
+
     fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
         let destination = self
             .active
@@ -3537,19 +4114,24 @@ impl ImportRuntime {
                         "StaleResponse: Parakeet request is unavailable".into(),
                     )));
                 };
+                let profile = if self.parakeet_vad.is_some() {
+                    whisper_core::parakeet_windows::PROFILE_IMPORT_VAD
+                } else {
+                    whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+                };
                 let record = whisper_core::model_registry::model(
                     whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
                 );
-                let key = whisper_core::model_registry::configuration_key(
-                    record,
-                    whisper_core::model_catalog::Backend::Cpu,
-                );
+                let key = self
+                    .parakeet_paths
+                    .as_ref()
+                    .and_then(|paths| paths.qualification_key(profile).ok())
+                    .unwrap_or_else(crate::archive::ArchiveQualificationKey::parakeet_cpu_test);
                 if backend != "CPU"
                     || identity.model_sha256 != record.artifact.sha256
                     || identity.runtime_sha256 != key.runtime_build
                     || identity.build_sha256 != key.worker_build
-                    || identity.profile
-                        != whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+                    || identity.profile != profile
                 {
                     return Some(Err(PortError::Failed(
                         "BackendMismatch: Parakeet worker identity differs from the qualified key"
@@ -3559,6 +4141,10 @@ impl ImportRuntime {
                 let process = self.parakeet.as_mut()?;
                 if let Err(error) = process.accept_ready(identity) {
                     return Some(Err(PortError::Failed(error)));
+                }
+                if let Some(vad) = self.parakeet_vad.as_mut() {
+                    vad.worker_ready = true;
+                    return None;
                 }
                 let source_sha = request
                     .source_sha256
@@ -3612,6 +4198,18 @@ impl ImportRuntime {
                 words,
                 ..
             } => {
+                if self.parakeet_vad.is_some() {
+                    return self.handle_parakeet_vad_result(
+                        request_id,
+                        job_id,
+                        generation,
+                        attempt,
+                        identity,
+                        source_sha256,
+                        duration_samples,
+                        words,
+                    );
+                }
                 let Some(active) = self.active.as_ref() else {
                     return Some(Err(PortError::Failed(
                         "StaleResponse: Parakeet result without active import".into(),
@@ -3653,36 +4251,29 @@ impl ImportRuntime {
                 let mut groups: Vec<(u64, u64, Vec<String>)> = Vec::new();
                 let mut previous_end = 0_u64;
                 for word in words {
-                    let mut start = u64::from(word.start_ms).saturating_mul(16);
+                    let start = u64::from(word.start_ms).saturating_mul(16);
                     let end = u64::from(word.end_ms)
                         .saturating_mul(16)
                         .min(duration_samples);
                     let token = word.text.trim();
-                    let boundary = groups.last().is_some_and(|(_, _, tokens)| {
-                        tokens.last().is_some_and(|last| {
-                            last.ends_with('.') || last.ends_with('!') || last.ends_with('?')
-                        })
-                    });
-                    if token.is_empty() || start.saturating_add(80) < previous_end || start >= end {
+                    if token.is_empty()
+                        || !single_pass_word_overlap_matches_baseline(start, previous_end)
+                        || start >= end
+                    {
                         return Some(Err(PortError::Failed(
                             "InvalidTimestamp: Parakeet word range is empty or unordered beyond one 80 ms frame".into(),
                         )));
                     }
-                    if boundary {
-                        start = start.max(previous_end);
-                    }
-                    if start >= end {
-                        return Some(Err(PortError::Failed(
-                            "InvalidTimestamp: sentence boundary leaves an empty word range".into(),
-                        )));
+                    if let Err(error) = append_single_pass_parakeet_word_group(
+                        &mut groups,
+                        start,
+                        end,
+                        previous_end,
+                        token,
+                    ) {
+                        return Some(Err(PortError::Failed(error)));
                     }
                     previous_end = previous_end.max(end);
-                    if groups.is_empty() || boundary {
-                        groups.push((start, end, vec![token.to_owned()]));
-                    } else if let Some((_, group_end, tokens)) = groups.last_mut() {
-                        *group_end = end;
-                        tokens.push(token.to_owned());
-                    }
                 }
                 let last_sequence = groups.len() as u64;
                 for (sequence, (start, end, tokens)) in groups.into_iter().enumerate() {
@@ -3883,6 +4474,49 @@ impl ImportRuntime {
         }
         if self.deferred_live_window_finished.is_some() && self.live_pending_persistence > 0 {
             return None;
+        }
+        if self
+            .parakeet_vad
+            .as_ref()
+            .is_some_and(|run| run.decoder.is_some())
+            && let Err(failure) = self.advance_parakeet_vad_decode()
+        {
+            if let Some(worker) = self.parakeet.as_mut() {
+                let _ = worker.terminate();
+            }
+            self.parakeet = None;
+            self.parakeet_vad = None;
+            self.parakeet_events.clear();
+            self.active = None;
+            return Some(Err(failure));
+        }
+        if self
+            .parakeet_vad
+            .as_ref()
+            .is_some_and(|run| run.decoder.is_none() && run.worker_ready && !run.ready_event_sent)
+        {
+            if let Err(failure) = self.begin_next_parakeet_vad_window() {
+                if let Some(worker) = self.parakeet.as_mut() {
+                    let _ = worker.terminate();
+                }
+                self.parakeet = None;
+                self.parakeet_vad = None;
+                self.parakeet_events.clear();
+                self.active = None;
+                return Some(Err(failure));
+            }
+            let Some(active) = self.active.as_ref() else {
+                return None;
+            };
+            self.parakeet_events.push_back(WorkerEvent::Ready {
+                job_id: active.job_id,
+                generation: active.generation,
+                instance_id: active.instance_id,
+                backend: BackendKind::Cpu,
+            });
+            if let Some(run) = self.parakeet_vad.as_mut() {
+                run.ready_event_sent = true;
+            }
         }
         let mut event = if self.parakeet.is_some() || !self.parakeet_events.is_empty() {
             match self.poll_parakeet_worker() {
@@ -5120,6 +5754,110 @@ mod tests {
         AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
         JobConfig, JobId, JobState, LanguageChoice,
     };
+
+    #[test]
+    fn timestamp_guard_accepts_exactly_one_tdt_frame_overlap() {
+        assert!(vad_word_overlap_within_one_tdt_frame(10_000, 11_280));
+        assert!(!vad_word_overlap_within_one_tdt_frame(10_000, 11_281));
+    }
+
+    #[test]
+    fn single_pass_timestamp_guard_keeps_the_baseline_eighty_sample_bound() {
+        assert!(single_pass_word_overlap_matches_baseline(10_000, 10_080));
+        assert!(!single_pass_word_overlap_matches_baseline(10_000, 10_081));
+    }
+
+    #[test]
+    fn single_pass_punctuation_boundary_keeps_the_baseline_split_behavior() {
+        let mut groups = vec![(10_000, 10_080, vec!["?".to_owned()])];
+        let error =
+            append_single_pass_parakeet_word_group(&mut groups, 10_000, 10_080, 10_080, "Je")
+                .unwrap_err();
+        assert!(error.contains("sentence boundary leaves an empty word range"));
+        assert_eq!(groups, vec![(10_000, 10_080, vec!["?".to_owned()])]);
+    }
+
+    fn vad_test_window() -> whisper_core::parakeet_windows::Window {
+        whisper_core::parakeet_windows::Window {
+            index: 0,
+            central_start_sample: 0,
+            central_end_sample: 400_000,
+            native_start_sample: 0,
+            native_end_sample: 400_000,
+            cut: None,
+        }
+    }
+
+    fn vad_test_word(text: &str, start_ms: u32, end_ms: u32) -> whisper_core::parakeet_ipc::Word {
+        whisper_core::parakeet_ipc::Word {
+            text: text.into(),
+            start_ms,
+            end_ms,
+        }
+    }
+
+    #[test]
+    fn vad_sentence_overlap_within_one_frame_stays_in_one_valid_segment() {
+        let words = [
+            vad_test_word("?", 17_920, 18_080),
+            vad_test_word("Je", 18_000, 18_080),
+        ];
+        let segments = parakeet_vad_segments(
+            &words,
+            vad_test_window(),
+            400_000,
+            JobId(1),
+            Generation::first(),
+            1,
+            1,
+        )
+        .unwrap();
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].text, "? Je");
+        assert_eq!(segments[0].range.start_sample, 17_920 * 16);
+        assert_eq!(segments[0].range.end_sample, 18_080 * 16);
+        assert_eq!(segments[0].text.split_whitespace().count(), 2);
+    }
+
+    #[test]
+    fn vad_overlapped_sentence_word_extends_group_to_later_end() {
+        let words = [
+            vad_test_word("?", 17_920, 18_080),
+            vad_test_word("Je", 18_000, 18_100),
+        ];
+        let segments = parakeet_vad_segments(
+            &words,
+            vad_test_window(),
+            400_000,
+            JobId(1),
+            Generation::first(),
+            1,
+            1,
+        )
+        .unwrap();
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].range.end_sample, 18_100 * 16);
+        assert_eq!(segments[0].text, "? Je");
+    }
+
+    #[test]
+    fn vad_sentence_overlap_over_one_tdt_frame_is_rejected() {
+        let words = [
+            vad_test_word("?", 17_920, 18_080),
+            vad_test_word("Je", 17_999, 18_080),
+        ];
+        let error = parakeet_vad_segments(
+            &words,
+            vad_test_window(),
+            400_000,
+            JobId(1),
+            Generation::first(),
+            1,
+            1,
+        )
+        .unwrap_err();
+        assert!(error.contains("unordered"));
+    }
 
     #[test]
     fn gpu_attestation_ack_is_bound_to_the_current_session() {
