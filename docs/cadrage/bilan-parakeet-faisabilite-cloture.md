@@ -27,6 +27,8 @@ Le fichier `spkr0_x12.wav` est constitué de douze répétitions du fichier EN r
 
 Aux coupures, la passe unique et la VAD rendent notamment `140` contre `hundred forty` ; des tokens `they` et `were` diffèrent aussi dans la fenêtre temporelle. Ces chiffres documentent **l'échec du critère local de zéro édition** pour les segments de 20 min. L'écart global à la passe unique est indiqué pour montrer la sensibilité au contexte ; il n'est pas un score de qualité absolue et n'est pas bloquant. Aucune seconde configuration ou campagne n'a été essayée.
 
+Échantillon limité (2 coupures, placées aux jonctions du montage synthétique), et une partie des écarts relève de l'écriture des nombres (`140` / `hundred forty`). Le NO-GO sanctionne le critère strict, pas une infériorité démontrée du format.
+
 ## Design retenu et réserves
 
 **Passe unique jusqu'à 30 min sur CPU ou CUDA0 ; au-delà, découpe VAD en segments de 60 à 120 s**, sur des silences d'au moins **400 ms**, avec **200 ms de marge**. Le format visant 20 min, maximum 25 min, n'est pas retenu. Le GO de la VAD 60–120 s porte sur la mécanique observée aux coupures et l'absence de doublons ; il ne constitue pas une mesure de justesse de transcription. Le test de 60 min de ce bilan a porté seulement sur le format 20 min ; il n'étend pas directement la preuve expérimentale du format 60–120 s à 60 min.
@@ -37,5 +39,6 @@ Aux coupures, la passe unique et la VAD rendent notamment `140` contre `hundred 
 2. Aucune vérité terrain humaine n'est disponible ; la qualité absolue de transcription et l'effet du contexte ne sont pas mesurés.
 3. Les 23 autres langues et le paquet final de l'application restent hors périmètre.
 4. Sous WDDM, la VRAM a été observée globalement par `nvidia-smi`, sans attribution exacte au worker Parakeet.
+5. La découpe VAD de 60 à 120 s n'a été testée que sur des fichiers d'environ 5 min (2 coupures). Le parcours au-delà de 30 min, qui en compte 30 à 60, n'est pas mesuré. Il doit faire l'objet d'un test d'acceptation en intégration sur un fichier de 60 min.
 
 Cette clôture qualifie la faisabilité isolée. Le design et le plan d'intégration produit demeurent régis par leurs propres prérequis et autorisations.
