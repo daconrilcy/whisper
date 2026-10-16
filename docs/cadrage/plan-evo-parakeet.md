@@ -1,10 +1,10 @@
-Avancée : le design catalogue/capacités a reçu une revue indépendante CLEAN sur `471821e5` ; le premier lot L1a est découpé en règles pures vérifiables.
-Blocage : le plan L1a attend sa revue et son acceptation ; le raccordement produit, le micro et le paquet final ont des gates distinctes.
-Décision : soumettre `PLAN-PARA-L1a v1` et ses cinq chemins exacts ; aucune autorisation de coder n'est déduite de ce document.
+Avancée : design L1 revu CLEAN, plan L1a revu PLANS READY-L1a et accepté par l'utilisateur avec ses cinq chemins d'écriture.
+Blocage : l'accord écrit précis d'implémentation du lot reste à obtenir ; le raccordement produit, le micro et le paquet final ont des gates distinctes.
+Décision : conserver `PLAN-PARA-L1a v1` comme premier lot accepté ; cette acceptation documentaire n'autorise pas le code.
 
 # Plan d'implémentation Parakeet — premier lot L1a
 
-**Parents Git :** `docs/cadrage/evo-parakeet.md` et `docs/cadrage/evo-engine-capabilities.md` à `471821e5`, bilan de faisabilité à `8fee7329`. La revue indépendante du design a conclu **CLEAN sur le seul périmètre L1 catalogue/capacités** ; elle ne déclare pas prêts les lots natifs, le micro ni la distribution. **Contribution :** `rust_plan_writer`, `PLAN-PARA-L1a v1`, en lecture seule ; rédaction et versionnement par la session principale. **Statut du présent plan :** proposition à revoir, puis à faire accepter par l'utilisateur. La version DRAFT précédente reste disponible dans l'historique Git.
+**Parents Git :** `docs/cadrage/evo-parakeet.md` et `docs/cadrage/evo-engine-capabilities.md` à `471821e5`, bilan de faisabilité à `8fee7329`. La revue indépendante du design a conclu **CLEAN sur le seul périmètre L1 catalogue/capacités**. La revue indépendante du plan corrigé à `f6545e38` a conclu **CLEAN — PLANS READY-L1a**, sans REQUIRED restant. L'utilisateur a accepté `PLAN-PARA-L1a v1` et ses cinq chemins d'écriture dans sa réponse explicite du 16 octobre 2026. Ces décisions ne déclarent pas prêts les lots natifs, le micro ni la distribution et ne valent pas accord d'implémentation. **Contribution :** `rust_plan_writer`, en lecture seule ; rédaction et versionnement par la session principale. La version DRAFT précédente reste disponible dans l'historique Git.
 
 Le but produit demeure l'ajout de Parakeet TDT 0.6B v3 à Turbo dans l'application Windows. L1a met en place le contrat du registre de moteurs avant le raccordement. Il n'active aucun modèle nouveau. Les résultats du banc FR/EN CPU/CUDA0 sont des preuves de faisabilité isolées, sans qualification du candidat produit ni de son paquet final.
 
@@ -12,7 +12,7 @@ Le but produit demeure l'ajout de Parakeet TDT 0.6B v3 à Turbo dans l'applicati
 
 | Lot | Résultat démontrable | Prérequis et état |
 | --- | --- | --- |
-| **L1a — socle pur** | Deux identités fermées, fiches de capacités injectées, projection et validation déterministes avec causes. | Design L1 revu ; premier lot détaillé ci-dessous, soumis à revue et acceptation. |
+| **L1a — socle pur** | Deux identités fermées, fiches de capacités injectées, projection et validation déterministes avec causes. | Design L1 et plan L1a revus ; premier lot et cinq chemins acceptés. Accord d'implémentation précis encore requis. |
 | L1b — raccordement | Catalogue réel, disponibilité, préférences/migration, liste de modèles et de langues dans l'UI, refus avant séance. | L1a ; fiches initiales Turbo justifiées pour conserver les parcours existants ; plan/chemins et revue propres. **DRAFT**. |
 | L2 — import Parakeet CPU | WAV/MP3, texte, TXT/SRT, worker et horodatages. | L1b ; contrat natif/IPC et preuve du candidat exact ; cas sans silence admissible à trancher pour la découpe longue ; acceptation 60 min VAD pendant l'intégration. **DRAFT**. |
 | L3 — GPU et Auto calcul | GPU attendu réellement utilisé, modes manuels fixes et repli Auto borné avec le même modèle. | L2 ; attestation produit GPU. **DRAFT**. |
@@ -78,7 +78,7 @@ Rapprochement inverse : `lib.rs` → A1/A8 ; `model_catalog.rs` et son test → 
 
 ## 5. Préflight, vérifications et routage
 
-Avant toute écriture de code : relire les règles et parents Git exacts, le verdict indépendant sur ce plan, puis obtenir de l'utilisateur **l'acceptation du plan L1a et de ses cinq chemins**. La demande d'implémentation ultérieure doit donner **l'accord écrit précis dans sa session** pour le lot et ses chemins, conformément à `AGENTS.md`. Relever `git status --short --branch`, `git rev-parse HEAD`, `git diff --check` et préserver tout autre travail, notamment `sound example/`. Dans le processus de campagne, retirer temporairement les variables `WHISPER_L01_*`, `WHISPER_L02_*` et `WHISPER_L04_*` héritées, puis les restaurer ; elles ne doivent pas déclencher de parcours natif durant L1a.
+Avant toute écriture de code : relire les règles et parents Git exacts, le verdict indépendant sur ce plan et l'acceptation déjà donnée par l'utilisateur pour **L1a et ses cinq chemins**. La demande d'implémentation ultérieure doit donner **l'accord écrit précis dans sa session** pour le lot et ses chemins, conformément à `AGENTS.md`. Relever `git status --short --branch`, `git rev-parse HEAD`, `git diff --check` et préserver tout autre travail, notamment `sound example/`. Dans le processus de campagne, retirer temporairement les variables `WHISPER_L01_*`, `WHISPER_L02_*` et `WHISPER_L04_*` héritées, puis les restaurer ; elles ne doivent pas déclencher de parcours natif durant L1a.
 
 Après code autorisé, dans `C:\dev\whisper` avec Cargo offline/locked et les variables temporaires bornées ci-dessus :
 
