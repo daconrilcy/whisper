@@ -44,6 +44,89 @@ const GATE_ACTIVE: u8 = 1;
 const GATE_CANCELLED: u8 = 2;
 const GATE_COMMITTING: u8 = 3;
 const GATE_COMMITTED: u8 = 4;
+
+/// Deterministic process-level barriers used only by the acceptance-test build.
+/// Their root is checked against the isolated L2a-2 runtime before touching disk.
+fn l2a2_acceptance_barrier(phase: &str, destination: &Path) -> Result<(), String> {
+    if option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_none() {
+        return Ok(());
+    }
+    if !matches!(
+        phase,
+        "prepare" | "resume-prefix-confirmed" | "publish-before-commit" | "publish-after-commit"
+    ) {
+        return Err("InvalidInput: unknown L2a-2 acceptance barrier".into());
+    }
+    let runtime = std::env::var_os("PARAKEET_L2_RUNTIME_ROOT").ok_or_else(|| {
+        "MissingRuntime: L2a-2 root is required for acceptance barrier".to_owned()
+    })?;
+    let runtime = PathBuf::from(runtime)
+        .canonicalize()
+        .map_err(|error| format!("MissingRuntime: {error}"))?;
+    let destination = destination
+        .canonicalize()
+        .map_err(|error| format!("PathOutsideRuntime: destination unavailable: {error}"))?;
+    let root = destination.join(".l2a2-acceptance");
+    if !root.join(format!("{phase}.enabled")).is_file() {
+        return Ok(());
+    }
+    fs::create_dir_all(&root).map_err(|error| format!("StorageUnavailable: {error}"))?;
+    let root = root
+        .canonicalize()
+        .map_err(|error| format!("StorageUnavailable: {error}"))?;
+    if !destination.starts_with(&runtime) || !root.starts_with(&runtime) {
+        return Err("PathOutsideRuntime: acceptance barrier is outside L2a-2".into());
+    }
+    fs::write(root.join(format!("{phase}.entered")), b"entered")
+        .map_err(|error| format!("StorageUnavailable: {error}"))?;
+    while !root.join(format!("{phase}.release")).is_file() {
+        thread::sleep(Duration::from_millis(5));
+    }
+    Ok(())
+}
+
+fn l2a2_acceptance_take_worker_fault(
+    destination: &Path,
+    worker_ready: bool,
+) -> Result<Option<&'static str>, String> {
+    if option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_none() {
+        return Ok(None);
+    }
+    let runtime = std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
+        .ok_or_else(|| "MissingRuntime: L2a-2 root is required for acceptance fault".to_owned())?;
+    let runtime = PathBuf::from(runtime)
+        .canonicalize()
+        .map_err(|error| format!("MissingRuntime: {error}"))?;
+    let destination = destination
+        .canonicalize()
+        .map_err(|error| format!("PathOutsideRuntime: destination unavailable: {error}"))?;
+    let control = destination.join(".l2a2-acceptance");
+    if !destination.starts_with(&runtime) || !control.starts_with(&runtime) {
+        return Err("PathOutsideRuntime: acceptance fault is outside L2a-2".into());
+    }
+    for (signal, message) in [
+        (
+            "worker-death",
+            "WorkerExited: test-injected process termination after Transcribe",
+        ),
+        (
+            "incomplete-result",
+            "IpcDecode: incomplete Result frame at adapter transport boundary",
+        ),
+    ] {
+        if !worker_ready {
+            continue;
+        }
+        let enabled = control.join(format!("{signal}.enabled"));
+        if enabled.is_file() {
+            fs::remove_file(&enabled).map_err(|error| format!("StorageUnavailable: {error}"))?;
+            fs::write(control.join(format!("{signal}.entered")), b"entered")
+                .map_err(|error| format!("StorageUnavailable: {error}"))?;
+            return Ok(Some(message));
+        }
+    }
+    Ok(None)
+}
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(1);
 
 fn unix_time_ms() -> u64 {
@@ -52,6 +135,24 @@ fn unix_time_ms() -> u64 {
         .map_or(0, |elapsed| {
             elapsed.as_millis().min(u128::from(u64::MAX)) as u64
         })
+}
+
+#[cfg(test)]
+mod parakeet_stopped_ack_tests {
+    use super::{ParakeetStoppedExit, parakeet_stopped_exit};
+
+    #[test]
+    fn stopped_ack_waits_for_exit_then_allows_completion() {
+        assert_eq!(parakeet_stopped_exit(None), ParakeetStoppedExit::Wait);
+        assert_eq!(
+            parakeet_stopped_exit(Some(true)),
+            ParakeetStoppedExit::Success
+        );
+        assert_eq!(
+            parakeet_stopped_exit(Some(false)),
+            ParakeetStoppedExit::Failure
+        );
+    }
 }
 
 fn scan_archive_history(root: &Path) -> Vec<ArchiveHistoryItem> {
@@ -927,6 +1028,11 @@ fn serialize_frame<T: Serialize>(value: &T) -> io::Result<Vec<u8>> {
 struct ImportRuntime {
     workers: WorkerPaths,
     model_catalog: Option<RuntimeModelCatalog>,
+    parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+    parakeet: Option<crate::parakeet_import::ParakeetProcess>,
+    parakeet_events: VecDeque<WorkerEvent>,
+    parakeet_end: Option<(JobId, Generation, u64, u64)>,
+    parakeet_stopped_ack: bool,
     idle_worker: Option<IdleWorker>,
     pending_idle_worker: Option<IdleWorker>,
     auto_fallback_reason: Option<String>,
@@ -957,6 +1063,22 @@ struct ImportRuntime {
 struct RuntimeModelCatalog {
     catalog: crate::model_catalog::LocalModelCatalog,
     known_historical_turbo_path: String,
+    parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ParakeetStoppedExit {
+    Wait,
+    Success,
+    Failure,
+}
+
+fn parakeet_stopped_exit(status: Option<bool>) -> ParakeetStoppedExit {
+    match status {
+        None => ParakeetStoppedExit::Wait,
+        Some(true) => ParakeetStoppedExit::Success,
+        Some(false) => ParakeetStoppedExit::Failure,
+    }
 }
 
 impl RuntimeModelCatalog {
@@ -968,8 +1090,75 @@ impl RuntimeModelCatalog {
         &self,
         request: &whisper_core::ports::ImportRequest,
     ) -> Result<whisper_core::ports::ImportRequest, String> {
-        self.snapshot()
-            .bind_turbo_import_request(request, &self.known_historical_turbo_path)
+        use whisper_core::model_catalog::ModelId;
+        let snapshot = self.snapshot();
+        let id = snapshot
+            .resolve_model_identity(&request.model_path, &self.known_historical_turbo_path)?;
+        if id == ModelId::WhisperLargeV3Turbo {
+            return snapshot.bind_turbo_import_request(request, &self.known_historical_turbo_path);
+        }
+        if id != ModelId::ParakeetTdt06BV3 {
+            return Err("ModelUnknown: modèle non reconnu".into());
+        }
+        let record = whisper_core::model_registry::model(id);
+        let key = whisper_core::model_registry::configuration_key(
+            record,
+            whisper_core::model_catalog::Backend::Cpu,
+        );
+        self.parakeet_paths
+            .as_ref()
+            .ok_or_else(|| "ModelNotQualified: worker Test Parakeet absent".to_owned())?
+            .verify_qualification(
+                record.artifact.sha256,
+                &key.runtime_build,
+                &key.worker_build,
+            )?;
+        if request.config.compute != whisper_core::ComputeChoice::Cpu
+            || !matches!(
+                &request.config.language,
+                whisper_core::LanguageChoice::Automatic
+            )
+        {
+            return Err(
+                "ModelNotQualified: Parakeet accepte seulement CPU/import/langue automatique"
+                    .into(),
+            );
+        }
+        if request.source_samples.is_some_and(|samples| {
+            samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
+        }) {
+            return Err(
+                "DurationUnsupported: Parakeet import-single-pass est limité à 30 minutes".into(),
+            );
+        }
+        if !matches!(
+            record.admission,
+            whisper_core::model_registry::AdmissionBasis::Measured(
+                whisper_core::engine_capabilities::Qualification::Qualified
+            )
+        ) {
+            return Err("ModelNotQualified: la fiche Test Parakeet n'est pas qualifiée".into());
+        }
+        let entry = snapshot
+            .entries
+            .iter()
+            .find(|entry| entry.id == id)
+            .ok_or_else(|| "ModelMissing: Parakeet absent du catalogue".to_owned())?;
+        if entry.availability != whisper_core::model_catalog::ModelAvailability::Ready
+            || request.model_sha256 != decode_sha256(record.artifact.sha256)?
+            || entry.expected_size_bytes != record.artifact.size_bytes
+            || !entry
+                .observed_sha256
+                .as_deref()
+                .is_some_and(|hash| hash.eq_ignore_ascii_case(record.artifact.sha256))
+        {
+            return Err(
+                "ModelHashMismatch: artefact Parakeet différent du catalogue qualifié".into(),
+            );
+        }
+        let mut executable = request.clone();
+        executable.model_path = entry.path.to_string_lossy().into_owned();
+        Ok(executable)
     }
 
     fn bind_live(
@@ -979,6 +1168,37 @@ impl RuntimeModelCatalog {
         self.snapshot()
             .bind_turbo_live_request(request, &self.known_historical_turbo_path)
     }
+}
+
+fn decode_sha256(value: &str) -> Result<[u8; 32], String> {
+    if value.len() != 64 {
+        return Err("ModelHashMismatch: SHA-256 invalide".into());
+    }
+    let mut output = [0; 32];
+    for (index, byte) in output.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16)
+            .map_err(|_| "ModelHashMismatch: SHA-256 invalide".to_owned())?;
+    }
+    Ok(output)
+}
+
+fn format_sha256(value: &[u8; 32]) -> String {
+    value.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn request_is_parakeet(request: &ImportRequest) -> bool {
+    decode_sha256(
+        whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+            .artifact
+            .sha256,
+    )
+    .is_ok_and(|sha| request.model_sha256 == sha)
+}
+
+fn archive_qualification_for_request(
+    request: &ImportRequest,
+) -> Option<crate::archive::ArchiveQualificationKey> {
+    request_is_parakeet(request).then(crate::archive::ArchiveQualificationKey::parakeet_cpu_test)
 }
 const WORKER_IDLE_RETENTION: Duration = Duration::from_secs(5 * 60);
 
@@ -1082,18 +1302,34 @@ struct ImportRequestState {
 }
 
 impl ImportRuntime {
+    #[cfg(test)]
     fn new(workers: WorkerPaths, publication_gate: Arc<PublicationGate>) -> Self {
         Self::new_with_catalog(workers, publication_gate, None)
     }
 
+    #[cfg(test)]
     fn new_with_catalog(
         workers: WorkerPaths,
         publication_gate: Arc<PublicationGate>,
         model_catalog: Option<RuntimeModelCatalog>,
     ) -> Self {
+        Self::new_with_workers_and_parakeet(workers, publication_gate, model_catalog, None)
+    }
+
+    fn new_with_workers_and_parakeet(
+        workers: WorkerPaths,
+        publication_gate: Arc<PublicationGate>,
+        model_catalog: Option<RuntimeModelCatalog>,
+        parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+    ) -> Self {
         Self {
             workers,
             model_catalog,
+            parakeet_paths,
+            parakeet: None,
+            parakeet_events: VecDeque::new(),
+            parakeet_end: None,
+            parakeet_stopped_ack: false,
             idle_worker: None,
             pending_idle_worker: None,
             auto_fallback_reason: None,
@@ -1236,6 +1472,7 @@ impl ImportRuntime {
                     .bind_import_request(&request)
                     .map(|_| ())
                     .and_then(|()| crate::archive::ArchiveStore::identify_source(&mut request))
+                    .and_then(|()| self.bind_import_request(&request).map(|_| ()))
                     .and_then(|()| {
                         crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
                     })
@@ -1300,7 +1537,12 @@ impl ImportRuntime {
                                 );
                             }
                             let mut comparable = entry.request.clone();
-                            let same_model = if let Some((snapshot, known_path)) = &model_catalog {
+                            let same_model = if request_is_parakeet(&entry.request)
+                                && request_is_parakeet(&request)
+                            {
+                                comparable.model_path = request.model_path.clone();
+                                entry.request.model_sha256 == request.model_sha256
+                            } else if let Some((snapshot, known_path)) = &model_catalog {
                                 let durable_id = snapshot.resolve_model_identity(
                                     &entry.request.model_path,
                                     known_path,
@@ -1329,7 +1571,10 @@ impl ImportRuntime {
                         );
                             }
                             let durable_request = entry.request;
-                            if let Some((snapshot, known_path)) = &model_catalog {
+                            if request_is_parakeet(&durable_request) {
+                                self.bind_import_request(&durable_request)
+                                    .map(|executable| (durable_request, executable))
+                            } else if let Some((snapshot, known_path)) = &model_catalog {
                                 queue
                                     .resolve_queued_with_catalog(id.0, id.1, snapshot, known_path)
                                     .map(|executable| (durable_request, executable))
@@ -1343,9 +1588,11 @@ impl ImportRuntime {
                             .as_ref()
                             .map(|_| verified_executable.model_path.as_str());
                         let mut archive = ArchiveStore::new(&durable_request.destination);
-                        match archive
-                            .prepare_with_catalog_path(durable_request, executable_model_path)
-                        {
+                        match archive.prepare_with_qualification(
+                            durable_request.clone(),
+                            executable_model_path,
+                            archive_qualification_for_request(&durable_request),
+                        ) {
                             Ok(prepared) => {
                                 let queue_result =
                                     crate::queue_store::QueueStore::open(&prepared.destination)
@@ -1385,7 +1632,15 @@ impl ImportRuntime {
                     crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
                         .and_then(|()| crate::queue_store::QueueStore::open(&request.destination))
                         .and_then(|queue| {
-                            if let Some((snapshot, known_path)) = &model_catalog {
+                            if request_is_parakeet(&request) && request_is_parakeet(&previous) {
+                                let mut comparable = request.clone();
+                                comparable.model_path = previous.model_path.clone();
+                                queue.validate_resume(
+                                    previous.job_id,
+                                    previous.generation,
+                                    &comparable,
+                                )
+                            } else if let Some((snapshot, known_path)) = &model_catalog {
                                 queue.validate_resume_with_catalog(
                                     previous.job_id,
                                     previous.generation,
@@ -1417,7 +1672,11 @@ impl ImportRuntime {
                     durable_request.model_path = previous.model_path.clone();
                 }
                 let executable_model_path = if let Some((snapshot, known_path)) = &model_catalog {
-                    match snapshot.bind_turbo_import_request(&durable_request, known_path) {
+                    match if request_is_parakeet(&durable_request) {
+                        self.bind_import_request(&durable_request)
+                    } else {
+                        snapshot.bind_turbo_import_request(&durable_request, known_path)
+                    } {
                         Ok(request) => request.model_path,
                         Err(error) => {
                             events.push_back(ImportEvent::Failed {
@@ -1436,15 +1695,22 @@ impl ImportRuntime {
                     .map(|_| executable_model_path.as_str());
                 let mut archive = ArchiveStore::new(&archive_destination);
                 let result = archive
-                    .resume_from_with_catalog_path(
+                    .resume_from_with_qualification(
                         &previous,
-                        durable_request,
+                        durable_request.clone(),
                         executable_model_path,
+                        archive_qualification_for_request(&durable_request),
                     )
                     .and_then(|(prepared, prefix)| {
                         crate::queue_store::QueueStore::open(&prepared.destination).and_then(
                             |mut queue| {
-                                if let Some((snapshot, known_path)) = &model_catalog {
+                                if request_is_parakeet(&prepared) {
+                                    queue.resume_interrupted(
+                                        previous.job_id,
+                                        previous.generation,
+                                        prepared.clone(),
+                                    )?;
+                                } else if let Some((snapshot, known_path)) = &model_catalog {
                                     queue.resume_interrupted_with_catalog(
                                         previous.job_id,
                                         previous.generation,
@@ -1532,7 +1798,16 @@ impl ImportRuntime {
                 events.push_back(ImportEvent::History(history));
                 Ok(())
             }
-            ImportEffect::PersistSegment(segment) => self.persist_segment(segment, events),
+            ImportEffect::PersistSegment(segment) => {
+                let id = (segment.job_id, segment.generation);
+                self.persist_segment(segment, events).and_then(|()| {
+                    l2a2_acceptance_barrier(
+                        "resume-prefix-confirmed",
+                        self.archive.root_path().as_path(),
+                    )
+                    .map_err(|error| (id.0, id.1, error))
+                })
+            }
             ImportEffect::Publish {
                 job_id,
                 generation,
@@ -1548,7 +1823,66 @@ impl ImportRuntime {
                 }
             }
             ImportEffect::Stop { job_id, generation } => {
-                if let Some(direct) = self.direct_live.as_mut() {
+                let active_request = self.active.as_ref().and_then(|active| {
+                    (active.job_id == job_id && active.generation == generation)
+                        .then(|| active.import_request.clone())
+                        .flatten()
+                });
+                if active_request.is_some()
+                    && let Some(mut worker) = self.parakeet.take()
+                {
+                    let termination = worker.terminate();
+                    // The child has been detached from this runtime. Settle its
+                    // in-memory identity before any fallible queue journal I/O.
+                    self.active = None;
+                    self.parakeet_events.clear();
+                    self.parakeet_end = None;
+                    self.parakeet_stopped_ack = false;
+                    self.progress = None;
+                    match termination {
+                        Ok(_status) => {
+                            let queue_update = if let Some(request) = active_request {
+                                let queue_journal = Path::new(&request.destination)
+                                    .join("transcriptions")
+                                    .join("queue.jsonl");
+                                if queue_journal.is_file() {
+                                    crate::queue_store::QueueStore::open(&request.destination)
+                                        .and_then(|mut queue| {
+                                            if queue.entries().iter().any(|entry| {
+                                                entry.request.job_id == job_id
+                                                    && entry.request.generation == generation
+                                            }) {
+                                                queue.set_status(
+                                                    job_id,
+                                                    generation,
+                                                    crate::queue_store::QueueStatus::Interrupted,
+                                                )?;
+                                                Ok(Some(queue.entries()))
+                                            } else {
+                                                Ok(None)
+                                            }
+                                        })
+                                        .map_err(|error| (job_id, generation, error))
+                                } else {
+                                    Ok(None)
+                                }
+                            } else {
+                                Ok(None)
+                            };
+                            match queue_update {
+                                Err(error) => Err(error),
+                                Ok(queue) => {
+                                    if let Some(entries) = queue {
+                                        events.push_back(ImportEvent::Queue(entries));
+                                    }
+                                    events.push_back(ImportEvent::Stopped { job_id, generation });
+                                    Ok(())
+                                }
+                            }
+                        }
+                        Err(error) => Err((job_id, generation, error)),
+                    }
+                } else if let Some(direct) = self.direct_live.as_mut() {
                     if direct.identity() != (job_id, generation) {
                         Err((job_id, generation, "Arrêt micro périmé".into()))
                     } else {
@@ -1800,15 +2134,26 @@ impl ImportRuntime {
             return Ok(());
         }
         let mut archive = ArchiveStore::new(&request.destination);
-        match archive.prepare(request) {
+        let qualification = archive_qualification_for_request(&request);
+        match archive.prepare_with_qualification(request, None, qualification) {
             Ok(prepared) => {
                 self.archive = archive;
+                l2a2_acceptance_barrier("prepare", Path::new(&prepared.destination))
+                    .map_err(|error| (id.0, id.1, error))?;
+                if self.publication_gate.is_cancelled() {
+                    events.push_back(ImportEvent::Stopped {
+                        job_id: id.0,
+                        generation: id.1,
+                    });
+                    return Ok(());
+                }
                 events.push_back(ImportEvent::Prepared(prepared));
                 Ok(())
             }
             Err(message) => Err((id.0, id.1, message)),
         }
     }
+    #[cfg(test)]
     fn start_worker(
         &mut self,
         request: whisper_core::ports::ImportRequest,
@@ -1860,6 +2205,17 @@ impl ImportRuntime {
         force_cpu: bool,
         candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     ) -> Result<(), (JobId, Generation, String)> {
+        let parakeet_sha = decode_sha256(
+            whisper_core::model_registry::model(
+                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+            )
+            .artifact
+            .sha256,
+        )
+        .map_err(|error| (request.job_id, request.generation, error))?;
+        if request.model_sha256 == parakeet_sha {
+            return self.start_parakeet_worker(request);
+        }
         let id = (request.job_id, request.generation);
         if !force_cpu {
             self.auto_fallback_reason = None;
@@ -2010,6 +2366,104 @@ impl ImportRuntime {
             ));
         }
         self.transport = Some(transport);
+        Ok(())
+    }
+
+    fn start_parakeet_worker(
+        &mut self,
+        request: whisper_core::ports::ImportRequest,
+    ) -> Result<(), (JobId, Generation, String)> {
+        let id = (request.job_id, request.generation);
+        if self.active.is_some() || self.parakeet.is_some() || self.transport.is_some() {
+            return Err((id.0, id.1, "Busy: another worker is active".into()));
+        }
+        if request.config.compute != whisper_core::ComputeChoice::Cpu
+            || !matches!(
+                &request.config.language,
+                whisper_core::LanguageChoice::Automatic
+            )
+        {
+            return Err((
+                id.0,
+                id.1,
+                "ModelNotQualified: Parakeet requiert CPU et langue automatique".into(),
+            ));
+        }
+        if request.source_sha256.is_none() {
+            return Err((
+                id.0,
+                id.1,
+                "SourceMissing: source identity was not prepared".into(),
+            ));
+        }
+        let source_samples = request.source_samples.ok_or((
+            id.0,
+            id.1,
+            "InvalidInput: source duration was not prepared".into(),
+        ))?;
+        if source_samples == 0
+            || source_samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
+        {
+            return Err((
+                id.0,
+                id.1,
+                "DurationUnsupported: Parakeet import-single-pass est limité à 30 minutes".into(),
+            ));
+        }
+        if self.publication_gate.is_cancelled() {
+            return Err((
+                id.0,
+                id.1,
+                "Cancelled: generation invalidated before worker start".into(),
+            ));
+        }
+        let paths = self.parakeet_paths.as_ref().ok_or((
+            id.0,
+            id.1,
+            "ModelNotQualified: worker Test Parakeet non configuré".into(),
+        ))?;
+        let record = whisper_core::model_registry::model(
+            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+        );
+        let qualification = whisper_core::model_registry::configuration_key(
+            record,
+            whisper_core::model_catalog::Backend::Cpu,
+        );
+        paths
+            .verify_qualification(
+                record.artifact.sha256,
+                &qualification.runtime_build,
+                &qualification.worker_build,
+            )
+            .map_err(|error| (id.0, id.1, error))?;
+        crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
+            .map_err(|error| (id.0, id.1, error))?;
+        let process = crate::parakeet_import::ParakeetProcess::spawn(paths)
+            .map_err(|error| (id.0, id.1, format!("WorkerExited: {error}")))?;
+        let instance_id = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
+        if instance_id == 0 {
+            return Err((
+                id.0,
+                id.1,
+                "WorkerExited: instance identity exhausted".into(),
+            ));
+        }
+        self.start_diagnostics(Path::new(&request.destination));
+        self.progress = Some(ProgressSupervisor::starting(Instant::now()));
+        self.active = Some(ImportRequestState {
+            job_id: id.0,
+            generation: id.1,
+            instance_id,
+            backend: BackendKind::Cpu,
+            attempt_number: 1,
+            import_request: Some(request),
+            recovery: LiveRecoveryState::None,
+            startup_ready: false,
+            gpu_candidate: None,
+            gpu_attested: false,
+        });
+        let _ = source_samples;
+        self.parakeet = Some(process);
         Ok(())
     }
 
@@ -2514,8 +2968,16 @@ impl ImportRuntime {
             self.archive
                 .prepare_publish(job, generation, count)
                 .map_err(|e| (job, generation, e))?;
+            l2a2_acceptance_barrier("publish-before-commit", self.archive.root_path().as_path())
+                .map_err(|error| (job, generation, error))?;
             self.publication_gate
-                .commit(|| self.archive.commit_publish(job, generation))
+                .commit(|| {
+                    self.archive.commit_publish(job, generation)?;
+                    l2a2_acceptance_barrier(
+                        "publish-after-commit",
+                        self.archive.root_path().as_path(),
+                    )
+                })
                 .map_err(|e| (job, generation, e))?;
             let root = self.archive_root();
             if let Ok(mut queue) = crate::queue_store::QueueStore::open(&root)
@@ -2955,6 +3417,359 @@ impl ImportRuntime {
         }
     }
 
+    fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
+        let destination = self
+            .active
+            .as_ref()
+            .and_then(|active| active.import_request.as_ref())
+            .map(|request| PathBuf::from(&request.destination));
+        if let Some(destination) = destination {
+            match l2a2_acceptance_take_worker_fault(
+                &destination,
+                self.parakeet
+                    .as_ref()
+                    .and_then(|worker| worker.identity())
+                    .is_some(),
+            ) {
+                Ok(Some(message)) => {
+                    let process = self.parakeet.as_mut()?;
+                    if message.starts_with("IpcDecode:") {
+                        if let Err(error) = process.inject_incomplete_result_for_acceptance() {
+                            return Some(Err(PortError::Failed(error)));
+                        }
+                    } else {
+                        return Some(match process.terminate() {
+                            Ok(status) => {
+                                Err(PortError::Failed(format!("{message}; child={status}")))
+                            }
+                            Err(error) => Err(PortError::Failed(format!(
+                                "{message}; termination failed: {error}"
+                            ))),
+                        });
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => return Some(Err(PortError::Failed(error))),
+            }
+        }
+        if let Some(event) = self.parakeet_events.pop_front() {
+            return Some(Ok(event));
+        }
+        if self.parakeet_stopped_ack {
+            let status = self.parakeet.as_mut()?.try_wait();
+            return match status {
+                Ok(None) if parakeet_stopped_exit(None) == ParakeetStoppedExit::Wait => None,
+                Ok(None) => None,
+                Ok(Some(status))
+                    if parakeet_stopped_exit(Some(status.success()))
+                        == ParakeetStoppedExit::Success =>
+                {
+                    self.parakeet = None;
+                    self.parakeet_stopped_ack = false;
+                    if let Some((job_id, generation, last_sequence, last_offset)) =
+                        self.parakeet_end.take()
+                    {
+                        let instance_id = self.active.as_ref()?.instance_id;
+                        Some(Ok(WorkerEvent::End {
+                            job_id,
+                            generation,
+                            instance_id,
+                            last_sequence,
+                            last_offset,
+                        }))
+                    } else {
+                        Some(Err(PortError::Failed(
+                            "WorkerExited: Parakeet stopped without a transcription result".into(),
+                        )))
+                    }
+                }
+                Ok(Some(status)) => {
+                    self.parakeet = None;
+                    self.parakeet_stopped_ack = false;
+                    self.parakeet_end = None;
+                    Some(Err(PortError::Failed(format!("WorkerExited: {status}"))))
+                }
+                Err(error) => Some(Err(PortError::Failed(error))),
+            };
+        }
+        let received = match self.parakeet.as_mut()?.poll() {
+            Ok(Some(event)) => event,
+            Ok(None) => {
+                let status = self.parakeet.as_mut()?.try_wait();
+                return match status {
+                    Ok(None) => None,
+                    Ok(Some(status)) if status.success() => {
+                        self.parakeet = None;
+                        self.parakeet_stopped_ack = false;
+                        self.parakeet_end = None;
+                        Some(Err(PortError::Failed(
+                            "WorkerExited: process ended before result acknowledgement".into(),
+                        )))
+                    }
+                    Ok(Some(status)) => {
+                        self.parakeet = None;
+                        self.parakeet_stopped_ack = false;
+                        Some(Err(PortError::Failed(format!("WorkerExited: {status}"))))
+                    }
+                    Err(error) => Some(Err(PortError::Failed(error))),
+                };
+            }
+            Err(error) => {
+                if let Some(process) = self.parakeet.as_mut() {
+                    let _ = process.terminate();
+                }
+                self.parakeet = None;
+                self.parakeet_stopped_ack = false;
+                return Some(Err(PortError::Failed(error)));
+            }
+        };
+        match received {
+            whisper_core::parakeet_ipc::Event::Ready {
+                identity, backend, ..
+            } => {
+                let Some(active) = self.active.as_ref() else {
+                    return Some(Err(PortError::Failed(
+                        "StaleResponse: Parakeet Ready without an active import".into(),
+                    )));
+                };
+                let Some(request) = active.import_request.clone() else {
+                    return Some(Err(PortError::Failed(
+                        "StaleResponse: Parakeet request is unavailable".into(),
+                    )));
+                };
+                let record = whisper_core::model_registry::model(
+                    whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+                );
+                let key = whisper_core::model_registry::configuration_key(
+                    record,
+                    whisper_core::model_catalog::Backend::Cpu,
+                );
+                if backend != "CPU"
+                    || identity.model_sha256 != record.artifact.sha256
+                    || identity.runtime_sha256 != key.runtime_build
+                    || identity.build_sha256 != key.worker_build
+                    || identity.profile
+                        != whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+                {
+                    return Some(Err(PortError::Failed(
+                        "BackendMismatch: Parakeet worker identity differs from the qualified key"
+                            .into(),
+                    )));
+                }
+                let process = self.parakeet.as_mut()?;
+                if let Err(error) = process.accept_ready(identity) {
+                    return Some(Err(PortError::Failed(error)));
+                }
+                let source_sha = request
+                    .source_sha256
+                    .map(|sha| format_sha256(&sha))
+                    .unwrap_or_default();
+                if let Err(error) = process.transcribe(
+                    format!("{:032x}", request.job_id.0),
+                    request.generation.get(),
+                    active.attempt_number,
+                    Path::new(&request.source_path),
+                    source_sha,
+                ) {
+                    return Some(Err(PortError::Failed(error)));
+                }
+                match l2a2_acceptance_take_worker_fault(Path::new(&request.destination), true) {
+                    Ok(Some(message)) if message.starts_with("IpcDecode:") => {
+                        if let Err(error) = self
+                            .parakeet
+                            .as_ref()?
+                            .inject_incomplete_result_for_acceptance()
+                        {
+                            return Some(Err(PortError::Failed(error)));
+                        }
+                    }
+                    Ok(Some(message)) => {
+                        let process = self.parakeet.as_mut()?;
+                        if let Err(error) = process.terminate() {
+                            return Some(Err(PortError::Failed(format!(
+                                "{message}; termination failed: {error}"
+                            ))));
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(error) => return Some(Err(PortError::Failed(error))),
+                }
+                Some(Ok(WorkerEvent::Ready {
+                    job_id: active.job_id,
+                    generation: active.generation,
+                    instance_id: active.instance_id,
+                    backend: BackendKind::Cpu,
+                }))
+            }
+            whisper_core::parakeet_ipc::Event::Result {
+                request_id,
+                job_id,
+                generation,
+                attempt,
+                identity,
+                source_sha256,
+                duration_samples,
+                words,
+                ..
+            } => {
+                let Some(active) = self.active.as_ref() else {
+                    return Some(Err(PortError::Failed(
+                        "StaleResponse: Parakeet result without active import".into(),
+                    )));
+                };
+                let Some(request) = active.import_request.as_ref() else {
+                    return Some(Err(PortError::Failed(
+                        "StaleResponse: Parakeet request is unavailable".into(),
+                    )));
+                };
+                let current_identity = self.parakeet.as_ref().and_then(|p| p.identity());
+                if request_id != 1
+                    || job_id != format!("{:032x}", active.job_id.0)
+                    || generation != active.generation.get()
+                    || attempt != active.attempt_number
+                    || request
+                        .source_sha256
+                        .map(|sha| format_sha256(&sha))
+                        .as_deref()
+                        != Some(source_sha256.as_str())
+                    || request.source_samples != Some(duration_samples)
+                    || current_identity != Some(&identity)
+                    || words.is_empty()
+                {
+                    return Some(Err(PortError::Failed(
+                        "ProtocolMismatch: Parakeet result identity, duration, or words differ"
+                            .into(),
+                    )));
+                }
+                let (job_id, generation, instance_id) =
+                    (active.job_id, active.generation, active.instance_id);
+                self.parakeet_events.push_back(WorkerEvent::Progress {
+                    job_id,
+                    generation,
+                    instance_id,
+                    completed_samples: duration_samples,
+                    total_samples: duration_samples,
+                });
+                let mut groups: Vec<(u64, u64, Vec<String>)> = Vec::new();
+                let mut previous_end = 0_u64;
+                for word in words {
+                    let mut start = u64::from(word.start_ms).saturating_mul(16);
+                    let end = u64::from(word.end_ms)
+                        .saturating_mul(16)
+                        .min(duration_samples);
+                    let token = word.text.trim();
+                    let boundary = groups.last().is_some_and(|(_, _, tokens)| {
+                        tokens.last().is_some_and(|last| {
+                            last.ends_with('.') || last.ends_with('!') || last.ends_with('?')
+                        })
+                    });
+                    if token.is_empty() || start.saturating_add(80) < previous_end || start >= end {
+                        return Some(Err(PortError::Failed(
+                            "InvalidTimestamp: Parakeet word range is empty or unordered beyond one 80 ms frame".into(),
+                        )));
+                    }
+                    if boundary {
+                        start = start.max(previous_end);
+                    }
+                    if start >= end {
+                        return Some(Err(PortError::Failed(
+                            "InvalidTimestamp: sentence boundary leaves an empty word range".into(),
+                        )));
+                    }
+                    previous_end = previous_end.max(end);
+                    if groups.is_empty() || boundary {
+                        groups.push((start, end, vec![token.to_owned()]));
+                    } else if let Some((_, group_end, tokens)) = groups.last_mut() {
+                        *group_end = end;
+                        tokens.push(token.to_owned());
+                    }
+                }
+                let last_sequence = groups.len() as u64;
+                for (sequence, (start, end, tokens)) in groups.into_iter().enumerate() {
+                    let Some(range) = whisper_core::SourceRange::new(start, end, 16_000) else {
+                        return Some(Err(PortError::Failed(
+                            "InvalidTimestamp: Parakeet sentence range is invalid".into(),
+                        )));
+                    };
+                    self.parakeet_events.push_back(WorkerEvent::Segment(
+                        whisper_core::ipc::WorkerSegmentDto {
+                            job_id,
+                            generation,
+                            instance_id,
+                            segment_id: whisper_core::SegmentId(sequence as u64 + 1),
+                            range,
+                            text: tokens.join(" "),
+                        },
+                    ));
+                }
+                self.parakeet_end = Some((job_id, generation, last_sequence, duration_samples));
+                if let Some(process) = self.parakeet.as_mut()
+                    && let Err(error) = process.shutdown()
+                {
+                    return Some(Err(PortError::Failed(error)));
+                }
+                self.parakeet_events.pop_front().map(Ok)
+            }
+            whisper_core::parakeet_ipc::Event::Failed {
+                job_id: reported_job_id,
+                generation: reported_generation,
+                identity,
+                code,
+                message,
+                ..
+            } => {
+                let Some(active) = self.active.as_ref() else {
+                    return Some(Err(PortError::Failed(
+                        "StaleResponse: Parakeet failure without active import".into(),
+                    )));
+                };
+                if reported_job_id
+                    .as_deref()
+                    .is_some_and(|reported| reported != format!("{:032x}", active.job_id.0))
+                    || reported_generation
+                        .is_some_and(|reported| reported != active.generation.get())
+                    || identity.as_ref().is_some_and(|reported| {
+                        self.parakeet
+                            .as_ref()
+                            .and_then(|process| process.identity())
+                            .is_some_and(|expected| expected != reported)
+                    })
+                {
+                    return Some(Err(PortError::Failed(
+                        "StaleResponse: Parakeet failure identity differs from active import"
+                            .into(),
+                    )));
+                }
+                let (job_id, generation, instance_id) =
+                    (active.job_id, active.generation, active.instance_id);
+                if let Some(process) = self.parakeet.as_mut() {
+                    let _ = process.terminate();
+                }
+                self.parakeet = None;
+                self.parakeet_stopped_ack = false;
+                Some(Ok(WorkerEvent::Failed {
+                    job_id: Some(job_id),
+                    generation: Some(generation),
+                    instance_id: Some(instance_id),
+                    code: match code.as_str() {
+                        "ModelHashMismatch" => {
+                            whisper_core::ipc::WorkerErrorCode::ModelHashMismatch
+                        }
+                        "ProtocolVersionMismatch" | "InvalidMessage" => {
+                            whisper_core::ipc::WorkerErrorCode::ProtocolMismatch
+                        }
+                        _ => whisper_core::ipc::WorkerErrorCode::Internal,
+                    },
+                    message: format!("{code}: {message}"),
+                }))
+            }
+            whisper_core::parakeet_ipc::Event::Stopped => {
+                self.parakeet_stopped_ack = true;
+                self.poll_parakeet_worker()
+            }
+        }
+    }
+
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
         if self
             .idle_worker
@@ -3069,7 +3884,21 @@ impl ImportRuntime {
         if self.deferred_live_window_finished.is_some() && self.live_pending_persistence > 0 {
             return None;
         }
-        let mut event = if self.deferred_live_stopped.is_some() {
+        let mut event = if self.parakeet.is_some() || !self.parakeet_events.is_empty() {
+            match self.poll_parakeet_worker() {
+                Some(Ok(event)) => event,
+                Some(Err(error)) => {
+                    let active = self.active.as_ref()?;
+                    let failure = (active.job_id, active.generation, format!("{error:?}"));
+                    self.parakeet = None;
+                    self.parakeet_stopped_ack = false;
+                    self.parakeet_events.clear();
+                    self.active = None;
+                    return Some(Err(failure));
+                }
+                None => return None,
+            }
+        } else if self.deferred_live_stopped.is_some() {
             if self.live_pending_persistence > 0
                 || self
                     .transport
@@ -3939,7 +4768,7 @@ impl AsyncImportIo {
     }
 
     pub fn start_with_workers(workers: WorkerPaths) -> Self {
-        Self::start_inner(workers, None)
+        Self::start_inner(workers, None, None)
     }
 
     /// Starts the import runtime with a catalog guard used by all model-bearing effects.
@@ -3953,11 +4782,34 @@ impl AsyncImportIo {
             Some(RuntimeModelCatalog {
                 catalog: crate::model_catalog::LocalModelCatalog::new(catalog_root),
                 known_historical_turbo_path,
+                parakeet_paths: None,
             }),
+            None,
         )
     }
 
-    fn start_inner(workers: WorkerPaths, model_catalog: Option<RuntimeModelCatalog>) -> Self {
+    pub fn start_with_model_catalog_and_parakeet(
+        workers: WorkerPaths,
+        catalog_root: PathBuf,
+        known_historical_turbo_path: String,
+        parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+    ) -> Self {
+        Self::start_inner(
+            workers,
+            Some(RuntimeModelCatalog {
+                catalog: crate::model_catalog::LocalModelCatalog::new(catalog_root),
+                known_historical_turbo_path,
+                parakeet_paths: parakeet_paths.clone(),
+            }),
+            parakeet_paths,
+        )
+    }
+
+    fn start_inner(
+        workers: WorkerPaths,
+        model_catalog: Option<RuntimeModelCatalog>,
+        parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+    ) -> Self {
         let (effect_tx, effect_rx) = mpsc::sync_channel(8);
         let (stop_tx, stop_rx) = mpsc::sync_channel(1);
         let (event_tx, event_rx) = mpsc::sync_channel(EVENTS_PER_STAGE);
@@ -3976,12 +4828,12 @@ impl AsyncImportIo {
         thread::spawn({
             let publication_gate = publication_gate.clone();
             move || {
-                let runtime = match model_catalog {
-                    Some(catalog) => {
-                        ImportRuntime::new_with_catalog(workers, publication_gate, Some(catalog))
-                    }
-                    None => ImportRuntime::new(workers, publication_gate),
-                };
+                let runtime = ImportRuntime::new_with_workers_and_parakeet(
+                    workers,
+                    publication_gate,
+                    model_catalog,
+                    parakeet_paths,
+                );
                 service_loop(effect_rx, stop_rx, event_tx, runtime)
             }
         });
@@ -6232,6 +7084,7 @@ fn main() {
         let catalog = RuntimeModelCatalog {
             catalog: crate::model_catalog::LocalModelCatalog::new(root.join("empty-model-catalog")),
             known_historical_turbo_path: r"C:\known\ggml-large-v3-turbo.bin".into(),
+            parakeet_paths: None,
         };
         let mut runtime = ImportRuntime::new_with_catalog(
             WorkerPaths {
@@ -6365,6 +7218,7 @@ fn main() {
                     repository_root.join("models"),
                 ),
                 known_historical_turbo_path: legacy_model.to_string_lossy().into_owned(),
+                parakeet_paths: None,
             }),
         );
         let mut events = VecDeque::new();

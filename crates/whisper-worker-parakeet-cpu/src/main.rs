@@ -352,21 +352,50 @@ fn required_runtime_root() -> Result<PathBuf, String> {
     let root = PathBuf::from(root)
         .canonicalize()
         .map_err(|e| format!("RuntimeRoot: {e}"))?;
-    let allowed = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .join("target")
-        .join("parakeet-tests")
-        .join("l2")
-        .join("l2a-1")
-        .canonicalize()
-        .map_err(|e| format!("AllowedRuntime: {e}"))?;
-    if root != allowed {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    let allowed = allowed_runtime_roots(&repository);
+    if !allowed.iter().any(|candidate| root == *candidate) {
         return Err(
-            "RuntimeRootMismatch: worker runtime is outside the authorized L2a-1 root".into(),
+            "RuntimeRootMismatch: worker runtime is outside the authorized L2a Test roots".into(),
         );
     }
     Ok(root)
+}
+
+#[cfg(test)]
+mod runtime_root_tests {
+    use super::*;
+
+    #[test]
+    fn accepts_only_the_two_canonical_l2_test_roots() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+        let l2a2_only = allowed_runtime_roots_for(&repository, &["l2a-2"]);
+        let l2a2 = repository
+            .join("target/parakeet-tests/l2/l2a-2")
+            .canonicalize()
+            .unwrap();
+        assert_eq!(l2a2_only, vec![l2a2]);
+        assert!(allowed_runtime_roots(&repository).contains(&l2a2_only[0]));
+        assert!(!allowed_runtime_roots(&repository).contains(&repository));
+    }
+}
+
+fn allowed_runtime_roots(repository: &Path) -> Vec<PathBuf> {
+    allowed_runtime_roots_for(repository, &["l2a-1", "l2a-2"])
+}
+
+fn allowed_runtime_roots_for(repository: &Path, lots: &[&str]) -> Vec<PathBuf> {
+    lots.into_iter()
+        .filter_map(|lot| {
+            repository
+                .join("target")
+                .join("parakeet-tests")
+                .join("l2")
+                .join(lot)
+                .canonicalize()
+                .ok()
+        })
+        .collect()
 }
 
 fn ensure_inside(path: &Path, root: &Path) -> Result<(), String> {

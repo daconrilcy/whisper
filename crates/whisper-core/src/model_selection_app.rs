@@ -55,7 +55,7 @@ pub struct ModelSelectionApp {
 pub struct ModelCommandGuard {
     selection: ModelSelectionApp,
     generation: u64,
-    accepted_turbo_paths: Vec<String>,
+    accepted_model_paths: Vec<(ModelId, String)>,
 }
 
 impl ModelCommandGuard {
@@ -64,10 +64,24 @@ impl ModelCommandGuard {
         generation: u64,
         accepted_turbo_paths: impl IntoIterator<Item = String>,
     ) -> Self {
+        Self::new_with_model_paths(
+            snapshot,
+            generation,
+            accepted_turbo_paths
+                .into_iter()
+                .map(|path| (ModelId::WhisperLargeV3Turbo, path)),
+        )
+    }
+
+    pub fn new_with_model_paths(
+        snapshot: EngineSnapshot,
+        generation: u64,
+        accepted_model_paths: impl IntoIterator<Item = (ModelId, String)>,
+    ) -> Self {
         Self {
             selection: ModelSelectionApp::new(snapshot),
             generation,
-            accepted_turbo_paths: accepted_turbo_paths.into_iter().collect(),
+            accepted_model_paths: accepted_model_paths.into_iter().collect(),
         }
     }
 
@@ -80,8 +94,9 @@ impl ModelCommandGuard {
             &request.model_path,
             request.model_sha256,
             &request.config,
-            request.generation.get(),
+            self.generation,
             path,
+            request.source_samples,
         )
     }
 
@@ -93,8 +108,9 @@ impl ModelCommandGuard {
             &request.model_path,
             request.model_sha256,
             &request.config,
-            request.generation.get(),
+            self.generation,
             InferencePath::Live,
+            None,
         )
     }
 
@@ -105,20 +121,42 @@ impl ModelCommandGuard {
         config: &crate::domain::JobConfig,
         generation: u64,
         path: InferencePath,
+        source_samples: Option<u64>,
     ) -> Result<AdmittedSelection, SelectionRefusal> {
-        use crate::{domain::ComputeChoice, model_catalog::ModelId, model_registry::model};
+        use crate::{domain::ComputeChoice, model_registry::model};
 
-        if !self
-            .accepted_turbo_paths
+        let model_id = self
+            .accepted_model_paths
             .iter()
-            .any(|known| is_known_historical_path(model_path, known))
-        {
-            return Err(SelectionRefusal::UnknownHistoricalModelPath);
-        }
-        let expected_hash = decode_sha256(model(ModelId::WhisperLargeV3Turbo).artifact.sha256)
+            .find(|(_, known)| is_known_historical_path(model_path, known))
+            .map(|(id, _)| *id)
+            .ok_or(SelectionRefusal::UnknownHistoricalModelPath)?;
+        let expected_hash = decode_sha256(model(model_id).artifact.sha256)
             .ok_or(SelectionRefusal::UnknownHistoricalModelPath)?;
         if model_sha256 != expected_hash {
             return Err(SelectionRefusal::UnknownHistoricalModelPath);
+        }
+        if model_id == ModelId::ParakeetTdt06BV3
+            && (path != InferencePath::Import
+                || config.compute != ComputeChoice::Cpu
+                || !matches!(&config.language, crate::domain::LanguageChoice::Automatic))
+        {
+            return Err(SelectionRefusal::Capability(Refusal {
+                cause: crate::engine_capabilities::RefusalCause::CapabilityNotQualified(
+                    crate::engine_capabilities::CapabilityTarget::Compute,
+                ),
+            }));
+        }
+        if model_id == ModelId::ParakeetTdt06BV3
+            && source_samples.is_some_and(|samples| {
+                samples > crate::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
+            })
+        {
+            return Err(SelectionRefusal::Capability(Refusal {
+                cause: crate::engine_capabilities::RefusalCause::CapabilityNotQualified(
+                    crate::engine_capabilities::CapabilityTarget::Compute,
+                ),
+            }));
         }
         let compute = match config.compute {
             ComputeChoice::Cpu => (ComputePreference::Cpu, crate::model_catalog::Backend::Cpu),
@@ -130,7 +168,7 @@ impl ModelCommandGuard {
         self.selection.admit(
             SelectionIntent {
                 generation,
-                model: ModelId::WhisperLargeV3Turbo,
+                model: model_id,
                 compute: compute.0,
                 effective_backend: compute.1,
                 path,

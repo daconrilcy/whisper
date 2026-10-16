@@ -15,9 +15,17 @@ use whisper_core::{
     ports::{ImportRequest, LiveRequest, WorkerSegment},
 };
 
+#[cfg(test)]
 const APPROVED_MODEL_SIZE: u64 = 1_624_555_275;
+#[cfg(test)]
 const APPROVED_MODEL_SHA256: &str =
     "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69";
+
+fn is_registered_model(hash: &str, size: u64) -> bool {
+    whisper_core::model_registry::MODELS.iter().any(|record| {
+        record.artifact.sha256.eq_ignore_ascii_case(hash) && record.artifact.size_bytes == size
+    })
+}
 const PCM_STAGING_HEADER: &[u8] = b"WHISPCM1\0\x80\x3e\0\0\x01\0";
 static L04_CAMPAIGN_OCCURRENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -483,6 +491,46 @@ struct PendingRecord {
     model_path: String,
     model_sha256: String,
     model_size: u64,
+    #[serde(default)]
+    qualification: Option<ArchiveQualificationKey>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ArchiveQualificationKey {
+    pub model: String,
+    pub artifact: String,
+    pub artifact_revision: String,
+    pub runtime: String,
+    pub runtime_build: String,
+    pub worker: String,
+    pub worker_build: String,
+    pub worker_protocol: u32,
+    pub backend: String,
+    pub inference_profile: String,
+}
+
+impl ArchiveQualificationKey {
+    pub fn parakeet_cpu_test() -> Self {
+        let record = whisper_core::model_registry::model(
+            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+        );
+        let key = whisper_core::model_registry::configuration_key(
+            record,
+            whisper_core::model_catalog::Backend::Cpu,
+        );
+        Self {
+            model: "parakeet-tdt-0.6b-v3".into(),
+            artifact: key.artifact,
+            artifact_revision: key.artifact_revision,
+            runtime: key.runtime,
+            runtime_build: key.runtime_build,
+            worker: key.worker,
+            worker_build: key.worker_build,
+            worker_protocol: key.worker_protocol,
+            backend: "CPU".into(),
+            inference_profile: key.inference_profile,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1344,13 +1392,23 @@ impl ArchiveStore {
         request: ImportRequest,
         executable_model_path: Option<&str>,
     ) -> Result<ImportRequest, String> {
-        self.prepare_inner(request, executable_model_path)
+        self.prepare_inner(request, executable_model_path, None)
+    }
+
+    pub fn prepare_with_qualification(
+        &mut self,
+        request: ImportRequest,
+        executable_model_path: Option<&str>,
+        qualification: Option<ArchiveQualificationKey>,
+    ) -> Result<ImportRequest, String> {
+        self.prepare_inner(request, executable_model_path, qualification)
     }
 
     fn prepare_inner(
         &mut self,
         mut request: ImportRequest,
         executable_model_path: Option<&str>,
+        qualification: Option<ArchiveQualificationKey>,
     ) -> Result<ImportRequest, String> {
         l04_campaign_assert_archive(&self.root)?;
         if self.current.is_some() {
@@ -1383,11 +1441,34 @@ impl ArchiveStore {
         let model_path = executable_model_path.unwrap_or(&request.model_path);
         let model_meta = fs::metadata(model_path).map_err(|e| format!("ModelMissing: {e}"))?;
         let model_hash = sha256_file(Path::new(model_path))?;
-        if hex(&model_hash) != APPROVED_MODEL_SHA256
-            || model_meta.len() != APPROVED_MODEL_SIZE
+        if hex(&model_hash)
+            == whisper_core::model_registry::model(
+                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+            )
+            .artifact
+            .sha256
+            && source_samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
+        {
+            return Err(
+                "DurationUnsupported: Parakeet import-single-pass est limité à 30 minutes".into(),
+            );
+        }
+        if !is_registered_model(&hex(&model_hash), model_meta.len())
             || request.model_sha256 != model_hash
         {
-            return Err("ModelHashMismatch: model is not the approved D19 payload".into());
+            return Err("ModelHashMismatch: model is not a registered approved artifact".into());
+        }
+        let is_parakeet = hex(&model_hash)
+            == whisper_core::model_registry::model(
+                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+            )
+            .artifact
+            .sha256;
+        if (is_parakeet
+            && qualification.as_ref() != Some(&ArchiveQualificationKey::parakeet_cpu_test()))
+            || (!is_parakeet && qualification.is_some())
+        {
+            return Err("ModelNotQualified: exact Test worker/runtime key is required".into());
         }
         let destination = PathBuf::from(&request.destination);
         fs::create_dir_all(&destination).map_err(|e| format!("StorageUnavailable: {e}"))?;
@@ -1397,7 +1478,7 @@ impl ArchiveStore {
             .join(request.generation.get().to_string());
         fs::create_dir_all(&directory).map_err(|e| format!("StorageUnavailable: {e}"))?;
         let pending = PendingRecord {
-            version: 1,
+            version: if qualification.is_some() { 2 } else { 1 },
             job_id: request.job_id,
             generation: request.generation,
             source_path: request.source_path.clone(),
@@ -1406,6 +1487,7 @@ impl ArchiveStore {
             model_path: durable_model_path,
             model_sha256: hex(&model_hash),
             model_size: model_meta.len(),
+            qualification,
         };
         let expected_sequence = initialize_pending(&directory, &pending)?;
         request.source_sha256 = Some(source_sha);
@@ -1440,6 +1522,16 @@ impl ArchiveStore {
         request: ImportRequest,
         executable_model_path: Option<&str>,
     ) -> Result<(ImportRequest, Vec<SegmentRecord>), String> {
+        self.resume_from_with_qualification(previous, request, executable_model_path, None)
+    }
+
+    pub fn resume_from_with_qualification(
+        &mut self,
+        previous: &ImportRequest,
+        request: ImportRequest,
+        executable_model_path: Option<&str>,
+        qualification: Option<ArchiveQualificationKey>,
+    ) -> Result<(ImportRequest, Vec<SegmentRecord>), String> {
         if request.job_id != previous.job_id
             || previous.generation.next() != Some(request.generation)
         {
@@ -1461,6 +1553,7 @@ impl ArchiveStore {
             || Some(pending.source_samples) != previous.source_samples
             || pending.model_path != previous.model_path
             || pending.model_sha256 != hex(&previous.model_sha256)
+            || pending.qualification != qualification
         {
             return Err(
                 "SourceChanged: resume checkpoint identity differs from the queued request".into(),
@@ -1481,7 +1574,7 @@ impl ArchiveStore {
                 "StorageCorrupt: confirmed resume prefix is not a valid ordered checkpoint".into(),
             );
         }
-        let prepared = self.prepare_inner(request, executable_model_path)?;
+        let prepared = self.prepare_inner(request, executable_model_path, qualification)?;
         self.copy_resume_prefix(&prepared, &prefix)?;
         Ok((prepared, prefix))
     }
@@ -2236,13 +2329,23 @@ fn scan_generation(
 }
 
 fn validate_pending(pending: &PendingRecord, job_id: JobId, generation: u64) -> Result<(), String> {
-    if pending.version != 1
+    let parakeet_sha =
+        whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+            .artifact
+            .sha256;
+    let qualification_valid = if pending.model_sha256 == parakeet_sha {
+        pending.version == 2
+            && pending.qualification.as_ref() == Some(&ArchiveQualificationKey::parakeet_cpu_test())
+    } else {
+        pending.version == 1 && pending.qualification.is_none()
+    };
+    if !matches!(pending.version, 1 | 2)
         || pending.job_id != job_id
         || pending.generation.get() != generation
         || !is_sha256(&pending.source_sha256)
         || pending.source_samples == 0
-        || pending.model_sha256 != APPROVED_MODEL_SHA256
-        || pending.model_size != APPROVED_MODEL_SIZE
+        || !is_registered_model(&pending.model_sha256, pending.model_size)
+        || !qualification_valid
     {
         return Err("StorageCorrupt: pending identity/schema is invalid".into());
     }
@@ -2614,6 +2717,7 @@ mod tests {
             model_path: "model.bin".into(),
             model_sha256: APPROVED_MODEL_SHA256.into(),
             model_size: APPROVED_MODEL_SIZE,
+            qualification: None,
         };
         fs::write(
             healthy.join("pending.json"),
@@ -2817,6 +2921,7 @@ mod tests {
             model_path: request.model_path.clone(),
             model_sha256: APPROVED_MODEL_SHA256.into(),
             model_size: APPROVED_MODEL_SIZE,
+            qualification: None,
         };
         fs::write(
             directory.join("pending.json"),
@@ -2913,6 +3018,7 @@ mod tests {
             model_path: request.model_path.clone(),
             model_sha256: APPROVED_MODEL_SHA256.into(),
             model_size: APPROVED_MODEL_SIZE,
+            qualification: None,
         };
         assert_eq!(initialize_pending(&target, &pending).unwrap(), 1);
         let prefix = vec![

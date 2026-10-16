@@ -341,20 +341,20 @@ impl<A: Application> DesktopApp<A> {
     }
 
     fn poll_model_selection(&mut self) {
-        if let Some(receiver) = &self.catalog_receiver {
+        while let Some(receiver) = &self.catalog_receiver {
             match receiver.try_recv() {
                 Ok(catalog) => {
                     self.projection = ModelSelectionApp::new(catalog.engine_snapshot(vec![]))
                         .projection(catalog.generation)
                         .ok();
                     self.catalog = Some(catalog);
-                    self.catalog_receiver = None;
                 }
                 Err(TryRecvError::Disconnected) => {
                     self.selection_notice = Some("Catalogue de modèles indisponible.".into());
                     self.catalog_receiver = None;
+                    break;
                 }
-                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Empty) => break,
             }
         }
         let mut events = Vec::new();
@@ -426,6 +426,10 @@ impl<A: Application> DesktopApp<A> {
             entry.path.to_string_lossy().into_owned(),
             parse_sha256(&entry.expected_sha256),
         ))
+    }
+
+    fn selected_model_id(&self) -> Option<whisper_core::model_catalog::ModelId> {
+        self.selection.model
     }
 
     fn selected_model_is_selectable(&self) -> bool {
@@ -595,7 +599,7 @@ impl<A: Application> DesktopApp<A> {
         let generation = Generation::first();
         let config = JobConfig {
             language: selected_language(&self.selection),
-            compute: self.compute_choice,
+            compute: compute_for_model(self.selection.model, self.compute_choice),
         };
         if self.dispatch(AppCommand::EnqueueImport {
             request: ImportRequest {
@@ -620,6 +624,11 @@ impl<A: Application> DesktopApp<A> {
     }
 
     fn start_live(&mut self, generation: Generation) {
+        if !model_supports_live(self.selection.model) {
+            self.view.message =
+                Some("Le modèle sélectionné n'est qualifié que pour l'import CPU.".into());
+            return;
+        }
         let clicked_at = unix_time_ms();
         self.live_clicked_at_unix_ms = Some(clicked_at);
         self.live_attempt_counter = self.live_attempt_counter.saturating_add(1);
@@ -653,7 +662,7 @@ impl<A: Application> DesktopApp<A> {
             microphone: self.microphones.effective().clone(),
             config: JobConfig {
                 language: selected_language(&self.selection),
-                compute: self.compute_choice,
+                compute: compute_for_model(self.selection.model, self.compute_choice),
             },
         };
         let session = live_log_session(job_id, generation, self.live_attempt_counter);
@@ -816,6 +825,12 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 ui.end_row();
             });
             if model_chosen
+                && self.selection.model
+                    == Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+            {
+                self.selection.manual_language = None;
+            }
+            if model_chosen
                 && let (Some(model), Some(sender)) =
                     (self.selection.model, self.preference_commands.as_ref())
             {
@@ -829,13 +844,23 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             ui.horizontal(|ui| {
                 ui.label("Langue");
                 if let Some(projection) = &self.projection {
-                    language_selection_combo(ui, projection, self.compute_choice, &mut self.selection);
+                    language_selection_combo(
+                        ui,
+                        projection,
+                        compute_for_model(self.selection.model, self.compute_choice),
+                        &mut self.selection,
+                    );
                 } else {
                     ui.label("Chargement…");
                 }
                 ui.label("Calcul");
+                let parakeet_selected = self.selected_model_id()
+                    == Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3);
                 let previous_compute = self.compute_choice;
                 let mut compute_interacted = false;
+                if parakeet_selected {
+                    ui.label("Calcul : CPU (requis)");
+                } else {
                 egui::ComboBox::from_id_salt("compute_choice")
                     .selected_text(match self.compute_choice {
                         ComputeChoice::Cpu => "CPU",
@@ -853,6 +878,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                             .selectable_value(&mut self.compute_choice, ComputeChoice::Gpu, "GPU")
                             .clicked();
                     });
+                }
                 let compute_changed = self.compute_choice != previous_compute;
                 let compute_selection_interacted = record_compute_selection_interaction(
                     &mut self.compute_choice_touched,
@@ -1001,6 +1027,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
             {
                 let can_start_live = !busy
+                    && model_supports_live(self.selection.model)
                     && self.selected_model_artifact().is_some()
                     && !self.paths.destination.trim().is_empty()
                     && self.selection.manual_language.as_ref().is_none_or(|language| !language.is_empty());
@@ -1009,6 +1036,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     .clicked()
                 {
                     self.start_live(Generation::first());
+                }
+                if !model_supports_live(self.selection.model) {
+                    ui.label("Le microphone n'est pas qualifié pour ce modèle.");
                 }
             }
         });
@@ -1708,6 +1738,21 @@ fn selected_language(selection: &SelectionWidgetState) -> LanguageChoice {
         })
 }
 
+pub fn compute_for_model(
+    model: Option<whisper_core::model_catalog::ModelId>,
+    preferred: ComputeChoice,
+) -> ComputeChoice {
+    if model == Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3) {
+        ComputeChoice::Cpu
+    } else {
+        preferred
+    }
+}
+
+pub fn model_supports_live(model: Option<whisper_core::model_catalog::ModelId>) -> bool {
+    model != Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+}
+
 pub fn model_selection_combo(
     ui: &mut egui::Ui,
     projection: &EngineProjection,
@@ -2074,7 +2119,8 @@ fn record_first_render(
 #[cfg(test)]
 mod tests {
     use super::{
-        DesktopApp, import_enqueue_enabled, manual_stop_available, microphone_device_label,
+        CatalogSnapshot, DesktopApp, ModelId, ModelSelectionRuntime, import_enqueue_enabled,
+        manual_stop_available, microphone_device_label, model_preference_command_channel,
         record_first_render, speech_limit_samples, window_must_remain_open,
     };
     use std::{cell::RefCell, collections::VecDeque, rc::Rc};
@@ -2569,5 +2615,97 @@ mod tests {
             app.view.message.as_deref(),
             Some("start admission rejected")
         );
+    }
+
+    #[test]
+    fn changing_catalog_snapshots_regray_and_restore_parakeet_in_the_open_ui() {
+        let (catalog_sender, catalog_receiver) = std::sync::mpsc::channel();
+        let (_preference_event_sender, preference_events) =
+            std::sync::mpsc::channel::<super::ModelPreferenceEvent>();
+        let (preference_commands, _preference_command_receiver) =
+            model_preference_command_channel();
+        let mut app = DesktopApp::new(RecordingApplication::default())
+            .with_model_selection_runtime(ModelSelectionRuntime {
+                catalog: catalog_receiver,
+                preference_events,
+                preference_commands,
+            });
+        app.selection.model = Some(ModelId::ParakeetTdt06BV3);
+
+        let snapshot = |generation, parakeet_availability| CatalogSnapshot {
+            generation,
+            entries: whisper_core::model_registry::MODELS
+                .iter()
+                .map(|record| {
+                    let availability = if record.artifact.id == ModelId::WhisperLargeV3Turbo {
+                        whisper_core::model_catalog::ModelAvailability::Ready
+                    } else {
+                        parakeet_availability
+                    };
+                    whisper_adapters::model_catalog::CatalogEntry {
+                        id: record.artifact.id,
+                        display_name: record.display_name.to_owned(),
+                        path: std::path::PathBuf::from("dynamic-test-models")
+                            .join(record.artifact.file_name),
+                        availability,
+                        expected_size_bytes: record.artifact.size_bytes,
+                        observed_size_bytes: Some(record.artifact.size_bytes),
+                        expected_sha256: record.artifact.sha256.to_owned(),
+                        observed_sha256: Some(record.artifact.sha256.to_owned()),
+                        diagnostic: None,
+                    }
+                })
+                .collect(),
+        };
+        let is_selectable = |app: &DesktopApp<RecordingApplication>| {
+            app.projection
+                .as_ref()
+                .unwrap()
+                .models
+                .iter()
+                .find(|model| model.id == ModelId::ParakeetTdt06BV3)
+                .unwrap()
+                .selectable
+        };
+
+        catalog_sender
+            .send(snapshot(
+                1,
+                whisper_core::model_catalog::ModelAvailability::Ready,
+            ))
+            .unwrap();
+        app.poll_model_selection();
+        assert!(is_selectable(&app));
+        assert_eq!(app.selection.model, Some(ModelId::ParakeetTdt06BV3));
+
+        catalog_sender
+            .send(snapshot(
+                2,
+                whisper_core::model_catalog::ModelAvailability::Missing,
+            ))
+            .unwrap();
+        app.poll_model_selection();
+        assert!(!is_selectable(&app));
+        assert_eq!(app.selection.model, Some(ModelId::ParakeetTdt06BV3));
+        assert!(
+            app.projection
+                .as_ref()
+                .unwrap()
+                .models
+                .iter()
+                .find(|model| model.id == ModelId::WhisperLargeV3Turbo)
+                .unwrap()
+                .selectable
+        );
+
+        catalog_sender
+            .send(snapshot(
+                3,
+                whisper_core::model_catalog::ModelAvailability::Ready,
+            ))
+            .unwrap();
+        app.poll_model_selection();
+        assert!(is_selectable(&app));
+        assert_eq!(app.selection.model, Some(ModelId::ParakeetTdt06BV3));
     }
 }

@@ -272,9 +272,9 @@ fn decode_sha256(value: &str) -> [u8; 32] {
 }
 
 #[test]
-fn parakeet_stays_unselectable_and_invalid_turbo_language_is_refused() {
+fn qualified_parakeet_cpu_selection_and_invalid_turbo_language_are_checked() {
     let app = app();
-    let refusal = app.admit(
+    let accepted = app.admit(
         SelectionIntent {
             generation: 1,
             model: ModelId::ParakeetTdt06BV3,
@@ -285,7 +285,38 @@ fn parakeet_stays_unselectable_and_invalid_turbo_language_is_refused() {
         },
         1,
     );
-    assert!(matches!(refusal, Err(SelectionRefusal::Capability(_))));
+    assert!(accepted.is_ok());
+
+    for (compute, backend, path, language) in [
+        (
+            ComputePreference::Gpu,
+            Backend::Gpu,
+            InferencePath::Import,
+            LanguageChoice::Automatic,
+        ),
+        (
+            ComputePreference::Cpu,
+            Backend::Cpu,
+            InferencePath::Import,
+            LanguageChoice::Manual(LanguageCode("fr".into())),
+        ),
+    ] {
+        let refused = app.admit(
+            SelectionIntent {
+                generation: 1,
+                model: ModelId::ParakeetTdt06BV3,
+                compute,
+                effective_backend: backend,
+                path,
+                language: language.clone(),
+            },
+            1,
+        );
+        assert!(
+            matches!(refused, Err(SelectionRefusal::Capability(_))),
+            "unexpected admission for {compute:?}/{path:?}/{language:?}: {refused:?}"
+        );
+    }
 
     let invalid = app.admit(
         SelectionIntent {

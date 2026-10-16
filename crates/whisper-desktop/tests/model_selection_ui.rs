@@ -8,9 +8,10 @@ use whisper_core::{
 };
 use whisper_desktop::ui::{
     ModelPreferenceCommand, ModelPreferenceEvent, SelectionWidgetState, apply_initial_model,
-    apply_preference_event, apply_startup_preference, language_choices_for_compute,
-    language_option_labels, language_selection_combo, model_preference_command_channel,
-    model_selection_combo, record_compute_selection_interaction, record_preference_delivery,
+    apply_preference_event, apply_startup_preference, compute_for_model,
+    language_choices_for_compute, language_option_labels, language_selection_combo,
+    model_preference_command_channel, model_selection_combo, model_supports_live,
+    record_compute_selection_interaction, record_preference_delivery,
 };
 
 #[test]
@@ -135,6 +136,41 @@ fn language_availability_uses_selected_backend_and_auto_intersection() {
     });
     let rendered = rendered_text(output.shapes);
     assert!(rendered.contains("LanguageUnavailable"));
+}
+
+#[test]
+fn parakeet_language_projection_uses_required_cpu_with_gpu_or_auto_preference() {
+    let snapshot = model_registry::engine_snapshot(
+        1,
+        |_| ModelAvailability::Ready,
+        Vec::<ResourceObservation>::new(),
+    );
+    let projection = whisper_core::model_selection_app::ModelSelectionApp::new(snapshot)
+        .projection(1)
+        .unwrap();
+    let parakeet = projection
+        .models
+        .iter()
+        .find(|model| model.id == ModelId::ParakeetTdt06BV3)
+        .unwrap();
+
+    for preference in [ComputeChoice::Gpu, ComputeChoice::Auto] {
+        let effective = compute_for_model(Some(ModelId::ParakeetTdt06BV3), preference);
+        let choices = language_choices_for_compute(parakeet, effective).unwrap();
+        assert_eq!(effective, ComputeChoice::Cpu);
+        assert!(choices.auto_language_selectable);
+        assert!(
+            choices
+                .languages
+                .iter()
+                .all(|language| !language.selectable)
+        );
+        assert_eq!(
+            compute_for_model(Some(ModelId::WhisperLargeV3Turbo), preference),
+            preference,
+            "Turbo keeps the user's compute preference"
+        );
+    }
 }
 
 #[test]
@@ -276,4 +312,26 @@ fn rendered_text(shapes: Vec<egui::epaint::ClippedShape>) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[test]
+fn parakeet_forces_cpu_and_disables_live_without_changing_turbo_preferences() {
+    assert_eq!(
+        compute_for_model(Some(ModelId::ParakeetTdt06BV3), ComputeChoice::Gpu),
+        ComputeChoice::Cpu
+    );
+    assert_eq!(
+        compute_for_model(Some(ModelId::ParakeetTdt06BV3), ComputeChoice::Auto),
+        ComputeChoice::Cpu
+    );
+    assert_eq!(
+        compute_for_model(Some(ModelId::WhisperLargeV3Turbo), ComputeChoice::Gpu),
+        ComputeChoice::Gpu
+    );
+    assert_eq!(
+        compute_for_model(Some(ModelId::WhisperLargeV3Turbo), ComputeChoice::Auto),
+        ComputeChoice::Auto
+    );
+    assert!(!model_supports_live(Some(ModelId::ParakeetTdt06BV3)));
+    assert!(model_supports_live(Some(ModelId::WhisperLargeV3Turbo)));
 }

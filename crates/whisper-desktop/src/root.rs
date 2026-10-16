@@ -1,6 +1,7 @@
 use std::{
     path::PathBuf,
     sync::mpsc::{self, Receiver, TryRecvError},
+    time::{Duration, SystemTime},
 };
 use whisper_adapters::model_catalog::CatalogSnapshot;
 use whisper_adapters::{
@@ -44,13 +45,59 @@ pub fn compose() -> DesktopComposition {
         .nth(2)
         .unwrap_or_else(|| std::path::Path::new("."))
         .join("models");
-    let (catalog_sender, catalog_receiver) = std::sync::mpsc::sync_channel(1);
-    let (admission_sender, admission_receiver) = std::sync::mpsc::sync_channel(1);
+    let (catalog_sender, catalog_receiver) = std::sync::mpsc::channel();
+    let (admission_sender, admission_receiver) = std::sync::mpsc::channel();
     let catalog_root = model_root.clone();
     std::thread::spawn(move || {
-        let snapshot = LocalModelCatalog::new(catalog_root).inspect(1);
-        let _ = catalog_sender.send(snapshot.clone());
-        let _ = admission_sender.send(snapshot);
+        let mut snapshot = LocalModelCatalog::new(catalog_root).inspect(1);
+        qualify_parakeet_catalog_entry(&mut snapshot);
+        let mut qualified = parakeet_available(&snapshot);
+        let mut model_metadata = configured_parakeet_worker()
+            .as_ref()
+            .and_then(|paths| file_metadata(&paths.model));
+        let mut generation = snapshot.generation;
+        if catalog_sender.send(snapshot.clone()).is_err()
+            || admission_sender.send(snapshot.clone()).is_err()
+        {
+            return;
+        }
+        loop {
+            std::thread::sleep(Duration::from_secs(1));
+            let paths = configured_parakeet_worker();
+            let next_model_metadata = paths.as_ref().and_then(|paths| file_metadata(&paths.model));
+            let artifact_changed = next_model_metadata != model_metadata;
+            model_metadata = next_model_metadata;
+            let key_is_valid = paths.is_some_and(|paths| {
+                let record = model_registry::model(ModelId::ParakeetTdt06BV3);
+                let key = model_registry::configuration_key(
+                    record,
+                    whisper_core::model_catalog::Backend::Cpu,
+                );
+                if artifact_changed {
+                    paths
+                        .verify_qualification(
+                            record.artifact.sha256,
+                            &key.runtime_build,
+                            &key.worker_build,
+                        )
+                        .is_ok()
+                } else {
+                    parakeet_worker_runtime_is_qualified(&paths)
+                }
+            });
+            let next_qualified = key_is_valid && parakeet_artifact_matches(&snapshot);
+            if next_qualified != qualified {
+                qualified = next_qualified;
+                generation = generation.saturating_add(1);
+                snapshot.generation = generation;
+                apply_parakeet_key_availability(&mut snapshot, qualified);
+                if catalog_sender.send(snapshot.clone()).is_err()
+                    || admission_sender.send(snapshot.clone()).is_err()
+                {
+                    return;
+                }
+            }
+        }
     });
 
     let (preference_command_sender, preference_command_receiver) =
@@ -149,10 +196,11 @@ pub fn compose() -> DesktopComposition {
         let _ = sender.send(result);
     });
     let historical_model_path = whisper_desktop::ui::default_model_path();
-    let io = AsyncImportIo::start_with_model_catalog(
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
         workers,
         model_root.clone(),
         historical_model_path.clone(),
+        configured_parakeet_worker(),
     );
     let application =
         guarded_application(io, &model_root, historical_model_path, admission_receiver);
@@ -170,6 +218,100 @@ pub fn compose() -> DesktopComposition {
             preference_events: preference_event_receiver,
             preference_commands: preference_command_sender,
         },
+    }
+}
+
+fn configured_parakeet_worker() -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths> {
+    let runtime_root = PathBuf::from(std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")?);
+    Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
+        executable: std::env::var_os("PARAKEET_L2_WORKER")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| runtime_root.join("worker/parakeet-worker.exe")),
+        native_dir: std::env::var_os("PARAKEET_L2_NATIVE_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| runtime_root.join("native")),
+        model: std::env::var_os("PARAKEET_L2_MODEL")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| runtime_root.join("runtime/model/parakeet-tdt-0.6b-v3.q8_0.gguf")),
+        runtime_root,
+    })
+}
+
+fn qualify_parakeet_catalog_entry(snapshot: &mut CatalogSnapshot) {
+    use whisper_core::model_catalog::{Backend, ModelId};
+    let record = model_registry::model(ModelId::ParakeetTdt06BV3);
+    let key = model_registry::configuration_key(record, Backend::Cpu);
+    let catalog_model_ready = snapshot.entries.iter().any(|entry| {
+        entry.id == ModelId::ParakeetTdt06BV3
+            && entry.availability == ModelAvailability::Ready
+            && entry.observed_sha256.as_deref() == Some(record.artifact.sha256)
+            && entry.observed_size_bytes == Some(record.artifact.size_bytes)
+    });
+    let qualified = catalog_model_ready
+        && configured_parakeet_worker().is_some_and(|paths| {
+            paths
+                .verify_qualification(
+                    record.artifact.sha256,
+                    &key.runtime_build,
+                    &key.worker_build,
+                )
+                .is_ok()
+        });
+    apply_parakeet_key_availability(snapshot, qualified);
+}
+
+fn parakeet_worker_runtime_is_qualified(
+    paths: &whisper_adapters::parakeet_import::ParakeetWorkerPaths,
+) -> bool {
+    let record = model_registry::model(ModelId::ParakeetTdt06BV3);
+    let key = model_registry::configuration_key(record, whisper_core::model_catalog::Backend::Cpu);
+    paths
+        .verify_worker_runtime(&key.runtime_build, &key.worker_build)
+        .is_ok()
+}
+
+fn file_metadata(path: &std::path::Path) -> Option<(u64, SystemTime)> {
+    let metadata = std::fs::metadata(path).ok()?;
+    Some((metadata.len(), metadata.modified().ok()?))
+}
+
+fn parakeet_artifact_matches(snapshot: &CatalogSnapshot) -> bool {
+    let record = model_registry::model(ModelId::ParakeetTdt06BV3);
+    snapshot.entries.iter().any(|entry| {
+        entry.id == ModelId::ParakeetTdt06BV3
+            && entry.observed_sha256.as_deref() == Some(record.artifact.sha256)
+            && entry.observed_size_bytes == Some(record.artifact.size_bytes)
+    })
+}
+
+fn parakeet_available(snapshot: &CatalogSnapshot) -> bool {
+    snapshot.entries.iter().any(|entry| {
+        entry.id == ModelId::ParakeetTdt06BV3 && entry.availability == ModelAvailability::Ready
+    })
+}
+
+fn apply_parakeet_key_availability(snapshot: &mut CatalogSnapshot, key_verified: bool) {
+    use whisper_core::model_catalog::ModelId;
+    let catalog_model_ready = parakeet_artifact_matches(snapshot);
+    if !(key_verified && catalog_model_ready)
+        && let Some(entry) = snapshot
+            .entries
+            .iter_mut()
+            .find(|entry| entry.id == ModelId::ParakeetTdt06BV3)
+    {
+        entry.availability = ModelAvailability::Missing;
+        entry.diagnostic = Some(
+            "Worker, DLL ou modèle Parakeet absent ou différent de la fiche Test qualifiée.".into(),
+        );
+    } else if key_verified
+        && catalog_model_ready
+        && let Some(entry) = snapshot
+            .entries
+            .iter_mut()
+            .find(|entry| entry.id == ModelId::ParakeetTdt06BV3)
+    {
+        entry.availability = ModelAvailability::Ready;
+        entry.diagnostic = None;
     }
 }
 
@@ -201,10 +343,25 @@ fn guarded_application<P: ImportIoPort>(
         )
         .to_string_lossy()
         .into_owned();
-    let core_guard = ModelCommandGuard::new(
+    let accepted_paths = [
+        (ModelId::WhisperLargeV3Turbo, app_model_path),
+        (ModelId::WhisperLargeV3Turbo, historical_model_path.clone()),
+        (
+            ModelId::ParakeetTdt06BV3,
+            model_root
+                .join(
+                    model_registry::model(ModelId::ParakeetTdt06BV3)
+                        .artifact
+                        .file_name,
+                )
+                .to_string_lossy()
+                .into_owned(),
+        ),
+    ];
+    let core_guard = ModelCommandGuard::new_with_model_paths(
         model_registry::engine_snapshot(1, |_| ModelAvailability::Ready, Vec::new()),
         1,
-        [app_model_path, historical_model_path.clone()],
+        accepted_paths,
     );
     DesktopAdmissionApplication {
         inner: ImportApplication::new(io).with_model_guard(core_guard),
@@ -219,26 +376,31 @@ fn guarded_application<P: ImportIoPort>(
 
 impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
     fn poll_admission_catalog(&mut self) {
-        if self.admission_guard.is_some() || self.admission_catalog_failed {
-            return;
-        }
-        match self.admission_catalog.try_recv() {
-            Ok(snapshot) => {
-                let turbo_path = snapshot
-                    .entries
-                    .iter()
-                    .find(|entry| entry.id == ModelId::WhisperLargeV3Turbo)
-                    .map(|entry| entry.path.to_string_lossy().into_owned())
-                    .unwrap_or_default();
-                let guard = ModelCommandGuard::new(
-                    snapshot.engine_snapshot(Vec::new()),
-                    snapshot.generation,
-                    [turbo_path, self.historical_model_path.clone()],
-                );
-                self.admission_guard = Some(guard);
+        loop {
+            match self.admission_catalog.try_recv() {
+                Ok(snapshot) => {
+                    let paths = snapshot
+                        .entries
+                        .iter()
+                        .map(|entry| (entry.id, entry.path.to_string_lossy().into_owned()))
+                        .chain(std::iter::once((
+                            ModelId::WhisperLargeV3Turbo,
+                            self.historical_model_path.clone(),
+                        )));
+                    let guard = ModelCommandGuard::new_with_model_paths(
+                        snapshot.engine_snapshot(Vec::new()),
+                        snapshot.generation,
+                        paths,
+                    );
+                    self.admission_guard = Some(guard);
+                    self.admission_catalog_failed = false;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    self.admission_catalog_failed = true;
+                    break;
+                }
+                Err(TryRecvError::Empty) => break,
             }
-            Err(TryRecvError::Disconnected) => self.admission_catalog_failed = true,
-            Err(TryRecvError::Empty) => {}
         }
     }
 
@@ -418,6 +580,15 @@ mod tests {
         result
     }
 
+    fn model_sha(id: ModelId) -> [u8; 32] {
+        let value = model_registry::model(id).artifact.sha256;
+        let mut result = [0_u8; 32];
+        for (index, byte) in result.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap();
+        }
+        result
+    }
+
     fn request(model_path: String, model_sha256: [u8; 32], destination: String) -> ImportRequest {
         ImportRequest {
             job_id: JobId(901),
@@ -472,6 +643,235 @@ mod tests {
         let (sender, receiver) = mpsc::sync_channel(1);
         sender.send(snapshot).unwrap();
         receiver
+    }
+
+    #[test]
+    fn parakeet_selection_and_admission_require_the_exact_test_key() {
+        let model_root = fixture_root("parakeet-key-gate");
+        let mut catalog = admission_snapshot(&model_root, ModelAvailability::Ready);
+        let record = model_registry::model(ModelId::ParakeetTdt06BV3);
+        let parakeet = catalog
+            .entries
+            .iter_mut()
+            .find(|entry| entry.id == ModelId::ParakeetTdt06BV3)
+            .unwrap();
+        parakeet.availability = ModelAvailability::Ready;
+        parakeet.observed_sha256 = Some(record.artifact.sha256.to_owned());
+        parakeet.observed_size_bytes = Some(record.artifact.size_bytes);
+        parakeet.diagnostic = None;
+
+        let parakeet_request = || {
+            request(
+                model_root
+                    .join(record.artifact.file_name)
+                    .to_string_lossy()
+                    .into_owned(),
+                model_sha(ModelId::ParakeetTdt06BV3),
+                "archive".into(),
+            )
+        };
+        let paths = |snapshot: &CatalogSnapshot| {
+            snapshot
+                .entries
+                .iter()
+                .map(|entry| (entry.id, entry.path.to_string_lossy().into_owned()))
+                .collect::<Vec<_>>()
+        };
+
+        let mut unavailable = catalog.clone();
+        apply_parakeet_key_availability(&mut unavailable, false);
+        let unavailable_projection = whisper_core::model_selection_app::ModelSelectionApp::new(
+            unavailable.engine_snapshot(Vec::new()),
+        )
+        .projection(1)
+        .unwrap();
+        assert!(
+            !unavailable_projection
+                .models
+                .iter()
+                .find(|model| model.id == ModelId::ParakeetTdt06BV3)
+                .unwrap()
+                .selectable
+        );
+        let unavailable_guard = ModelCommandGuard::new_with_model_paths(
+            unavailable.engine_snapshot(Vec::new()),
+            1,
+            paths(&unavailable),
+        );
+        assert!(
+            unavailable_guard
+                .admit_import(
+                    &parakeet_request(),
+                    whisper_core::model_selection_app::InferencePath::Import,
+                )
+                .is_err()
+        );
+
+        let mut qualified = catalog;
+        apply_parakeet_key_availability(&mut qualified, true);
+        let qualified_projection = whisper_core::model_selection_app::ModelSelectionApp::new(
+            qualified.engine_snapshot(Vec::new()),
+        )
+        .projection(1)
+        .unwrap();
+        assert!(
+            qualified_projection
+                .models
+                .iter()
+                .find(|model| model.id == ModelId::ParakeetTdt06BV3)
+                .unwrap()
+                .selectable
+        );
+        let qualified_guard = ModelCommandGuard::new_with_model_paths(
+            qualified.engine_snapshot(Vec::new()),
+            1,
+            paths(&qualified),
+        );
+        assert!(
+            qualified_guard
+                .admit_import(
+                    &parakeet_request(),
+                    whisper_core::model_selection_app::InferencePath::Import,
+                )
+                .is_ok()
+        );
+        assert!(
+            qualified
+                .entries
+                .iter()
+                .find(|entry| entry.id == ModelId::WhisperLargeV3Turbo)
+                .unwrap()
+                .availability
+                == ModelAvailability::Ready
+        );
+    }
+
+    #[test]
+    #[ignore = "mutates a worker copy inside the scoped L2a-2 runtime"]
+    fn parakeet_worker_key_changes_regray_and_readmit_without_restarting() {
+        use std::io::Write;
+        use whisper_adapters::parakeet_import::ParakeetWorkerPaths;
+
+        let runtime_root = PathBuf::from(
+            std::env::var_os("PARAKEET_L2_RUNTIME_ROOT").expect("L2a-2 runtime root is required"),
+        );
+        let original_paths = configured_parakeet_worker().expect("qualified worker paths");
+        let mutated_worker = runtime_root.join(format!(
+            "worker/a8-runtime-change-{}.exe",
+            std::process::id()
+        ));
+        std::fs::copy(&original_paths.executable, &mutated_worker).unwrap();
+        let paths = ParakeetWorkerPaths {
+            executable: mutated_worker.clone(),
+            ..original_paths.clone()
+        };
+        let record = model_registry::model(ModelId::ParakeetTdt06BV3);
+        let key =
+            model_registry::configuration_key(record, whisper_core::model_catalog::Backend::Cpu);
+        paths
+            .verify_qualification(
+                record.artifact.sha256,
+                &key.runtime_build,
+                &key.worker_build,
+            )
+            .expect("copied worker initially has the exact Test key");
+
+        let model_root = paths.model.parent().unwrap().to_path_buf();
+        let historical = "C:/known/turbo.bin".to_owned();
+        let mut snapshot = admission_snapshot(&model_root, ModelAvailability::Ready);
+        let parakeet = snapshot
+            .entries
+            .iter_mut()
+            .find(|entry| entry.id == ModelId::ParakeetTdt06BV3)
+            .unwrap();
+        parakeet.availability = ModelAvailability::Ready;
+        parakeet.observed_sha256 = Some(record.artifact.sha256.to_owned());
+        parakeet.observed_size_bytes = Some(record.artifact.size_bytes);
+        parakeet.diagnostic = None;
+
+        let (sender, receiver) = mpsc::channel();
+        let effects = RecordingIo::default().effects.clone();
+        let mut app = guarded_application(
+            RecordingIo {
+                effects: effects.clone(),
+                ..RecordingIo::default()
+            },
+            &model_root,
+            historical,
+            receiver,
+        );
+        let parakeet_request = || {
+            request(
+                model_root
+                    .join(record.artifact.file_name)
+                    .to_string_lossy()
+                    .into_owned(),
+                model_sha(ModelId::ParakeetTdt06BV3),
+                "archive".into(),
+            )
+        };
+        let is_selectable = |snapshot: &CatalogSnapshot| {
+            whisper_core::model_selection_app::ModelSelectionApp::new(
+                snapshot.engine_snapshot(Vec::new()),
+            )
+            .projection(snapshot.generation)
+            .unwrap()
+            .models
+            .iter()
+            .find(|model| model.id == ModelId::ParakeetTdt06BV3)
+            .unwrap()
+            .selectable
+        };
+        let start = || AppCommand::StartImport {
+            request: parakeet_request(),
+        };
+
+        assert!(parakeet_worker_runtime_is_qualified(&paths));
+        apply_parakeet_key_availability(&mut snapshot, true);
+        sender.send(snapshot.clone()).unwrap();
+        app.poll_admission_catalog();
+        assert!(is_selectable(&snapshot));
+        assert!(app.admission_result(&start()).unwrap().is_ok());
+
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&mutated_worker)
+            .unwrap()
+            .write_all(b"changed worker build")
+            .unwrap();
+        assert!(!parakeet_worker_runtime_is_qualified(&paths));
+        snapshot.generation += 1;
+        apply_parakeet_key_availability(&mut snapshot, false);
+        sender.send(snapshot.clone()).unwrap();
+        app.poll_admission_catalog();
+        assert!(!is_selectable(&snapshot));
+        assert!(app.admission_result(&start()).unwrap().is_err());
+        let refused = app.dispatch(start()).unwrap();
+        assert!(
+            refused
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("Modèle indisponible"))
+        );
+        assert!(effects.lock().unwrap().is_empty());
+
+        std::fs::copy(&original_paths.executable, &mutated_worker).unwrap();
+        assert!(parakeet_worker_runtime_is_qualified(&paths));
+        snapshot.generation += 1;
+        apply_parakeet_key_availability(&mut snapshot, true);
+        sender.send(snapshot.clone()).unwrap();
+        app.poll_admission_catalog();
+        assert!(is_selectable(&snapshot));
+        assert!(app.admission_result(&start()).unwrap().is_ok());
+        assert_eq!(
+            snapshot
+                .entries
+                .iter()
+                .find(|entry| entry.id == ModelId::WhisperLargeV3Turbo)
+                .unwrap()
+                .availability,
+            ModelAvailability::Ready
+        );
     }
 
     #[test]

@@ -54,8 +54,8 @@ pub const MODELS: [ModelRecord; 2] = [
             sha256: "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
         },
         display_name: "Parakeet TDT 0.6B v3",
-        admission: AdmissionBasis::Measured(Qualification::NotQualified),
-        provenance: "Parakeet produit non qualifié dans L1b-1",
+        admission: AdmissionBasis::Measured(Qualification::Qualified),
+        provenance: "fiche Test L2a-2; modèle, worker, DLL CPU et A3/A11 qualifiés",
     },
 ];
 
@@ -210,6 +210,25 @@ pub fn engine_snapshot(
                         .collect(),
                     resource_requirements: vec![],
                 }
+            } else if backend == Backend::Cpu {
+                ConfigurationCapabilities {
+                    key,
+                    compute: Capability::QUALIFIED,
+                    auto_language: Capability::QUALIFIED,
+                    languages: vec![
+                        LanguageCapability {
+                            code: LanguageCode("fr".into()),
+                            recognized: Capability::QUALIFIED,
+                            manual: unsupported(),
+                        },
+                        LanguageCapability {
+                            code: LanguageCode("en".into()),
+                            recognized: Capability::QUALIFIED,
+                            manual: unsupported(),
+                        },
+                    ],
+                    resource_requirements: vec![],
+                }
             } else {
                 ConfigurationCapabilities {
                     key,
@@ -249,12 +268,14 @@ pub fn configuration_key(record: &ModelRecord, backend: Backend) -> Configuratio
         artifact_revision: record.artifact.sha256.to_owned(),
         runtime: match record.artifact.id {
             ModelId::WhisperLargeV3Turbo => "whisper-rs",
-            ModelId::ParakeetTdt06BV3 => "parakeet-product-candidate",
+            ModelId::ParakeetTdt06BV3 => "nemo-speech-asr 0.2.0",
         }
         .to_owned(),
         runtime_build: match record.artifact.id {
             ModelId::WhisperLargeV3Turbo => "current-production-recognized",
-            ModelId::ParakeetTdt06BV3 => "not-integrated",
+            ModelId::ParakeetTdt06BV3 => {
+                "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff"
+            }
         }
         .to_owned(),
         worker: match record.artifact.id {
@@ -264,13 +285,19 @@ pub fn configuration_key(record: &ModelRecord, backend: Backend) -> Configuratio
         .to_owned(),
         worker_build: match record.artifact.id {
             ModelId::WhisperLargeV3Turbo => "current-production-recognized",
-            ModelId::ParakeetTdt06BV3 => "not-integrated",
+            ModelId::ParakeetTdt06BV3 => {
+                "545a4830755da613a1255be97fbc6a6a513ef837d669d8a9870d3bbee9dfd587"
+            }
         }
         .to_owned(),
         worker_protocol: 2,
         backend,
         hardware_profile: (backend == Backend::Gpu).then(|| "selected-gpu".to_owned()),
-        inference_profile: "default".to_owned(),
+        inference_profile: match record.artifact.id {
+            ModelId::WhisperLargeV3Turbo => "default",
+            ModelId::ParakeetTdt06BV3 => "import-single-pass",
+        }
+        .to_owned(),
     }
 }
 

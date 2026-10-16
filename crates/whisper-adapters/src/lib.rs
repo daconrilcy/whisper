@@ -5,6 +5,7 @@ mod direct_live;
 pub mod gpu_inventory;
 pub mod journal;
 pub mod model_catalog;
+pub mod parakeet_import;
 pub mod path_settings;
 pub mod queue_store;
 pub mod recovery;
