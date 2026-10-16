@@ -3873,6 +3873,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "whisper-worker-parakeet-cpu"
+version = "0.1.0"
+dependencies = [
+ "libloading",
+ "serde",
+ "serde_json",
+ "sha2",
+ "symphonia",
+ "whisper-core",
+]
+
+[[package]]
 name = "winapi-util"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
