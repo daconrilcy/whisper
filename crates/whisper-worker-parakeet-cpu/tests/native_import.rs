@@ -303,6 +303,119 @@ fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_un
     );
 }
 
+#[test]
+#[ignore = "runs the R5 short FR/EN normalization fixtures with the locally qualified CPU DLL set"]
+fn cpu_worker_normalizes_fr87_fr27_and_en15_short_fixtures() {
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let output_dir = required_path("PARAKEET_L2_OUTPUT_DIR");
+    let model = required_path("PARAKEET_L2_MODEL");
+    let native_dir = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = required_path("PARAKEET_L2_WORKER");
+    let fr87 = required_path("PARAKEET_L2_FR_WAV");
+    let fr27 = required_path("PARAKEET_L2_FR27_WAV");
+    let en15 = required_path("PARAKEET_L2_EN_WAV");
+    for path in [&output_dir, &native_dir] {
+        ensure_under(path, &runtime);
+    }
+    fs::create_dir_all(&output_dir).unwrap();
+
+    let model_sha = sha256(&model);
+    let mut process = WorkerProcess::start(&worker, &model, &model_sha, &native_dir, &runtime);
+    let ready = process.receive();
+    let Event::Ready { identity, .. } = ready.message else {
+        panic!("worker did not attest Ready: {ready:?}");
+    };
+    assert_eq!(identity.model_sha256, model_sha);
+    assert_eq!(identity.profile, PARAKEET_PROFILE_IMPORT_SINGLE_PASS);
+    assert_eq!(identity.build_sha256, sha256(&worker));
+
+    let mut results = Vec::new();
+    for (request_id, language, source) in
+        [(1, "fr87", &fr87), (2, "fr27", &fr27), (3, "en15", &en15)]
+    {
+        let event = process.request(
+            request_id,
+            &format!("r5-{language}"),
+            1,
+            1,
+            &identity,
+            source,
+        );
+        let Event::Result {
+            identity: result_identity,
+            duration_samples,
+            text,
+            words,
+            ..
+        } = event.message
+        else {
+            panic!("{language} inference failed: {event:?}");
+        };
+        assert_eq!(result_identity, identity);
+        assert!(!text.trim().is_empty());
+        assert!(!text.contains('\u{fffd}'));
+        assert!(words.iter().all(|word| word.start_ms < word.end_ms));
+        assert!(
+            words
+                .windows(2)
+                .all(|pair| pair[0].end_ms <= pair[1].start_ms)
+        );
+        if language == "fr87" {
+            let pair = words
+                .windows(2)
+                .find(|pair| pair[0].text == "faire?" && pair[1].text == "Je")
+                .expect("the normalized real sequence faire / ? / Je is present");
+            assert_eq!((pair[0].start_ms, pair[0].end_ms), (17_760, 17_920));
+            assert_eq!((pair[1].start_ms, pair[1].end_ms), (18_000, 18_080));
+        }
+        if language == "fr27" {
+            assert!(words.last().is_some_and(|word| word.text == "à..."));
+        }
+        if language == "en15" {
+            assert!(text.to_lowercase().contains("victorious"));
+        }
+        results.push(serde_json::json!({
+            "fixture": language,
+            "source_sha256": sha256(source),
+            "duration_samples": duration_samples,
+            "text": text,
+            "words": words,
+        }));
+    }
+    process.shutdown();
+    let exit = process.wait();
+    assert!(exit.success(), "worker exited unsuccessfully: {exit}");
+
+    let mut dll_hashes = BTreeMap::new();
+    for name in [
+        "nemo_speech_asr_c.dll",
+        "nemo_speech_asr.dll",
+        "ggml.dll",
+        "ggml-base.dll",
+        "ggml-cpu.dll",
+    ] {
+        dll_hashes.insert(name, sha256(&native_dir.join(name)));
+    }
+    let report = serde_json::json!({
+        "worker_sha256": sha256(&worker),
+        "model_sha256": model_sha,
+        "dll_sha256": dll_hashes,
+        "backend": "CPU",
+        "inference_count": results.len(),
+        "results": results,
+        "process_exit": "success",
+    });
+    fs::write(
+        output_dir.join("r5-short-fixtures.json"),
+        serde_json::to_vec_pretty(&report).unwrap(),
+    )
+    .unwrap();
+    println!(
+        "R5_SHORT_FIXTURES {}",
+        serde_json::to_string(&report).unwrap()
+    );
+}
+
 struct WorkerProcess {
     child: Child,
     stdin: ChildStdin,

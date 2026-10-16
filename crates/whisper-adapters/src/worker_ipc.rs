@@ -41,8 +41,7 @@ use whisper_core::{
 };
 
 const MAX_FRAME_BYTES: usize = 1_048_576;
-const TDT_FRAME_OVERLAP_SAMPLES: u64 = 1_280;
-const SINGLE_PASS_OVERLAP_TOLERANCE_SAMPLES: u64 = 80;
+const TDT_FRAME_OVERLAP_SAMPLES: u64 = 80 * 16;
 
 fn vad_word_overlap_within_one_tdt_frame(start_sample: u64, previous_end_sample: u64) -> bool {
     start_sample.saturating_add(TDT_FRAME_OVERLAP_SAMPLES) >= previous_end_sample
@@ -72,15 +71,36 @@ fn append_vad_parakeet_word_group(
     Ok(())
 }
 
-fn single_pass_word_overlap_matches_baseline(start_sample: u64, previous_end_sample: u64) -> bool {
-    start_sample.saturating_add(SINGLE_PASS_OVERLAP_TOLERANCE_SAMPLES) >= previous_end_sample
+fn validate_single_pass_parakeet_words(
+    words: &[whisper_core::parakeet_ipc::Word],
+    duration_samples: u64,
+) -> Result<Vec<(u64, u64, String)>, String> {
+    let mut validated = Vec::with_capacity(words.len());
+    let mut previous_end = 0_u64;
+    for (index, word) in words.iter().enumerate() {
+        let start = u64::from(word.start_ms) * 16;
+        let end = u64::from(word.end_ms) * 16;
+        let text = word.text.trim();
+        if text.is_empty() || start >= end || end > duration_samples {
+            return Err(format!(
+                "InvalidTimestamp: Parakeet word {index} is empty or outside the audio duration"
+            ));
+        }
+        if index > 0 && start < previous_end {
+            return Err(format!(
+                "InvalidTimestamp: Parakeet word {index} overlaps or is unordered"
+            ));
+        }
+        previous_end = end;
+        validated.push((start, end, text.to_owned()));
+    }
+    Ok(validated)
 }
 
 fn append_single_pass_parakeet_word_group(
     groups: &mut Vec<(u64, u64, Vec<String>)>,
     start_sample: u64,
     end_sample: u64,
-    previous_end_sample: u64,
     token: &str,
 ) -> Result<(), String> {
     let boundary = groups.last().is_some_and(|(_, _, tokens)| {
@@ -88,11 +108,6 @@ fn append_single_pass_parakeet_word_group(
             .last()
             .is_some_and(|last| last.ends_with('.') || last.ends_with('!') || last.ends_with('?'))
     });
-    let start_sample = if boundary {
-        start_sample.max(previous_end_sample)
-    } else {
-        start_sample
-    };
     if start_sample >= end_sample {
         return Err("InvalidTimestamp: sentence boundary leaves an empty word range".into());
     }
@@ -4248,32 +4263,18 @@ impl ImportRuntime {
                     completed_samples: duration_samples,
                     total_samples: duration_samples,
                 });
+                let validated_words =
+                    match validate_single_pass_parakeet_words(&words, duration_samples) {
+                        Ok(words) => words,
+                        Err(error) => return Some(Err(PortError::Failed(error))),
+                    };
                 let mut groups: Vec<(u64, u64, Vec<String>)> = Vec::new();
-                let mut previous_end = 0_u64;
-                for word in words {
-                    let start = u64::from(word.start_ms).saturating_mul(16);
-                    let end = u64::from(word.end_ms)
-                        .saturating_mul(16)
-                        .min(duration_samples);
-                    let token = word.text.trim();
-                    if token.is_empty()
-                        || !single_pass_word_overlap_matches_baseline(start, previous_end)
-                        || start >= end
+                for (start, end, token) in validated_words {
+                    if let Err(error) =
+                        append_single_pass_parakeet_word_group(&mut groups, start, end, &token)
                     {
-                        return Some(Err(PortError::Failed(
-                            "InvalidTimestamp: Parakeet word range is empty or unordered beyond one 80 ms frame".into(),
-                        )));
-                    }
-                    if let Err(error) = append_single_pass_parakeet_word_group(
-                        &mut groups,
-                        start,
-                        end,
-                        previous_end,
-                        token,
-                    ) {
                         return Some(Err(PortError::Failed(error)));
                     }
-                    previous_end = previous_end.max(end);
                 }
                 let last_sequence = groups.len() as u64;
                 for (sequence, (start, end, tokens)) in groups.into_iter().enumerate() {
@@ -5757,24 +5758,52 @@ mod tests {
 
     #[test]
     fn timestamp_guard_accepts_exactly_one_tdt_frame_overlap() {
+        assert_eq!(TDT_FRAME_OVERLAP_SAMPLES, 80 * 16);
         assert!(vad_word_overlap_within_one_tdt_frame(10_000, 11_280));
         assert!(!vad_word_overlap_within_one_tdt_frame(10_000, 11_281));
     }
 
     #[test]
-    fn single_pass_timestamp_guard_keeps_the_baseline_eighty_sample_bound() {
-        assert!(single_pass_word_overlap_matches_baseline(10_000, 10_080));
-        assert!(!single_pass_word_overlap_matches_baseline(10_000, 10_081));
+    fn single_pass_adapter_accepts_normalized_words_and_rejects_any_overlap() {
+        let normalized = [
+            vad_test_word("faire?", 17_760, 17_920),
+            vad_test_word("Je", 18_000, 18_080),
+        ];
+        assert_eq!(
+            validate_single_pass_parakeet_words(&normalized, 27_000 * 16).unwrap(),
+            vec![
+                (17_760 * 16, 17_920 * 16, "faire?".into()),
+                (18_000 * 16, 18_080 * 16, "Je".into()),
+            ]
+        );
+        let overlapping = [
+            vad_test_word("faire?", 17_760, 18_080),
+            vad_test_word("Je", 18_000, 18_080),
+        ];
+        assert!(
+            validate_single_pass_parakeet_words(&overlapping, 27_000 * 16)
+                .unwrap_err()
+                .contains("overlaps or is unordered")
+        );
     }
 
     #[test]
-    fn single_pass_punctuation_boundary_keeps_the_baseline_split_behavior() {
-        let mut groups = vec![(10_000, 10_080, vec!["?".to_owned()])];
-        let error =
-            append_single_pass_parakeet_word_group(&mut groups, 10_000, 10_080, 10_080, "Je")
-                .unwrap_err();
-        assert!(error.contains("sentence boundary leaves an empty word range"));
-        assert_eq!(groups, vec![(10_000, 10_080, vec!["?".to_owned()])]);
+    fn single_pass_punctuation_boundary_keeps_original_words_with_positive_ranges() {
+        let words = [
+            vad_test_word("faire?", 17_760, 17_920),
+            vad_test_word("Je", 18_000, 18_080),
+        ];
+        let validated = validate_single_pass_parakeet_words(&words, 27_000 * 16).unwrap();
+        let mut groups = Vec::new();
+        for (start, end, token) in validated {
+            append_single_pass_parakeet_word_group(&mut groups, start, end, &token).unwrap();
+        }
+        assert_eq!(groups.len(), 2);
+        assert_eq!(
+            groups[0],
+            (17_760 * 16, 17_920 * 16, vec!["faire?".to_owned()])
+        );
+        assert_eq!(groups[1], (18_000 * 16, 18_080 * 16, vec!["Je".to_owned()]));
     }
 
     fn vad_test_window() -> whisper_core::parakeet_windows::Window {
