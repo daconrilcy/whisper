@@ -4,7 +4,7 @@ Décision : retirer cette seule admission dans un lot correctif distinct, puis v
 
 # PLAN-PARA-L2b-R4 v1 — retrait de l'admission courte L2b non qualifiée
 
-**Statut : DRAFT — revue indépendante requise avant code.** Auteur : session Codex principale. Base Git `8a4385e9` sur `evo-startup-perf`, plan parent `PLAN-PARA-L2 v6` CLEAN — PLANS READY-L2b, candidat L2b non commité ; patch final du cycle 2 SHA-256 `fc9161721c3f1de9c93595497707af98dff9d496ee8ff616f41d1f9eb6349b65`. Le reviewer L2b a rendu **LIVRÉ AVEC RÉSERVES** après deux cycles, R4 ouvert. L'utilisateur a autorisé dans cette session la préparation, la revue puis l'implémentation conditionnelle de ce lot **sur les deux chemins ci-dessous seulement**. Ce lot ne rouvre pas le cycle L2b précédent et ne qualifie pas B4–B8.
+**Statut : CLEAN — PLANS READY-R4.** Revue indépendante du commit `e61c865f` : aucun REQUIRED, les deux chemins jugés suffisants et l'ordre Prepare → archive → Prepared → StartWorker vérifié dans le code. Auteur : session Codex principale. Base Git `8a4385e9` sur `evo-startup-perf`, plan parent `PLAN-PARA-L2 v6` CLEAN — PLANS READY-L2b, candidat L2b non commité ; patch final du cycle 2 SHA-256 `fc9161721c3f1de9c93595497707af98dff9d496ee8ff616f41d1f9eb6349b65`. Le reviewer L2b a rendu **LIVRÉ AVEC RÉSERVES** après deux cycles, R4 ouvert. L'utilisateur a autorisé dans cette session la préparation, la revue puis l'implémentation conditionnelle de ce lot **sur les deux chemins ci-dessous seulement**. Ce lot ne rouvre pas le cycle L2b précédent et ne qualifie pas B4–B8. La revue du plan ne ferme pas R4 : la correction et ses tests attendent une revue de code distincte.
 
 ## 1. Cause, résultat et limites
 
