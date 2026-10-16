@@ -68,7 +68,7 @@ Les nouveaux modules et tests nommés ci-dessus sont à créer ; l'existence de 
 
 **`lot.paths.read` principaux :** règles et parents Git, `Cargo.toml`, `Cargo.lock`, les manifests des trois crates, modules L1a, `compute_policy.rs`, `gpu_selection.rs`, `ports.rs`, `domain.rs`, `ipc.rs`, `worker_ipc.rs`, `direct_live.rs`, tests import/live/GPU/settings actuels, fiches Turbo et artefacts Test effectivement disponibles. Les entrées locales modèles/audio sont lues seulement si la recette correspondante est autorisée et disponible.
 
-**`lot.paths.runtime_write` proposé :** `target/parakeet-tests/l1b/` pour cible Cargo, temporaires, fixtures artificielles, settings v1/v2, sorties de tests et journaux. Les essais UI/desktop passent par des ports injectés et n'écrivent ni dans le profil utilisateur réel ni dans `models/`. `sound example/` demeure intact. Les tests existants qui construisent des chemins fixes sous `target/` hors de cette racine sont exclus de la campagne tant qu'ils ne sont pas inclus dans un plan révisé ; `tests/microphone_settings.rs` est adapté pour utiliser la racine L1b.
+**`lot.paths.runtime_write` proposé :** `target/parakeet-tests/l1b/` pour cible Cargo, temporaires, fixtures artificielles, settings v1/v2, sorties de tests et journaux. Le test d'intégration `model_selection_ui.rs` exerce les widgets egui avec un snapshot injecté, **sans construire `DesktopApp`** ; sa construction démarrerait le journal réel à moins de le rediriger explicitement. Les essais UI/desktop n'écrivent ni dans le profil utilisateur réel ni dans `models/`. `sound example/` demeure intact. Les tests existants qui construisent des chemins fixes sous `target/` hors de cette racine sont exclus de la campagne tant qu'ils ne sont pas inclus dans un plan révisé ; `tests/microphone_settings.rs` est adapté pour utiliser la racine L1b.
 
 ## 4. Cartes d'acceptation L1b
 
@@ -77,7 +77,7 @@ Les cartes suivantes sont **NOT RUN** avant implémentation. Les données de tes
 | Carte | Stimulus et point d'observation | Critère observable ; limite |
 | --- | --- | --- |
 | B-A1 | Deux modèles, fiches attribuées et fichiers synthétiques présents, absents, corrompus ou annulés. | Deux entrées restent visibles ; seul `Ready` et qualifié est admissible, causes distinctes. Aucune preuve Turbo créée par fixture. |
-| B-A2 | Fichier modifié/supprimé entre projection et commande, puis reprise/file. | Refus avant effet moteur/capture, préférence intacte ; contrôle d'ouverture worker encore futur. |
+| B-A2 | Fichier modifié/supprimé entre projection et commande ; ancienne entrée de file ou checkpoint portant un chemin hors catalogue, puis reprise. | Refus expliqué avant effet moteur/capture, préférence intacte, aucune réécriture silencieuse de la requête durable ou du checkpoint ; contrôle d'ouverture worker encore futur. |
 | B-A3 | Auto seul, manuel seul, aucun mode, FR/EN et code invalide ; commandes directes start/enqueue/process/reprise/live. | Projection et garde communs ; zéro appel moteur sur refus, aucune substitution. |
 | B-A4 | JSON v1 Turbo connu/absent, chemin inconnu ; v2 modèle devenu absent. | Identité connue restaurée sans utiliser l'ancien chemin comme source ; inconnu gardé pour diagnostic et bloqué ; autres champs préservés. |
 | B-A5 | Auto calcul sauvegardé, FollowProbe, sonde et ACK anciens/échoués, choix plus récent. | Choix courant préservé ; sauvegarde échouée visible ; aucune présélection tardive n'écrase Auto. |
