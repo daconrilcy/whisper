@@ -32,7 +32,7 @@ Les anciens détails L1–L7 ne sont pas des `lot.paths` autorisés. Aucun autre
 | Tâche | Sortie observable et critère | Trace |
 | --- | --- | --- |
 | L1a.1 | Types `ModelId` Turbo/Parakeet et clé de configuration incluant identité d'artefact/révision, runtime/build, worker/IPC, backend, matériel et profil pertinents ; une preuve d'une autre clé ne se transfère pas. | CAP-31/34, DEC-CAP-01/02. |
-| L1a.2 | Entrées injectées distinctes pour présence du modèle, support, qualification, langue Auto/manuelle, calcul et ressources ; `Unknown` n'est ni `Unsupported` ni `Insufficient`. | CAP-31/32, PORT-CAT, CAP-02/03. |
+| L1a.2 | Entrées injectées distinctes pour présence du modèle, support, qualification, langue Auto/manuelle, calcul et ressources RAM/VRAM/disque ; `Unknown` n'est ni `Unsupported` ni `Insufficient`. | CAP-31/32, PORT-CAT, CAP-02/03. |
 | L1a.3 | Projection et validation d'une demande par la même règle : aucune substitution de modèle, langue ou calcul, causes typées et préférence inchangée ; résultat d'une génération périmée ignoré. | CAP-32/33, INV-PARA-01, DEC-PARA-19. |
 | L1a.4 | Tests du catalogue avec fiches **synthétiques** : deux identités, états de disponibilité, non héritage de qualification ; Turbo injecté admissible lorsque Parakeet produit n'est pas qualifié. | CAP-31/34, AC-PARA-05/08 partiels. |
 | L1a.5 | Tests langue/ressources/préférences : Auto seul, manuel seul, aucun mode, langue refusée, demande contournant une option grisée, mémoire inconnue et insuffisance comparable. | CAP-32/33, AC-PARA-16A–E partiels. |
@@ -57,7 +57,7 @@ crates/whisper-core/tests/engine_capabilities.rs
 
 **`lot.paths.read` :** `AGENTS.md`, `RAILGUARD.md`, `Cargo.toml`, `Cargo.lock`, `crates/whisper-core/Cargo.toml`, `crates/whisper-core/src/{domain.rs,ports.rs,application.rs,compute_policy.rs,gpu_selection.rs,path_settings.rs}`, `crates/whisper-core/tests/{compute_policy.rs,gpu_selection.rs}`, les deux parents design, ce plan et `docs/cadrage/bilan-parakeet-faisabilite-cloture.md`.
 
-**`lot.paths.runtime_write` :** `target/parakeet-tests/l1a/` exclusivement pour cible Cargo et temporaire de campagne. Les fixtures sont construites en mémoire dans les deux tests nouveaux ; aucun audio, modèle, DLL, réglage utilisateur ni journal hors dépôt n'est une entrée ou sortie de L1a. En PowerShell, `CARGO_TARGET_DIR`, `TEMP` et `TMP` du processus de campagne pointent vers des sous-dossiers de cette racine puis sont restaurés. Les commandes ne nettoient pas globalement `target/`.
+**`lot.paths.runtime_write` :** `target/parakeet-tests/l1a/` exclusivement pour cible Cargo et temporaire de campagne. Les fixtures sont construites en mémoire dans les deux tests nouveaux ; aucun audio, modèle, DLL, réglage utilisateur ni journal hors dépôt n'est une entrée ou sortie de L1a. En PowerShell, `CARGO_TARGET_DIR`, `TEMP` et `TMP` du processus de campagne pointent vers des sous-dossiers de cette racine puis sont restaurés. La campagne exécute uniquement les tests `whisper-core` ; les tests des autres crates qui construisent directement d'autres chemins sous `target/` n'en font pas partie. Les commandes ne nettoient pas globalement `target/`.
 
 ## 4. Cartes d'exécution et verdict attendu
 
@@ -70,7 +70,7 @@ Toutes les cartes sont **NOT RUN** avant implémentation. L'implémenteur produi
 | A3 | Turbo qualifié injecté ; Parakeet présent mais produit non qualifié. | Turbo admissible, Parakeet refusé, aucun repli implicite. | Fiche Turbo synthétique. |
 | A4 | Auto absent + manuel qualifié ; Auto qualifié + manuel absent ; aucun mode ; FR/EN et code non pris en charge. | Projection et validation concordent ; choix manuel explicite s'il est requis ; aucun mode entraîne refus. | Aucun appel natif de langue. |
 | A5 | Préférence modèle/langue devenue inadmissible ; demande injectée hors widget. | Refus avec cause et préférence intacte ; aucun choix substitué. | Pas de persistance ni réouverture. |
-| A6 | RAM/VRAM inconnue, insuffisance comparable, observation autre GPU/unité/profil. | `Unknown` reste distinct d'`Insufficient` ; seule combinaison démontrée insuffisante est écartée. | Valeurs de test synthétiques. |
+| A6 | RAM/VRAM/disque inconnus, insuffisance comparable, observation autre GPU/unité/profil. | `Unknown` reste distinct d'`Insufficient` ; seule combinaison démontrée insuffisante est écartée. | Valeurs de test synthétiques. |
 | A7 | Snapshot de génération ancienne après un choix plus récent. | Résultat périmé écarté ; demande et préférence courantes préservées. | Pas de concurrence réelle. |
 | A8 | Diff des cinq chemins, tests core existants et nouveaux. | Aucune dépendance OS/UI/FFI/IO nouvelle ; tests sans saut conditionnel et compilation sans régression. | Ne qualifie pas le produit Windows. |
 
@@ -78,7 +78,7 @@ Rapprochement inverse : `lib.rs` → A1/A8 ; `model_catalog.rs` et son test → 
 
 ## 5. Préflight, vérifications et routage
 
-Avant toute écriture de code : relire les règles et parents Git exacts, le verdict indépendant sur ce plan, puis obtenir de l'utilisateur **l'acceptation du plan L1a et de ses cinq chemins**. La demande d'implémentation ultérieure doit donner **l'accord écrit précis dans sa session** pour le lot et ses chemins, conformément à `AGENTS.md`. Relever `git status --short --branch`, `git rev-parse HEAD`, `git diff --check` et préserver tout autre travail, notamment `sound example/`.
+Avant toute écriture de code : relire les règles et parents Git exacts, le verdict indépendant sur ce plan, puis obtenir de l'utilisateur **l'acceptation du plan L1a et de ses cinq chemins**. La demande d'implémentation ultérieure doit donner **l'accord écrit précis dans sa session** pour le lot et ses chemins, conformément à `AGENTS.md`. Relever `git status --short --branch`, `git rev-parse HEAD`, `git diff --check` et préserver tout autre travail, notamment `sound example/`. Dans le processus de campagne, retirer temporairement les variables `WHISPER_L01_*`, `WHISPER_L02_*` et `WHISPER_L04_*` héritées, puis les restaurer ; elles ne doivent pas déclencher de parcours natif durant L1a.
 
 Après code autorisé, dans `C:\dev\whisper` avec Cargo offline/locked et les variables temporaires bornées ci-dessus :
 
@@ -87,11 +87,11 @@ cargo fmt --all -- --check
 cargo test --offline --locked -p whisper-core --test model_catalog
 cargo test --offline --locked -p whisper-core --test engine_capabilities
 cargo build --offline --locked --workspace
-cargo test --offline --locked --workspace
+cargo test --offline --locked -p whisper-core
 git diff --check
 git diff --name-only
 ```
 
-Les deux tests dédiés doivent exercer réellement A1–A7, sans succès conditionnel si une entrée manque. Build/tests workspace couvrent les consommateurs actuels de `whisper-core`, mais leurs sous-scénarios natifs à variables `WHISPER_L01_*`, `WHISPER_L02_*` ou `WHISPER_L04_*` absentes resteront `NOT RUN` et ne seront pas présentés comme qualification GPU ou micro. Aucun benchmark ni nouvelle campagne de faisabilité n'est demandé. Le résultat du lot distingue tests de règle pure, validation Rust et recette produit dans la fenêtre Windows.
+Les deux tests dédiés doivent exercer réellement A1–A7, sans succès conditionnel si une entrée manque. Le build workspace vérifie la compilation des consommateurs actuels de `whisper-core` ; **seuls les tests `whisper-core` sont lancés**. Les tests des autres crates et leurs sous-scénarios natifs restent `NOT RUN`, jamais annoncés comme qualification GPU ou micro. Aucun benchmark ni nouvelle campagne de faisabilité n'est demandé. Le résultat du lot distingue tests de règle pure, validation Rust et recette produit dans la fenêtre Windows.
 
 Après le candidat, la session principale confie la revue à `rust_review_coordinator` ; `rust_reviewer` juge indépendamment, `rust_implementer` corrige le cas échéant, pour au plus deux cycles revue/correction. La fenêtre Windows finale reste à l'utilisateur. Aucun push, téléchargement, déplacement de modèles, code natif, écriture hors dépôt ou changement de railguard n'est compris dans L1a.
