@@ -2,9 +2,9 @@ Avancée : design CPU/import L2 relu CLEAN ; L1b-1 et L1b-2 sont committés.
 Blocage : l'intégration native, la qualification du candidat Test et la VAD longue ne sont pas exécutées.
 Décision : proposer L2a puis L2b, avec accords d'implémentation distincts ; ce plan ne les autorise pas.
 
-# PLAN-PARA-L2 DRAFT v2 — import Parakeet CPU
+# PLAN-PARA-L2 DRAFT v3 — import Parakeet CPU
 
-**Parents Git :** design `docs/cadrage/evo-parakeet.md` §9 et `docs/cadrage/evo-engine-capabilities.md` §8 au commit `3c47f272`, verdict indépendant **CLEAN — DESIGN READY-L2** sur CPU/import FR/EN ; L1b-2 `84e5444d` et L1b-1 `7de28359`, tous deux revus CLEAN. Le bilan `bilan-parakeet-faisabilite-cloture.md` est une preuve de faisabilité isolée, pas une qualification produit. Contributions en lecture seule `ARCH-PARA-L2 v1`, `VAD-L2 v1`, `REQ-PARA-L2 v1` et `rust_plan_writer` ; rédaction/versionnement par la session principale. **Statut : DRAFT v2, corrections de la revue v1 à vérifier indépendamment puis à faire accepter.** Aucun code L2 n'est autorisé par ce document.
+**Parents Git :** design `docs/cadrage/evo-parakeet.md` §9 et `docs/cadrage/evo-engine-capabilities.md` §8 au commit `3c47f272`, verdict indépendant **CLEAN — DESIGN READY-L2** sur CPU/import FR/EN ; L1b-2 `84e5444d` et L1b-1 `7de28359`, tous deux revus CLEAN. Le bilan `bilan-parakeet-faisabilite-cloture.md` est une preuve de faisabilité isolée, pas une qualification produit. Contributions en lecture seule `ARCH-PARA-L2 v1`, `VAD-L2 v1`, `REQ-PARA-L2 v1` et `rust_plan_writer` ; rédaction/versionnement par la session principale. **Statut : PLANS READY-L2a au verdict indépendant v2 ; L2b livré avec réserve de revue sur la correction R2 apportée en v3.** Aucun code L2 n'est autorisé par ce document.
 
 ## 1. Résultat, limites et gates
 
@@ -184,12 +184,12 @@ cargo test --offline --locked -p whisper-worker-parakeet-cpu --test native_impor
 cargo test --offline --locked -p whisper-adapters --test parakeet_long -- --ignored --nocapture
 cargo test --offline --locked -p whisper-core
 cargo test --offline --locked -p whisper-desktop --test model_selection_ui
-cargo build --offline --locked --workspace
+cargo build --offline --locked --workspace --target-dir target/parakeet-tests/l2/l2b/cargo-regression/
 git diff --check
 git diff --name-only
 ```
 
-Avant la première commande L2b, fixer `CARGO_TARGET_DIR` à `target/parakeet-tests/l2/l2b/cargo/`, construire la build Test L2b avec feature, fixer `PARAKEET_L2_WORKER` au binaire de cette cible et vérifier sa clé worker/runtime/protocole ainsi que celle des DLL copiées. La commande `native_import` rejoue FR et EN parlés sur **ce binaire**, avec comptes et résultats explicites ; sans ses deux PASS, ne pas lancer une recette qui prétend qualifier B8. `parakeet_long` lance ensuite référence et VAD via le même chemin et archive les identités observées de chaque exécution. La régression finale ne doit ni reconstruire ni substituer le worker qualifié ; tout changement pertinent de build, modèle, DLL ou protocole périme la preuve et impose de rejouer courts puis long. La build Test L2b avec feature et sa cible Cargo restent séparées du worker L2a ordinaire. Les temps de campagne proposés ne sont pas des critères produit. Les tests VAD 60 min sont de la `PRODUCT_VALIDATION`, non une répétition du spike clos.
+Avant la première commande L2b, fixer `CARGO_TARGET_DIR` à `target/parakeet-tests/l2/l2b/cargo/`, construire la build Test L2b avec feature, fixer `PARAKEET_L2_WORKER` au binaire de cette cible et vérifier sa clé worker/runtime/protocole ainsi que celle des DLL copiées. La commande `native_import` rejoue FR et EN parlés sur **ce binaire**, avec comptes et résultats explicites ; sans ses deux PASS, ne pas lancer une recette qui prétend qualifier B8. `parakeet_long` lance ensuite référence et VAD via le même chemin et archive les identités observées de chaque exécution. Le build workspace de régression utilise sa cible distincte `cargo-regression/` même si `CARGO_TARGET_DIR` pointe encore vers `cargo/` ; constater que le worker qualifié conserve les mêmes octets avant/après cette régression. La régression finale ne doit ni reconstruire ni substituer le worker qualifié ; tout changement pertinent de build, modèle, DLL ou protocole périme la preuve et impose de rejouer courts puis long. La build Test L2b avec feature et sa cible Cargo restent séparées du worker L2a ordinaire. Les temps de campagne proposés ne sont pas des critères produit. Les tests VAD 60 min sont de la `PRODUCT_VALIDATION`, non une répétition du spike clos.
 
 ## 6. Livrables et statut
 
