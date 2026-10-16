@@ -4,11 +4,13 @@ pub mod application;
 pub mod audio;
 pub mod compute_policy;
 pub mod domain;
+pub mod engine_capabilities;
 pub mod gpu_inventory;
 pub mod gpu_inventory_app;
 pub mod gpu_selection;
 pub mod ipc;
 pub mod microphone;
+pub mod model_catalog;
 pub mod path_settings;
 pub mod ports;
 
