@@ -926,6 +926,7 @@ fn serialize_frame<T: Serialize>(value: &T) -> io::Result<Vec<u8>> {
 
 struct ImportRuntime {
     workers: WorkerPaths,
+    model_catalog: Option<RuntimeModelCatalog>,
     idle_worker: Option<IdleWorker>,
     pending_idle_worker: Option<IdleWorker>,
     auto_fallback_reason: Option<String>,
@@ -951,6 +952,33 @@ struct ImportRuntime {
         (JobId, u64),
         Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     >,
+}
+
+struct RuntimeModelCatalog {
+    catalog: crate::model_catalog::LocalModelCatalog,
+    known_historical_turbo_path: String,
+}
+
+impl RuntimeModelCatalog {
+    fn snapshot(&self) -> crate::model_catalog::CatalogSnapshot {
+        self.catalog.inspect(0)
+    }
+
+    fn bind_import(
+        &self,
+        request: &whisper_core::ports::ImportRequest,
+    ) -> Result<whisper_core::ports::ImportRequest, String> {
+        self.snapshot()
+            .bind_turbo_import_request(request, &self.known_historical_turbo_path)
+    }
+
+    fn bind_live(
+        &self,
+        request: &whisper_core::ports::LiveRequest,
+    ) -> Result<whisper_core::ports::LiveRequest, String> {
+        self.snapshot()
+            .bind_turbo_live_request(request, &self.known_historical_turbo_path)
+    }
 }
 const WORKER_IDLE_RETENTION: Duration = Duration::from_secs(5 * 60);
 
@@ -1055,8 +1083,17 @@ struct ImportRequestState {
 
 impl ImportRuntime {
     fn new(workers: WorkerPaths, publication_gate: Arc<PublicationGate>) -> Self {
+        Self::new_with_catalog(workers, publication_gate, None)
+    }
+
+    fn new_with_catalog(
+        workers: WorkerPaths,
+        publication_gate: Arc<PublicationGate>,
+        model_catalog: Option<RuntimeModelCatalog>,
+    ) -> Self {
         Self {
             workers,
+            model_catalog,
             idle_worker: None,
             pending_idle_worker: None,
             auto_fallback_reason: None,
@@ -1094,6 +1131,25 @@ impl ImportRuntime {
             }
         }
     }
+
+    fn bind_import_request(
+        &self,
+        request: &whisper_core::ports::ImportRequest,
+    ) -> Result<whisper_core::ports::ImportRequest, String> {
+        self.model_catalog.as_ref().map_or_else(
+            || Ok(request.clone()),
+            |catalog| catalog.bind_import(request),
+        )
+    }
+
+    fn bind_live_request(
+        &self,
+        request: &whisper_core::ports::LiveRequest,
+    ) -> Result<whisper_core::ports::LiveRequest, String> {
+        self.model_catalog
+            .as_ref()
+            .map_or_else(|| Ok(request.clone()), |catalog| catalog.bind_live(request))
+    }
     fn effect(&mut self, effect: ImportEffect, events: &mut VecDeque<ImportEvent>) {
         if matches!(&effect, ImportEffect::StartLive(_)) {
             self.idle_worker = None;
@@ -1128,6 +1184,17 @@ impl ImportRuntime {
                 {
                     Err((id.0, id.1, "Une transcription est déjà en cours".into()))
                 } else {
+                    let request = match self.bind_live_request(&request) {
+                        Ok(request) => request,
+                        Err(error) => {
+                            events.push_back(ImportEvent::Failed {
+                                job_id: id.0,
+                                generation: id.1,
+                                message: format!("Modèle indisponible : {error}"),
+                            });
+                            return;
+                        }
+                    };
                     let instance = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
                     let reusable_worker = self.idle_worker.take().and_then(|mut idle| {
                         idle.matches(&request, &self.workers)
@@ -1149,6 +1216,7 @@ impl ImportRuntime {
                 }
             }
             ImportEffect::StartLive(request) => {
+                let id = (request.job_id, request.generation);
                 let candidate = self
                     .gpu_candidates
                     .remove(&(request.job_id, request.generation.get()))
@@ -1156,12 +1224,18 @@ impl ImportRuntime {
                 if self.publication_gate.is_cancelled() {
                     Ok(())
                 } else {
-                    self.start_live(request, candidate)
+                    match self.bind_live_request(&request) {
+                        Ok(request) => self.start_live(request, candidate),
+                        Err(error) => Err((id.0, id.1, format!("Modèle indisponible : {error}"))),
+                    }
                 }
             }
             ImportEffect::Enqueue(mut request) => {
                 let id = (request.job_id, request.generation);
-                let result = crate::archive::ArchiveStore::identify_source(&mut request)
+                let result = self
+                    .bind_import_request(&request)
+                    .map(|_| ())
+                    .and_then(|()| crate::archive::ArchiveStore::identify_source(&mut request))
                     .and_then(|()| {
                         crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
                     })
@@ -1198,6 +1272,12 @@ impl ImportRuntime {
             }
             ImportEffect::ProcessQueued(request) => {
                 let id = (request.job_id, request.generation);
+                let model_catalog = self.model_catalog.as_ref().map(|catalog| {
+                    (
+                        catalog.snapshot(),
+                        catalog.known_historical_turbo_path.clone(),
+                    )
+                });
                 let result =
                     crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
                         .and_then(|()| crate::queue_store::QueueStore::open(&request.destination))
@@ -1219,7 +1299,20 @@ impl ImportRuntime {
                                     "InvalidInput: process queued jobs in FIFO order".into()
                                 );
                             }
-                            if entry.request != request {
+                            let mut comparable = entry.request.clone();
+                            let same_model = if let Some((snapshot, known_path)) = &model_catalog {
+                                let durable_id = snapshot.resolve_model_identity(
+                                    &entry.request.model_path,
+                                    known_path,
+                                )?;
+                                let requested_id = snapshot
+                                    .resolve_model_identity(&request.model_path, known_path)?;
+                                comparable.model_path = request.model_path.clone();
+                                durable_id == requested_id
+                            } else {
+                                false
+                            };
+                            if entry.request != request && (!same_model || comparable != request) {
                                 return Err(
                             "SourceChanged: queued request identity differs from the durable entry"
                                 .into(),
@@ -1235,12 +1328,24 @@ impl ImportRuntime {
                                 .into(),
                         );
                             }
-                            Ok(entry.request)
+                            let durable_request = entry.request;
+                            if let Some((snapshot, known_path)) = &model_catalog {
+                                queue
+                                    .resolve_queued_with_catalog(id.0, id.1, snapshot, known_path)
+                                    .map(|executable| (durable_request, executable))
+                            } else {
+                                Ok((durable_request.clone(), durable_request))
+                            }
                         });
                 match result {
-                    Ok(durable_request) => {
+                    Ok((durable_request, verified_executable)) => {
+                        let executable_model_path = model_catalog
+                            .as_ref()
+                            .map(|_| verified_executable.model_path.as_str());
                         let mut archive = ArchiveStore::new(&durable_request.destination);
-                        match archive.prepare(durable_request) {
+                        match archive
+                            .prepare_with_catalog_path(durable_request, executable_model_path)
+                        {
                             Ok(prepared) => {
                                 let queue_result =
                                     crate::queue_store::QueueStore::open(&prepared.destination)
@@ -1270,11 +1375,31 @@ impl ImportRuntime {
             }
             ImportEffect::ResumeInterrupted { previous, request } => {
                 let id = (request.job_id, request.generation);
+                let model_catalog = self.model_catalog.as_ref().map(|catalog| {
+                    (
+                        catalog.snapshot(),
+                        catalog.known_historical_turbo_path.clone(),
+                    )
+                });
                 let queue_validation =
                     crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
                         .and_then(|()| crate::queue_store::QueueStore::open(&request.destination))
                         .and_then(|queue| {
-                            queue.validate_resume(previous.job_id, previous.generation, &request)
+                            if let Some((snapshot, known_path)) = &model_catalog {
+                                queue.validate_resume_with_catalog(
+                                    previous.job_id,
+                                    previous.generation,
+                                    &request,
+                                    snapshot,
+                                    known_path,
+                                )
+                            } else {
+                                queue.validate_resume(
+                                    previous.job_id,
+                                    previous.generation,
+                                    &request,
+                                )
+                            }
                         });
                 if let Err(error) = queue_validation {
                     events.push_back(ImportEvent::Failed {
@@ -1284,22 +1409,60 @@ impl ImportRuntime {
                     });
                     return;
                 }
-                let mut archive = ArchiveStore::new(&request.destination);
-                let result =
-                    archive
-                        .resume_from(&previous, request)
-                        .and_then(|(prepared, prefix)| {
-                            crate::queue_store::QueueStore::open(&prepared.destination).and_then(
-                                |mut queue| {
+                // Keep the historical model identity in the durable checkpoint. The execution
+                // request is rebound to the verified catalog only after the checkpoint exists.
+                let archive_destination = request.destination.clone();
+                let mut durable_request = request;
+                if model_catalog.is_some() {
+                    durable_request.model_path = previous.model_path.clone();
+                }
+                let executable_model_path = if let Some((snapshot, known_path)) = &model_catalog {
+                    match snapshot.bind_turbo_import_request(&durable_request, known_path) {
+                        Ok(request) => request.model_path,
+                        Err(error) => {
+                            events.push_back(ImportEvent::Failed {
+                                job_id: id.0,
+                                generation: id.1,
+                                message: format!("Modèle indisponible : {error}"),
+                            });
+                            return;
+                        }
+                    }
+                } else {
+                    durable_request.model_path.clone()
+                };
+                let executable_model_path = model_catalog
+                    .as_ref()
+                    .map(|_| executable_model_path.as_str());
+                let mut archive = ArchiveStore::new(&archive_destination);
+                let result = archive
+                    .resume_from_with_catalog_path(
+                        &previous,
+                        durable_request,
+                        executable_model_path,
+                    )
+                    .and_then(|(prepared, prefix)| {
+                        crate::queue_store::QueueStore::open(&prepared.destination).and_then(
+                            |mut queue| {
+                                if let Some((snapshot, known_path)) = &model_catalog {
+                                    queue.resume_interrupted_with_catalog(
+                                        previous.job_id,
+                                        previous.generation,
+                                        prepared.clone(),
+                                        snapshot,
+                                        known_path,
+                                    )?;
+                                } else {
                                     queue.resume_interrupted(
                                         previous.job_id,
                                         previous.generation,
                                         prepared.clone(),
                                     )?;
-                                    Ok((prepared, prefix, queue.entries()))
-                                },
-                            )
-                        });
+                                }
+                                Ok((prepared, prefix, queue.entries()))
+                            },
+                        )
+                    });
                 match result {
                     Ok((prepared, prefix, queue)) => {
                         let confirmed_segments = prefix.len() as u64;
@@ -1329,12 +1492,26 @@ impl ImportRuntime {
                     Err(error) => Err((JobId(0), Generation::first(), error)),
                 }
             }
-            ImportEffect::Prepare(request) => self.prepare(request, events),
+            ImportEffect::Prepare(request) => match self.bind_import_request(&request) {
+                Ok(request) => self.prepare(request, events),
+                Err(error) => Err((
+                    request.job_id,
+                    request.generation,
+                    format!("Modèle indisponible : {error}"),
+                )),
+            },
             ImportEffect::StartWorker(request) => {
                 let candidate = self
                     .gpu_candidates
                     .remove(&(request.job_id, request.generation.get()));
-                self.start_worker_with_selection(request, candidate)
+                match self.bind_import_request(&request) {
+                    Ok(request) => self.start_worker_with_selection(request, candidate),
+                    Err(error) => Err((
+                        request.job_id,
+                        request.generation,
+                        format!("Modèle indisponible : {error}"),
+                    )),
+                }
             }
             ImportEffect::ScanHistory { destination } => {
                 let root = PathBuf::from(destination);
@@ -3762,6 +3939,25 @@ impl AsyncImportIo {
     }
 
     pub fn start_with_workers(workers: WorkerPaths) -> Self {
+        Self::start_inner(workers, None)
+    }
+
+    /// Starts the import runtime with a catalog guard used by all model-bearing effects.
+    pub fn start_with_model_catalog(
+        workers: WorkerPaths,
+        catalog_root: PathBuf,
+        known_historical_turbo_path: String,
+    ) -> Self {
+        Self::start_inner(
+            workers,
+            Some(RuntimeModelCatalog {
+                catalog: crate::model_catalog::LocalModelCatalog::new(catalog_root),
+                known_historical_turbo_path,
+            }),
+        )
+    }
+
+    fn start_inner(workers: WorkerPaths, model_catalog: Option<RuntimeModelCatalog>) -> Self {
         let (effect_tx, effect_rx) = mpsc::sync_channel(8);
         let (stop_tx, stop_rx) = mpsc::sync_channel(1);
         let (event_tx, event_rx) = mpsc::sync_channel(EVENTS_PER_STAGE);
@@ -3780,7 +3976,12 @@ impl AsyncImportIo {
         thread::spawn({
             let publication_gate = publication_gate.clone();
             move || {
-                let runtime = ImportRuntime::new(workers, publication_gate);
+                let runtime = match model_catalog {
+                    Some(catalog) => {
+                        ImportRuntime::new_with_catalog(workers, publication_gate, Some(catalog))
+                    }
+                    None => ImportRuntime::new(workers, publication_gate),
+                };
                 service_loop(effect_rx, stop_rx, event_tx, runtime)
             }
         });
@@ -6007,6 +6208,219 @@ fn main() {
                 compute: ComputeChoice::Cpu,
             },
         }
+    }
+
+    #[test]
+    fn injected_catalog_guards_all_worker_effect_routes_including_checkpoint_resume() {
+        use std::{
+            fs,
+            path::PathBuf,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+        let root =
+            PathBuf::from(std::env::var_os("WHISPER_L1B_RUNTIME_ROOT").expect("bounded runtime"))
+                .join(format!(
+                    "runtime-guards-{}-{}",
+                    std::process::id(),
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos()
+                ));
+        fs::create_dir_all(&root).unwrap();
+        let gate = Arc::new(PublicationGate::default());
+        let catalog = RuntimeModelCatalog {
+            catalog: crate::model_catalog::LocalModelCatalog::new(root.join("empty-model-catalog")),
+            known_historical_turbo_path: r"C:\known\ggml-large-v3-turbo.bin".into(),
+        };
+        let mut runtime = ImportRuntime::new_with_catalog(
+            WorkerPaths {
+                cpu: root.join("cpu.exe"),
+                gpu: root.join("gpu.exe"),
+            },
+            gate,
+            Some(catalog),
+        );
+        let mut events = VecDeque::new();
+        let mut request = test_request(JobId(901), Generation::first());
+        request.source_sha256 = Some([7; 32]);
+        request.source_samples = Some(16_000);
+        request.model_path = r"C:\unknown\model.bin".into();
+        let destination = root.join("archive");
+        request.destination = destination.to_string_lossy().into_owned();
+
+        runtime.effect(ImportEffect::Prepare(request.clone()), &mut events);
+        runtime.effect(ImportEffect::StartWorker(request.clone()), &mut events);
+        runtime.effect(ImportEffect::Enqueue(request.clone()), &mut events);
+
+        let mut queue = crate::queue_store::QueueStore::open(&destination).unwrap();
+        queue.enqueue(request.clone()).unwrap();
+        runtime.effect(ImportEffect::ProcessQueued(request.clone()), &mut events);
+
+        let next_generation = request.generation.next().unwrap();
+        queue
+            .set_status(
+                request.job_id,
+                request.generation,
+                crate::queue_store::QueueStatus::Interrupted,
+            )
+            .unwrap();
+        let mut resumed = request.clone();
+        resumed.generation = next_generation;
+        runtime.effect(
+            ImportEffect::ResumeInterrupted {
+                previous: Box::new(request.clone()),
+                request: resumed,
+            },
+            &mut events,
+        );
+
+        let live = whisper_core::ports::LiveRequest {
+            job_id: JobId(902),
+            generation: Generation::first(),
+            model_path: request.model_path.clone(),
+            model_sha256: request.model_sha256,
+            destination: destination.to_string_lossy().into_owned(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: whisper_core::microphone::MicrophoneChoice::WindowsDefault,
+            config: request.config.clone(),
+        };
+        runtime.effect(ImportEffect::StartLive(live.clone()), &mut events);
+        runtime.effect(ImportEffect::StartDirectLive(live), &mut events);
+
+        assert!(runtime.active.is_none());
+        assert!(runtime.live.is_none());
+        assert!(runtime.direct_live.is_none());
+        assert_eq!(events.len(), 7);
+        assert!(events.iter().all(|event| matches!(event, ImportEvent::Failed { message, .. } if message.contains("ModelUnknown"))));
+    }
+
+    #[test]
+    fn resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution() {
+        use std::{
+            fs,
+            path::PathBuf,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+        let root =
+            PathBuf::from(std::env::var_os("WHISPER_L1B_RUNTIME_ROOT").expect("bounded runtime"))
+                .join(format!(
+                    "runtime-resume-{}-{}",
+                    std::process::id(),
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos()
+                ));
+        fs::create_dir_all(root.join("legacy")).unwrap();
+        let repository_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let model = repository_root.join("models/ggml-large-v3-turbo.bin");
+        let legacy_model = root.join("legacy/ggml-large-v3-turbo.bin");
+        fs::hard_link(&model, &legacy_model).unwrap();
+        let source = repository_root.join("sound example/spkr0.wav");
+        assert!(
+            source.is_file(),
+            "the accepted English fixture must be present"
+        );
+        let destination = root.join("archive");
+        let mut request = test_request(JobId(903), Generation::first());
+        request.source_path = source.to_string_lossy().into_owned();
+        request.model_path = legacy_model.to_string_lossy().into_owned();
+        request.model_sha256 = hex_sha256(&model);
+        request.destination = destination.to_string_lossy().into_owned();
+        crate::archive::ArchiveStore::identify_source(&mut request).unwrap();
+        let mut archive = ArchiveStore::new(&request.destination);
+        archive.prepare(request.clone()).unwrap();
+        archive
+            .persist_segment(&whisper_core::ports::WorkerSegment {
+                job_id: request.job_id,
+                generation: request.generation,
+                instance_id: 1,
+                segment_id: whisper_core::SegmentId(1),
+                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                text: "confirmed prefix".into(),
+            })
+            .unwrap();
+        let mut queue = crate::queue_store::QueueStore::open(&destination).unwrap();
+        queue.enqueue(request.clone()).unwrap();
+        queue
+            .set_status(
+                request.job_id,
+                request.generation,
+                crate::queue_store::QueueStatus::Interrupted,
+            )
+            .unwrap();
+        let mut resumed = request.clone();
+        resumed.generation = request.generation.next().unwrap();
+
+        let mut runtime = ImportRuntime::new_with_catalog(
+            WorkerPaths {
+                cpu: root.join("cpu.exe"),
+                gpu: root.join("gpu.exe"),
+            },
+            Arc::new(PublicationGate::default()),
+            Some(RuntimeModelCatalog {
+                catalog: crate::model_catalog::LocalModelCatalog::new(
+                    repository_root.join("models"),
+                ),
+                known_historical_turbo_path: legacy_model.to_string_lossy().into_owned(),
+            }),
+        );
+        let mut events = VecDeque::new();
+        runtime.effect(
+            ImportEffect::ResumeInterrupted {
+                previous: Box::new(request.clone()),
+                request: resumed.clone(),
+            },
+            &mut events,
+        );
+        let checkpoint = events.iter().find_map(|event| match event {
+            ImportEvent::ResumeCheckpoint {
+                confirmed_segments,
+                confirmed_offset,
+                ..
+            } => Some((*confirmed_segments, *confirmed_offset)),
+            _ => None,
+        });
+        assert_eq!(checkpoint, Some((1, 16_000)));
+        let prepared = events
+            .iter()
+            .find_map(|event| match event {
+                ImportEvent::Prepared(request) => Some(request),
+                _ => None,
+            })
+            .expect("verified resume emits a worker request");
+        assert_eq!(
+            PathBuf::from(&prepared.model_path).canonicalize().unwrap(),
+            model.canonicalize().unwrap()
+        );
+        assert_eq!(prepared.generation, resumed.generation);
+        let queue = crate::queue_store::QueueStore::open(&destination).unwrap();
+        assert_eq!(queue.entries()[0].request.model_path, request.model_path);
+        let pending_path = destination
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(resumed.generation.get().to_string())
+            .join("pending.json");
+        let pending: serde_json::Value =
+            serde_json::from_slice(&fs::read(pending_path).unwrap()).unwrap();
+        assert_eq!(pending["model_path"], request.model_path);
+    }
+
+    fn hex_sha256(path: &std::path::Path) -> [u8; 32] {
+        let mut file = std::fs::File::open(path).unwrap();
+        let mut hasher = sha2::Sha256::new();
+        let mut buffer = [0; 1024 * 1024];
+        loop {
+            let count = std::io::Read::read(&mut file, &mut buffer).unwrap();
+            if count == 0 {
+                break;
+            }
+            hasher.update(&buffer[..count]);
+        }
+        let digest = hasher.finalize();
+        digest.into()
     }
 
     #[test]

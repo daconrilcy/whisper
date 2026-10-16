@@ -11,6 +11,8 @@ pub mod gpu_selection;
 pub mod ipc;
 pub mod microphone;
 pub mod model_catalog;
+pub mod model_registry;
+pub mod model_selection_app;
 pub mod path_settings;
 pub mod ports;
 

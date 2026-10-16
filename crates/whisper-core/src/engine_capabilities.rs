@@ -16,6 +16,7 @@ pub enum Qualification {
     NotQualified,
     Unknown,
     Partial,
+    ExistingRecognized,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -32,6 +33,15 @@ impl Capability {
 
     fn is_qualified(self) -> bool {
         self.support == Support::Supported && self.qualification == Qualification::Qualified
+    }
+
+    /// Existing product behavior may be admitted without calling it a measured qualification.
+    pub fn is_admissible(self) -> bool {
+        self.support == Support::Supported
+            && matches!(
+                self.qualification,
+                Qualification::Qualified | Qualification::ExistingRecognized
+            )
     }
 }
 
@@ -358,6 +368,86 @@ pub fn validate(
         model: request.model,
         backend: request.configuration.backend,
     })
+}
+
+/// Projects the same capability rules while admitting explicitly recognized legacy behavior.
+/// The original L1a API remains strict and unchanged for callers that need measured proof only.
+pub fn project_with_existing_recognized(
+    snapshot: &EngineSnapshot,
+    current_generation: u64,
+) -> Result<EngineProjection, Refusal> {
+    let mut admitted = snapshot.clone();
+    promote_existing_recognized(&mut admitted);
+    project(&admitted, current_generation)
+}
+
+/// Validates a request using measured proof or the narrowly recorded legacy basis.
+pub fn validate_with_existing_recognized(
+    snapshot: &EngineSnapshot,
+    request: &InferenceRequest,
+    current_generation: u64,
+) -> Result<Admission, Refusal> {
+    let mut admitted = snapshot.clone();
+    promote_existing_recognized(&mut admitted);
+    validate(&admitted, request, current_generation)
+}
+
+fn promote_existing_recognized(snapshot: &mut EngineSnapshot) {
+    use crate::{
+        model_catalog::{Backend, ModelId},
+        model_registry::{TURBO_LANGUAGE_INPUTS, configuration_key, model},
+    };
+    let turbo = model(ModelId::WhisperLargeV3Turbo);
+    let historical_configurations =
+        [Backend::Cpu, Backend::Gpu].map(|backend| configuration_key(turbo, backend));
+    for capability in &mut snapshot.capabilities {
+        if capability.key.model != ModelId::WhisperLargeV3Turbo {
+            continue;
+        }
+        if !historical_configurations.contains(&capability.key) {
+            if capability.compute.qualification == Qualification::ExistingRecognized {
+                capability.compute.support = Support::Unknown;
+            }
+            if capability.auto_language.qualification == Qualification::ExistingRecognized {
+                capability.auto_language.support = Support::Unknown;
+            }
+            for language in &mut capability.languages {
+                if language.recognized.qualification == Qualification::ExistingRecognized {
+                    language.recognized.support = Support::Unknown;
+                }
+                if language.manual.qualification == Qualification::ExistingRecognized {
+                    language.manual.support = Support::Unknown;
+                }
+            }
+            continue;
+        }
+        if capability.compute.qualification == Qualification::ExistingRecognized {
+            capability.compute.qualification = Qualification::Qualified;
+        }
+        if capability.auto_language.qualification == Qualification::ExistingRecognized {
+            capability.auto_language.qualification = Qualification::Qualified;
+        }
+        for language in &mut capability.languages {
+            if !TURBO_LANGUAGE_INPUTS
+                .iter()
+                .any(|(code, _)| language.code.0 == *code)
+            {
+                if language.recognized.qualification == Qualification::ExistingRecognized {
+                    language.recognized.support = Support::Unknown;
+                }
+                if language.manual.qualification == Qualification::ExistingRecognized {
+                    language.manual.support = Support::Unknown;
+                }
+                continue;
+            }
+            if language.recognized.qualification == Qualification::ExistingRecognized {
+                language.recognized.qualification = Qualification::Qualified;
+            }
+            if language.manual.qualification == Qualification::ExistingRecognized {
+                language.manual.qualification = Qualification::Qualified;
+            }
+        }
+    }
 }
 
 fn find_capability<'a>(

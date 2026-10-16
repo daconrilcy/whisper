@@ -121,6 +121,37 @@ impl QueueStore {
         self.entries.values().cloned().collect()
     }
 
+    /// Resolves a durable Turbo queue record to the current verified catalog path in memory.
+    pub fn resolve_queued_with_catalog(
+        &self,
+        job_id: JobId,
+        generation: Generation,
+        catalog: &crate::model_catalog::CatalogSnapshot,
+        known_historical_turbo_path: &str,
+    ) -> Result<ImportRequest, String> {
+        let first = self
+            .entries
+            .first_key_value()
+            .map(|(_, entry)| (entry.request.job_id, entry.request.generation));
+        if first != Some((job_id, generation)) {
+            return Err("InvalidInput: process queued jobs in FIFO order".into());
+        }
+        let entry = self
+            .entries
+            .values()
+            .find(|entry| entry.request.job_id == job_id && entry.request.generation == generation)
+            .ok_or_else(|| "InvalidInput: queue entry no longer exists".to_owned())?;
+        if !matches!(
+            entry.status,
+            QueueStatus::Queued | QueueStatus::AwaitingChoice
+        ) {
+            return Err(
+                "InvalidInput: interrupted jobs require an explicit verified resume".into(),
+            );
+        }
+        catalog.bind_turbo_import_request(&entry.request, known_historical_turbo_path)
+    }
+
     pub fn enqueue(&mut self, request: ImportRequest) -> Result<QueueEntry, String> {
         if request.source_sha256.is_none()
             || request.source_samples.is_none_or(|samples| samples == 0)
@@ -240,6 +271,71 @@ impl QueueStore {
             return Err("InvalidInput: job identity is already present in the queue".into());
         }
         Ok(())
+    }
+
+    /// Validates a resumed request against the durable path identity without rewriting the
+    /// stored historical path. The returned worker request must be rebound separately through
+    /// the verified catalog.
+    pub fn validate_resume_with_catalog(
+        &self,
+        previous_job_id: JobId,
+        previous_generation: Generation,
+        request: &ImportRequest,
+        catalog: &crate::model_catalog::CatalogSnapshot,
+        known_historical_turbo_path: &str,
+    ) -> Result<(), String> {
+        let entry = self
+            .entries
+            .values()
+            .find(|entry| {
+                entry.request.job_id == previous_job_id
+                    && entry.request.generation == previous_generation
+            })
+            .ok_or_else(|| "InvalidInput: interrupted queue entry was not found".to_owned())?;
+        let previous_model = catalog
+            .resolve_model_identity(&entry.request.model_path, known_historical_turbo_path)?;
+        let requested_model =
+            catalog.resolve_model_identity(&request.model_path, known_historical_turbo_path)?;
+        if previous_model != whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo
+            || requested_model != whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo
+            || previous_model != requested_model
+            || entry.request.model_sha256 != request.model_sha256
+        {
+            return Err(
+                "ModelIdentityChanged: la reprise ne correspond pas au modèle Turbo durable".into(),
+            );
+        }
+        let mut comparable = request.clone();
+        comparable.model_path = entry.request.model_path.clone();
+        self.validate_resume(previous_job_id, previous_generation, &comparable)
+    }
+
+    pub fn resume_interrupted_with_catalog(
+        &mut self,
+        previous_job_id: JobId,
+        previous_generation: Generation,
+        mut request: ImportRequest,
+        catalog: &crate::model_catalog::CatalogSnapshot,
+        known_historical_turbo_path: &str,
+    ) -> Result<QueueEntry, String> {
+        self.validate_resume_with_catalog(
+            previous_job_id,
+            previous_generation,
+            &request,
+            catalog,
+            known_historical_turbo_path,
+        )?;
+        let durable_path = self
+            .entries
+            .values()
+            .find(|entry| {
+                entry.request.job_id == previous_job_id
+                    && entry.request.generation == previous_generation
+            })
+            .map(|entry| entry.request.model_path.clone())
+            .ok_or_else(|| "InvalidInput: interrupted queue entry was not found".to_owned())?;
+        request.model_path = durable_path;
+        self.resume_interrupted(previous_job_id, previous_generation, request)
     }
 
     pub fn remove(&mut self, job_id: JobId, generation: Generation) -> Result<(), String> {

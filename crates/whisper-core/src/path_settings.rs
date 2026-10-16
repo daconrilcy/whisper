@@ -33,6 +33,136 @@ pub struct SaveAcknowledgement {
     pub result: Result<(), String>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StartupComputePreference {
+    Auto,
+    FollowProbe,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LegacyModelPath {
+    None,
+    KnownTurbo(String),
+    Unknown(String),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModelPreferenceSnapshot {
+    pub revision: u64,
+    pub preferred_model: Option<crate::model_catalog::ModelId>,
+    pub startup_compute: StartupComputePreference,
+    pub legacy_model_path: LegacyModelPath,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModelPreferenceAcknowledgement {
+    pub revision: u64,
+    pub result: Result<(), String>,
+}
+
+pub trait ModelPreferencePort {
+    fn load(&self) -> Result<Option<ModelPreferenceSnapshot>, String>;
+    fn save(
+        &mut self,
+        revision: u64,
+        preferred_model: Option<crate::model_catalog::ModelId>,
+        startup_compute: StartupComputePreference,
+    ) -> ModelPreferenceAcknowledgement;
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ModelPreferenceSaveStatus {
+    Saved { revision: u64 },
+    Failed { revision: u64, error: String },
+}
+
+pub struct ModelPreferencesApp {
+    port: Box<dyn ModelPreferencePort>,
+    pub preferred_model: Option<crate::model_catalog::ModelId>,
+    pub startup_compute: StartupComputePreference,
+    pub legacy_model_path: LegacyModelPath,
+    revision: u64,
+    status: Option<ModelPreferenceSaveStatus>,
+}
+
+impl ModelPreferencesApp {
+    pub fn new(port: Box<dyn ModelPreferencePort>) -> Result<Self, String> {
+        let loaded = port.load()?;
+        let snapshot = loaded.unwrap_or(ModelPreferenceSnapshot {
+            revision: 0,
+            preferred_model: Some(crate::model_catalog::ModelId::WhisperLargeV3Turbo),
+            startup_compute: StartupComputePreference::FollowProbe,
+            legacy_model_path: LegacyModelPath::None,
+        });
+        let preferred_model = match (snapshot.preferred_model, &snapshot.legacy_model_path) {
+            (Some(model), _) => Some(model),
+            (None, LegacyModelPath::Unknown(_)) => None,
+            (None, LegacyModelPath::None | LegacyModelPath::KnownTurbo(_)) => {
+                Some(crate::model_catalog::ModelId::WhisperLargeV3Turbo)
+            }
+        };
+        Ok(Self {
+            port,
+            preferred_model,
+            startup_compute: snapshot.startup_compute,
+            legacy_model_path: snapshot.legacy_model_path,
+            revision: snapshot.revision,
+            status: None,
+        })
+    }
+
+    pub fn choose_model(&mut self, model: crate::model_catalog::ModelId) {
+        self.preferred_model = Some(model);
+        self.persist();
+    }
+
+    pub fn choose_startup_compute(&mut self, preference: StartupComputePreference) {
+        self.startup_compute = preference;
+        self.persist();
+    }
+
+    pub fn save_status(&self) -> Option<&ModelPreferenceSaveStatus> {
+        self.status.as_ref()
+    }
+
+    pub fn legacy_path_notice(&self) -> Option<String> {
+        if self.preferred_model.is_some() {
+            return None;
+        }
+        match &self.legacy_model_path {
+            LegacyModelPath::Unknown(path) => Some(format!(
+                "Chemin de modèle historique inconnu : {path}. Choisissez un modèle du catalogue avant de continuer."
+            )),
+            LegacyModelPath::None | LegacyModelPath::KnownTurbo(_) => None,
+        }
+    }
+
+    fn persist(&mut self) {
+        let Some(revision) = self.revision.checked_add(1) else {
+            self.status = Some(ModelPreferenceSaveStatus::Failed {
+                revision: self.revision,
+                error: "compteur de révision épuisé".into(),
+            });
+            return;
+        };
+        let acknowledgement = self
+            .port
+            .save(revision, self.preferred_model, self.startup_compute);
+        if acknowledgement.revision != revision {
+            self.status = Some(ModelPreferenceSaveStatus::Failed {
+                revision,
+                error: "acquittement d'une autre révision".into(),
+            });
+            return;
+        }
+        self.revision = revision;
+        self.status = Some(match acknowledgement.result {
+            Ok(()) => ModelPreferenceSaveStatus::Saved { revision },
+            Err(error) => ModelPreferenceSaveStatus::Failed { revision, error },
+        });
+    }
+}
+
 pub trait PathPort {
     fn load(&self) -> Result<Option<StoredPaths>, String>;
     fn save(&mut self, revision: u64, paths: StoredPaths) -> Result<(), String>;
@@ -108,7 +238,7 @@ impl PathSettingsApp {
             save_status: SaveStatus::NotSaved,
         };
         match app.port.load() {
-            Ok(Some(saved)) if saved.version == 1 => app.restore(saved),
+            Ok(Some(saved)) if matches!(saved.version, 1 | 2) => app.restore(saved),
             Ok(Some(_)) => {
                 app.notice = Some(
                     "Réglages des chemins incompatibles : valeurs par défaut utilisées.".into(),
@@ -159,7 +289,7 @@ impl PathSettingsApp {
             ));
         }
         self.saved = StoredPaths {
-            version: 1,
+            version: saved.version,
             audio_directory: Some(self.audio_directory.clone()),
             model_path: self.model.clone(),
             destination: self.destination.clone(),

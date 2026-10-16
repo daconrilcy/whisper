@@ -1333,7 +1333,25 @@ impl ArchiveStore {
         Ok(())
     }
 
-    pub fn prepare(&mut self, mut request: ImportRequest) -> Result<ImportRequest, String> {
+    pub fn prepare(&mut self, request: ImportRequest) -> Result<ImportRequest, String> {
+        self.prepare_with_catalog_path(request, None)
+    }
+
+    /// Prepares using a revalidated catalog file while preserving the historical model identity
+    /// in the durable checkpoint. The returned request points at the executable catalog path.
+    pub fn prepare_with_catalog_path(
+        &mut self,
+        request: ImportRequest,
+        executable_model_path: Option<&str>,
+    ) -> Result<ImportRequest, String> {
+        self.prepare_inner(request, executable_model_path)
+    }
+
+    fn prepare_inner(
+        &mut self,
+        mut request: ImportRequest,
+        executable_model_path: Option<&str>,
+    ) -> Result<ImportRequest, String> {
         l04_campaign_assert_archive(&self.root)?;
         if self.current.is_some() {
             return Err("Busy: an import is already active".into());
@@ -1361,9 +1379,10 @@ impl ArchiveStore {
                 "SourceChanged: audio source changed while its duration was inspected".into(),
             );
         }
-        let model_meta =
-            fs::metadata(&request.model_path).map_err(|e| format!("ModelMissing: {e}"))?;
-        let model_hash = sha256_file(Path::new(&request.model_path))?;
+        let durable_model_path = request.model_path.clone();
+        let model_path = executable_model_path.unwrap_or(&request.model_path);
+        let model_meta = fs::metadata(model_path).map_err(|e| format!("ModelMissing: {e}"))?;
+        let model_hash = sha256_file(Path::new(model_path))?;
         if hex(&model_hash) != APPROVED_MODEL_SHA256
             || model_meta.len() != APPROVED_MODEL_SIZE
             || request.model_sha256 != model_hash
@@ -1384,7 +1403,7 @@ impl ArchiveStore {
             source_path: request.source_path.clone(),
             source_sha256: hex(&source_sha),
             source_samples,
-            model_path: request.model_path.clone(),
+            model_path: durable_model_path,
             model_sha256: hex(&model_hash),
             model_size: model_meta.len(),
         };
@@ -1399,6 +1418,9 @@ impl ArchiveStore {
             source_samples,
             expected_sequence,
         });
+        if let Some(executable_model_path) = executable_model_path {
+            request.model_path = executable_model_path.to_owned();
+        }
         Ok(request)
     }
 
@@ -1406,7 +1428,17 @@ impl ArchiveStore {
     pub fn resume_from(
         &mut self,
         previous: &ImportRequest,
-        mut request: ImportRequest,
+        request: ImportRequest,
+    ) -> Result<(ImportRequest, Vec<SegmentRecord>), String> {
+        self.resume_from_with_catalog_path(previous, request, None)
+    }
+
+    /// Validates the checkpoint's durable identity, then prepares with the current catalog path.
+    pub fn resume_from_with_catalog_path(
+        &mut self,
+        previous: &ImportRequest,
+        request: ImportRequest,
+        executable_model_path: Option<&str>,
     ) -> Result<(ImportRequest, Vec<SegmentRecord>), String> {
         if request.job_id != previous.job_id
             || previous.generation.next() != Some(request.generation)
@@ -1449,10 +1481,9 @@ impl ArchiveStore {
                 "StorageCorrupt: confirmed resume prefix is not a valid ordered checkpoint".into(),
             );
         }
-        let prepared = self.prepare(request.clone())?;
+        let prepared = self.prepare_inner(request, executable_model_path)?;
         self.copy_resume_prefix(&prepared, &prefix)?;
-        request = prepared.clone();
-        Ok((request, prefix))
+        Ok((prepared, prefix))
     }
 
     fn copy_resume_prefix(

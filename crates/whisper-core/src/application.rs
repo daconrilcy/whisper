@@ -168,6 +168,7 @@ pub struct ImportApplication<P> {
     stopping: Option<CommandIdentity>,
     max_segment_offset: u64,
     final_source_samples: Option<u64>,
+    model_guard: Option<crate::model_selection_app::ModelCommandGuard>,
 }
 
 impl<P: ImportIoPort> ImportApplication<P> {
@@ -187,7 +188,22 @@ impl<P: ImportIoPort> ImportApplication<P> {
             stopping: None,
             max_segment_offset: 0,
             final_source_samples: None,
+            model_guard: None,
         }
+    }
+
+    /// Enables model admission for every model-bearing command before any effect is submitted.
+    pub fn with_model_guard(
+        mut self,
+        guard: crate::model_selection_app::ModelCommandGuard,
+    ) -> Self {
+        self.model_guard = Some(guard);
+        self
+    }
+
+    fn refuse_model_command(&mut self, reason: &str) -> AppView {
+        self.view.message = Some(format!("Modèle indisponible : {reason}"));
+        self.view.clone()
     }
 
     fn fail(&mut self, error: PortError) -> ApplicationError {
@@ -678,6 +694,29 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
     }
 
     fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
+        let admission = self.model_guard.as_ref().and_then(|guard| match &command {
+            AppCommand::StartImport { request }
+            | AppCommand::EnqueueImport { request }
+            | AppCommand::ProcessQueued { request }
+            | AppCommand::ResumeInterrupted { request } => {
+                Some(guard.admit_import(request, crate::model_selection_app::InferencePath::Import))
+            }
+            AppCommand::StartLiveConfigured { request }
+            | AppCommand::StartDirectLiveConfigured { request } => Some(guard.admit_live(request)),
+            _ => None,
+        });
+        if let Some(Err(error)) = admission {
+            let reason = match error {
+                crate::model_selection_app::SelectionRefusal::UnknownHistoricalModelPath => {
+                    "chemin ou empreinte non reconnu dans le catalogue"
+                }
+                crate::model_selection_app::SelectionRefusal::Capability(_) => {
+                    "combinaison modèle, calcul ou langue non admissible"
+                }
+            };
+            return Ok(self.refuse_model_command(reason));
+        }
+
         match command {
             AppCommand::Refresh => self.poll_once()?,
             AppCommand::ScanHistory { destination } => {
@@ -1113,6 +1152,161 @@ mod tests {
                 .as_deref()
                 .is_some_and(|message| message.contains("destination is not a directory"))
         );
+    }
+
+    #[test]
+    fn model_guard_blocks_each_import_and_live_effect_route_before_submission() {
+        let generation = Generation::first();
+        let config = JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        };
+        let import = ImportRequest {
+            job_id: JobId(70),
+            generation,
+            source_path: "source.wav".into(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: "C:/unknown/model.bin".into(),
+            model_sha256: [0; 32],
+            destination: "archive".into(),
+            config: config.clone(),
+        };
+        let live = LiveRequest {
+            job_id: JobId(70),
+            generation,
+            model_path: import.model_path.clone(),
+            model_sha256: [0; 32],
+            destination: "archive".into(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: crate::microphone::MicrophoneChoice::WindowsDefault,
+            config,
+        };
+        let snapshot = crate::model_registry::engine_snapshot(
+            1,
+            |_| crate::model_catalog::ModelAvailability::Ready,
+            Vec::new(),
+        );
+        let commands = [
+            AppCommand::StartImport {
+                request: import.clone(),
+            },
+            AppCommand::EnqueueImport {
+                request: import.clone(),
+            },
+            AppCommand::ProcessQueued {
+                request: import.clone(),
+            },
+            AppCommand::ResumeInterrupted { request: import },
+            AppCommand::StartLiveConfigured {
+                request: live.clone(),
+            },
+            AppCommand::StartDirectLiveConfigured { request: live },
+        ];
+
+        for command in commands {
+            let mut app = ImportApplication::new(ScanTestIo::default()).with_model_guard(
+                crate::model_selection_app::ModelCommandGuard::new(
+                    crate::model_registry::engine_snapshot(
+                        1,
+                        |_| crate::model_catalog::ModelAvailability::Ready,
+                        Vec::new(),
+                    ),
+                    1,
+                    ["C:/known/turbo.bin".to_owned()],
+                ),
+            );
+            let view = app.dispatch(command).unwrap();
+            assert!(app.io.effects.is_empty());
+            assert!(view.message.as_deref().is_some_and(|message| {
+                message.contains("Modèle indisponible") && message.contains("non reconnu")
+            }));
+        }
+        drop(snapshot);
+    }
+
+    #[test]
+    fn turbo_existing_matrix_dispatches_all_1206_requests_to_effect_submission() {
+        use crate::{
+            model_catalog::{ModelAvailability, ModelId},
+            model_registry::{TURBO_LANGUAGE_INPUTS, engine_snapshot, model},
+            model_selection_app::{InferencePath, ModelCommandGuard},
+        };
+
+        let model_path = r"C:\Users\Cyril\AppData\Local\Programs\WhisperBuildDeps\models\ggml-large-v3-turbo.bin";
+        let mut sha256 = [0; 32];
+        let digest = model(ModelId::WhisperLargeV3Turbo).artifact.sha256;
+        for (index, byte) in sha256.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(&digest[index * 2..index * 2 + 2], 16).unwrap();
+        }
+        let mut submitted = 0usize;
+
+        for compute in [ComputeChoice::Cpu, ComputeChoice::Gpu, ComputeChoice::Auto] {
+            for path in [InferencePath::Import, InferencePath::Live] {
+                let mut languages = vec![LanguageChoice::Automatic];
+                for (code, english_name) in TURBO_LANGUAGE_INPUTS {
+                    languages.push(LanguageChoice::Manual(code.into()));
+                    languages.push(LanguageChoice::Manual(english_name.into()));
+                }
+                for language in languages {
+                    let generation = Generation::first();
+                    let job_id = JobId(submitted as u128);
+                    let config = JobConfig { language, compute };
+                    let guard = ModelCommandGuard::new(
+                        engine_snapshot(1, |_| ModelAvailability::Ready, Vec::new()),
+                        1,
+                        [model_path.to_owned()],
+                    );
+                    let mut app =
+                        ImportApplication::new(ScanTestIo::default()).with_model_guard(guard);
+                    match path {
+                        InferencePath::Import => {
+                            app.dispatch(AppCommand::StartImport {
+                                request: ImportRequest {
+                                    job_id,
+                                    generation,
+                                    source_path: "source.wav".into(),
+                                    source_sha256: None,
+                                    source_samples: None,
+                                    model_path: model_path.into(),
+                                    model_sha256: sha256,
+                                    destination: "archive".into(),
+                                    config,
+                                },
+                            })
+                            .unwrap();
+                            assert!(matches!(
+                                app.io.effects.as_slice(),
+                                [ImportEffect::Prepare(_)]
+                            ));
+                        }
+                        InferencePath::Live => {
+                            app.dispatch(AppCommand::StartLiveConfigured {
+                                request: LiveRequest {
+                                    job_id,
+                                    generation,
+                                    model_path: model_path.into(),
+                                    model_sha256: sha256,
+                                    destination: "archive".into(),
+                                    group_offset_samples: 0,
+                                    auto_stop_after_speech_samples: None,
+                                    microphone: crate::microphone::MicrophoneChoice::WindowsDefault,
+                                    config,
+                                },
+                            })
+                            .unwrap();
+                            assert!(matches!(
+                                app.io.effects.as_slice(),
+                                [ImportEffect::StartLive(_)]
+                            ));
+                        }
+                    }
+                    submitted += 1;
+                }
+            }
+        }
+        assert_eq!(submitted, 1_206);
     }
 
     #[test]

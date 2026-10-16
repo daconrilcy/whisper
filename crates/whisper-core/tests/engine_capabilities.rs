@@ -4,7 +4,8 @@ use whisper_core::engine_capabilities::{
     Admission, Capability, CapabilityTarget, ConfigurationCapabilities, EngineProjection,
     EngineSnapshot, InferenceRequest, LanguageCapability, LanguageChoice, LanguageCode,
     Qualification, Refusal, RefusalCause, ResourceKind, ResourceObservation, ResourceRequirement,
-    Support, project as project_at_generation, validate as validate_at_generation,
+    Support, project as project_at_generation, project_with_existing_recognized,
+    validate as validate_at_generation, validate_with_existing_recognized,
 };
 use whisper_core::model_catalog::{
     Backend, ConfigurationKey, ModelAvailability, ModelDefinition, ModelId,
@@ -685,4 +686,33 @@ fn stale_generation_result_is_rejected_without_changing_current_preferences() {
         current_snapshot.preferred_model,
         Some(ModelId::WhisperLargeV3Turbo)
     );
+}
+
+#[test]
+fn existing_recognized_is_admissible_without_changing_the_l1a_qualified_api() {
+    let snapshot =
+        whisper_core::model_registry::engine_snapshot(11, |_| ModelAvailability::Ready, vec![]);
+    let key = snapshot
+        .capabilities
+        .iter()
+        .find(|capability| {
+            capability.key.model == ModelId::WhisperLargeV3Turbo
+                && capability.key.backend == Backend::Cpu
+        })
+        .unwrap()
+        .key
+        .clone();
+    let existing = state(Support::Supported, Qualification::ExistingRecognized);
+    let request = request(
+        11,
+        ModelId::WhisperLargeV3Turbo,
+        key,
+        LanguageChoice::Manual(LanguageCode("fr".into())),
+    );
+
+    assert!(validate(&snapshot, &request).is_err());
+    assert!(validate_with_existing_recognized(&snapshot, &request, 11).is_ok());
+    assert!(project_with_existing_recognized(&snapshot, 11).is_ok());
+    assert!(existing.is_admissible());
+    assert!(!state(Support::Unsupported, Qualification::ExistingRecognized).is_admissible());
 }

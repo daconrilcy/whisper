@@ -4,6 +4,7 @@ pub mod decoder;
 mod direct_live;
 pub mod gpu_inventory;
 pub mod journal;
+pub mod model_catalog;
 pub mod path_settings;
 pub mod queue_store;
 pub mod recovery;
