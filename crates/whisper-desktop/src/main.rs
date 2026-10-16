@@ -13,6 +13,7 @@ fn main() -> eframe::Result {
         paths,
         gpu_probe,
         gpu_inventory,
+        model_selection,
     } = root::compose();
     whisper_desktop::run(
         application,
@@ -23,5 +24,6 @@ fn main() -> eframe::Result {
         gpu_probe,
         gpu_inventory,
         process_started_at_unix_ms,
+        model_selection,
     )
 }

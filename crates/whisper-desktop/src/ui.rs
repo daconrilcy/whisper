@@ -1,13 +1,116 @@
 use crate::reactivity_log::ReactivityLog;
 use eframe::egui;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::{
+    Arc, Mutex,
+    mpsc::{Receiver, SyncSender, TryRecvError, TrySendError},
+};
+use whisper_adapters::model_catalog::CatalogSnapshot;
+use whisper_core::engine_capabilities::EngineProjection;
 use whisper_core::gpu_inventory::GpuQualifiedDevice;
 use whisper_core::gpu_inventory_app::{
     GpuInventoryApp, GpuInventoryState, GpuQualifiedInventoryState,
 };
 use whisper_core::gpu_selection::{SelectionResolution, SessionCandidate};
+use whisper_core::model_catalog::{Backend, ModelId};
+use whisper_core::model_registry::TURBO_LANGUAGE_INPUTS;
+use whisper_core::model_selection_app::ModelSelectionApp;
 use whisper_core::path_settings::{PathDefaults, PathField, PathSettingsApp, SaveStatus};
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ModelPreferenceCommand {
+    ChooseModel(ModelId),
+    ChooseStartupCompute(whisper_core::path_settings::StartupComputePreference),
+}
+
+pub enum ModelPreferenceEvent {
+    Initialized {
+        model: Option<ModelId>,
+        startup_compute: whisper_core::path_settings::StartupComputePreference,
+        notice: Option<String>,
+    },
+    Saved {
+        revision: u64,
+        message: String,
+    },
+}
+
+pub struct ModelSelectionRuntime {
+    pub catalog: Receiver<CatalogSnapshot>,
+    pub preference_events: Receiver<ModelPreferenceEvent>,
+    pub preference_commands: ModelPreferenceCommandSender,
+}
+
+#[derive(Default)]
+struct PendingPreferenceChoices {
+    model: Option<ModelId>,
+    startup_compute: Option<whisper_core::path_settings::StartupComputePreference>,
+}
+
+/// Bounded wake channel with a coalescing latest-choice mailbox for preference persistence.
+#[derive(Clone)]
+pub struct ModelPreferenceCommandSender {
+    pending: Arc<Mutex<PendingPreferenceChoices>>,
+    wake: SyncSender<()>,
+}
+
+pub struct ModelPreferenceCommandReceiver {
+    pending: Arc<Mutex<PendingPreferenceChoices>>,
+    wake: Receiver<()>,
+}
+
+pub fn model_preference_command_channel()
+-> (ModelPreferenceCommandSender, ModelPreferenceCommandReceiver) {
+    let (wake_tx, wake_rx) = std::sync::mpsc::sync_channel(1);
+    let pending = Arc::new(Mutex::new(PendingPreferenceChoices::default()));
+    (
+        ModelPreferenceCommandSender {
+            pending: pending.clone(),
+            wake: wake_tx,
+        },
+        ModelPreferenceCommandReceiver {
+            pending,
+            wake: wake_rx,
+        },
+    )
+}
+
+impl ModelPreferenceCommandSender {
+    pub fn send(&self, command: ModelPreferenceCommand) -> Result<(), ()> {
+        let mut pending = self.pending.lock().map_err(|_| ())?;
+        match command {
+            ModelPreferenceCommand::ChooseModel(model) => pending.model = Some(model),
+            ModelPreferenceCommand::ChooseStartupCompute(choice) => {
+                pending.startup_compute = Some(choice)
+            }
+        }
+        match self.wake.try_send(()) {
+            Ok(()) | Err(TrySendError::Full(())) => Ok(()),
+            Err(TrySendError::Disconnected(())) => Err(()),
+        }
+    }
+}
+
+impl ModelPreferenceCommandReceiver {
+    pub fn recv(&self) -> Result<Vec<ModelPreferenceCommand>, ()> {
+        self.wake.recv().map_err(|_| ())?;
+        let mut pending = self.pending.lock().map_err(|_| ())?;
+        let mut commands = Vec::with_capacity(2);
+        if let Some(model) = pending.model.take() {
+            commands.push(ModelPreferenceCommand::ChooseModel(model));
+        }
+        if let Some(choice) = pending.startup_compute.take() {
+            commands.push(ModelPreferenceCommand::ChooseStartupCompute(choice));
+        }
+        Ok(commands)
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SelectionWidgetState {
+    pub model: Option<ModelId>,
+    pub manual_language: Option<String>,
+}
 use whisper_core::{
     AppCommand, AppFacade, AppView, Application, ApplicationError, ComputeChoice, Generation,
     ImportRequest, JobConfig, JobId, JobState, LanguageChoice, LiveRequest, MicrophoneChoice,
@@ -26,12 +129,11 @@ pub struct DesktopApp<A> {
     microphones: MicrophoneSettings,
     path_notice: Option<String>,
     microphone_notice: Option<String>,
-    manual_language: bool,
-    language: String,
     auto_stop_enabled: bool,
     auto_stop_minutes: u64,
     compute_choice: ComputeChoice,
     compute_choice_touched: bool,
+    startup_preferences_loaded: bool,
     startup_message: Option<String>,
     gpu_probe: Option<Receiver<Result<(), String>>>,
     gpu_inventory: Option<GpuInventoryApp>,
@@ -47,6 +149,17 @@ pub struct DesktopApp<A> {
     live_clicked_at_unix_ms: Option<u64>,
     live_attempt_counter: u64,
     reactivity_log: ReactivityLog,
+    catalog_receiver: Option<Receiver<CatalogSnapshot>>,
+    preference_events: Option<Receiver<ModelPreferenceEvent>>,
+    preference_commands: Option<ModelPreferenceCommandSender>,
+    catalog: Option<CatalogSnapshot>,
+    projection: Option<EngineProjection>,
+    selection: SelectionWidgetState,
+    selection_touched: bool,
+    selection_notice: Option<String>,
+    preference_load_notice: Option<String>,
+    preference_notice: Option<String>,
+    preference_revision: u64,
 }
 
 impl<A: Application> DesktopApp<A> {
@@ -139,19 +252,18 @@ impl<A: Application> DesktopApp<A> {
         let microphone_notice = microphones.take_notice();
         let application = AppFacade::new(application);
         let view = application.view();
-        Self {
+        let app = Self {
             application,
             view,
             paths,
             microphones,
             path_notice: None,
             microphone_notice,
-            manual_language: false,
-            language: "fr".into(),
             auto_stop_enabled: false,
             auto_stop_minutes: 120,
             compute_choice,
             compute_choice_touched: false,
+            startup_preferences_loaded: true,
             startup_message,
             gpu_probe: None,
             gpu_inventory: None,
@@ -167,7 +279,165 @@ impl<A: Application> DesktopApp<A> {
             live_clicked_at_unix_ms: None,
             live_attempt_counter: 0,
             reactivity_log: ReactivityLog::start(),
+            catalog_receiver: None,
+            preference_events: None,
+            preference_commands: None,
+            catalog: None,
+            projection: None,
+            selection: SelectionWidgetState {
+                model: Some(ModelId::WhisperLargeV3Turbo),
+                manual_language: None,
+            },
+            selection_touched: false,
+            selection_notice: None,
+            preference_load_notice: None,
+            preference_notice: None,
+            preference_revision: 0,
+        };
+        #[cfg(test)]
+        {
+            let mut app = app;
+            app.install_test_model_catalog();
+            app
         }
+        #[cfg(not(test))]
+        {
+            app
+        }
+    }
+
+    #[cfg(test)]
+    fn install_test_model_catalog(&mut self) {
+        let entries = whisper_core::model_registry::MODELS
+            .iter()
+            .map(|record| whisper_adapters::model_catalog::CatalogEntry {
+                id: record.artifact.id,
+                display_name: record.display_name.to_owned(),
+                path: std::path::PathBuf::from("test-models").join(record.artifact.file_name),
+                availability: whisper_core::model_catalog::ModelAvailability::Ready,
+                expected_size_bytes: record.artifact.size_bytes,
+                observed_size_bytes: Some(record.artifact.size_bytes),
+                expected_sha256: record.artifact.sha256.to_owned(),
+                observed_sha256: Some(record.artifact.sha256.to_owned()),
+                diagnostic: None,
+            })
+            .collect();
+        let catalog = CatalogSnapshot {
+            generation: 1,
+            entries,
+        };
+        self.projection = ModelSelectionApp::new(catalog.engine_snapshot(vec![]))
+            .projection(catalog.generation)
+            .ok();
+        self.catalog = Some(catalog);
+    }
+
+    pub fn with_model_selection_runtime(mut self, runtime: ModelSelectionRuntime) -> Self {
+        self.catalog_receiver = Some(runtime.catalog);
+        self.preference_events = Some(runtime.preference_events);
+        self.preference_commands = Some(runtime.preference_commands);
+        self.startup_preferences_loaded = false;
+        self
+    }
+
+    fn poll_model_selection(&mut self) {
+        if let Some(receiver) = &self.catalog_receiver {
+            match receiver.try_recv() {
+                Ok(catalog) => {
+                    self.projection = ModelSelectionApp::new(catalog.engine_snapshot(vec![]))
+                        .projection(catalog.generation)
+                        .ok();
+                    self.catalog = Some(catalog);
+                    self.catalog_receiver = None;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    self.selection_notice = Some("Catalogue de modèles indisponible.".into());
+                    self.catalog_receiver = None;
+                }
+                Err(TryRecvError::Empty) => {}
+            }
+        }
+        let mut events = Vec::new();
+        let mut preferences_disconnected = false;
+        if let Some(receiver) = &self.preference_events {
+            loop {
+                match receiver.try_recv() {
+                    Ok(event) => events.push(event),
+                    Err(TryRecvError::Empty) => break,
+                    Err(TryRecvError::Disconnected) => {
+                        preferences_disconnected = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if preferences_disconnected {
+            self.preference_events = None;
+        }
+        for event in events {
+            match event {
+                ModelPreferenceEvent::Initialized {
+                    model,
+                    startup_compute,
+                    notice,
+                } => {
+                    self.startup_preferences_loaded = true;
+                    self.preference_load_notice = apply_preference_event(
+                        &mut self.selection,
+                        self.selection_touched,
+                        &mut self.compute_choice,
+                        &mut self.compute_choice_touched,
+                        &mut self.preference_revision,
+                        ModelPreferenceEvent::Initialized {
+                            model,
+                            startup_compute,
+                            notice,
+                        },
+                    );
+                }
+                saved @ ModelPreferenceEvent::Saved { .. } => {
+                    if let Some(notice) = apply_preference_event(
+                        &mut self.selection,
+                        self.selection_touched,
+                        &mut self.compute_choice,
+                        &mut self.compute_choice_touched,
+                        &mut self.preference_revision,
+                        saved,
+                    ) {
+                        self.preference_notice = Some(notice);
+                    }
+                }
+            }
+        }
+    }
+
+    fn selected_model_artifact(&self) -> Option<(String, [u8; 32])> {
+        let id = self.selection.model?;
+        if !self.selected_model_is_selectable() {
+            return None;
+        }
+        let entry = self
+            .catalog
+            .as_ref()?
+            .entries
+            .iter()
+            .find(|entry| entry.id == id)?;
+        Some((
+            entry.path.to_string_lossy().into_owned(),
+            parse_sha256(&entry.expected_sha256),
+        ))
+    }
+
+    fn selected_model_is_selectable(&self) -> bool {
+        let Some(id) = self.selection.model else {
+            return false;
+        };
+        self.projection.as_ref().is_some_and(|projection| {
+            projection
+                .models
+                .iter()
+                .any(|model| model.id == id && model.selectable)
+        })
     }
 
     fn dispatch(&mut self, command: AppCommand) -> bool {
@@ -316,15 +586,15 @@ impl<A: Application> DesktopApp<A> {
 
     fn start_import(&mut self) {
         self.compute_choice_touched = true;
+        let Some((model_path, model_sha256)) = self.selected_model_artifact() else {
+            self.view.message = Some("Le modèle sélectionné n'est pas disponible.".into());
+            return;
+        };
         let serial = NEXT_JOB.fetch_add(1, Ordering::Relaxed);
         let job_id = JobId(((std::process::id() as u128) << 64) | serial as u128);
         let generation = Generation::first();
         let config = JobConfig {
-            language: if self.manual_language {
-                LanguageChoice::Manual(self.language.trim().to_owned())
-            } else {
-                LanguageChoice::Automatic
-            },
+            language: selected_language(&self.selection),
             compute: self.compute_choice,
         };
         if self.dispatch(AppCommand::EnqueueImport {
@@ -334,8 +604,8 @@ impl<A: Application> DesktopApp<A> {
                 source_path: self.paths.audio.trim().to_owned(),
                 source_sha256: None,
                 source_samples: None,
-                model_path: self.paths.model.trim().to_owned(),
-                model_sha256: parse_sha256(APPROVED_MODEL_SHA256),
+                model_path,
+                model_sha256,
                 destination: self.paths.destination.trim().to_owned(),
                 config,
             },
@@ -354,6 +624,10 @@ impl<A: Application> DesktopApp<A> {
         self.live_clicked_at_unix_ms = Some(clicked_at);
         self.live_attempt_counter = self.live_attempt_counter.saturating_add(1);
         self.compute_choice_touched = true;
+        let Some((model_path, model_sha256)) = self.selected_model_artifact() else {
+            self.view.message = Some("Le modèle sélectionné n'est pas disponible.".into());
+            return;
+        };
         if generation == Generation::first() {
             // The new-recording button starts a new group. Recovery and continuation
             // use a later generation and retain the previous durable identity.
@@ -367,8 +641,8 @@ impl<A: Application> DesktopApp<A> {
         let request = LiveRequest {
             job_id,
             generation,
-            model_path: self.paths.model.trim().to_owned(),
-            model_sha256: parse_sha256(APPROVED_MODEL_SHA256),
+            model_path,
+            model_sha256,
             destination: self.paths.destination.trim().to_owned(),
             group_offset_samples: self.live_request.as_ref().map_or(0, |previous| {
                 previous
@@ -378,11 +652,7 @@ impl<A: Application> DesktopApp<A> {
             auto_stop_after_speech_samples: None,
             microphone: self.microphones.effective().clone(),
             config: JobConfig {
-                language: if self.manual_language {
-                    LanguageChoice::Manual(self.language.trim().to_owned())
-                } else {
-                    LanguageChoice::Automatic
-                },
+                language: selected_language(&self.selection),
                 compute: self.compute_choice,
             },
         };
@@ -404,7 +674,8 @@ impl<A: Application> DesktopApp<A> {
 
 impl<A: Application> eframe::App for DesktopApp<A> {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        self.paths.commit_all();
+        self.paths.commit_manual(PathField::Audio);
+        self.paths.commit_manual(PathField::Destination);
         if let Some(inventory) = &mut self.gpu_inventory {
             inventory.close();
         }
@@ -417,7 +688,14 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             unix_time_ms(),
             Some(self.process_started_at_unix_ms),
         );
-        self.poll_gpu_probe();
+        self.poll_model_selection();
+        if self.startup_preferences_loaded || self.compute_choice_touched {
+            self.poll_gpu_probe();
+        }
+        if self.catalog_receiver.is_some() || self.preference_events.is_some() {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(50));
+        }
         if let Some(inventory) = &mut self.gpu_inventory {
             inventory.poll();
             if matches!(inventory.state(), GpuInventoryState::Loading) {
@@ -503,6 +781,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
 
         ui.add_enabled_ui(can_enqueue, |ui| {
             let path_field_width = (ui.available_width() - 320.0).clamp(100.0, 640.0);
+            let mut model_chosen = false;
             egui::Grid::new("path_fields").show(ui, |ui| {
                 ui.label("Fichier audio (WAV ou MP3)");
                 let response = path_text_edit(ui, &mut self.paths.audio, path_field_width);
@@ -517,14 +796,10 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 ui.end_row();
 
                 ui.label("Modèle local");
-                let response = path_text_edit(ui, &mut self.paths.model, path_field_width);
-                if ui.button("Parcourir…").clicked() {
-                    self.paths.browse(PathField::Model);
-                } else if response.lost_focus()
-                    || (response.has_focus()
-                        && ui.input(|input| input.key_pressed(egui::Key::Enter)))
-                {
-                    self.paths.commit_manual(PathField::Model);
+                if let Some(projection) = &self.projection {
+                    model_chosen = model_selection_combo(ui, projection, &mut self.selection);
+                } else {
+                    ui.label("Chargement des modèles…");
                 }
                 ui.end_row();
 
@@ -540,13 +815,27 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 }
                 ui.end_row();
             });
+            if model_chosen
+                && let (Some(model), Some(sender)) =
+                    (self.selection.model, self.preference_commands.as_ref())
+            {
+                self.selection_touched = true;
+                record_preference_delivery(
+                    &mut self.preference_notice,
+                    sender.send(ModelPreferenceCommand::ChooseModel(model)),
+                );
+                self.selection_notice = None;
+            }
             ui.horizontal(|ui| {
-                ui.checkbox(&mut self.manual_language, "Langue manuelle");
-                if self.manual_language {
-                    ui.text_edit_singleline(&mut self.language);
+                ui.label("Langue");
+                if let Some(projection) = &self.projection {
+                    language_selection_combo(ui, projection, self.compute_choice, &mut self.selection);
+                } else {
+                    ui.label("Chargement…");
                 }
                 ui.label("Calcul");
                 let previous_compute = self.compute_choice;
+                let mut compute_interacted = false;
                 egui::ComboBox::from_id_salt("compute_choice")
                     .selected_text(match self.compute_choice {
                         ComputeChoice::Cpu => "CPU",
@@ -554,12 +843,54 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         ComputeChoice::Auto => "Auto",
                     })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.compute_choice, ComputeChoice::Auto, "Auto");
-                        ui.selectable_value(&mut self.compute_choice, ComputeChoice::Cpu, "CPU");
-                        ui.selectable_value(&mut self.compute_choice, ComputeChoice::Gpu, "GPU");
+                        compute_interacted |= ui
+                            .selectable_value(&mut self.compute_choice, ComputeChoice::Auto, "Auto")
+                            .clicked();
+                        compute_interacted |= ui
+                            .selectable_value(&mut self.compute_choice, ComputeChoice::Cpu, "CPU")
+                            .clicked();
+                        compute_interacted |= ui
+                            .selectable_value(&mut self.compute_choice, ComputeChoice::Gpu, "GPU")
+                            .clicked();
                     });
-                self.compute_choice_touched |= self.compute_choice != previous_compute;
+                let compute_changed = self.compute_choice != previous_compute;
+                let compute_selection_interacted = record_compute_selection_interaction(
+                    &mut self.compute_choice_touched,
+                    compute_interacted,
+                    compute_changed,
+                );
+                if compute_selection_interacted
+                    && let Some(sender) = &self.preference_commands
+                {
+                    let preference = if self.compute_choice == ComputeChoice::Auto {
+                        whisper_core::path_settings::StartupComputePreference::Auto
+                    } else {
+                        whisper_core::path_settings::StartupComputePreference::FollowProbe
+                    };
+                    record_preference_delivery(
+                        &mut self.preference_notice,
+                        sender.send(ModelPreferenceCommand::ChooseStartupCompute(preference)),
+                    );
+                }
             });
+            if let Some(notice) = &self.selection_notice {
+                ui.colored_label(egui::Color32::YELLOW, notice);
+            }
+            if let Some(notice) = &self.preference_load_notice {
+                ui.label(notice);
+            }
+            if let Some(notice) = &self.preference_notice {
+                ui.label(notice);
+            }
+            if let Some(projection) = &self.projection
+                && let Some(model) = projection
+                    .models
+                    .iter()
+                    .find(|model| Some(model.id) == self.selection.model)
+                && let Some(cause) = model.cause
+            {
+                ui.label(format!("{} : indisponible ({cause:?})", model.display_name));
+            }
             let gpu_preferences = self
                 .gpu_inventory
                 .as_ref()
@@ -658,10 +989,10 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     });
                 });
             }
-            let can_start = !self.paths.audio.trim().is_empty()
-                && !self.paths.model.trim().is_empty()
+            let can_start = self.selected_model_artifact().is_some()
+                && !self.paths.audio.trim().is_empty()
                 && !self.paths.destination.trim().is_empty()
-                && (!self.manual_language || !self.language.trim().is_empty());
+                && self.selection.manual_language.as_ref().is_none_or(|language| !language.is_empty());
             if ui
                 .add_enabled(can_start, egui::Button::new("Importer et transcrire"))
                 .clicked()
@@ -670,9 +1001,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
             {
                 let can_start_live = !busy
-                    && !self.paths.model.trim().is_empty()
+                    && self.selected_model_artifact().is_some()
                     && !self.paths.destination.trim().is_empty()
-                    && (!self.manual_language || !self.language.trim().is_empty());
+                    && self.selection.manual_language.as_ref().is_none_or(|language| !language.is_empty());
                 if ui
                     .add_enabled(can_start_live, egui::Button::new("Démarrer le micro"))
                     .clicked()
@@ -868,7 +1199,10 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 }
                 if entry.status == whisper_core::ports::ImportQueueStatus::Interrupted {
                     if self.resume_confirmation == Some(identity) {
-                        if ui.button("Confirmer la reprise").clicked() {
+                        if ui
+                            .add_enabled(!busy, egui::Button::new("Confirmer la reprise"))
+                            .clicked()
+                        {
                             self.active_identity = Some((
                                 entry.request.job_id,
                                 entry
@@ -885,7 +1219,10 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         if ui.button("Annuler").clicked() {
                             self.resume_confirmation = None;
                         }
-                    } else if ui.button("Reprendre…").clicked() {
+                    } else if ui
+                        .add_enabled(!busy, egui::Button::new("Reprendre…"))
+                        .clicked()
+                    {
                         self.resume_confirmation = Some(identity);
                     }
                 }
@@ -986,6 +1323,22 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 }
             }
         }
+    }
+}
+
+pub fn record_compute_selection_interaction(
+    touched: &mut bool,
+    interacted: bool,
+    changed: bool,
+) -> bool {
+    let selected = interacted || changed;
+    *touched |= selected;
+    selected
+}
+
+pub fn record_preference_delivery(notice: &mut Option<String>, result: Result<(), ()>) {
+    if result.is_err() {
+        *notice = Some("Préférence non enregistrée : service de préférences indisponible.".into());
     }
 }
 
@@ -1295,6 +1648,323 @@ pub fn default_model_path() -> String {
         .unwrap_or_default()
 }
 
+pub fn apply_startup_preference(
+    compute_choice: &mut ComputeChoice,
+    compute_choice_touched: &mut bool,
+    preference: whisper_core::path_settings::StartupComputePreference,
+) {
+    if !*compute_choice_touched
+        && preference == whisper_core::path_settings::StartupComputePreference::Auto
+    {
+        *compute_choice = ComputeChoice::Auto;
+        *compute_choice_touched = true;
+    }
+}
+
+pub fn apply_initial_model(
+    selection: &mut SelectionWidgetState,
+    selection_touched: bool,
+    preferred_model: Option<ModelId>,
+) {
+    if !selection_touched {
+        selection.model = preferred_model;
+    }
+}
+
+pub fn apply_preference_event(
+    selection: &mut SelectionWidgetState,
+    selection_touched: bool,
+    compute_choice: &mut ComputeChoice,
+    compute_choice_touched: &mut bool,
+    current_revision: &mut u64,
+    event: ModelPreferenceEvent,
+) -> Option<String> {
+    match event {
+        ModelPreferenceEvent::Initialized {
+            model,
+            startup_compute,
+            notice,
+        } => {
+            apply_initial_model(selection, selection_touched, model);
+            apply_startup_preference(compute_choice, compute_choice_touched, startup_compute);
+            notice
+        }
+        ModelPreferenceEvent::Saved { revision, message } => {
+            if revision < *current_revision {
+                return None;
+            }
+            *current_revision = revision;
+            Some(message)
+        }
+    }
+}
+
+fn selected_language(selection: &SelectionWidgetState) -> LanguageChoice {
+    selection
+        .manual_language
+        .as_ref()
+        .map_or(LanguageChoice::Automatic, |language| {
+            LanguageChoice::Manual(language.clone())
+        })
+}
+
+pub fn model_selection_combo(
+    ui: &mut egui::Ui,
+    projection: &EngineProjection,
+    selection: &mut SelectionWidgetState,
+) -> bool {
+    let mut chosen = false;
+    let selected_text = projection
+        .models
+        .iter()
+        .find(|model| Some(model.id) == selection.model)
+        .map(|model| {
+            if model.selectable {
+                model.display_name.clone()
+            } else {
+                format!("{} (indisponible)", model.display_name)
+            }
+        })
+        .unwrap_or_else(|| "Choisir un modèle".into());
+    egui::ComboBox::from_id_salt("model_choice")
+        .selected_text(selected_text)
+        .show_ui(ui, |ui| {
+            for model in &projection.models {
+                let response = ui.add_enabled(
+                    model.selectable,
+                    egui::Button::selectable(
+                        selection.model == Some(model.id),
+                        &model.display_name,
+                    ),
+                );
+                let clicked = response.clicked();
+                if let Some(cause) = model.cause {
+                    response.on_hover_text(format!("Indisponible : {cause:?}"));
+                }
+                if clicked && model.selectable {
+                    selection.model = Some(model.id);
+                    chosen = true;
+                }
+            }
+        });
+    chosen
+}
+
+pub fn language_selection_combo(
+    ui: &mut egui::Ui,
+    projection: &EngineProjection,
+    compute_choice: ComputeChoice,
+    selection: &mut SelectionWidgetState,
+) {
+    let Some(model) = projection
+        .models
+        .iter()
+        .find(|model| Some(model.id) == selection.model)
+    else {
+        ui.add_enabled(false, egui::Button::new("Auto"));
+        ui.label("Langue indisponible : modèle non sélectionné.");
+        return;
+    };
+    let Some(configuration) = language_choices_for_compute(model, compute_choice) else {
+        ui.add_enabled(false, egui::Button::new("Auto"));
+        ui.label("Langue indisponible : configuration absente ou non qualifiée.");
+        return;
+    };
+    let selected_text = selection
+        .manual_language
+        .as_deref()
+        .and_then(|code| {
+            TURBO_LANGUAGE_INPUTS
+                .iter()
+                .find(|(known, _)| *known == code)
+        })
+        .map(|(code, name)| format!("{name} ({code})"))
+        .unwrap_or_else(|| "Auto".into());
+    egui::ComboBox::from_id_salt("language_choice")
+        .selected_text(selected_text)
+        .show_ui(ui, |ui| {
+            let response = ui.add_enabled(
+                configuration.auto_language_selectable,
+                egui::Button::selectable(selection.manual_language.is_none(), "Auto"),
+            );
+            let clicked = response.clicked();
+            if let Some(cause) = configuration.auto_language_cause {
+                response.on_hover_text(format!("Auto indisponible : {cause:?}"));
+            }
+            if clicked && configuration.auto_language_selectable {
+                selection.manual_language = None;
+            }
+            for (language, label) in language_choice_labels(&configuration) {
+                let code = language.code.0.as_str();
+                let response = ui.add_enabled(
+                    language.selectable,
+                    egui::Button::selectable(
+                        selection.manual_language.as_deref() == Some(code),
+                        label,
+                    ),
+                );
+                let clicked = response.clicked();
+                if let Some(cause) = language.cause {
+                    response.on_hover_text(format!("Langue indisponible : {cause:?}"));
+                }
+                if clicked && language.selectable {
+                    selection.manual_language = Some(code.to_owned());
+                }
+            }
+        });
+    if selection.manual_language.is_none() && !configuration.auto_language_selectable {
+        ui.label(format!(
+            "Auto indisponible : {:?}",
+            configuration.auto_language_cause
+        ));
+    } else if let Some(language) = selection.manual_language.as_deref()
+        && let Some(option) = configuration
+            .languages
+            .iter()
+            .find(|option| option.code.0 == language)
+        && let Some(cause) = option.cause
+    {
+        ui.label(format!("Langue indisponible : {cause:?}"));
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LanguageChoices {
+    pub auto_language_selectable: bool,
+    pub auto_language_cause: Option<whisper_core::engine_capabilities::RefusalCause>,
+    pub languages: Vec<whisper_core::engine_capabilities::LanguageOption>,
+}
+
+/// Projects language capability for the selected backend. Auto only exposes choices supported
+/// by both possible backends because its effective backend can be either one.
+pub fn language_choices_for_compute(
+    model: &whisper_core::engine_capabilities::ModelOption,
+    compute: ComputeChoice,
+) -> Option<LanguageChoices> {
+    use whisper_core::engine_capabilities::{LanguageOption, RefusalCause};
+    let find = |backend| {
+        model
+            .configurations
+            .iter()
+            .find(|config| config.key.backend == backend)
+    };
+    let unavailable = |config_cause: Option<RefusalCause>| {
+        config_cause.or(Some(RefusalCause::ConfigurationUnsupported))
+    };
+    match compute {
+        ComputeChoice::Cpu | ComputeChoice::Gpu => {
+            let backend = if compute == ComputeChoice::Cpu {
+                Backend::Cpu
+            } else {
+                Backend::Gpu
+            };
+            let config = find(backend)?;
+            Some(LanguageChoices {
+                auto_language_selectable: config.selectable && config.auto_language_selectable,
+                auto_language_cause: if config.selectable {
+                    config.auto_language_cause
+                } else {
+                    unavailable(config.cause)
+                },
+                languages: config
+                    .languages
+                    .iter()
+                    .map(|language| LanguageOption {
+                        code: language.code.clone(),
+                        selectable: config.selectable && language.selectable,
+                        cause: if config.selectable {
+                            language.cause
+                        } else {
+                            unavailable(config.cause)
+                        },
+                    })
+                    .collect(),
+            })
+        }
+        ComputeChoice::Auto => {
+            let cpu = find(Backend::Cpu)?;
+            let gpu = find(Backend::Gpu)?;
+            Some(LanguageChoices {
+                auto_language_selectable: cpu.selectable
+                    && gpu.selectable
+                    && cpu.auto_language_selectable
+                    && gpu.auto_language_selectable,
+                auto_language_cause: if !cpu.selectable || !gpu.selectable {
+                    unavailable(cpu.cause.or(gpu.cause))
+                } else {
+                    cpu.auto_language_cause.or(gpu.auto_language_cause)
+                },
+                languages: cpu
+                    .languages
+                    .iter()
+                    .map(|cpu_language| {
+                        let gpu_language = gpu
+                            .languages
+                            .iter()
+                            .find(|language| language.code == cpu_language.code);
+                        let selectable = cpu.selectable
+                            && gpu.selectable
+                            && cpu_language.selectable
+                            && gpu_language.is_some_and(|language| language.selectable);
+                        let cause = if !cpu.selectable || !gpu.selectable {
+                            unavailable(cpu.cause.or(gpu.cause))
+                        } else if !cpu_language.selectable {
+                            cpu_language
+                                .cause
+                                .or(Some(RefusalCause::ConfigurationUnsupported))
+                        } else if let Some(gpu_language) = gpu_language {
+                            gpu_language
+                                .cause
+                                .or(Some(RefusalCause::ConfigurationUnknown))
+                        } else {
+                            Some(RefusalCause::ConfigurationUnknown)
+                        };
+                        LanguageOption {
+                            code: cpu_language.code.clone(),
+                            selectable,
+                            cause: if selectable { None } else { cause },
+                        }
+                    })
+                    .collect(),
+            })
+        }
+    }
+}
+
+fn language_choice_labels(
+    choices: &LanguageChoices,
+) -> Vec<(&whisper_core::engine_capabilities::LanguageOption, String)> {
+    choices
+        .languages
+        .iter()
+        .map(|language| {
+            let label = TURBO_LANGUAGE_INPUTS
+                .iter()
+                .find(|(code, _)| *code == language.code.0)
+                .map(|(code, name)| format!("{name} ({code})"))
+                .unwrap_or_else(|| language.code.0.clone());
+            (language, label)
+        })
+        .collect()
+}
+
+pub fn language_option_labels(
+    configuration: &whisper_core::engine_capabilities::ConfigurationOption,
+) -> Vec<(&whisper_core::engine_capabilities::LanguageOption, String)> {
+    configuration
+        .languages
+        .iter()
+        .map(|language| {
+            let code = language.code.0.as_str();
+            let name = TURBO_LANGUAGE_INPUTS
+                .iter()
+                .find(|(known, _)| *known == code)
+                .map_or(code, |(_, english)| *english);
+            (language, format!("{name} ({code})"))
+        })
+        .collect()
+}
+
 pub fn default_audio_directory() -> String {
     std::env::var("USERPROFILE")
         .map(|path| format!(r"{path}\Documents"))
@@ -1413,8 +2083,9 @@ mod tests {
         GpuCollection, GpuInventoryApp, GpuInventoryPort, GpuInventoryState,
     };
     use whisper_core::{
-        AppCommand, AppView, Application, ApplicationError, ComputeChoice, Generation, JobId,
-        MicrophoneChoice, MicrophoneDevice, MicrophonePort,
+        AppCommand, AppView, Application, ApplicationError, ComputeChoice, Generation,
+        ImportEffect, ImportRequest, JobConfig, JobId, LanguageChoice, MicrophoneChoice,
+        MicrophoneDevice, MicrophonePort,
     };
 
     #[derive(Clone, Default)]
@@ -1433,6 +2104,12 @@ mod tests {
 
     struct RejectQuitApplication;
     struct RejectStartApplication;
+
+    #[derive(Clone, Default)]
+    struct RefusingStagedCandidateApplication {
+        effects: Rc<RefCell<Vec<ImportEffect>>>,
+        pending_candidate: Rc<RefCell<Option<ImportEffect>>>,
+    }
 
     struct OneMicrophone;
 
@@ -1483,6 +2160,48 @@ mod tests {
         }
     }
 
+    impl Application for RefusingStagedCandidateApplication {
+        fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
+            if matches!(
+                command,
+                AppCommand::StartImport { .. }
+                    | AppCommand::EnqueueImport { .. }
+                    | AppCommand::ProcessQueued { .. }
+                    | AppCommand::ResumeInterrupted { .. }
+                    | AppCommand::StartLiveConfigured { .. }
+                    | AppCommand::StartDirectLiveConfigured { .. }
+            ) {
+                self.pending_candidate.borrow_mut().take();
+                return Ok(AppView {
+                    message: Some("Modèle indisponible : test d'admission".into()),
+                    ..AppView::default()
+                });
+            }
+            if let Some(effect) = self.pending_candidate.borrow_mut().take() {
+                self.effects.borrow_mut().push(effect);
+            }
+            Ok(AppView::default())
+        }
+
+        fn view(&self) -> AppView {
+            AppView::default()
+        }
+
+        fn set_gpu_candidate(
+            &mut self,
+            job_id: JobId,
+            generation: Generation,
+            candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+        ) -> Result<(), ApplicationError> {
+            *self.pending_candidate.borrow_mut() = Some(ImportEffect::SetGpuCandidate {
+                job_id,
+                generation,
+                candidate,
+            });
+            Ok(())
+        }
+    }
+
     #[test]
     fn auto_stop_is_disabled_by_default_and_uses_speech_sample_clock_when_enabled() {
         assert_eq!(speech_limit_samples(false, 120), None);
@@ -1525,6 +2244,45 @@ mod tests {
         app.view.active_job = Some((next_job, whisper_core::JobState::Preparing));
         app.view.last_result = Some("Transcription publiée et vérifiée".into());
         assert_eq!(app.published_result(), None);
+    }
+
+    #[test]
+    fn refused_ui_model_command_has_no_gpu_candidate_io_effect() {
+        let application = RefusingStagedCandidateApplication::default();
+        let effects = application.effects.clone();
+        let pending_candidate = application.pending_candidate.clone();
+        let paths = whisper_core::path_settings::PathSettingsApp::with_defaults(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: String::new(),
+                model_path: "model.bin".into(),
+                destination: "archive".into(),
+            },
+        );
+        let mut app = DesktopApp::with_paths(application, ComputeChoice::Cpu, None, paths);
+        let request = ImportRequest {
+            job_id: JobId(73),
+            generation: Generation::first(),
+            source_path: "input.wav".into(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: "model.bin".into(),
+            model_sha256: [0; 32],
+            destination: "archive".into(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+
+        assert!(app.dispatch(AppCommand::EnqueueImport { request }));
+        assert!(
+            app.view
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("Modèle indisponible"))
+        );
+        assert!(effects.borrow().is_empty());
+        assert!(pending_candidate.borrow().is_none());
     }
 
     #[test]
