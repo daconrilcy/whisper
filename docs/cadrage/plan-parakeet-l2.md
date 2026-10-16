@@ -4,7 +4,7 @@ Décision : étendre L2b à trois chemins adapters ciblés, relire ce delta puis
 
 # PLAN-PARA-L2 v6 — import Parakeet CPU
 
-**Parents Git :** design `docs/cadrage/evo-parakeet.md` §9 et `docs/cadrage/evo-engine-capabilities.md` §8 au commit `3c47f272`, verdict indépendant **CLEAN — DESIGN READY-L2** sur CPU/import FR/EN ; L1b-2 `84e5444d` et L1b-1 `7de28359`, tous deux revus CLEAN. Le bilan `bilan-parakeet-faisabilite-cloture.md` est une preuve de faisabilité isolée, pas une qualification produit. Contributions en lecture seule `ARCH-PARA-L2 v1`, `VAD-L2 v1`, `REQ-PARA-L2 v1` et `rust_plan_writer` ; rédaction/versionnement par la session principale. Le plan v4 était **CLEAN — PLANS READY-L2a-1 / L2a-2 / L2b** sur `e6e95050`. L2a-1 est commité à `842cb000` après revue CLEAN ; le delta v5 a reçu **CLEAN — PLANS READY-L2a-2** sur `0813336d`. L2a-2 et son lot distinct de fermeture R6–R10 sont commités à `4045c828`, avec verdict indépendant CLEAN pour ce dernier. **Statut v6 : DRAFT — delta de chemins L2b à revoir**, sur le candidat L2b partiel non commité. L'utilisateur a autorisé dans cette session la révision du plan, sa revue, puis la reprise conditionnelle de L2b sur les trois chemins supplémentaires cités en §4 si la revue est CLEAN. Aucun autre lot n'est autorisé.
+**Parents Git :** design `docs/cadrage/evo-parakeet.md` §9 et `docs/cadrage/evo-engine-capabilities.md` §8 au commit `3c47f272`, verdict indépendant **CLEAN — DESIGN READY-L2** sur CPU/import FR/EN ; L1b-2 `84e5444d` et L1b-1 `7de28359`, tous deux revus CLEAN. Le bilan `bilan-parakeet-faisabilite-cloture.md` est une preuve de faisabilité isolée, pas une qualification produit. Contributions en lecture seule `ARCH-PARA-L2 v1`, `VAD-L2 v1`, `REQ-PARA-L2 v1` et `rust_plan_writer` ; rédaction/versionnement par la session principale. Le plan v4 était **CLEAN — PLANS READY-L2a-1 / L2a-2 / L2b** sur `e6e95050`. L2a-1 est commité à `842cb000` après revue CLEAN ; le delta v5 a reçu **CLEAN — PLANS READY-L2a-2** sur `0813336d`. L2a-2 et son lot distinct de fermeture R6–R10 sont commités à `4045c828`, avec verdict indépendant CLEAN pour ce dernier. **Statut v6 : CLEAN — PLANS READY-L2b**, revue indépendante du delta `36c63b61` sans REQUIRED. L'advisory V6-A1 sur les commandes d'archive et de B9 est corrigé en §5 et soumis à vérification du même reviewer. Le candidat L2b partiel reste non commité et non qualifié. L'utilisateur a autorisé dans cette session la révision du plan, sa revue, puis la reprise conditionnelle de L2b sur les trois chemins supplémentaires cités en §4 si la revue est CLEAN. Aucun autre lot n'est autorisé.
 
 ## 1. Résultat, limites et gates
 
@@ -216,8 +216,10 @@ cargo fmt --all -- --check
 cargo build --offline --locked -p whisper-worker-parakeet-cpu --features parakeet-qualification-reference
 cargo test --offline --locked -p whisper-core --test parakeet_windows --test parakeet_import_contract
 cargo test --offline --locked -p whisper-adapters --test parakeet_import --test parakeet_control
+cargo test --offline --locked -p whisper-adapters --test parakeet_archive
 cargo test --offline --locked -p whisper-worker-parakeet-cpu --test native_import --features parakeet-qualification-reference -- --ignored --nocapture
 cargo test --offline --locked -p whisper-adapters --test parakeet_long -- --ignored --nocapture
+cargo test --offline --locked -p whisper-adapters --test parakeet_long b9_reports_noise_floor_silence_counts_and_cut_plans -- --exact --nocapture
 cargo test --offline --locked -p whisper-core
 cargo test --offline --locked -p whisper-desktop --test model_selection_ui
 cargo build --offline --locked --workspace --target-dir target/parakeet-tests/l2/l2b/cargo-regression/
