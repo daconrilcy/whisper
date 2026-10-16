@@ -1,10 +1,10 @@
-Avancée : design CPU/import L2 relu CLEAN ; L1b-1 et L1b-2 sont committés.
-Blocage : l'intégration native, la qualification du candidat Test et la VAD longue ne sont pas exécutées.
-Décision : proposer L2a-1, puis L2a-2, puis L2b, avec accords d'implémentation distincts ; ce plan ne les autorise pas.
+Avancée : L2a-1 est commité et revu CLEAN ; sa recette FR/EN et sa parité de décodage sont exécutées.
+Blocage : son worker refuse la racine d'exécution L2a-2 ; l'intégration produit et la VAD longue restent à réaliser.
+Décision : rouvrir uniquement la garde de racine du worker en L2a-2, puis requalifier le nouveau binaire FR/EN avant admission.
 
-# PLAN-PARA-L2 v4 — import Parakeet CPU
+# PLAN-PARA-L2 v5 — import Parakeet CPU
 
-**Parents Git :** design `docs/cadrage/evo-parakeet.md` §9 et `docs/cadrage/evo-engine-capabilities.md` §8 au commit `3c47f272`, verdict indépendant **CLEAN — DESIGN READY-L2** sur CPU/import FR/EN ; L1b-2 `84e5444d` et L1b-1 `7de28359`, tous deux revus CLEAN. Le bilan `bilan-parakeet-faisabilite-cloture.md` est une preuve de faisabilité isolée, pas une qualification produit. Contributions en lecture seule `ARCH-PARA-L2 v1`, `VAD-L2 v1`, `REQ-PARA-L2 v1` et `rust_plan_writer` ; rédaction/versionnement par la session principale. **Statut : CLEAN — PLANS READY-L2a-1 / L2a-2 / L2b**, verdict indépendant sur `e6e95050`, sans REQUIRED ni advisory. Aucun code L2 n'est autorisé par ce document.
+**Parents Git :** design `docs/cadrage/evo-parakeet.md` §9 et `docs/cadrage/evo-engine-capabilities.md` §8 au commit `3c47f272`, verdict indépendant **CLEAN — DESIGN READY-L2** sur CPU/import FR/EN ; L1b-2 `84e5444d` et L1b-1 `7de28359`, tous deux revus CLEAN. Le bilan `bilan-parakeet-faisabilite-cloture.md` est une preuve de faisabilité isolée, pas une qualification produit. Contributions en lecture seule `ARCH-PARA-L2 v1`, `VAD-L2 v1`, `REQ-PARA-L2 v1` et `rust_plan_writer` ; rédaction/versionnement par la session principale. Le plan v4 était **CLEAN — PLANS READY-L2a-1 / L2a-2 / L2b** sur `e6e95050`. L2a-1 est commité à `842cb000` après revue CLEAN ; son préflight a révélé le verrouillage de la racine d'exécution dans le worker. **Statut v5 : DRAFT — revue indépendante requise avant reprise du code L2a-2.** La décision utilisateur de réviser le plan et de requalifier FR/EN date du 16/10/2026. Aucun autre lot n'est autorisé par cette décision.
 
 ## 1. Résultat, limites et gates
 
@@ -17,7 +17,7 @@ L2a est scindé : **L2a-1** produit le worker CPU isolé, son IPC, son décodeur
 | G-L2-NATIVE | Pour L2a-1, accord précis couvrant l'ABI C NeMo, Rust `unsafe` privé, chargement Windows de DLL existantes et copie bornée sous `target/parakeet-tests/l2/l2a-1/`. Aucune modification C++ ni acquisition. | Contrats purs possibles seulement si un sous-périmètre est accepté ; recette native `NOT RUN`, aucune fiche Test activée. |
 | G-L2-TEST | Fichier Test Parakeet présent avec taille/SHA attendus ; worker, ABI, DLL, protocoles, sources FR/EN et sorties attribués à la clé exacte. | Recette affectée `NOT RUN`, sans téléchargement ni écriture sous `models/`; Parakeet grisé. |
 | G-L2A-1 | Worker produit CPU et harness privé donnent `PASS` FR **et** EN sans langue imposée, temps valides ; parité de décodage A11 documentée ; verdict indépendant `CLEAN` sur L2a-1. | L2a-2 ne démarre pas ; aucune fiche `Qualified` Test ni admission GUI. |
-| G-L2A-QUAL | Pendant L2a-2, la fiche Test exige le même worker/artefact/runtime/protocole que les preuves L2a-1 ; toute dimension changée impose de refaire FR et EN sur la clé exacte. | Pas de fiche `Qualified` Test ni d'admission GUI ; `FAIL`/`INCONCLUSIVE` visibles. |
+| G-L2A-QUAL | Le changement borné de garde de racine en L2a-2 modifie le SHA du worker L2a-1. Avant fiche Test ou admission GUI, reconstruire ce worker sous le runtime L2a-2 et refaire A3 FR/EN et A11 WAV/MP3 sur le binaire, les DLL, le modèle, le protocole et la racine d'exécution exacts du candidat L2a-2. Toute autre dimension changée impose la même requalification de sa clé exacte. | Pas de fiche `Qualified` Test ni d'admission GUI ; `FAIL`/`INCONCLUSIVE` visibles. |
 | G-L2B | L2a-2 revu CLEAN ; algorithme VAD du design, référence Test-only 60 min et corpus local vérifiés ; accord écrit propre à L2b. | Import >30 min refusé ; L2a-2 inchangé. |
 
 La preuve Test `AC-PARA-16-L2` est une `PRODUCT_VALIDATION` ; elle n'est pas transférée au paquet Final de `AC-PARA-16F` (`DELIVERY_QUALIFICATION`). `language_count=0` est attendu, sans critère d'échec. Aucun seuil nouveau de vitesse, RAM, VRAM ou écart global de transcription n'est introduit. Aucun worker Parakeet GPU ou live n'est lancé en L2.
@@ -45,10 +45,11 @@ La preuve Test `AC-PARA-16-L2` est une `PRODUCT_VALIDATION` ; elle n'est pas tra
 | L2a.7 | Harness privé et recette native FR+EN du **worker produit exact**, sans admission GUI anticipée. | A3/A5 (worker) |
 | L2a.8 | Seulement après G-L2A-QUAL : fiche Test versionnée, activation GUI Test et vérification de clé ; Final/live/GPU restent bloqués. | A1/A8 |
 | L2a.9 | Régression Turbo, diff/tests/build et revue indépendante. | A10 |
+| L2a.10 | Corriger uniquement la garde de racine du worker CPU pour admettre le runtime L2a-2 sans ouvrir un chemin arbitraire ; reconstruire sous cette racine, relever son nouveau SHA et refaire la recette FR/EN et la parité sur le candidat exact avant la fiche Test. | A3/A11/G-L2A-QUAL |
 
-**Séquence et propriété.** L2a-1 exécute seulement L2a.2/.3/.4/.7 et les cartes A2, A3, A4/A5 **parties worker**, plus A11. Il ne modifie aucun fichier d'application, de registre, d'archive ou de bureau. Son livrable est le worker et son harness ; un PASS FR+EN et un verdict indépendant CLEAN sont nécessaires avant L2a-2. L2a-2 exécute L2a.1/.5/.6/.8/.9 et A1, A4/A5 **parties produit**, A6–A10 ; il consomme la clé worker prouvée sans hériter une preuve si ses dimensions changent. Les deux sous-lots ont des accords, chemins et revues distincts.
+**Séquence et propriété.** L2a-1 exécute seulement L2a.2/.3/.4/.7 et les cartes A2, A3, A4/A5 **parties worker**, plus A11. Il ne modifie aucun fichier d'application, de registre, d'archive ou de bureau. Son livrable est le worker et son harness ; un PASS FR+EN et un verdict indépendant CLEAN sont nécessaires avant L2a-2. L2a-2 exécute L2a.1/.5/.6/.8/.9/.10 et A1, A4/A5 **parties produit**, A6–A10. Son changement de garde de racine crée une nouvelle clé worker : les PASS L2a-1 ouvrent le sous-lot, mais ne qualifient pas la fiche Test L2a-2 ; A3 et A11 sont rejouées sur le nouveau binaire avant L2a.8. Les deux sous-lots ont des accords, chemins et revues distincts.
 
-**`lot.paths.write` L2a-1, exclusifs :**
+**`lot.paths.write` L2a-1 :**
 
 ```text
 Cargo.toml
@@ -65,7 +66,7 @@ crates/whisper-worker-parakeet-cpu/tests/native_import.rs
 crates/whisper-worker-parakeet-cpu/tests/decoder_parity.rs
 ```
 
-**`lot.paths.write` L2a-2, exclusifs :**
+**`lot.paths.write` L2a-2 :**
 
 ```text
 crates/whisper-core/src/application.rs
@@ -80,16 +81,17 @@ crates/whisper-adapters/src/parakeet_import.rs
 crates/whisper-adapters/tests/parakeet_archive.rs
 crates/whisper-adapters/tests/parakeet_import.rs
 crates/whisper-adapters/tests/parakeet_control.rs
+crates/whisper-worker-parakeet-cpu/src/main.rs
 crates/whisper-desktop/src/root.rs
 crates/whisper-desktop/src/ui.rs
 crates/whisper-desktop/tests/model_selection_ui.rs
 ```
 
-Le manifeste racine et `Cargo.lock` ne changent qu'en L2a-1 pour enregistrer la nouvelle crate et des versions déjà présentes en cache offline ; aucun téléchargement. En L2a-1, `application.rs`, `model_selection_app.rs`, `model_registry.rs`, `archive.rs`, tout `whisper-desktop/` et les adaptateurs restent en lecture seule. `engine_capabilities.rs`, `ports.rs`, `ipc.rs`, les workers Turbo et les manifestes existants restent en lecture dans les deux sous-lots. En L2a-2, `archive.rs` est ouvert seulement pour qualifier l'identité du modèle selon le catalogue vérifié à la préparation, au pending, au scan/publication et à la reprise : le Turbo historique garde exactement ses validations SHA/taille, Parakeet accepte seulement sa clé Test prouvée, tout artefact inconnu est refusé. Le test `parakeet_archive.rs` couvre les deux identités, leurs divergences, la préparation, la reprise et la publication. `WorkerPaths { cpu, gpu }` conserve ses constructeurs : une configuration Parakeet distincte est injectée. Un besoin réel hors de la liste du sous-lot entraîne `PLAN_CHANGE_REQUIRED` avant édition. Les nouveaux fichiers n'existent pas encore et sont autorisés uniquement par un futur accord sur leur sous-lot.
+Le manifeste racine et `Cargo.lock` ne changent qu'en L2a-1 pour enregistrer la nouvelle crate et des versions déjà présentes en cache offline ; aucun téléchargement. En L2a-1, `application.rs`, `model_selection_app.rs`, `model_registry.rs`, `archive.rs`, tout `whisper-desktop/` et les adaptateurs restent en lecture seule. `main.rs` du worker est le seul chemin rouvert en L2a-2 : seul le contrôle de racine d'exécution peut changer, sans toucher le protocole, le décodage, la façade native ou le cycle de vie DLL. Le worker accepte exclusivement les racines canoniques Test L2a-1 et L2a-2 de ce dépôt ; une racine arbitraire reste refusée. `engine_capabilities.rs`, `ports.rs`, `ipc.rs`, les workers Turbo et les manifestes existants restent en lecture dans les deux sous-lots. En L2a-2, `archive.rs` est ouvert seulement pour qualifier l'identité du modèle selon le catalogue vérifié à la préparation, au pending, au scan/publication et à la reprise : le Turbo historique garde exactement ses validations SHA/taille, Parakeet accepte seulement sa clé Test prouvée, tout artefact inconnu est refusé. Le test `parakeet_archive.rs` couvre les deux identités, leurs divergences, la préparation, la reprise et la publication. `WorkerPaths { cpu, gpu }` conserve ses constructeurs : une configuration Parakeet distincte est injectée. Un besoin réel hors de la liste du sous-lot entraîne `PLAN_CHANGE_REQUIRED` avant édition. Les nouveaux fichiers n'existent pas encore et sont autorisés uniquement par l'accord sur leur sous-lot.
 
 **`lot.paths.read` L2a principaux :** `AGENTS.md`, `RAILGUARD.md`, `Cargo.toml`, `Cargo.lock`, manifests concernés ; ce plan et parents Git ; `crates/whisper-core/src/{audio,domain,ports,ipc,model_catalog,engine_capabilities}.rs`, `crates/whisper-adapters/src/{archive,queue_store,staging,recovery,journal,supervisor,decoder,model_catalog}.rs`, tests import/MP3/worker/legacy existants, `crates/whisper-desktop/src/main.rs`, workers Turbo ; `models/` et `sound example/` en lecture seule ; banc `target/parakeet-feasibility/spike02/worker.rs`, `NeMo-Speech.cpp/include/nemo_speech/asr.h`, `build-cpu/bin/`, `build-cpu/vcpkg_installed/x64-windows/bin/`, et fixtures `fr87.wav`, `en15.wav` en lecture seule. Le header réel a été vérifié au préflight documentaire. L'inventaire transitif des DLL CPU est un résultat du préflight d'exécution ; les répertoires du banc ne sont pas modifiés. Aucun secours depuis PATH, Downloads ou CUDA.
 
-**`lot.paths.runtime_write` :** L2a-1 écrit uniquement sous `target/parakeet-tests/l2/l2a-1/` (Cargo, temporaires, fixtures, copies **non déplacées** des DLL CPU, logs et résultats du harness). L2a-2 écrit uniquement sous `target/parakeet-tests/l2/l2a-2/` (Cargo, temporaires, fixtures, copies des DLL CPU, archives, réglages, files, logs et résultats). Le binaire et les preuves L2a-1 sont lus sans modification par L2a-2 ; si une copie de binaire est nécessaire, elle reste sous le runtime L2a-2 et son identité est vérifiée. Les fichiers modèle et audio d'origine restent en lecture. Rediriger toute racine de test, `CARGO_TARGET_DIR`, `TEMP`, `TMP`, `WHISPER_L1B_RUNTIME_ROOT` et les racines L2 définies en §5 vers la racine du sous-lot pour la campagne, puis restaurer ; aucune écriture dans Documents/AppData utilisateur.
+**`lot.paths.runtime_write` :** L2a-1 écrit uniquement sous `target/parakeet-tests/l2/l2a-1/` (Cargo, temporaires, fixtures, copies **non déplacées** des DLL CPU, logs et résultats du harness). L2a-2 écrit uniquement sous `target/parakeet-tests/l2/l2a-2/` (Cargo, temporaires, fixtures, copies des DLL CPU, archives, réglages, files, logs et résultats). Le binaire et les preuves L2a-1 sont lus sans modification par L2a-2 ; le binaire L2a-2 est reconstruit sous sa propre racine et identifié par son nouveau SHA. Les DLL sont copiées sans déplacement et leurs SHA vérifiés. Les fichiers modèle et audio d'origine restent en lecture. Rediriger toute racine de test, `CARGO_TARGET_DIR`, `TEMP`, `TMP`, `WHISPER_L1B_RUNTIME_ROOT` et les racines L2 définies en §5 vers la racine du sous-lot pour la campagne, puis restaurer ; aucune écriture dans Documents/AppData utilisateur.
 
 ### Cartes L2a-1 et L2a-2, toutes `NOT RUN`
 
@@ -97,7 +99,7 @@ Le manifeste racine et `Cargo.lock` ne changent qu'en L2a-1 pour enregistrer la 
 | --- | --- | --- | --- |
 | A1 | L2a-2 | Variantes de modèle/SHA/runtime/build/worker/protocole/profil, CPU/GPU/Auto calcul, Auto/manuelle et Test/Final : seule la clé qualifiée Test import-single-pass CPU/Auto langue est admise, sans effet moteur pour les autres. | Avant A3/G-L2A-QUAL, même cette clé reste grisée. |
 | A2 | L2a-1 | Mauvaise version/identité, ancienne génération/tentative et trame au-dessus de la borne : refus côté worker avant audio, Turbo v2 inchangé. Le refus par le routeur hôte est repris en L2a-2/A5. | Contrats IPC. |
-| A3 | L2a-1 | FR `fr87.wav` et EN `en15.wav` parlés, worker produit exact, sans langue imposée ; vingt inférences CPU alternées dans le même processus : textes intelligibles, CPU effectif, résultats attribués, hôte vivant, arrêt constaté sans unload. | Recette Test réelle ; transcript historique ≠ vérité humaine. |
+| A3 | L2a-1, rejouée en L2a-2 après changement du worker | FR `fr87.wav` et EN `en15.wav` parlés, worker produit exact, sans langue imposée ; vingt inférences CPU alternées dans le même processus : textes intelligibles, CPU effectif, résultats attribués, hôte vivant, arrêt constaté sans unload. L2a-2 utilise sa nouvelle racine et son binaire reconstruit, et relève les identités de chaque composant. | Recette Test réelle ; transcript historique ≠ vérité humaine. |
 | A4 | L2a-1 puis L2a-2 | Worker : WAV `spkr0.wav`, MP3 dérivé local, 1 800 s, silence et queue/padding, temps valides. Produit : routage à 1 800 s puis 1 800 s + 1 échantillon ; long refusé sans appel natif ; zéro temps confirmé invalide. | Fichiers synthétiques signalés. |
 | A5 | L2a-1 puis L2a-2 | Worker : source/modèle modifiés, DLL manquante/incompatible, résultat natif incomplet ou worker mort donnent une erreur attribuée, sans substitution. Produit : le routeur refuse la mauvaise identité avant audio et préserve la source sans faux `Complete`. | Aucun fallback Turbo. |
 | A6 | L2a-2 | Stop/Quit à barrières préparation, inférence et publication ; avant engagement pending et source intacts, résultats tardifs ignorés, sortie physique observée ; après engagement résultat réel annoncé. | Contrat puis scénario natif ; pas de délai inventé. |
@@ -105,7 +107,7 @@ Le manifeste racine et `Cargo.lock` ne changent qu'en L2a-1 pour enregistrer la 
 | A8 | L2a-2 | Avant preuves Parakeet grisé ; après PASS FR+EN L2a-1 et fiche Test exacte, seule la portée L2a-2 s'ouvre, sans fuite vers Final/GPU/live/manuel. Une clé modifiée regrise ; la fenêtre Windows est une validation distincte. | AC-PARA-16-L2 ≠ AC-PARA-16F. |
 | A9 | L2a-2 | Archive réelle Parakeet : source SHA inchangé, TXT/SRT de même base, `Complete` après les deux acquittements ; échec SRT après TXT déclaré incomplet avec chemins réels. Rejouer les validations de préparation/pending/scan/reprise Turbo, dont SHA/taille historiques inchangés. | Pas d'atomicité multi-fichiers. |
 | A10 | L2a-2 | Rejouer la matrice Turbo L1b (1 206 admissions/commandes), tests de file et import existants ; aucune option historique nouvelle grisée/refusée, aucun changement Turbo v2. | Tests natifs Turbo conditionnels listés `NOT RUN` s'ils n'ont pas d'entrées. |
-| A11 | L2a-1 | Parité du décodeur worker avec le parcours existant via `whisper-adapters/src/decoder.rs` (proxy vers `whisper-worker-cpu/src/decoder.rs`) : sur les mêmes WAV et MP3, même nombre d'échantillons mono 16 kHz et écart maximal échantillon par échantillon ≤1 unité `i16` (≤1/32768 en PCM normalisé). Rapporter le maximum observé, le codec/source et l'alignement ; tout dépassement ou décalage est FAIL, sans relâcher la borne silencieusement. | Le proxy n'effectue pas lui-même le décodage ; les deux voies complètes sont comparées. |
+| A11 | L2a-1, rejouée en L2a-2 après changement du worker | Parité du décodeur worker avec le parcours existant via `whisper-adapters/src/decoder.rs` (proxy vers `whisper-worker-cpu/src/decoder.rs`) : sur les mêmes WAV et MP3, même nombre d'échantillons mono 16 kHz et écart maximal échantillon par échantillon ≤1 unité `i16` (≤1/32768 en PCM normalisé). Rapporter le maximum observé, le codec/source et l'alignement ; tout dépassement ou décalage est FAIL, sans relâcher la borne silencieusement. | Le proxy n'effectue pas lui-même le décodage ; les deux voies complètes sont comparées. |
 
 ## 4. L2b — VAD longue CPU, six tâches
 
@@ -183,10 +185,12 @@ git diff --name-only
 
 Les deux tests natifs exigent leurs variables/chemins vérifiés au préflight et leurs scénarios FR/EN, WAV/MP3 réellement exécutés. A11 compare les blocs PCM issus du proxy `whisper-adapters/src/decoder.rs` et du décodeur Parakeet, avec le worker Turbo de décodage inchangé ; le proxy n'est pas lui-même un codec. Un résultat Cargo vert avec sous-scénario sauté ne ferme aucune carte native. L2a-1 rapporte le build du worker et le CPU réellement attesté, pas une preuve GPU. Le verdict CLEAN sur L2a-1 vient après les PASS FR/EN et la parité documentée.
 
-**Après candidat L2a-2**, commandes proposées, non exécutées ; `CARGO_TARGET_DIR=target/parakeet-tests/l2/l2a-2/cargo/` et autres racines du même sous-lot :
+**Après candidat L2a-2**, commandes proposées, non exécutées ; `CARGO_TARGET_DIR=target/parakeet-tests/l2/l2a-2/cargo/` et autres racines du même sous-lot. Reconstruire d'abord le worker, copier les DLL sous `l2a-2/native/`, vérifier leurs SHA et lancer A3 puis A11 sous `PARAKEET_L2_RUNTIME_ROOT=target/parakeet-tests/l2/l2a-2/`. Les fixtures FR/EN du spike sont lues sans modification ; le MP3 A11 est produit seulement sous `l2a-2/`. La fiche Test ne peut référencer que les SHA et identités réellement obtenus sur cette campagne :
 
 ```powershell
 cargo fmt --all -- --check
+cargo test --offline --locked -p whisper-worker-parakeet-cpu --test native_import -- --ignored --nocapture
+cargo test --offline --locked -p whisper-worker-parakeet-cpu --test decoder_parity -- --ignored --nocapture
 cargo test --offline --locked -p whisper-core
 cargo test --offline --locked -p whisper-adapters --test parakeet_import --test parakeet_control --test legacy_model_requests --test model_catalog --test model_preferences
 cargo test --offline --locked -p whisper-adapters --test parakeet_archive
@@ -196,7 +200,7 @@ git diff --check
 git diff --name-only
 ```
 
-L2a-2 exécute les scénarios d'import et d'archive avec le worker L2a-1 prouvé, sans modifier ce binaire ; une clé modifiée exige de rejouer FR/EN. Les tests Turbo natifs conditionnels restent `NOT RUN` si leurs entrées sont absentes, avec sous-scénarios dénombrés.
+L2a-2 exécute les scénarios d'import et d'archive avec son worker reconstruit après le changement borné de garde de racine ; la preuve L2a-1 demeure un prérequis historique et ne qualifie pas cette nouvelle clé. Une clé modifiée exige de rejouer FR/EN avant admission. Les tests Turbo natifs conditionnels restent `NOT RUN` si leurs entrées sont absentes, avec sous-scénarios dénombrés.
 
 **Après candidat L2b**, commandes proposées, non exécutées :
 
@@ -224,4 +228,4 @@ Chaque sous-lot rapporte diff, sorties des commandes, nombre de scénarios exéc
 
 Récupération : si une fiche Test ou un profil long échoue, conserver Turbo et le profil antérieur qualifié, laisser la nouvelle clé non admissible ; garder source, pending, résultats et diagnostics. Toute suppression éventuelle se limite aux sorties inventoriées dans runtime et attend une autorité précise. Ne pas réinitialiser le dépôt ni modifier les modèles pour faire passer la recette.
 
-**Sortie attendue de cette étape :** revue indépendante du plan v4 versionné dans Git, puis accords séparés pour L2a-1, L2a-2 et L2b avec leurs chemins. L2a-2 attend PASS FR/EN et CLEAN de L2a-1 ; L2b attend CLEAN de L2a-2. Aucun travail d'implémentation L2 n'est demandé par la présente rédaction.
+**Sortie attendue de cette étape :** revue indépendante du delta v5 versionné dans Git avant reprise de L2a-2 ; l'accord utilisateur du 16/10/2026 couvre l'ajout de `main.rs` et la requalification FR/EN sur le nouveau worker. L2b attend CLEAN de L2a-2 et un accord propre. La présente rédaction n'autorise aucune autre extension de périmètre.
