@@ -4,7 +4,7 @@ Décision : design DRAFT / DESIGN BLOCKED ; l'essai CPU/GPU et Auto langue FR/EN
 
 # Évolution Parakeet et catalogue de modèles — cadrage du 15 octobre 2026
 
-**Dernier essai ciblé :** [limite et VAD révisées FR/EN](bilan-parakeet-limite-vad-revisee.md) : passe unique limitée à 30 min sur CPU/CUDA0 avec marge de 50 % ; la VAD 60–120 s dépasse le seuil normalisé de 3 %, donc le parcours long reste **NO-GO**. Les [critères précédents](bilan-parakeet-limite-decoupe-longue.md), les [critères FR/EN antérieurs](bilan-parakeet-fr-en-criteres-revises.md) et le [bilan initial](bilan-parakeet-fr-en-go.md) restent historiques. Les sorties brutes sont dans `target/parakeet-feasibility/spike02/`.
+**Clôture de faisabilité :** [bilan Parakeet FR/EN](bilan-parakeet-faisabilite-cloture.md) : **GO avec réserves** sur CPU et GTX 1080 Ti, passe unique jusqu'à 30 min puis VAD 60–120 s. L'essai unique VAD visant 20 min échoue aux coupures et ce format n'est pas retenu. Les [critères précédents](bilan-parakeet-limite-vad-revisee.md), les [mesures antérieures](bilan-parakeet-limite-decoupe-longue.md) et le [bilan initial](bilan-parakeet-fr-en-go.md) restent historiques. Les sorties brutes sont dans `target/parakeet-feasibility/spike02/`.
 
 **Base initiale lue :** `evo-startup-perf` à `420199cba48abf4e9deeae73aeb4d672fc859b80` ; révision après `afde9557` et nouveaux messages de l'utilisateur. **Statut :** DESIGN BLOCKED, proposition documentaire. **Autorité :** les décisions produit ci-dessous viennent des messages de l'utilisateur de cette session ; les options techniques restent proposées. Les essais isolés `spike01` puis `spike02` ont reçu des accords précis et restent hors code produit ; ce cadrage n'autorise ni implémentation produit, ni installation finale, ni push.
 

@@ -4,7 +4,7 @@ Décision : `DESIGN_CHANGE_REQUIRED` ; ce document n'est ni `PLANS READY`, ni un
 
 # Plan d'implémentation Parakeet — projet conditionnel du 15 octobre 2026
 
-**Dernier essai ciblé :** [limite et VAD révisées FR/EN](bilan-parakeet-limite-vad-revisee.md) ; la passe unique est limitée à 30 min sur CPU/CUDA0 avec marge de 50 %, mais la VAD longue échoue au critère d'écart normalisé de 3 %. `G-DESIGN` reste ouvert et ce plan reste non exécutable.
+**Clôture de faisabilité :** [bilan Parakeet FR/EN](bilan-parakeet-faisabilite-cloture.md) ; **GO avec réserves**, passe unique jusqu'à 30 min puis VAD 60–120 s. La VAD visant 20 min a échoué au critère local de zéro édition aux coupures. La clôture de l'essai isolé ne ferme pas `G-DESIGN` ; ce plan reste non exécutable.
 
 **Identité :** `P-PARA-DRAFT-02`. **Objectif produit :** ajouter Parakeet TDT 0.6B v3 à Turbo dans l'application Windows, pour import et micro, CPU/GPU/Auto calcul, avec catalogue fermé, Auto langue Parakeet seulement après qualification, acquisition finale et conservation des garanties audio et de sorties. **Parents historiques Git :** `docs/cadrage/evo-parakeet.md` à `60c0134b` (résultat intermédiaire SPIKE-PARA-02) et `docs/cadrage/evo-engine-capabilities.md` à `79f64a9a` (gate CAP-02/03). Le présent rapprochement prend aussi en compte le résultat final de faisabilité dans le design modifié non encore revu. **Propriétaire du découpage :** `rust_plan_writer`, contributions `PLAN-PARA-DRAFT v0.2` et rapprochement L1–L4 en lecture seule ; auteur Git : session principale. **Statut :** DRAFT, non exécutable. Une modification du design parent impose de rapprocher ce plan du nouveau commit avant revue `PLANS READY`.
 
