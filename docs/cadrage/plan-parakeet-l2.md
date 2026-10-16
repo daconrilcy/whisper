@@ -1,10 +1,10 @@
-Avancée : L2a-1 est commité et revu CLEAN ; sa recette FR/EN et sa parité de décodage sont exécutées.
-Blocage : son worker refuse la racine d'exécution L2a-2 ; l'intégration produit et la VAD longue restent à réaliser.
-Décision : rouvrir uniquement la garde de racine du worker en L2a-2, puis requalifier le nouveau binaire FR/EN avant admission.
+Avancée : L2a-2 et sa fermeture R6–R10 sont commités à `4045c828` ; le candidat partiel L2b passe les contrats purs et la recette courte FR/EN.
+Blocage : B4–B8 nécessitent le routeur et l'archive produit, absents des 17 chemins L2b v5 ; l'activation longue reste interdite.
+Décision : étendre L2b à trois chemins adapters ciblés, relire ce delta puis reprendre les preuves du parcours produit avant toute fiche `import-vad`.
 
-# PLAN-PARA-L2 v5 — import Parakeet CPU
+# PLAN-PARA-L2 v6 — import Parakeet CPU
 
-**Parents Git :** design `docs/cadrage/evo-parakeet.md` §9 et `docs/cadrage/evo-engine-capabilities.md` §8 au commit `3c47f272`, verdict indépendant **CLEAN — DESIGN READY-L2** sur CPU/import FR/EN ; L1b-2 `84e5444d` et L1b-1 `7de28359`, tous deux revus CLEAN. Le bilan `bilan-parakeet-faisabilite-cloture.md` est une preuve de faisabilité isolée, pas une qualification produit. Contributions en lecture seule `ARCH-PARA-L2 v1`, `VAD-L2 v1`, `REQ-PARA-L2 v1` et `rust_plan_writer` ; rédaction/versionnement par la session principale. Le plan v4 était **CLEAN — PLANS READY-L2a-1 / L2a-2 / L2b** sur `e6e95050`. L2a-1 est commité à `842cb000` après revue CLEAN ; son préflight a révélé le verrouillage de la racine d'exécution dans le worker. **Statut v5 : CLEAN — PLANS READY-L2a-2**, revue indépendante du delta `0813336d` sans REQUIRED ni ADVISORY. La décision utilisateur de réviser le plan et de requalifier FR/EN date du 16/10/2026. Aucun autre lot n'est autorisé par cette décision.
+**Parents Git :** design `docs/cadrage/evo-parakeet.md` §9 et `docs/cadrage/evo-engine-capabilities.md` §8 au commit `3c47f272`, verdict indépendant **CLEAN — DESIGN READY-L2** sur CPU/import FR/EN ; L1b-2 `84e5444d` et L1b-1 `7de28359`, tous deux revus CLEAN. Le bilan `bilan-parakeet-faisabilite-cloture.md` est une preuve de faisabilité isolée, pas une qualification produit. Contributions en lecture seule `ARCH-PARA-L2 v1`, `VAD-L2 v1`, `REQ-PARA-L2 v1` et `rust_plan_writer` ; rédaction/versionnement par la session principale. Le plan v4 était **CLEAN — PLANS READY-L2a-1 / L2a-2 / L2b** sur `e6e95050`. L2a-1 est commité à `842cb000` après revue CLEAN ; le delta v5 a reçu **CLEAN — PLANS READY-L2a-2** sur `0813336d`. L2a-2 et son lot distinct de fermeture R6–R10 sont commités à `4045c828`, avec verdict indépendant CLEAN pour ce dernier. **Statut v6 : DRAFT — delta de chemins L2b à revoir**, sur le candidat L2b partiel non commité. L'utilisateur a autorisé dans cette session la révision du plan, sa revue, puis la reprise conditionnelle de L2b sur les trois chemins supplémentaires cités en §4 si la revue est CLEAN. Aucun autre lot n'est autorisé.
 
 ## 1. Résultat, limites et gates
 
@@ -18,7 +18,7 @@ L2a est scindé : **L2a-1** produit le worker CPU isolé, son IPC, son décodeur
 | G-L2-TEST | Fichier Test Parakeet présent avec taille/SHA attendus ; worker, ABI, DLL, protocoles, sources FR/EN et sorties attribués à la clé exacte. | Recette affectée `NOT RUN`, sans téléchargement ni écriture sous `models/`; Parakeet grisé. |
 | G-L2A-1 | Worker produit CPU et harness privé donnent `PASS` FR **et** EN sans langue imposée, temps valides ; parité de décodage A11 documentée ; verdict indépendant `CLEAN` sur L2a-1. | L2a-2 ne démarre pas ; aucune fiche `Qualified` Test ni admission GUI. |
 | G-L2A-QUAL | Le changement borné de garde de racine en L2a-2 modifie le SHA du worker L2a-1. Avant fiche Test ou admission GUI, reconstruire ce worker sous le runtime L2a-2 et refaire A3 FR/EN et A11 WAV/MP3 sur le binaire, les DLL, le modèle, le protocole et la racine d'exécution exacts du candidat L2a-2. Toute autre dimension changée impose la même requalification de sa clé exacte. | Pas de fiche `Qualified` Test ni d'admission GUI ; `FAIL`/`INCONCLUSIVE` visibles. |
-| G-L2B | L2a-2 revu CLEAN ; algorithme VAD du design, référence Test-only 60 min et corpus local vérifiés ; accord écrit propre à L2b. | Import >30 min refusé ; L2a-2 inchangé. |
+| G-L2B | L2a-2 revu CLEAN ; algorithme VAD du design, référence Test-only 60 min et corpus local vérifiés ; accord écrit propre à L2b et aux 20 chemins du §4, avec revue CLEAN du delta v6 avant reprise du code. | Import >30 min refusé ; L2a-2 inchangé. |
 
 La preuve Test `AC-PARA-16-L2` est une `PRODUCT_VALIDATION` ; elle n'est pas transférée au paquet Final de `AC-PARA-16F` (`DELIVERY_QUALIFICATION`). `language_count=0` est attendu, sans critère d'échec. Aucun seuil nouveau de vitesse, RAM, VRAM ou écart global de transcription n'est introduit. Aucun worker Parakeet GPU ou live n'est lancé en L2.
 
@@ -122,7 +122,9 @@ L2b réutilise le même worker/candidat CPU que L2a et n'est pas parallèle. Un 
 | L2b.5 | Référence privée ≤3 600 s du même candidat, recette EN60 et montage FR synthétique >1 800 s, contrôle de toutes les coupures ; observation informative sur fond bruité. | B5/B6/B7/B9 |
 | L2b.6 | Après PASS : fiche Test `import-vad` exacte, activation >30 min ; sinon refus maintenu ; régression L2a/Turbo et revue. Présenter B9 à l'utilisateur avant l'activation. | B8/B9 |
 
-**`lot.paths.write` L2b, exclusifs :**
+**Delta v6 — nécessité et ordre.** L2b v5 ouvrait le harness mais pas deux gardes du parcours produit : `worker_ipc.rs` refuse >1 800 s à la demande et au démarrage, lance une seule fenêtre, n'accepte que `import-single-pass` à Ready et traite un seul résultat ; `archive.rs` refuse >1 800 s et ne persiste/compare que la clé single-pass. B4, B5/B6 en véritable parcours produit et B8 ne sont donc pas démontrables par le harness seul. Ajouter le routeur, l'archive et leur test à **L2b.2/.4/.5/.6**, sans toucher au protocole, au décodeur, à la FFI ni aux workers Turbo. Le routeur choisit le profil selon la durée décodée avant effet, exécute les fenêtres en séquence, confirme une seule fois leurs plages centrales, invalide les résultats tardifs et reprend depuis le préfixe confirmé. L'archive enregistre et vérifie séparément la clé `import-vad` du candidat exact au prepare/pending/scan/reprise, tout en conservant les anciens pending `import-single-pass` et Turbo. Tester Stop/Quit à la frontière et pendant l'appel natif, erreur de la dernière fenêtre, divergence de clé/source et reprise sans doublon ni faux `Complete`. B5/B6 doivent passer par `AsyncImportIo`/`ImportApplication` avec le même candidat que la référence privée, et publier une seule génération. B8 reste suspendue jusqu'aux PASS requis ; B9 est présenté à l'utilisateur avant son activation.
+
+**`lot.paths.write` L2b v6, exclusifs (20 chemins) :**
 
 ```text
 crates/whisper-core/src/lib.rs
@@ -132,8 +134,11 @@ crates/whisper-core/src/parakeet_windows.rs
 crates/whisper-core/tests/parakeet_windows.rs
 crates/whisper-core/tests/parakeet_import_contract.rs
 crates/whisper-adapters/src/parakeet_import.rs
+crates/whisper-adapters/src/worker_ipc.rs
+crates/whisper-adapters/src/archive.rs
 crates/whisper-adapters/tests/parakeet_import.rs
 crates/whisper-adapters/tests/parakeet_control.rs
+crates/whisper-adapters/tests/parakeet_archive.rs
 crates/whisper-adapters/tests/parakeet_long.rs
 crates/whisper-desktop/src/root.rs
 crates/whisper-desktop/src/ui.rs
@@ -145,6 +150,8 @@ crates/whisper-worker-parakeet-cpu/tests/native_import.rs
 ```
 
 `parakeet_windows.rs` est pur ; il ne remplace pas `adapters/vad.rs`, destiné au live. La feature `parakeet-qualification-reference` produit le **candidat Test L2b** : le même binaire exact exécute le parcours VAD Test et la référence ≤3 600 s. Le profil référence est accessible seulement au harness privé sous la racine runtime, jamais aux commandes UI/file/reprise ; la feature ne change ni décodage, ni ABI, ni inférence. La build L2a sans cette feature et la build L2b ont des clés worker distinctes : refaire FR/EN courts sur L2b avant sa fiche, sans transférer la preuve de L2a. Un binaire Final sans cette feature reste à qualifier en L6. Le test compare référence et VAD du **même candidat Test L2b exact** ; si l'identité varie entre les deux exécutions, résultat `INCONCLUSIVE` et révision du protocole. La référence n'étend pas la limite du profil applicatif.
+
+Le candidat partiel au préflight v6 ne touche que huit chemins de la liste ci-dessus ; `worker_ipc.rs`, `archive.rs` et `parakeet_archive.rs` n'ont pas été modifiés pour L2b. Ses huit tests purs B1–B3 et vingt inférences alternées FR/EN sur le worker Test L2b sont des preuves provisoires, à rattacher de nouveau à la clé exacte après le candidat final. Elles ne ferment ni B4–B8 ni B9, tous `NOT RUN` à ce stade. Le runtime demeure exclusivement `target/parakeet-tests/l2/l2b/` ; modèle, sources audio et banc restent en lecture.
 
 **`lot.paths.read` L2b :** chemins L2a et leurs bilans, `docs/cadrage/bilan-parakeet-limite-vad-revisee.md`, `bilan-parakeet-limite-decoupe-longue.md`, `crates/whisper-adapters/src/vad.rs`, son test, et fixtures synthétiques existantes `target/parakeet-feasibility/spike02/fixtures/synthetic/{spkr0_x12.wav,fr_concat_318.wav}`. Toutes en lecture seule. `fr_concat_318.wav` dure environ 319 s : il sert de source, pas de preuve du parcours >30 min. Construire sous runtime un montage FR >1 800 s par répétitions concaténées et vérifier sa durée décodée avant la recette. Les jonctions et frontières de ce montage restent déclarées artificielles.
 
