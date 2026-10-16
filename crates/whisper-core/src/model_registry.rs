@@ -55,7 +55,7 @@ pub const MODELS: [ModelRecord; 2] = [
         },
         display_name: "Parakeet TDT 0.6B v3",
         admission: AdmissionBasis::Measured(Qualification::Qualified),
-        provenance: "fiche Test L2a-2; modèle, worker, DLL CPU et A3/A11 qualifiés",
+        provenance: "fiche Test R5-2; A4 FR87/FR27/EN15 PASS sur le parcours applicatif CPU",
     },
 ];
 
@@ -286,7 +286,7 @@ pub fn configuration_key(record: &ModelRecord, backend: Backend) -> Configuratio
         worker_build: match record.artifact.id {
             ModelId::WhisperLargeV3Turbo => "current-production-recognized",
             ModelId::ParakeetTdt06BV3 => {
-                "545a4830755da613a1255be97fbc6a6a513ef837d669d8a9870d3bbee9dfd587"
+                "e7672a520db87926b3da9b8e5b585a1e7e57ce53ff8b1d0fe95251046aa01f4d"
             }
         }
         .to_owned(),

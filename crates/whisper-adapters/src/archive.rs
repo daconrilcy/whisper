@@ -516,9 +516,11 @@ struct ImportVadWindowRecord {
 }
 
 const PARAKEET_L2B_VAD_WORKER_SHA256: &str =
-    "aa8dfdf317649eabbfe670c5109df46c70d3f1908064bee61d26fe7aa059bf31";
+    "e7672a520db87926b3da9b8e5b585a1e7e57ce53ff8b1d0fe95251046aa01f4d";
 const PARAKEET_L2B_RUNTIME_SHA256: &str =
     "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff";
+const PARAKEET_L2A_WORKER_SHA256: &str =
+    "545a4830755da613a1255be97fbc6a6a513ef837d669d8a9870d3bbee9dfd587";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ArchiveQualificationKey {
@@ -584,6 +586,24 @@ impl ArchiveQualificationKey {
     pub fn is_parakeet_vad_test(&self) -> bool {
         self.is_parakeet_import_test()
             && self.inference_profile == whisper_core::parakeet_windows::PROFILE_IMPORT_VAD
+    }
+
+    fn is_retired_l2a_key(&self) -> bool {
+        self.model == "parakeet-tdt-0.6b-v3"
+            && self.artifact == "parakeet-tdt-0.6b-v3.q8_0.gguf"
+            && self.artifact_revision
+                == whisper_core::model_registry::model(
+                    whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+                )
+                .artifact
+                .sha256
+            && self.runtime == "nemo-speech-asr 0.2.0"
+            && self.runtime_build == PARAKEET_L2B_RUNTIME_SHA256
+            && self.worker == "parakeet-worker"
+            && self.worker_build == PARAKEET_L2A_WORKER_SHA256
+            && self.worker_protocol == 2
+            && self.backend == "CPU"
+            && self.inference_profile == "import-single-pass"
     }
 }
 
@@ -1623,6 +1643,11 @@ impl ArchiveStore {
         {
             return Err("ModelNotQualified: exact Test worker/runtime key is required".into());
         }
+        if vad_qualification && !is_r5_2_vad_recipe_destination(Path::new(&request.destination)) {
+            return Err(
+                "ModelNotQualified: import-vad est réservé aux recettes R5-2; activation produit en attente".into(),
+            );
+        }
         let destination = PathBuf::from(&request.destination);
         fs::create_dir_all(&destination).map_err(|e| format!("StorageUnavailable: {e}"))?;
         let directory = destination
@@ -1706,6 +1731,15 @@ impl ArchiveStore {
         )
         .map_err(|e| format!("StorageCorrupt: resume checkpoint: {e}"))?;
         validate_pending(&pending, previous.job_id, previous.generation.get())?;
+        if pending
+            .qualification
+            .as_ref()
+            .is_some_and(ArchiveQualificationKey::is_retired_l2a_key)
+        {
+            return Err(
+                "ModelNotQualified: l'ancienne clé Parakeet L2a est retirée pour toute reprise; le pending est conservé".into(),
+            );
+        }
         if pending.source_path != previous.source_path
             || Some(pending.source_sha256.as_str())
                 != previous.source_sha256.map(|sha| hex(&sha)).as_deref()
@@ -2525,8 +2559,9 @@ fn validate_pending(pending: &PendingRecord, job_id: JobId, generation: u64) -> 
             .sha256;
     let qualification_valid = if pending.model_sha256 == parakeet_sha {
         (pending.version == 2
-            && pending.qualification.as_ref()
-                == Some(&ArchiveQualificationKey::parakeet_cpu_test()))
+            && pending.qualification.as_ref().is_some_and(|key| {
+                key == &ArchiveQualificationKey::parakeet_cpu_test() || key.is_retired_l2a_key()
+            }))
             || (pending.version == 3
                 && pending
                     .qualification
@@ -2877,6 +2912,48 @@ pub(crate) fn source_output_samples(path: &Path) -> Result<u64, String> {
 }
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn canonicalize_for_new_path(path: &Path) -> Option<PathBuf> {
+    let mut unresolved = Vec::new();
+    let mut existing = path;
+    let canonical_base = loop {
+        match fs::canonicalize(existing) {
+            Ok(path) => break path,
+            Err(_) => {
+                let name = existing.file_name()?;
+                if name == "." || name == ".." {
+                    return None;
+                }
+                unresolved.push(name.to_owned());
+                existing = existing.parent()?;
+            }
+        }
+    };
+    let mut result = canonical_base;
+    for component in unresolved.iter().rev() {
+        result.push(component);
+    }
+    Some(result)
+}
+
+fn is_r5_2_vad_recipe_destination(path: &Path) -> bool {
+    let Some(runtime_root) = std::env::var_os("PARAKEET_L2_RUNTIME_ROOT").map(PathBuf::from) else {
+        return false;
+    };
+    let Some(archive_root) = std::env::var_os("PARAKEET_L2_ARCHIVE_ROOT").map(PathBuf::from) else {
+        return false;
+    };
+    let Ok(recipe_root) = runtime_root.join("r5-2").canonicalize() else {
+        return false;
+    };
+    let Ok(archive_root) = archive_root.canonicalize() else {
+        return false;
+    };
+    let Some(destination) = canonicalize_for_new_path(path) else {
+        return false;
+    };
+    archive_root.starts_with(&recipe_root) && destination.starts_with(&archive_root)
 }
 fn timestamp(sample: u64) -> String {
     let ms = sample.saturating_mul(1000) / 16_000;
