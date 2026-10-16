@@ -4,7 +4,7 @@ Décision : proposer un lot distinct de fermeture des preuves A6, A7 et A5, sans
 
 # PLAN-PARA-L2a-2-ACCEPT v1 — fermeture R6 à R8
 
-**Statut : DRAFT, sans autorisation de code.** Auteur : session Codex principale. Base : `PLAN-PARA-L2 v5` et son verdict CLEAN enregistré à `ddecb546`, candidat L2a-2 non commité sur `evo-startup-perf`, verdict indépendant après trois passes et deux corrections : R1–R5 fermés, R6–R8 ouverts, `LIVRÉ AVEC RÉSERVES`. La demande utilisateur de préparer ce plan est donnée dans la session courante. Une revue indépendante de ce document, puis un accord écrit distinct sur ce lot et ses chemins, précèdent toute implémentation. Le candidat L2a-2 reste intact pendant le cadrage ; son verdict antérieur n'est pas transformé rétroactivement en CLEAN.
+**Statut : CLEAN — PLANS READY-L2a-2-ACCEPT, sans autorisation de code.** Revue indépendante du commit `4007e52b` : aucun REQUIRED, un advisory d'exécution R8 (distinguer refus de qualification avant lancement et erreur ABI/exports atteinte par le chargeur). Auteur : session Codex principale. Base : `PLAN-PARA-L2 v5` et son verdict CLEAN enregistré à `ddecb546`, candidat L2a-2 non commité sur `evo-startup-perf`, verdict indépendant après trois passes et deux corrections : R1–R5 fermés, R6–R8 ouverts, `LIVRÉ AVEC RÉSERVES`. La demande utilisateur de préparer ce plan est donnée dans la session courante. Un accord écrit distinct sur ce lot et ses chemins précède toute implémentation. Le candidat L2a-2 reste intact pendant le cadrage ; son verdict antérieur n'est pas transformé rétroactivement en CLEAN.
 
 ## 1. Périmètre et preuve de départ
 
