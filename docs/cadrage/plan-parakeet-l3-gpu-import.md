@@ -1,10 +1,12 @@
-Avancée : L3 est scindé en worker GPU qualifié puis raccordement GPU/Auto à l'import Test.
-Blocage : aucune clé GPU produit n'est qualifiée ; le code natif CUDA et ses DLL exigent un accord d'implémentation propre à L3.
-Décision : soumettre L3a/L3b à la revue indépendante, puis attendre l'accord écrit de l'utilisateur.
+Avancée : L3 est scindé en worker GPU qualifié puis raccordement GPU/Auto à l'import Test ; les recettes et l'admission candidate sont détaillées.
+Blocage : deux constats bloquants subsistent après deux cycles de revue, sur le journal GPU et le gate workspace L3a.
+Décision : LIVRÉ AVEC RÉSERVES ; DESIGN NOT READY et PLANS NOT READY, en attente de l'arbitrage utilisateur, sans code.
 
 # PLAN-PARA-L3 — DRAFT v2, GPU Parakeet/import (17/10/2026)
 
 Base : [note de design L3](note-parakeet-l3-gpu-import.md), [cadrage Parakeet](evo-parakeet.md), [faisabilité](bilan-parakeet-faisabilite-cloture.md), [fiche CPU R6](fiche-parakeet-r6.md). L3 vise WAV/MP3 ≤30 min, français et anglais, GTX 1080 Ti CUDA0 de cet hôte. Turbo et CPU Parakeet R6 sont la référence de non-régression. L4, VAD adaptative et B8 sont backlog non planifié ; L6-perso est PLANS READY **en attente** d'un amendement GPU après L3. Aucun code L3 n'est autorisé par ce plan.
+
+**Verdict de la revue indépendante.** Premier cycle sur `80a651d3` : DESIGN NOT READY / PLANS NOT READY, trois constats. Second et dernier cycle sur `54d7fc8b` : L3-02 (séquence et recettes) fermé ; L3-01 et L3-03 restent bloquants. L3-01 : A2 exige le journal INFO `Using GPU backend`, filtré par défaut ; le journal réellement disponible du recognizer est `[asr] … backend=CUDA0` (`recognizer.cpp:154–165`). La chaîne de preuve physique reste exigée. L3-03 : A4 demande la suite workspace en L3a alors que `whisper-desktop/src/root.rs::fixture_root()` écrit sous `target/parakeet-tests/l1b-2`, hors racine L3a et sans variable de redirection ; `root.rs` n'est ouvert qu'en L3b. Le report du gate sans variables à L6-perso est, lui, accepté. Aucune troisième revue ni implémentation L3 n'est engagée sans nouvel arbitrage explicite.
 
 ## Préflight commun
 
