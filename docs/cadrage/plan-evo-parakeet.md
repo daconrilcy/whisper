@@ -15,13 +15,16 @@ Le but produit demeure l'ajout de Parakeet TDT 0.6B v3 à Turbo dans l'applicati
 | **L1a — socle pur** | Deux identités fermées, fiches de capacités injectées, projection et validation déterministes avec causes. | Design L1 et plan L1a revus ; premier lot et cinq chemins acceptés. Accord d'implémentation précis encore requis. |
 | L1b — raccordement | Catalogue réel, disponibilité, préférences/migration, liste de modèles et de langues dans l'UI, refus avant séance. | L1a ; fiches initiales Turbo justifiées pour conserver les parcours existants ; plan/chemins et revue propres. **DRAFT**. |
 | L2 — import Parakeet CPU | L2a-1 : worker/IPC/décodage/recette FR+EN ; L2a-2 : admission/archive/interface ≤30 min ; L2b : VAD longue et recette 60 min. | L1b livré ; design L2 `3c47f272` revu CLEAN. [PLAN-PARA-L2 v4](plan-parakeet-l2.md) intègre la scission, la parité PCM et B9 bruité ; revue indépendante sur `e6e95050` : CLEAN — PLANS READY-L2a-1/L2a-2/L2b. Aucun code L2 autorisé. |
-| L3 — GPU et Auto calcul | GPU attendu réellement utilisé, modes manuels fixes et repli Auto borné avec le même modèle. | L2 ; attestation produit GPU. **DRAFT**. |
-| L4 — microphone | Blocs confirmés et TXT/SRT/WAV, premier texte GPU <15 s. | L2/L3 ; stratégie incrémentale et frontières live encore à qualifier. **DESIGN CHANGE REQUIRED** pour ce parcours. |
-| L5 — acquisition | Installation puis réparation explicite et annulable des modèles. | L1b ; contrat réseau/stockage, modification autorisée de RG-08 avant réseau produit. **DRAFT**. |
-| L6 — distribution | Paquet installable utilisateur courant et candidat exact qualifié FR/EN CPU/GPU. | L3–L5 ; inventaire transitif et `AC-PARA-16F`. **DRAFT**. |
+| L3 — GPU et Auto calcul Parakeet | GPU attendu réellement utilisé, modes manuels fixes et repli Auto borné avec le même modèle. | **Backlog, non planifié** selon la décision utilisateur du 17/10/2026. |
+| L4 — microphone Parakeet | Blocs confirmés et TXT/SRT/WAV, premier texte GPU <15 s. | **Backlog, non planifié** ; conserver [la note micro](note-parakeet-micro-l4.md). Le micro Turbo actuel reste. |
+| L5 — acquisition | Installation puis réparation explicite et annulable des modèles. | **Remplacé par L6-perso** ; aucun réseau ni téléchargement dans ce lot. |
+| L6 — distribution | Paquet installable utilisateur courant et candidat exact qualifié FR/EN CPU/GPU. | **Remplacé par L6-perso** ; distribution, GPU et installateur exclus. |
+| L6-perso — installation personnelle | Copie locale dans `%LOCALAPPDATA%\Whisper`, worker release CPU et nouvelle qualification exacte. | [Plan dédié DRAFT](plan-parakeet-l6-perso.md), revue et accord d'implémentation requis. |
 | L7 — qualité et recette | Comparaison attribuée à une vérité terrain et essai final Windows. | Parcours concernés et corpus accepté. **DRAFT**. |
 
 Les anciens détails L1–L7 ne sont pas des `lot.paths` autorisés. Aucun autre lot n'est exécutable par le présent plan. La politique **fichier** reste passe unique jusqu'à 30 min, puis VAD 60–120 s sur silences ≥400 ms avec marge 200 ms ; elle ne sert pas de contrat micro. Le format visant 20 min n'est pas retenu. Le test d'intégration de 60 min à nombreuses coupures reste obligatoire dans un lot consommateur, sans nouvel essai de faisabilité ici.
+
+**Delta de feuille de route du 17/10/2026 :** la politique VAD longue ci-dessus reste une référence historique de design, sans activation ni lot planifié. VAD adaptative et B8 sont backlog non planifié, au même titre que L3/L4. Motif déclaré : utilisateur unique, CPU jugé très performant et aucun fichier de plus de 30 min prévu. L6-perso borne le produit à l'import CPU en passe unique ; il ne reprend pas les gates de distribution L6.
 
 ## 2. L1a — contrat et tâches (5)
 
