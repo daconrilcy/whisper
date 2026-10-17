@@ -10,7 +10,7 @@ Source : demande utilisateur du 17/10/2026 et complément du même jour. L'objec
 
 Le design parle de `Test` et `Final`, mais `Final` désigne un paquet distribué avec acquisition et d'autres variantes. Il n'est pas implémenté. `Perso` est donc une composition distincte et locale, sur le même catalogue fermé, sans prétendre satisfaire les critères de distribution Final. Test continue de lire les modèles du dépôt et le worker R6 sous `target/`.
 
-L3 (GPU Parakeet), L4 (micro Parakeet), VAD adaptative et B8/import-vad passent en **backlog, non planifié** : utilisateur unique, CPU jugé très performant, aucun enregistrement de plus de 30 min prévu. Les notes [micro L4](note-parakeet-micro-l4.md) et [VAD adaptative](note-parakeet-vad-adaptative.md) restent des références de reprise, sans autorisation de code. La limite de 30 min et le refus explicite avant pending subsistent.
+**L3 GPU sur l'import Parakeet est le prochain lot.** L6-perso reste en attente après sa revue et sera amendé après L3 pour installer également son worker GPU, avant toute exécution. L4 (micro Parakeet), VAD adaptative et B8/import-vad passent en **backlog, non planifié** : utilisateur unique, CPU jugé très performant, aucun enregistrement de plus de 30 min prévu. Les notes [micro L4](note-parakeet-micro-l4.md) et [VAD adaptative](note-parakeet-vad-adaptative.md) restent des références de reprise, sans autorisation de code. La limite de 30 min et le refus explicite avant pending subsistent.
 
 ## Emplacement et provenance proposés
 

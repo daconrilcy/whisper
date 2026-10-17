@@ -2,9 +2,9 @@ Avancée : le lot L6-perso est découpé en huit tâches vérifiables, avec inst
 Blocage : aucun binaire Perso ni chemin hors dépôt n'est autorisé à l'écriture par ce plan seul.
 Décision : soumettre cette proposition à revue indépendante, puis demander un accord d'implémentation précis.
 
-# PLAN-PARA-L6-PERSO — DRAFT v2 (17/10/2026)
+# PLAN-PARA-L6-PERSO — DRAFT v3 (17/10/2026)
 
-Base : branche `evo-startup-perf` après fusion L2 et R9 ; [note L6-perso](note-parakeet-l6-perso.md), [fiche R6 Test](fiche-parakeet-r6.md), [synthèse L2](synthese-parakeet-l2.md). Auteur documentaire : session Codex principale. Statut : **DRAFT — code interdit avant accord écrit**. L6-perso remplace L5/L6 ; L3, L4, VAD adaptative et B8 sont backlog non planifié. Les notes L4/VAD sont conservées.
+Base : branche `evo-startup-perf` après fusion L2 et R9 ; [note L6-perso](note-parakeet-l6-perso.md), [fiche R6 Test](fiche-parakeet-r6.md), [synthèse L2](synthese-parakeet-l2.md). Auteur documentaire : session Codex principale. Statut : **DRAFT — code interdit avant accord écrit**. L6-perso remplace L5/L6 ; **L3 GPU/import est le prochain lot**. L4, VAD adaptative et B8 sont backlog non planifié. L6-perso restera en attente après sa revue et sera amendé après L3 pour installer également le worker Parakeet GPU ; aucun code L6-perso avant ce nouvel amendement et l'accord utilisateur. Les notes L4/VAD sont conservées.
 
 ## Préflight et garde
 
@@ -51,6 +51,7 @@ Avant toute implémentation : `git status`, HEAD, lecture des SHA de la fiche R6
    $env:PARAKEET_L2_WORKER = Join-Path $stage 'worker\whisper-worker-parakeet-cpu.exe'
    $env:PARAKEET_L2_NATIVE_DIR = Join-Path $stage 'native'
    $env:PARAKEET_L2_MODEL = Join-Path $stage 'models\parakeet-tdt-0.6b-v3.q8_0.gguf'
+   $env:PARAKEET_L2_EN_WAV = 'C:\dev\whisper\target\parakeet-feasibility\spike02\fixtures\en15.wav'
    $env:PARAKEET_L2_ARCHIVE_ROOT = Join-Path $stage 'qualification\archive'
    $env:PARAKEET_R8_EXEC_ROOT = Join-Path $stage 'qualification\r8'
    $env:PARAKEET_R7_EXEC_ROOT = Join-Path $stage 'qualification\r8'
@@ -59,7 +60,7 @@ Avant toute implémentation : `git status`, HEAD, lecture des SHA de la fiche R6
    $env:PARAKEET_L2_ACCEPTANCE_TEST_BUILD = '1'
    ```
 
-   Toutes les destinations R8 et `.l2a2-acceptance` restent sous `$stage`; `r8_exec_root()` et le helper d'archive n'acceptent que ce staging canonique pour L6-perso, en plus des anciennes racines R8/R9. `CARGO_TARGET_DIR` reste le Cargo partagé, `TEMP/TMP` sous `target/parakeet-tests/l6-perso/temp|tmp`. Le journal natif éventuel reste sous `$stage/qualification/logs`. La garde teste ces inclusions et un cas de refus avant Cargo.
+   `PARAKEET_L2_EN_WAV` est l'entrée anglaise R8 **en lecture seule**. Au préflight, vérifier existence, taille **484 910 octets** et SHA-256 **`31930895694619a38443fdca186e7df712ee8ecc6f685d65f0263201c4d44861`** ; en cas d'écart, cinq R8 `NOT RUN`, aucune promotion. Les cinq commandes R8 héritent de cette même variable. Toutes les destinations R8 et `.l2a2-acceptance` restent sous `$stage`; `r8_exec_root()` et le helper d'archive n'acceptent que ce staging canonique pour L6-perso, en plus des anciennes racines R8/R9. `CARGO_TARGET_DIR` reste le Cargo partagé, `TEMP/TMP` sous `target/parakeet-tests/l6-perso/temp|tmp`. Le journal natif éventuel reste sous `$stage/qualification/logs`. La garde teste ces inclusions et un cas de refus avant Cargo.
 4. **Commandes ciblées.** Un nouveau test ignoré `l6_personal_application_recipe` dans `crates/whisper-adapters/tests/parakeet_import.rs` reprend les assertions A4/R9, sans SHA R6 en dur. Pour chaque cas, poser `$env:PARAKEET_L6P_CASE` et `$env:PARAKEET_L6P_RECIPE_WAV` puis lancer :
 
    ```powershell
