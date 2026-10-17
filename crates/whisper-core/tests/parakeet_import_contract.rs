@@ -118,7 +118,7 @@ fn only_qualified_cpu_import_with_automatic_language_is_admitted() {
 }
 
 #[test]
-fn parakeet_import_rejects_over_thirty_minutes_and_wrong_hash() {
+fn parakeet_import_admits_long_product_input_but_rejects_wrong_hash() {
     let guard = qualified_guard();
     let mut long = import(
         JobConfig {
@@ -128,14 +128,14 @@ fn parakeet_import_rejects_over_thirty_minutes_and_wrong_hash() {
         PARA_PATH,
     );
     long.source_samples = Some(whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64 + 1);
-    assert!(guard.admit_import(&long, InferencePath::Import).is_err());
+    assert!(guard.admit_import(&long, InferencePath::Import).is_ok());
     long.source_samples = None;
     long.model_sha256[0] ^= 1;
     assert!(guard.admit_import(&long, InferencePath::Import).is_err());
 }
 
 #[test]
-fn parakeet_thirty_minute_boundary_is_inclusive() {
+fn parakeet_duration_selects_adapter_profile_not_core_admission() {
     let guard = qualified_guard();
     let mut request = import(
         JobConfig {
@@ -148,11 +148,11 @@ fn parakeet_thirty_minute_boundary_is_inclusive() {
     assert!(guard.admit_import(&request, InferencePath::Import).is_ok());
     request.source_samples =
         Some(whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64 + 1);
-    assert!(guard.admit_import(&request, InferencePath::Import).is_err());
+    assert!(guard.admit_import(&request, InferencePath::Import).is_ok());
 }
 
 #[test]
-fn only_the_recorded_l2a2_cpu_test_key_is_qualified() {
+fn only_the_current_r6_cpu_test_key_is_qualified() {
     let snapshot = engine_snapshot(1, |_| ModelAvailability::Ready, vec![]);
     let cpu = snapshot
         .capabilities
@@ -169,7 +169,11 @@ fn only_the_recorded_l2a2_cpu_test_key_is_qualified() {
     );
     assert_eq!(
         cpu.key.worker_build,
-        "545a4830755da613a1255be97fbc6a6a513ef837d669d8a9870d3bbee9dfd587"
+        "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0"
+    );
+    assert_ne!(
+        cpu.key.worker_build, "545a4830755da613a1255be97fbc6a6a513ef837d669d8a9870d3bbee9dfd587",
+        "retired L2a-2 key is refused for a new import"
     );
     assert_eq!(cpu.key.worker_protocol, 2);
     assert_eq!(cpu.key.inference_profile, "import-single-pass");

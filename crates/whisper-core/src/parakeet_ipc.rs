@@ -63,6 +63,9 @@ pub enum Event {
         identity: WorkerIdentity,
         source_sha256: String,
         duration_samples: u64,
+        /// The normalized word texts joined in order with one ASCII space.
+        /// Punctuation already attached to a word remains part of that word's
+        /// text; this field is not independently normalized.
         text: String,
         words: Vec<Word>,
     },
@@ -79,6 +82,13 @@ pub enum Event {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// A normalized lexical word in Parakeet IPC v1.
+///
+/// The worker emits valid UTF-8 and attaches punctuation-only tokens to the
+/// preceding lexical word without changing that word's interval. It resolves
+/// lexical overlaps of at most one 80 ms TDT frame before serialization; larger
+/// overlaps or invalid native text fail the request. The adapter requires
+/// positive, ordered, non-overlapping intervals and must not normalize them.
 pub struct Word {
     pub text: String,
     pub start_ms: u32,

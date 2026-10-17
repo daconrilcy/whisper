@@ -14,6 +14,7 @@ pub mod model_catalog;
 pub mod model_registry;
 pub mod model_selection_app;
 pub mod parakeet_ipc;
+pub mod parakeet_windows;
 pub mod path_settings;
 pub mod ports;
 

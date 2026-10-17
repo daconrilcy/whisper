@@ -1,10 +1,11 @@
 use std::{
     collections::BTreeMap,
-    env, fs,
+    env,
+    fs::{self, OpenOptions},
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use sha2::{Digest, Sha256};
@@ -12,6 +13,7 @@ use whisper_core::parakeet_ipc::{
     Command as WorkerCommand, Envelope, Event, PARAKEET_IPC_VERSION,
     PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity,
 };
+use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;
 
 #[test]
 #[ignore = "runs real Parakeet CPU inference with locally installed native DLLs"]
@@ -303,6 +305,314 @@ fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_un
     );
 }
 
+#[test]
+#[ignore = "R7 private diagnostic worker recipe; has a parent-enforced duration deadline"]
+fn r7_private_worker_timing() {
+    let case = env::var("PARAKEET_R7_CASE").expect("PARAKEET_R7_CASE");
+    assert!(matches!(case.as_str(), "en5" | "en30"));
+    let root = required_path("PARAKEET_R7_EXEC_ROOT");
+    let log_dir = root.join("logs");
+    fs::create_dir_all(&log_dir).unwrap();
+    let stdout_path = log_dir.join(format!("{case}-private-child.stdout"));
+    let stderr_path = log_dir.join(format!("{case}-private-child.stderr"));
+    let stdout = fs::File::create(&stdout_path).unwrap();
+    let stderr = fs::File::create(&stderr_path).unwrap();
+    let test_exe = env::current_exe().unwrap();
+    let mut child = Command::new(test_exe)
+        .args([
+            "--ignored",
+            "--exact",
+            "r7_private_worker_timing_child",
+            "--nocapture",
+        ])
+        .env("PARAKEET_R7_PRIVATE_CHILD", "1")
+        .stdout(Stdio::from(stdout))
+        .stderr(Stdio::from(stderr))
+        .spawn()
+        .unwrap();
+    let samples = match case.as_str() {
+        "en5" => 5 * 60 * 16_000,
+        _ => 30 * 60 * 16_000,
+    };
+    let timeout = Duration::from_secs(samples / 16_000 / 4 + 120);
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            assert!(
+                status.success(),
+                "private worker child failed; stdout={} stderr={}",
+                stdout_path.display(),
+                stderr_path.display()
+            );
+            break;
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let status = child.wait().unwrap();
+            panic!("private worker child exceeded {timeout:?}: {status}");
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
+#[test]
+#[ignore = "nested child for the parent-enforced R7 private timing recipe"]
+fn r7_private_worker_timing_child() {
+    if env::var_os("PARAKEET_R7_PRIVATE_CHILD").is_none() {
+        return;
+    }
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let model = required_path("PARAKEET_L2_MODEL");
+    let native_dir = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = required_path("PARAKEET_R7_PRIVATE_WORKER");
+    let source = required_path("PARAKEET_R7_RECIPE_WAV");
+    let model_sha = sha256(&model);
+    let worker_sha = sha256(&worker);
+    let started = Instant::now();
+    let mut process = WorkerProcess::start(&worker, &model, &model_sha, &native_dir, &runtime);
+    let ready = process.receive();
+    let Event::Ready {
+        identity, backend, ..
+    } = ready.message
+    else {
+        panic!("private worker not Ready: {ready:?}");
+    };
+    assert_eq!(backend, "CPU");
+    assert_eq!(identity.build_sha256, worker_sha);
+    assert_eq!(identity.model_sha256, model_sha);
+    assert_eq!(identity.profile, PARAKEET_PROFILE_IMPORT_SINGLE_PASS);
+    let event = process.request(1, "r7-private", 1, 1, &identity, &source);
+    let Event::Result {
+        identity: result_identity,
+        duration_samples,
+        text,
+        words,
+        ..
+    } = event.message
+    else {
+        panic!("private worker inference failed: {event:?}");
+    };
+    assert_eq!(result_identity, identity);
+    assert!(!text.trim().is_empty());
+    assert!(words.iter().all(|word| word.start_ms < word.end_ms));
+    assert!(
+        words
+            .windows(2)
+            .all(|pair| pair[0].end_ms <= pair[1].start_ms)
+    );
+    process.shutdown();
+    let status = process.wait();
+    assert!(status.success());
+    let report = serde_json::json!({
+        "case": env::var("PARAKEET_R7_CASE").unwrap(), "duration_samples": duration_samples,
+        "worker_sha256": worker_sha, "model_sha256": model_sha, "source_sha256": sha256(&source),
+        "word_count": words.len(), "native_process_elapsed_ms": started.elapsed().as_millis(),
+        "result": "private diagnostic only; no product qualification",
+    });
+    let log = required_path("PARAKEET_R7_TIMING_LOG");
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .unwrap();
+    serde_json::to_writer(&mut file, &report).unwrap();
+    file.write_all(b"\n").unwrap();
+    println!("R7_PRIVATE {report}");
+}
+
+#[test]
+#[ignore = "runs the R5 short FR/EN normalization fixtures with the locally qualified CPU DLL set"]
+fn cpu_worker_normalizes_fr87_fr27_and_en15_short_fixtures() {
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let output_dir = required_path("PARAKEET_L2_OUTPUT_DIR");
+    let model = required_path("PARAKEET_L2_MODEL");
+    let native_dir = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = required_path("PARAKEET_L2_WORKER");
+    let fr87 = required_path("PARAKEET_L2_FR_WAV");
+    let fr27 = required_path("PARAKEET_L2_FR27_WAV");
+    let en15 = required_path("PARAKEET_L2_EN_WAV");
+    for path in [&output_dir, &native_dir] {
+        ensure_under(path, &runtime);
+    }
+    fs::create_dir_all(&output_dir).unwrap();
+
+    let model_sha = sha256(&model);
+    let mut process = WorkerProcess::start(&worker, &model, &model_sha, &native_dir, &runtime);
+    let ready = process.receive();
+    let Event::Ready { identity, .. } = ready.message else {
+        panic!("worker did not attest Ready: {ready:?}");
+    };
+    assert_eq!(identity.model_sha256, model_sha);
+    assert_eq!(identity.profile, PARAKEET_PROFILE_IMPORT_SINGLE_PASS);
+    assert_eq!(identity.build_sha256, sha256(&worker));
+
+    let mut results = Vec::new();
+    for (request_id, language, source) in
+        [(1, "fr87", &fr87), (2, "fr27", &fr27), (3, "en15", &en15)]
+    {
+        let event = process.request(
+            request_id,
+            &format!("r5-{language}"),
+            1,
+            1,
+            &identity,
+            source,
+        );
+        let Event::Result {
+            identity: result_identity,
+            duration_samples,
+            text,
+            words,
+            ..
+        } = event.message
+        else {
+            panic!("{language} inference failed: {event:?}");
+        };
+        assert_eq!(result_identity, identity);
+        assert!(!text.trim().is_empty());
+        assert!(!text.contains('\u{fffd}'));
+        assert!(words.iter().all(|word| word.start_ms < word.end_ms));
+        assert!(
+            words
+                .windows(2)
+                .all(|pair| pair[0].end_ms <= pair[1].start_ms)
+        );
+        if language == "fr87" {
+            let pair = words
+                .windows(2)
+                .find(|pair| pair[0].text == "faire?" && pair[1].text == "Je")
+                .expect("the normalized real sequence faire / ? / Je is present");
+            assert_eq!((pair[0].start_ms, pair[0].end_ms), (17_760, 17_920));
+            assert_eq!((pair[1].start_ms, pair[1].end_ms), (18_000, 18_080));
+        }
+        if language == "fr27" {
+            assert!(words.last().is_some_and(|word| word.text == "à..."));
+        }
+        if language == "en15" {
+            assert!(text.to_lowercase().contains("victorious"));
+        }
+        results.push(serde_json::json!({
+            "fixture": language,
+            "source_sha256": sha256(source),
+            "duration_samples": duration_samples,
+            "text": text,
+            "words": words,
+        }));
+    }
+    process.shutdown();
+    let exit = process.wait();
+    assert!(exit.success(), "worker exited unsuccessfully: {exit}");
+
+    let mut dll_hashes = BTreeMap::new();
+    for name in [
+        "nemo_speech_asr_c.dll",
+        "nemo_speech_asr.dll",
+        "ggml.dll",
+        "ggml-base.dll",
+        "ggml-cpu.dll",
+    ] {
+        dll_hashes.insert(name, sha256(&native_dir.join(name)));
+    }
+    let report = serde_json::json!({
+        "worker_sha256": sha256(&worker),
+        "model_sha256": model_sha,
+        "dll_sha256": dll_hashes,
+        "backend": "CPU",
+        "inference_count": results.len(),
+        "results": results,
+        "process_exit": "success",
+    });
+    fs::write(
+        output_dir.join("r5-short-fixtures.json"),
+        serde_json::to_vec_pretty(&report).unwrap(),
+    )
+    .unwrap();
+    println!(
+        "R5_SHORT_FIXTURES {}",
+        serde_json::to_string(&report).unwrap()
+    );
+}
+
+#[test]
+#[ignore = "informative private EN60 reference recipe; not product qualification"]
+fn r6_reference_en60() {
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let output_dir = required_path("PARAKEET_L2_OUTPUT_DIR");
+    let model = required_path("PARAKEET_L2_MODEL");
+    let native_dir = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = required_path("PARAKEET_L2_WORKER");
+    let source = required_path("PARAKEET_R6_RECIPE_WAV");
+    ensure_under(&output_dir, &runtime.join("r6"));
+    assert!(source.metadata().unwrap().len() > 0);
+    fs::create_dir_all(&output_dir).unwrap();
+
+    let model_sha = sha256(&model);
+    let started = Instant::now();
+    let mut process =
+        WorkerProcess::start_reference(&worker, &model, &model_sha, &native_dir, &runtime);
+    let ready = process.receive();
+    let Event::Ready {
+        identity, backend, ..
+    } = ready.message
+    else {
+        panic!("EN60 worker did not attest Ready: {ready:?}");
+    };
+    assert_eq!(identity.model_sha256, model_sha);
+    assert_eq!(identity.profile, PROFILE_QUALIFICATION_REFERENCE);
+    assert_eq!(identity.build_sha256, sha256(&worker));
+    assert_eq!(backend, "CPU");
+
+    let event = process.request(1, "r6-en60", 1, 1, &identity, &source);
+    let Event::Result {
+        identity: result_identity,
+        duration_samples,
+        text,
+        words,
+        ..
+    } = event.message
+    else {
+        panic!("EN60 reference inference failed: {event:?}");
+    };
+    assert_eq!(result_identity, identity);
+    assert_eq!(duration_samples, 60 * 60 * 16_000);
+    assert!(!text.trim().is_empty());
+    assert!(words.iter().all(|word| word.start_ms < word.end_ms));
+    assert!(
+        words
+            .windows(2)
+            .all(|pair| pair[0].end_ms <= pair[1].start_ms)
+    );
+    process.shutdown();
+    let exit = process.wait();
+    assert!(
+        exit.success(),
+        "EN60 reference worker exited unsuccessfully: {exit}"
+    );
+
+    let report = serde_json::json!({
+        "case": "en60",
+        "profile": PROFILE_QUALIFICATION_REFERENCE,
+        "worker_sha256": sha256(&worker),
+        "model_sha256": model_sha,
+        "source_sha256": sha256(&source),
+        "duration_samples": duration_samples,
+        "native_and_process_elapsed_ms": started.elapsed().as_millis(),
+        "word_count": words.len(),
+        "result": "informative private reference; no product qualification",
+    });
+    fs::write(
+        output_dir.join("r6-en60-reference.json"),
+        serde_json::to_vec_pretty(&report).unwrap(),
+    )
+    .unwrap();
+    println!(
+        "R6_EN60 samples={duration_samples} words={} elapsed_ms={} worker_sha256={}",
+        words.len(),
+        started.elapsed().as_millis(),
+        sha256(&worker)
+    );
+}
+
 struct WorkerProcess {
     child: Child,
     stdin: ChildStdin,
@@ -327,6 +637,37 @@ impl WorkerProcess {
                 native_dir.to_str().unwrap(),
             ])
             .env("PARAKEET_L2_RUNTIME_ROOT", runtime)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap();
+        Self {
+            stdin: child.stdin.take().unwrap(),
+            stdout: BufReader::new(child.stdout.take().unwrap()),
+            child,
+        }
+    }
+
+    fn start_reference(
+        worker: &Path,
+        model: &Path,
+        model_sha: &str,
+        native_dir: &Path,
+        runtime: &Path,
+    ) -> Self {
+        let mut child = Command::new(worker)
+            .args([
+                "--model",
+                model.to_str().unwrap(),
+                "--model-sha256",
+                model_sha,
+                "--native-dir",
+                native_dir.to_str().unwrap(),
+                "--qualification-reference",
+            ])
+            .env("PARAKEET_L2_RUNTIME_ROOT", runtime)
+            .env("PARAKEET_R6_CASE", "en60")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())

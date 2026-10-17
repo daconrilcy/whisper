@@ -2,12 +2,15 @@ mod decoder;
 mod native_engine;
 mod native_ffi;
 
+#[cfg(feature = "parakeet-qualification-reference")]
+use std::fs;
 use std::{
     collections::BTreeMap,
     env,
     fs::File,
     io::{self, BufRead, Write},
     path::{Path, PathBuf},
+    time::{Duration, Instant},
 };
 
 use sha2::{Digest, Sha256};
@@ -15,6 +18,7 @@ use whisper_core::parakeet_ipc::{
     Command, Envelope, Event, PARAKEET_IPC_VERSION, PARAKEET_MAX_FRAME_BYTES,
     PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity,
 };
+use whisper_core::parakeet_windows::{PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE};
 
 fn main() {
     if let Err(error) = run() {
@@ -30,7 +34,7 @@ fn run() -> Result<(), String> {
         return decode_only_mode();
     }
     let args = parse_args()?;
-    let runtime = required_runtime_root()?;
+    let runtime = required_runtime_root(&args.profile)?;
     let native_dir = args
         .native_dir
         .canonicalize()
@@ -43,19 +47,39 @@ fn run() -> Result<(), String> {
     if !model.is_file() {
         return Err("Model: path is not a file".into());
     }
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    let l2b_root = repository.join("target/parakeet-tests/l2/l2b");
+    let shared_l2b_model = repository
+        .join("models/parakeet-tdt-0.6b-v3.q8_0.gguf")
+        .canonicalize()
+        .ok()
+        .is_some_and(|expected| model == expected)
+        && l2b_root.canonicalize().ok().as_ref() == Some(&runtime);
+    if !model.starts_with(&runtime) && !shared_l2b_model {
+        return Err(
+            "PathOutsideRuntime: model must be under runtime or the read-only L2b models directory"
+                .into(),
+        );
+    }
     let model_sha = sha256_file(&model)?;
     if !constant_time_eq(&args.model_sha256, &model_sha) {
         return Err("ModelHashMismatch: model SHA-256 differs from the configured identity".into());
     }
 
+    let engine_started = Instant::now();
     let mut engine = native_engine::Engine::load(&native_dir, &model)?;
+    record_r7_timing(
+        "engine_load_model_and_dll",
+        engine_started.elapsed(),
+        serde_json::json!({}),
+    );
     let executable = env::current_exe().map_err(|e| format!("WorkerPath: {e}"))?;
     let worker_sha256 = sha256_file(&executable)?;
     let identity = WorkerIdentity {
         model_sha256: model_sha,
         runtime_sha256: runtime_sha256(&native_dir, engine.native_version())?,
         build_sha256: worker_sha256,
-        profile: PARAKEET_PROFILE_IMPORT_SINGLE_PASS.into(),
+        profile: args.profile.clone(),
     };
     write_event(&Event::Ready {
         identity: identity.clone(),
@@ -209,7 +233,8 @@ fn run() -> Result<(), String> {
                 }
                 job_attempts.insert(job_id.clone(), (generation, attempt));
                 let source = PathBuf::from(source_path);
-                let result = transcribe_one(&mut engine, &source, &source_sha256);
+                let result =
+                    transcribe_one(&mut engine, &source, &source_sha256, &identity.profile);
                 match result {
                     Ok((duration_samples, text, words, actual_sha)) => {
                         write_event(&Event::Result {
@@ -253,7 +278,7 @@ fn decode_only_mode() -> Result<(), String> {
     if args.next().is_some() {
         return Err("DecodeOnly: unexpected argument".into());
     }
-    let runtime = required_runtime_root()?;
+    let runtime = required_runtime_root(PARAKEET_PROFILE_IMPORT_SINGLE_PASS)?;
     let output_parent = output
         .parent()
         .ok_or("DecodeOnly: output has no parent")?
@@ -286,6 +311,7 @@ fn transcribe_one(
     engine: &mut native_engine::Engine,
     source: &Path,
     expected_source_sha: &str,
+    profile: &str,
 ) -> Result<(u64, String, Vec<whisper_core::parakeet_ipc::Word>, String), (&'static str, String)> {
     let canonical = source
         .canonicalize()
@@ -300,9 +326,43 @@ fn transcribe_one(
             "source SHA-256 differs from request".into(),
         ));
     }
-    let decoded = decoder::decode_file(&canonical).map_err(|error| ("DecodeFailed", error))?;
+    let decode_started = Instant::now();
+    let decoded = if profile == PROFILE_QUALIFICATION_REFERENCE {
+        #[cfg(feature = "parakeet-qualification-reference")]
+        {
+            decode_reference_wav(&canonical).map_err(|error| ("DecodeFailed", error))?
+        }
+        #[cfg(not(feature = "parakeet-qualification-reference"))]
+        {
+            return Err((
+                "QualificationReferenceUnavailable",
+                "worker lacks the private reference feature".into(),
+            ));
+        }
+    } else {
+        decoder::decode_file(&canonical).map_err(|error| ("DecodeFailed", error))?
+    };
+    record_r7_timing(
+        "audio_decode",
+        decode_started.elapsed(),
+        serde_json::json!({
+            "samples": decoded.samples.len(), "source_sha256": actual_sha,
+        }),
+    );
     let duration_samples = decoded.samples.len() as u64;
-    let (text, words) = engine.transcribe(&decoded).map_err(|error| {
+    let result = if profile == PROFILE_QUALIFICATION_REFERENCE {
+        #[cfg(feature = "parakeet-qualification-reference")]
+        {
+            engine.transcribe_reference(&decoded)
+        }
+        #[cfg(not(feature = "parakeet-qualification-reference"))]
+        {
+            Err("QualificationReferenceUnavailable".to_owned())
+        }
+    } else {
+        engine.transcribe(&decoded)
+    };
+    let (text, words) = result.map_err(|error| {
         let code = if error.starts_with("InvalidTimestamp") {
             "InvalidTimestamp"
         } else {
@@ -317,16 +377,56 @@ fn parse_args() -> Result<Args, String> {
     let mut model = None;
     let mut model_sha256 = None;
     let mut native_dir = None;
+    #[allow(unused_mut)]
+    let mut profile = PARAKEET_PROFILE_IMPORT_SINGLE_PASS.to_owned();
+    #[allow(unused_mut)]
+    let mut profile_was_set = false;
     let mut args = env::args_os().skip(1);
     while let Some(arg) = args.next() {
-        let value = args
-            .next()
-            .ok_or_else(|| format!("missing value for {}", arg.to_string_lossy()))?;
         match arg.to_string_lossy().as_ref() {
-            "--model" => model = Some(PathBuf::from(value)),
-            "--model-sha256" => model_sha256 = Some(value.to_string_lossy().to_ascii_lowercase()),
-            "--native-dir" => native_dir = Some(PathBuf::from(value)),
-            _ => return Err(format!("unknown argument {}", arg.to_string_lossy())),
+            "--qualification-reference" => {
+                #[cfg(feature = "parakeet-qualification-reference")]
+                {
+                    if profile_was_set {
+                        return Err("InvalidProfile: profile flags cannot be combined".into());
+                    }
+                    profile = PROFILE_QUALIFICATION_REFERENCE.to_owned();
+                    profile_was_set = true;
+                    continue;
+                }
+                #[cfg(not(feature = "parakeet-qualification-reference"))]
+                return Err("QualificationReferenceUnavailable".into());
+            }
+            _ => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| format!("missing value for {}", arg.to_string_lossy()))?;
+                match arg.to_string_lossy().as_ref() {
+                    "--model" => model = Some(PathBuf::from(value)),
+                    "--model-sha256" => {
+                        model_sha256 = Some(value.to_string_lossy().to_ascii_lowercase())
+                    }
+                    "--native-dir" => native_dir = Some(PathBuf::from(value)),
+                    "--profile" => {
+                        if profile_was_set {
+                            return Err("InvalidProfile: profile may be specified only once".into());
+                        }
+                        let requested = value.to_string_lossy().to_string();
+                        if requested == PROFILE_IMPORT_VAD {
+                            #[cfg(feature = "parakeet-qualification-reference")]
+                            {
+                                profile = requested;
+                                profile_was_set = true;
+                            }
+                            #[cfg(not(feature = "parakeet-qualification-reference"))]
+                            return Err("ProfileUnavailable: import-vad".into());
+                        } else {
+                            return Err(format!("InvalidProfile: {requested}"));
+                        }
+                    }
+                    _ => return Err(format!("unknown argument {}", arg.to_string_lossy())),
+                }
+            }
         }
     }
     let model_sha256 = model_sha256.ok_or("missing --model-sha256")?;
@@ -337,6 +437,7 @@ fn parse_args() -> Result<Args, String> {
         model: model.ok_or("missing --model")?,
         model_sha256,
         native_dir: native_dir.ok_or("missing --native-dir")?,
+        profile,
     })
 }
 
@@ -344,9 +445,10 @@ struct Args {
     model: PathBuf,
     model_sha256: String,
     native_dir: PathBuf,
+    profile: String,
 }
 
-fn required_runtime_root() -> Result<PathBuf, String> {
+fn required_runtime_root(profile: &str) -> Result<PathBuf, String> {
     let root = env::var_os("PARAKEET_L2_RUNTIME_ROOT")
         .ok_or("MissingRuntime: PARAKEET_L2_RUNTIME_ROOT")?;
     let root = PathBuf::from(root)
@@ -357,6 +459,13 @@ fn required_runtime_root() -> Result<PathBuf, String> {
     if !allowed.iter().any(|candidate| root == *candidate) {
         return Err(
             "RuntimeRootMismatch: worker runtime is outside the authorized L2a Test roots".into(),
+        );
+    }
+    if profile != PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+        && !qualification_root_is_valid(profile, &root, &repository)
+    {
+        return Err(
+            "RuntimeRootMismatch: qualification profiles require the L2b runtime root".into(),
         );
     }
     Ok(root)
@@ -378,9 +487,54 @@ mod runtime_root_tests {
         assert!(allowed_runtime_roots(&repository).contains(&l2a2_only[0]));
         assert!(!allowed_runtime_roots(&repository).contains(&repository));
     }
+
+    #[cfg(feature = "parakeet-qualification-reference")]
+    #[test]
+    fn qualification_profiles_are_confined_to_l2b() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+        let l2a2 = repository
+            .join("target/parakeet-tests/l2/l2a-2")
+            .canonicalize()
+            .unwrap();
+        let l2b = repository
+            .join("target/parakeet-tests/l2/l2b")
+            .canonicalize()
+            .unwrap();
+        assert_ne!(l2a2, l2b);
+        assert!(qualification_root_is_valid(
+            PROFILE_QUALIFICATION_REFERENCE,
+            &l2b,
+            &repository
+        ));
+        assert!(!qualification_root_is_valid(
+            PROFILE_QUALIFICATION_REFERENCE,
+            &l2a2,
+            &repository
+        ));
+        assert!(qualification_root_is_valid(
+            PARAKEET_PROFILE_IMPORT_SINGLE_PASS,
+            &l2a2,
+            &repository
+        ));
+    }
+}
+
+fn qualification_root_is_valid(profile: &str, root: &Path, repository: &Path) -> bool {
+    if profile == PARAKEET_PROFILE_IMPORT_SINGLE_PASS {
+        return allowed_runtime_roots(repository).contains(&root.to_path_buf());
+    }
+    repository
+        .join("target/parakeet-tests/l2/l2b")
+        .canonicalize()
+        .ok()
+        .as_ref()
+        == Some(&root.to_path_buf())
 }
 
 fn allowed_runtime_roots(repository: &Path) -> Vec<PathBuf> {
+    #[cfg(feature = "parakeet-qualification-reference")]
+    return allowed_runtime_roots_for(repository, &["l2a-1", "l2a-2", "l2b"]);
+    #[cfg(not(feature = "parakeet-qualification-reference"))]
     allowed_runtime_roots_for(repository, &["l2a-1", "l2a-2"])
 }
 
@@ -403,6 +557,66 @@ fn ensure_inside(path: &Path, root: &Path) -> Result<(), String> {
         return Err("PathOutsideRuntime: native directory outside runtime root".into());
     }
     Ok(())
+}
+
+#[cfg(feature = "parakeet-qualification-reference")]
+fn decode_reference_wav(path: &Path) -> Result<decoder::DecodedAudio, String> {
+    let bytes = fs::read(path).map_err(|error| format!("SourceOpen: {error}"))?;
+    if bytes.len() < 12 || &bytes[..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
+        return Err("ReferenceFormat: expected RIFF/WAVE".into());
+    }
+    let mut format = None;
+    let mut data = None;
+    let mut offset = 12_usize;
+    while offset + 8 <= bytes.len() {
+        let id = &bytes[offset..offset + 4];
+        let size = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap()) as usize;
+        let start = offset + 8;
+        let end = start
+            .checked_add(size)
+            .filter(|end| *end <= bytes.len())
+            .ok_or("ReferenceFormat: chunk exceeds WAV bounds")?;
+        if id == b"fmt " {
+            if size < 16 {
+                return Err("ReferenceFormat: truncated format chunk".into());
+            }
+            format = Some((
+                u16::from_le_bytes(bytes[start..start + 2].try_into().unwrap()),
+                u16::from_le_bytes(bytes[start + 2..start + 4].try_into().unwrap()),
+                u32::from_le_bytes(bytes[start + 4..start + 8].try_into().unwrap()),
+                u16::from_le_bytes(bytes[start + 12..start + 14].try_into().unwrap()),
+                u16::from_le_bytes(bytes[start + 14..start + 16].try_into().unwrap()),
+            ));
+        } else if id == b"data" {
+            data = Some(&bytes[start..end]);
+        }
+        offset = end + (size & 1);
+    }
+    let Some((encoding, channels, rate, block_align, bits)) = format else {
+        return Err("ReferenceFormat: missing format chunk".into());
+    };
+    if (encoding, channels, rate, block_align, bits) != (1, 1, 16_000, 2, 16) {
+        return Err("ReferenceFormat: expected mono 16 kHz PCM16".into());
+    }
+    let data = data.ok_or("ReferenceFormat: missing data chunk")?;
+    if data.len() % 2 != 0 {
+        return Err("ReferenceFormat: odd PCM16 payload size".into());
+    }
+    let samples = data
+        .chunks_exact(2)
+        .map(|sample| i16::from_le_bytes([sample[0], sample[1]]) as f32 / 32_768.0)
+        .collect::<Vec<_>>();
+    let count = samples.len();
+    if count == 0 || count as u64 > whisper_core::parakeet_windows::MAX_REFERENCE_SAMPLES {
+        return Err("AudioTooLong: reference input must be between 0 and 3,600 seconds".into());
+    }
+    Ok(decoder::DecodedAudio {
+        samples,
+        source_frames: count as u64,
+        source_rate: 16_000,
+        channels: 1,
+        codec: "PCM_S16LE".into(),
+    })
 }
 
 fn read_frame(reader: &mut impl BufRead) -> Result<Option<Vec<u8>>, String> {
@@ -481,10 +695,65 @@ fn runtime_sha256(native_dir: &Path, native_version: &str) -> Result<String, Str
 }
 
 fn sha256_file(path: &Path) -> Result<String, String> {
+    let started = Instant::now();
     let mut file = File::open(path).map_err(|e| format!("HashOpen: {e}"))?;
     let mut hasher = Sha256::new();
-    io::copy(&mut file, &mut hasher).map_err(|e| format!("HashRead: {e}"))?;
-    Ok(format!("{:x}", hasher.finalize()))
+    let bytes = io::copy(&mut file, &mut hasher).map_err(|e| format!("HashRead: {e}"))?;
+    let sha = format!("{:x}", hasher.finalize());
+    record_r7_timing(
+        "sha256",
+        started.elapsed(),
+        serde_json::json!({
+            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
+            "bytes": bytes,
+            "sha256": sha,
+        }),
+    );
+    Ok(sha)
+}
+
+fn record_r7_timing(stage: &str, elapsed: Duration, details: serde_json::Value) {
+    if env::var_os("PARAKEET_R7_TIMING_ACTIVE").as_deref() != Some(std::ffi::OsStr::new("1")) {
+        return;
+    }
+    let (Some(root), Some(path)) = (
+        env::var_os("PARAKEET_R7_EXEC_ROOT").map(PathBuf::from),
+        env::var_os("PARAKEET_R7_TIMING_LOG").map(PathBuf::from),
+    ) else {
+        eprintln!("R7 worker timing skipped: root or log path missing");
+        return;
+    };
+    let (Ok(root), Some(parent)) = (root.canonicalize(), path.parent()) else {
+        eprintln!("R7 worker timing skipped: root or log parent unavailable");
+        return;
+    };
+    let Ok(parent) = parent.canonicalize() else {
+        eprintln!("R7 worker timing skipped: log parent unavailable");
+        return;
+    };
+    if !parent.starts_with(&root) {
+        eprintln!("R7 worker timing skipped: log path escaped R7");
+        return;
+    }
+    let row = serde_json::json!({
+        "process": "private-worker",
+        "pid": std::process::id(),
+        "stage": stage,
+        "elapsed_ms": elapsed.as_secs_f64() * 1000.0,
+        "details": details,
+    });
+    match std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        Ok(mut file) => {
+            if serde_json::to_writer(&mut file, &row).is_err() || file.write_all(b"\n").is_err() {
+                eprintln!("R7 worker timing write failed");
+            }
+        }
+        Err(error) => eprintln!("R7 worker timing open failed: {error}"),
+    }
 }
 
 fn constant_time_eq(left: &str, right: &str) -> bool {
@@ -516,5 +785,58 @@ mod tests {
                 .unwrap_err()
                 .contains("IpcTruncated")
         );
+    }
+
+    #[cfg(feature = "parakeet-qualification-reference")]
+    #[test]
+    fn reference_wav_decoder_matches_product_decoder_and_reads_sixty_minutes() {
+        let short = PathBuf::from(
+            env::var_os("PARAKEET_L2_FR_WAV").expect("PARAKEET_L2_FR_WAV is required"),
+        );
+        let product = decoder::decode_file(&short).unwrap();
+        let reference = decode_reference_wav(&short).unwrap();
+        assert_eq!(reference.samples, product.samples);
+
+        let long = PathBuf::from(
+            env::var_os("PARAKEET_L2_EN_LONG_WAV").expect("PARAKEET_L2_EN_LONG_WAV is required"),
+        );
+        let decoded = decode_reference_wav(&long).unwrap();
+        assert_eq!(decoded.samples.len(), 3_600 * 16_000);
+    }
+
+    #[cfg(feature = "parakeet-qualification-reference")]
+    #[test]
+    fn reference_wav_decoder_rejects_audio_over_sixty_minutes() {
+        let runtime = PathBuf::from(
+            env::var_os("PARAKEET_L2_RUNTIME_ROOT").expect("PARAKEET_L2_RUNTIME_ROOT is required"),
+        );
+        let path = runtime.join(format!("reference-over-limit-{}.wav", std::process::id()));
+        let data_bytes = (whisper_core::parakeet_windows::MAX_REFERENCE_SAMPLES + 1) * 2;
+        let mut header = Vec::with_capacity(44);
+        header.extend_from_slice(b"RIFF");
+        header.extend_from_slice(&((36_u64 + data_bytes) as u32).to_le_bytes());
+        header.extend_from_slice(b"WAVEfmt ");
+        header.extend_from_slice(&16_u32.to_le_bytes());
+        header.extend_from_slice(&1_u16.to_le_bytes());
+        header.extend_from_slice(&1_u16.to_le_bytes());
+        header.extend_from_slice(&16_000_u32.to_le_bytes());
+        header.extend_from_slice(&32_000_u32.to_le_bytes());
+        header.extend_from_slice(&2_u16.to_le_bytes());
+        header.extend_from_slice(&16_u16.to_le_bytes());
+        header.extend_from_slice(b"data");
+        header.extend_from_slice(&(data_bytes as u32).to_le_bytes());
+        assert_eq!(header.len(), 44);
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .expect("create isolated over-limit fixture");
+        file.write_all(&header).unwrap();
+        file.set_len(44 + data_bytes).unwrap();
+        drop(file);
+
+        let error = decode_reference_wav(&path).unwrap_err();
+        assert!(error.contains("AudioTooLong"), "{error}");
+        fs::remove_file(path).unwrap();
     }
 }

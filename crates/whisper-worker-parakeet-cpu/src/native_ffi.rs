@@ -71,7 +71,6 @@ type Recognize = unsafe extern "C" fn(
 ) -> i32;
 type LastError = unsafe extern "C" fn() -> *const c_char;
 type Version = unsafe extern "C" fn() -> *const c_char;
-type ResultTranscript = unsafe extern "C" fn(*const c_void, usize) -> *const c_char;
 type ResultWordCount = unsafe extern "C" fn(*const c_void, usize) -> usize;
 type ResultWordText = unsafe extern "C" fn(*const c_void, usize, usize) -> *const c_char;
 type ResultWordTime = unsafe extern "C" fn(*const c_void, usize, usize) -> i32;
@@ -84,7 +83,6 @@ struct Api {
     recognize: Recognize,
     last_error: LastError,
     version: Version,
-    result_transcript: ResultTranscript,
     result_word_count: ResultWordCount,
     result_word_text: ResultWordText,
     result_word_start: ResultWordTime,
@@ -106,7 +104,6 @@ pub struct NativeWord {
 
 #[derive(Clone, Debug)]
 pub struct NativeResult {
-    pub text: String,
     pub words: Vec<NativeWord>,
 }
 
@@ -147,9 +144,6 @@ impl NativeRecognizer {
                     .map_err(|e| e.to_string())?,
                 version: *library
                     .get(b"nemo_speech_asr_version\0")
-                    .map_err(|e| e.to_string())?,
-                result_transcript: *library
-                    .get(b"nemo_speech_asr_result_transcript\0")
                     .map_err(|e| e.to_string())?,
                 result_word_count: *library
                     .get(b"nemo_speech_asr_result_word_count\0")
@@ -258,12 +252,6 @@ impl NativeRecognizer {
             api: &self.api,
             result,
         };
-        // SAFETY: `guard.result` is a live handle returned by the same API. The
-        // transcript pointer is borrowed from it and copied before guard drops.
-        let text = copy_c_string(
-            unsafe { (self.api.result_transcript)(guard.result, 0) },
-            "transcript",
-        )?;
         // SAFETY: the live result handle and alternative index 0 are valid for
         // the duration of this call; count is bounded before allocating.
         let count = unsafe { (self.api.result_word_count)(guard.result, 0) };
@@ -274,9 +262,9 @@ impl NativeRecognizer {
         for index in 0..count {
             // SAFETY: index is below the count returned for this live result;
             // native text is copied before ResultGuard releases the handle.
-            let text = copy_c_string(
+            let text = copy_word_text(
                 unsafe { (self.api.result_word_text)(guard.result, 0, index) },
-                "word",
+                index,
             )?;
             // SAFETY: both accessors use the same live result and checked index.
             let start_ms = unsafe { (self.api.result_word_start)(guard.result, 0, index) };
@@ -287,7 +275,7 @@ impl NativeRecognizer {
                 end_ms,
             });
         }
-        Ok(NativeResult { text, words })
+        Ok(NativeResult { words })
     }
 }
 
@@ -333,5 +321,67 @@ fn copy_c_string(ptr: *const c_char, label: &str) -> Result<String, String> {
     if bytes.len() > 16 * 1024 * 1024 {
         return Err(format!("NativeResult: {label} exceeds bound"));
     }
-    Ok(String::from_utf8_lossy(bytes).into_owned())
+    decode_utf8_fragments(&[bytes], label)
+}
+
+fn copy_word_text(ptr: *const c_char, index: usize) -> Result<String, String> {
+    if ptr.is_null() {
+        return Err(format!("NativeResult: null word {index}"));
+    }
+    // SAFETY: the ABI returns a NUL-terminated word string borrowed from the
+    // live result; it is copied before ResultGuard releases that result.
+    let bytes = unsafe { CStr::from_ptr(ptr) }.to_bytes();
+    if bytes.len() > 16 * 1024 * 1024 {
+        return Err(format!("NativeResult: word {index} exceeds bound"));
+    }
+    decode_utf8_fragments(&[bytes], &format!("word {index}"))
+}
+
+fn decode_utf8_fragments(fragments: &[&[u8]], label: &str) -> Result<String, String> {
+    let byte_count = fragments
+        .iter()
+        .try_fold(0_usize, |total, fragment| total.checked_add(fragment.len()));
+    let Some(byte_count) = byte_count.filter(|count| *count <= 16 * 1024 * 1024) else {
+        return Err(format!("NativeResult: {label} exceeds bound"));
+    };
+    let mut bytes = Vec::with_capacity(byte_count);
+    for fragment in fragments {
+        bytes.extend_from_slice(fragment);
+    }
+    let decoded = String::from_utf8(bytes).map_err(|error| {
+        format!(
+            "InvalidUtf8: {label}: invalid byte sequence at {}",
+            error.utf8_error().valid_up_to()
+        )
+    })?;
+    if decoded.contains('\u{fffd}') {
+        return Err(format!(
+            "InvalidUtf8: {label}: replacement character is forbidden"
+        ));
+    }
+    Ok(decoded)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_utf8_fragments;
+
+    #[test]
+    fn utf8_character_split_between_tokens_is_decoded_after_word_assembly() {
+        let word = decode_utf8_fragments(&[b"caf\xc3", b"\xa9"], "word 4").unwrap();
+        assert_eq!(word, "café");
+    }
+
+    #[test]
+    fn invalid_word_utf8_is_attributed_without_replacement() {
+        let error = decode_utf8_fragments(&[b"bad\xff"], "word 7").unwrap_err();
+        assert!(error.starts_with("InvalidUtf8: word 7:"));
+        assert!(!error.contains('\u{fffd}'));
+    }
+
+    #[test]
+    fn literal_replacement_character_is_rejected() {
+        let error = decode_utf8_fragments(&["bad\u{fffd}".as_bytes()], "word 8").unwrap_err();
+        assert!(error.starts_with("InvalidUtf8: word 8:"));
+    }
 }

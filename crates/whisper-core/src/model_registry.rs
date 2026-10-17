@@ -34,6 +34,9 @@ pub struct ModelRecord {
 pub const TURBO_EXISTING_PROVENANCE: &str =
     "comportement de production actuel, décision utilisateur du 16/10/2026";
 
+/// Longest Parakeet import duration admitted by the qualified single-pass product route.
+pub const PARAKEET_MAX_SINGLE_PASS_DURATION_MS: u64 = 30 * 60 * 1_000;
+
 pub const MODELS: [ModelRecord; 2] = [
     ModelRecord {
         artifact: ModelArtifact {
@@ -55,7 +58,7 @@ pub const MODELS: [ModelRecord; 2] = [
         },
         display_name: "Parakeet TDT 0.6B v3",
         admission: AdmissionBasis::Measured(Qualification::Qualified),
-        provenance: "fiche Test L2a-2; modèle, worker, DLL CPU et A3/A11 qualifiés",
+        provenance: "fiche Test R6; A4 FR87/FR27/EN15 PASS sur le parcours applicatif CPU avec le worker R6",
     },
 ];
 
@@ -286,7 +289,7 @@ pub fn configuration_key(record: &ModelRecord, backend: Backend) -> Configuratio
         worker_build: match record.artifact.id {
             ModelId::WhisperLargeV3Turbo => "current-production-recognized",
             ModelId::ParakeetTdt06BV3 => {
-                "545a4830755da613a1255be97fbc6a6a513ef837d669d8a9870d3bbee9dfd587"
+                "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0"
             }
         }
         .to_owned(),

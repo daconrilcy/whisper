@@ -109,7 +109,7 @@ fn stop_during_parakeet_inference_waits_for_exit_and_preserves_pending_without_p
         },
     };
     app.dispatch(AppCommand::StartImport { request }).unwrap();
-    let deadline = Instant::now() + Duration::from_secs(180);
+    let deadline = Instant::now() + Duration::from_secs(600);
     loop {
         let view = app.dispatch(AppCommand::Refresh).unwrap();
         if view
@@ -393,12 +393,12 @@ fn stop_queue_journal_failure_settles_runtime_and_allows_next_import() {
 }
 
 #[test]
-#[ignore = "runs native Parakeet import, interruption, and product-route resume"]
+#[ignore = "runs native single-pass Parakeet import and product-route resume"]
 fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let source = required_path("PARAKEET_L2_EN_WAV");
     let model = required_path("PARAKEET_L2_MODEL");
-    let destination = runtime.join(format!("archive/r7-resume-{}", std::process::id()));
+    let destination = runtime.join(format!("archive/r7-resume-short-{}", std::process::id()));
     fs::create_dir_all(&destination).unwrap();
     let barriers = destination.join(".l2a2-acceptance");
     fs::create_dir_all(&barriers).unwrap();
@@ -408,6 +408,162 @@ fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
         WorkerPaths {
             cpu: dummy_turbo.clone(),
             gpu: dummy_turbo,
+        },
+        model.parent().unwrap().to_path_buf(),
+        runtime
+            .join("historical/ggml-large-v3-turbo.bin")
+            .to_string_lossy()
+            .into_owned(),
+        Some(ParakeetWorkerPaths {
+            executable: required_path("PARAKEET_L2_WORKER"),
+            native_dir: required_path("PARAKEET_L2_NATIVE_DIR"),
+            model: model.clone(),
+            runtime_root: runtime.clone(),
+        }),
+    );
+    let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
+    let snapshot = whisper_core::model_registry::engine_snapshot(
+        1,
+        |_| whisper_core::model_catalog::ModelAvailability::Ready,
+        vec![],
+    );
+    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
+        snapshot,
+        1,
+        [
+            (
+                ModelId::ParakeetTdt06BV3,
+                model.to_string_lossy().into_owned(),
+            ),
+            (
+                ModelId::WhisperLargeV3Turbo,
+                runtime
+                    .join("historical/ggml-large-v3-turbo.bin")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+        ],
+    );
+    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let job_id = JobId(0x2ac);
+    let first_generation = Generation::first();
+    let mut request = ImportRequest {
+        job_id,
+        generation: first_generation,
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: model.to_string_lossy().into_owned(),
+        model_sha256: decode_sha256(record.artifact.sha256),
+        destination: destination.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    ArchiveStore::identify_source(&mut request).unwrap();
+    QueueStore::open(&destination)
+        .unwrap()
+        .enqueue(request.clone())
+        .unwrap();
+    let queued_request = request;
+    app.dispatch(AppCommand::ProcessQueued {
+        request: queued_request.clone(),
+    })
+    .unwrap();
+
+    let entered = barriers.join("resume-prefix-confirmed.entered");
+    let segment_path = passage_dir(&destination, job_id, first_generation).join("segments.jsonl");
+    let deadline = Instant::now() + Duration::from_secs(240);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if entered.is_file() && segment_path.is_file() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "confirmed prefix was not persisted: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+    app.dispatch(AppCommand::Stop {
+        job_id,
+        generation: first_generation,
+    })
+    .unwrap();
+    fs::write(barriers.join("resume-prefix-confirmed.release"), b"release").unwrap();
+    wait_for_state(
+        &mut app,
+        job_id,
+        whisper_core::JobState::Cancelled,
+        Duration::from_secs(30),
+    );
+
+    let first_passage = passage_dir(&destination, job_id, first_generation);
+    let prefix_rows = read_segment_rows(&first_passage.join("segments.jsonl"));
+    assert!(
+        !prefix_rows.is_empty(),
+        "one confirmed segment is preserved"
+    );
+    assert_eq!(
+        QueueStore::open(&destination).unwrap().entries()[0].status,
+        QueueStatus::Interrupted
+    );
+    assert!(first_passage.join("pending.json").is_file());
+    assert!(!first_passage.join("CURRENT").exists());
+
+    app.dispatch(AppCommand::ResumeInterrupted {
+        request: queued_request,
+    })
+    .unwrap();
+    wait_for_state(
+        &mut app,
+        job_id,
+        whisper_core::JobState::Complete,
+        Duration::from_secs(240),
+    );
+
+    let resumed_generation = first_generation.next().unwrap();
+    let resumed_passage = passage_dir(&destination, job_id, resumed_generation);
+    let resumed_rows = read_segment_rows(&resumed_passage.join("segments.jsonl"));
+    assert!(resumed_rows.len() > prefix_rows.len());
+    assert_eq!(resumed_rows[0], prefix_rows[0], "prefix is byte-identical");
+    for (index, row) in resumed_rows.iter().enumerate() {
+        assert_eq!(row["sequence"].as_u64(), Some(index as u64 + 1));
+    }
+    let prefix_text = prefix_rows[0]["text"].as_str().unwrap();
+    let transcript = fs::read_to_string(resumed_passage.join("transcript.txt")).unwrap();
+    assert_eq!(
+        transcript.matches(prefix_text).count(),
+        1,
+        "prefix is not duplicated"
+    );
+    assert!(resumed_passage.join("transcript.srt").is_file());
+    assert!(resumed_passage.join("CURRENT").is_file());
+    let complete: Vec<_> = ArchiveStore::scan(&destination)
+        .unwrap()
+        .into_iter()
+        .filter(|entry| entry.job_id == job_id && entry.complete)
+        .collect();
+    assert_eq!(complete.len(), 1, "one generation is published");
+    assert!(QueueStore::open(&destination).unwrap().entries().is_empty());
+}
+
+#[test]
+#[ignore = "runs native VAD Stop during inference, between windows, and product-route resume"]
+fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once() {
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let source = required_path("PARAKEET_L2_FR_LONG_WAV");
+    let model = required_path("PARAKEET_L2_MODEL");
+    let turbo_decoder = required_path("PARAKEET_L2_TURBO_DECODE_WORKER");
+    let destination = runtime.join(format!("archive/r7-resume-{}", std::process::id()));
+    fs::create_dir_all(&destination).unwrap();
+    let barriers = destination.join(".l2a2-acceptance");
+    fs::create_dir_all(&barriers).unwrap();
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
+        WorkerPaths {
+            cpu: turbo_decoder.clone(),
+            gpu: turbo_decoder,
         },
         model.parent().unwrap().to_path_buf(),
         runtime
@@ -472,9 +628,49 @@ fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
     })
     .unwrap();
 
+    let deadline = Instant::now() + Duration::from_secs(600);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if view.active_job == Some((job_id, whisper_core::JobState::Running)) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "VAD worker did not reach native inference: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+    thread::sleep(Duration::from_millis(100));
+    app.dispatch(AppCommand::Stop {
+        job_id,
+        generation: first_generation,
+    })
+    .unwrap();
+    wait_for_state(
+        &mut app,
+        job_id,
+        whisper_core::JobState::Cancelled,
+        Duration::from_secs(30),
+    );
+    let first_passage = passage_dir(&destination, job_id, first_generation);
+    let first_pending: serde_json::Value =
+        serde_json::from_slice(&fs::read(first_passage.join("pending.json")).unwrap()).unwrap();
+    assert_eq!(
+        first_pending["qualification"]["inference_profile"],
+        "import-vad"
+    );
+    assert!(!first_passage.join("CURRENT").exists());
+    assert!(!first_passage.join("transcript.txt").exists());
+
+    fs::write(barriers.join("resume-prefix-confirmed.enabled"), b"enabled").unwrap();
+    app.dispatch(AppCommand::ResumeInterrupted {
+        request: queued_request.clone(),
+    })
+    .unwrap();
+    let second_generation = first_generation.next().unwrap();
     let entered = barriers.join("resume-prefix-confirmed.entered");
-    let segment_path = passage_dir(&destination, job_id, first_generation).join("segments.jsonl");
-    let deadline = Instant::now() + Duration::from_secs(240);
+    let segment_path = passage_dir(&destination, job_id, second_generation).join("segments.jsonl");
+    let deadline = Instant::now() + Duration::from_secs(600);
     loop {
         let view = app.dispatch(AppCommand::Refresh).unwrap();
         if entered.is_file() && segment_path.is_file() {
@@ -488,7 +684,7 @@ fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
     }
     app.dispatch(AppCommand::Stop {
         job_id,
-        generation: first_generation,
+        generation: second_generation,
     })
     .unwrap();
     fs::write(barriers.join("resume-prefix-confirmed.release"), b"release").unwrap();
@@ -499,8 +695,8 @@ fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
         Duration::from_secs(30),
     );
 
-    let first_passage = passage_dir(&destination, job_id, first_generation);
-    let prefix_rows = read_segment_rows(&first_passage.join("segments.jsonl"));
+    let second_passage = passage_dir(&destination, job_id, second_generation);
+    let prefix_rows = read_segment_rows(&second_passage.join("segments.jsonl"));
     assert!(
         !prefix_rows.is_empty(),
         "at least one segment is durably confirmed at Stop"
@@ -509,8 +705,9 @@ fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
         QueueStore::open(&destination).unwrap().entries()[0].status,
         QueueStatus::Interrupted
     );
-    assert!(first_passage.join("pending.json").is_file());
-    assert!(!first_passage.join("CURRENT").exists());
+    assert!(second_passage.join("pending.json").is_file());
+    assert!(second_passage.join("vad-windows.jsonl").is_file());
+    assert!(!second_passage.join("CURRENT").exists());
 
     app.dispatch(AppCommand::ResumeInterrupted {
         request: queued_request,
@@ -520,10 +717,10 @@ fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
         &mut app,
         job_id,
         whisper_core::JobState::Complete,
-        Duration::from_secs(240),
+        Duration::from_secs(3_600),
     );
 
-    let resumed_generation = first_generation.next().unwrap();
+    let resumed_generation = second_generation.next().unwrap();
     let resumed_passage = passage_dir(&destination, job_id, resumed_generation);
     let resumed_rows = read_segment_rows(&resumed_passage.join("segments.jsonl"));
     assert!(resumed_rows.len() > prefix_rows.len());

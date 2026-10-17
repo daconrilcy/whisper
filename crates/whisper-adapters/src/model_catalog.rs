@@ -1,11 +1,159 @@
+use std::time::Instant;
 use std::{
     fs::File,
-    io::{self, Read},
+    io,
     path::{Path, PathBuf},
+    sync::{
+        Mutex, OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::SystemTime,
 };
 
+use same_file::Handle;
 use sha2::{Digest, Sha256};
 use whisper_core::{model_catalog::ModelAvailability, model_registry::MODELS};
+
+static MODEL_HASH_CACHE: OnceLock<Mutex<ModelFileHashCache>> = OnceLock::new();
+static MODEL_HASH_FULL_READS: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Debug)]
+struct CachedModelHash {
+    identity: Handle,
+    size_bytes: u64,
+    modified: SystemTime,
+    sha256: [u8; 32],
+    full_reads: u64,
+}
+
+#[derive(Default)]
+struct ModelFileHashCache {
+    entries: Vec<CachedModelHash>,
+}
+
+struct OpenModelFile {
+    file: File,
+    identity: Handle,
+    size_bytes: u64,
+    modified: SystemTime,
+}
+
+impl OpenModelFile {
+    fn open(path: &Path) -> io::Result<Self> {
+        let file = File::open(path)?;
+        let metadata = file.metadata()?;
+        if !metadata.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "model artifact is not a regular file",
+            ));
+        }
+        let identity = Handle::from_file(file.try_clone()?)?;
+        let modified = metadata.modified()?;
+        Ok(Self {
+            file,
+            identity,
+            size_bytes: metadata.len(),
+            modified,
+        })
+    }
+
+    fn matches(&self, other: &Self) -> bool {
+        self.identity == other.identity
+            && self.size_bytes == other.size_bytes
+            && self.modified == other.modified
+    }
+}
+
+impl ModelFileHashCache {
+    fn sha256(&mut self, path: &Path) -> io::Result<(u64, [u8; 32])> {
+        let mut opened = OpenModelFile::open(path)?;
+        if let Some(entry) = self.entries.iter().find(|entry| {
+            entry.identity == opened.identity
+                && entry.size_bytes == opened.size_bytes
+                && entry.modified == opened.modified
+        }) {
+            return Ok((entry.size_bytes, entry.sha256));
+        }
+
+        let mut hasher = Sha256::new();
+        let bytes_read = io::copy(&mut opened.file, &mut hasher)?;
+        let after_read = OpenModelFile::open(path)?;
+        if bytes_read != opened.size_bytes || !opened.matches(&after_read) {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "model identity changed while its SHA-256 was being computed",
+            ));
+        }
+
+        let digest: [u8; 32] = hasher.finalize().into();
+        let size_bytes = opened.size_bytes;
+        self.entries.push(CachedModelHash {
+            identity: opened.identity,
+            size_bytes,
+            modified: opened.modified,
+            sha256: digest,
+            full_reads: 1,
+        });
+        MODEL_HASH_FULL_READS.fetch_add(1, Ordering::Relaxed);
+        Ok((size_bytes, digest))
+    }
+
+    fn full_read_count(&self, path: &Path) -> io::Result<u64> {
+        let opened = OpenModelFile::open(path)?;
+        Ok(self
+            .entries
+            .iter()
+            .filter(|entry| {
+                entry.identity == opened.identity
+                    && entry.size_bytes == opened.size_bytes
+                    && entry.modified == opened.modified
+            })
+            .map(|entry| entry.full_reads)
+            .sum())
+    }
+}
+
+/// Returns the cached SHA-256 for a regular model file after checking the current
+/// handle identity, size, and modification time. Changed identities are hashed again.
+pub fn cached_model_sha256(path: &Path) -> io::Result<(u64, [u8; 32])> {
+    let started = Instant::now();
+    let mut cache = MODEL_HASH_CACHE
+        .get_or_init(|| Mutex::new(ModelFileHashCache::default()))
+        .lock()
+        .map_err(|_| io::Error::new(io::ErrorKind::Other, "model hash cache is poisoned"))?;
+    let reads_before = MODEL_HASH_FULL_READS.load(Ordering::Relaxed);
+    let result = cache.sha256(path);
+    let reads_after = MODEL_HASH_FULL_READS.load(Ordering::Relaxed);
+    drop(cache);
+    crate::worker_ipc::record_r7_timing(
+        "adapter_model_sha256",
+        started.elapsed(),
+        serde_json::json!({
+            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
+            "cache_hit": reads_after == reads_before,
+            "full_reads": reads_after.saturating_sub(reads_before),
+            "success": result.is_ok(),
+        }),
+    );
+    result
+}
+
+/// Reports whether the current file identity has already incurred its full SHA read.
+#[doc(hidden)]
+pub fn model_sha256_full_read_count(path: &Path) -> io::Result<u64> {
+    MODEL_HASH_CACHE
+        .get_or_init(|| Mutex::new(ModelFileHashCache::default()))
+        .lock()
+        .map_err(|_| io::Error::new(io::ErrorKind::Other, "model hash cache is poisoned"))?
+        .full_read_count(path)
+}
+
+/// Total number of complete model-file reads made by this process' adapter cache.
+#[doc(hidden)]
+pub fn model_sha256_full_read_total() -> u64 {
+    MODEL_HASH_FULL_READS.load(Ordering::Relaxed)
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CatalogEntry {
@@ -226,18 +374,7 @@ fn inspect_entry(
 }
 
 fn inspect_file(path: &Path) -> io::Result<(u64, String)> {
-    let mut file = File::open(path)?;
-    let size = file.metadata()?.len();
-    let mut hasher = Sha256::new();
-    let mut buffer = [0_u8; 1024 * 1024];
-    loop {
-        let count = file.read(&mut buffer)?;
-        if count == 0 {
-            break;
-        }
-        hasher.update(&buffer[..count]);
-    }
-    let digest = hasher.finalize();
+    let (size, digest) = cached_model_sha256(path)?;
     Ok((
         size,
         digest.iter().map(|byte| format!("{byte:02x}")).collect(),

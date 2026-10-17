@@ -147,17 +147,10 @@ impl ModelCommandGuard {
                 ),
             }));
         }
-        if model_id == ModelId::ParakeetTdt06BV3
-            && source_samples.is_some_and(|samples| {
-                samples > crate::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
-            })
-        {
-            return Err(SelectionRefusal::Capability(Refusal {
-                cause: crate::engine_capabilities::RefusalCause::CapabilityNotQualified(
-                    crate::engine_capabilities::CapabilityTarget::Compute,
-                ),
-            }));
-        }
+        // The core guard admits the product import path independent of duration. The adapter
+        // decodes the source and selects single-pass or bounded VAD windows before worker launch;
+        // PARAKEET_MAX_AUDIO_SAMPLES is a per-native-window limit, not a whole-file limit.
+        let _ = source_samples;
         let compute = match config.compute {
             ComputeChoice::Cpu => (ComputePreference::Cpu, crate::model_catalog::Backend::Cpu),
             ComputeChoice::Gpu => (ComputePreference::Gpu, crate::model_catalog::Backend::Gpu),
