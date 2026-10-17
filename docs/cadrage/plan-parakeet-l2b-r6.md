@@ -1,10 +1,10 @@
 Avancée : le diagnostic B5 est accepté comme défaut de normalisation R5 ; R6 regroupe correction, borne produit, recettes et nouvelle clé Test.
-Blocage : la recette applicative EN60 et la garantie « un échantillon par mot » doivent être vérifiées contre les contrats actuels avant de déclarer ce plan exécutable.
-Décision : soumettre ce plan à une revue indépendante ; aucun code R6 avant CLEAN et préflight à échec fermé.
+Blocage : la revue indépendante confirme trois écarts bloquants de contrat ou de chemins (R6-P1 à R6-P3).
+Décision : PLAN_CHANGE_REQUIRED ; aucun code R6 avant arbitrage utilisateur, plan révisé et verdict CLEAN.
 
 # PLAN-PARA-L2b-R6 v1 — normalisation et limite de passe unique
 
-**Statut : DRAFT, revue indépendante demandée.** Base : `wip/l2b-candidate` au commit `2470d297`, décisions utilisateur du 17/10/2026 sur le diagnostic `2470d297`. R5-2 A4 est Qualified Test pour l'ancienne clé ; B8 reste inactive. Ce plan couvre un seul lot R6, sans VAD adaptative.
+**Statut : NOT READY — PLAN_CHANGE_REQUIRED après revue indépendante, cycle 1.** Base : `wip/l2b-candidate` au commit `2470d297`, décisions utilisateur du 17/10/2026 sur le diagnostic `2470d297`. R5-2 A4 est Qualified Test pour l'ancienne clé ; B8 reste inactive. Ce plan couvre un seul lot R6, sans VAD adaptative.
 
 ## 1. Résultat produit et chemins
 
@@ -35,3 +35,15 @@ Confirmer branche et HEAD, état Git, diff hors lot, plan CLEAN, modèle et DLL 
 ## 5. Sortie de revue et arrêt
 
 Le reviewer compare chaque exigence utilisateur au chemin et à l'essai qui la prouvent. `CLEAN` seulement si F1/F2 et la promotion conditionnelle de la nouvelle clé ont un chemin exécutable dans le périmètre. En cas de `NOT READY` ou besoin hors chemins, arrêter à `PLAN_CHANGE_REQUIRED` et demander la décision de périmètre correspondante ; **ne pas écrire de code**. Deux cycles de plan au maximum. B6 reste bénin et différé au lot VAD séparé ; B8 reste inactive.
+
+### Verdict indépendant du cycle 1
+
+**NOT READY — PLAN_CHANGE_REQUIRED.** Le reviewer confirme :
+
+| ID | Critère concerné | Écart constaté | Arbitrage nécessaire |
+| --- | --- | --- | --- |
+| R6-P1, BLOQUANT | EN60 par parcours applicatif en passe unique | Au-delà de 30 min, l'application route vers VAD ; le décodeur ordinaire et le worker ordinaire plafonnent à 30 min. La voie `qualification-reference` 60 min existante n'est pas applicative. `main.rs` et `decoder.rs` sont hors chemins. | Autoriser EN60 informative par la voie privée directe, ou étendre précisément les chemins et contrats d'une recette applicative 60 min. |
+| R6-P2, BLOQUANT | Parts égales, durée positive jusqu'à l'échantillon | L'IPC expose des millisecondes, soit 16 échantillons à 16 kHz. Un partage exact de 80 ms entre trois mots donne 426/427 échantillons et ne survit pas à la sérialisation actuelle. `parakeet_ipc.rs` est hors chemins. | Accepter une quantification en millisecondes avec son domaine de validité, ou autoriser une évolution de l'IPC et des consommateurs aux échantillons. |
+| R6-P3, BLOQUANT | Refus de durée avant pending, également à l'archive | R6-2 prévoit une garde de durée dans `archive.rs`, mais ce fichier est autorisé seulement pour le changement de clé. | Étendre l'autorisation de `archive.rs` et de son test à la garde de durée/reprise, ou réduire explicitement la garantie aux seules entrées applicatives gardées dans `worker_ipc.rs`. |
+
+Le reviewer demande aussi, à titre **IMPORTANT non bloquant**, de préciser les commandes, les features et la mesure du temps de calcul. Il n'a modifié aucun fichier. Le prochain cycle de revue attend les trois décisions ci-dessus ; une reformulation du plan ne peut pas créer les permissions manquantes.
