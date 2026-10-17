@@ -1,0 +1,40 @@
+Avancée : L3 est scindé en worker GPU qualifié puis raccordement GPU/Auto à l'import Test.
+Blocage : aucune clé GPU produit n'est qualifiée ; le code natif CUDA et ses DLL exigent un accord d'implémentation propre à L3.
+Décision : soumettre L3a/L3b à la revue indépendante, puis attendre l'accord écrit de l'utilisateur.
+
+# PLAN-PARA-L3 — DRAFT v1, GPU Parakeet/import (17/10/2026)
+
+Base : [note de design L3](note-parakeet-l3-gpu-import.md), [cadrage Parakeet](evo-parakeet.md), [faisabilité](bilan-parakeet-faisabilite-cloture.md), [fiche CPU R6](fiche-parakeet-r6.md). L3 vise WAV/MP3 ≤30 min, français et anglais, GTX 1080 Ti CUDA0 de cet hôte. Turbo et CPU Parakeet R6 sont la référence de non-régression. L4, VAD adaptative et B8 sont backlog non planifié ; L6-perso est PLANS READY **en attente** d'un amendement GPU après L3. Aucun code L3 n'est autorisé par ce plan.
+
+## Préflight commun
+
+Lire Git/AGENTS/railguard, confirmer branche/HEAD et les fichiers non suivis préexistants. Vérifier ≥30 Gio libres, `CARGO_TARGET_DIR=C:\dev\whisper\target\parakeet-tests\cargo-shared`, `TEMP/TMP` et sorties sous la racine de sous-lot, `CARGO_INCREMENTAL=0`, `CARGO_PROFILE_DEV_DEBUG=line-tables-only`, Cargo `--offline --locked`. Tester la garde en cas OK/KO **avant le premier Cargo**. Modèle `C:\dev\whisper\models\parakeet-tdt-0.6b-v3.q8_0.gguf`, worker CPU R6 et DLL CPU de [sa fiche](fiche-parakeet-r6.md) restent en lecture seule. Les DLL CUDA proviennent exclusivement de `target/parakeet-feasibility/spike02/runtime space/cuda/bin/` : deux NeMo, quatre ggml dont `ggml-cuda.dll`, `cudart64_12.dll`, `cublas64_12.dll` et `cublasLt64_12.dll` ; vérifier nom, taille, SHA et imports transitifs avant copie. `nvcuda.dll` vient du pilote. Absence/divergence : recette réelle `NOT RUN`, aucun téléchargement, aucune substitution CPU dans la recette GPU. Ne modifier ni source C++, ni pilote, ni `models/`, ni `sound example/`, ni `spike02/`.
+
+## L3a — candidat natif GPU, sans admission produit
+
+**Dépendance :** préflight ; accord écrit distinct comprenant l'ABI NeMo CUDA, les éventuels appels CUDA `unsafe` confinés à `native_ffi.rs`, et la copie des DLL privées sous la racine L3a. L'accord L2a-1 sur le CPU ne s'étend pas automatiquement au GPU.
+
+| Carte | Tâche et preuve attendue |
+| --- | --- |
+| A1 | Variante GPU du worker Rust via feature Cargo `parakeet-cuda`, binaire copié sous `target/parakeet-tests/l3/l3a/worker/whisper-worker-parakeet-gpu.exe`, SHA figé. Le binaire CPU R6 reste inchangé. FFI NeMo avec `gpu=0` uniquement après preuve du seul périphérique éligible ; DLL CUDA chargées une fois, sortie du processus sans `FreeLibrary`. |
+| A2 | Étendre additivement l'IPC v1 : Ready/Result GPU portent backend CUDA0, génération et preuve LUID/PCI/ordinal liée au candidat Windows. CPU conserve son contrat. Faux identifiant, GPU multiple/ambigu, DLL CPU ou CUDA altérée et backend CPU déclaré sont refusés **avant lecture audio**, avec compteur d'appels audio nul. Si l'ABI ne permet pas de lier ce contrôle à l'inférence locale mono-GPU, `DESIGN_CHANGE_REQUIRED` avant toute admission. |
+| A3 | Harness natif sur le worker **exact** : FR87, FR27, EN15, EN5 réel et EN30 synthétique, `language_code=NULL`, textes FR/EN non vides, mots/temps valides, zéro `InvalidTimestamp`, backend CUDA0 avec preuve de contexte sur le GPU attendu ; 20 inférences consécutives FR/EN sans crash hôte, arrêt sans déchargement explicite. Temps, RAM/VRAM globale WDDM notés sans seuil de vitesse nouveau. |
+| A4 | Revue indépendante du candidat L3a après tests ciblés, `cargo fmt --all -- --check`, `cargo build --offline --locked --workspace`, `cargo test --offline --locked --workspace --no-fail-fast`. Tous les FAIL/NOT RUN rapportés. L3b ne démarre qu'après A2/A3 PASS et verdict CLEAN ; sinon arrêt sans fiche GPU. |
+
+**Chemins d'écriture L3a, et uniquement ceux-ci après accord :** `crates/whisper-worker-parakeet-cpu/Cargo.toml`, `crates/whisper-worker-parakeet-cpu/src/main.rs`, `crates/whisper-worker-parakeet-cpu/src/native_engine.rs`, `crates/whisper-worker-parakeet-cpu/src/native_ffi.rs`, `crates/whisper-worker-parakeet-cpu/tests/native_import.rs`, `crates/whisper-core/src/parakeet_ipc.rs`, `crates/whisper-core/tests/parakeet_ipc.rs`, `docs/cadrage/fiche-parakeet-l3a-gpu.md`, `docs/cadrage/bilan-parakeet-l3a-gpu.md`. Aucune édition de `Cargo.lock` sans plan révisé. Écritures d'exécution : `target/parakeet-tests/l3/l3a/` et le Cargo partagé uniquement. `native_ffi.rs` reste la seule zone `unsafe` Parakeet ; aucune nouvelle pile ni C++ modifié.
+
+## L3b — admission GPU/Auto pour import, après L3a CLEAN
+
+| Carte | Tâche et preuve attendue |
+| --- | --- |
+| B1 | Registre : fiche GPU Test distincte (modèle, worker GPU, DLL CUDA, CUDA0, profil `import-single-pass`, périphérique qualifié), capacité GPU FR/EN/Auto langue seulement après A3. CPU R6 et Turbo inchangés. Modèle absent ou clé GPU divergente : GPU grisé/refus avant pending ; CPU Parakeet utilisable. |
+| B2 | Routeur/import/archive : CPU/GPU manuels fixes ; GPU manuel sans repli ; Auto privilégie GPU avec preuve fraîche, puis **au plus une** tentative CPU du même modèle avant toute inférence en cas d'indisponibilité/préparation échouée. Après inférence, pas de repli ; pending/reprise portent la clé backend et refusent la clé différente en conservant les données. Aucun import-vad/B8. |
+| B3 | Composition/UI : calcul demandé et effectif, GPU réellement disponible, cause du refus/repli Auto, préférence Parakeet et Auto conservées. La matrice Turbo existante, ses langues, son import et son micro ne régressent pas ; Parakeet micro reste indisponible. |
+| B4 | Parcours applicatif sur le **même** binaire L3a : A4 FR87/FR27/EN15, EN5 et EN30 GPU manuel, TXT/SRT lisibles, zéro `InvalidTimestamp`, refus >30 min avant pending ; tests faux GPU/clé/DLL/worker, Auto GPU, Auto CPU pré-audio, GPU manuel en panne, erreur GPU après première inférence sans repli. Rejouer les cinq scénarios R8 sur la clé GPU et le contrôle Turbo, avec fixtures sous L3b. Les recettes ignorées restent `NOT RUN` si non exécutées individuellement. |
+| B5 | Suite workspace complète `cargo test --offline --locked --workspace --no-fail-fast` sous garde, sans variables de campagne puis campagnes ciblées avec variables ; rapporter tous les NOT RUN. Revue/correction Rust au plus deux cycles ; fiche GPU Test écrite uniquement après B4 PASS et verdict CLEAN. La fenêtre Windows reste une validation distincte par l'utilisateur. |
+
+**Chemins d'écriture L3b, et uniquement ceux-ci après accord séparé :** `crates/whisper-core/src/model_registry.rs`, `crates/whisper-core/src/engine_capabilities.rs`, `crates/whisper-core/src/model_selection_app.rs`, `crates/whisper-core/tests/model_registry.rs` (si créé), `crates/whisper-core/tests/engine_capabilities.rs`, `crates/whisper-adapters/src/parakeet_import.rs`, `crates/whisper-adapters/src/worker_ipc.rs`, `crates/whisper-adapters/src/archive.rs`, `crates/whisper-adapters/tests/parakeet_import.rs`, `crates/whisper-adapters/tests/parakeet_archive.rs`, `crates/whisper-desktop/src/root.rs`, `crates/whisper-desktop/src/ui.rs`, `docs/cadrage/fiche-parakeet-l3-gpu-test.md`, `docs/cadrage/bilan-parakeet-l3-gpu-import.md`. Écritures d'exécution : `target/parakeet-tests/l3/l3b/` et le Cargo partagé seulement. `models/`, `sound example/`, worker CPU R6 et DLL de référence restent en lecture seule ; aucun push.
+
+## Portes de sortie
+
+Chaque carte est `PASS`, `FAIL` ou `NOT RUN` avec entrée, binaire/DLL/SHA, commande, sortie et cause. Un simple `Ready`, une chaîne « CUDA0 », une compilation ou une allocation ne qualifie pas le GPU. Si L3a ne prouve pas le périphérique physique attendu, L3b n'admet pas la clé GPU. Si un chemin d'écriture additionnel, un changement de protocole non additif ou une modification C++ est nécessaire, retourner `PLAN_CHANGE_REQUIRED` sans l'entreprendre. Après L3b CLEAN, L6-perso sera amendé et revu pour intégrer le worker GPU **release** ; aucun droit d'installation n'est dérivé de L3.
