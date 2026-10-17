@@ -3789,6 +3789,7 @@ dependencies = [
  "rfd",
  "rtrb",
  "rubato",
+ "same-file",
  "serde",
  "serde_json",
  "sha2",

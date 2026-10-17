@@ -1640,7 +1640,8 @@ impl ArchiveStore {
         let durable_model_path = request.model_path.clone();
         let model_path = executable_model_path.unwrap_or(&request.model_path);
         let model_meta = fs::metadata(model_path).map_err(|e| format!("ModelMissing: {e}"))?;
-        let model_hash = sha256_file(Path::new(model_path))?;
+        let (_, model_hash) = crate::model_catalog::cached_model_sha256(Path::new(model_path))
+            .map_err(|error| format!("ModelHashRead: {error}"))?;
         let is_parakeet_model = hex(&model_hash)
             == whisper_core::model_registry::model(
                 whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,

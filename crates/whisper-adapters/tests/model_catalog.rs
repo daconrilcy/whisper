@@ -17,6 +17,12 @@ fn runtime_root(name: &str) -> PathBuf {
         .join(name)
 }
 
+fn cache_test_path(name: &str) -> PathBuf {
+    let root = runtime_root("r9-model-hash-cache").join(format!("{}-{name}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    root
+}
+
 fn turbo_request(model_path: String) -> ImportRequest {
     let turbo = MODELS[0].artifact;
     let mut sha = [0; 32];
@@ -120,5 +126,80 @@ fn known_historical_turbo_path_rebinds_to_the_verified_test_catalog_path() {
             .bind_turbo_import_request(&unknown, known)
             .unwrap_err()
             .contains("chemin de modèle inconnu")
+    );
+}
+
+#[test]
+fn model_hash_cache_reuses_physical_identity_and_rehashes_changed_fingerprints() {
+    use whisper_adapters::model_catalog::{cached_model_sha256, model_sha256_full_read_count};
+
+    let root = cache_test_path("identity");
+    let model = root.join("model.gguf");
+    std::fs::write(&model, b"first registered model bytes").unwrap();
+    let first = cached_model_sha256(&model).unwrap();
+    assert_eq!(model_sha256_full_read_count(&model).unwrap(), 1);
+
+    let alias = root.join("model-hardlink.gguf");
+    std::fs::hard_link(&model, &alias).unwrap();
+    assert_eq!(cached_model_sha256(&alias).unwrap(), first);
+    assert_eq!(model_sha256_full_read_count(&alias).unwrap(), 1);
+    assert_eq!(model_sha256_full_read_count(&model).unwrap(), 1);
+
+    let before_date_change = std::fs::metadata(&model).unwrap().modified().unwrap();
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&model)
+        .unwrap();
+    file.set_times(
+        std::fs::FileTimes::new()
+            .set_modified(before_date_change + std::time::Duration::from_secs(2)),
+    )
+    .unwrap();
+    assert_eq!(cached_model_sha256(&model).unwrap(), first);
+    assert_eq!(model_sha256_full_read_count(&model).unwrap(), 1);
+
+    std::fs::write(&model, b"modified model bytes with a new size").unwrap();
+    let changed = cached_model_sha256(&model).unwrap();
+    assert_ne!(changed.1, first.1);
+    assert_eq!(model_sha256_full_read_count(&model).unwrap(), 1);
+    assert_eq!(model_sha256_full_read_count(&model).unwrap(), 1);
+
+    let copied = root.join("model-copy.gguf");
+    std::fs::copy(&model, &copied).unwrap();
+    assert_eq!(cached_model_sha256(&copied).unwrap(), changed);
+    assert_eq!(model_sha256_full_read_count(&copied).unwrap(), 1);
+    assert_eq!(model_sha256_full_read_count(&copied).unwrap(), 1);
+}
+
+#[test]
+fn model_hash_cache_serializes_concurrent_first_reads_and_fails_closed_on_missing_files() {
+    use std::sync::Arc;
+    use whisper_adapters::model_catalog::{cached_model_sha256, model_sha256_full_read_count};
+
+    let root = cache_test_path("concurrent");
+    let model = root.join("model.gguf");
+    std::fs::write(&model, vec![42_u8; 128 * 1024]).unwrap();
+    let model = Arc::new(model);
+    let threads = (0..8)
+        .map(|_| {
+            let model = Arc::clone(&model);
+            std::thread::spawn(move || cached_model_sha256(&model).unwrap())
+        })
+        .collect::<Vec<_>>();
+    let observations = threads
+        .into_iter()
+        .map(|thread| thread.join().unwrap())
+        .collect::<Vec<_>>();
+    assert!(
+        observations
+            .iter()
+            .all(|observation| *observation == observations[0])
+    );
+    assert_eq!(model_sha256_full_read_count(&model).unwrap(), 1);
+
+    assert!(cached_model_sha256(&root.join("missing.gguf")).is_err());
+    assert!(
+        cached_model_sha256(&root).is_err(),
+        "directories are not model files"
     );
 }

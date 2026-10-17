@@ -72,7 +72,12 @@ impl ParakeetWorkerPaths {
         expected_worker_sha256: &str,
     ) -> Result<(), String> {
         self.validate()?;
-        let model_sha = sha256_file(&self.model)?;
+        let (_, model_sha) = crate::model_catalog::cached_model_sha256(&self.model)
+            .map_err(|error| format!("ModelHashRead: {error}"))?;
+        let model_sha = model_sha
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
         self.verify_worker_runtime(expected_runtime_sha256, expected_worker_sha256)?;
         if !model_sha.eq_ignore_ascii_case(expected_model_sha256) {
             return Err(format!("QualificationMismatch: model={model_sha}"));
@@ -101,7 +106,12 @@ impl ParakeetWorkerPaths {
         let record = whisper_core::model_registry::model(
             whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
         );
-        let model_sha = sha256_file(&self.model)?;
+        let (_, model_sha) = crate::model_catalog::cached_model_sha256(&self.model)
+            .map_err(|error| format!("ModelHashRead: {error}"))?;
+        let model_sha = model_sha
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
         if !model_sha.eq_ignore_ascii_case(record.artifact.sha256) {
             return Err(format!("ModelHashMismatch: {model_sha}"));
         }

@@ -41,13 +41,23 @@ fn archive_root() -> PathBuf {
                 .expect("canonical R8 runtime root exists");
             path == &expected && canonical.starts_with(path)
         });
+    let r9 = std::env::var_os("PARAKEET_R9_EXEC_ROOT")
+        .map(PathBuf::from)
+        .and_then(|path| path.canonicalize().ok())
+        .filter(|path| {
+            let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../target/parakeet-tests/l2/l2b/r9")
+                .canonicalize()
+                .expect("canonical R9 runtime root exists");
+            path == &expected && canonical.starts_with(path)
+        });
     let r7 = std::env::var_os("PARAKEET_R7_EXEC_ROOT")
         .map(PathBuf::from)
         .and_then(|path| path.canonicalize().ok())
         .filter(|path| {
             path.ends_with("target/parakeet-tests/l2/l2b/r7") && canonical.starts_with(path)
         });
-    let allowed = r8.or(r7).unwrap_or_else(|| {
+    let allowed = r9.or(r8).or(r7).unwrap_or_else(|| {
         runtime
             .join("r6")
             .canonicalize()
@@ -55,7 +65,7 @@ fn archive_root() -> PathBuf {
     });
     assert!(
         canonical.starts_with(&allowed),
-        "archive root must be inside R6 or canonical R7"
+        "archive root must be inside R6, canonical R7, R8, or R9"
     );
     root
 }
@@ -146,6 +156,79 @@ fn parakeet_model_identity_prepares_persists_and_publishes_txt_srt() {
         fs::read_to_string(passage.join("transcript.srt"))
             .unwrap()
             .contains("Test archive Parakeet.")
+    );
+}
+
+#[test]
+#[ignore = "copies and mutates the real qualified GGUF inside the isolated R9 runtime"]
+fn modified_parakeet_model_is_refused_before_pending_after_cache_revalidation() {
+    use std::io::{Read, Seek, SeekFrom};
+    use whisper_adapters::model_catalog::cached_model_sha256;
+
+    let fixture_root = archive_root().join("r9-mutated-model");
+    fs::create_dir_all(&fixture_root).unwrap();
+    let original_model = required_path("PARAKEET_L2_MODEL");
+    let modified_model = fixture_root.join("model.gguf");
+    fs::copy(&original_model, &modified_model).expect("copy model into the R9 execution root");
+    let record = model(ModelId::ParakeetTdt06BV3);
+    let (original_size, original_hash) = cached_model_sha256(&modified_model).unwrap();
+    assert_eq!(original_size, record.artifact.size_bytes);
+    let original_hex = original_hash
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    assert_eq!(original_hex, record.artifact.sha256);
+
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&modified_model)
+        .unwrap();
+    let mut first_byte = [0_u8; 1];
+    file.read_exact(&mut first_byte).unwrap();
+    file.seek(SeekFrom::Start(0)).unwrap();
+    file.write_all(&[first_byte[0] ^ 1]).unwrap();
+    file.set_times(
+        std::fs::FileTimes::new()
+            .set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(2)),
+    )
+    .unwrap();
+    file.sync_all().unwrap();
+    drop(file);
+
+    let (_, changed_hash) = cached_model_sha256(&modified_model).unwrap();
+    assert_ne!(
+        changed_hash, original_hash,
+        "changed bytes must trigger a new SHA read"
+    );
+
+    let source = required_path("PARAKEET_L2_EN_WAV");
+    let output = fixture_root.join("refused-import");
+    let request = ImportRequest {
+        job_id: JobId(0x9a901),
+        generation: Generation::first(),
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: modified_model.to_string_lossy().into_owned(),
+        model_sha256: decode_sha256(record.artifact.sha256),
+        destination: output.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let error = ArchiveStore::new(&output)
+        .prepare_with_qualification(request, None, Some(qualified_key()))
+        .unwrap_err();
+    assert!(
+        error.contains("ModelHashMismatch"),
+        "unexpected refusal: {error}"
+    );
+    assert_eq!(original_hex, record.artifact.sha256);
+    assert!(
+        !output.exists(),
+        "changed model must be refused before destination/pending creation"
     );
 }
 
