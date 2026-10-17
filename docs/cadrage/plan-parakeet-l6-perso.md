@@ -1,10 +1,10 @@
-Avancée : le lot L6-perso est découpé en huit tâches vérifiables, avec installation locale et qualification release.
-Blocage : aucun binaire Perso ni chemin hors dépôt n'est autorisé à l'écriture par ce plan seul.
-Décision : soumettre cette proposition à revue indépendante, puis demander un accord d'implémentation précis.
+Avancée : L6-perso v3 a reçu CLEAN ciblé sur le dernier delta, après fermeture de L6P-02.
+Blocage : l'amendement GPU après L3 et l'accord d'implémentation restent à obtenir ; aucun binaire Perso n'est qualifié.
+Décision : PLANS READY, en attente de L3 et de cet amendement ; aucun code L6-perso maintenant.
 
-# PLAN-PARA-L6-PERSO — DRAFT v3 (17/10/2026)
+# PLAN-PARA-L6-PERSO — v3, PLANS READY en attente (17/10/2026)
 
-Base : branche `evo-startup-perf` après fusion L2 et R9 ; [note L6-perso](note-parakeet-l6-perso.md), [fiche R6 Test](fiche-parakeet-r6.md), [synthèse L2](synthese-parakeet-l2.md). Auteur documentaire : session Codex principale. Statut : **DRAFT — code interdit avant accord écrit**. L6-perso remplace L5/L6 ; **L3 GPU/import est le prochain lot**. L4, VAD adaptative et B8 sont backlog non planifié. L6-perso restera en attente après sa revue et sera amendé après L3 pour installer également le worker Parakeet GPU ; aucun code L6-perso avant ce nouvel amendement et l'accord utilisateur. Les notes L4/VAD sont conservées.
+Base : branche `evo-startup-perf` après fusion L2 et R9 ; [note L6-perso](note-parakeet-l6-perso.md), [fiche R6 Test](fiche-parakeet-r6.md), [synthèse L2](synthese-parakeet-l2.md). Auteur documentaire : session Codex principale. Revue indépendante : cycle initial `PLANS NOT READY`, second cycle `PLANS NOT READY` sur l'entrée EN15 ; revue ciblée supplémentaire autorisée par l'utilisateur sur `ac88705e` : **CLEAN, L6P-02 fermé**. Statut : **PLANS READY, en attente**. L6-perso remplace L5/L6 ; **L3 GPU/import est le prochain lot**. L4, VAD adaptative et B8 sont backlog non planifié. L6-perso sera amendé après L3 pour installer également le worker Parakeet GPU ; aucun code L6-perso avant ce nouvel amendement et l'accord utilisateur. Les notes L4/VAD sont conservées.
 
 ## Préflight et garde
 
