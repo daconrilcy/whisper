@@ -6,6 +6,8 @@ Décision : R6 et le plan R7 v2 sont commis localement ; R7 est autorisé à l'i
 
 **Statut : CLEAN — PLANS READY v2 au second et dernier cycle.** Base de la revue : branche `wip/l2b-candidate`, HEAD `8a5b49b0`, worker R6 `1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0`. Le commit R6 avec réserves et le plan R7 v2 ont été autorisés par l'utilisateur le 17/10/2026. L'implémentation R7 est autorisée conditionnellement à la revue d'un amendement de deux tests. B8 reste inactive. La limite Test de passe unique de 30 min est acceptée. R7 ne modifie ni la VAD, ni l'admission produit. La revue v1 a conclu NOT READY sur R7-P1/R7-P2 ; ces constats sont fermés par la revue indépendante v2. Les ajustements ultérieurs de statut ne changent aucune tâche technique.
 
+Le [bilan R7](bilan-parakeet-r7.md) est conservé dans le cadrage ; ses journaux bruts sont archivés hors Git sous `C:\dev\whisper-evidence\l2b-r7\`.
+
 ## 1. Condition héritée de R6
 
 La garde R6 à échec fermé a été testée OK/KO avant `cargo test --offline --locked --workspace`, puis avant la relance complète avec `--no-fail-fast`. Cette dernière a échoué sur **trois** tests. L'utilisateur a ensuite autorisé le commit R6 avec ces trois réserves explicites :
