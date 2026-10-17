@@ -152,7 +152,7 @@ fn parakeet_duration_selects_adapter_profile_not_core_admission() {
 }
 
 #[test]
-fn only_the_recorded_l2a2_cpu_test_key_is_qualified() {
+fn only_the_current_r6_cpu_test_key_is_qualified() {
     let snapshot = engine_snapshot(1, |_| ModelAvailability::Ready, vec![]);
     let cpu = snapshot
         .capabilities
@@ -169,7 +169,11 @@ fn only_the_recorded_l2a2_cpu_test_key_is_qualified() {
     );
     assert_eq!(
         cpu.key.worker_build,
-        "545a4830755da613a1255be97fbc6a6a513ef837d669d8a9870d3bbee9dfd587"
+        "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0"
+    );
+    assert_ne!(
+        cpu.key.worker_build, "545a4830755da613a1255be97fbc6a6a513ef837d669d8a9870d3bbee9dfd587",
+        "retired L2a-2 key is refused for a new import"
     );
     assert_eq!(cpu.key.worker_protocol, 2);
     assert_eq!(cpu.key.inference_profile, "import-single-pass");

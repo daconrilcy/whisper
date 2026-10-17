@@ -10,6 +10,7 @@ use std::{
     fs::File,
     io::{self, BufRead, Write},
     path::{Path, PathBuf},
+    time::{Duration, Instant},
 };
 
 use sha2::{Digest, Sha256};
@@ -65,7 +66,13 @@ fn run() -> Result<(), String> {
         return Err("ModelHashMismatch: model SHA-256 differs from the configured identity".into());
     }
 
+    let engine_started = Instant::now();
     let mut engine = native_engine::Engine::load(&native_dir, &model)?;
+    record_r7_timing(
+        "engine_load_model_and_dll",
+        engine_started.elapsed(),
+        serde_json::json!({}),
+    );
     let executable = env::current_exe().map_err(|e| format!("WorkerPath: {e}"))?;
     let worker_sha256 = sha256_file(&executable)?;
     let identity = WorkerIdentity {
@@ -319,6 +326,7 @@ fn transcribe_one(
             "source SHA-256 differs from request".into(),
         ));
     }
+    let decode_started = Instant::now();
     let decoded = if profile == PROFILE_QUALIFICATION_REFERENCE {
         #[cfg(feature = "parakeet-qualification-reference")]
         {
@@ -334,6 +342,13 @@ fn transcribe_one(
     } else {
         decoder::decode_file(&canonical).map_err(|error| ("DecodeFailed", error))?
     };
+    record_r7_timing(
+        "audio_decode",
+        decode_started.elapsed(),
+        serde_json::json!({
+            "samples": decoded.samples.len(), "source_sha256": actual_sha,
+        }),
+    );
     let duration_samples = decoded.samples.len() as u64;
     let result = if profile == PROFILE_QUALIFICATION_REFERENCE {
         #[cfg(feature = "parakeet-qualification-reference")]
@@ -680,10 +695,65 @@ fn runtime_sha256(native_dir: &Path, native_version: &str) -> Result<String, Str
 }
 
 fn sha256_file(path: &Path) -> Result<String, String> {
+    let started = Instant::now();
     let mut file = File::open(path).map_err(|e| format!("HashOpen: {e}"))?;
     let mut hasher = Sha256::new();
-    io::copy(&mut file, &mut hasher).map_err(|e| format!("HashRead: {e}"))?;
-    Ok(format!("{:x}", hasher.finalize()))
+    let bytes = io::copy(&mut file, &mut hasher).map_err(|e| format!("HashRead: {e}"))?;
+    let sha = format!("{:x}", hasher.finalize());
+    record_r7_timing(
+        "sha256",
+        started.elapsed(),
+        serde_json::json!({
+            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
+            "bytes": bytes,
+            "sha256": sha,
+        }),
+    );
+    Ok(sha)
+}
+
+fn record_r7_timing(stage: &str, elapsed: Duration, details: serde_json::Value) {
+    if env::var_os("PARAKEET_R7_TIMING_ACTIVE").as_deref() != Some(std::ffi::OsStr::new("1")) {
+        return;
+    }
+    let (Some(root), Some(path)) = (
+        env::var_os("PARAKEET_R7_EXEC_ROOT").map(PathBuf::from),
+        env::var_os("PARAKEET_R7_TIMING_LOG").map(PathBuf::from),
+    ) else {
+        eprintln!("R7 worker timing skipped: root or log path missing");
+        return;
+    };
+    let (Ok(root), Some(parent)) = (root.canonicalize(), path.parent()) else {
+        eprintln!("R7 worker timing skipped: root or log parent unavailable");
+        return;
+    };
+    let Ok(parent) = parent.canonicalize() else {
+        eprintln!("R7 worker timing skipped: log parent unavailable");
+        return;
+    };
+    if !parent.starts_with(&root) {
+        eprintln!("R7 worker timing skipped: log path escaped R7");
+        return;
+    }
+    let row = serde_json::json!({
+        "process": "private-worker",
+        "pid": std::process::id(),
+        "stage": stage,
+        "elapsed_ms": elapsed.as_secs_f64() * 1000.0,
+        "details": details,
+    });
+    match std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        Ok(mut file) => {
+            if serde_json::to_writer(&mut file, &row).is_err() || file.write_all(b"\n").is_err() {
+                eprintln!("R7 worker timing write failed");
+            }
+        }
+        Err(error) => eprintln!("R7 worker timing open failed: {error}"),
+    }
 }
 
 fn constant_time_eq(left: &str, right: &str) -> bool {

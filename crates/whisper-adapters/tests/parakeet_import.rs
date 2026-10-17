@@ -251,13 +251,162 @@ fn r6_application_single_pass_recipe() {
 }
 
 #[test]
-#[ignore = "exercises qualification refusal and native loader/export failure on private DLL copies"]
-fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() {
+#[ignore = "R7 diagnostic recipe; uses the frozen R6 worker and writes only under R7"]
+fn r7_application_timing() {
+    let case = std::env::var("PARAKEET_R7_CASE").expect("PARAKEET_R7_CASE");
+    let (samples, job_id) = match case.as_str() {
+        "en5" => (5 * 60 * 16_000, 0x7a5),
+        "en30" => (30 * 60 * 16_000, 0x7a30),
+        _ => panic!("unsupported R7 application case {case:?}"),
+    };
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let model_path = required_path("PARAKEET_L2_MODEL");
     let worker = required_path("PARAKEET_L2_WORKER");
     let native = required_path("PARAKEET_L2_NATIVE_DIR");
-    let incompatible_dir = runtime
+    let source = required_path("PARAKEET_R7_RECIPE_WAV");
+    let destination = required_path("PARAKEET_L2_ARCHIVE_ROOT")
+        .join("recipes")
+        .join(&case);
+    let _ = fs::remove_dir_all(&destination);
+    fs::create_dir_all(destination.parent().expect("recipe destination parent")).unwrap();
+    let worker_sha = sha256(&worker);
+    assert_eq!(
+        worker_sha,
+        "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0"
+    );
+    let turbo_worker = runtime.join("worker/not-used-turbo.exe");
+    let historical_turbo = runtime.join("historical/ggml-large-v3-turbo.bin");
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
+        WorkerPaths {
+            cpu: turbo_worker.clone(),
+            gpu: turbo_worker,
+        },
+        model_path.parent().unwrap().to_path_buf(),
+        historical_turbo.to_string_lossy().into_owned(),
+        Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
+            executable: worker,
+            native_dir: native,
+            model: model_path.clone(),
+            runtime_root: runtime.clone(),
+        }),
+    );
+    let snapshot = whisper_core::model_registry::engine_snapshot(
+        1,
+        |_| whisper_core::model_catalog::ModelAvailability::Ready,
+        vec![],
+    );
+    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
+        snapshot,
+        1,
+        [
+            (
+                ModelId::ParakeetTdt06BV3,
+                model_path.to_string_lossy().into_owned(),
+            ),
+            (
+                ModelId::WhisperLargeV3Turbo,
+                historical_turbo.to_string_lossy().into_owned(),
+            ),
+        ],
+    );
+    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let request = ImportRequest {
+        job_id: JobId(job_id),
+        generation: Generation::first(),
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: model_path.to_string_lossy().into_owned(),
+        model_sha256: decode_sha256(
+            whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3)
+                .artifact
+                .sha256,
+        ),
+        destination: destination.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let started = Instant::now();
+    app.dispatch(AppCommand::StartImport { request }).unwrap();
+    let timeout = Duration::from_secs(samples / 16_000 / 4 + 120);
+    let deadline = started + timeout;
+    let mut refresh_count = 0_u64;
+    let mut poll_sleep_ms = 0_u64;
+    loop {
+        refresh_count += 1;
+        let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
+            panic!("R7 {case} refresh failed: {error:?}; view={:?}", app.view())
+        });
+        if view.last_result.is_some() {
+            break;
+        }
+        if let Some((_, state)) = view.active_job {
+            assert_ne!(
+                state,
+                whisper_core::JobState::Recoverable,
+                "R7 {case} failed: {view:?}"
+            );
+            assert_ne!(
+                state,
+                whisper_core::JobState::Interrupted,
+                "R7 {case} interrupted: {view:?}"
+            );
+        }
+        assert!(
+            Instant::now() < deadline,
+            "R7 {case} exceeded {timeout:?}: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(100));
+        poll_sleep_ms += 100;
+    }
+    let app_elapsed = started.elapsed();
+    let passage = destination
+        .join("transcriptions")
+        .join(format!("{job_id:032x}"))
+        .join("1");
+    let verify_started = Instant::now();
+    assert!(
+        passage.join("transcript.txt").is_file(),
+        "R7 {case} TXT missing"
+    );
+    assert!(
+        passage.join("transcript.srt").is_file(),
+        "R7 {case} SRT missing"
+    );
+    let txt_bytes = fs::metadata(passage.join("transcript.txt")).unwrap().len();
+    let srt_bytes = fs::metadata(passage.join("transcript.srt")).unwrap().len();
+    let verify_elapsed = verify_started.elapsed();
+    let report = serde_json::json!({
+        "case": case, "source_sha256": sha256(&source), "model_sha256": sha256(&model_path),
+        "frozen_worker_sha256": worker_sha, "sample_count": samples,
+        "application_request_to_result_ms": app_elapsed.as_millis(),
+        "harness_refresh_count": refresh_count,
+        "harness_poll_sleep_ms": poll_sleep_ms,
+        "harness_txt_srt_presence_verification_ms": verify_elapsed.as_millis(),
+        "txt_bytes": txt_bytes, "srt_bytes": srt_bytes, "timeout_seconds": timeout.as_secs(),
+    });
+    let log = required_path("PARAKEET_R7_TIMING_LOG");
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .unwrap();
+    serde_json::to_writer(&mut file, &report).unwrap();
+    file.write_all(b"\n").unwrap();
+    eprintln!("R7_APP case={case} report={report}");
+}
+
+#[test]
+#[ignore = "exercises qualification refusal and native loader/export failure on private DLL copies"]
+fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() {
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let execution_root = r8_exec_root();
+    let model_path = required_path("PARAKEET_L2_MODEL");
+    let worker = required_path("PARAKEET_L2_WORKER");
+    let native = required_path("PARAKEET_L2_NATIVE_DIR");
+    let incompatible_dir = execution_root
         .join("native")
         .join(format!("r8-incompatible-{}", std::process::id()));
     fs::create_dir_all(&incompatible_dir).unwrap();
@@ -297,7 +446,7 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
     assert!(refusal.starts_with("QualificationMismatch: runtime="));
 
     let source = required_path("PARAKEET_L2_EN_WAV");
-    let destination = runtime.join(format!("archive/r8-loader-{}", std::process::id()));
+    let destination = execution_root.join(format!("archive/r8-loader-{}", std::process::id()));
     fs::create_dir_all(&destination).unwrap();
     let dummy_turbo = runtime.join("worker/not-used-turbo.exe");
     let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
@@ -352,10 +501,15 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         },
     };
     app.dispatch(AppCommand::StartImport { request }).unwrap();
-    let deadline = Instant::now() + Duration::from_secs(30);
+    // Preparing can include several minutes of adapter/model setup on the
+    // constrained qualification host; this is a harness ceiling, not a
+    // product response-time criterion.
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs(240);
     let refusal_message = loop {
         let view = app.dispatch(AppCommand::Refresh).unwrap();
         if view.active_job == Some((job_id, whisper_core::JobState::Recoverable)) {
+            eprintln!("R8 loader refusal observed after {:?}", started.elapsed());
             break view.message.unwrap_or_default();
         }
         assert!(
@@ -364,7 +518,10 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         );
         thread::sleep(Duration::from_millis(10));
     };
-    assert!(refusal_message.contains("QualificationMismatch"));
+    assert!(
+        refusal_message.contains("ModelNotQualified: exact Test worker/runtime key is required"),
+        "unexpected refusal: {refusal_message}"
+    );
     let passage = passage_dir(&destination, job_id, generation);
     assert!(
         !passage.join("pending.json").exists(),
@@ -406,7 +563,7 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
 #[test]
 #[ignore = "kills a qualified native worker during an active inference request"]
 fn killed_native_worker_is_reported_as_exit_without_result() {
-    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let execution_root = r8_exec_root();
     let source = required_path("PARAKEET_L2_EN_WAV");
     let mut process = ParakeetProcess::spawn(&configured_paths()).unwrap();
     let identity = wait_for_ready(&mut process);
@@ -427,15 +584,17 @@ fn killed_native_worker_is_reported_as_exit_without_result() {
     let error = poll_until_error(&mut process, Duration::from_secs(10));
     assert!(error.starts_with("WorkerExited:"), "{error}");
     assert!(!error.contains("Result"));
-    assert!(runtime.join("archive").exists());
+    assert!(execution_root.join("archive").exists());
 }
 
 #[test]
 #[ignore = "injects an incomplete Result frame at the process transport boundary"]
 fn incomplete_result_frame_is_rejected_as_transport_decode_failure() {
-    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
-    let fake_source = runtime.join("worker/incomplete-result-worker.rs");
-    let fake_worker = runtime.join("worker/incomplete-result-worker.exe");
+    let execution_root = r8_exec_root();
+    let worker_dir = execution_root.join("worker");
+    fs::create_dir_all(&worker_dir).unwrap();
+    let fake_source = worker_dir.join("incomplete-result-worker.rs");
+    let fake_worker = worker_dir.join("incomplete-result-worker.exe");
     fs::write(
         &fake_source,
         "fn main() { println!(\"{{\\\"version\\\":1,\\\"message\\\":{{\\\"type\\\":\\\"result\\\"}}}}\"); }\n",
@@ -475,10 +634,11 @@ fn product_route_incomplete_result_preserves_pending_source_and_rejects_completi
 
 fn run_product_transport_failure(signal: &str, expected_error: &str, job_id: JobId) {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let execution_root = r8_exec_root();
     let source = required_path("PARAKEET_L2_EN_WAV");
     let source_sha_before = format!("{:x}", Sha256::digest(fs::read(&source).unwrap()));
     let model_path = required_path("PARAKEET_L2_MODEL");
-    let destination = runtime.join(format!("archive/product-{signal}-{}", std::process::id()));
+    let destination = execution_root.join(format!("archive/product-{signal}-{}", std::process::id()));
     let control = destination.join(".l2a2-acceptance");
     fs::create_dir_all(&control).unwrap();
     // Arm before launch; the adapter consumes the signal only after accepting
@@ -637,6 +797,17 @@ fn poll_until_error(process: &mut ParakeetProcess, timeout: Duration) -> String 
 
 fn required_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("{name} is required")))
+}
+
+fn r8_exec_root() -> PathBuf {
+    required_path("PARAKEET_R8_EXEC_ROOT")
+}
+
+fn sha256(path: &std::path::Path) -> String {
+    let mut file = fs::File::open(path).unwrap();
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut file, &mut hasher).unwrap();
+    format!("{:x}", hasher.finalize())
 }
 
 fn decode_sha256(value: &str) -> [u8; 32] {

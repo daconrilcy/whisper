@@ -1,10 +1,11 @@
 use std::{
     collections::BTreeMap,
-    env, fs,
+    env,
+    fs::{self, OpenOptions},
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use sha2::{Digest, Sha256};
@@ -302,6 +303,121 @@ fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_un
         "L2A1_NATIVE_REPORT {}",
         serde_json::to_string(&report).unwrap()
     );
+}
+
+#[test]
+#[ignore = "R7 private diagnostic worker recipe; has a parent-enforced duration deadline"]
+fn r7_private_worker_timing() {
+    let case = env::var("PARAKEET_R7_CASE").expect("PARAKEET_R7_CASE");
+    assert!(matches!(case.as_str(), "en5" | "en30"));
+    let root = required_path("PARAKEET_R7_EXEC_ROOT");
+    let log_dir = root.join("logs");
+    fs::create_dir_all(&log_dir).unwrap();
+    let stdout_path = log_dir.join(format!("{case}-private-child.stdout"));
+    let stderr_path = log_dir.join(format!("{case}-private-child.stderr"));
+    let stdout = fs::File::create(&stdout_path).unwrap();
+    let stderr = fs::File::create(&stderr_path).unwrap();
+    let test_exe = env::current_exe().unwrap();
+    let mut child = Command::new(test_exe)
+        .args([
+            "--ignored",
+            "--exact",
+            "r7_private_worker_timing_child",
+            "--nocapture",
+        ])
+        .env("PARAKEET_R7_PRIVATE_CHILD", "1")
+        .stdout(Stdio::from(stdout))
+        .stderr(Stdio::from(stderr))
+        .spawn()
+        .unwrap();
+    let samples = match case.as_str() {
+        "en5" => 5 * 60 * 16_000,
+        _ => 30 * 60 * 16_000,
+    };
+    let timeout = Duration::from_secs(samples / 16_000 / 4 + 120);
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            assert!(
+                status.success(),
+                "private worker child failed; stdout={} stderr={}",
+                stdout_path.display(),
+                stderr_path.display()
+            );
+            break;
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let status = child.wait().unwrap();
+            panic!("private worker child exceeded {timeout:?}: {status}");
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
+#[test]
+#[ignore = "nested child for the parent-enforced R7 private timing recipe"]
+fn r7_private_worker_timing_child() {
+    if env::var_os("PARAKEET_R7_PRIVATE_CHILD").is_none() {
+        return;
+    }
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let model = required_path("PARAKEET_L2_MODEL");
+    let native_dir = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = required_path("PARAKEET_R7_PRIVATE_WORKER");
+    let source = required_path("PARAKEET_R7_RECIPE_WAV");
+    let model_sha = sha256(&model);
+    let worker_sha = sha256(&worker);
+    let started = Instant::now();
+    let mut process = WorkerProcess::start(&worker, &model, &model_sha, &native_dir, &runtime);
+    let ready = process.receive();
+    let Event::Ready {
+        identity, backend, ..
+    } = ready.message
+    else {
+        panic!("private worker not Ready: {ready:?}");
+    };
+    assert_eq!(backend, "CPU");
+    assert_eq!(identity.build_sha256, worker_sha);
+    assert_eq!(identity.model_sha256, model_sha);
+    assert_eq!(identity.profile, PARAKEET_PROFILE_IMPORT_SINGLE_PASS);
+    let event = process.request(1, "r7-private", 1, 1, &identity, &source);
+    let Event::Result {
+        identity: result_identity,
+        duration_samples,
+        text,
+        words,
+        ..
+    } = event.message
+    else {
+        panic!("private worker inference failed: {event:?}");
+    };
+    assert_eq!(result_identity, identity);
+    assert!(!text.trim().is_empty());
+    assert!(words.iter().all(|word| word.start_ms < word.end_ms));
+    assert!(
+        words
+            .windows(2)
+            .all(|pair| pair[0].end_ms <= pair[1].start_ms)
+    );
+    process.shutdown();
+    let status = process.wait();
+    assert!(status.success());
+    let report = serde_json::json!({
+        "case": env::var("PARAKEET_R7_CASE").unwrap(), "duration_samples": duration_samples,
+        "worker_sha256": worker_sha, "model_sha256": model_sha, "source_sha256": sha256(&source),
+        "word_count": words.len(), "native_process_elapsed_ms": started.elapsed().as_millis(),
+        "result": "private diagnostic only; no product qualification",
+    });
+    let log = required_path("PARAKEET_R7_TIMING_LOG");
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .unwrap();
+    serde_json::to_writer(&mut file, &report).unwrap();
+    file.write_all(b"\n").unwrap();
+    println!("R7_PRIVATE {report}");
 }
 
 #[test]

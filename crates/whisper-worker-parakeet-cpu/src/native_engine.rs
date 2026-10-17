@@ -59,11 +59,23 @@ impl Engine {
         }
         let started = Instant::now();
         let result = self.recognizer.transcribe(&audio.samples);
+        let inference_elapsed = started.elapsed();
+        crate::record_r7_timing(
+            "native_inference",
+            inference_elapsed,
+            serde_json::json!({ "samples": audio.samples.len() }),
+        );
         if let Some(log) = std::env::var_os("PARAKEET_R6_TIMING_LOG") {
-            log_native_timing(PathBuf::from(log), audio.samples.len(), started.elapsed())?;
+            log_native_timing(PathBuf::from(log), audio.samples.len(), inference_elapsed)?;
         }
         let result = result?;
+        let normalize_started = Instant::now();
         let words = normalize_words(&result.words, duration_ms)?;
+        crate::record_r7_timing(
+            "word_normalization",
+            normalize_started.elapsed(),
+            serde_json::json!({ "words": words.len() }),
+        );
         let text = words
             .iter()
             .map(|word| word.text.as_str())

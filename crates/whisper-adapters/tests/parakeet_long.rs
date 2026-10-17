@@ -634,6 +634,7 @@ fn fr_synthetic_long_reference_and_vad_use_same_candidate() {
 }
 
 #[test]
+#[ignore = "requires explicit B9 noise fixtures for -40, -30, and -20 dBFS"]
 fn b9_reports_noise_floor_silence_counts_and_cut_plans() {
     let runtime = path_var("PARAKEET_L2_RUNTIME_ROOT");
     let cases = [

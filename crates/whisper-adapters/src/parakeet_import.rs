@@ -7,6 +7,7 @@ use std::{
     process::{Child, ChildStdin, Command, Stdio},
     sync::mpsc::{self, Receiver, SyncSender, TryRecvError},
     thread,
+    time::{Duration, Instant},
 };
 
 use whisper_core::parakeet_ipc::{
@@ -164,10 +165,23 @@ fn runtime_sha256(native_dir: &Path) -> Result<String, String> {
 }
 
 fn sha256_file(path: &Path) -> Result<String, String> {
+    let started = Instant::now();
     let mut file = std::fs::File::open(path).map_err(|error| format!("HashOpen: {error}"))?;
     let mut hasher = Sha256::new();
-    std::io::copy(&mut file, &mut hasher).map_err(|error| format!("HashRead: {error}"))?;
-    Ok(format!("{:x}", hasher.finalize()))
+    let bytes =
+        std::io::copy(&mut file, &mut hasher).map_err(|error| format!("HashRead: {error}"))?;
+    let sha = format!("{:x}", hasher.finalize());
+    crate::worker_ipc::record_r7_timing(
+        "sha256",
+        started.elapsed(),
+        serde_json::json!({
+            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
+            "role": if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("dll")) { "runtime_dll" } else if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("gguf")) { "model" } else if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("wav")) { "audio" } else if path.file_name().is_some_and(|name| name.to_string_lossy().contains("worker")) { "worker" } else { "other" },
+            "bytes": bytes,
+            "sha256": sha,
+        }),
+    );
+    Ok(sha)
 }
 
 pub struct ParakeetProcess {
@@ -180,6 +194,9 @@ pub struct ParakeetProcess {
     identity: Option<WorkerIdentity>,
     expected_profile: String,
     request_id: u64,
+    spawned_at: Instant,
+    spawn_elapsed: Duration,
+    request_started_at: Option<Instant>,
 }
 
 impl ParakeetProcess {
@@ -239,6 +256,7 @@ impl ParakeetProcess {
         } else if profile == PROFILE_QUALIFICATION_REFERENCE {
             command.arg("--qualification-reference");
         }
+        let spawn_started = Instant::now();
         let mut child = command
             .env("PARAKEET_L2_RUNTIME_ROOT", &paths.runtime_root)
             .stdin(Stdio::piped())
@@ -246,6 +264,14 @@ impl ParakeetProcess {
             .stderr(Stdio::null())
             .spawn()
             .map_err(|error| format!("WorkerStart: {error}"))?;
+        let spawn_elapsed = spawn_started.elapsed();
+        crate::worker_ipc::record_r7_timing(
+            "worker_spawn",
+            spawn_elapsed,
+            serde_json::json!({
+                "worker": paths.executable.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
+            }),
+        );
         let input = child
             .stdin
             .take()
@@ -297,6 +323,9 @@ impl ParakeetProcess {
             identity: None,
             expected_profile: profile.to_owned(),
             request_id: 0,
+            spawned_at: spawn_started,
+            spawn_elapsed,
+            request_started_at: None,
         })
     }
 
@@ -306,7 +335,35 @@ impl ParakeetProcess {
             Err(TryRecvError::Empty | TryRecvError::Disconnected) => {}
         }
         match self.events.try_recv() {
-            Ok(event) => Ok(Some(event?)),
+            Ok(event) => {
+                let event = event?;
+                match &event {
+                    Event::Ready {
+                        identity, backend, ..
+                    } => {
+                        crate::worker_ipc::record_r7_timing(
+                            "worker_start_to_ready",
+                            self.spawned_at.elapsed(),
+                            serde_json::json!({
+                                "spawn_elapsed_ms": self.spawn_elapsed.as_secs_f64() * 1000.0,
+                                "backend": backend,
+                                "worker_sha256": identity.build_sha256,
+                            }),
+                        );
+                    }
+                    Event::Result { request_id, .. } => {
+                        if let Some(started) = self.request_started_at.take() {
+                            crate::worker_ipc::record_r7_timing(
+                                "worker_request_to_result",
+                                started.elapsed(),
+                                serde_json::json!({ "request_id": request_id }),
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+                Ok(Some(event))
+            }
             Err(TryRecvError::Empty) => Ok(None),
             Err(TryRecvError::Disconnected) => match self.child.try_wait() {
                 Ok(Some(status)) => Err(format!("WorkerExited: {status}")),
@@ -332,6 +389,7 @@ impl ParakeetProcess {
             .request_id
             .checked_add(1)
             .ok_or_else(|| "RequestIdentityExhausted".to_owned())?;
+        let started = Instant::now();
         self.write(&Envelope::new(WorkerCommand::Transcribe {
             request_id: self.request_id,
             job_id,
@@ -340,13 +398,21 @@ impl ParakeetProcess {
             identity,
             source_path: source_path.to_string_lossy().into_owned(),
             source_sha256,
-        }))
+        }))?;
+        self.request_started_at = Some(started);
+        Ok(())
     }
 
     pub fn accept_ready(&mut self, identity: WorkerIdentity) -> Result<(), String> {
+        let started = Instant::now();
         if identity.profile != self.expected_profile {
             return Err("ProfileMismatch".into());
         }
+        crate::worker_ipc::record_r7_timing(
+            "worker_ready_identity_validation",
+            started.elapsed(),
+            serde_json::json!({ "profile": identity.profile, "worker_sha256": identity.build_sha256 }),
+        );
         self.identity = Some(identity);
         Ok(())
     }

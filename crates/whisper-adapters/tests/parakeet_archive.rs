@@ -2,6 +2,7 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::PathBuf,
+    process::Command,
     thread,
     time::{Duration, Instant},
 };
@@ -27,13 +28,34 @@ fn required_path(name: &str) -> PathBuf {
 fn archive_root() -> PathBuf {
     let root = required_path("PARAKEET_L2_ARCHIVE_ROOT");
     let canonical = root.canonicalize().expect("archive root exists");
-    let allowed = required_path("PARAKEET_L2_RUNTIME_ROOT")
-        .join("r6")
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT")
         .canonicalize()
-        .expect("R6 runtime root exists");
+        .expect("runtime root exists");
+    let r8 = std::env::var_os("PARAKEET_R8_EXEC_ROOT")
+        .map(PathBuf::from)
+        .and_then(|path| path.canonicalize().ok())
+        .filter(|path| {
+            let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../target/parakeet-tests/l2/l2b/r8")
+                .canonicalize()
+                .expect("canonical R8 runtime root exists");
+            path == &expected && canonical.starts_with(path)
+        });
+    let r7 = std::env::var_os("PARAKEET_R7_EXEC_ROOT")
+        .map(PathBuf::from)
+        .and_then(|path| path.canonicalize().ok())
+        .filter(|path| {
+            path.ends_with("target/parakeet-tests/l2/l2b/r7") && canonical.starts_with(path)
+        });
+    let allowed = r8.or(r7).unwrap_or_else(|| {
+        runtime
+            .join("r6")
+            .canonicalize()
+            .expect("R6 runtime root exists")
+    });
     assert!(
-        canonical.starts_with(allowed),
-        "archive root must be inside R6"
+        canonical.starts_with(&allowed),
+        "archive root must be inside R6 or canonical R7"
     );
     root
 }
@@ -306,6 +328,53 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
 
 #[test]
 fn r5_2_vad_recipe_is_scoped_and_desktop_test_import_is_rejected_before_pending() {
+    if std::env::var_os("PARAKEET_R7_VAD_CHILD").is_none() {
+        let r7 = required_path("PARAKEET_R7_EXEC_ROOT")
+            .canonicalize()
+            .expect("R7 root exists");
+        let scenario = r7.join("recipe-scope");
+        if scenario.exists() {
+            assert_eq!(
+                scenario.canonicalize().unwrap(),
+                scenario,
+                "only the exact R7 recipe fixture may be replaced"
+            );
+            fs::remove_dir_all(&scenario).expect("remove prior R7 recipe fixture");
+        }
+        let injected_archive = scenario.join("r5-2/archive");
+        fs::create_dir_all(&injected_archive).expect("create isolated R7 recipe scope");
+        let output = Command::new(std::env::current_exe().expect("test executable path"))
+            .args([
+                "--exact",
+                "r5_2_vad_recipe_is_scoped_and_desktop_test_import_is_rejected_before_pending",
+                "--nocapture",
+            ])
+            .env("PARAKEET_R7_VAD_CHILD", "1")
+            .env("PARAKEET_L2_RUNTIME_ROOT", &scenario)
+            .env("PARAKEET_L2_ARCHIVE_ROOT", &injected_archive)
+            .output()
+            .expect("start isolated R4 test child");
+        assert!(
+            output.status.success(),
+            "R4 child failed: stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+
+    let r7 = required_path("PARAKEET_R7_EXEC_ROOT")
+        .canonicalize()
+        .expect("R7 root exists");
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT")
+        .canonicalize()
+        .expect("injected child runtime exists");
+    assert!(runtime.starts_with(&r7), "injected runtime escaped R7");
+    let archive = required_path("PARAKEET_L2_ARCHIVE_ROOT")
+        .canonicalize()
+        .expect("injected archive exists");
+    assert!(archive.starts_with(runtime.join("r5-2")));
+
     let source = required_path("PARAKEET_L2_EN_LONG_WAV");
     let model_path = required_path("PARAKEET_L2_MODEL");
     let record = model(ModelId::ParakeetTdt06BV3);
@@ -324,7 +393,7 @@ fn r5_2_vad_recipe_is_scoped_and_desktop_test_import_is_rejected_before_pending(
         },
     };
 
-    let recipe_destination = archive_root().join("r5-2-vad-recipe-accepted");
+    let recipe_destination = archive.join("r5-2-vad-recipe-accepted");
     let _ = fs::remove_dir_all(&recipe_destination);
     ArchiveStore::new(&recipe_destination)
         .prepare_with_qualification(
@@ -334,9 +403,7 @@ fn r5_2_vad_recipe_is_scoped_and_desktop_test_import_is_rejected_before_pending(
         )
         .expect("the exact VAD key remains usable for the scoped recipe");
 
-    let desktop_destination = required_path("PARAKEET_L2_RUNTIME_ROOT")
-        .join("r5-2")
-        .join("ordinary-desktop-test-import");
+    let desktop_destination = runtime.join("r5-2").join("ordinary-desktop-test-import");
     let error = ArchiveStore::new(&desktop_destination)
         .prepare_with_qualification(
             make_request(&desktop_destination, 0x1af),

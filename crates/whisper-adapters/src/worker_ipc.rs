@@ -47,6 +47,59 @@ fn vad_word_overlap_within_one_tdt_frame(start_sample: u64, previous_end_sample:
     start_sample.saturating_add(TDT_FRAME_OVERLAP_SAMPLES) >= previous_end_sample
 }
 
+pub(crate) fn record_r7_timing(stage: &str, elapsed: Duration, details: serde_json::Value) {
+    if std::env::var_os("PARAKEET_R7_TIMING_ACTIVE").as_deref() != Some(std::ffi::OsStr::new("1")) {
+        return;
+    }
+    let Some(path) = std::env::var_os("PARAKEET_R7_TIMING_LOG").map(PathBuf::from) else {
+        eprintln!("R7 timing skipped: log path is absent");
+        return;
+    };
+    let Some(root) = std::env::var_os("PARAKEET_R7_EXEC_ROOT").map(PathBuf::from) else {
+        eprintln!("R7 timing skipped: execution root is absent");
+        return;
+    };
+    let Ok(root) = root.canonicalize() else {
+        eprintln!("R7 timing skipped: execution root is unavailable");
+        return;
+    };
+    let Some(parent) = path.parent() else {
+        eprintln!("R7 timing skipped: log path has no parent");
+        return;
+    };
+    let Ok(parent) = parent.canonicalize() else {
+        eprintln!("R7 timing skipped: log parent is unavailable");
+        return;
+    };
+    if !parent.starts_with(&root) {
+        eprintln!("R7 timing skipped: log path escaped R7");
+        return;
+    }
+    static PROCESS_START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+    let at_ms = PROCESS_START
+        .get_or_init(Instant::now)
+        .elapsed()
+        .as_millis();
+    let mut file = match fs::OpenOptions::new().create(true).append(true).open(path) {
+        Ok(file) => file,
+        Err(error) => {
+            eprintln!("R7 timing log open failed: {error}");
+            return;
+        }
+    };
+    let row = serde_json::json!({
+        "process": "adapter",
+        "pid": std::process::id(),
+        "at_ms": at_ms,
+        "stage": stage,
+        "elapsed_ms": elapsed.as_secs_f64() * 1000.0,
+        "details": details,
+    });
+    if serde_json::to_writer(&mut file, &row).is_err() || file.write_all(b"\n").is_err() {
+        eprintln!("R7 timing log write failed");
+    }
+}
+
 fn append_vad_parakeet_word_group(
     groups: &mut Vec<(u64, u64, Vec<String>)>,
     start_sample: u64,
@@ -4273,11 +4326,21 @@ impl ImportRuntime {
                     completed_samples: duration_samples,
                     total_samples: duration_samples,
                 });
+                let validation_started = Instant::now();
                 let validated_words =
                     match validate_single_pass_parakeet_words(&words, duration_samples) {
                         Ok(words) => words,
                         Err(error) => return Some(Err(PortError::Failed(error))),
                     };
+                crate::worker_ipc::record_r7_timing(
+                    "application_word_validation",
+                    validation_started.elapsed(),
+                    serde_json::json!({
+                        "input_words": words.len(),
+                        "validated_words": validated_words.len(),
+                    }),
+                );
+                let grouping_started = Instant::now();
                 let mut groups: Vec<(u64, u64, Vec<String>)> = Vec::new();
                 for (start, end, token) in validated_words {
                     if let Err(error) =
@@ -4286,6 +4349,11 @@ impl ImportRuntime {
                         return Some(Err(PortError::Failed(error)));
                     }
                 }
+                crate::worker_ipc::record_r7_timing(
+                    "application_word_grouping",
+                    grouping_started.elapsed(),
+                    serde_json::json!({ "groups": groups.len() }),
+                );
                 let last_sequence = groups.len() as u64;
                 for (sequence, (start, end, tokens)) in groups.into_iter().enumerate() {
                     let Some(range) = whisper_core::SourceRange::new(start, end, 16_000) else {

@@ -4,6 +4,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{BufRead, BufReader, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
+    time::Instant,
 };
 use symphonia::core::audio::Channels;
 use symphonia::core::codecs::CODEC_TYPE_MP3;
@@ -1589,6 +1590,22 @@ impl ArchiveStore {
 
     fn prepare_inner(
         &mut self,
+        request: ImportRequest,
+        executable_model_path: Option<&str>,
+        qualification: Option<ArchiveQualificationKey>,
+    ) -> Result<ImportRequest, String> {
+        let started = Instant::now();
+        let result = self.prepare_inner_impl(request, executable_model_path, qualification);
+        crate::worker_ipc::record_r7_timing(
+            "archive_prepare_pending",
+            started.elapsed(),
+            serde_json::json!({ "success": result.is_ok() }),
+        );
+        result
+    }
+
+    fn prepare_inner_impl(
+        &mut self,
         mut request: ImportRequest,
         executable_model_path: Option<&str>,
         qualification: Option<ArchiveQualificationKey>,
@@ -1889,6 +1906,7 @@ impl ArchiveStore {
     }
 
     pub fn persist_segment(&mut self, segment: &WorkerSegment) -> Result<u64, String> {
+        let started = Instant::now();
         let active = self
             .current
             .as_mut()
@@ -1919,6 +1937,11 @@ impl ArchiveStore {
         file.sync_all()
             .map_err(|e| format!("StorageUnavailable: segment sync failed: {e}"))?;
         active.expected_sequence += 1;
+        crate::worker_ipc::record_r7_timing(
+            "archive_persist_segment",
+            started.elapsed(),
+            serde_json::json!({ "sequence": record.sequence, "text_bytes": record.text.len() }),
+        );
         Ok(record.sequence)
     }
 
@@ -1928,6 +1951,7 @@ impl ArchiveStore {
         generation: Generation,
         expected_count: u64,
     ) -> Result<(), String> {
+        let started = Instant::now();
         let active = self
             .current
             .as_ref()
@@ -2001,10 +2025,16 @@ impl ArchiveStore {
                 .map_err(|e| format!("StorageCorrupt: manifest: {e}"))?;
         verify_artifact(&active.directory, &verified.text)?;
         verify_artifact(&active.directory, &verified.srt)?;
+        crate::worker_ipc::record_r7_timing(
+            "archive_prepare_publish",
+            started.elapsed(),
+            serde_json::json!({ "segments": expected_count, "text_bytes": text.len(), "srt_bytes": srt.len() }),
+        );
         Ok(())
     }
 
     pub fn commit_publish(&mut self, job_id: JobId, generation: Generation) -> Result<(), String> {
+        let started = Instant::now();
         let active = self
             .current
             .as_ref()
@@ -2026,6 +2056,11 @@ impl ArchiveStore {
         operation?;
         l04_campaign_gate("import.after_current", job_id.0, generation.get(), 0)?;
         self.current = None;
+        crate::worker_ipc::record_r7_timing(
+            "archive_commit_publish",
+            started.elapsed(),
+            serde_json::json!({ "job_id": format!("{:032x}", job_id.0), "generation": generation.get() }),
+        );
         Ok(())
     }
 
@@ -2814,6 +2849,7 @@ fn write_new_synced(path: &Path, bytes: &[u8]) -> Result<(), String> {
     file.sync_all().map_err(|e| e.to_string())
 }
 fn write_replace_synced(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let started = Instant::now();
     let temporary = path.with_extension(format!(
         "{}.tmp",
         path.extension().and_then(|x| x.to_str()).unwrap_or("data")
@@ -2827,7 +2863,16 @@ fn write_replace_synced(path: &Path, bytes: &[u8]) -> Result<(), String> {
     file.write_all(bytes).map_err(|e| e.to_string())?;
     file.sync_all().map_err(|e| e.to_string())?;
     drop(file);
-    fs::rename(temporary, path).map_err(|e| e.to_string())
+    fs::rename(temporary, path).map_err(|e| e.to_string())?;
+    crate::worker_ipc::record_r7_timing(
+        "archive_write_replace",
+        started.elapsed(),
+        serde_json::json!({
+            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
+            "bytes": bytes.len(),
+        }),
+    );
+    Ok(())
 }
 fn verified_artifact(directory: &Path, path: &Path) -> Result<ArtifactRecord, String> {
     let metadata = fs::metadata(path).map_err(|e| e.to_string())?;
@@ -2894,6 +2939,7 @@ fn verify_pcm_staging(
     Ok(())
 }
 pub fn sha256_file(path: &Path) -> Result<[u8; 32], String> {
+    let started = Instant::now();
     let mut file = File::open(path).map_err(|e| e.to_string())?;
     let mut hash = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];
@@ -2904,10 +2950,35 @@ pub fn sha256_file(path: &Path) -> Result<[u8; 32], String> {
         }
         hash.update(&buffer[..count]);
     }
-    Ok(hash.finalize().into())
+    let digest: [u8; 32] = hash.finalize().into();
+    crate::worker_ipc::record_r7_timing(
+        "archive_sha256",
+        started.elapsed(),
+        serde_json::json!({
+            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
+            "bytes": file.metadata().map(|meta| meta.len()).unwrap_or(0),
+            "sha256": hex(&digest),
+        }),
+    );
+    Ok(digest)
 }
 
 pub(crate) fn source_output_samples(path: &Path) -> Result<u64, String> {
+    let started = Instant::now();
+    let result = source_output_samples_inner(path);
+    crate::worker_ipc::record_r7_timing(
+        "archive_audio_probe",
+        started.elapsed(),
+        serde_json::json!({
+            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
+            "samples": result.as_ref().ok().copied(),
+            "error": result.as_ref().err(),
+        }),
+    );
+    result
+}
+
+fn source_output_samples_inner(path: &Path) -> Result<u64, String> {
     let file = File::open(path).map_err(|e| format!("SourceMissing: {e}"))?;
     let source = MediaSourceStream::new(Box::new(file), Default::default());
     let hint = Hint::new();
