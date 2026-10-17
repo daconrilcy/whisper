@@ -1,10 +1,10 @@
-Avancée : les trois arbitrages utilisateur ferment R6-P1 à R6-P3 dans le plan v2 ; la recette 60 min reste informative et privée.
-Blocage : le second et dernier verdict indépendant reste à obtenir avant toute implémentation.
-Décision : si ce verdict est CLEAN, implémenter R6 dans les seuls chemins autorisés après préflight ; sinon arrêter sans code.
+Avancée : les trois arbitrages utilisateur ferment R6-P1 à R6-P3 ; le second verdict indépendant est CLEAN — PLANS READY.
+Blocage : aucun constat de plan bloquant ; les recettes et le préflight d'implémentation restent à exécuter.
+Décision : l'autorisation conditionnelle R6 est effective dans les seuls chemins autorisés, sous garde R6 à échec fermé.
 
 # PLAN-PARA-L2b-R6 v2 — normalisation et limite de passe unique
 
-**Statut : DRAFT v2, second et dernier cycle de revue indépendante demandé.** Base : `wip/l2b-candidate`, diagnostic `2470d297`, verdict v1 `40920b49`, décisions utilisateur du 17/10/2026 répondant à R6-P1–P3. R5-2 A4 est Qualified Test pour l'ancienne clé ; B8 reste inactive. Ce plan couvre un seul lot R6, sans VAD adaptative. L'autorisation conditionnelle d'implémentation ne devient effective qu'après CLEAN.
+**Statut : CLEAN — PLANS READY pour R6 v2 au commit `922c6592` ; implémentation R6 autorisée conditionnellement par l'utilisateur.** Base : `wip/l2b-candidate`, diagnostic `2470d297`, verdict v1 `40920b49`, décisions utilisateur du 17/10/2026 répondant à R6-P1–P3. R5-2 A4 est Qualified Test pour l'ancienne clé ; B8 reste inactive. Ce plan couvre un seul lot R6, sans VAD adaptative.
 
 ## 1. Résultat produit et chemins
 
@@ -107,3 +107,7 @@ Le reviewer compare chaque exigence utilisateur au chemin et à l'essai qui la p
 | R6-P3, BLOQUANT | Refus de durée avant pending, également à l'archive | R6-2 prévoit une garde de durée dans `archive.rs`, mais ce fichier est autorisé seulement pour le changement de clé. | Étendre l'autorisation de `archive.rs` et de son test à la garde de durée/reprise, ou réduire explicitement la garantie aux seules entrées applicatives gardées dans `worker_ipc.rs`. |
 
 Le reviewer demande aussi, à titre **IMPORTANT non bloquant**, de préciser les commandes, les features et la mesure du temps de calcul. Il n'a modifié aucun fichier. Le prochain cycle de revue attend les trois décisions ci-dessus ; une reformulation du plan ne peut pas créer les permissions manquantes.
+
+### Verdict indépendant du cycle 2
+
+**CLEAN — PLANS READY pour R6 v2 (`922c6592`).** R6-P1 à P3 sont fermés par les arbitrages utilisateur reproduits au § 5 ; les commandes et les deux temps demandés ferment R6-P4. Le reviewer n'a modifié aucun fichier. Avis d'exécution non bloquant : avant les tests workspace, confiner aussi les racines de sortie écrites en dur dans les tests autorisés (`worker_ipc.rs:6120–6125`, `tests/parakeet_import.rs:71`) ; une garde de variables seule ne suffit pas. Si un test non filtré exige une correction dans un chemin non autorisé, arrêter à `PLAN_CHANGE_REQUIRED`.
