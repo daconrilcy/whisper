@@ -12,6 +12,7 @@ use whisper_core::parakeet_ipc::{
     Command as WorkerCommand, Envelope, Event, PARAKEET_IPC_VERSION,
     PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity,
 };
+use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;
 
 #[test]
 #[ignore = "runs real Parakeet CPU inference with locally installed native DLLs"]
@@ -416,6 +417,86 @@ fn cpu_worker_normalizes_fr87_fr27_and_en15_short_fixtures() {
     );
 }
 
+#[test]
+#[ignore = "informative private EN60 reference recipe; not product qualification"]
+fn r6_reference_en60() {
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let output_dir = required_path("PARAKEET_L2_OUTPUT_DIR");
+    let model = required_path("PARAKEET_L2_MODEL");
+    let native_dir = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = required_path("PARAKEET_L2_WORKER");
+    let source = required_path("PARAKEET_R6_RECIPE_WAV");
+    ensure_under(&output_dir, &runtime.join("r6"));
+    assert!(source.metadata().unwrap().len() > 0);
+    fs::create_dir_all(&output_dir).unwrap();
+
+    let model_sha = sha256(&model);
+    let started = Instant::now();
+    let mut process =
+        WorkerProcess::start_reference(&worker, &model, &model_sha, &native_dir, &runtime);
+    let ready = process.receive();
+    let Event::Ready {
+        identity, backend, ..
+    } = ready.message
+    else {
+        panic!("EN60 worker did not attest Ready: {ready:?}");
+    };
+    assert_eq!(identity.model_sha256, model_sha);
+    assert_eq!(identity.profile, PROFILE_QUALIFICATION_REFERENCE);
+    assert_eq!(identity.build_sha256, sha256(&worker));
+    assert_eq!(backend, "CPU");
+
+    let event = process.request(1, "r6-en60", 1, 1, &identity, &source);
+    let Event::Result {
+        identity: result_identity,
+        duration_samples,
+        text,
+        words,
+        ..
+    } = event.message
+    else {
+        panic!("EN60 reference inference failed: {event:?}");
+    };
+    assert_eq!(result_identity, identity);
+    assert_eq!(duration_samples, 60 * 60 * 16_000);
+    assert!(!text.trim().is_empty());
+    assert!(words.iter().all(|word| word.start_ms < word.end_ms));
+    assert!(
+        words
+            .windows(2)
+            .all(|pair| pair[0].end_ms <= pair[1].start_ms)
+    );
+    process.shutdown();
+    let exit = process.wait();
+    assert!(
+        exit.success(),
+        "EN60 reference worker exited unsuccessfully: {exit}"
+    );
+
+    let report = serde_json::json!({
+        "case": "en60",
+        "profile": PROFILE_QUALIFICATION_REFERENCE,
+        "worker_sha256": sha256(&worker),
+        "model_sha256": model_sha,
+        "source_sha256": sha256(&source),
+        "duration_samples": duration_samples,
+        "native_and_process_elapsed_ms": started.elapsed().as_millis(),
+        "word_count": words.len(),
+        "result": "informative private reference; no product qualification",
+    });
+    fs::write(
+        output_dir.join("r6-en60-reference.json"),
+        serde_json::to_vec_pretty(&report).unwrap(),
+    )
+    .unwrap();
+    println!(
+        "R6_EN60 samples={duration_samples} words={} elapsed_ms={} worker_sha256={}",
+        words.len(),
+        started.elapsed().as_millis(),
+        sha256(&worker)
+    );
+}
+
 struct WorkerProcess {
     child: Child,
     stdin: ChildStdin,
@@ -440,6 +521,37 @@ impl WorkerProcess {
                 native_dir.to_str().unwrap(),
             ])
             .env("PARAKEET_L2_RUNTIME_ROOT", runtime)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap();
+        Self {
+            stdin: child.stdin.take().unwrap(),
+            stdout: BufReader::new(child.stdout.take().unwrap()),
+            child,
+        }
+    }
+
+    fn start_reference(
+        worker: &Path,
+        model: &Path,
+        model_sha: &str,
+        native_dir: &Path,
+        runtime: &Path,
+    ) -> Self {
+        let mut child = Command::new(worker)
+            .args([
+                "--model",
+                model.to_str().unwrap(),
+                "--model-sha256",
+                model_sha,
+                "--native-dir",
+                native_dir.to_str().unwrap(),
+                "--qualification-reference",
+            ])
+            .env("PARAKEET_L2_RUNTIME_ROOT", runtime)
+            .env("PARAKEET_R6_CASE", "en60")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())

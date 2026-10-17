@@ -28,12 +28,12 @@ fn archive_root() -> PathBuf {
     let root = required_path("PARAKEET_L2_ARCHIVE_ROOT");
     let canonical = root.canonicalize().expect("archive root exists");
     let allowed = required_path("PARAKEET_L2_RUNTIME_ROOT")
-        .join("r5-2")
+        .join("r6")
         .canonicalize()
-        .expect("R5-2 runtime root exists");
+        .expect("R6 runtime root exists");
     assert!(
         canonical.starts_with(allowed),
-        "archive root must be inside R5-2"
+        "archive root must be inside R6"
     );
     root
 }
@@ -45,6 +45,7 @@ fn qualified_key() -> ArchiveQualificationKey {
 fn qualified_vad_key() -> ArchiveQualificationKey {
     let mut key = qualified_key();
     key.inference_profile = whisper_core::parakeet_windows::PROFILE_IMPORT_VAD.into();
+    key.worker_build = "e7672a520db87926b3da9b8e5b585a1e7e57ce53ff8b1d0fe95251046aa01f4d".into();
     key
 }
 
@@ -416,6 +417,62 @@ fn retired_l2a_pending_remains_visible_but_cannot_be_resumed() {
 }
 
 #[test]
+fn retired_r5_2_pending_is_rejected_with_retirement_cause_and_preserved() {
+    let root = archive_root().join("parakeet-retired-r5-2-pending");
+    let _ = fs::remove_dir_all(&root);
+    let source = required_path("PARAKEET_L2_EN_WAV");
+    let model_path = required_path("PARAKEET_L2_MODEL");
+    let record = model(ModelId::ParakeetTdt06BV3);
+    let request = ImportRequest {
+        job_id: JobId(0x1b0),
+        generation: Generation::first(),
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: model_path.to_string_lossy().into_owned(),
+        model_sha256: decode_sha256(record.artifact.sha256),
+        destination: root.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let prepared = ArchiveStore::new(&root)
+        .prepare_with_qualification(request, None, Some(qualified_key()))
+        .unwrap();
+    let pending_path = root
+        .join("transcriptions")
+        .join(format!("{:032x}", prepared.job_id.0))
+        .join(prepared.generation.get().to_string())
+        .join("pending.json");
+    let mut pending: serde_json::Value =
+        serde_json::from_slice(&fs::read(&pending_path).unwrap()).unwrap();
+    let mut retired_key = qualified_key();
+    retired_key.worker_build =
+        "e7672a520db87926b3da9b8e5b585a1e7e57ce53ff8b1d0fe95251046aa01f4d".into();
+    pending["qualification"] = serde_json::to_value(&retired_key).unwrap();
+    let bytes = serde_json::to_vec(&pending).unwrap();
+    fs::write(&pending_path, &bytes).unwrap();
+
+    let mut next = prepared.clone();
+    next.generation = prepared.generation.next().unwrap();
+    let error = ArchiveStore::new(&root)
+        .resume_from_with_qualification(
+            &prepared,
+            next,
+            Some(&prepared.model_path),
+            Some(retired_key),
+        )
+        .unwrap_err();
+    assert!(
+        error.contains("ancienne clé R5-2 Parakeet est retirée"),
+        "{error}"
+    );
+    assert!(error.contains("pending est conservé"), "{error}");
+    assert_eq!(fs::read(&pending_path).unwrap(), bytes);
+}
+
+#[test]
 fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix() {
     let destination = archive_root().join("parakeet-queue-resume");
     let _ = fs::remove_dir_all(&destination);
@@ -524,13 +581,13 @@ fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix() {
 }
 
 #[test]
-fn archive_admission_accepts_exactly_thirty_minutes_and_refuses_one_extra_sample() {
+fn archive_admission_accepts_exactly_qualified_limit_and_refuses_one_extra_sample() {
     let root = archive_root().join("parakeet-duration-boundary");
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).unwrap();
-    let max_samples = whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64;
-    let exact = root.join("exact-30-min.wav");
-    let over = root.join("over-30-min-one-sample.wav");
+    let max_samples = whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS * 16;
+    let exact = root.join("exact-qualified-limit.wav");
+    let over = root.join("over-qualified-limit-one-sample.wav");
     write_silence_wav(&exact, max_samples);
     write_silence_wav(&over, max_samples + 1);
     let model_path = required_path("PARAKEET_L2_MODEL");
@@ -563,6 +620,61 @@ fn archive_admission_accepts_exactly_thirty_minutes_and_refuses_one_extra_sample
             Err(()) => assert!(result.unwrap_err().contains("DurationUnsupported")),
         }
     }
+}
+
+#[test]
+fn resume_refuses_over_limit_pending_and_preserves_its_bytes() {
+    let root = archive_root().join("parakeet-duration-resume-boundary");
+    let _ = fs::remove_dir_all(&root);
+    let source = required_path("PARAKEET_L2_EN_WAV");
+    let model_path = required_path("PARAKEET_L2_MODEL");
+    let record = model(ModelId::ParakeetTdt06BV3);
+    let request = ImportRequest {
+        job_id: JobId(0x1a9),
+        generation: Generation::first(),
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: model_path.to_string_lossy().into_owned(),
+        model_sha256: decode_sha256(record.artifact.sha256),
+        destination: root.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let prepared = ArchiveStore::new(&root)
+        .prepare_with_qualification(request, None, Some(qualified_key()))
+        .unwrap();
+    let pending_path = root
+        .join("transcriptions")
+        .join(format!("{:032x}", prepared.job_id.0))
+        .join(prepared.generation.get().to_string())
+        .join("pending.json");
+    let mut pending: serde_json::Value =
+        serde_json::from_slice(&fs::read(&pending_path).unwrap()).unwrap();
+    pending["source_samples"] = serde_json::json!(
+        whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS * 16 + 1
+    );
+    let bytes = serde_json::to_vec(&pending).unwrap();
+    fs::write(&pending_path, &bytes).unwrap();
+
+    let mut next = prepared.clone();
+    next.generation = prepared.generation.next().unwrap();
+    let error = ArchiveStore::new(&root)
+        .resume_from_with_qualification(
+            &prepared,
+            next,
+            Some(&prepared.model_path),
+            Some(qualified_key()),
+        )
+        .unwrap_err();
+    assert!(
+        error.contains("Fichier trop long pour Parakeet, utilisez Turbo"),
+        "{error}"
+    );
+    assert!(error.contains("pending est conservé"), "{error}");
+    assert_eq!(fs::read(&pending_path).unwrap(), bytes);
 }
 
 fn write_silence_wav(path: &std::path::Path, samples: u64) {

@@ -1225,6 +1225,16 @@ impl RuntimeModelCatalog {
             .as_ref()
             .ok_or_else(|| "ModelNotQualified: worker Test Parakeet absent".to_owned())?;
         let key = paths.qualification_key(profile)?;
+        if let Some(samples) = source_samples {
+            if samples
+                > whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS
+                    .saturating_mul(16)
+            {
+                return Err(
+                    "DurationUnsupported: Fichier trop long pour Parakeet, utilisez Turbo".into(),
+                );
+            }
+        }
         paths.verify_qualification(
             record.artifact.sha256,
             &key.runtime_build,
@@ -5756,6 +5766,13 @@ mod tests {
         JobConfig, JobId, JobState, LanguageChoice,
     };
 
+    fn test_artifact_root(name: &str) -> PathBuf {
+        let base = std::env::var_os("PARAKEET_R6_TEST_ROOT")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target"));
+        base.join(format!("{name}-{}", std::process::id()))
+    }
+
     #[test]
     fn timestamp_guard_accepts_exactly_one_tdt_frame_overlap() {
         assert_eq!(TDT_FRAME_OVERLAP_SAMPLES, 80 * 16);
@@ -6117,9 +6134,7 @@ fn main() {
 
     #[test]
     fn retained_worker_reads_two_correlated_import_sessions_and_hits_model_cache() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target")
-            .join(format!("whisper-retained-imports-{}", std::process::id()));
+        let root = test_artifact_root("whisper-retained-imports");
         std::fs::create_dir_all(&root).unwrap();
         let marker = root.join("cache-events.txt");
         let executable = compile_multi_session_worker(&root, &marker);
@@ -6160,12 +6175,7 @@ fn main() {
 
     #[test]
     fn failed_publish_drops_pending_worker_without_starting_retention() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target")
-            .join(format!(
-                "whisper-publish-failure-cache-{}",
-                std::process::id()
-            ));
+        let root = test_artifact_root("whisper-publish-failure-cache");
         std::fs::create_dir_all(&root).unwrap();
         let marker = root.join("cache-events.txt");
         let executable = compile_multi_session_worker(&root, &marker);
@@ -6370,9 +6380,7 @@ fn main() {
 
     #[test]
     fn auto_cpu_startup_failure_ends_without_another_attempt() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target")
-            .join(format!("whisper-auto-cpu-fail-{}", std::process::id()));
+        let root = test_artifact_root("whisper-auto-cpu-fail");
         std::fs::create_dir_all(&root).unwrap();
         let marker = root.join("cpu-attempt");
         let cpu = compile_fake_worker(&root, "cpu-fail", &marker);
@@ -6405,9 +6413,7 @@ fn main() {
 
     #[test]
     fn auto_gpu_ready_is_attested_and_explicitly_admitted() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target")
-            .join(format!("whisper-auto-gpu-ready-{}", std::process::id()));
+        let root = test_artifact_root("whisper-auto-gpu-ready");
         std::fs::create_dir_all(&root).unwrap();
         let marker = root.join("begin-import");
         let gpu = compile_fake_worker(&root, "gpu-ready", &marker);
@@ -6452,12 +6458,7 @@ fn main() {
 
     #[test]
     fn auto_import_gpu_exit_after_ready_before_begin_retries_once_on_cpu() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target")
-            .join(format!(
-                "whisper-auto-gpu-exit-before-begin-{}",
-                std::process::id()
-            ));
+        let root = test_artifact_root("whisper-auto-gpu-exit-before-begin");
         std::fs::create_dir_all(&root).unwrap();
         let gpu_begin = root.join("gpu-begin");
         let cpu_started = root.join("cpu-started");
@@ -6499,9 +6500,7 @@ fn main() {
 
     #[test]
     fn auto_import_unlaunchable_gpu_uses_one_cpu_attempt() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target")
-            .join(format!("whisper-auto-gpu-spawn-{}", std::process::id()));
+        let root = test_artifact_root("whisper-auto-gpu-spawn");
         std::fs::create_dir_all(&root).unwrap();
         let marker = root.join("cpu-ready");
         let cpu = compile_fake_worker(&root, "cpu", &marker);
@@ -7827,6 +7826,62 @@ fn main() {
                 compute: ComputeChoice::Cpu,
             },
         }
+    }
+
+    #[test]
+    fn over_limit_parakeet_import_is_refused_before_pending_creation() {
+        let model = PathBuf::from(std::env::var_os("PARAKEET_L2_MODEL").expect("R6 model path"));
+        let runtime =
+            PathBuf::from(std::env::var_os("PARAKEET_L2_RUNTIME_ROOT").expect("R6 runtime root"));
+        let source =
+            PathBuf::from(std::env::var_os("PARAKEET_L2_EN_WAV").expect("R6 short source"));
+        let worker = PathBuf::from(std::env::var_os("PARAKEET_L2_WORKER").expect("R6 worker path"));
+        let native_dir =
+            PathBuf::from(std::env::var_os("PARAKEET_L2_NATIVE_DIR").expect("R6 native directory"));
+        let destination = test_artifact_root("r6-over-limit-import");
+        let mut request = test_request(JobId(0x6a31), Generation::first());
+        request.source_path = source.to_string_lossy().into_owned();
+        request.source_samples =
+            Some(whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS * 16 + 1);
+        request.model_path = model.to_string_lossy().into_owned();
+        request.model_sha256 = decode_sha256(
+            whisper_core::model_registry::model(
+                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+            )
+            .artifact
+            .sha256,
+        )
+        .unwrap();
+        request.destination = destination.to_string_lossy().into_owned();
+        request.config = JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        };
+        let catalog = RuntimeModelCatalog {
+            catalog: crate::model_catalog::LocalModelCatalog::new(
+                model.parent().expect("model directory").to_path_buf(),
+            ),
+            known_historical_turbo_path: runtime
+                .join("historical/ggml-large-v3-turbo.bin")
+                .to_string_lossy()
+                .into_owned(),
+            parakeet_paths: Some(crate::parakeet_import::ParakeetWorkerPaths {
+                executable: worker,
+                native_dir,
+                model,
+                runtime_root: runtime,
+            }),
+        };
+
+        let error = catalog.bind_import(&request).unwrap_err();
+        assert!(
+            error.contains("Fichier trop long pour Parakeet, utilisez Turbo"),
+            "{error}"
+        );
+        assert!(
+            !destination.exists(),
+            "refusal must happen before archive/pending creation"
+        );
     }
 
     #[test]

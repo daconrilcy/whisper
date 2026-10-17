@@ -521,6 +521,8 @@ const PARAKEET_L2B_RUNTIME_SHA256: &str =
     "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff";
 const PARAKEET_L2A_WORKER_SHA256: &str =
     "545a4830755da613a1255be97fbc6a6a513ef837d669d8a9870d3bbee9dfd587";
+const PARAKEET_R5_2_WORKER_SHA256: &str =
+    "e7672a520db87926b3da9b8e5b585a1e7e57ce53ff8b1d0fe95251046aa01f4d";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ArchiveQualificationKey {
@@ -601,6 +603,24 @@ impl ArchiveQualificationKey {
             && self.runtime_build == PARAKEET_L2B_RUNTIME_SHA256
             && self.worker == "parakeet-worker"
             && self.worker_build == PARAKEET_L2A_WORKER_SHA256
+            && self.worker_protocol == 2
+            && self.backend == "CPU"
+            && self.inference_profile == "import-single-pass"
+    }
+
+    fn is_retired_r5_2_key(&self) -> bool {
+        self.model == "parakeet-tdt-0.6b-v3"
+            && self.artifact == "parakeet-tdt-0.6b-v3.q8_0.gguf"
+            && self.artifact_revision
+                == whisper_core::model_registry::model(
+                    whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+                )
+                .artifact
+                .sha256
+            && self.runtime == "nemo-speech-asr 0.2.0"
+            && self.runtime_build == PARAKEET_L2B_RUNTIME_SHA256
+            && self.worker == "parakeet-worker"
+            && self.worker_build == PARAKEET_R5_2_WORKER_SHA256
             && self.worker_protocol == 2
             && self.backend == "CPU"
             && self.inference_profile == "import-single-pass"
@@ -1613,6 +1633,21 @@ impl ArchiveStore {
         let vad_qualification = qualification
             .as_ref()
             .is_some_and(ArchiveQualificationKey::is_parakeet_vad_test);
+        let single_pass_limit_samples =
+            whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS.saturating_mul(16);
+        if is_parakeet_model && !vad_qualification && source_samples > single_pass_limit_samples {
+            return Err(
+                "DurationUnsupported: Fichier trop long pour Parakeet, utilisez Turbo".into(),
+            );
+        }
+        if qualification
+            .as_ref()
+            .is_some_and(ArchiveQualificationKey::is_retired_r5_2_key)
+        {
+            return Err(
+                "ModelNotQualified: l'ancienne clé R5-2 Parakeet est retirée pour tout nouvel import".into(),
+            );
+        }
         let single_pass_qualification = qualification.as_ref().is_some_and(|key| {
             key.is_parakeet_import_test() && key.inference_profile == "import-single-pass"
         });
@@ -1739,6 +1774,27 @@ impl ArchiveStore {
             return Err(
                 "ModelNotQualified: l'ancienne clé Parakeet L2a est retirée pour toute reprise; le pending est conservé".into(),
             );
+        }
+        if pending
+            .qualification
+            .as_ref()
+            .is_some_and(ArchiveQualificationKey::is_retired_r5_2_key)
+        {
+            return Err(
+                "ModelNotQualified: l'ancienne clé R5-2 Parakeet est retirée pour toute reprise; le pending est conservé".into(),
+            );
+        }
+        if pending.model_sha256
+            == whisper_core::model_registry::model(
+                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+            )
+            .artifact
+            .sha256
+            && pending.source_samples
+                > whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS
+                    .saturating_mul(16)
+        {
+            return Err("ModelNotQualified: Fichier trop long pour Parakeet, utilisez Turbo; le pending est conservé".into());
         }
         if pending.source_path != previous.source_path
             || Some(pending.source_sha256.as_str())
@@ -2560,7 +2616,9 @@ fn validate_pending(pending: &PendingRecord, job_id: JobId, generation: u64) -> 
     let qualification_valid = if pending.model_sha256 == parakeet_sha {
         (pending.version == 2
             && pending.qualification.as_ref().is_some_and(|key| {
-                key == &ArchiveQualificationKey::parakeet_cpu_test() || key.is_retired_l2a_key()
+                key == &ArchiveQualificationKey::parakeet_cpu_test()
+                    || key.is_retired_l2a_key()
+                    || key.is_retired_r5_2_key()
             }))
             || (pending.version == 3
                 && pending
@@ -2910,6 +2968,7 @@ pub(crate) fn source_output_samples(path: &Path) -> Result<u64, String> {
         .map(|scaled| scaled / input_rate + 1)
         .ok_or_else(|| "UnsupportedFormat: audio duration exceeds supported range".into())
 }
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }

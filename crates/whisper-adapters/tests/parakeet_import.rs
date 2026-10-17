@@ -65,31 +65,15 @@ fn parakeet_worker_configuration_is_confined_to_the_l2a2_runtime() {
             .is_err()
     );
 
-    let mismatch_path = runtime.join("worker/mismatched-worker.exe");
-    fs::copy(&paths.executable, &mismatch_path).expect("copy worker in runtime scope");
-    OpenOptions::new()
-        .append(true)
-        .open(&mismatch_path)
-        .unwrap()
-        .write_all(b"mismatch")
-        .unwrap();
-    let mismatch = ParakeetWorkerPaths {
-        executable: mismatch_path.clone(),
-        ..paths.clone()
-    };
+    let mismatch = paths.clone();
     assert!(
         mismatch
-            .verify_qualification(
-                record.artifact.sha256,
-                &key.runtime_build,
-                &key.worker_build,
-            )
+            .verify_qualification(record.artifact.sha256, &key.runtime_build, &"0".repeat(64),)
             .unwrap_err()
             .starts_with("QualificationMismatch")
     );
-    fs::remove_file(mismatch_path).unwrap();
-
-    let missing_dll_dir = runtime.join("native/missing-dll-test");
+    let test_root = required_path("PARAKEET_R6_TEST_ROOT");
+    let missing_dll_dir = test_root.join("native/missing-dll-test");
     fs::create_dir_all(&missing_dll_dir).unwrap();
     for name in [
         "nemo_speech_asr_c.dll",
@@ -126,6 +110,143 @@ fn parakeet_worker_configuration_is_confined_to_the_l2a2_runtime() {
             .validate()
             .unwrap_err()
             .starts_with("PathOutsideRuntime")
+    );
+}
+
+#[test]
+#[ignore = "R6 single-pass recipe uses the real Parakeet worker and records app timing"]
+fn r6_application_single_pass_recipe() {
+    let case = std::env::var("PARAKEET_R6_CASE").expect("PARAKEET_R6_CASE");
+    let (samples, job_id) = match case.as_str() {
+        "en5" => (5 * 60 * 16_000, 0x6a5),
+        "en10" => (10 * 60 * 16_000, 0x6a10),
+        "en30" => (30 * 60 * 16_000, 0x6a30),
+        _ => panic!("unsupported R6 application case {case:?}"),
+    };
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let model_path = required_path("PARAKEET_L2_MODEL");
+    let worker = required_path("PARAKEET_L2_WORKER");
+    let native = required_path("PARAKEET_L2_NATIVE_DIR");
+    let source = required_path("PARAKEET_R6_RECIPE_WAV");
+    let destination = required_path("PARAKEET_L2_ARCHIVE_ROOT")
+        .join("recipes")
+        .join(&case);
+    let _ = fs::remove_dir_all(&destination);
+    fs::create_dir_all(destination.parent().expect("recipe destination parent")).unwrap();
+    let turbo_worker = runtime.join("worker/not-used-turbo.exe");
+    let historical_turbo = runtime.join("historical/ggml-large-v3-turbo.bin");
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
+        WorkerPaths {
+            cpu: turbo_worker.clone(),
+            gpu: turbo_worker,
+        },
+        model_path.parent().unwrap().to_path_buf(),
+        historical_turbo.to_string_lossy().into_owned(),
+        Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
+            executable: worker,
+            native_dir: native,
+            model: model_path.clone(),
+            runtime_root: runtime.clone(),
+        }),
+    );
+    let snapshot = whisper_core::model_registry::engine_snapshot(
+        1,
+        |_| whisper_core::model_catalog::ModelAvailability::Ready,
+        vec![],
+    );
+    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
+        snapshot,
+        1,
+        [
+            (
+                ModelId::ParakeetTdt06BV3,
+                model_path.to_string_lossy().into_owned(),
+            ),
+            (
+                ModelId::WhisperLargeV3Turbo,
+                historical_turbo.to_string_lossy().into_owned(),
+            ),
+        ],
+    );
+    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let request = ImportRequest {
+        job_id: JobId(job_id),
+        generation: Generation::first(),
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: model_path.to_string_lossy().into_owned(),
+        model_sha256: decode_sha256(
+            whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3)
+                .artifact
+                .sha256,
+        ),
+        destination: destination.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let started = Instant::now();
+    app.dispatch(AppCommand::StartImport { request }).unwrap();
+    let timeout = Duration::from_secs(samples / 16_000 / 4 + 120);
+    let deadline = started + timeout;
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
+            panic!("R6 {case} refresh failed: {error:?}; view={:?}", app.view())
+        });
+        if view.last_result.is_some() {
+            break;
+        }
+        if let Some((_, state)) = view.active_job {
+            assert_ne!(
+                state,
+                whisper_core::JobState::Recoverable,
+                "R6 {case} failed: {view:?}"
+            );
+            assert_ne!(
+                state,
+                whisper_core::JobState::Interrupted,
+                "R6 {case} interrupted: {view:?}"
+            );
+        }
+        assert!(
+            Instant::now() < deadline,
+            "R6 {case} exceeded {timeout:?}: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+    let elapsed = started.elapsed();
+    let passage = destination
+        .join("transcriptions")
+        .join(format!("{job_id:032x}"))
+        .join("1");
+    assert!(
+        passage.join("transcript.txt").is_file(),
+        "R6 {case} TXT missing"
+    );
+    assert!(
+        passage.join("transcript.srt").is_file(),
+        "R6 {case} SRT missing"
+    );
+    let timing = serde_json::json!({
+        "case": case,
+        "sample_count": samples,
+        "application_elapsed_ms": elapsed.as_millis(),
+        "timeout_seconds": timeout.as_secs(),
+    });
+    let log = required_path("PARAKEET_L2_LOG_DIR").join(format!("{case}-application.jsonl"));
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .unwrap();
+    serde_json::to_writer(&mut file, &timing).unwrap();
+    file.write_all(b"\n").unwrap();
+    eprintln!(
+        "R6_APP case={case} samples={samples} elapsed_ms={} timeout_s={}",
+        elapsed.as_millis(),
+        timeout.as_secs()
     );
 }
 
