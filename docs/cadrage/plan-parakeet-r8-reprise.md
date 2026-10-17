@@ -4,7 +4,7 @@ Décision : accepter ou refuser le remplacement de cette clé par la clé Test R
 
 # Proposition de reprise du R8 historique — 17 octobre 2026
 
-**Statut : v2, amendement complémentaire proposé après revue R8 bloquée ; sans autorisation de code hors du premier chemin.** Elle amende seulement F3/R8 de `plan-parakeet-l2a2-acceptance.md`. R6 et R7 de ce plan, la fiche de qualification Test, le produit et le worker restent inchangés.
+**Statut : v2 accepté et exécuté ; candidat R8 revu CLEAN après deux cycles, non commité.** Elle amende seulement F3/R8 de `plan-parakeet-l2a2-acceptance.md`. R6 et R7 de ce plan, la fiche de qualification Test, le produit et le worker restent inchangés.
 
 ## Motif et périmètre
 
