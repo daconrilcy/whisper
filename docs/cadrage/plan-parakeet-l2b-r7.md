@@ -1,6 +1,6 @@
 Avancée : R6 qualifie 30 min en profil Test ; les journaux EN5 et EN30 donnent le temps applicatif et l'inférence native, mais pas leur ventilation complète.
-Blocage : la suite workspace R6 a trois échecs acceptés comme réserves par l'utilisateur ; R7 devra les traiter et revérifier la suite complète.
-Décision : R6 et le plan R7 v2 sont autorisés au commit local ; R7 est autorisé à l'implémentation après revue de l'amendement de tests.
+Blocage : la suite workspace R6 a trois échecs acceptés comme réserves par l'utilisateur ; l'amendement R7 des deux tests attend une revue indépendante limitée à ce delta.
+Décision : R6 et le plan R7 v2 sont commis localement ; R7 est autorisé à l'implémentation selon le verdict de la revue de l'amendement, sans correction du surcoût.
 
 # PLAN-PARA-L2b-R7 v2 — diagnostic du temps applicatif et indépendance du test VAD
 
@@ -96,4 +96,25 @@ Le test applicatif lit exclusivement `PARAKEET_L2_WORKER` (copie R6 gelée) et v
 4. R7-B : injecter la racine de test, exécuter les assertions R4, vérifier la règle inchangée dans le diff. Ne pas transformer les autres échecs workspace en PASS ; les reporter séparément.
 5. Faire relire indépendamment le candidat par les rôles de revue Rust, au plus deux cycles revue/correction. R7 ne résout pas à lui seul les deux échecs hors périmètre de la suite workspace. Pas de push ni d'activation B8.
 
-Cette version documentaire est soumise à la revue indépendante. Aucun code R7 n'est autorisé avant la décision écrite de l'utilisateur.
+Le plan v2 a été revu CLEAN puis autorisé par l'utilisateur ; la section suivante précise la portée de l'amendement de tests conditionnel à sa revue.
+
+## 7. Amendement utilisateur du 17/10/2026 — deux tests et gate final
+
+Cet amendement **ne change ni les sondes R7-A ni la règle VAD R7-B**. Sa revue indépendante est limitée à ce delta, en **un seul cycle**. Si elle conclut CLEAN, les deux tests ci-dessous rejoignent l'implémentation R7 complète. Si elle conclut NOT READY, implémenter R7 v2 sans cet amendement et signaler les échecs résiduels ; aucune modification implicite d'un autre chemin. La correction du surcoût applicatif n'est pas autorisée dans R7.
+
+| Test amendé | Chemin d'écriture exact | Contrat et preuve |
+| --- | --- | --- |
+| B9, fond bruité | `crates/whisper-adapters/tests/parakeet_long.rs` | Ajouter `#[ignore = "requires B9 noise fixtures ..."]` au seul test `b9_reports_noise_floor_silence_counts_and_cut_plans`. Les trois niveaux, le calcul des silences, les seuils et les assertions existants restent inchangés. La suite workspace sans fixtures le compte `NOT RUN`, jamais PASS ni FAIL. Une recette explicite avec les trois variables et les fichiers vérifiés peut le lancer avec `--ignored --exact` ; son résultat réel est alors rapporté séparément. |
+| Contrat de clé | `crates/whisper-core/tests/parakeet_import_contract.rs` | Renommer et mettre à jour le test `only_the_recorded_l2a2_cpu_test_key_is_qualified` pour affirmer que la clé CPU courante est exactement `1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0` et admissible, avec runtime/protocole/profil/langues invariants. Ajouter une assertion explicite que `545a4830755da613a1255be97fbc6a6a513ef837d669d8a9870d3bbee9dfd587` n'est pas la clé admissible. Conserver toutes les assertions de refus GPU et autres refus du fichier. |
+
+Le refus **avant pending** d'un nouvel import avec la clé `545a…`, ainsi que le pending historique conservé et non reprenable, relèvent de l'archive et sont **déjà testés** dans `crates/whisper-adapters/tests/parakeet_archive.rs` par `pending_scan_and_resume_require_the_exact_qualified_test_key` et `retired_l2a_pending_remains_visible_but_cannot_be_resumed`. Ces tests sont exécutés et cités dans la recette R7, sans ajout d'un troisième chemin d'écriture à l'amendement. Si ces assertions ne couvrent pas réellement les trois états demandés lors du préflight, la revue retourne NOT READY ; l'implémenteur n'invente pas un nouveau chemin.
+
+Commandes ciblées prévues, chacune précédée de la garde R7 OK :
+
+```powershell
+& "$r7\guarded-cargo-r7.ps1" test --offline --locked -p whisper-core --test parakeet_import_contract
+& "$r7\guarded-cargo-r7.ps1" test --offline --locked -p whisper-adapters --test parakeet_archive pending_scan_and_resume_require_the_exact_qualified_test_key -- --exact
+& "$r7\guarded-cargo-r7.ps1" test --offline --locked -p whisper-adapters --test parakeet_archive retired_l2a_pending_remains_visible_but_cannot_be_resumed -- --exact
+```
+
+**Gate permanent à partir de R7 :** terminer le lot par `cargo test --offline --locked --workspace --no-fail-fast` sous la garde à échec fermé, après les recettes ciblées. Le rapport liste tous les échecs et tous les `NOT RUN`, y compris les tests `#[ignore]` hors périmètre ; un test ignoré n'est jamais présenté comme PASS. La suite doit être verte hors `NOT RUN` déclarés pour satisfaire le livrable R7. Le verdict du reviewer porte sur le candidat concret, au plus deux cycles revue/correction. L'implémentation n'écrit que les chemins R7 v2 ci-dessus et les deux chemins de test de cet amendement, plus les journaux et sorties sous R7 ; aucun changement Cargo, modèle, source audio, VAD, B8 ni push.
