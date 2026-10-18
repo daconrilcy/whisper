@@ -537,6 +537,12 @@ pub struct ArchiveQualificationKey {
     pub worker_protocol: u32,
     pub backend: String,
     pub inference_profile: String,
+    #[serde(default)]
+    pub gpu_pci_bus_id: Option<String>,
+    #[serde(default)]
+    pub gpu_uuid: Option<String>,
+    #[serde(default)]
+    pub gpu_pnp_instance_id: Option<String>,
 }
 
 impl ArchiveQualificationKey {
@@ -559,11 +565,30 @@ impl ArchiveQualificationKey {
             worker_protocol: key.worker_protocol,
             backend: "CPU".into(),
             inference_profile: key.inference_profile,
+            gpu_pci_bus_id: None,
+            gpu_uuid: None,
+            gpu_pnp_instance_id: None,
         }
+    }
+
+    pub fn parakeet_gpu_test() -> Self {
+        let mut key = Self::parakeet_cpu_test();
+        key.runtime_build =
+            "cbf7543a711a341df4387fb9047fcd55d3d5c572465cbe9bbb7d14b5963e6b10".into();
+        key.worker_build =
+            "5054612a05fbfd1039e108def3aa4e598268d2b4274b8c1dc96cd6b8e3f2cd6d".into();
+        key.backend = "CUDA0".into();
+        key.gpu_pci_bus_id =
+            Some(whisper_core::model_registry::PARAKEET_TEST_GPU_PCI_BUS_ID.to_owned());
+        key.gpu_uuid = Some(whisper_core::model_registry::PARAKEET_TEST_GPU_UUID.to_owned());
+        key.gpu_pnp_instance_id =
+            Some(whisper_core::model_registry::PARAKEET_TEST_GPU_PNP_INSTANCE_ID.to_owned());
+        key
     }
 
     pub fn is_parakeet_import_test(&self) -> bool {
         let expected = Self::parakeet_cpu_test();
+        let gpu = Self::parakeet_gpu_test();
         let build_matches_profile = match self.inference_profile.as_str() {
             "import-single-pass" => {
                 self.runtime_build == expected.runtime_build
@@ -576,14 +601,28 @@ impl ArchiveQualificationKey {
             }
             _ => false,
         };
-        self.model == expected.model
+        let cpu_match = self.model == expected.model
             && self.artifact == expected.artifact
             && self.artifact_revision == expected.artifact_revision
             && self.runtime == expected.runtime
             && self.worker == expected.worker
             && build_matches_profile
             && self.worker_protocol == expected.worker_protocol
-            && self.backend == "CPU"
+            && self.backend == "CPU";
+        let gpu_match = self.model == gpu.model
+            && self.artifact == gpu.artifact
+            && self.artifact_revision == gpu.artifact_revision
+            && self.runtime == gpu.runtime
+            && self.runtime_build == gpu.runtime_build
+            && self.worker == gpu.worker
+            && self.worker_build == gpu.worker_build
+            && self.worker_protocol == gpu.worker_protocol
+            && self.backend == gpu.backend
+            && self.inference_profile == "import-single-pass"
+            && self.gpu_pci_bus_id == gpu.gpu_pci_bus_id
+            && self.gpu_uuid == gpu.gpu_uuid
+            && self.gpu_pnp_instance_id == gpu.gpu_pnp_instance_id;
+        cpu_match || gpu_match
     }
 
     pub fn is_parakeet_vad_test(&self) -> bool {
@@ -1395,6 +1434,46 @@ impl ArchiveStore {
         self.current
             .as_ref()
             .map_or(1, |active| active.expected_sequence)
+    }
+
+    /// Changes the backend key only while an import is still pending and has no transcript
+    /// segments. Auto may use this once when a GPU preparation fails before native inference.
+    pub fn replace_pending_qualification(
+        &mut self,
+        qualification: ArchiveQualificationKey,
+    ) -> Result<(), String> {
+        let active = self
+            .current
+            .as_ref()
+            .ok_or_else(|| "InvalidInput: no active pending import".to_owned())?;
+        if active.expected_sequence != 1
+            || !read_segments(&active.directory.join("segments.jsonl"))?.is_empty()
+        {
+            return Err("InvalidInput: backend cannot change after transcript output".into());
+        }
+        let path = active.directory.join("pending.json");
+        let mut pending: PendingRecord = serde_json::from_slice(
+            &fs::read(&path).map_err(|error| format!("StorageCorrupt: pending record: {error}"))?,
+        )
+        .map_err(|error| format!("StorageCorrupt: pending record: {error}"))?;
+        if pending.job_id != active.job_id || pending.generation != active.generation {
+            return Err("StorageCorrupt: active pending identity changed".into());
+        }
+        if !pending
+            .qualification
+            .as_ref()
+            .is_some_and(ArchiveQualificationKey::is_parakeet_import_test)
+            || !qualification.is_parakeet_import_test()
+            || pending.version == 3
+        {
+            return Err("ModelNotQualified: pending backend key cannot be replaced".into());
+        }
+        pending.qualification = Some(qualification);
+        pending.version = 2;
+        write_replace_synced(
+            &path,
+            &serde_json::to_vec(&pending).map_err(|error| error.to_string())?,
+        )
     }
 
     /// Durably records that a central VAD interval is fully processed after all
@@ -2653,6 +2732,7 @@ fn validate_pending(pending: &PendingRecord, job_id: JobId, generation: u64) -> 
         (pending.version == 2
             && pending.qualification.as_ref().is_some_and(|key| {
                 key == &ArchiveQualificationKey::parakeet_cpu_test()
+                    || key == &ArchiveQualificationKey::parakeet_gpu_test()
                     || key.is_retired_l2a_key()
                     || key.is_retired_r5_2_key()
             }))

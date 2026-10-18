@@ -152,7 +152,7 @@ fn parakeet_duration_selects_adapter_profile_not_core_admission() {
 }
 
 #[test]
-fn only_the_current_r6_cpu_test_key_is_qualified() {
+fn current_r6_cpu_and_l3b_cuda_test_keys_are_qualified() {
     let snapshot = engine_snapshot(1, |_| ModelAvailability::Ready, vec![]);
     let cpu = snapshot
         .capabilities
@@ -194,8 +194,21 @@ fn only_the_current_r6_cpu_test_key_is_qualified() {
                 && capability.key.backend == Backend::Gpu
         })
         .unwrap();
-    assert!(!gpu.compute.is_admissible());
-    assert!(!gpu.auto_language.is_admissible());
+    assert_eq!(
+        gpu.key.runtime_build,
+        "cbf7543a711a341df4387fb9047fcd55d3d5c572465cbe9bbb7d14b5963e6b10"
+    );
+    assert_eq!(
+        gpu.key.worker_build,
+        "5054612a05fbfd1039e108def3aa4e598268d2b4274b8c1dc96cd6b8e3f2cd6d"
+    );
+    assert_eq!(gpu.key.backend, Backend::Gpu);
+    assert!(gpu.compute.is_admissible());
+    assert!(gpu.auto_language.is_admissible());
+    assert_eq!(gpu.languages.len(), 2);
+    assert!(gpu.languages.iter().all(|language| {
+        language.recognized.is_admissible() && !language.manual.is_admissible()
+    }));
 }
 
 #[test]

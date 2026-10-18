@@ -272,7 +272,7 @@ fn decode_sha256(value: &str) -> [u8; 32] {
 }
 
 #[test]
-fn qualified_parakeet_cpu_selection_and_invalid_turbo_language_are_checked() {
+fn qualified_parakeet_cpu_gpu_auto_and_invalid_language_selections_are_checked() {
     let app = app();
     let accepted = app.admit(
         SelectionIntent {
@@ -287,18 +287,43 @@ fn qualified_parakeet_cpu_selection_and_invalid_turbo_language_are_checked() {
     );
     assert!(accepted.is_ok());
 
+    for compute in [ComputePreference::Gpu, ComputePreference::Auto] {
+        let admitted = app.admit(
+            SelectionIntent {
+                generation: 1,
+                model: ModelId::ParakeetTdt06BV3,
+                compute,
+                effective_backend: Backend::Gpu,
+                path: InferencePath::Import,
+                language: LanguageChoice::Automatic,
+            },
+            1,
+        );
+        let admitted = admitted.expect("qualified GPU configuration admits manual and Auto");
+        assert_eq!(
+            admitted.compute, compute,
+            "keep requested compute preference"
+        );
+    }
+
     for (compute, backend, path, language) in [
-        (
-            ComputePreference::Gpu,
-            Backend::Gpu,
-            InferencePath::Import,
-            LanguageChoice::Automatic,
-        ),
         (
             ComputePreference::Cpu,
             Backend::Cpu,
             InferencePath::Import,
             LanguageChoice::Manual(LanguageCode("fr".into())),
+        ),
+        (
+            ComputePreference::Gpu,
+            Backend::Gpu,
+            InferencePath::Import,
+            LanguageChoice::Manual(LanguageCode("en".into())),
+        ),
+        (
+            ComputePreference::Cpu,
+            Backend::Cpu,
+            InferencePath::Live,
+            LanguageChoice::Automatic,
         ),
     ] {
         let refused = app.admit(

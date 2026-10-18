@@ -52,6 +52,10 @@ pub fn compose() -> DesktopComposition {
         let mut snapshot = LocalModelCatalog::new(catalog_root).inspect(1);
         qualify_parakeet_catalog_entry(&mut snapshot);
         let mut qualified = parakeet_available(&snapshot);
+        let mut gpu_qualified = parakeet_gpu_route_is_qualified(&snapshot);
+        let mut gpu_route_metadata = configured_gpu_parakeet_worker()
+            .as_ref()
+            .and_then(gpu_worker_file_metadata);
         let mut model_metadata = configured_parakeet_worker()
             .as_ref()
             .and_then(|paths| file_metadata(&paths.model));
@@ -86,11 +90,24 @@ pub fn compose() -> DesktopComposition {
                 }
             });
             let next_qualified = key_is_valid && parakeet_artifact_matches(&snapshot);
-            if next_qualified != qualified {
+            let next_gpu_qualified = parakeet_gpu_route_is_qualified(&snapshot);
+            let next_gpu_metadata = configured_gpu_parakeet_worker()
+                .as_ref()
+                .and_then(gpu_worker_file_metadata);
+            let gpu_route_changed = next_gpu_metadata != gpu_route_metadata;
+            gpu_route_metadata = next_gpu_metadata;
+            let next_gpu_qualified = if gpu_route_changed {
+                next_gpu_qualified
+            } else {
+                gpu_qualified
+            };
+            if next_qualified != qualified || next_gpu_qualified != gpu_qualified {
                 qualified = next_qualified;
+                gpu_qualified = next_gpu_qualified;
                 generation = generation.saturating_add(1);
                 snapshot.generation = generation;
                 apply_parakeet_key_availability(&mut snapshot, qualified);
+                apply_parakeet_gpu_availability(&mut snapshot, gpu_qualified);
                 if catalog_sender.send(snapshot.clone()).is_err()
                     || admission_sender.send(snapshot.clone()).is_err()
                 {
@@ -196,11 +213,12 @@ pub fn compose() -> DesktopComposition {
         let _ = sender.send(result);
     });
     let historical_model_path = whisper_desktop::ui::default_model_path();
-    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes(
         workers,
         model_root.clone(),
         historical_model_path.clone(),
         configured_parakeet_worker(),
+        configured_gpu_parakeet_worker(),
     );
     let application =
         guarded_application(io, &model_root, historical_model_path, admission_receiver);
@@ -224,15 +242,26 @@ pub fn compose() -> DesktopComposition {
 fn configured_parakeet_worker() -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths> {
     let runtime_root = PathBuf::from(std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")?);
     Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
-        executable: std::env::var_os("PARAKEET_L2_WORKER")
+        executable: std::env::var_os("PARAKEET_L2_CPU_WORKER")
             .map(PathBuf::from)
             .unwrap_or_else(|| runtime_root.join("worker/parakeet-worker.exe")),
-        native_dir: std::env::var_os("PARAKEET_L2_NATIVE_DIR")
+        native_dir: std::env::var_os("PARAKEET_L2_CPU_NATIVE_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|| runtime_root.join("native")),
         model: std::env::var_os("PARAKEET_L2_MODEL")
             .map(PathBuf::from)
             .unwrap_or_else(|| runtime_root.join("runtime/model/parakeet-tdt-0.6b-v3.q8_0.gguf")),
+        runtime_root: runtime_root.clone(),
+    })
+}
+
+fn configured_gpu_parakeet_worker() -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths>
+{
+    let runtime_root = PathBuf::from(std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")?);
+    Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
+        executable: PathBuf::from(std::env::var_os("PARAKEET_L2_WORKER")?),
+        native_dir: PathBuf::from(std::env::var_os("PARAKEET_L2_NATIVE_DIR")?),
+        model: PathBuf::from(std::env::var_os("PARAKEET_L2_MODEL")?),
         runtime_root,
     })
 }
@@ -258,6 +287,44 @@ fn qualify_parakeet_catalog_entry(snapshot: &mut CatalogSnapshot) {
                 .is_ok()
         });
     apply_parakeet_key_availability(snapshot, qualified);
+    apply_parakeet_gpu_availability(snapshot, parakeet_gpu_route_is_qualified(snapshot));
+}
+
+fn parakeet_gpu_route_is_qualified(snapshot: &CatalogSnapshot) -> bool {
+    if !parakeet_artifact_matches(snapshot) {
+        return false;
+    }
+    configured_gpu_parakeet_worker().is_some_and(|paths| {
+        paths
+            .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
+            .is_ok_and(|actual| {
+                actual == whisper_adapters::archive::ArchiveQualificationKey::parakeet_gpu_test()
+            })
+    })
+}
+
+fn gpu_worker_file_metadata(
+    paths: &whisper_adapters::parakeet_import::ParakeetWorkerPaths,
+) -> Option<Vec<(u64, SystemTime)>> {
+    const GPU_DLLS: [&str; 9] = [
+        "cublas64_12.dll",
+        "cublasLt64_12.dll",
+        "cudart64_12.dll",
+        "nemo_speech_asr_c.dll",
+        "nemo_speech_asr.dll",
+        "ggml.dll",
+        "ggml-base.dll",
+        "ggml-cpu.dll",
+        "ggml-cuda.dll",
+    ];
+    let mut metadata = vec![file_metadata(&paths.executable)?];
+    metadata.extend(
+        GPU_DLLS
+            .into_iter()
+            .map(|name| file_metadata(&paths.native_dir.join(name)))
+            .collect::<Option<Vec<_>>>()?,
+    );
+    Some(metadata)
 }
 
 fn parakeet_worker_runtime_is_qualified(
@@ -312,6 +379,27 @@ fn apply_parakeet_key_availability(snapshot: &mut CatalogSnapshot, key_verified:
     {
         entry.availability = ModelAvailability::Ready;
         entry.diagnostic = None;
+    }
+}
+
+fn apply_parakeet_gpu_availability(snapshot: &mut CatalogSnapshot, gpu_verified: bool) {
+    if let Some(entry) = snapshot.entries.iter_mut().find(|entry| {
+        entry.id == ModelId::ParakeetTdt06BV3 && entry.availability == ModelAvailability::Ready
+    }) {
+        if gpu_verified {
+            if entry
+                .diagnostic
+                .as_deref()
+                .is_some_and(|text| text.starts_with("GPU indisponible :"))
+            {
+                entry.diagnostic = None;
+            }
+        } else {
+            entry.diagnostic = Some(
+                "GPU indisponible : worker ou DLL absent, divergent de la fiche Test qualifiée."
+                    .into(),
+            );
+        }
     }
 }
 
@@ -560,12 +648,40 @@ mod tests {
             .nth(2)
             .unwrap()
             .to_path_buf();
+        let base = if let Some(configured) = std::env::var_os("WHISPER_DESKTOP_TEST_ROOT") {
+            let configured = PathBuf::from(configured)
+                .canonicalize()
+                .expect("WHISPER_DESKTOP_TEST_ROOT must exist and resolve canonically");
+            let expected = repo
+                .join("target/parakeet-tests/l3/l3b")
+                .canonicalize()
+                .expect("canonical L3b test root must exist");
+            assert!(
+                configured == expected || configured.starts_with(&expected),
+                "WHISPER_DESKTOP_TEST_ROOT must be inside canonical L3b"
+            );
+            configured
+        } else {
+            repo.join("target/parakeet-tests/l1b-2")
+        };
         let suffix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        repo.join("target/parakeet-tests/l1b-2")
-            .join(format!("{name}-{}-{suffix}", std::process::id()))
+        base.join(format!("{name}-{}-{suffix}", std::process::id()))
+    }
+
+    #[test]
+    fn fixture_root_uses_canonical_l3b_campaign_root_when_configured() {
+        let Some(configured) = std::env::var_os("WHISPER_DESKTOP_TEST_ROOT") else {
+            return;
+        };
+        let configured = PathBuf::from(configured).canonicalize().unwrap();
+        let fixture = fixture_root("redirect-check");
+        assert!(
+            fixture.starts_with(&configured),
+            "desktop fixture escaped L3b: {fixture:?}"
+        );
     }
 
     fn turbo_sha() -> [u8; 32] {
@@ -744,6 +860,45 @@ mod tests {
                 .availability
                 == ModelAvailability::Ready
         );
+    }
+
+    #[test]
+    fn valid_cpu_route_remains_ready_when_gpu_route_is_missing_or_mismatched() {
+        let model_root = fixture_root("parakeet-gpu-route-availability");
+        let mut snapshot = admission_snapshot(&model_root, ModelAvailability::Ready);
+        let entry = snapshot
+            .entries
+            .iter_mut()
+            .find(|entry| entry.id == ModelId::ParakeetTdt06BV3)
+            .unwrap();
+        let record = model_registry::model(ModelId::ParakeetTdt06BV3);
+        entry.availability = ModelAvailability::Ready;
+        entry.observed_sha256 = Some(record.artifact.sha256.to_owned());
+        entry.observed_size_bytes = Some(record.artifact.size_bytes);
+
+        apply_parakeet_key_availability(&mut snapshot, true);
+        apply_parakeet_gpu_availability(&mut snapshot, false);
+        let entry = snapshot
+            .entries
+            .iter()
+            .find(|entry| entry.id == ModelId::ParakeetTdt06BV3)
+            .unwrap();
+        assert_eq!(entry.availability, ModelAvailability::Ready);
+        assert!(
+            entry
+                .diagnostic
+                .as_deref()
+                .is_some_and(|message| message.starts_with("GPU indisponible :"))
+        );
+
+        apply_parakeet_gpu_availability(&mut snapshot, true);
+        let entry = snapshot
+            .entries
+            .iter()
+            .find(|entry| entry.id == ModelId::ParakeetTdt06BV3)
+            .unwrap();
+        assert_eq!(entry.availability, ModelAvailability::Ready);
+        assert_eq!(entry.diagnostic, None);
     }
 
     #[test]

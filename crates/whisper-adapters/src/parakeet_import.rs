@@ -2,12 +2,13 @@
 
 use sha2::{Digest, Sha256};
 use std::{
+    fs::OpenOptions,
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
     sync::mpsc::{self, Receiver, SyncSender, TryRecvError},
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use whisper_core::parakeet_ipc::{
@@ -37,9 +38,10 @@ impl ParakeetWorkerPaths {
             let canonical = path
                 .canonicalize()
                 .map_err(|error| format!("{label} unavailable: {error}"))?;
-            if !canonical.starts_with(&root) {
+            if !canonical.starts_with(&root) && !self.is_canonical_l3b_reference(label, &canonical)
+            {
                 return Err(format!(
-                    "PathOutsideRuntime: {label} is outside the active L2 runtime"
+                    "PathOutsideRuntime: {label} is outside the active Parakeet runtime"
                 ));
             }
         }
@@ -53,16 +55,68 @@ impl ParakeetWorkerPaths {
             .canonicalize()
             .map_err(|error| format!("RepositoryRoot: {error}"))?;
         let l2b_root = repository.join("target/parakeet-tests/l2/l2b");
-        let shared_l2b_model = repository
+        let l3b_root = repository.join("target/parakeet-tests/l3/l3b");
+        let shared_model = repository
             .join("models/parakeet-tdt-0.6b-v3.q8_0.gguf")
             .canonicalize()
             .ok()
             .is_some_and(|expected| model == expected)
-            && l2b_root.canonicalize().ok().as_ref() == Some(&root);
-        if !model.starts_with(&root) && !shared_l2b_model {
-            return Err("PathOutsideRuntime: model must be under runtime or the read-only L2b models directory".into());
+            && (l2b_root.canonicalize().ok().as_ref() == Some(&root)
+                || l3b_root.canonicalize().ok().as_ref() == Some(&root));
+        if !model.starts_with(&root) && !shared_model {
+            return Err("PathOutsideRuntime: model must be under runtime or the read-only qualified models directory".into());
         }
         Ok(())
+    }
+
+    fn is_canonical_l3b_reference(&self, label: &str, canonical: &Path) -> bool {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .canonicalize();
+        let Ok(repository) = repository else {
+            return false;
+        };
+        let expected_runtime = repository.join("target/parakeet-tests/l3/l3b");
+        let Ok(expected_runtime) = expected_runtime.canonicalize() else {
+            return false;
+        };
+        if self.runtime_root.canonicalize().ok().as_ref() != Some(&expected_runtime)
+            || std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
+                .and_then(|path| PathBuf::from(path).canonicalize().ok())
+                .as_ref()
+                != Some(&expected_runtime)
+        {
+            return false;
+        }
+        let env_name = match label {
+            "worker"
+                if self
+                    .executable
+                    .file_name()
+                    .is_some_and(|name| name == "whisper-worker-parakeet-gpu.exe") =>
+            {
+                "PARAKEET_L2_WORKER"
+            }
+            "worker" => "PARAKEET_L2_CPU_WORKER",
+            "native directory"
+                if self.native_dir
+                    == PathBuf::from(
+                        std::env::var_os("PARAKEET_L2_NATIVE_DIR").unwrap_or_default(),
+                    ) =>
+            {
+                "PARAKEET_L2_NATIVE_DIR"
+            }
+            "native directory" => "PARAKEET_L2_CPU_NATIVE_DIR",
+            _ => return false,
+        };
+        let Some(configured) = std::env::var_os(env_name).map(PathBuf::from) else {
+            return false;
+        };
+        configured
+            .canonicalize()
+            .ok()
+            .is_some_and(|path| path == canonical)
     }
 
     pub fn verify_qualification(
@@ -116,6 +170,62 @@ impl ParakeetWorkerPaths {
             return Err(format!("ModelHashMismatch: {model_sha}"));
         }
         let mut key = crate::archive::ArchiveQualificationKey::parakeet_cpu_test();
+        key.artifact_revision = model_sha;
+        key.runtime_build = runtime_sha256(&self.native_dir)?;
+        key.worker_build = sha256_file(&self.executable)?;
+        key.inference_profile = profile.to_owned();
+        Ok(key)
+    }
+
+    pub fn gpu_qualification_key(
+        &self,
+        profile: &str,
+    ) -> Result<crate::archive::ArchiveQualificationKey, String> {
+        if profile != PARAKEET_PROFILE_IMPORT_SINGLE_PASS {
+            return Err(
+                "ProfileUnavailable: GPU key is available for single-pass import only".into(),
+            );
+        }
+        self.validate()?;
+        let runtime = self
+            .runtime_root
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        let expected = repository
+            .join("target/parakeet-tests/l3/l3b")
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        if runtime != expected
+            || std::env::var_os("PARAKEET_L2_WORKER")
+                .and_then(|path| PathBuf::from(path).canonicalize().ok())
+                != Some(
+                    self.executable
+                        .canonicalize()
+                        .map_err(|error| error.to_string())?,
+                )
+        {
+            return Err(
+                "ProfileUnavailable: GPU qualification requires the canonical L3b route".into(),
+            );
+        }
+        let record = whisper_core::model_registry::model(
+            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+        );
+        let (_, model_sha) = crate::model_catalog::cached_model_sha256(&self.model)
+            .map_err(|error| format!("ModelHashRead: {error}"))?;
+        let model_sha = model_sha
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        if !model_sha.eq_ignore_ascii_case(record.artifact.sha256) {
+            return Err(format!("ModelHashMismatch: {model_sha}"));
+        }
+        let mut key = crate::archive::ArchiveQualificationKey::parakeet_gpu_test();
         key.artifact_revision = model_sha;
         key.runtime_build = runtime_sha256(&self.native_dir)?;
         key.worker_build = sha256_file(&self.executable)?;
@@ -278,12 +388,23 @@ impl ParakeetProcess {
         } else if profile == PROFILE_QUALIFICATION_REFERENCE {
             command.arg("--qualification-reference");
         }
+        let cpu_read_runtime = l3b_r6_cpu_read_runtime_root(paths)?;
+        let (stderr, worker_log) = worker_stderr_log(paths, cpu_read_runtime.is_some())?;
+        let worker_runtime_root = cpu_read_runtime.unwrap_or_else(|| paths.runtime_root.clone());
+        if paths
+            .executable
+            .file_name()
+            .is_some_and(|name| name == "whisper-worker-parakeet-gpu.exe")
+            && let Some(asr_log) = worker_log.as_ref()
+        {
+            command.env("PARAKEET_L3_ASR_LOG", asr_log);
+        }
         let spawn_started = Instant::now();
         let mut child = command
-            .env("PARAKEET_L2_RUNTIME_ROOT", &paths.runtime_root)
+            .env("PARAKEET_L2_RUNTIME_ROOT", worker_runtime_root)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(stderr)
             .spawn()
             .map_err(|error| format!("WorkerStart: {error}"))?;
         let spawn_elapsed = spawn_started.elapsed();
@@ -403,6 +524,25 @@ impl ParakeetProcess {
         source_path: &Path,
         source_sha256: String,
     ) -> Result<(), String> {
+        self.transcribe_with_gpu(
+            job_id,
+            generation,
+            attempt,
+            source_path,
+            source_sha256,
+            None,
+        )
+    }
+
+    pub fn transcribe_with_gpu(
+        &mut self,
+        job_id: String,
+        generation: u64,
+        attempt: u64,
+        source_path: &Path,
+        source_sha256: String,
+        expected_gpu: Option<whisper_core::parakeet_ipc::ExpectedGpu>,
+    ) -> Result<(), String> {
         let identity = self
             .identity
             .clone()
@@ -420,7 +560,7 @@ impl ParakeetProcess {
             identity,
             source_path: source_path.to_string_lossy().into_owned(),
             source_sha256,
-            expected_gpu: None,
+            expected_gpu,
         }))?;
         self.request_started_at = Some(started);
         Ok(())
@@ -442,6 +582,10 @@ impl ParakeetProcess {
 
     pub fn identity(&self) -> Option<&WorkerIdentity> {
         self.identity.as_ref()
+    }
+
+    pub fn pid(&self) -> u32 {
+        self.child.id()
     }
 
     pub(crate) fn inject_incomplete_result_for_acceptance(&self) -> Result<(), String> {
@@ -504,6 +648,208 @@ impl ParakeetProcess {
             .and_then(|()| self.input.flush())
             .map_err(|error| format!("IpcWrite: {error}"))
     }
+}
+
+fn worker_stderr_log(
+    paths: &ParakeetWorkerPaths,
+    is_l3b_r6_cpu_worker: bool,
+) -> Result<(Stdio, Option<PathBuf>), String> {
+    let is_gpu_worker = paths
+        .executable
+        .file_name()
+        .is_some_and(|name| name == "whisper-worker-parakeet-gpu.exe");
+    if !is_gpu_worker && !is_l3b_r6_cpu_worker {
+        return Ok((Stdio::null(), None));
+    }
+    let runtime = paths
+        .runtime_root
+        .canonicalize()
+        .map_err(|error| format!("WorkerLogPath: runtime root: {error}"))?;
+    let log_dir = runtime.join("logs");
+    match std::fs::create_dir(&log_dir) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(format!("WorkerLogPath: create runtime logs: {error}")),
+    }
+    let log_dir = log_dir
+        .canonicalize()
+        .map_err(|error| format!("WorkerLogPath: canonical runtime logs: {error}"))?;
+    if !log_dir.starts_with(&runtime) {
+        return Err("PathOutsideRuntime: worker stderr log is outside the runtime root".into());
+    }
+    static LOG_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let timestamp_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let sequence = LOG_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let prefix = if is_gpu_worker {
+        "parakeet-asr"
+    } else {
+        "parakeet-worker-cpu"
+    };
+    let path = log_dir.join(format!(
+        "{prefix}-{timestamp_ms}-{}-{sequence}.log",
+        std::process::id()
+    ));
+    let file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|error| format!("WorkerLogOpen: {}: {error}", path.display()))?;
+    Ok((Stdio::from(file), Some(path)))
+}
+
+/// The immutable R6 CPU worker authorizes only the canonical L2b runtime. During L3b,
+/// keep adapter-owned writes under L3b while giving that exact worker its read-only L2b root.
+/// The environment inputs are accepted only for the exact frozen worker and canonical roots.
+fn l3b_r6_cpu_read_runtime_root(paths: &ParakeetWorkerPaths) -> Result<Option<PathBuf>, String> {
+    const R6_CPU_WORKER_SHA256: &str =
+        "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0";
+
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .canonicalize()
+        .map_err(|error| format!("RepositoryRoot: {error}"))?;
+    let l3b_root = repository
+        .join("target/parakeet-tests/l3/l3b")
+        .canonicalize()
+        .map_err(|error| format!("RuntimeRootInvalid: L3b: {error}"))?;
+    let active_root = paths
+        .runtime_root
+        .canonicalize()
+        .map_err(|error| format!("RuntimeRootInvalid: active: {error}"))?;
+    if active_root != l3b_root {
+        return Ok(None);
+    }
+
+    let l2b_root = repository
+        .join("target/parakeet-tests/l2/l2b")
+        .canonicalize()
+        .map_err(|error| format!("RuntimeRootInvalid: L2b: {error}"))?;
+    let expected_worker = l2b_root.join("r6/worker/whisper-worker-parakeet-cpu.exe");
+    let worker = paths
+        .executable
+        .canonicalize()
+        .map_err(|error| format!("WorkerPath: {error}"))?;
+    if worker != expected_worker {
+        return Ok(None);
+    }
+
+    let configured_worker = std::env::var_os("PARAKEET_L2_CPU_WORKER")
+        .map(PathBuf::from)
+        .ok_or_else(|| {
+            "WorkerPathMissing: PARAKEET_L2_CPU_WORKER is required for the frozen R6 worker"
+                .to_owned()
+        })?
+        .canonicalize()
+        .map_err(|error| format!("WorkerPathInvalid: PARAKEET_L2_CPU_WORKER: {error}"))?;
+    if configured_worker != worker {
+        return Err(
+            "WorkerPathMismatch: frozen R6 worker differs from configured CPU worker".into(),
+        );
+    }
+    let worker_sha256 = sha256_file(&worker)?;
+    if !worker_sha256.eq_ignore_ascii_case(R6_CPU_WORKER_SHA256) {
+        return Err("WorkerHashMismatch: frozen R6 CPU worker SHA-256 differs".into());
+    }
+
+    let configured_root = std::env::var_os("PARAKEET_L2_CPU_RUNTIME_ROOT")
+        .map(PathBuf::from)
+        .ok_or_else(|| {
+            "RuntimeRootMissing: PARAKEET_L2_CPU_RUNTIME_ROOT is required for the frozen R6 worker"
+                .to_owned()
+        })?
+        .canonicalize()
+        .map_err(|error| format!("RuntimeRootInvalid: PARAKEET_L2_CPU_RUNTIME_ROOT: {error}"))?;
+    if configured_root != l2b_root {
+        return Err(
+            "RuntimeRootMismatch: frozen R6 CPU worker requires canonical L2b read root".into(),
+        );
+    }
+    Ok(Some(l2b_root))
+}
+
+pub fn expected_gpu_for_candidate(
+    candidate: &whisper_core::gpu_inventory::GpuRuntimeIdentity,
+) -> Result<whisper_core::parakeet_ipc::ExpectedGpu, String> {
+    use whisper_core::model_registry::{
+        PARAKEET_TEST_GPU_PCI_BUS_ID, PARAKEET_TEST_GPU_PNP_INSTANCE_ID, PARAKEET_TEST_GPU_UUID,
+    };
+
+    let candidate_pci = normalize_pci_bus_id(&candidate.pci_id)
+        .ok_or_else(|| "GpuInventory: selected GPU PCI identity is malformed".to_owned())?;
+    let qualified_pci = normalize_pci_bus_id(PARAKEET_TEST_GPU_PCI_BUS_ID)
+        .expect("qualified PCI constant is valid");
+    if candidate_pci != qualified_pci
+        || !candidate
+            .pnp_instance_id
+            .eq_ignore_ascii_case(PARAKEET_TEST_GPU_PNP_INSTANCE_ID)
+    {
+        return Err(format!(
+            "GpuIdentityMismatch: candidate is not the qualified physical GPU (pci={}, pnp={})",
+            candidate.pci_id, candidate.pnp_instance_id
+        ));
+    }
+
+    let output = Command::new("nvidia-smi")
+        .args([
+            "--query-gpu=count,pci.bus_id,uuid",
+            "--format=csv,noheader,nounits",
+        ])
+        .output()
+        .map_err(|error| format!("GpuInventory: unable to start nvidia-smi: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "GpuInventory: nvidia-smi exited with {}",
+            output.status
+        ));
+    }
+    let text = String::from_utf8(output.stdout)
+        .map_err(|error| format!("GpuInventory: output is not UTF-8: {error}"))?;
+    let rows = text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect::<Vec<_>>();
+    if rows.len() != 1 {
+        return Err(format!(
+            "GpuInventory: expected one NVIDIA device, found {}",
+            rows.len()
+        ));
+    }
+    let fields = rows[0].split(',').map(str::trim).collect::<Vec<_>>();
+    if fields.len() != 3 || fields[0] != "1" {
+        return Err("GpuInventory: malformed single-device nvidia-smi response".into());
+    }
+    let observed_pci = normalize_pci_bus_id(fields[1])
+        .ok_or_else(|| "GpuInventory: observed GPU PCI identity is malformed".to_owned())?;
+    if candidate_pci != observed_pci
+        || observed_pci != qualified_pci
+        || !fields[2].eq_ignore_ascii_case(PARAKEET_TEST_GPU_UUID)
+    {
+        return Err(format!(
+            "GpuIdentityMismatch: selected/runtime GPU {} / {} does not match qualified PCI/UUID {} / {}",
+            candidate.pci_id, fields[1], PARAKEET_TEST_GPU_PCI_BUS_ID, fields[2]
+        ));
+    }
+    Ok(whisper_core::parakeet_ipc::ExpectedGpu {
+        pci_bus_id: fields[1].to_owned(),
+        uuid: fields[2].to_owned(),
+    })
+}
+
+fn normalize_pci_bus_id(value: &str) -> Option<String> {
+    let (domain, rest) = value.split_once(':')?;
+    let (bus, rest) = rest.split_once(':')?;
+    let (device, function) = rest.split_once('.')?;
+    Some(format!(
+        "{:08x}:{:02x}:{:02x}.{}",
+        u32::from_str_radix(domain, 16).ok()?,
+        u8::from_str_radix(bus, 16).ok()?,
+        u8::from_str_radix(device, 16).ok()?,
+        function
+    ))
 }
 
 fn decode_worker_frame(frame: &[u8]) -> Result<Event, String> {

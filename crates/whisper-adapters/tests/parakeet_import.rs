@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
     process::{Command, Stdio},
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 use sha2::{Digest, Sha256};
@@ -27,8 +27,8 @@ fn parakeet_worker_configuration_is_confined_to_the_l2a2_runtime() {
             .expect("PARAKEET_L2_RUNTIME_ROOT is required by L2a-2 tests"),
     );
     let paths = ParakeetWorkerPaths {
-        executable: PathBuf::from(std::env::var_os("PARAKEET_L2_WORKER").expect("worker path")),
-        native_dir: PathBuf::from(std::env::var_os("PARAKEET_L2_NATIVE_DIR").expect("native dir")),
+        executable: cpu_worker_path(),
+        native_dir: cpu_native_dir(),
         model: PathBuf::from(std::env::var_os("PARAKEET_L2_MODEL").expect("model path")),
         runtime_root: runtime.clone(),
     };
@@ -115,6 +115,419 @@ fn parakeet_worker_configuration_is_confined_to_the_l2a2_runtime() {
 }
 
 #[test]
+fn gpu_app_fr_en_single_pass() {
+    if !selected_l3b_recipe("gpu_app_fr_en_single_pass") {
+        return;
+    }
+    for (label, variable) in [
+        ("fr87", "PARAKEET_L3_FR87_WAV"),
+        ("fr27", "PARAKEET_L3_FR27_WAV"),
+        ("en15", "PARAKEET_L2_EN_WAV"),
+    ] {
+        run_gpu_application_import(
+            label,
+            &required_path(variable),
+            ComputeChoice::Auto,
+            true,
+            None,
+        );
+    }
+}
+
+#[test]
+fn gpu_app_en5() {
+    if !selected_l3b_recipe("gpu_app_en5") {
+        return;
+    }
+    run_gpu_application_import(
+        "en5",
+        &required_path("PARAKEET_L3_EN5_WAV"),
+        ComputeChoice::Gpu,
+        true,
+        None,
+    );
+}
+
+#[test]
+#[cfg(feature = "l3-gpu-qualification")]
+fn gpu_app_en30() {
+    if !selected_l3b_recipe("gpu_app_en30") {
+        return;
+    }
+    run_gpu_application_import(
+        "en30",
+        &required_path("PARAKEET_L3_EN30_WAV"),
+        ComputeChoice::Gpu,
+        true,
+        None,
+    );
+}
+
+#[test]
+#[cfg(feature = "l3-gpu-qualification")]
+fn gpu_manual_and_auto_fallback() {
+    if !selected_l3b_recipe("gpu_manual_and_auto_fallback") {
+        return;
+    }
+    let source = required_path("PARAKEET_L2_EN_WAV");
+    let manual = run_gpu_application_import(
+        "manual-bad-candidate",
+        &source,
+        ComputeChoice::Gpu,
+        false,
+        None,
+    );
+    assert!(
+        manual
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("BackendMismatch"))
+    );
+    let auto = run_gpu_application_import(
+        "auto-cpu-fallback",
+        &source,
+        ComputeChoice::Auto,
+        false,
+        None,
+    );
+    assert!(
+        auto.last_result.is_some(),
+        "Auto must complete on the qualified CPU fallback: {auto:?}"
+    );
+
+    #[cfg(feature = "l3-gpu-qualification")]
+    {
+        let failed = run_gpu_application_import(
+            "post-native-worker-death",
+            &source,
+            ComputeChoice::Auto,
+            true,
+            Some("worker-death"),
+        );
+        let failed = failed.message.unwrap_or_default();
+        assert!(
+            failed.contains("WorkerExited"),
+            "post-native GPU failure was not reported: {failed}"
+        );
+        assert!(!failed.to_ascii_lowercase().contains("fallback"));
+        assert!(!failed.to_ascii_lowercase().contains("cpu"));
+    }
+}
+
+#[test]
+#[cfg(feature = "l3-gpu-qualification")]
+fn gpu_rejects_bad_identity_before_pending() {
+    if !selected_l3b_recipe("gpu_rejects_bad_identity_before_pending") {
+        return;
+    }
+    let source = required_path("PARAKEET_L2_EN_WAV");
+    let view = run_gpu_application_import("bad-identity", &source, ComputeChoice::Gpu, false, None);
+    assert!(
+        view.message
+            .as_deref()
+            .is_some_and(|message| message.contains("BackendMismatch"))
+    );
+    let long = required_path("PARAKEET_L2_EN_LONG_WAV");
+    let long_view = run_gpu_application_import("over-limit", &long, ComputeChoice::Gpu, true, None);
+    assert!(long_view.message.as_deref().is_some_and(|message| {
+        message.contains("DurationUnsupported")
+            && message.contains("Fichier trop long pour Parakeet, utilisez Turbo")
+    }));
+}
+
+fn selected_l3b_recipe(name: &str) -> bool {
+    match std::env::var("PARAKEET_L3B_RECIPE_CASE") {
+        Ok(selected) if selected == name => true,
+        _ => {
+            eprintln!("L3B_RECIPE_NOT_RUN {name}: no matching guarded recipe selector");
+            false
+        }
+    }
+}
+
+fn run_gpu_application_import(
+    case: &str,
+    source: &std::path::Path,
+    compute: ComputeChoice,
+    valid_candidate: bool,
+    fault: Option<&str>,
+) -> whisper_core::application::AppView {
+    run_gpu_application_import_with_native(case, source, compute, valid_candidate, fault, None)
+}
+
+fn run_gpu_application_import_with_native(
+    case: &str,
+    source: &std::path::Path,
+    compute: ComputeChoice,
+    valid_candidate: bool,
+    fault: Option<&str>,
+    gpu_native_override: Option<PathBuf>,
+) -> whisper_core::application::AppView {
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let execution_root = required_path("PARAKEET_L2_ARCHIVE_ROOT");
+    let model_path = required_path("PARAKEET_L2_MODEL");
+    let gpu_worker = required_path("PARAKEET_L2_WORKER");
+    let gpu_native = gpu_native_override.unwrap_or_else(|| required_path("PARAKEET_L2_NATIVE_DIR"));
+    let cpu_worker = cpu_worker_path();
+    let cpu_native = cpu_native_dir();
+    let destination = execution_root.join("recipes").join(case);
+    let _ = fs::remove_dir_all(&destination);
+    fs::create_dir_all(&destination).unwrap();
+    let turbo_worker = runtime.join("worker/not-used-turbo.exe");
+    let historical_turbo = runtime.join("historical/ggml-large-v3-turbo.bin");
+    let cpu_paths = ParakeetWorkerPaths {
+        executable: cpu_worker,
+        native_dir: cpu_native,
+        model: model_path.clone(),
+        runtime_root: runtime.clone(),
+    };
+    let gpu_paths = ParakeetWorkerPaths {
+        executable: gpu_worker,
+        native_dir: gpu_native,
+        model: model_path.clone(),
+        runtime_root: runtime.clone(),
+    };
+    let registered_gpu_key = gpu_paths
+        .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
+        .ok()
+        .is_some_and(|actual| {
+            actual == whisper_adapters::archive::ArchiveQualificationKey::parakeet_gpu_test()
+        });
+    if valid_candidate && registered_gpu_key {
+        assert_registered_gpu_key(&gpu_paths);
+    }
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes(
+        WorkerPaths {
+            cpu: turbo_worker.clone(),
+            gpu: turbo_worker,
+        },
+        model_path.parent().unwrap().to_path_buf(),
+        historical_turbo.to_string_lossy().into_owned(),
+        Some(cpu_paths),
+        Some(gpu_paths),
+    );
+    let snapshot = whisper_core::model_registry::engine_snapshot(
+        1,
+        |_| whisper_core::model_catalog::ModelAvailability::Ready,
+        vec![],
+    );
+    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
+        snapshot,
+        1,
+        [
+            (
+                ModelId::ParakeetTdt06BV3,
+                model_path.to_string_lossy().into_owned(),
+            ),
+            (
+                ModelId::WhisperLargeV3Turbo,
+                historical_turbo.to_string_lossy().into_owned(),
+            ),
+        ],
+    );
+    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let job_id = JobId(
+        0x6b0_u128
+            + u128::from(NEXT_GPU_RECIPE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)),
+    );
+    let generation = Generation::first();
+    let mut candidate = qualified_gpu_candidate();
+    if !valid_candidate {
+        candidate.pci_id = "0000:ff:00.0".into();
+        candidate.pnp_instance_id = r"PCI\VEN_10DE&DEV_FAKE\foreign".into();
+    }
+    app.set_gpu_candidate(job_id, generation, Some(candidate))
+        .unwrap();
+    if let Some(fault) = fault {
+        let control = destination.join(".l2a2-acceptance");
+        fs::create_dir_all(&control).unwrap();
+        fs::write(control.join(format!("{fault}.enabled")), b"enabled").unwrap();
+    }
+    let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
+    let request = ImportRequest {
+        job_id,
+        generation,
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: Some(pcm16_mono_sample_count(source)),
+        model_path: model_path.to_string_lossy().into_owned(),
+        model_sha256: decode_sha256(record.artifact.sha256),
+        destination: destination.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute,
+        },
+    };
+    let timeout = Duration::from_secs(pcm16_mono_sample_count(source) / 16_000 / 4 + 120);
+    let deadline = Instant::now() + timeout;
+    let worker_log_started = SystemTime::now();
+    app.dispatch(AppCommand::StartImport { request }).unwrap();
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
+            panic!(
+                "L3b {case} refresh failed: {error:?}; view={:?}",
+                app.view()
+            )
+        });
+        if view.last_result.is_some()
+            || view
+                .active_job
+                .is_some_and(|(_, state)| state == whisper_core::JobState::Recoverable)
+        {
+            if view.last_result.is_some() {
+                let passage = destination
+                    .join("transcriptions")
+                    .join(format!("{:032x}", job_id.0))
+                    .join(generation.get().to_string());
+                assert!(
+                    passage.join("transcript.txt").is_file(),
+                    "L3b {case} TXT missing"
+                );
+                assert!(
+                    passage.join("transcript.srt").is_file(),
+                    "L3b {case} SRT missing"
+                );
+                let pending: serde_json::Value = serde_json::from_slice(
+                    &fs::read(passage.join("pending.json")).expect("qualified request pending"),
+                )
+                .expect("pending qualification JSON");
+                let qualification = &pending["qualification"];
+                let expected_gpu = valid_candidate && registered_gpu_key;
+                assert_eq!(
+                    qualification["backend"].as_str(),
+                    Some(if expected_gpu { "CUDA0" } else { "CPU" }),
+                    "the archive records the actual backend without a silent fallback"
+                );
+                assert_eq!(
+                    qualification["worker_build"].as_str(),
+                    Some(if expected_gpu {
+                        "5054612a05fbfd1039e108def3aa4e598268d2b4274b8c1dc96cd6b8e3f2cd6d"
+                    } else {
+                        "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0"
+                    })
+                );
+                assert_eq!(
+                    qualification["model"].as_str(),
+                    Some("parakeet-tdt-0.6b-v3"),
+                    "Auto fallback stays on Parakeet rather than switching to Turbo"
+                );
+                return view;
+            }
+            let passage = destination
+                .join("transcriptions")
+                .join(format!("{:032x}", job_id.0))
+                .join(generation.get().to_string());
+            let over_single_pass_limit = pcm16_mono_sample_count(source)
+                > whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS
+                    .saturating_mul(16);
+            if over_single_pass_limit {
+                assert!(
+                    !passage.join("pending.json").exists(),
+                    "over-limit GPU input must be refused before pending admission: {view:?}"
+                );
+                return view;
+            }
+            if valid_candidate || compute == ComputeChoice::Auto {
+                assert!(
+                    passage.join("pending.json").is_file(),
+                    "an admitted GPU or Auto CPU-fallback request must preserve pending on failure: {view:?}"
+                );
+                if let Some(signal) = fault {
+                    assert!(
+                        destination
+                            .join(".l2a2-acceptance")
+                            .join(format!("{signal}.entered"))
+                            .is_file(),
+                        "acceptance fault was not reached: {view:?}"
+                    );
+                    return view;
+                }
+                let diagnostics = adapter_diagnostics(&destination);
+                let worker_stderr = worker_stderr_since(worker_log_started);
+                panic!(
+                    "L3b {case} qualified GPU import became recoverable after admission: state={:?}, message={:?}, adapter_diagnostics={diagnostics}, worker_stderr={worker_stderr}",
+                    view.active_job, view.message
+                );
+            } else {
+                assert!(
+                    !passage.join("pending.json").exists(),
+                    "invalid GPU candidate must be refused before pending admission: {view:?}"
+                );
+            }
+            return view;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "L3b {case} exceeded {timeout:?}: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[test]
+fn gpu_identity_rejects_same_pci_with_a_different_windows_device() {
+    let mut candidate = qualified_gpu_candidate();
+    candidate.pnp_instance_id = r"PCI\VEN_10DE&DEV_1B06\different-instance".into();
+    let error =
+        whisper_adapters::parakeet_import::expected_gpu_for_candidate(&candidate).unwrap_err();
+    assert!(error.starts_with("GpuIdentityMismatch"), "{error}");
+}
+
+fn adapter_diagnostics(destination: &std::path::Path) -> String {
+    let directory = destination.join(".whisper-diagnostics");
+    (0..4)
+        .filter_map(|index| {
+            let path = directory.join(format!("worker-{index}.jsonl"));
+            fs::read_to_string(path)
+                .ok()
+                .filter(|contents| !contents.is_empty())
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn worker_stderr_since(started: SystemTime) -> String {
+    let Ok(entries) = fs::read_dir(required_path("PARAKEET_L2_LOG_DIR")) else {
+        return "<log directory unavailable>".into();
+    };
+    let mut paths = entries
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry.file_name().to_string_lossy().starts_with("parakeet-")
+                && entry
+                    .metadata()
+                    .and_then(|metadata| metadata.modified())
+                    .is_ok_and(|modified| modified >= started)
+        })
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    paths.sort();
+    let contents = paths
+        .iter()
+        .filter_map(|path| fs::read_to_string(path).ok())
+        .collect::<Vec<_>>();
+    if contents.is_empty() {
+        "<no captured worker stderr>".into()
+    } else {
+        contents.join("\n")
+    }
+}
+
+static NEXT_GPU_RECIPE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+fn qualified_gpu_candidate() -> whisper_core::gpu_inventory::GpuRuntimeIdentity {
+    whisper_core::gpu_inventory::GpuRuntimeIdentity {
+        generation: 1,
+        pnp_instance_id: r"PCI\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\4&8BD6E8D&0&0008".into(),
+        dxgi_rank: 0,
+        luid: 0,
+        pci_id: "0000:01:00.0".into(),
+        cuda_ordinal: 0,
+        ggml_ordinal: 0,
+    }
+}
+
+#[test]
 #[ignore = "R6 single-pass recipe uses the real Parakeet worker and records app timing"]
 fn r6_application_single_pass_recipe() {
     let case = std::env::var("PARAKEET_R6_CASE").expect("PARAKEET_R6_CASE");
@@ -126,8 +539,8 @@ fn r6_application_single_pass_recipe() {
     };
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let model_path = required_path("PARAKEET_L2_MODEL");
-    let worker = required_path("PARAKEET_L2_WORKER");
-    let native = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = cpu_worker_path();
+    let native = cpu_native_dir();
     let source = required_path("PARAKEET_R6_RECIPE_WAV");
     let destination = required_path("PARAKEET_L2_ARCHIVE_ROOT")
         .join("recipes")
@@ -262,8 +675,8 @@ fn r7_application_timing() {
     };
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let model_path = required_path("PARAKEET_L2_MODEL");
-    let worker = required_path("PARAKEET_L2_WORKER");
-    let native = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = cpu_worker_path();
+    let native = cpu_native_dir();
     let source = required_path("PARAKEET_R7_RECIPE_WAV");
     let destination = required_path("PARAKEET_L2_ARCHIVE_ROOT")
         .join("recipes")
@@ -407,8 +820,8 @@ fn r9_application_recipe() {
     let samples = pcm16_mono_sample_count(&source);
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let model_path = required_path("PARAKEET_L2_MODEL");
-    let worker = required_path("PARAKEET_L2_WORKER");
-    let native = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = cpu_worker_path();
+    let native = cpu_native_dir();
     let archive_root = required_path("PARAKEET_L2_ARCHIVE_ROOT");
     let destination = archive_root.join("recipes").join(&case);
     let _ = fs::remove_dir_all(&destination);
@@ -857,18 +1270,29 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let execution_root = r8_exec_root();
     let model_path = required_path("PARAKEET_L2_MODEL");
-    let worker = required_path("PARAKEET_L2_WORKER");
-    let native = required_path("PARAKEET_L2_NATIVE_DIR");
+    assert_cpu_incompatible_native_refusal(&execution_root, &model_path);
+    let worker = gpu_worker_path();
+    let native = gpu_native_dir();
+    assert_registered_gpu_key(&ParakeetWorkerPaths {
+        executable: worker.clone(),
+        native_dir: native.clone(),
+        model: model_path.clone(),
+        runtime_root: runtime.clone(),
+    });
     let incompatible_dir = execution_root
         .join("native")
         .join(format!("r8-incompatible-{}", std::process::id()));
     fs::create_dir_all(&incompatible_dir).unwrap();
     for name in [
+        "cublas64_12.dll",
+        "cublasLt64_12.dll",
+        "cudart64_12.dll",
         "nemo_speech_asr_c.dll",
         "nemo_speech_asr.dll",
         "ggml.dll",
         "ggml-base.dll",
         "ggml-cpu.dll",
+        "ggml-cuda.dll",
     ] {
         fs::copy(native.join(name), incompatible_dir.join(name)).unwrap();
     }
@@ -879,30 +1303,24 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
     .unwrap();
 
     let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
-    let key = whisper_core::model_registry::configuration_key(
-        record,
-        whisper_core::model_catalog::Backend::Cpu,
-    );
     let bad_paths = ParakeetWorkerPaths {
         executable: worker.clone(),
         native_dir: incompatible_dir.clone(),
         model: model_path.clone(),
         runtime_root: runtime.clone(),
     };
-    let refusal = bad_paths
-        .verify_qualification(
-            record.artifact.sha256,
-            &key.runtime_build,
-            &key.worker_build,
-        )
-        .unwrap_err();
-    assert!(refusal.starts_with("QualificationMismatch: runtime="));
+    assert!(
+        bad_paths
+            .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
+            .is_ok(),
+        "the altered native copy should yield a distinct candidate key for admission to reject"
+    );
 
     let source = required_path("PARAKEET_L2_EN_WAV");
     let destination = execution_root.join(format!("archive/r8-loader-{}", std::process::id()));
     fs::create_dir_all(&destination).unwrap();
     let dummy_turbo = runtime.join("worker/not-used-turbo.exe");
-    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes(
         WorkerPaths {
             cpu: dummy_turbo.clone(),
             gpu: dummy_turbo,
@@ -912,6 +1330,12 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
             .join("historical/ggml-large-v3-turbo.bin")
             .to_string_lossy()
             .into_owned(),
+        Some(ParakeetWorkerPaths {
+            executable: cpu_worker_path(),
+            native_dir: cpu_native_dir(),
+            model: model_path.clone(),
+            runtime_root: runtime.clone(),
+        }),
         Some(bad_paths.clone()),
     );
     let snapshot = whisper_core::model_registry::engine_snapshot(
@@ -939,6 +1363,8 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
     let mut app = ImportApplication::new(io).with_model_guard(guard);
     let job_id = JobId(0x2a4);
     let generation = Generation::first();
+    app.set_gpu_candidate(job_id, generation, Some(qualified_gpu_candidate()))
+        .unwrap();
     let request = ImportRequest {
         job_id,
         generation,
@@ -950,7 +1376,7 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         destination: destination.to_string_lossy().into_owned(),
         config: JobConfig {
             language: LanguageChoice::Automatic,
-            compute: ComputeChoice::Cpu,
+            compute: ComputeChoice::Gpu,
         },
     };
     app.dispatch(AppCommand::StartImport { request }).unwrap();
@@ -972,7 +1398,7 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         thread::sleep(Duration::from_millis(10));
     };
     assert!(
-        refusal_message.contains("ModelNotQualified: exact Test worker/runtime key is required"),
+        refusal_message.contains("ModelNotQualified: Parakeet GPU candidate is not admitted"),
         "unexpected refusal: {refusal_message}"
     );
     let passage = passage_dir(&destination, job_id, generation);
@@ -983,6 +1409,7 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
     assert!(!passage.join("transcript.txt").exists());
     assert!(!passage.join("transcript.srt").exists());
 
+    fs::create_dir_all(runtime.join("logs")).unwrap();
     let output = Command::new(&worker)
         .arg("--model")
         .arg(&model_path)
@@ -991,6 +1418,12 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         .arg("--native-dir")
         .arg(&incompatible_dir)
         .env("PARAKEET_L2_RUNTIME_ROOT", &runtime)
+        .env(
+            "PARAKEET_L3_ASR_LOG",
+            runtime
+                .join("logs")
+                .join(format!("r8-incompatible-{}.log", std::process::id())),
+        )
         .stdin(Stdio::null())
         .output()
         .expect("direct worker loader probe starts from the scoped copy");
@@ -1011,6 +1444,202 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
     assert!(!passage.join("pending.json").exists());
     assert!(!passage.join("transcript.txt").exists());
     assert!(!passage.join("transcript.srt").exists());
+
+    let auto = run_gpu_application_import_with_native(
+        "auto-bad-dll-cpu-fallback",
+        &source,
+        ComputeChoice::Auto,
+        true,
+        None,
+        Some(incompatible_dir),
+    );
+    assert!(
+        auto.last_result.is_some(),
+        "Auto must complete through Parakeet CPU when the registered GPU DLL identity differs: {auto:?}"
+    );
+}
+
+fn assert_cpu_incompatible_native_refusal(
+    execution_root: &std::path::Path,
+    model_path: &std::path::Path,
+) {
+    let cpu_runtime = required_path("PARAKEET_L2_CPU_RUNTIME_ROOT");
+    let cpu_worker = cpu_worker_path();
+    let incompatible_native = existing_cpu_incompatible_fixture(&cpu_runtime);
+    let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
+    let expected_key = whisper_core::model_registry::configuration_key(
+        record,
+        whisper_core::model_catalog::Backend::Cpu,
+    );
+    let bad_paths = ParakeetWorkerPaths {
+        executable: cpu_worker.clone(),
+        native_dir: incompatible_native.clone(),
+        model: model_path.to_path_buf(),
+        runtime_root: cpu_runtime.clone(),
+    };
+    let mismatch = bad_paths
+        .verify_qualification(
+            record.artifact.sha256,
+            &expected_key.runtime_build,
+            &expected_key.worker_build,
+        )
+        .expect_err("the read-only incompatible CPU fixture must not qualify");
+    assert!(
+        mismatch.starts_with("QualificationMismatch: runtime="),
+        "{mismatch}"
+    );
+
+    let source = required_path("PARAKEET_L2_EN_WAV");
+    let destination = execution_root.join(format!("archive/r8-cpu-loader-{}", std::process::id()));
+    let dummy_turbo = required_path("PARAKEET_L2_RUNTIME_ROOT").join("worker/not-used-turbo.exe");
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
+        WorkerPaths {
+            cpu: dummy_turbo.clone(),
+            gpu: dummy_turbo,
+        },
+        model_path.parent().unwrap().to_path_buf(),
+        required_path("PARAKEET_L2_RUNTIME_ROOT")
+            .join("historical/ggml-large-v3-turbo.bin")
+            .to_string_lossy()
+            .into_owned(),
+        Some(bad_paths),
+    );
+    let snapshot = whisper_core::model_registry::engine_snapshot(
+        1,
+        |_| whisper_core::model_catalog::ModelAvailability::Ready,
+        vec![],
+    );
+    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
+        snapshot,
+        1,
+        [
+            (
+                ModelId::ParakeetTdt06BV3,
+                model_path.to_string_lossy().into_owned(),
+            ),
+            (
+                ModelId::WhisperLargeV3Turbo,
+                required_path("PARAKEET_L2_RUNTIME_ROOT")
+                    .join("historical/ggml-large-v3-turbo.bin")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+        ],
+    );
+    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let job_id = JobId(0x2a8);
+    let generation = Generation::first();
+    app.dispatch(AppCommand::StartImport {
+        request: ImportRequest {
+            job_id,
+            generation,
+            source_path: source.to_string_lossy().into_owned(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: model_path.to_string_lossy().into_owned(),
+            model_sha256: decode_sha256(record.artifact.sha256),
+            destination: destination.to_string_lossy().into_owned(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        },
+    })
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(240);
+    let refusal = loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if view.active_job == Some((job_id, whisper_core::JobState::Recoverable)) {
+            break view.message.unwrap_or_default();
+        }
+        assert!(
+            Instant::now() < deadline,
+            "CPU DLL refusal missing: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+    assert!(
+        refusal.contains("QualificationMismatch: runtime="),
+        "{refusal}"
+    );
+    let passage = passage_dir(&destination, job_id, generation);
+    assert!(!passage.join("pending.json").exists());
+    assert!(!passage.join("transcript.txt").exists());
+    assert!(!passage.join("transcript.srt").exists());
+
+    let output = Command::new(cpu_worker)
+        .arg("--model")
+        .arg(model_path)
+        .arg("--model-sha256")
+        .arg(record.artifact.sha256)
+        .arg("--native-dir")
+        .arg(&incompatible_native)
+        .env("PARAKEET_L2_RUNTIME_ROOT", &cpu_runtime)
+        .stdin(Stdio::null())
+        .output()
+        .expect("frozen CPU worker loader probe starts with the preserved L2b fixture");
+    assert!(
+        !output.status.success(),
+        "incompatible CPU ABI must fail before Ready"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("parakeet-worker fatal:"), "{stderr}");
+    assert!(
+        stderr.to_ascii_lowercase().contains("procedure")
+            || stderr.to_ascii_lowercase().contains("symbol")
+            || stderr.contains("GetProcAddress"),
+        "CPU loader failure phase is not attributed: {stderr}"
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).is_empty());
+}
+
+fn existing_cpu_incompatible_fixture(cpu_runtime: &std::path::Path) -> PathBuf {
+    let native_root = cpu_runtime.join("r8/native");
+    let baseline_native = cpu_native_dir();
+    let expected = [
+        "nemo_speech_asr_c.dll",
+        "nemo_speech_asr.dll",
+        "ggml.dll",
+        "ggml-base.dll",
+        "ggml-cpu.dll",
+    ];
+    for directory in fs::read_dir(&native_root)
+        .expect("preserved CPU R8 fixture directory is readable")
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_dir()
+                && path
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().starts_with("r8-incompatible-"))
+        })
+    {
+        let files = fs::read_dir(&directory)
+            .expect("CPU R8 fixture directory is readable")
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        if files.len() != expected.len()
+            || expected
+                .iter()
+                .any(|name| !files.iter().any(|file| file == name))
+        {
+            continue;
+        }
+        let copied = sha256(&directory.join("nemo_speech_asr_c.dll"));
+        if copied == sha256(&baseline_native.join("nemo_speech_asr_c.dll"))
+            || copied != sha256(&directory.join("ggml.dll"))
+            || expected
+                .iter()
+                .copied()
+                .filter(|name| *name != "nemo_speech_asr_c.dll")
+                .any(|name| sha256(&directory.join(name)) != sha256(&baseline_native.join(name)))
+        {
+            continue;
+        }
+        return directory;
+    }
+    panic!("no preserved CPU R8 fixture has the expected single-DLL substitution");
 }
 
 #[test]
@@ -1018,26 +1647,81 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
 fn killed_native_worker_is_reported_as_exit_without_result() {
     let execution_root = r8_exec_root();
     let source = required_path("PARAKEET_L2_EN_WAV");
-    let mut process = ParakeetProcess::spawn(&configured_paths()).unwrap();
+    assert_worker_death(
+        &configured_r6_cpu_paths(),
+        &source,
+        "00000000000000000000000000002a5",
+    );
+    let candidate = qualified_gpu_candidate();
+    let expected_gpu = whisper_adapters::parakeet_import::expected_gpu_for_candidate(&candidate)
+        .expect("qualified R8 GPU identity matches the host runtime");
+    assert_worker_death_with_gpu(
+        &configured_gpu_paths(),
+        &source,
+        "00000000000000000000000000002a6",
+        expected_gpu,
+    );
+    assert!(execution_root.join("archive").exists());
+}
+
+fn assert_worker_death(paths: &ParakeetWorkerPaths, source: &std::path::Path, job_id: &str) {
+    let mut process = ParakeetProcess::spawn(paths).unwrap();
     let identity = wait_for_ready(&mut process);
     process.accept_ready(identity).unwrap();
     let bytes = fs::read(&source).unwrap();
     let source_sha = format!("{:x}", Sha256::digest(bytes));
     process
-        .transcribe(
-            "00000000000000000000000000002a5".into(),
-            1,
-            1,
-            &source,
-            source_sha,
-        )
+        .transcribe(job_id.into(), 1, 1, &source, source_sha)
         .unwrap();
+    // The frozen R6 CPU worker does not emit NativeCallStarted; retain the
+    // historical R8 behavior and terminate immediately after Transcribe.
     let status = process.terminate().expect("kill and wait for child exit");
     assert!(!status.success());
     let error = poll_until_error(&mut process, Duration::from_secs(10));
     assert!(error.starts_with("WorkerExited:"), "{error}");
     assert!(!error.contains("Result"));
-    assert!(execution_root.join("archive").exists());
+}
+
+fn assert_worker_death_with_gpu(
+    paths: &ParakeetWorkerPaths,
+    source: &std::path::Path,
+    job_id: &str,
+    expected_gpu: whisper_core::parakeet_ipc::ExpectedGpu,
+) {
+    let mut process = ParakeetProcess::spawn(paths).unwrap();
+    let identity = wait_for_ready(&mut process);
+    process.accept_ready(identity).unwrap();
+    let bytes = fs::read(source).unwrap();
+    let source_sha = format!("{:x}", Sha256::digest(bytes));
+    process
+        .transcribe_with_gpu(job_id.into(), 1, 1, source, source_sha, Some(expected_gpu))
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        match process.poll().expect("GPU worker event is readable") {
+            Some(whisper_core::parakeet_ipc::Event::NativeCallStarted {
+                job_id: actual,
+                generation,
+                attempt,
+                ..
+            }) => {
+                assert_eq!(actual, job_id);
+                assert_eq!(generation, 1);
+                assert_eq!(attempt, 1);
+                break;
+            }
+            Some(event) => panic!("unexpected GPU event before native call: {event:?}"),
+            None => {
+                assert!(Instant::now() < deadline, "GPU native call did not start");
+                thread::sleep(Duration::from_millis(10));
+            }
+        }
+    }
+    let status = process.terminate().expect("kill and wait for child exit");
+    assert!(!status.success());
+    let error = poll_until_error(&mut process, Duration::from_secs(10));
+    assert!(error.starts_with("WorkerExited:"), "{error}");
+    assert!(!error.contains("Result"));
 }
 
 #[test]
@@ -1065,9 +1749,36 @@ fn incomplete_result_frame_is_rejected_as_transport_decode_failure() {
         "{}",
         String::from_utf8_lossy(&compile.stderr)
     );
-    let mut paths = configured_paths();
-    paths.executable = fake_worker;
-    let mut process = ParakeetProcess::spawn(&paths).unwrap();
+    let model = required_path("PARAKEET_L2_MODEL");
+    let cpu_native_fixture = execution_root
+        .join("native")
+        .join(format!("r8-cpu-transport-{}", std::process::id()));
+    fs::create_dir_all(&cpu_native_fixture).unwrap();
+    let cpu_native_source = cpu_native_dir();
+    for name in [
+        "nemo_speech_asr_c.dll",
+        "nemo_speech_asr.dll",
+        "ggml.dll",
+        "ggml-base.dll",
+        "ggml-cpu.dll",
+    ] {
+        fs::copy(cpu_native_source.join(name), cpu_native_fixture.join(name)).unwrap();
+    }
+    let cpu_paths = ParakeetWorkerPaths {
+        executable: fake_worker.clone(),
+        native_dir: cpu_native_fixture,
+        model: model.clone(),
+        runtime_root: required_path("PARAKEET_L3B_EXEC_ROOT"),
+    };
+    assert_incomplete_result_frame(&cpu_paths);
+
+    let mut gpu_paths = configured_gpu_paths();
+    gpu_paths.executable = fake_worker;
+    assert_incomplete_result_frame(&gpu_paths);
+}
+
+fn assert_incomplete_result_frame(paths: &ParakeetWorkerPaths) {
+    let mut process = ParakeetProcess::spawn(paths).unwrap();
     let error = poll_until_error(&mut process, Duration::from_secs(10));
     assert!(error.starts_with("IpcDecode:"), "{error}");
     assert!(error.contains("request_id"), "{error}");
@@ -1076,33 +1787,64 @@ fn incomplete_result_frame_is_rejected_as_transport_decode_failure() {
 #[test]
 #[ignore = "routes a worker death from the qualified Test process through ImportApplication"]
 fn product_route_worker_death_preserves_pending_source_and_rejects_completion() {
-    run_product_transport_failure("worker-death", "WorkerExited", JobId(0x2a6));
+    run_product_transport_failure(
+        "worker-death-cpu",
+        "worker-death",
+        "WorkerExited",
+        JobId(0x2a6),
+        ComputeChoice::Cpu,
+    );
+    run_product_transport_failure(
+        "worker-death-gpu",
+        "worker-death",
+        "WorkerExited",
+        JobId(0x2a8),
+        ComputeChoice::Gpu,
+    );
 }
 
 #[test]
 #[ignore = "routes an incomplete Result transport failure through ImportApplication"]
 fn product_route_incomplete_result_preserves_pending_source_and_rejects_completion() {
-    run_product_transport_failure("incomplete-result", "IpcDecode", JobId(0x2a7));
+    run_product_transport_failure(
+        "incomplete-result-cpu",
+        "incomplete-result",
+        "IpcDecode",
+        JobId(0x2a7),
+        ComputeChoice::Cpu,
+    );
+    run_product_transport_failure(
+        "incomplete-result-gpu",
+        "incomplete-result",
+        "IpcDecode",
+        JobId(0x2a9),
+        ComputeChoice::Gpu,
+    );
 }
 
-fn run_product_transport_failure(signal: &str, expected_error: &str, job_id: JobId) {
+fn run_product_transport_failure(
+    case: &str,
+    signal: &str,
+    expected_error: &str,
+    job_id: JobId,
+    compute: ComputeChoice,
+) {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let execution_root = r8_exec_root();
     let source = required_path("PARAKEET_L2_EN_WAV");
     let source_sha_before = format!("{:x}", Sha256::digest(fs::read(&source).unwrap()));
     let model_path = required_path("PARAKEET_L2_MODEL");
-    let destination =
-        execution_root.join(format!("archive/product-{signal}-{}", std::process::id()));
+    let destination = execution_root.join(format!("archive/product-{case}-{}", std::process::id()));
     let control = destination.join(".l2a2-acceptance");
     fs::create_dir_all(&control).unwrap();
     // Arm before launch; the adapter consumes the signal only after accepting
     // the exact worker identity and sending Transcribe.
     fs::write(control.join(format!("{signal}.enabled")), b"enabled").unwrap();
     let model_record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
-    let worker = required_path("PARAKEET_L2_WORKER");
-    let native = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = gpu_worker_path();
+    let native = gpu_native_dir();
     let dummy_turbo = runtime.join("worker/not-used-turbo.exe");
-    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes(
         WorkerPaths {
             cpu: dummy_turbo.clone(),
             gpu: dummy_turbo,
@@ -1112,6 +1854,12 @@ fn run_product_transport_failure(signal: &str, expected_error: &str, job_id: Job
             .join("historical/ggml-large-v3-turbo.bin")
             .to_string_lossy()
             .into_owned(),
+        Some(ParakeetWorkerPaths {
+            executable: cpu_worker_path(),
+            native_dir: cpu_native_dir(),
+            model: model_path.clone(),
+            runtime_root: runtime.clone(),
+        }),
         Some(ParakeetWorkerPaths {
             executable: worker,
             native_dir: native,
@@ -1143,6 +1891,10 @@ fn run_product_transport_failure(signal: &str, expected_error: &str, job_id: Job
     );
     let mut app = ImportApplication::new(io).with_model_guard(guard);
     let generation = Generation::first();
+    if compute == ComputeChoice::Gpu {
+        app.set_gpu_candidate(job_id, generation, Some(qualified_gpu_candidate()))
+            .unwrap();
+    }
     let request = ImportRequest {
         job_id,
         generation,
@@ -1154,7 +1906,7 @@ fn run_product_transport_failure(signal: &str, expected_error: &str, job_id: Job
         destination: destination.to_string_lossy().into_owned(),
         config: JobConfig {
             language: LanguageChoice::Automatic,
-            compute: ComputeChoice::Cpu,
+            compute,
         },
     };
     app.dispatch(AppCommand::StartImport { request }).unwrap();
@@ -1213,11 +1965,62 @@ fn run_product_transport_failure(signal: &str, expected_error: &str, job_id: Job
 
 fn configured_paths() -> ParakeetWorkerPaths {
     ParakeetWorkerPaths {
-        executable: required_path("PARAKEET_L2_WORKER"),
-        native_dir: required_path("PARAKEET_L2_NATIVE_DIR"),
+        executable: cpu_worker_path(),
+        native_dir: cpu_native_dir(),
         model: required_path("PARAKEET_L2_MODEL"),
         runtime_root: required_path("PARAKEET_L2_RUNTIME_ROOT"),
     }
+}
+
+fn configured_r6_cpu_paths() -> ParakeetWorkerPaths {
+    ParakeetWorkerPaths {
+        executable: cpu_worker_path(),
+        native_dir: cpu_native_dir(),
+        model: required_path("PARAKEET_L2_MODEL"),
+        runtime_root: required_path("PARAKEET_L2_RUNTIME_ROOT"),
+    }
+}
+
+fn configured_gpu_paths() -> ParakeetWorkerPaths {
+    ParakeetWorkerPaths {
+        executable: gpu_worker_path(),
+        native_dir: gpu_native_dir(),
+        model: required_path("PARAKEET_L2_MODEL"),
+        runtime_root: required_path("PARAKEET_L2_RUNTIME_ROOT"),
+    }
+}
+
+fn assert_registered_gpu_key(paths: &ParakeetWorkerPaths) {
+    let actual = paths
+        .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
+        .expect("the frozen GPU worker and DLL set produce a qualification key");
+    let registered = whisper_core::model_registry::configuration_key(
+        whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3),
+        whisper_core::model_catalog::Backend::Gpu,
+    );
+    assert_eq!(
+        actual,
+        whisper_adapters::archive::ArchiveQualificationKey::parakeet_gpu_test(),
+        "the qualified worker, DLLs, and archive key use the same frozen identity"
+    );
+    assert_eq!(actual.model, "parakeet-tdt-0.6b-v3");
+    assert_eq!(actual.artifact, registered.artifact);
+    assert_eq!(actual.artifact_revision, registered.artifact_revision);
+    assert_eq!(actual.runtime, registered.runtime);
+    assert_eq!(actual.runtime_build, registered.runtime_build);
+    assert_eq!(actual.worker, registered.worker);
+    assert_eq!(actual.worker_build, registered.worker_build);
+    assert_eq!(actual.worker_protocol, registered.worker_protocol);
+    assert_eq!(actual.backend, "CUDA0");
+    assert_eq!(actual.inference_profile, registered.inference_profile);
+}
+
+fn gpu_worker_path() -> PathBuf {
+    required_path("PARAKEET_L2_WORKER")
+}
+
+fn gpu_native_dir() -> PathBuf {
+    required_path("PARAKEET_L2_NATIVE_DIR")
 }
 
 fn wait_for_ready(process: &mut ParakeetProcess) -> whisper_core::parakeet_ipc::WorkerIdentity {
@@ -1253,10 +2056,35 @@ fn required_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("{name} is required")))
 }
 
+fn cpu_worker_path() -> PathBuf {
+    std::env::var_os("PARAKEET_L2_CPU_WORKER")
+        .or_else(|| std::env::var_os("PARAKEET_L2_WORKER"))
+        .map(PathBuf::from)
+        .expect("PARAKEET_L2_CPU_WORKER or legacy PARAKEET_L2_WORKER is required")
+}
+
+fn cpu_native_dir() -> PathBuf {
+    std::env::var_os("PARAKEET_L2_CPU_NATIVE_DIR")
+        .or_else(|| std::env::var_os("PARAKEET_L2_NATIVE_DIR"))
+        .map(PathBuf::from)
+        .expect("PARAKEET_L2_CPU_NATIVE_DIR or legacy PARAKEET_L2_NATIVE_DIR is required")
+}
+
 fn r8_exec_root() -> PathBuf {
     let root = required_path("PARAKEET_R8_EXEC_ROOT")
         .canonicalize()
         .expect("R8 execution root exists");
+    let l3b_runtime = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target/parakeet-tests/l3/l3b")
+        .canonicalize()
+        .expect("canonical L3b runtime root exists");
+    let configured_runtime = required_path("PARAKEET_L2_RUNTIME_ROOT")
+        .canonicalize()
+        .expect("configured runtime root exists");
+    let l3b_r8 = l3b_runtime.join("r8");
+    if configured_runtime == l3b_runtime && root == l3b_r8 {
+        return root;
+    }
     let r8 = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../target/parakeet-tests/l2/l2b/r8")
         .canonicalize()

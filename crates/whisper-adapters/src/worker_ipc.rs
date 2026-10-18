@@ -1163,8 +1163,11 @@ struct ImportRuntime {
     workers: WorkerPaths,
     model_catalog: Option<RuntimeModelCatalog>,
     parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+    gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
     parakeet: Option<crate::parakeet_import::ParakeetProcess>,
     parakeet_events: VecDeque<WorkerEvent>,
+    parakeet_expected_gpu: Option<whisper_core::parakeet_ipc::ExpectedGpu>,
+    parakeet_native_call_started: bool,
     parakeet_end: Option<(JobId, Generation, u64, u64)>,
     parakeet_stopped_ack: bool,
     parakeet_vad: Option<ParakeetVadRun>,
@@ -1226,6 +1229,7 @@ struct RuntimeModelCatalog {
     catalog: crate::model_catalog::LocalModelCatalog,
     known_historical_turbo_path: String,
     parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+    gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1266,6 +1270,15 @@ impl RuntimeModelCatalog {
         let source_samples = request.source_samples.or_else(|| {
             crate::archive::source_output_samples(Path::new(&request.source_path)).ok()
         });
+        if source_samples.is_some_and(|samples| {
+            samples
+                > whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS
+                    .saturating_mul(16)
+        }) {
+            return Err(
+                "DurationUnsupported: Fichier trop long pour Parakeet, utilisez Turbo".into(),
+            );
+        }
         let profile = if source_samples.is_some_and(|samples| {
             samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
         }) {
@@ -1273,34 +1286,35 @@ impl RuntimeModelCatalog {
         } else {
             whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
         };
-        let paths = self
-            .parakeet_paths
-            .as_ref()
-            .ok_or_else(|| "ModelNotQualified: worker Test Parakeet absent".to_owned())?;
-        let key = paths.qualification_key(profile)?;
-        if let Some(samples) = source_samples {
-            if samples
-                > whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS
-                    .saturating_mul(16)
-            {
-                return Err(
-                    "DurationUnsupported: Fichier trop long pour Parakeet, utilisez Turbo".into(),
-                );
+        let (paths, key) = match request.config.compute {
+            whisper_core::ComputeChoice::Cpu | whisper_core::ComputeChoice::Auto => {
+                let paths = self.parakeet_paths.as_ref().ok_or_else(|| {
+                    "ModelNotQualified: worker CPU Test Parakeet absent".to_owned()
+                })?;
+                (paths, paths.qualification_key(profile)?)
             }
-        }
+            whisper_core::ComputeChoice::Gpu => {
+                let paths = self.gpu_parakeet_paths.as_ref().ok_or_else(|| {
+                    "BackendUnavailable: worker GPU Test Parakeet absent".to_owned()
+                })?;
+                let key = paths.gpu_qualification_key(profile)?;
+                if !l3_gpu_candidate_allowed(&key) {
+                    return Err("ModelNotQualified: Parakeet GPU candidate is not admitted".into());
+                }
+                (paths, key)
+            }
+        };
         paths.verify_qualification(
             record.artifact.sha256,
             &key.runtime_build,
             &key.worker_build,
         )?;
-        if request.config.compute != whisper_core::ComputeChoice::Cpu
-            || !matches!(
-                &request.config.language,
-                whisper_core::LanguageChoice::Automatic
-            )
-        {
+        if !matches!(
+            &request.config.language,
+            whisper_core::LanguageChoice::Automatic
+        ) {
             return Err(
-                "ModelNotQualified: Parakeet accepte seulement CPU/import/langue automatique"
+                "ModelNotQualified: Parakeet accepte seulement l'import et la langue automatique"
                     .into(),
             );
         }
@@ -1465,6 +1479,8 @@ fn request_is_parakeet(request: &ImportRequest) -> bool {
 fn archive_qualification_for_request(
     request: &ImportRequest,
     parakeet_paths: Option<&crate::parakeet_import::ParakeetWorkerPaths>,
+    gpu_parakeet_paths: Option<&crate::parakeet_import::ParakeetWorkerPaths>,
+    gpu_candidate: Option<&whisper_core::gpu_inventory::GpuRuntimeIdentity>,
 ) -> Option<crate::archive::ArchiveQualificationKey> {
     if !request_is_parakeet(request) {
         return None;
@@ -1477,12 +1493,66 @@ fn archive_qualification_for_request(
     } else {
         whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
     };
+    let gpu_requested = request.config.compute == whisper_core::ComputeChoice::Gpu
+        || (request.config.compute == whisper_core::ComputeChoice::Auto && gpu_candidate.is_some());
+    if gpu_requested {
+        if let Some(key) = gpu_parakeet_paths
+            .and_then(|paths| paths.gpu_qualification_key(profile).ok())
+            .filter(l3_gpu_candidate_allowed)
+        {
+            return Some(key);
+        }
+        if request.config.compute == whisper_core::ComputeChoice::Gpu {
+            return None;
+        }
+    }
     parakeet_paths
         .and_then(|paths| paths.qualification_key(profile).ok())
         .or_else(|| {
             (profile == whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
                 .then(crate::archive::ArchiveQualificationKey::parakeet_cpu_test)
         })
+}
+
+fn l3_gpu_candidate_allowed(key: &crate::archive::ArchiveQualificationKey) -> bool {
+    let test_injection = cfg!(feature = "l3-gpu-qualification")
+        && option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_some()
+        && key == &crate::archive::ArchiveQualificationKey::parakeet_gpu_test();
+    if test_injection {
+        return true;
+    }
+    let record =
+        whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3);
+    let registered = whisper_core::model_registry::configuration_key(
+        record,
+        whisper_core::model_catalog::Backend::Gpu,
+    );
+    key.backend == "CUDA0"
+        && key.artifact_revision == registered.artifact_revision
+        && key.runtime_build == registered.runtime_build
+        && key.worker_build == registered.worker_build
+        && key.inference_profile == registered.inference_profile
+}
+
+fn gpu_evidence_matches(
+    evidence: Option<&whisper_core::parakeet_ipc::GpuEvidence>,
+    expected: Option<&whisper_core::parakeet_ipc::ExpectedGpu>,
+    pid: u32,
+) -> bool {
+    let (Some(evidence), Some(expected)) = (evidence, expected) else {
+        return false;
+    };
+    evidence.backend == "CUDA0"
+        && evidence
+            .pci_bus_id
+            .eq_ignore_ascii_case(&expected.pci_bus_id)
+        && evidence.uuid.eq_ignore_ascii_case(&expected.uuid)
+        && evidence.pid == pid
+        && evidence.asr_log_sha256.len() == 64
+        && evidence
+            .asr_log_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
 }
 const WORKER_IDLE_RETENTION: Duration = Duration::from_secs(5 * 60);
 
@@ -1597,7 +1667,7 @@ impl ImportRuntime {
         publication_gate: Arc<PublicationGate>,
         model_catalog: Option<RuntimeModelCatalog>,
     ) -> Self {
-        Self::new_with_workers_and_parakeet(workers, publication_gate, model_catalog, None)
+        Self::new_with_workers_and_parakeet(workers, publication_gate, model_catalog, None, None)
     }
 
     fn new_with_workers_and_parakeet(
@@ -1605,13 +1675,17 @@ impl ImportRuntime {
         publication_gate: Arc<PublicationGate>,
         model_catalog: Option<RuntimeModelCatalog>,
         parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+        gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
     ) -> Self {
         Self {
             workers,
             model_catalog,
             parakeet_paths,
+            gpu_parakeet_paths,
             parakeet: None,
             parakeet_events: VecDeque::new(),
+            parakeet_expected_gpu: None,
+            parakeet_native_call_started: false,
             parakeet_end: None,
             parakeet_stopped_ack: false,
             parakeet_vad: None,
@@ -1879,6 +1953,10 @@ impl ImportRuntime {
                             archive_qualification_for_request(
                                 &durable_request,
                                 self.parakeet_paths.as_ref(),
+                                self.gpu_parakeet_paths.as_ref(),
+                                self.gpu_candidates
+                                    .get(&(id.0, id.1.get()))
+                                    .and_then(Option::as_ref),
                             ),
                         ) {
                             Ok(prepared) => {
@@ -1990,6 +2068,10 @@ impl ImportRuntime {
                         archive_qualification_for_request(
                             &durable_request,
                             self.parakeet_paths.as_ref(),
+                            self.gpu_parakeet_paths.as_ref(),
+                            self.gpu_candidates
+                                .get(&(id.0, id.1.get()))
+                                .and_then(Option::as_ref),
                         ),
                     )
                     .and_then(|(prepared, prefix)| {
@@ -2055,7 +2137,13 @@ impl ImportRuntime {
                 }
             }
             ImportEffect::Prepare(request) => match self.bind_import_request(&request) {
-                Ok(request) => self.prepare(request, events),
+                Ok(request) => {
+                    let candidate = self
+                        .gpu_candidates
+                        .get(&(request.job_id, request.generation.get()))
+                        .and_then(Clone::clone);
+                    self.prepare(request, candidate, events)
+                }
                 Err(error) => Err((
                     request.job_id,
                     request.generation,
@@ -2432,11 +2520,51 @@ impl ImportRuntime {
     fn prepare(
         &mut self,
         request: ImportRequest,
+        candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
         crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
             .map_err(|error| (id.0, id.1, error))?;
+        if request_is_parakeet(&request)
+            && request.config.compute == whisper_core::ComputeChoice::Gpu
+        {
+            let candidate = candidate.as_ref().ok_or((
+                id.0,
+                id.1,
+                "BackendMismatch: selected GPU has no current identity proof".into(),
+            ))?;
+            if candidate.generation != request.generation.get() {
+                return Err((
+                    id.0,
+                    id.1,
+                    "BackendMismatch: selected GPU identity belongs to a stale generation".into(),
+                ));
+            }
+            let paths = self.gpu_parakeet_paths.as_ref().ok_or((
+                id.0,
+                id.1,
+                "BackendUnavailable: worker GPU Test Parakeet non configuré".into(),
+            ))?;
+            let profile = whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
+            let key = paths
+                .gpu_qualification_key(profile)
+                .map_err(|error| (id.0, id.1, error))?;
+            if !l3_gpu_candidate_allowed(&key) {
+                return Err((
+                    id.0,
+                    id.1,
+                    "ModelNotQualified: GPU Test key is not admitted".into(),
+                ));
+            }
+            crate::parakeet_import::expected_gpu_for_candidate(candidate).map_err(|error| {
+                (
+                    id.0,
+                    id.1,
+                    format!("BackendMismatch: GPU identity validation failed: {error}"),
+                )
+            })?;
+        }
         if self.publication_gate.is_cancelled() {
             events.push_back(ImportEvent::Stopped {
                 job_id: id.0,
@@ -2445,8 +2573,12 @@ impl ImportRuntime {
             return Ok(());
         }
         let mut archive = ArchiveStore::new(&request.destination);
-        let qualification =
-            archive_qualification_for_request(&request, self.parakeet_paths.as_ref());
+        let qualification = archive_qualification_for_request(
+            &request,
+            self.parakeet_paths.as_ref(),
+            self.gpu_parakeet_paths.as_ref(),
+            candidate.as_ref(),
+        );
         match archive.prepare_with_qualification(request, None, qualification) {
             Ok(prepared) => {
                 self.archive = archive;
@@ -2526,7 +2658,7 @@ impl ImportRuntime {
         )
         .map_err(|error| (request.job_id, request.generation, error))?;
         if request.model_sha256 == parakeet_sha {
-            return self.start_parakeet_worker(request);
+            return self.start_parakeet_worker(request, force_cpu, candidate);
         }
         let id = (request.job_id, request.generation);
         if !force_cpu {
@@ -2684,21 +2816,21 @@ impl ImportRuntime {
     fn start_parakeet_worker(
         &mut self,
         request: whisper_core::ports::ImportRequest,
+        force_cpu: bool,
+        candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
         if self.active.is_some() || self.parakeet.is_some() || self.transport.is_some() {
             return Err((id.0, id.1, "Busy: another worker is active".into()));
         }
-        if request.config.compute != whisper_core::ComputeChoice::Cpu
-            || !matches!(
-                &request.config.language,
-                whisper_core::LanguageChoice::Automatic
-            )
-        {
+        if !matches!(
+            &request.config.language,
+            whisper_core::LanguageChoice::Automatic
+        ) {
             return Err((
                 id.0,
                 id.1,
-                "ModelNotQualified: Parakeet requiert CPU et langue automatique".into(),
+                "ModelNotQualified: Parakeet requiert la langue automatique".into(),
             ));
         }
         if request.source_sha256.is_none() {
@@ -2723,11 +2855,6 @@ impl ImportRuntime {
                 "Cancelled: generation invalidated before worker start".into(),
             ));
         }
-        let paths = self.parakeet_paths.as_ref().ok_or((
-            id.0,
-            id.1,
-            "ModelNotQualified: worker Test Parakeet non configuré".into(),
-        ))?;
         let record = whisper_core::model_registry::model(
             whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
         );
@@ -2737,9 +2864,130 @@ impl ImportRuntime {
             } else {
                 whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
             };
-        let qualification = paths
-            .qualification_key(profile)
-            .map_err(|error| (id.0, id.1, error))?;
+        if profile != whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+            || source_samples
+                > whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS * 16
+        {
+            return Err((
+                id.0,
+                id.1,
+                "DurationUnsupported: Fichier trop long pour Parakeet, utilisez Turbo".into(),
+            ));
+        }
+        let auto = request.config.compute == whisper_core::ComputeChoice::Auto && !force_cpu;
+        let candidate_is_current = candidate
+            .as_ref()
+            .is_some_and(|candidate| candidate.generation == id.1.get());
+        let mut use_gpu = !force_cpu
+            && match request.config.compute {
+                whisper_core::ComputeChoice::Cpu => false,
+                whisper_core::ComputeChoice::Gpu => true,
+                whisper_core::ComputeChoice::Auto => candidate_is_current,
+            };
+        if request.config.compute == whisper_core::ComputeChoice::Gpu && !candidate_is_current {
+            return Err((
+                id.0,
+                id.1,
+                "BackendMismatch: selected GPU has no current runtime identity proof".into(),
+            ));
+        }
+        let mut expected_gpu = if use_gpu {
+            match candidate
+                .as_ref()
+                .map(crate::parakeet_import::expected_gpu_for_candidate)
+                .transpose()
+            {
+                Ok(expected) => expected,
+                Err(error) if auto => {
+                    use_gpu = false;
+                    self.auto_fallback_reason = Some(format!(
+                        "GPU identity preflight failed before native inference: {error}"
+                    ));
+                    self.replace_parakeet_pending_with_cpu_key(id)?;
+                    None
+                }
+                Err(error) => return Err((id.0, id.1, error)),
+            }
+        } else {
+            None
+        };
+        if !use_gpu && request.config.compute == whisper_core::ComputeChoice::Auto && !force_cpu {
+            self.auto_fallback_reason = Some(if candidate.is_some() {
+                "GPU candidate identity is stale before processing".into()
+            } else {
+                "GPU candidate proof unavailable before processing".into()
+            });
+            if candidate.is_some() {
+                self.replace_parakeet_pending_with_cpu_key(id)?;
+            }
+        }
+        let selected_paths = if use_gpu {
+            self.gpu_parakeet_paths.as_ref()
+        } else {
+            self.parakeet_paths.as_ref()
+        };
+        let mut qualification = selected_paths
+            .ok_or_else(|| {
+                (
+                    id.0,
+                    id.1,
+                    if use_gpu {
+                        "BackendUnavailable: worker GPU Test Parakeet non configuré".into()
+                    } else {
+                        "ModelNotQualified: worker CPU Test Parakeet non configuré".into()
+                    },
+                )
+            })
+            .and_then(|paths| {
+                if use_gpu {
+                    paths.gpu_qualification_key(profile)
+                } else {
+                    paths.qualification_key(profile)
+                }
+                .map_err(|error| (id.0, id.1, error))
+            });
+        if use_gpu
+            && qualification
+                .as_ref()
+                .is_ok_and(|key| !l3_gpu_candidate_allowed(key))
+        {
+            qualification = Err((
+                id.0,
+                id.1,
+                "ModelNotQualified: GPU Test key is not admitted".into(),
+            ));
+        }
+        if use_gpu && qualification.is_err() && auto {
+            use_gpu = false;
+            expected_gpu = None;
+            self.auto_fallback_reason =
+                Some("GPU qualification unavailable before native inference".into());
+            self.replace_parakeet_pending_with_cpu_key(id)?;
+            qualification = self
+                .parakeet_paths
+                .as_ref()
+                .ok_or((
+                    id.0,
+                    id.1,
+                    "ModelNotQualified: worker CPU Test Parakeet non configuré".into(),
+                ))
+                .and_then(|paths| {
+                    paths
+                        .qualification_key(profile)
+                        .map_err(|error| (id.0, id.1, error))
+                });
+        }
+        let qualification = qualification?;
+        let paths = if use_gpu {
+            self.gpu_parakeet_paths.as_ref()
+        } else {
+            self.parakeet_paths.as_ref()
+        }
+        .ok_or((
+            id.0,
+            id.1,
+            "ModelNotQualified: Parakeet worker is absent".into(),
+        ))?;
         paths
             .verify_qualification(
                 record.artifact.sha256,
@@ -2749,12 +2997,19 @@ impl ImportRuntime {
             .map_err(|error| (id.0, id.1, error))?;
         crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
             .map_err(|error| (id.0, id.1, error))?;
-        let process = if profile == whisper_core::parakeet_windows::PROFILE_IMPORT_VAD {
-            crate::parakeet_import::ParakeetProcess::spawn_for_qualification(paths, profile)
-        } else {
-            crate::parakeet_import::ParakeetProcess::spawn(paths)
-        }
-        .map_err(|error| (id.0, id.1, format!("WorkerExited: {error}")))?;
+        let process_result = crate::parakeet_import::ParakeetProcess::spawn(paths);
+        let process = match process_result {
+            Ok(process) => process,
+            Err(error) if auto && use_gpu => {
+                return self
+                    .fallback_parakeet_to_cpu(
+                        request,
+                        format!("GPU worker preparation failed: {error}"),
+                    )
+                    .map_err(|message| (id.0, id.1, message));
+            }
+            Err(error) => return Err((id.0, id.1, format!("WorkerExited: {error}"))),
+        };
         let vad_run = if profile == whisper_core::parakeet_windows::PROFILE_IMPORT_VAD {
             let source_sha256 = request
                 .source_sha256
@@ -2797,14 +3052,20 @@ impl ImportRuntime {
             job_id: id.0,
             generation: id.1,
             instance_id,
-            backend: BackendKind::Cpu,
+            backend: if use_gpu {
+                BackendKind::Cuda
+            } else {
+                BackendKind::Cpu
+            },
             attempt_number: 1,
             import_request: Some(request),
             recovery: LiveRecoveryState::None,
             startup_ready: false,
-            gpu_candidate: None,
+            gpu_candidate: if use_gpu { candidate } else { None },
             gpu_attested: false,
         });
+        self.parakeet_expected_gpu = expected_gpu;
+        self.parakeet_native_call_started = false;
         let _ = source_samples;
         self.parakeet = Some(process);
         self.parakeet_vad = vad_run;
@@ -2812,6 +3073,48 @@ impl ImportRuntime {
             self.resume_prefix.clear();
         }
         Ok(())
+    }
+
+    fn replace_parakeet_pending_with_cpu_key(
+        &mut self,
+        id: (JobId, Generation),
+    ) -> Result<(), (JobId, Generation, String)> {
+        let key = self
+            .parakeet_paths
+            .as_ref()
+            .ok_or((id.0, id.1, "CPU Parakeet worker is absent".into()))?
+            .qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
+            .map_err(|error| (id.0, id.1, error))?;
+        self.archive
+            .replace_pending_qualification(key)
+            .map_err(|error| (id.0, id.1, error))
+    }
+
+    fn fallback_parakeet_to_cpu(
+        &mut self,
+        request: ImportRequest,
+        reason: String,
+    ) -> Result<(), String> {
+        if self.parakeet_native_call_started {
+            return Err(
+                "BackendMismatch: CPU fallback is forbidden after NativeCallStarted".into(),
+            );
+        }
+        let id = (request.job_id, request.generation);
+        self.replace_parakeet_pending_with_cpu_key(id)
+            .map_err(|(_, _, error)| error)?;
+        if let Some(process) = self.parakeet.as_mut() {
+            process.terminate().map_err(|error| {
+                format!("WorkerExited: GPU preparation failure; termination failed: {error}")
+            })?;
+        }
+        self.parakeet = None;
+        self.active = None;
+        self.parakeet_expected_gpu = None;
+        self.parakeet_native_call_started = false;
+        self.auto_fallback_reason = Some(reason);
+        self.start_parakeet_worker(request, true, None)
+            .map_err(|(_, _, error)| error)
     }
 
     fn start_cpu_live_attempt(
@@ -4079,13 +4382,8 @@ impl ImportRuntime {
             .and_then(|active| active.import_request.as_ref())
             .map(|request| PathBuf::from(&request.destination));
         if let Some(destination) = destination {
-            match l2a2_acceptance_take_worker_fault(
-                &destination,
-                self.parakeet
-                    .as_ref()
-                    .and_then(|worker| worker.identity())
-                    .is_some(),
-            ) {
+            match l2a2_acceptance_take_worker_fault(&destination, self.parakeet_native_call_started)
+            {
                 Ok(Some(message)) => {
                     let process = self.parakeet.as_mut()?;
                     if message.starts_with("IpcDecode:") {
@@ -4180,17 +4478,37 @@ impl ImportRuntime {
         };
         match received {
             whisper_core::parakeet_ipc::Event::Ready {
-                identity, backend, ..
+                identity,
+                backend,
+                gpu_evidence,
+                ..
             } => {
-                let Some(active) = self.active.as_ref() else {
-                    return Some(Err(PortError::Failed(
-                        "StaleResponse: Parakeet Ready without an active import".into(),
-                    )));
-                };
-                let Some(request) = active.import_request.clone() else {
-                    return Some(Err(PortError::Failed(
-                        "StaleResponse: Parakeet request is unavailable".into(),
-                    )));
+                let (
+                    request,
+                    expected_backend,
+                    attempt_number,
+                    active_job_id,
+                    active_generation,
+                    active_instance_id,
+                ) = {
+                    let Some(active) = self.active.as_ref() else {
+                        return Some(Err(PortError::Failed(
+                            "StaleResponse: Parakeet Ready without an active import".into(),
+                        )));
+                    };
+                    let Some(request) = active.import_request.clone() else {
+                        return Some(Err(PortError::Failed(
+                            "StaleResponse: Parakeet request is unavailable".into(),
+                        )));
+                    };
+                    (
+                        request,
+                        active.backend,
+                        active.attempt_number,
+                        active.job_id,
+                        active.generation,
+                        active.instance_id,
+                    )
                 };
                 let profile = if self.parakeet_vad.is_some() {
                     whisper_core::parakeet_windows::PROFILE_IMPORT_VAD
@@ -4200,17 +4518,51 @@ impl ImportRuntime {
                 let record = whisper_core::model_registry::model(
                     whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
                 );
-                let key = self
-                    .parakeet_paths
-                    .as_ref()
-                    .and_then(|paths| paths.qualification_key(profile).ok())
+                let expected_gpu = self.parakeet_expected_gpu.clone();
+                let expected_worker_paths = if expected_backend == BackendKind::Cuda {
+                    self.gpu_parakeet_paths.as_ref()
+                } else {
+                    self.parakeet_paths.as_ref()
+                };
+                let key = expected_worker_paths
+                    .and_then(|paths| {
+                        if expected_backend == BackendKind::Cuda {
+                            paths.gpu_qualification_key(profile).ok()
+                        } else {
+                            paths.qualification_key(profile).ok()
+                        }
+                    })
                     .unwrap_or_else(crate::archive::ArchiveQualificationKey::parakeet_cpu_test);
-                if backend != "CPU"
+                let backend_matches = match expected_backend {
+                    BackendKind::Cpu => backend == "CPU" && gpu_evidence.is_none(),
+                    BackendKind::Cuda => {
+                        backend == "CUDA0"
+                            && self.parakeet.as_ref().is_some_and(|process| {
+                                gpu_evidence_matches(
+                                    gpu_evidence.as_ref(),
+                                    expected_gpu.as_ref(),
+                                    process.pid(),
+                                )
+                            })
+                    }
+                };
+                if !backend_matches
                     || identity.model_sha256 != record.artifact.sha256
                     || identity.runtime_sha256 != key.runtime_build
                     || identity.build_sha256 != key.worker_build
                     || identity.profile != profile
                 {
+                    if expected_backend == BackendKind::Cuda
+                        && request.config.compute == whisper_core::ComputeChoice::Auto
+                    {
+                        return match self.fallback_parakeet_to_cpu(
+                            request,
+                            "GPU worker Ready proof did not match the qualified key".into(),
+                        ) {
+                            Ok(()) => None,
+                            Err(error) => Some(Err(PortError::Failed(error))),
+                        };
+                    }
                     return Some(Err(PortError::Failed(
                         "BackendMismatch: Parakeet worker identity differs from the qualified key"
                             .into(),
@@ -4218,7 +4570,23 @@ impl ImportRuntime {
                 }
                 let process = self.parakeet.as_mut()?;
                 if let Err(error) = process.accept_ready(identity) {
+                    if expected_backend == BackendKind::Cuda
+                        && request.config.compute == whisper_core::ComputeChoice::Auto
+                    {
+                        return match self.fallback_parakeet_to_cpu(
+                            request,
+                            format!("GPU worker readiness failed: {error}"),
+                        ) {
+                            Ok(()) => None,
+                            Err(error) => Some(Err(PortError::Failed(error))),
+                        };
+                    }
                     return Some(Err(PortError::Failed(error)));
+                }
+                if expected_backend == BackendKind::Cuda
+                    && let Some(active) = self.active.as_mut()
+                {
+                    active.gpu_attested = true;
                 }
                 if let Some(vad) = self.parakeet_vad.as_mut() {
                     vad.worker_ready = true;
@@ -4228,13 +4596,25 @@ impl ImportRuntime {
                     .source_sha256
                     .map(|sha| format_sha256(&sha))
                     .unwrap_or_default();
-                if let Err(error) = process.transcribe(
+                if let Err(error) = process.transcribe_with_gpu(
                     format!("{:032x}", request.job_id.0),
                     request.generation.get(),
-                    active.attempt_number,
+                    attempt_number,
                     Path::new(&request.source_path),
                     source_sha,
+                    expected_gpu,
                 ) {
+                    if expected_backend == BackendKind::Cuda
+                        && request.config.compute == whisper_core::ComputeChoice::Auto
+                    {
+                        return match self.fallback_parakeet_to_cpu(
+                            request,
+                            format!("GPU request preparation failed: {error}"),
+                        ) {
+                            Ok(()) => None,
+                            Err(error) => Some(Err(PortError::Failed(error))),
+                        };
+                    }
                     return Some(Err(PortError::Failed(error)));
                 }
                 match l2a2_acceptance_take_worker_fault(Path::new(&request.destination), true) {
@@ -4259,10 +4639,10 @@ impl ImportRuntime {
                     Err(error) => return Some(Err(PortError::Failed(error))),
                 }
                 Some(Ok(WorkerEvent::Ready {
-                    job_id: active.job_id,
-                    generation: active.generation,
-                    instance_id: active.instance_id,
-                    backend: BackendKind::Cpu,
+                    job_id: active_job_id,
+                    generation: active_generation,
+                    instance_id: active_instance_id,
+                    backend: expected_backend,
                 }))
             }
             whisper_core::parakeet_ipc::Event::Result {
@@ -4274,6 +4654,7 @@ impl ImportRuntime {
                 source_sha256,
                 duration_samples,
                 words,
+                gpu_evidence,
                 ..
             } => {
                 if self.parakeet_vad.is_some() {
@@ -4299,7 +4680,16 @@ impl ImportRuntime {
                     )));
                 };
                 let current_identity = self.parakeet.as_ref().and_then(|p| p.identity());
-                if request_id != 1
+                let expected_gpu = self.parakeet_expected_gpu.as_ref();
+                let gpu_result_matches = if active.backend == BackendKind::Cuda {
+                    self.parakeet.as_ref().is_some_and(|process| {
+                        gpu_evidence_matches(gpu_evidence.as_ref(), expected_gpu, process.pid())
+                    }) && self.parakeet_native_call_started
+                } else {
+                    gpu_evidence.is_none()
+                };
+                if !gpu_result_matches
+                    || request_id != 1
                     || job_id != format!("{:032x}", active.job_id.0)
                     || generation != active.generation.get()
                     || attempt != active.attempt_number
@@ -4381,8 +4771,10 @@ impl ImportRuntime {
                 self.parakeet_events.pop_front().map(Ok)
             }
             whisper_core::parakeet_ipc::Event::Failed {
+                request_id,
                 job_id: reported_job_id,
                 generation: reported_generation,
+                attempt,
                 identity,
                 code,
                 message,
@@ -4410,6 +4802,24 @@ impl ImportRuntime {
                             .into(),
                     )));
                 }
+                let cpu_retry = self.active.as_ref().and_then(|active| {
+                    let request = active.import_request.as_ref()?;
+                    (active.backend == BackendKind::Cuda
+                        && request.config.compute == whisper_core::ComputeChoice::Auto
+                        && !self.parakeet_native_call_started
+                        && request_id.is_none_or(|request_id| request_id == 1)
+                        && attempt.is_none_or(|attempt| attempt == active.attempt_number))
+                    .then(|| request.clone())
+                });
+                if let Some(request) = cpu_retry {
+                    return match self.fallback_parakeet_to_cpu(
+                        request,
+                        format!("GPU worker failed before native inference: {code}: {message}"),
+                    ) {
+                        Ok(()) => None,
+                        Err(error) => Some(Err(PortError::Failed(error))),
+                    };
+                }
                 let (job_id, generation, instance_id) =
                     (active.job_id, active.generation, active.instance_id);
                 if let Some(process) = self.parakeet.as_mut() {
@@ -4433,7 +4843,33 @@ impl ImportRuntime {
                     message: format!("{code}: {message}"),
                 }))
             }
-            whisper_core::parakeet_ipc::Event::NativeCallStarted { .. } => None,
+            whisper_core::parakeet_ipc::Event::NativeCallStarted {
+                request_id,
+                job_id,
+                generation,
+                attempt,
+                pid,
+            } => {
+                let valid = self.active.as_ref().is_some_and(|active| {
+                    active.import_request.is_some()
+                        && request_id == 1
+                        && job_id == format!("{:032x}", active.job_id.0)
+                        && generation == active.generation.get()
+                        && attempt == active.attempt_number
+                        && (active.backend != BackendKind::Cuda || active.gpu_attested)
+                        && self
+                            .parakeet
+                            .as_ref()
+                            .is_some_and(|process| process.pid() == pid)
+                });
+                if !valid {
+                    return Some(Err(PortError::Failed(
+                        "ProtocolMismatch: NativeCallStarted is not bound to the active Parakeet request".into(),
+                    )));
+                }
+                self.parakeet_native_call_started = true;
+                None
+            }
             whisper_core::parakeet_ipc::Event::Stopped => {
                 self.parakeet_stopped_ack = true;
                 self.poll_parakeet_worker()
@@ -5239,7 +5675,12 @@ impl ImportRuntime {
                         "BackendMismatch: GPU Ready arrived before candidate attestation".into(),
                     ));
                 }
+                // The generic Turbo GPU worker pauses at Ready and requires a
+                // BeginImport command. Parakeet's separate IPC has no such
+                // command: poll_parakeet_worker already sent Transcribe with
+                // the correlated attempt before returning this Ready event.
                 let auto_gpu_import = backend == BackendKind::Cuda
+                    && self.parakeet.is_none()
                     && self
                         .active
                         .as_ref()
@@ -5250,16 +5691,7 @@ impl ImportRuntime {
                 if !auto_gpu_import && let Some(active) = self.active.as_mut() {
                     active.startup_ready = true;
                 }
-                if backend == BackendKind::Cuda
-                    && self
-                        .active
-                        .as_ref()
-                        .and_then(|active| active.import_request.as_ref())
-                        .is_some_and(|request| {
-                            request.config.compute == whisper_core::ComputeChoice::Auto
-                        })
-                    && !self.publication_gate.is_cancelled()
-                {
+                if auto_gpu_import && !self.publication_gate.is_cancelled() {
                     let begin = WorkerCommand::BeginImport {
                         job_id: j,
                         generation: g,
@@ -5482,7 +5914,7 @@ impl AsyncImportIo {
     }
 
     pub fn start_with_workers(workers: WorkerPaths) -> Self {
-        Self::start_inner(workers, None, None)
+        Self::start_inner(workers, None, None, None)
     }
 
     /// Starts the import runtime with a catalog guard used by all model-bearing effects.
@@ -5497,7 +5929,9 @@ impl AsyncImportIo {
                 catalog: crate::model_catalog::LocalModelCatalog::new(catalog_root),
                 known_historical_turbo_path,
                 parakeet_paths: None,
+                gpu_parakeet_paths: None,
             }),
+            None,
             None,
         )
     }
@@ -5508,14 +5942,32 @@ impl AsyncImportIo {
         known_historical_turbo_path: String,
         parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
     ) -> Self {
+        Self::start_with_model_catalog_and_parakeet_routes(
+            workers,
+            catalog_root,
+            known_historical_turbo_path,
+            parakeet_paths,
+            None,
+        )
+    }
+
+    pub fn start_with_model_catalog_and_parakeet_routes(
+        workers: WorkerPaths,
+        catalog_root: PathBuf,
+        known_historical_turbo_path: String,
+        cpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+        gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+    ) -> Self {
         Self::start_inner(
             workers,
             Some(RuntimeModelCatalog {
                 catalog: crate::model_catalog::LocalModelCatalog::new(catalog_root),
                 known_historical_turbo_path,
-                parakeet_paths: parakeet_paths.clone(),
+                parakeet_paths: cpu_parakeet_paths.clone(),
+                gpu_parakeet_paths: gpu_parakeet_paths.clone(),
             }),
-            parakeet_paths,
+            cpu_parakeet_paths,
+            gpu_parakeet_paths,
         )
     }
 
@@ -5523,6 +5975,7 @@ impl AsyncImportIo {
         workers: WorkerPaths,
         model_catalog: Option<RuntimeModelCatalog>,
         parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+        gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
     ) -> Self {
         let (effect_tx, effect_rx) = mpsc::sync_channel(8);
         let (stop_tx, stop_rx) = mpsc::sync_channel(1);
@@ -5547,6 +6000,7 @@ impl AsyncImportIo {
                     publication_gate,
                     model_catalog,
                     parakeet_paths,
+                    gpu_parakeet_paths,
                 );
                 service_loop(effect_rx, stop_rx, event_tx, runtime)
             }
@@ -7948,6 +8402,7 @@ fn main() {
                 model,
                 runtime_root: runtime,
             }),
+            gpu_parakeet_paths: None,
         };
 
         let error = catalog.bind_import(&request).unwrap_err();
@@ -7984,6 +8439,7 @@ fn main() {
             catalog: crate::model_catalog::LocalModelCatalog::new(root.join("empty-model-catalog")),
             known_historical_turbo_path: r"C:\known\ggml-large-v3-turbo.bin".into(),
             parakeet_paths: None,
+            gpu_parakeet_paths: None,
         };
         let mut runtime = ImportRuntime::new_with_catalog(
             WorkerPaths {
@@ -8118,6 +8574,7 @@ fn main() {
                 ),
                 known_historical_turbo_path: legacy_model.to_string_lossy().into_owned(),
                 parakeet_paths: None,
+                gpu_parakeet_paths: None,
             }),
         );
         let mut events = VecDeque::new();

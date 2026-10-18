@@ -41,6 +41,16 @@ fn archive_root() -> PathBuf {
                 .expect("canonical L3a runtime root exists");
             path == &expected && canonical.starts_with(path)
         });
+    let l3b = std::env::var_os("PARAKEET_L3B_EXEC_ROOT")
+        .map(PathBuf::from)
+        .and_then(|path| path.canonicalize().ok())
+        .filter(|path| {
+            let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../target/parakeet-tests/l3/l3b")
+                .canonicalize()
+                .expect("canonical L3b runtime root exists");
+            path == &expected && canonical.starts_with(path)
+        });
     let r8 = std::env::var_os("PARAKEET_R8_EXEC_ROOT")
         .map(PathBuf::from)
         .and_then(|path| path.canonicalize().ok())
@@ -67,7 +77,7 @@ fn archive_root() -> PathBuf {
         .filter(|path| {
             path.ends_with("target/parakeet-tests/l2/l2b/r7") && canonical.starts_with(path)
         });
-    let allowed = l3a.or(r9).or(r8).or(r7).unwrap_or_else(|| {
+    let allowed = l3b.or(l3a).or(r9).or(r8).or(r7).unwrap_or_else(|| {
         runtime
             .join("r6")
             .canonicalize()
@@ -75,7 +85,7 @@ fn archive_root() -> PathBuf {
     });
     assert!(
         canonical.starts_with(&allowed),
-        "archive root must be inside R6, canonical R7, R8, R9, or L3a"
+        "archive root must be inside R6, canonical R7, R8, R9, L3a, or L3b"
     );
     root
 }
@@ -417,6 +427,25 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
         whisper_adapters::archive::sha256_file(&source).unwrap(),
         source_sha
     );
+
+    let gpu_root = archive_root().join("parakeet-gpu-key-scan");
+    let _ = fs::remove_dir_all(&gpu_root);
+    let mut gpu_request = make_request(&gpu_root, 0x1ae);
+    gpu_request.config.compute = ComputeChoice::Gpu;
+    let gpu_prepared = ArchiveStore::new(&gpu_root)
+        .prepare_with_qualification(
+            gpu_request,
+            None,
+            Some(ArchiveQualificationKey::parakeet_gpu_test()),
+        )
+        .unwrap();
+    let gpu_scan = ArchiveStore::scan(&gpu_root).unwrap();
+    assert!(
+        gpu_scan.iter().any(|entry| {
+            entry.job_id == gpu_prepared.job_id && entry.diagnostic.is_none() && !entry.complete
+        }),
+        "the exact qualified GPU key must remain valid when scanning its pending archive"
+    );
 }
 
 #[test]
@@ -630,6 +659,63 @@ fn retired_r5_2_pending_is_rejected_with_retirement_cause_and_preserved() {
     );
     assert!(error.contains("pending est conservé"), "{error}");
     assert_eq!(fs::read(&pending_path).unwrap(), bytes);
+}
+
+#[test]
+fn gpu_pending_is_bound_to_the_qualified_physical_identity() {
+    let root = archive_root().join("parakeet-gpu-physical-identity");
+    let _ = fs::remove_dir_all(&root);
+    let source = required_path("PARAKEET_L2_EN_WAV");
+    let model_path = required_path("PARAKEET_L2_MODEL");
+    let record = model(ModelId::ParakeetTdt06BV3);
+    let mut qualified_gpu = ArchiveQualificationKey::parakeet_gpu_test();
+    assert!(qualified_gpu.is_parakeet_import_test());
+    let request = ImportRequest {
+        job_id: JobId(0x1b1),
+        generation: Generation::first(),
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: model_path.to_string_lossy().into_owned(),
+        model_sha256: decode_sha256(record.artifact.sha256),
+        destination: root.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Gpu,
+        },
+    };
+    let prepared = ArchiveStore::new(&root)
+        .prepare_with_qualification(request, None, Some(qualified_gpu.clone()))
+        .unwrap();
+    let pending_path = root
+        .join("transcriptions")
+        .join(format!("{:032x}", prepared.job_id.0))
+        .join(prepared.generation.get().to_string())
+        .join("pending.json");
+    let mut pending: serde_json::Value =
+        serde_json::from_slice(&fs::read(&pending_path).unwrap()).unwrap();
+    pending["qualification"]["gpu_uuid"] = serde_json::json!("GPU-foreign-device");
+    qualified_gpu.gpu_uuid = Some("GPU-foreign-device".into());
+    assert!(
+        !qualified_gpu.is_parakeet_import_test(),
+        "another physical GPU cannot inherit the qualified key"
+    );
+    let bytes = serde_json::to_vec(&pending).unwrap();
+    fs::write(&pending_path, &bytes).unwrap();
+
+    let mut resumed = prepared.clone();
+    resumed.generation = prepared.generation.next().unwrap();
+    let error = ArchiveStore::new(&root)
+        .resume_from_with_qualification(
+            &prepared,
+            resumed,
+            Some(&prepared.model_path),
+            Some(ArchiveQualificationKey::parakeet_gpu_test()),
+        )
+        .unwrap_err();
+    assert!(error.contains("StorageCorrupt"), "{error}");
+    assert_eq!(fs::read(&pending_path).unwrap(), bytes);
+    assert!(source.is_file());
 }
 
 #[test]

@@ -139,7 +139,7 @@ fn language_availability_uses_selected_backend_and_auto_intersection() {
 }
 
 #[test]
-fn parakeet_language_projection_uses_required_cpu_with_gpu_or_auto_preference() {
+fn parakeet_language_projection_follows_qualified_gpu_or_auto_preference() {
     let snapshot = model_registry::engine_snapshot(
         1,
         |_| ModelAvailability::Ready,
@@ -157,7 +157,7 @@ fn parakeet_language_projection_uses_required_cpu_with_gpu_or_auto_preference() 
     for preference in [ComputeChoice::Gpu, ComputeChoice::Auto] {
         let effective = compute_for_model(Some(ModelId::ParakeetTdt06BV3), preference);
         let choices = language_choices_for_compute(parakeet, effective).unwrap();
-        assert_eq!(effective, ComputeChoice::Cpu);
+        assert_eq!(effective, preference);
         assert!(choices.auto_language_selectable);
         assert!(
             choices
@@ -315,14 +315,14 @@ fn rendered_text(shapes: Vec<egui::epaint::ClippedShape>) -> String {
 }
 
 #[test]
-fn parakeet_forces_cpu_and_disables_live_without_changing_turbo_preferences() {
+fn parakeet_preserves_import_compute_preferences_and_disables_live_without_changing_turbo() {
     assert_eq!(
         compute_for_model(Some(ModelId::ParakeetTdt06BV3), ComputeChoice::Gpu),
-        ComputeChoice::Cpu
+        ComputeChoice::Gpu
     );
     assert_eq!(
         compute_for_model(Some(ModelId::ParakeetTdt06BV3), ComputeChoice::Auto),
-        ComputeChoice::Cpu
+        ComputeChoice::Auto
     );
     assert_eq!(
         compute_for_model(Some(ModelId::WhisperLargeV3Turbo), ComputeChoice::Gpu),

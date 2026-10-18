@@ -138,7 +138,6 @@ impl ModelCommandGuard {
         }
         if model_id == ModelId::ParakeetTdt06BV3
             && (path != InferencePath::Import
-                || config.compute != ComputeChoice::Cpu
                 || !matches!(&config.language, crate::domain::LanguageChoice::Automatic))
         {
             return Err(SelectionRefusal::Capability(Refusal {
@@ -154,9 +153,34 @@ impl ModelCommandGuard {
         let compute = match config.compute {
             ComputeChoice::Cpu => (ComputePreference::Cpu, crate::model_catalog::Backend::Cpu),
             ComputeChoice::Gpu => (ComputePreference::Gpu, crate::model_catalog::Backend::Gpu),
-            // Auto capability is recognized on both backends. Existing policy resolves the actual
-            // backend in the adapter immediately before worker selection.
-            ComputeChoice::Auto => (ComputePreference::Auto, crate::model_catalog::Backend::Cpu),
+            ComputeChoice::Auto if model_id == ModelId::ParakeetTdt06BV3 => {
+                let gpu_qualified = self
+                    .selection
+                    .snapshot
+                    .capabilities
+                    .iter()
+                    .any(|capability| {
+                        capability.key.model == model_id
+                            && capability.key.backend == Backend::Gpu
+                            && capability.compute.support
+                                == crate::engine_capabilities::Support::Supported
+                            && capability.compute.qualification
+                                == crate::engine_capabilities::Qualification::Qualified
+                            && capability.auto_language.support
+                                == crate::engine_capabilities::Support::Supported
+                            && capability.auto_language.qualification
+                                == crate::engine_capabilities::Qualification::Qualified
+                    });
+                if !gpu_qualified {
+                    return Err(SelectionRefusal::Capability(Refusal {
+                        cause: crate::engine_capabilities::RefusalCause::CapabilityNotQualified(
+                            crate::engine_capabilities::CapabilityTarget::Compute,
+                        ),
+                    }));
+                }
+                (ComputePreference::Auto, Backend::Gpu)
+            }
+            ComputeChoice::Auto => (ComputePreference::Auto, Backend::Cpu),
         };
         self.selection.admit(
             SelectionIntent {
@@ -203,6 +227,13 @@ impl ModelSelectionApp {
         intent: SelectionIntent,
         current_generation: u64,
     ) -> Result<AdmittedSelection, SelectionRefusal> {
+        if intent.model == ModelId::ParakeetTdt06BV3 && intent.path != InferencePath::Import {
+            return Err(SelectionRefusal::Capability(Refusal {
+                cause: crate::engine_capabilities::RefusalCause::CapabilityNotQualified(
+                    crate::engine_capabilities::CapabilityTarget::Compute,
+                ),
+            }));
+        }
         let language = normalize_language(intent.model, intent.language)?;
         let request = InferenceRequest {
             generation: intent.generation,

@@ -626,7 +626,7 @@ impl<A: Application> DesktopApp<A> {
     fn start_live(&mut self, generation: Generation) {
         if !model_supports_live(self.selection.model) {
             self.view.message =
-                Some("Le modèle sélectionné n'est qualifié que pour l'import CPU.".into());
+                Some("Le modèle sélectionné est qualifié uniquement pour l'import.".into());
             return;
         }
         let clicked_at = unix_time_ms();
@@ -859,7 +859,45 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 let previous_compute = self.compute_choice;
                 let mut compute_interacted = false;
                 if parakeet_selected {
-                    ui.label("Calcul : CPU (requis)");
+                    let gpu_selectable = self.projection.as_ref().is_some_and(|projection| {
+                        projection
+                            .models
+                            .iter()
+                            .find(|model| model.id == whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+                            .is_some_and(|model| {
+                                model.configurations.iter().any(|configuration| {
+                                    configuration.key.backend == whisper_core::model_catalog::Backend::Gpu
+                                        && configuration.selectable
+                                        && configuration.auto_language_selectable
+                                })
+                            })
+                    }) && self.catalog.as_ref().is_some_and(parakeet_gpu_catalog_ready);
+                    egui::ComboBox::from_id_salt("compute_choice")
+                        .selected_text(match self.compute_choice {
+                            ComputeChoice::Cpu => "CPU",
+                            ComputeChoice::Gpu => "GPU",
+                            ComputeChoice::Auto => "Auto",
+                        })
+                        .show_ui(ui, |ui| {
+                            compute_interacted |= ui.selectable_value(
+                                &mut self.compute_choice,
+                                ComputeChoice::Auto,
+                                "Auto",
+                            ).clicked();
+                            compute_interacted |= ui.selectable_value(
+                                &mut self.compute_choice,
+                                ComputeChoice::Cpu,
+                                "CPU",
+                            ).clicked();
+                            let gpu_response = ui.add_enabled_ui(gpu_selectable, |ui| {
+                                ui.selectable_value(
+                                    &mut self.compute_choice,
+                                    ComputeChoice::Gpu,
+                                    "GPU",
+                                )
+                            });
+                            compute_interacted |= gpu_response.inner.clicked();
+                        });
                 } else {
                 egui::ComboBox::from_id_salt("compute_choice")
                     .selected_text(match self.compute_choice {
@@ -1356,6 +1394,17 @@ impl<A: Application> eframe::App for DesktopApp<A> {
     }
 }
 
+fn parakeet_gpu_catalog_ready(catalog: &CatalogSnapshot) -> bool {
+    catalog.entries.iter().any(|entry| {
+        entry.id == ModelId::ParakeetTdt06BV3
+            && entry.availability == whisper_core::model_catalog::ModelAvailability::Ready
+            && !entry
+                .diagnostic
+                .as_deref()
+                .is_some_and(|message| message.starts_with("GPU indisponible :"))
+    })
+}
+
 pub fn record_compute_selection_interaction(
     touched: &mut bool,
     interacted: bool,
@@ -1739,14 +1788,10 @@ fn selected_language(selection: &SelectionWidgetState) -> LanguageChoice {
 }
 
 pub fn compute_for_model(
-    model: Option<whisper_core::model_catalog::ModelId>,
+    _model: Option<whisper_core::model_catalog::ModelId>,
     preferred: ComputeChoice,
 ) -> ComputeChoice {
-    if model == Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3) {
-        ComputeChoice::Cpu
-    } else {
-        preferred
-    }
+    preferred
 }
 
 pub fn model_supports_live(model: Option<whisper_core::model_catalog::ModelId>) -> bool {
@@ -2119,9 +2164,10 @@ fn record_first_render(
 #[cfg(test)]
 mod tests {
     use super::{
-        CatalogSnapshot, DesktopApp, ModelId, ModelSelectionRuntime, import_enqueue_enabled,
-        manual_stop_available, microphone_device_label, model_preference_command_channel,
-        record_first_render, speech_limit_samples, window_must_remain_open,
+        CatalogSnapshot, DesktopApp, ModelId, ModelSelectionRuntime, compute_for_model,
+        import_enqueue_enabled, manual_stop_available, microphone_device_label,
+        model_preference_command_channel, parakeet_gpu_catalog_ready, record_first_render,
+        speech_limit_samples, window_must_remain_open,
     };
     use std::{cell::RefCell, collections::VecDeque, rc::Rc};
     use whisper_core::gpu_inventory::{GpuObservation, GpuPresence, GpuState};
@@ -2133,6 +2179,20 @@ mod tests {
         ImportEffect, ImportRequest, JobConfig, JobId, LanguageChoice, MicrophoneChoice,
         MicrophoneDevice, MicrophonePort,
     };
+
+    #[test]
+    fn parakeet_preserves_the_selected_compute_preference() {
+        for choice in [ComputeChoice::Auto, ComputeChoice::Cpu, ComputeChoice::Gpu] {
+            assert_eq!(
+                compute_for_model(Some(ModelId::ParakeetTdt06BV3), choice),
+                choice
+            );
+        }
+        assert_eq!(
+            compute_for_model(Some(ModelId::WhisperLargeV3Turbo), ComputeChoice::Auto),
+            ComputeChoice::Auto
+        );
+    }
 
     #[derive(Clone, Default)]
     struct RecordingApplication(Rc<RefCell<Vec<AppCommand>>>);
@@ -2707,5 +2767,35 @@ mod tests {
         app.poll_model_selection();
         assert!(is_selectable(&app));
         assert_eq!(app.selection.model, Some(ModelId::ParakeetTdt06BV3));
+    }
+
+    #[test]
+    fn gpu_compute_control_requires_a_ready_qualified_runtime_catalog_entry() {
+        let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
+        let entry = || whisper_adapters::model_catalog::CatalogEntry {
+            id: ModelId::ParakeetTdt06BV3,
+            display_name: record.display_name.to_owned(),
+            path: std::path::PathBuf::from(record.artifact.file_name),
+            availability: whisper_core::model_catalog::ModelAvailability::Ready,
+            expected_size_bytes: record.artifact.size_bytes,
+            observed_size_bytes: Some(record.artifact.size_bytes),
+            expected_sha256: record.artifact.sha256.to_owned(),
+            observed_sha256: Some(record.artifact.sha256.to_owned()),
+            diagnostic: None,
+        };
+        let catalog = |entry| CatalogSnapshot {
+            generation: 1,
+            entries: vec![entry],
+        };
+
+        assert!(parakeet_gpu_catalog_ready(&catalog(entry())));
+
+        let mut divergent = entry();
+        divergent.diagnostic = Some("GPU indisponible : DLL différente".into());
+        assert!(!parakeet_gpu_catalog_ready(&catalog(divergent)));
+
+        let mut missing = entry();
+        missing.availability = whisper_core::model_catalog::ModelAvailability::Missing;
+        assert!(!parakeet_gpu_catalog_ready(&catalog(missing)));
     }
 }
