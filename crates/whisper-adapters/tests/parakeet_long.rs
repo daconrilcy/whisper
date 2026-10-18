@@ -92,6 +92,7 @@ fn start_process(paths: &ParakeetWorkerPaths, profile: &str) -> (ParakeetProcess
         identity,
         backend,
         native_version,
+        ..
     } = ready
     else {
         panic!("worker did not attest Ready: {ready:?}");

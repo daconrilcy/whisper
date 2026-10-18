@@ -4433,6 +4433,7 @@ impl ImportRuntime {
                     message: format!("{code}: {message}"),
                 }))
             }
+            whisper_core::parakeet_ipc::Event::NativeCallStarted { .. } => None,
             whisper_core::parakeet_ipc::Event::Stopped => {
                 self.parakeet_stopped_ack = true;
                 self.poll_parakeet_worker()

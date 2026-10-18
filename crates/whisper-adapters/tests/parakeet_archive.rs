@@ -1172,6 +1172,7 @@ mod r5_2_long_tests {
             identity,
             backend,
             native_version,
+            ..
         } = ready
         else {
             panic!("worker did not attest Ready: {ready:?}");

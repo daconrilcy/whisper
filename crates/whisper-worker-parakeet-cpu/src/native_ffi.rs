@@ -171,7 +171,7 @@ impl NativeRecognizer {
             .map_err(|_| "Model: path contains an interior NUL".to_owned())?;
         let backend = BackendConfig {
             size: size_of::<BackendConfig>(),
-            gpu: -1,
+            gpu: selected_gpu(),
         };
         let model_config = ModelConfig {
             size: size_of::<ModelConfig>(),
@@ -279,6 +279,17 @@ impl NativeRecognizer {
     }
 }
 
+const fn selected_gpu() -> i32 {
+    #[cfg(feature = "parakeet-cuda")]
+    {
+        0
+    }
+    #[cfg(not(feature = "parakeet-cuda"))]
+    {
+        -1
+    }
+}
+
 impl Drop for NativeRecognizer {
     fn drop(&mut self) {
         if !self.recognizer.is_null() {
@@ -335,6 +346,18 @@ fn copy_word_text(ptr: *const c_char, index: usize) -> Result<String, String> {
         return Err(format!("NativeResult: word {index} exceeds bound"));
     }
     decode_utf8_fragments(&[bytes], &format!("word {index}"))
+}
+
+#[cfg(test)]
+mod backend_selection_tests {
+    #[test]
+    fn native_backend_uses_only_the_authorized_ordinal() {
+        #[cfg(feature = "parakeet-cuda")]
+        assert_eq!(super::selected_gpu(), 0);
+
+        #[cfg(not(feature = "parakeet-cuda"))]
+        assert_eq!(super::selected_gpu(), -1);
+    }
 }
 
 fn decode_utf8_fragments(fragments: &[&[u8]], label: &str) -> Result<String, String> {

@@ -1,6 +1,7 @@
 use whisper_core::parakeet_ipc::{
-    Command, Envelope, Event, PARAKEET_IPC_VERSION, PARAKEET_MAX_AUDIO_SAMPLES,
-    PARAKEET_MAX_FRAME_BYTES, PARAKEET_PROFILE_IMPORT_SINGLE_PASS, Word, WorkerIdentity,
+    Command, Envelope, Event, ExpectedGpu, GpuEvidence, PARAKEET_IPC_VERSION,
+    PARAKEET_MAX_AUDIO_SAMPLES, PARAKEET_MAX_FRAME_BYTES, PARAKEET_PROFILE_IMPORT_SINGLE_PASS,
+    Word, WorkerIdentity,
 };
 
 #[test]
@@ -22,12 +23,17 @@ fn transcribe_command_carries_complete_build_runtime_profile_and_attempt_identit
         identity: identity.clone(),
         source_path: "audio.wav".into(),
         source_sha256: "ef".repeat(32),
+        expected_gpu: Some(ExpectedGpu {
+            pci_bus_id: "00000000:01:00.0".into(),
+            uuid: "GPU-test".into(),
+        }),
     });
     assert_eq!(command.version, PARAKEET_IPC_VERSION);
     let Command::Transcribe {
         request_id,
         generation,
         attempt,
+        expected_gpu,
         identity: decoded_identity,
         ..
     } = command.message
@@ -36,6 +42,10 @@ fn transcribe_command_carries_complete_build_runtime_profile_and_attempt_identit
     };
     assert_eq!((request_id, generation, attempt), (11, 4, 2));
     assert_eq!(decoded_identity, identity);
+    assert_eq!(
+        expected_gpu.as_ref().unwrap().pci_bus_id,
+        "00000000:01:00.0"
+    );
 }
 
 #[test]
@@ -54,6 +64,14 @@ fn result_contract_keeps_request_identity_and_owned_word_times() {
             start_ms: 0,
             end_ms: 500,
         }],
+        native_inference_ms: 2_000,
+        gpu_evidence: Some(GpuEvidence {
+            backend: "CUDA0".into(),
+            pci_bus_id: "00000000:01:00.0".into(),
+            uuid: "GPU-test".into(),
+            pid: 123,
+            asr_log_sha256: "de".repeat(32),
+        }),
     };
     let Event::Result {
         request_id,
@@ -62,6 +80,7 @@ fn result_contract_keeps_request_identity_and_owned_word_times() {
         attempt,
         identity,
         words,
+        gpu_evidence,
         ..
     } = event
     else {
@@ -73,6 +92,7 @@ fn result_contract_keeps_request_identity_and_owned_word_times() {
     );
     assert_eq!(identity.profile, PARAKEET_PROFILE_IMPORT_SINGLE_PASS);
     assert_eq!(identity.build_sha256, "cd".repeat(32));
+    assert_eq!(gpu_evidence.unwrap().backend, "CUDA0");
     assert_eq!(
         words[0],
         Word {

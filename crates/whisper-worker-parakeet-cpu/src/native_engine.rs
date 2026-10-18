@@ -33,30 +33,57 @@ impl Engine {
         &self.native_version
     }
 
-    pub fn transcribe(&mut self, audio: &DecodedAudio) -> Result<(String, Vec<Word>), String> {
-        self.transcribe_bounded(audio, MAX_DURATION_MS)
+    pub fn backend(&self) -> &'static str {
+        #[cfg(feature = "parakeet-cuda")]
+        {
+            "CUDA0"
+        }
+        #[cfg(not(feature = "parakeet-cuda"))]
+        {
+            "CPU"
+        }
+    }
+
+    pub fn transcribe(&mut self, audio: &DecodedAudio) -> Result<(String, Vec<Word>, u64), String> {
+        self.transcribe_with_start_callback(audio, || Ok(()))
+    }
+
+    pub fn transcribe_with_start_callback(
+        &mut self,
+        audio: &DecodedAudio,
+        on_native_call_started: impl FnOnce() -> Result<(), String>,
+    ) -> Result<(String, Vec<Word>, u64), String> {
+        self.transcribe_bounded(audio, MAX_DURATION_MS, on_native_call_started)
     }
 
     #[cfg(feature = "parakeet-qualification-reference")]
     pub fn transcribe_reference(
         &mut self,
         audio: &DecodedAudio,
-    ) -> Result<(String, Vec<Word>), String> {
-        self.transcribe_bounded(audio, MAX_REFERENCE_DURATION_MS)
+    ) -> Result<(String, Vec<Word>, u64), String> {
+        self.transcribe_reference_with_start_callback(audio, || Ok(()))
+    }
+
+    #[cfg(feature = "parakeet-qualification-reference")]
+    pub fn transcribe_reference_with_start_callback(
+        &mut self,
+        audio: &DecodedAudio,
+        on_native_call_started: impl FnOnce() -> Result<(), String>,
+    ) -> Result<(String, Vec<Word>, u64), String> {
+        self.transcribe_bounded(audio, MAX_REFERENCE_DURATION_MS, on_native_call_started)
     }
 
     fn transcribe_bounded(
         &mut self,
         audio: &DecodedAudio,
         duration_limit_ms: u64,
-    ) -> Result<(String, Vec<Word>), String> {
-        let duration_ms = (audio.samples.len() as u64 * 1000) / 16_000;
-        if duration_ms == 0 || duration_ms > duration_limit_ms {
-            return Err(format!(
-                "AudioTooLong: input must be at most {} seconds",
-                duration_limit_ms / 1_000
-            ));
-        }
+        on_native_call_started: impl FnOnce() -> Result<(), String>,
+    ) -> Result<(String, Vec<Word>, u64), String> {
+        let duration_ms = prepare_native_call(
+            audio.samples.len(),
+            duration_limit_ms,
+            on_native_call_started,
+        )?;
         let started = Instant::now();
         let result = self.recognizer.transcribe(&audio.samples);
         let inference_elapsed = started.elapsed();
@@ -81,8 +108,24 @@ impl Engine {
             .map(|word| word.text.as_str())
             .collect::<Vec<_>>()
             .join(" ");
-        Ok((text, words))
+        Ok((text, words, inference_elapsed.as_millis() as u64))
     }
+}
+
+fn prepare_native_call(
+    sample_count: usize,
+    duration_limit_ms: u64,
+    on_native_call_started: impl FnOnce() -> Result<(), String>,
+) -> Result<u64, String> {
+    let duration_ms = (sample_count as u64 * 1000) / 16_000;
+    if duration_ms == 0 || duration_ms > duration_limit_ms {
+        return Err(format!(
+            "AudioTooLong: input must be at most {} seconds",
+            duration_limit_ms / 1_000
+        ));
+    }
+    on_native_call_started().map_err(|error| format!("NativeCallStarted: {error}"))?;
+    Ok(duration_ms)
 }
 
 fn normalize_words(
@@ -577,5 +620,26 @@ mod tests {
         assert!(error.contains("overlap 81 ms exceeds 80 ms"));
         assert!(error.contains("index=0 text=\"a\" start=0 end=100"));
         assert!(error.contains("index=1 text=\"b\" start=19 end=120"));
+    }
+
+    #[test]
+    fn native_call_marker_is_not_emitted_for_duration_rejection_and_emitted_once_when_valid() {
+        let mut marker_count = 0;
+        let too_long_samples = ((MAX_DURATION_MS + 1) * 16_000 / 1_000) as usize;
+        let rejected = prepare_native_call(too_long_samples, MAX_DURATION_MS, || {
+            marker_count += 1;
+            Ok(())
+        });
+        assert!(rejected.unwrap_err().starts_with("AudioTooLong:"));
+        assert_eq!(marker_count, 0);
+
+        let valid_samples = 16_000;
+        let duration_ms = prepare_native_call(valid_samples, MAX_DURATION_MS, || {
+            marker_count += 1;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(duration_ms, 1_000);
+        assert_eq!(marker_count, 1);
     }
 }

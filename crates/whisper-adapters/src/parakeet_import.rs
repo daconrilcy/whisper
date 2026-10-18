@@ -171,6 +171,18 @@ fn runtime_sha256(native_dir: &Path) -> Result<String, String> {
         hasher.update(name.as_bytes());
         hasher.update(sha256_file(&native_dir.join(name))?.as_bytes());
     }
+    for name in [
+        "ggml-cuda.dll",
+        "cudart64_12.dll",
+        "cublas64_12.dll",
+        "cublasLt64_12.dll",
+    ] {
+        let path = native_dir.join(name);
+        if path.is_file() {
+            hasher.update(name.as_bytes());
+            hasher.update(sha256_file(&path)?.as_bytes());
+        }
+    }
     Ok(format!("{:x}", hasher.finalize()))
 }
 
@@ -408,6 +420,7 @@ impl ParakeetProcess {
             identity,
             source_path: source_path.to_string_lossy().into_owned(),
             source_sha256,
+            expected_gpu: None,
         }))?;
         self.request_started_at = Some(started);
         Ok(())

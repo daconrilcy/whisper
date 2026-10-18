@@ -15,8 +15,8 @@ use std::{
 
 use sha2::{Digest, Sha256};
 use whisper_core::parakeet_ipc::{
-    Command, Envelope, Event, PARAKEET_IPC_VERSION, PARAKEET_MAX_FRAME_BYTES,
-    PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity,
+    Command, Envelope, Event, ExpectedGpu, GpuEvidence, PARAKEET_IPC_VERSION,
+    PARAKEET_MAX_FRAME_BYTES, PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity,
 };
 use whisper_core::parakeet_windows::{PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE};
 
@@ -48,14 +48,13 @@ fn run() -> Result<(), String> {
         return Err("Model: path is not a file".into());
     }
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
-    let l2b_root = repository.join("target/parakeet-tests/l2/l2b");
-    let shared_l2b_model = repository
+    let shared_model = repository
         .join("models/parakeet-tdt-0.6b-v3.q8_0.gguf")
         .canonicalize()
         .ok()
         .is_some_and(|expected| model == expected)
-        && l2b_root.canonicalize().ok().as_ref() == Some(&runtime);
-    if !model.starts_with(&runtime) && !shared_l2b_model {
+        && shared_model_runtime_allowed(&runtime, &repository);
+    if !model.starts_with(&runtime) && !shared_model {
         return Err(
             "PathOutsideRuntime: model must be under runtime or the read-only L2b models directory"
                 .into(),
@@ -66,6 +65,7 @@ fn run() -> Result<(), String> {
         return Err("ModelHashMismatch: model SHA-256 differs from the configured identity".into());
     }
 
+    let gpu_identity = worker_gpu_identity(configured_backend())?;
     let engine_started = Instant::now();
     let mut engine = native_engine::Engine::load(&native_dir, &model)?;
     record_r7_timing(
@@ -73,6 +73,7 @@ fn run() -> Result<(), String> {
         engine_started.elapsed(),
         serde_json::json!({}),
     );
+    let gpu_evidence = build_gpu_evidence(&runtime, engine.backend(), gpu_identity.as_ref())?;
     let executable = env::current_exe().map_err(|e| format!("WorkerPath: {e}"))?;
     let worker_sha256 = sha256_file(&executable)?;
     let identity = WorkerIdentity {
@@ -83,8 +84,9 @@ fn run() -> Result<(), String> {
     };
     write_event(&Event::Ready {
         identity: identity.clone(),
-        backend: "CPU".into(),
+        backend: engine.backend().into(),
         native_version: engine.native_version().to_owned(),
+        gpu_evidence,
     })?;
 
     let stdin = io::stdin();
@@ -135,6 +137,7 @@ fn run() -> Result<(), String> {
                 identity: request_identity,
                 source_path,
                 source_sha256,
+                expected_gpu,
             } => {
                 if request_id == 0 || request_id <= last_request_id {
                     write_event(&failed(
@@ -203,6 +206,22 @@ fn run() -> Result<(), String> {
                     ))?;
                     continue;
                 }
+                if let Err((code, message)) = validate_expected_gpu(
+                    engine.backend(),
+                    expected_gpu.as_ref(),
+                    gpu_identity.as_ref(),
+                ) {
+                    write_event(&failed(
+                        Some(request_id),
+                        Some(&job_id),
+                        Some(generation),
+                        Some(attempt),
+                        Some(identity.clone()),
+                        code,
+                        &message,
+                    ))?;
+                    continue;
+                }
                 if let Some((previous_generation, previous_attempt)) = job_attempts.get(&job_id) {
                     let stale_generation = generation < *previous_generation;
                     let stale_attempt =
@@ -233,10 +252,29 @@ fn run() -> Result<(), String> {
                 }
                 job_attempts.insert(job_id.clone(), (generation, attempt));
                 let source = PathBuf::from(source_path);
-                let result =
-                    transcribe_one(&mut engine, &source, &source_sha256, &identity.profile);
+                let is_gpu_worker = engine.backend() == "CUDA0";
+                let result = transcribe_one(
+                    &mut engine,
+                    &source,
+                    &source_sha256,
+                    &identity.profile,
+                    || {
+                        if is_gpu_worker {
+                            write_event(&Event::NativeCallStarted {
+                                request_id,
+                                job_id: job_id.clone(),
+                                generation,
+                                attempt,
+                                pid: std::process::id(),
+                            })?;
+                        }
+                        Ok(())
+                    },
+                );
                 match result {
-                    Ok((duration_samples, text, words, actual_sha)) => {
+                    Ok((duration_samples, text, words, actual_sha, native_inference_ms)) => {
+                        let gpu_evidence =
+                            build_gpu_evidence(&runtime, engine.backend(), gpu_identity.as_ref())?;
                         write_event(&Event::Result {
                             request_id,
                             job_id,
@@ -247,6 +285,8 @@ fn run() -> Result<(), String> {
                             duration_samples,
                             text,
                             words,
+                            native_inference_ms,
+                            gpu_evidence,
                         })?
                     }
                     Err((code, message)) => write_event(&failed(
@@ -312,7 +352,17 @@ fn transcribe_one(
     source: &Path,
     expected_source_sha: &str,
     profile: &str,
-) -> Result<(u64, String, Vec<whisper_core::parakeet_ipc::Word>, String), (&'static str, String)> {
+    on_native_call_started: impl FnOnce() -> Result<(), String>,
+) -> Result<
+    (
+        u64,
+        String,
+        Vec<whisper_core::parakeet_ipc::Word>,
+        String,
+        u64,
+    ),
+    (&'static str, String),
+> {
     let canonical = source
         .canonicalize()
         .map_err(|e| ("SourceUnavailable", e.to_string()))?;
@@ -353,24 +403,219 @@ fn transcribe_one(
     let result = if profile == PROFILE_QUALIFICATION_REFERENCE {
         #[cfg(feature = "parakeet-qualification-reference")]
         {
-            engine.transcribe_reference(&decoded)
+            engine.transcribe_reference_with_start_callback(&decoded, on_native_call_started)
         }
         #[cfg(not(feature = "parakeet-qualification-reference"))]
         {
             Err("QualificationReferenceUnavailable".to_owned())
         }
     } else {
-        engine.transcribe(&decoded)
+        engine.transcribe_with_start_callback(&decoded, on_native_call_started)
     };
-    let (text, words) = result.map_err(|error| {
-        let code = if error.starts_with("InvalidTimestamp") {
-            "InvalidTimestamp"
-        } else {
-            "InferenceFailed"
+    let (text, words, native_inference_ms) = result.map_err(|error| {
+        let code = match error.as_str() {
+            value if value.starts_with("InvalidTimestamp") => "InvalidTimestamp",
+            value if value.starts_with("NativeCallStarted:") => "IpcWrite",
+            _ => "InferenceFailed",
         };
         (code, error)
     })?;
-    Ok((duration_samples, text, words, actual_sha))
+    Ok((
+        duration_samples,
+        text,
+        words,
+        actual_sha,
+        native_inference_ms,
+    ))
+}
+
+fn worker_gpu_identity(backend: &str) -> Result<Option<ExpectedGpu>, String> {
+    #[cfg(feature = "parakeet-cuda")]
+    {
+        if backend != "CUDA0" {
+            return Err(format!("BackendMismatch: CUDA feature reported {backend}"));
+        }
+        return query_single_nvidia_gpu().map(Some);
+    }
+    #[cfg(not(feature = "parakeet-cuda"))]
+    {
+        if backend != "CPU" {
+            return Err(format!("BackendMismatch: CPU worker reported {backend}"));
+        }
+        Ok(None)
+    }
+}
+
+fn configured_backend() -> &'static str {
+    #[cfg(feature = "parakeet-cuda")]
+    {
+        "CUDA0"
+    }
+    #[cfg(not(feature = "parakeet-cuda"))]
+    {
+        "CPU"
+    }
+}
+
+fn shared_model_runtime_allowed(runtime: &Path, repository: &Path) -> bool {
+    let l2b = repository
+        .join("target/parakeet-tests/l2/l2b")
+        .canonicalize()
+        .ok();
+    if l2b.as_deref() == Some(runtime) {
+        return true;
+    }
+    #[cfg(feature = "parakeet-cuda")]
+    {
+        return ["l3a", "l3b"].into_iter().any(|lot| {
+            repository
+                .join("target/parakeet-tests/l3")
+                .join(lot)
+                .canonicalize()
+                .ok()
+                .as_deref()
+                == Some(runtime)
+        });
+    }
+    #[cfg(not(feature = "parakeet-cuda"))]
+    false
+}
+
+fn build_gpu_evidence(
+    runtime: &Path,
+    backend: &str,
+    gpu: Option<&ExpectedGpu>,
+) -> Result<Option<GpuEvidence>, String> {
+    #[cfg(feature = "parakeet-cuda")]
+    {
+        let gpu = gpu.ok_or("GpuEvidenceMissing: CUDA device identity is unavailable")?;
+        if backend != "CUDA0" {
+            return Err(format!("BackendMismatch: expected CUDA0, got {backend}"));
+        }
+        let log_path = std::env::var_os("PARAKEET_L3_ASR_LOG")
+            .map(PathBuf::from)
+            .ok_or("GpuLogMissing: PARAKEET_L3_ASR_LOG is required")?;
+        let parent = log_path
+            .parent()
+            .ok_or("GpuLogPath: log path has no parent")?
+            .canonicalize()
+            .map_err(|error| format!("GpuLogPath: {error}"))?;
+        if !parent.starts_with(runtime) {
+            return Err("GpuLogPath: captured log is outside the runtime root".into());
+        }
+        let canonical_log = parent.join(
+            log_path
+                .file_name()
+                .ok_or("GpuLogPath: log path has no file name")?,
+        );
+        let bytes =
+            std::fs::read(&canonical_log).map_err(|error| format!("GpuLogRead: {error}"))?;
+        let has_cuda_status = bytes.split(|byte| *byte == b'\n').any(|line| {
+            std::str::from_utf8(line)
+                .ok()
+                .is_some_and(|line| line.starts_with("[asr]") && line.contains("backend=CUDA0"))
+        });
+        if !has_cuda_status {
+            return Err("GpuLogMissing: captured log lacks [asr] backend=CUDA0".into());
+        }
+        let asr_log_sha256 = format!("{:x}", Sha256::digest(&bytes));
+        return Ok(Some(GpuEvidence {
+            backend: backend.to_owned(),
+            pci_bus_id: gpu.pci_bus_id.clone(),
+            uuid: gpu.uuid.clone(),
+            pid: std::process::id(),
+            asr_log_sha256,
+        }));
+    }
+    #[cfg(not(feature = "parakeet-cuda"))]
+    {
+        let _ = (runtime, backend, gpu);
+        Ok(None)
+    }
+}
+
+fn validate_expected_gpu(
+    backend: &str,
+    expected: Option<&ExpectedGpu>,
+    startup_identity: Option<&ExpectedGpu>,
+) -> Result<(), (&'static str, String)> {
+    #[cfg(feature = "parakeet-cuda")]
+    {
+        if backend != "CUDA0" {
+            return Err(("BackendMismatch", format!("expected CUDA0, got {backend}")));
+        }
+        let expected = expected.ok_or((
+            "GpuIdentityRequired",
+            "CUDA request must include expected PCI bus ID and UUID".into(),
+        ))?;
+        let actual = query_single_nvidia_gpu().map_err(|error| ("GpuInventoryFailed", error))?;
+        if startup_identity != Some(&actual)
+            || expected.pci_bus_id != actual.pci_bus_id
+            || !expected.uuid.eq_ignore_ascii_case(&actual.uuid)
+        {
+            return Err((
+                "WrongGpuDevice",
+                format!(
+                    "expected {} / {}, current device is {} / {}",
+                    expected.pci_bus_id, expected.uuid, actual.pci_bus_id, actual.uuid
+                ),
+            ));
+        }
+        Ok(())
+    }
+    #[cfg(not(feature = "parakeet-cuda"))]
+    {
+        let _ = startup_identity;
+        if backend != "CPU" || expected.is_some() {
+            return Err((
+                "GpuUnavailable",
+                "CPU worker cannot accept a GPU identity".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "parakeet-cuda")]
+fn query_single_nvidia_gpu() -> Result<ExpectedGpu, String> {
+    let output = std::process::Command::new("nvidia-smi")
+        .args(["--query-gpu=count,name,pci.bus_id,uuid", "--format=csv"])
+        .output()
+        .map_err(|error| format!("GpuInventory: unable to start nvidia-smi: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "GpuInventory: nvidia-smi exited with {}",
+            output.status
+        ));
+    }
+    let stdout = String::from_utf8(output.stdout)
+        .map_err(|error| format!("GpuInventory: nvidia-smi output is not UTF-8: {error}"))?;
+    parse_single_nvidia_gpu(&stdout)
+}
+
+#[cfg(feature = "parakeet-cuda")]
+fn parse_single_nvidia_gpu(stdout: &str) -> Result<ExpectedGpu, String> {
+    let rows = stdout
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with("count,"))
+        .collect::<Vec<_>>();
+    if rows.len() != 1 {
+        return Err(format!(
+            "GpuInventory: expected one NVIDIA GPU row, found {}",
+            rows.len()
+        ));
+    }
+    let fields = rows[0].split(',').map(str::trim).collect::<Vec<_>>();
+    if fields.len() != 4 || fields[0] != "1" || fields[2].is_empty() || fields[3].is_empty() {
+        return Err(format!(
+            "GpuInventory: malformed or non-unique NVIDIA GPU row: {}",
+            rows[0]
+        ));
+    }
+    Ok(ExpectedGpu {
+        pci_bus_id: fields[2].to_owned(),
+        uuid: fields[3].to_owned(),
+    })
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -457,9 +702,7 @@ fn required_runtime_root(profile: &str) -> Result<PathBuf, String> {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
     let allowed = allowed_runtime_roots(&repository);
     if !allowed.iter().any(|candidate| root == *candidate) {
-        return Err(
-            "RuntimeRootMismatch: worker runtime is outside the authorized L2a Test roots".into(),
-        );
+        return Err("RuntimeRootMismatch: worker runtime is outside authorized Test roots".into());
     }
     if profile != PARAKEET_PROFILE_IMPORT_SINGLE_PASS
         && !qualification_root_is_valid(profile, &root, &repository)
@@ -475,17 +718,83 @@ fn required_runtime_root(profile: &str) -> Result<PathBuf, String> {
 mod runtime_root_tests {
     use super::*;
 
+    #[cfg(not(feature = "parakeet-cuda"))]
     #[test]
     fn accepts_only_the_two_canonical_l2_test_roots() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
-        let l2a2_only = allowed_runtime_roots_for(&repository, &["l2a-2"]);
+        let l2a_roots = allowed_runtime_roots_for(&repository, &["l2a-1", "l2a-2"]);
+        let l2a1 = repository
+            .join("target/parakeet-tests/l2/l2a-1")
+            .canonicalize()
+            .unwrap();
         let l2a2 = repository
             .join("target/parakeet-tests/l2/l2a-2")
             .canonicalize()
             .unwrap();
-        assert_eq!(l2a2_only, vec![l2a2]);
-        assert!(allowed_runtime_roots(&repository).contains(&l2a2_only[0]));
+        let l2b = repository
+            .join("target/parakeet-tests/l2/l2b")
+            .canonicalize()
+            .unwrap();
+        let l3a = repository
+            .join("target/parakeet-tests/l3/l3a")
+            .canonicalize()
+            .unwrap();
+        assert_eq!(l2a_roots, vec![l2a1.clone(), l2a2.clone()]);
+        assert!(allowed_runtime_roots(&repository).contains(&l2a1));
+        assert!(allowed_runtime_roots(&repository).contains(&l2a2));
+        assert!(!allowed_runtime_roots(&repository).contains(&l2b));
+        assert!(!allowed_runtime_roots(&repository).contains(&l3a));
         assert!(!allowed_runtime_roots(&repository).contains(&repository));
+    }
+
+    #[cfg(feature = "parakeet-cuda")]
+    #[test]
+    fn gpu_worker_allows_only_the_canonical_l3_runtime_roots() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+        let l3a = repository
+            .join("target/parakeet-tests/l3/l3a")
+            .canonicalize()
+            .unwrap();
+        let l3a_expected = repository.join("target/parakeet-tests/l3/l3a");
+        let l3b_expected = repository.join("target/parakeet-tests/l3/l3b");
+        let l2a1 = repository
+            .join("target/parakeet-tests/l2/l2a-1")
+            .canonicalize()
+            .unwrap();
+        let l2b = repository
+            .join("target/parakeet-tests/l2/l2b")
+            .canonicalize()
+            .unwrap();
+        assert_eq!(
+            allowed_runtime_root_candidates(&repository),
+            vec![l3a_expected, l3b_expected]
+        );
+        assert!(allowed_runtime_roots(&repository).contains(&l3a));
+        assert!(!allowed_runtime_roots(&repository).contains(&l2a1));
+        assert!(!allowed_runtime_roots(&repository).contains(&l2b));
+    }
+
+    #[cfg(feature = "parakeet-cuda")]
+    #[test]
+    fn nvidia_inventory_parser_requires_exactly_one_consistent_gpu_row() {
+        let gpu = parse_single_nvidia_gpu(
+            "count, name, pci.bus_id, uuid\n1, NVIDIA GeForce GTX 1080 Ti, 00000000:01:00.0, GPU-test\n",
+        )
+        .unwrap();
+        assert_eq!(gpu.pci_bus_id, "00000000:01:00.0");
+        assert_eq!(gpu.uuid, "GPU-test");
+
+        assert!(
+            parse_single_nvidia_gpu(
+                "count, name, pci.bus_id, uuid\n2, NVIDIA GeForce GTX, 00000000:01:00.0, GPU-test\n"
+            )
+            .is_err()
+        );
+        assert!(parse_single_nvidia_gpu(
+            "count, name, pci.bus_id, uuid\n1, NVIDIA GPU, 00000000:01:00.0, GPU-a\n1, NVIDIA GPU, 00000000:02:00.0, GPU-b\n"
+        )
+        .is_err());
+        assert!(parse_single_nvidia_gpu("not an inventory row").is_err());
     }
 
     #[cfg(feature = "parakeet-qualification-reference")]
@@ -531,11 +840,31 @@ fn qualification_root_is_valid(profile: &str, root: &Path, repository: &Path) ->
         == Some(&root.to_path_buf())
 }
 
+fn allowed_runtime_root_candidates(repository: &Path) -> Vec<PathBuf> {
+    #[cfg(feature = "parakeet-cuda")]
+    {
+        return ["l3a", "l3b"]
+            .into_iter()
+            .map(|lot| repository.join("target/parakeet-tests/l3").join(lot))
+            .collect();
+    }
+    #[cfg(not(feature = "parakeet-cuda"))]
+    {
+        let mut roots = ["l2a-1", "l2a-2"]
+            .into_iter()
+            .map(|lot| repository.join("target/parakeet-tests/l2").join(lot))
+            .collect::<Vec<_>>();
+        #[cfg(feature = "parakeet-qualification-reference")]
+        roots.push(repository.join("target/parakeet-tests/l2/l2b"));
+        roots
+    }
+}
+
 fn allowed_runtime_roots(repository: &Path) -> Vec<PathBuf> {
-    #[cfg(feature = "parakeet-qualification-reference")]
-    return allowed_runtime_roots_for(repository, &["l2a-1", "l2a-2", "l2b"]);
-    #[cfg(not(feature = "parakeet-qualification-reference"))]
-    allowed_runtime_roots_for(repository, &["l2a-1", "l2a-2"])
+    allowed_runtime_root_candidates(repository)
+        .into_iter()
+        .filter_map(|candidate| candidate.canonicalize().ok())
+        .collect()
 }
 
 fn allowed_runtime_roots_for(repository: &Path, lots: &[&str]) -> Vec<PathBuf> {
@@ -687,6 +1016,16 @@ fn runtime_sha256(native_dir: &Path, native_version: &str) -> Result<String, Str
         "ggml.dll",
         "ggml-base.dll",
         "ggml-cpu.dll",
+    ] {
+        hasher.update(name.as_bytes());
+        hasher.update(sha256_file(&native_dir.join(name))?.as_bytes());
+    }
+    #[cfg(feature = "parakeet-cuda")]
+    for name in [
+        "ggml-cuda.dll",
+        "cudart64_12.dll",
+        "cublas64_12.dll",
+        "cublasLt64_12.dll",
     ] {
         hasher.update(name.as_bytes());
         hasher.update(sha256_file(&native_dir.join(name))?.as_bytes());

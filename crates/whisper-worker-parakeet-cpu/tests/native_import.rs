@@ -2,18 +2,65 @@ use std::{
     collections::BTreeMap,
     env,
     fs::{self, OpenOptions},
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
-    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
-    time::{Duration, Instant},
+    process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use sha2::{Digest, Sha256};
 use whisper_core::parakeet_ipc::{
-    Command as WorkerCommand, Envelope, Event, PARAKEET_IPC_VERSION,
+    Command as WorkerCommand, Envelope, Event, ExpectedGpu, GpuEvidence, PARAKEET_IPC_VERSION,
     PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity,
 };
 use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;
+
+const L3A_WINDOWS_GPU_NAME: &str = "NVIDIA GeForce GTX 1080 Ti";
+const L3A_WINDOWS_GPU_PCI_BUS_ID: &str = "00000000:01:00.0";
+const L3A_WINDOWS_GPU_UUID: &str = "GPU-99e636f6-45ac-0068-a378-7d7a8bca645e";
+const L3A_WINDOWS_GPU_INSTANCE_ID: &str =
+    r"PCI\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\4&8BD6E8D&0&0008";
+const L3A_WINDOWS_GPU_LOCATION_PATHS: &str = "PCIROOT(0)#PCI(0100)#PCI(0000)";
+
+#[test]
+fn additive_gpu_fields_default_when_reading_existing_cpu_ipc_frames() {
+    let command = format!(
+        r#"{{"version":{PARAKEET_IPC_VERSION},"message":{{"type":"transcribe","request_id":1,"job_id":"legacy","generation":1,"attempt":1,"identity":{{"model_sha256":"{}","runtime_sha256":"{}","build_sha256":"{}","profile":"{}"}},"source_path":"audio.wav","source_sha256":"{}"}}}}"#,
+        "ab".repeat(32),
+        "bc".repeat(32),
+        "cd".repeat(32),
+        PARAKEET_PROFILE_IMPORT_SINGLE_PASS,
+        "ef".repeat(32),
+    );
+    let decoded: Envelope<WorkerCommand> = serde_json::from_str(&command).unwrap();
+    assert!(matches!(
+        decoded.message,
+        WorkerCommand::Transcribe {
+            expected_gpu: None,
+            ..
+        }
+    ));
+
+    let ready = format!(
+        r#"{{"version":{PARAKEET_IPC_VERSION},"message":{{"type":"ready","identity":{{"model_sha256":"{}","runtime_sha256":"{}","build_sha256":"{}","profile":"{}"}},"backend":"CPU","native_version":"nemo 0.2.0"}}}}"#,
+        "ab".repeat(32),
+        "bc".repeat(32),
+        "cd".repeat(32),
+        PARAKEET_PROFILE_IMPORT_SINGLE_PASS,
+    );
+    let decoded: Envelope<Event> = serde_json::from_str(&ready).unwrap();
+    assert!(matches!(
+        decoded.message,
+        Event::Ready {
+            gpu_evidence: None,
+            ..
+        }
+    ));
+}
 
 #[test]
 #[ignore = "runs real Parakeet CPU inference with locally installed native DLLs"]
@@ -37,6 +84,7 @@ fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_un
         identity,
         backend,
         native_version,
+        ..
     } = ready.message
     else {
         panic!("worker did not attest Ready: {ready:?}");
@@ -178,6 +226,7 @@ fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_un
             duration_samples,
             text,
             words,
+            ..
         } = event.message
         else {
             panic!("inference {index} failed: {event:?}");
@@ -617,6 +666,608 @@ struct WorkerProcess {
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
+    asr_log_path: Option<PathBuf>,
+    spawned_at: Option<Instant>,
+}
+
+#[derive(Clone, Debug)]
+struct GpuSample {
+    timestamp: String,
+    utilization_gpu: u32,
+    memory_used_mib: u64,
+    sampled_at: Instant,
+}
+
+#[derive(Clone, Debug)]
+struct ProcessMemorySample {
+    timestamp_utc_ms: u64,
+    working_set_bytes: u64,
+    private_bytes: u64,
+}
+
+struct ProcessMemorySampler {
+    child: Child,
+    samples: Arc<Mutex<Vec<ProcessMemorySample>>>,
+    raw_lines: Arc<Mutex<Vec<String>>>,
+    reader: Option<std::thread::JoinHandle<()>>,
+    stderr: Option<ChildStderr>,
+}
+
+impl ProcessMemorySampler {
+    fn start(pid: u32) -> Self {
+        let command = format!(
+            "$targetPid = {pid}; while ($true) {{ $p = Get-Process -Id $targetPid -ErrorAction SilentlyContinue; if ($null -eq $p) {{ break }}; [Console]::Out.WriteLine((\"{{0}},{{1}},{{2}}\" -f @([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds(), $p.WorkingSet64, $p.PrivateMemorySize64))); [Console]::Out.Flush(); Start-Sleep -Milliseconds 250 }}"
+        );
+        let mut child = Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &command])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("PowerShell process-memory sampler starts");
+        let stdout = child
+            .stdout
+            .take()
+            .expect("PowerShell sampler stdout is piped");
+        let child_stderr = child.stderr.take();
+        let samples = Arc::new(Mutex::new(Vec::new()));
+        let raw_lines = Arc::new(Mutex::new(Vec::new()));
+        let reader_samples = Arc::clone(&samples);
+        let reader_raw_lines = Arc::clone(&raw_lines);
+        let reader = std::thread::spawn(move || {
+            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                reader_raw_lines.lock().unwrap().push(line.clone());
+                let mut fields = line.split(',').map(str::trim);
+                let Some((Ok(timestamp_utc_ms), Ok(working_set_bytes), Ok(private_bytes))) =
+                    fields.next().and_then(|timestamp| {
+                        Some((
+                            timestamp.parse(),
+                            fields.next()?.parse(),
+                            fields.next()?.parse(),
+                        ))
+                    })
+                else {
+                    continue;
+                };
+                reader_samples.lock().unwrap().push(ProcessMemorySample {
+                    timestamp_utc_ms,
+                    working_set_bytes,
+                    private_bytes,
+                });
+            }
+        });
+        Self {
+            child,
+            samples,
+            raw_lines,
+            reader: Some(reader),
+            stderr: child_stderr,
+        }
+    }
+
+    fn stop(mut self) -> (Vec<ProcessMemorySample>, Vec<String>, String, Option<i32>) {
+        let _ = self.child.kill();
+        let status = self.child.wait().ok().and_then(|status| status.code());
+        if let Some(reader) = self.reader.take() {
+            reader.join().expect("PowerShell sampler reader joins");
+        }
+        let samples = self.samples.lock().unwrap().clone();
+        let raw_lines = self.raw_lines.lock().unwrap().clone();
+        let mut stderr = String::new();
+        if let Some(mut pipe) = self.stderr.take() {
+            let _ = pipe.read_to_string(&mut stderr);
+        }
+        (samples, raw_lines, stderr, status)
+    }
+}
+
+impl Drop for ProcessMemorySampler {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        self.stderr.take();
+        if let Some(reader) = self.reader.take() {
+            let _ = reader.join();
+        }
+    }
+}
+
+struct GpuCall {
+    event: Envelope<Event>,
+    request_started_at: Instant,
+    native_call_started_at: Instant,
+    result_received_at: Instant,
+}
+
+#[test]
+#[ignore = "L3a GPU single-pass recipe; requires the exact release worker and verified CUDA DLLs"]
+fn gpu_worker_fr_en_single_pass() {
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let model = required_path("PARAKEET_L2_MODEL");
+    let native_dir = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = required_path("PARAKEET_L2_WORKER");
+    let fixtures = [
+        ("en5", required_path("PARAKEET_L3_EN5_WAV")),
+        ("fr87", required_path("PARAKEET_L3_FR87_WAV")),
+        ("fr27", required_path("PARAKEET_L3_FR27_WAV")),
+        ("en15", required_path("PARAKEET_L2_EN_WAV")),
+        ("en30", required_path("PARAKEET_L3_EN30_WAV")),
+    ];
+    ensure_under(&native_dir, &runtime);
+    let recipes = runtime.join("recipes/gpu-single-pass");
+    let logs = runtime.join("logs");
+    fs::create_dir_all(&recipes).unwrap();
+    fs::create_dir_all(&logs).unwrap();
+    let gpu_preflight_utc_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock is after Unix epoch")
+        .as_millis();
+    let gpu = nvidia_smi_gpu();
+    let gpu_preflight = serde_json::json!({
+        "timestamp_utc_ms": gpu_preflight_utc_ms,
+        "windows_inventory_source": "Windows PnP inventory checked for L3a on 2026-10-18",
+        "windows_inventory": {
+            "name": L3A_WINDOWS_GPU_NAME,
+            "instance_id": L3A_WINDOWS_GPU_INSTANCE_ID,
+            "location_paths": L3A_WINDOWS_GPU_LOCATION_PATHS,
+            "pci_bus_id": L3A_WINDOWS_GPU_PCI_BUS_ID,
+        },
+        "nvidia_smi": gpu,
+        "result": "single GPU identity matches the Windows inventory before worker start",
+    });
+    fs::write(
+        recipes.join("gpu-preflight.json"),
+        serde_json::to_vec_pretty(&gpu_preflight).unwrap(),
+    )
+    .unwrap();
+
+    let model_sha = sha256(&model);
+    let mut process = WorkerProcess::start_gpu(&worker, &model, &model_sha, &native_dir, &runtime);
+    let ram_sampler = ProcessMemorySampler::start(process.child.id());
+    let ready = process.receive();
+    let Event::Ready {
+        identity,
+        backend,
+        native_version,
+        gpu_evidence: Some(ready_evidence),
+    } = ready.message
+    else {
+        panic!("GPU worker did not provide Ready with GPU evidence: {ready:?}");
+    };
+    assert_eq!(backend, "CUDA0");
+    assert!(native_version.contains("0.2.0"), "{native_version}");
+    assert_eq!(identity.model_sha256, model_sha);
+    assert_eq!(identity.build_sha256, sha256(&worker));
+    assert_eq!(identity.profile, PARAKEET_PROFILE_IMPORT_SINGLE_PASS);
+    let worker_startup_to_ready_ms = process
+        .spawned_at
+        .expect("GPU worker records its spawn time")
+        .elapsed()
+        .as_millis();
+    let log_path = process.asr_log_path.as_ref().unwrap().clone();
+    assert_gpu_evidence(&ready_evidence, &gpu, process.child.id(), &log_path);
+
+    let mut results = Vec::new();
+    for (request_id, (name, source)) in fixtures.iter().enumerate() {
+        let baseline = if *name == "en5" {
+            Some(nvidia_smi_activity().expect("nvidia-smi activity sample before EN5"))
+        } else {
+            None
+        };
+        let sampler = baseline.as_ref().map(|_| start_gpu_sampler());
+        let call = process.request_gpu(request_id as u64 + 1, name, &identity, source, &gpu);
+        let samples = sampler.map(stop_gpu_sampler).unwrap_or_default();
+        let event = call.event;
+        let Event::Result {
+            identity: result_identity,
+            duration_samples,
+            text,
+            words,
+            native_inference_ms,
+            gpu_evidence: Some(evidence),
+            ..
+        } = event.message
+        else {
+            panic!("{name} GPU inference failed: {event:?}");
+        };
+        assert_eq!(result_identity, identity);
+        assert!(!text.trim().is_empty(), "{name} returned empty text");
+        assert!(
+            !text.contains('\u{fffd}'),
+            "{name} emitted invalid UTF-8 replacement"
+        );
+        assert!(
+            words.iter().all(|word| word.start_ms < word.end_ms),
+            "{name}"
+        );
+        assert!(
+            words
+                .windows(2)
+                .all(|pair| pair[0].end_ms <= pair[1].start_ms),
+            "{name} has overlapping words"
+        );
+        assert_gpu_evidence(&evidence, &gpu, process.child.id(), &log_path);
+        if *name == "fr27" {
+            assert!(words.last().is_some_and(|word| word.text == "à..."));
+        }
+        if *name == "en15" {
+            assert!(text.to_lowercase().contains("victorious"));
+        }
+        if *name == "en5" {
+            assert!(
+                native_inference_ms <= 11_100,
+                "A2 GPU inference {native_inference_ms} ms exceeds 11.1 s"
+            );
+            let baseline = baseline.unwrap();
+            let native_window_samples = samples
+                .iter()
+                .filter(|sample| {
+                    sample.sampled_at >= call.native_call_started_at
+                        && sample.sampled_at <= call.result_received_at
+                })
+                .collect::<Vec<_>>();
+            assert!(
+                native_window_samples.iter().any(|sample| {
+                    sample.utilization_gpu > 0 || sample.memory_used_mib > baseline.memory_used_mib
+                }),
+                "A2: no GPU activity sample inside NativeCallStarted→Result; baseline={baseline:?}, samples_inside={native_window_samples:?}, all_samples={samples:?}"
+            );
+        }
+        results.push(serde_json::json!({
+            "fixture": name,
+            "source_sha256": sha256(source),
+            "duration_samples": duration_samples,
+            "native_inference_ms": native_inference_ms,
+            "text": text,
+            "words": words,
+            "gpu_evidence": evidence,
+            "request_elapsed_ms": call.result_received_at.duration_since(call.request_started_at).as_millis(),
+            "native_call_window_ms": {
+                "marker_to_result": call.result_received_at.duration_since(call.native_call_started_at).as_millis(),
+                "samples": samples.iter().map(|sample| serde_json::json!({
+                    "timestamp": sample.timestamp,
+                    "request_offset_ms": sample.sampled_at.duration_since(call.request_started_at).as_millis(),
+                    "inside_native_call_window": sample.sampled_at >= call.native_call_started_at && sample.sampled_at <= call.result_received_at,
+                    "utilization_gpu": sample.utilization_gpu,
+                    "memory_used_mib": sample.memory_used_mib,
+                })).collect::<Vec<_>>(),
+            },
+        }));
+    }
+    let (ram_samples, ram_sampler_raw_lines, ram_sampler_stderr, ram_sampler_exit_code) =
+        ram_sampler.stop();
+    assert!(
+        !ram_samples.is_empty(),
+        "PowerShell process memory sampler returned no samples; raw_stdout_first_lines={:?}; stderr={ram_sampler_stderr:?}; exit_code={ram_sampler_exit_code:?}",
+        ram_sampler_raw_lines.iter().take(10).collect::<Vec<_>>()
+    );
+    let peak_working_set_bytes = ram_samples
+        .iter()
+        .map(|sample| sample.working_set_bytes)
+        .max()
+        .unwrap();
+    let peak_private_bytes = ram_samples
+        .iter()
+        .map(|sample| sample.private_bytes)
+        .max()
+        .unwrap();
+    process.shutdown();
+    let exit = process.wait();
+    assert!(exit.success(), "GPU worker exited unsuccessfully: {exit}");
+    let report = serde_json::json!({
+        "gpu_preflight": gpu_preflight,
+        "worker_sha256": sha256(&worker),
+        "worker_startup_to_ready_ms": worker_startup_to_ready_ms,
+        "worker_memory": {
+            "sample_count": ram_samples.len(),
+            "first_sample_utc_ms": ram_samples.first().unwrap().timestamp_utc_ms,
+            "last_sample_utc_ms": ram_samples.last().unwrap().timestamp_utc_ms,
+            "peak_working_set_bytes": peak_working_set_bytes,
+            "peak_private_bytes": peak_private_bytes,
+        },
+        "cpu_r6_en5_total_baseline_ms": 38_600,
+        "en5_startup_plus_request_end_to_end_ms": worker_startup_to_ready_ms + results[0]["request_elapsed_ms"].as_u64().unwrap_or(0) as u128,
+        "model_sha256": model_sha,
+        "gpu": gpu,
+        "dll_sha256": cuda_dll_hashes(&native_dir),
+        "inference_count": results.len(),
+        "process_exit": exit.code(),
+        "results": results,
+    });
+    fs::write(
+        recipes.join("gpu-single-pass.json"),
+        serde_json::to_vec_pretty(&report).unwrap(),
+    )
+    .unwrap();
+    println!("L3A_GPU_SINGLE_PASS {report}");
+}
+
+#[test]
+#[ignore = "L3a GPU 20-call recipe; requires the exact release worker and verified CUDA DLLs"]
+fn gpu_worker_twenty_calls() {
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let model = required_path("PARAKEET_L2_MODEL");
+    let native_dir = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = required_path("PARAKEET_L2_WORKER");
+    let french = required_path("PARAKEET_L3_FR87_WAV");
+    let english = required_path("PARAKEET_L2_EN_WAV");
+    let recipes = runtime.join("recipes/gpu-twenty-calls");
+    fs::create_dir_all(&recipes).unwrap();
+    let gpu = nvidia_smi_gpu();
+    let mut process =
+        WorkerProcess::start_gpu(&worker, &model, &sha256(&model), &native_dir, &runtime);
+    let ready = process.receive();
+    let Event::Ready {
+        identity,
+        backend,
+        gpu_evidence: Some(ready_evidence),
+        ..
+    } = ready.message
+    else {
+        panic!("GPU worker did not attest Ready: {ready:?}");
+    };
+    assert_eq!(backend, "CUDA0");
+    assert_gpu_evidence(
+        &ready_evidence,
+        &gpu,
+        process.child.id(),
+        process.asr_log_path.as_ref().unwrap(),
+    );
+    let mut count = 0_u64;
+    let mut summaries = Vec::new();
+    for index in 0..20 {
+        let (language, source) = if index % 2 == 0 {
+            ("fr", &french)
+        } else {
+            ("en", &english)
+        };
+        let call = process.request_gpu(
+            index + 1,
+            &format!("{language}-{index}"),
+            &identity,
+            source,
+            &gpu,
+        );
+        let event = call.event;
+        let Event::Result {
+            text,
+            words,
+            gpu_evidence: Some(evidence),
+            ..
+        } = event.message
+        else {
+            panic!("GPU call {index} failed: {event:?}");
+        };
+        assert!(!text.trim().is_empty());
+        assert!(
+            words
+                .windows(2)
+                .all(|pair| pair[0].end_ms <= pair[1].start_ms),
+            "overlap at inference {index}"
+        );
+        assert_gpu_evidence(
+            &evidence,
+            &gpu,
+            process.child.id(),
+            process.asr_log_path.as_ref().unwrap(),
+        );
+        count += 1;
+        summaries.push(serde_json::json!({"language":language,"word_count":words.len()}));
+    }
+    process.shutdown();
+    let exit = process.wait();
+    assert!(exit.success(), "GPU worker crashed on exit: {exit}");
+    assert_eq!(count, 20);
+    let report = serde_json::json!({
+        "worker_sha256": sha256(&worker),
+        "model_sha256": sha256(&model),
+        "gpu": gpu,
+        "dll_sha256": cuda_dll_hashes(&native_dir),
+        "inference_count": count,
+        "process_exit": exit.code(),
+        "results": summaries,
+    });
+    fs::write(
+        recipes.join("gpu-twenty-calls.json"),
+        serde_json::to_vec_pretty(&report).unwrap(),
+    )
+    .unwrap();
+    println!("L3A_GPU_TWENTY_CALLS {report}");
+}
+
+#[test]
+#[ignore = "L3a wrong-device recipe; requires the exact release worker and verified CUDA DLLs"]
+fn gpu_worker_rejects_wrong_device_before_audio() {
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let model = required_path("PARAKEET_L2_MODEL");
+    let native_dir = required_path("PARAKEET_L2_NATIVE_DIR");
+    let worker = required_path("PARAKEET_L2_WORKER");
+    let gpu = nvidia_smi_gpu();
+    let recipes = runtime.join("recipes/gpu-wrong-device");
+    fs::create_dir_all(&recipes).unwrap();
+    let mut process =
+        WorkerProcess::start_gpu(&worker, &model, &sha256(&model), &native_dir, &runtime);
+    let ready = process.receive();
+    let Event::Ready {
+        identity,
+        backend,
+        gpu_evidence: Some(evidence),
+        ..
+    } = ready.message
+    else {
+        panic!("GPU worker did not attest Ready: {ready:?}");
+    };
+    assert_eq!(backend, "CUDA0");
+    assert_gpu_evidence(
+        &evidence,
+        &gpu,
+        process.child.id(),
+        process.asr_log_path.as_ref().unwrap(),
+    );
+    let mut wrong_gpu = gpu.clone();
+    wrong_gpu.uuid.push_str("-wrong");
+    let missing_audio = runtime.join("audio-must-not-be-opened.wav");
+    let frame = json_frame(
+        PARAKEET_IPC_VERSION,
+        WorkerCommand::Transcribe {
+            request_id: 1,
+            job_id: "wrong-device".into(),
+            generation: 1,
+            attempt: 1,
+            identity,
+            source_path: missing_audio.to_string_lossy().into_owned(),
+            source_sha256: "00".repeat(32),
+            expected_gpu: Some(wrong_gpu),
+        },
+    );
+    let response = process.send_raw(frame);
+    assert!(matches!(response.message, Event::Failed { ref code, .. } if code == "WrongGpuDevice"));
+    assert!(
+        !missing_audio.exists(),
+        "the wrong-device case created audio"
+    );
+    process.shutdown();
+    let exit = process.wait();
+    assert!(exit.success());
+    let report = serde_json::json!({
+        "worker_sha256": sha256(&worker),
+        "model_sha256": sha256(&model),
+        "gpu": gpu,
+        "dll_sha256": cuda_dll_hashes(&native_dir),
+        "result": "WrongGpuDevice before source open or NativeCallStarted",
+        "process_exit": exit.code(),
+    });
+    fs::write(
+        recipes.join("gpu-wrong-device.json"),
+        serde_json::to_vec_pretty(&report).unwrap(),
+    )
+    .unwrap();
+    println!("L3A_GPU_WRONG_DEVICE {report}");
+}
+
+fn nvidia_smi_gpu() -> ExpectedGpu {
+    let output = Command::new("nvidia-smi")
+        .args(["--query-gpu=count,name,pci.bus_id,uuid", "--format=csv"])
+        .output()
+        .expect("nvidia-smi inventory query starts");
+    assert!(output.status.success(), "nvidia-smi failed: {output:?}");
+    let output = String::from_utf8(output.stdout).expect("nvidia-smi CSV is UTF-8");
+    let rows = output
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with("count,"))
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 1, "expected exactly one NVIDIA GPU: {output}");
+    let fields = rows[0].split(',').map(str::trim).collect::<Vec<_>>();
+    assert_eq!(fields.len(), 4, "invalid nvidia-smi row: {}", rows[0]);
+    assert_eq!(fields[0], "1", "nvidia-smi did not report one GPU");
+    assert_eq!(
+        fields[1], L3A_WINDOWS_GPU_NAME,
+        "Windows GPU inventory changed"
+    );
+    assert_eq!(
+        fields[2], L3A_WINDOWS_GPU_PCI_BUS_ID,
+        "nvidia-smi PCI identity differs from the Windows inventory"
+    );
+    assert_eq!(
+        fields[3], L3A_WINDOWS_GPU_UUID,
+        "nvidia-smi UUID differs from the Windows inventory"
+    );
+    ExpectedGpu {
+        pci_bus_id: fields[2].into(),
+        uuid: fields[3].into(),
+    }
+}
+
+fn assert_gpu_evidence(evidence: &GpuEvidence, expected: &ExpectedGpu, pid: u32, log_path: &Path) {
+    assert_eq!(evidence.backend, "CUDA0");
+    assert_eq!(evidence.pci_bus_id, expected.pci_bus_id);
+    assert_eq!(evidence.uuid, expected.uuid);
+    assert_eq!(evidence.pid, pid);
+    assert_eq!(evidence.asr_log_sha256, sha256(log_path));
+    let log = fs::read_to_string(log_path).unwrap();
+    assert!(
+        log.lines()
+            .any(|line| line.starts_with("[asr]") && line.contains("backend=CUDA0"))
+    );
+}
+
+fn nvidia_smi_activity() -> Option<GpuSample> {
+    let sampled_at = Instant::now();
+    let output = Command::new("nvidia-smi")
+        .args([
+            "--query-gpu=timestamp,utilization.gpu,memory.used",
+            "--format=csv,noheader,nounits",
+        ])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    let fields = stdout.trim().split(',').map(str::trim).collect::<Vec<_>>();
+    if fields.len() != 3 {
+        return None;
+    }
+    Some(GpuSample {
+        timestamp: fields[0].to_owned(),
+        utilization_gpu: fields[1].parse().ok()?,
+        memory_used_mib: fields[2].parse().ok()?,
+        sampled_at,
+    })
+}
+
+fn start_gpu_sampler() -> (
+    Arc<AtomicBool>,
+    Arc<Mutex<Vec<GpuSample>>>,
+    std::thread::JoinHandle<()>,
+) {
+    let stop = Arc::new(AtomicBool::new(false));
+    let samples = Arc::new(Mutex::new(Vec::new()));
+    let thread_stop = Arc::clone(&stop);
+    let thread_samples = Arc::clone(&samples);
+    let handle = std::thread::spawn(move || {
+        while !thread_stop.load(Ordering::Acquire) {
+            if let Some(sample) = nvidia_smi_activity()
+                && let Ok(mut samples) = thread_samples.lock()
+            {
+                samples.push(sample);
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    });
+    (stop, samples, handle)
+}
+
+fn stop_gpu_sampler(
+    sampler: (
+        Arc<AtomicBool>,
+        Arc<Mutex<Vec<GpuSample>>>,
+        std::thread::JoinHandle<()>,
+    ),
+) -> Vec<GpuSample> {
+    sampler.0.store(true, Ordering::Release);
+    sampler.2.join().expect("GPU sampler exits");
+    Arc::try_unwrap(sampler.1)
+        .expect("GPU sample storage has one owner")
+        .into_inner()
+        .expect("GPU sample lock is not poisoned")
+}
+
+fn cuda_dll_hashes(native_dir: &Path) -> BTreeMap<String, String> {
+    [
+        "nemo_speech_asr_c.dll",
+        "nemo_speech_asr.dll",
+        "ggml.dll",
+        "ggml-base.dll",
+        "ggml-cpu.dll",
+        "ggml-cuda.dll",
+        "cudart64_12.dll",
+        "cublas64_12.dll",
+        "cublasLt64_12.dll",
+    ]
+    .into_iter()
+    .map(|name| (name.to_owned(), sha256(&native_dir.join(name))))
+    .collect()
 }
 
 impl WorkerProcess {
@@ -646,6 +1297,47 @@ impl WorkerProcess {
             stdin: child.stdin.take().unwrap(),
             stdout: BufReader::new(child.stdout.take().unwrap()),
             child,
+            asr_log_path: None,
+            spawned_at: None,
+        }
+    }
+
+    fn start_gpu(
+        worker: &Path,
+        model: &Path,
+        model_sha: &str,
+        native_dir: &Path,
+        runtime: &Path,
+    ) -> Self {
+        ensure_under(native_dir, runtime);
+        let logs = runtime.join("logs");
+        fs::create_dir_all(&logs).unwrap();
+        let log_path = logs.join(format!("gpu-asr-{}.log", std::process::id()));
+        ensure_under(&log_path, runtime);
+        let stderr_file = fs::File::create(&log_path).unwrap();
+        let spawned_at = Instant::now();
+        let mut child = Command::new(worker)
+            .args([
+                "--model",
+                model.to_str().unwrap(),
+                "--model-sha256",
+                model_sha,
+                "--native-dir",
+                native_dir.to_str().unwrap(),
+            ])
+            .env("PARAKEET_L2_RUNTIME_ROOT", runtime)
+            .env("PARAKEET_L3_ASR_LOG", &log_path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::from(stderr_file))
+            .spawn()
+            .unwrap();
+        Self {
+            stdin: child.stdin.take().unwrap(),
+            stdout: BufReader::new(child.stdout.take().unwrap()),
+            child,
+            asr_log_path: Some(log_path),
+            spawned_at: Some(spawned_at),
         }
     }
 
@@ -677,6 +1369,8 @@ impl WorkerProcess {
             stdin: child.stdin.take().unwrap(),
             stdout: BufReader::new(child.stdout.take().unwrap()),
             child,
+            asr_log_path: None,
+            spawned_at: None,
         }
     }
 
@@ -726,8 +1420,53 @@ impl WorkerProcess {
                 identity: identity.clone(),
                 source_path: source.to_string_lossy().into_owned(),
                 source_sha256: source_sha256.into(),
+                expected_gpu: None,
             },
         ))
+    }
+
+    fn request_gpu(
+        &mut self,
+        request_id: u64,
+        job_id: &str,
+        identity: &WorkerIdentity,
+        source: &Path,
+        gpu: &ExpectedGpu,
+    ) -> GpuCall {
+        let request_started_at = Instant::now();
+        let frame = json_frame(
+            PARAKEET_IPC_VERSION,
+            WorkerCommand::Transcribe {
+                request_id,
+                job_id: job_id.into(),
+                generation: 1,
+                attempt: 1,
+                identity: identity.clone(),
+                source_path: source.to_string_lossy().into_owned(),
+                source_sha256: sha256(source),
+                expected_gpu: Some(gpu.clone()),
+            },
+        );
+        self.stdin.write_all(&frame).unwrap();
+        self.stdin.flush().unwrap();
+        let started = self.receive();
+        let native_call_started_at = Instant::now();
+        assert!(
+            matches!(started.message, Event::NativeCallStarted { request_id: actual, job_id: ref actual_job_id, generation: 1, attempt: 1, pid } if actual == request_id && actual_job_id == job_id && pid == self.child.id()),
+            "worker did not report the native call before returning a result: {started:?}"
+        );
+        let event = self.receive();
+        assert!(
+            matches!(&event.message, Event::Result { request_id: actual_request_id, job_id: actual_job_id, generation: 1, attempt: 1, .. } if *actual_request_id == request_id && actual_job_id.as_str() == job_id),
+            "native call marker was not followed by exactly its correlated result: {event:?}"
+        );
+        let result_received_at = Instant::now();
+        GpuCall {
+            event,
+            request_started_at,
+            native_call_started_at,
+            result_received_at,
+        }
     }
 
     fn receive(&mut self) -> Envelope<Event> {
