@@ -7879,6 +7879,12 @@ fn main() {
         );
     }
 
+    fn test_destination(job_id: JobId, generation: Generation) -> PathBuf {
+        std::env::temp_dir()
+            .join("worker-ipc-tests")
+            .join(format!("{}-{job_id:?}-{generation:?}", std::process::id()))
+    }
+
     fn test_request(job_id: JobId, generation: Generation) -> ImportRequest {
         ImportRequest {
             job_id,
@@ -7888,7 +7894,9 @@ fn main() {
             source_samples: None,
             model_path: "model.bin".into(),
             model_sha256: [0; 32],
-            destination: "archive".into(),
+            destination: test_destination(job_id, generation)
+                .to_string_lossy()
+                .into_owned(),
             config: JobConfig {
                 language: LanguageChoice::Manual("fr".into()),
                 compute: ComputeChoice::Cpu,
