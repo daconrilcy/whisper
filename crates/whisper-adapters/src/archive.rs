@@ -586,6 +586,53 @@ impl ArchiveQualificationKey {
         key
     }
 
+    fn parakeet_personal(backend: whisper_core::model_catalog::Backend) -> Self {
+        let record = whisper_core::model_registry::model(
+            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+        );
+        let configuration =
+            whisper_core::model_registry::personal_configuration_key(record, backend);
+        let mut key = Self::parakeet_cpu_test();
+        key.artifact_revision = configuration.artifact_revision;
+        key.runtime_build = configuration.runtime_build;
+        key.worker_build = configuration.worker_build;
+        key.backend = match backend {
+            whisper_core::model_catalog::Backend::Cpu => "CPU",
+            whisper_core::model_catalog::Backend::Gpu => "CUDA0",
+        }
+        .to_owned();
+        key.inference_profile = configuration.inference_profile;
+        if backend == whisper_core::model_catalog::Backend::Gpu {
+            key.gpu_pci_bus_id =
+                Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PCI_BUS_ID.to_owned());
+            key.gpu_uuid =
+                Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_UUID.to_owned());
+            key.gpu_pnp_instance_id = Some(
+                whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID.to_owned(),
+            );
+        }
+        key
+    }
+
+    pub fn is_registered_personal_import(&self) -> bool {
+        let cpu = Self::parakeet_personal(whisper_core::model_catalog::Backend::Cpu);
+        let gpu = Self::parakeet_personal(whisper_core::model_catalog::Backend::Gpu);
+        let cpu_ready = cpu.worker_build.len() == 64 && cpu.runtime_build.len() == 64;
+        let gpu_ready = gpu.worker_build.len() == 64 && gpu.runtime_build.len() == 64;
+        (cpu_ready && self == &cpu) || (gpu_ready && self == &gpu)
+    }
+
+    pub(crate) fn is_personal_candidate(&self) -> bool {
+        #[cfg(feature = "personal-qualification")]
+        {
+            return crate::parakeet_import::ParakeetWorkerPaths::personal_candidate_keys_from_env()
+                .iter()
+                .any(|candidate| candidate == self);
+        }
+        #[cfg(not(feature = "personal-qualification"))]
+        false
+    }
+
     pub fn is_parakeet_import_test(&self) -> bool {
         let expected = Self::parakeet_cpu_test();
         let gpu = Self::parakeet_gpu_test();
@@ -622,7 +669,10 @@ impl ArchiveQualificationKey {
             && self.gpu_pci_bus_id == gpu.gpu_pci_bus_id
             && self.gpu_uuid == gpu.gpu_uuid
             && self.gpu_pnp_instance_id == gpu.gpu_pnp_instance_id;
-        cpu_match || gpu_match
+        cpu_match
+            || gpu_match
+            || self.is_registered_personal_import()
+            || self.is_personal_candidate()
     }
 
     pub fn is_parakeet_vad_test(&self) -> bool {
@@ -2733,8 +2783,10 @@ fn validate_pending(pending: &PendingRecord, job_id: JobId, generation: u64) -> 
             && pending.qualification.as_ref().is_some_and(|key| {
                 key == &ArchiveQualificationKey::parakeet_cpu_test()
                     || key == &ArchiveQualificationKey::parakeet_gpu_test()
+                    || key.is_registered_personal_import()
                     || key.is_retired_l2a_key()
                     || key.is_retired_r5_2_key()
+                    || key.is_personal_candidate()
             }))
             || (pending.version == 3
                 && pending

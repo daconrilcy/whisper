@@ -41,6 +41,20 @@ pub const PARAKEET_TEST_GPU_PCI_BUS_ID: &str = "00000000:01:00.0";
 pub const PARAKEET_TEST_GPU_UUID: &str = "GPU-99e636f6-45ac-0068-a378-7d7a8bca645e";
 pub const PARAKEET_TEST_GPU_PNP_INSTANCE_ID: &str =
     r"PCI\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\4&8BD6E8D&0&0008";
+pub const PARAKEET_PERSONAL_GPU_PCI_BUS_ID: &str = "00000000:01:00.0";
+pub const PARAKEET_PERSONAL_GPU_UUID: &str = "GPU-99e636f6-45ac-0068-a378-7d7a8bca645e";
+pub const PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID: &str =
+    r"PCI\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\4&8BD6E8D&0&0008";
+
+// Candidate-b release workers and DLL sets, recorded after both backends passed L6-perso recipes.
+pub const PARAKEET_PERSONAL_CPU_RUNTIME_SHA256: &str =
+    "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff";
+pub const PARAKEET_PERSONAL_CPU_WORKER_SHA256: &str =
+    "84c371d4df55043ada4a1d96b80180ed0c03b208410c599262c8ea3762304e60";
+pub const PARAKEET_PERSONAL_GPU_RUNTIME_SHA256: &str =
+    "cbf7543a711a341df4387fb9047fcd55d3d5c572465cbe9bbb7d14b5963e6b10";
+pub const PARAKEET_PERSONAL_GPU_WORKER_SHA256: &str =
+    "bf58eb9d7300c444864347496b5a27e8584da3d30d634a759be99a598eda5ce4";
 
 pub const MODELS: [ModelRecord; 2] = [
     ModelRecord {
@@ -313,6 +327,26 @@ pub fn configuration_key(record: &ModelRecord, backend: Backend) -> Configuratio
         }
         .to_owned(),
     }
+}
+
+/// Exact identity recorded for the CPU or CUDA0 worker built for the personal profile.
+pub fn personal_configuration_key(record: &ModelRecord, backend: Backend) -> ConfigurationKey {
+    let mut key = configuration_key(record, backend);
+    if record.artifact.id == ModelId::ParakeetTdt06BV3 {
+        let (runtime, worker) = match backend {
+            Backend::Cpu => (
+                PARAKEET_PERSONAL_CPU_RUNTIME_SHA256,
+                PARAKEET_PERSONAL_CPU_WORKER_SHA256,
+            ),
+            Backend::Gpu => (
+                PARAKEET_PERSONAL_GPU_RUNTIME_SHA256,
+                PARAKEET_PERSONAL_GPU_WORKER_SHA256,
+            ),
+        };
+        key.runtime_build = runtime.to_owned();
+        key.worker_build = worker.to_owned();
+    }
+    key
 }
 
 fn existing() -> Capability {

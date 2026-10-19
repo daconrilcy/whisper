@@ -699,19 +699,56 @@ fn required_runtime_root(profile: &str) -> Result<PathBuf, String> {
     let root = PathBuf::from(root)
         .canonicalize()
         .map_err(|e| format!("RuntimeRoot: {e}"))?;
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
-    let allowed = allowed_runtime_roots(&repository);
-    if !allowed.iter().any(|candidate| root == *candidate) {
-        return Err("RuntimeRootMismatch: worker runtime is outside authorized Test roots".into());
-    }
-    if profile != PARAKEET_PROFILE_IMPORT_SINGLE_PASS
-        && !qualification_root_is_valid(profile, &root, &repository)
+    #[cfg(feature = "parakeet-personal")]
     {
-        return Err(
-            "RuntimeRootMismatch: qualification profiles require the L2b runtime root".into(),
-        );
+        if !personal_runtime_root_is_allowed(&root) {
+            return Err(
+                "RuntimeRootMismatch: worker runtime is outside the personal installation".into(),
+            );
+        }
+        if profile != PARAKEET_PROFILE_IMPORT_SINGLE_PASS {
+            return Err(
+                "ProfileUnavailable: personal workers support single-pass import only".into(),
+            );
+        }
+    }
+    #[cfg(not(feature = "parakeet-personal"))]
+    {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+        let allowed = allowed_runtime_roots(&repository);
+        if !allowed.iter().any(|candidate| root == *candidate) {
+            return Err(
+                "RuntimeRootMismatch: worker runtime is outside authorized Test roots".into(),
+            );
+        }
+        if profile != PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+            && !qualification_root_is_valid(profile, &root, &repository)
+        {
+            return Err(
+                "RuntimeRootMismatch: qualification profiles require the L2b runtime root".into(),
+            );
+        }
     }
     Ok(root)
+}
+
+#[cfg(feature = "parakeet-personal")]
+fn personal_runtime_root_is_allowed(root: &Path) -> bool {
+    let Some(local_app_data) = env::var_os("LOCALAPPDATA").map(PathBuf::from) else {
+        return false;
+    };
+    let personal_root = local_app_data.join("Whisper");
+    let Ok(personal_root) = personal_root.canonicalize() else {
+        return false;
+    };
+    personal_runtime_path_is_allowed(root, &personal_root)
+}
+
+#[cfg(feature = "parakeet-personal")]
+fn personal_runtime_path_is_allowed(root: &Path, personal_root: &Path) -> bool {
+    root == personal_root
+        || (root.parent() == Some(personal_root.join(".staging").as_path())
+            && root.file_name().is_some_and(|name| !name.is_empty()))
 }
 
 #[cfg(test)]
@@ -747,7 +784,7 @@ mod runtime_root_tests {
         assert!(!allowed_runtime_roots(&repository).contains(&repository));
     }
 
-    #[cfg(feature = "parakeet-cuda")]
+    #[cfg(all(feature = "parakeet-cuda", not(feature = "parakeet-personal")))]
     #[test]
     fn gpu_worker_allows_only_the_canonical_l3_runtime_roots() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
@@ -841,14 +878,19 @@ fn qualification_root_is_valid(profile: &str, root: &Path, repository: &Path) ->
 }
 
 fn allowed_runtime_root_candidates(repository: &Path) -> Vec<PathBuf> {
-    #[cfg(feature = "parakeet-cuda")]
+    #[cfg(feature = "parakeet-personal")]
+    {
+        let _ = repository;
+        return Vec::new();
+    }
+    #[cfg(all(feature = "parakeet-cuda", not(feature = "parakeet-personal")))]
     {
         return ["l3a", "l3b"]
             .into_iter()
             .map(|lot| repository.join("target/parakeet-tests/l3").join(lot))
             .collect();
     }
-    #[cfg(not(feature = "parakeet-cuda"))]
+    #[cfg(all(not(feature = "parakeet-cuda"), not(feature = "parakeet-personal")))]
     {
         let mut roots = ["l2a-1", "l2a-2"]
             .into_iter()
@@ -857,6 +899,29 @@ fn allowed_runtime_root_candidates(repository: &Path) -> Vec<PathBuf> {
         #[cfg(feature = "parakeet-qualification-reference")]
         roots.push(repository.join("target/parakeet-tests/l2/l2b"));
         roots
+    }
+}
+
+#[cfg(all(test, feature = "parakeet-personal"))]
+mod personal_runtime_root_tests {
+    use super::*;
+
+    #[test]
+    fn personal_worker_accepts_only_published_root_or_a_direct_staging_child() {
+        let personal = Path::new(r"C:\Users\test\AppData\Local\Whisper");
+        assert!(personal_runtime_path_is_allowed(personal, personal));
+        assert!(personal_runtime_path_is_allowed(
+            Path::new(r"C:\Users\test\AppData\Local\Whisper\.staging\candidate-1"),
+            personal
+        ));
+        assert!(!personal_runtime_path_is_allowed(
+            Path::new(r"C:\dev\whisper\target\parakeet-tests\l6-perso"),
+            personal
+        ));
+        assert!(!personal_runtime_path_is_allowed(
+            Path::new(r"C:\Users\test\AppData\Local\Whisper\.staging\candidate-1\nested"),
+            personal
+        ));
     }
 }
 

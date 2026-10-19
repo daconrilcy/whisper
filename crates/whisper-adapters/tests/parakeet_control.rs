@@ -19,6 +19,14 @@ use whisper_core::{
 
 #[test]
 fn stop_kills_and_waits_for_the_isolated_worker_process() {
+    if not_run_without_campaign_variables(&[
+        "PARAKEET_L2_RUNTIME_ROOT",
+        "PARAKEET_L2_WORKER",
+        "PARAKEET_L2_NATIVE_DIR",
+        "PARAKEET_L2_MODEL",
+    ]) {
+        return;
+    }
     let runtime = PathBuf::from(
         std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
             .expect("PARAKEET_L2_RUNTIME_ROOT is required by L2a-2 tests"),
@@ -899,6 +907,22 @@ fn passage_dir(root: &std::path::Path, job_id: JobId, generation: Generation) ->
 
 fn required_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("{name} is required")))
+}
+
+fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
+    let missing = variables
+        .iter()
+        .filter(|name| std::env::var_os(name).is_none())
+        .copied()
+        .collect::<Vec<_>>();
+    if missing.is_empty() {
+        return false;
+    }
+    eprintln!(
+        "NOT RUN: missing campaign variable(s): {}",
+        missing.join(", ")
+    );
+    true
 }
 
 fn decode_sha256(value: &str) -> [u8; 32] {

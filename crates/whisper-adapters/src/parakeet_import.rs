@@ -31,6 +31,9 @@ impl ParakeetWorkerPaths {
             .runtime_root
             .canonicalize()
             .map_err(|error| format!("MissingRuntime: {error}"))?;
+        if self.matches_personal_layout(&root) {
+            return Ok(());
+        }
         for (label, path) in [
             ("worker", self.executable.as_path()),
             ("native directory", self.native_dir.as_path()),
@@ -69,6 +72,46 @@ impl ParakeetWorkerPaths {
             return Err("PathOutsideRuntime: model must be under runtime or the read-only qualified models directory".into());
         }
         Ok(())
+    }
+
+    fn matches_personal_layout(&self, root: &Path) -> bool {
+        let Some(local_app_data) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) else {
+            return false;
+        };
+        let Ok(personal_root) = local_app_data.join("Whisper").canonicalize() else {
+            return false;
+        };
+        if !personal_runtime_path_is_allowed(root, &personal_root) {
+            return false;
+        }
+        let (worker_name, native_name) = if self
+            .executable
+            .file_name()
+            .is_some_and(|name| name == "whisper-worker-parakeet-cpu.exe")
+        {
+            ("whisper-worker-parakeet-cpu.exe", "cpu")
+        } else if self
+            .executable
+            .file_name()
+            .is_some_and(|name| name == "whisper-worker-parakeet-gpu.exe")
+        {
+            ("whisper-worker-parakeet-gpu.exe", "gpu")
+        } else {
+            return false;
+        };
+        self.executable.canonicalize().ok().as_deref()
+            == Some(root.join("worker").join(worker_name).as_path())
+            && self.native_dir.canonicalize().ok().as_deref()
+                == Some(root.join("native").join(native_name).as_path())
+            && self.model.canonicalize().ok().as_deref()
+                == Some(root.join("models/parakeet-tdt-0.6b-v3.q8_0.gguf").as_path())
+    }
+
+    pub(crate) fn is_personal_runtime(&self) -> bool {
+        self.runtime_root
+            .canonicalize()
+            .ok()
+            .is_some_and(|root| self.matches_personal_layout(&root))
     }
 
     fn is_canonical_l3b_reference(&self, label: &str, canonical: &Path) -> bool {
@@ -163,6 +206,14 @@ impl ParakeetWorkerPaths {
             return Err("ProfileUnavailable: archive key profile is not an import profile".into());
         }
         self.validate()?;
+        if self.is_personal_runtime() {
+            if profile != PARAKEET_PROFILE_IMPORT_SINGLE_PASS {
+                return Err(
+                    "ProfileUnavailable: personal workers support single-pass import only".into(),
+                );
+            }
+            return self.personal_qualification_key("CPU");
+        }
         if !self.is_l2b_runtime()? {
             if profile == PARAKEET_PROFILE_IMPORT_SINGLE_PASS {
                 return Ok(crate::archive::ArchiveQualificationKey::parakeet_cpu_test());
@@ -201,6 +252,9 @@ impl ParakeetWorkerPaths {
             );
         }
         self.validate()?;
+        if self.is_personal_runtime() {
+            return self.personal_qualification_key("CUDA0");
+        }
         let runtime = self
             .runtime_root
             .canonicalize()
@@ -247,6 +301,85 @@ impl ParakeetWorkerPaths {
         Ok(key)
     }
 
+    fn personal_qualification_key(
+        &self,
+        backend: &str,
+    ) -> Result<crate::archive::ArchiveQualificationKey, String> {
+        let record = whisper_core::model_registry::model(
+            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+        );
+        let (_, model_sha) = crate::model_catalog::cached_model_sha256(&self.model)
+            .map_err(|error| format!("ModelHashRead: {error}"))?;
+        let model_sha = model_sha
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        if !model_sha.eq_ignore_ascii_case(record.artifact.sha256) {
+            return Err(format!("ModelHashMismatch: {model_sha}"));
+        }
+        let mut key = crate::archive::ArchiveQualificationKey::parakeet_cpu_test();
+        key.artifact_revision = model_sha;
+        key.runtime_build = runtime_sha256(&self.native_dir)?;
+        key.worker_build = sha256_file(&self.executable)?;
+        key.inference_profile = PARAKEET_PROFILE_IMPORT_SINGLE_PASS.to_owned();
+        key.backend = backend.to_owned();
+        if backend == "CUDA0" {
+            key.gpu_pci_bus_id =
+                Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PCI_BUS_ID.to_owned());
+            key.gpu_uuid =
+                Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_UUID.to_owned());
+            key.gpu_pnp_instance_id = Some(
+                whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID.to_owned(),
+            );
+        }
+        Ok(key)
+    }
+
+    #[cfg(feature = "personal-qualification")]
+    #[doc(hidden)]
+    pub fn personal_candidate_keys_from_env() -> Vec<crate::archive::ArchiveQualificationKey> {
+        let (Some(runtime_root), Some(model)) = (
+            std::env::var_os("PARAKEET_L2_RUNTIME_ROOT"),
+            std::env::var_os("PARAKEET_L2_MODEL"),
+        ) else {
+            return Vec::new();
+        };
+        let runtime_root = PathBuf::from(runtime_root);
+        let model = PathBuf::from(model);
+        let mut candidates = Vec::new();
+        for (backend, worker_variable, native_variable) in [
+            (
+                "CPU",
+                "PARAKEET_L2_CPU_WORKER",
+                "PARAKEET_L2_CPU_NATIVE_DIR",
+            ),
+            (
+                "CUDA0",
+                "PARAKEET_L6P_GPU_WORKER",
+                "PARAKEET_L6P_GPU_NATIVE_DIR",
+            ),
+        ] {
+            let Some(worker) = std::env::var_os(worker_variable).map(PathBuf::from) else {
+                continue;
+            };
+            let Some(native_dir) = std::env::var_os(native_variable).map(PathBuf::from) else {
+                continue;
+            };
+            let paths = Self {
+                executable: worker,
+                native_dir,
+                model: model.clone(),
+                runtime_root: runtime_root.clone(),
+            };
+            if paths.validate().is_ok()
+                && let Ok(key) = paths.personal_qualification_key(backend)
+            {
+                candidates.push(key);
+            }
+        }
+        candidates
+    }
+
     fn is_l2b_runtime(&self) -> Result<bool, String> {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
@@ -280,6 +413,12 @@ impl ParakeetWorkerPaths {
         }
         Ok(())
     }
+}
+
+fn personal_runtime_path_is_allowed(root: &Path, personal_root: &Path) -> bool {
+    root == personal_root
+        || (root.parent() == Some(personal_root.join(".staging").as_path())
+            && root.file_name().is_some_and(|name| !name.is_empty()))
 }
 
 fn l3_acceptance_execution_root() -> Option<PathBuf> {
@@ -764,7 +903,13 @@ fn worker_stderr_log(
         }
         runtime.clone()
     } else {
-        configured_campaign.unwrap_or_else(|| runtime.clone())
+        configured_campaign
+            .or_else(|| {
+                paths
+                    .is_personal_runtime()
+                    .then(|| runtime.join("settings"))
+            })
+            .unwrap_or_else(|| runtime.clone())
     };
     let log_dir = log_root.join("logs");
     match std::fs::create_dir(&log_dir) {
@@ -1008,8 +1153,27 @@ impl Drop for ParakeetProcess {
 mod tests {
     use super::*;
 
+    fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
+        let missing = variables
+            .iter()
+            .filter(|name| std::env::var_os(name).is_none())
+            .copied()
+            .collect::<Vec<_>>();
+        if missing.is_empty() {
+            return false;
+        }
+        eprintln!(
+            "NOT RUN: missing campaign variable(s): {}",
+            missing.join(", ")
+        );
+        true
+    }
+
     #[test]
     fn paths_reject_a_worker_outside_the_runtime_root() {
+        if not_run_without_campaign_variables(&["PARAKEET_L2_RUNTIME_ROOT"]) {
+            return;
+        }
         let root = std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
             .map(PathBuf::from)
             .expect("PARAKEET_L2_RUNTIME_ROOT is required by the L2b test environment");
@@ -1025,5 +1189,23 @@ mod tests {
                 .unwrap_err()
                 .starts_with("PathOutsideRuntime")
         );
+    }
+
+    #[test]
+    fn personal_runtime_root_is_published_or_direct_staging_child_only() {
+        let personal = Path::new(r"C:\Users\tester\AppData\Local\Whisper");
+        assert!(personal_runtime_path_is_allowed(personal, personal));
+        assert!(personal_runtime_path_is_allowed(
+            Path::new(r"C:\Users\tester\AppData\Local\Whisper\.staging\candidate"),
+            personal,
+        ));
+        assert!(!personal_runtime_path_is_allowed(
+            Path::new(r"C:\dev\whisper\target\parakeet-tests\l6-perso"),
+            personal,
+        ));
+        assert!(!personal_runtime_path_is_allowed(
+            Path::new(r"C:\Users\tester\AppData\Local\Whisper\.staging\candidate\nested"),
+            personal,
+        ));
     }
 }

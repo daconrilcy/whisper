@@ -1536,8 +1536,9 @@ fn archive_qualification_for_request(
     parakeet_paths
         .and_then(|paths| paths.qualification_key(profile).ok())
         .or_else(|| {
-            (profile == whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
-                .then(crate::archive::ArchiveQualificationKey::parakeet_cpu_test)
+            (profile == whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+                && !parakeet_paths.is_some_and(|paths| paths.is_personal_runtime()))
+            .then(crate::archive::ArchiveQualificationKey::parakeet_cpu_test)
         })
 }
 
@@ -1547,6 +1548,11 @@ fn l3_gpu_candidate_allowed(key: &crate::archive::ArchiveQualificationKey) -> bo
         && key == &crate::archive::ArchiveQualificationKey::parakeet_gpu_test();
     if test_injection {
         return true;
+    }
+    if key.is_personal_candidate() || key.is_registered_personal_import() {
+        return key.backend == "CUDA0"
+            && key.inference_profile
+                == whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
     }
     let record =
         whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3);
@@ -6320,8 +6326,24 @@ mod tests {
     fn test_artifact_root(name: &str) -> PathBuf {
         let base = std::env::var_os("PARAKEET_R6_TEST_ROOT")
             .map(PathBuf::from)
-            .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target"));
+            .unwrap_or_else(|| std::env::temp_dir().join("whisper-adapter-tests"));
         base.join(format!("{name}-{}", std::process::id()))
+    }
+
+    fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
+        let missing = variables
+            .iter()
+            .filter(|name| std::env::var_os(name).is_none())
+            .copied()
+            .collect::<Vec<_>>();
+        if missing.is_empty() {
+            return false;
+        }
+        eprintln!(
+            "NOT RUN: missing campaign variable(s): {}",
+            missing.join(", ")
+        );
+        true
     }
 
     #[test]
@@ -8488,6 +8510,15 @@ fn main() {
 
     #[test]
     fn over_limit_parakeet_import_is_refused_before_pending_creation() {
+        if not_run_without_campaign_variables(&[
+            "PARAKEET_L2_MODEL",
+            "PARAKEET_L2_RUNTIME_ROOT",
+            "PARAKEET_L2_EN_WAV",
+            "PARAKEET_L2_WORKER",
+            "PARAKEET_L2_NATIVE_DIR",
+        ]) {
+            return;
+        }
         let model = PathBuf::from(std::env::var_os("PARAKEET_L2_MODEL").expect("R6 model path"));
         let runtime =
             PathBuf::from(std::env::var_os("PARAKEET_L2_RUNTIME_ROOT").expect("R6 runtime root"));
@@ -8545,6 +8576,9 @@ fn main() {
 
     #[test]
     fn injected_catalog_guards_all_worker_effect_routes_including_checkpoint_resume() {
+        if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
+            return;
+        }
         use std::{
             fs,
             path::PathBuf,
@@ -8633,6 +8667,9 @@ fn main() {
 
     #[test]
     fn resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution() {
+        if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
+            return;
+        }
         use std::{
             fs,
             path::PathBuf,

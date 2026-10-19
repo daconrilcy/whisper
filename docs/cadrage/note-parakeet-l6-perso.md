@@ -1,6 +1,6 @@
-Avancée : L6-perso remplace L5 et L6 pour l'installation personnelle locale de l'unique utilisateur.
-Blocage : le code actuel est lié au dépôt et à la clé Test R6 ; la qualification du candidat release est à faire.
-Décision : proposer un profil Perso CPU/import distinct de Test et soumettre le plan à une revue indépendante avant tout code.
+Avancée : L6-perso a été livré en installation personnelle CPU+GPU et revu CLEAN.
+Blocage : cette note CPU initiale est dépassée par le plan v4 ; rollback entre générations distinctes et recette Windows restent ouverts.
+Décision : utiliser le plan v4 et la fiche L6-perso pour l'état courant, en conservant cette note comme cadrage historique.
 
 # Note de cadrage — L6-perso (proposition v2, 17/10/2026)
 

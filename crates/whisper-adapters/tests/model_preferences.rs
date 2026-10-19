@@ -9,6 +9,22 @@ use whisper_core::{
 const KNOWN_TURBO: &str =
     r"C:\Users\Cyril\AppData\Local\Programs\WhisperBuildDeps\models\ggml-large-v3-turbo.bin";
 
+fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
+    let missing = variables
+        .iter()
+        .filter(|name| std::env::var_os(name).is_none())
+        .copied()
+        .collect::<Vec<_>>();
+    if missing.is_empty() {
+        return false;
+    }
+    eprintln!(
+        "NOT RUN: missing campaign variable(s): {}",
+        missing.join(", ")
+    );
+    true
+}
+
 fn test_dir(name: &str) -> PathBuf {
     let root =
         PathBuf::from(std::env::var_os("WHISPER_L1B_RUNTIME_ROOT").expect("bounded runtime root"));
@@ -33,6 +49,9 @@ fn backup_path(settings: &std::path::Path) -> PathBuf {
 
 #[test]
 fn v1_backup_is_created_before_v2_and_is_byte_identical_and_never_replaced() {
+    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
+        return;
+    }
     let dir = test_dir("preferences-backup");
     let settings = dir.join("settings.json");
     let original = v1_bytes(KNOWN_TURBO);
@@ -104,6 +123,9 @@ fn v1_backup_is_created_before_v2_and_is_byte_identical_and_never_replaced() {
 
 #[test]
 fn path_write_before_preference_migration_preserves_paths_and_v1_backup() {
+    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
+        return;
+    }
     let dir = test_dir("path-before-preferences");
     let settings = dir.join("settings.json");
     let original = v1_bytes(KNOWN_TURBO);
@@ -140,6 +162,9 @@ fn path_write_before_preference_migration_preserves_paths_and_v1_backup() {
 
 #[test]
 fn concurrent_path_and_preference_writes_merge_after_v1_migration() {
+    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
+        return;
+    }
     let dir = test_dir("concurrent-settings-writes");
     let settings = dir.join("settings.json");
     let original = v1_bytes(KNOWN_TURBO);
@@ -196,6 +221,9 @@ fn wait_for_path_ack(paths: &mut WindowsPathPort, revision: u64) {
 
 #[test]
 fn conflicting_or_unwritable_backup_blocks_migration_and_preserves_v1() {
+    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
+        return;
+    }
     let dir = test_dir("preferences-conflict");
     let settings = dir.join("settings.json");
     let original = v1_bytes(KNOWN_TURBO);
@@ -219,6 +247,9 @@ fn conflicting_or_unwritable_backup_blocks_migration_and_preserves_v1() {
 
 #[test]
 fn matching_backup_is_reused_once_and_backup_io_failure_leaves_v1_untouched() {
+    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
+        return;
+    }
     let dir = test_dir("preferences-existing-backup");
     let settings = dir.join("settings.json");
     let original = v1_bytes(KNOWN_TURBO);
@@ -258,6 +289,9 @@ fn matching_backup_is_reused_once_and_backup_io_failure_leaves_v1_untouched() {
 
 #[test]
 fn unknown_v1_path_is_retained_for_diagnostics_and_does_not_map_to_turbo() {
+    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
+        return;
+    }
     let dir = test_dir("preferences-unknown");
     let settings = dir.join("settings.json");
     let unknown = r"D:\archive\renamed.bin";

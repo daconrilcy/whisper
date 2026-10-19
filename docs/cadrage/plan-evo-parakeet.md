@@ -1,6 +1,6 @@
-Avancée : design L1 revu CLEAN, plan L1a revu PLANS READY-L1a et accepté par l'utilisateur avec ses cinq chemins d'écriture.
-Blocage : l'accord écrit précis d'implémentation du lot reste à obtenir ; le raccordement produit, le micro et le paquet final ont des gates distinctes.
-Décision : conserver `PLAN-PARA-L1a v1` comme premier lot accepté ; cette acceptation documentaire n'autorise pas le code.
+Avancée : le plan historique L1a a mené à L6-perso, désormais implémenté et publié localement pour CPU et CUDA0.
+Blocage : rollback entre générations distinctes NOT RUN et validation dans la fenêtre Windows encore ouverte pour L6-perso.
+Décision : conserver ce plan L1a comme archive de lot et suivre l'état courant dans la fiche L6-perso.
 
 # Plan d'implémentation Parakeet — premier lot L1a
 
@@ -18,13 +18,13 @@ Le but produit demeure l'ajout de Parakeet TDT 0.6B v3 à Turbo dans l'applicati
 | L3 — GPU sur import Parakeet | Worker GPU, clé exacte et parcours GPU manuel/Auto jusqu'à 30 min. | **Prochain lot** ; [plan L3a/L3b livré avec réserves](plan-parakeet-l3-gpu-import.md), DESIGN/PLANS NOT READY après deux revues, sans code autorisé. |
 | L4 — microphone Parakeet | Blocs confirmés et TXT/SRT/WAV, premier texte GPU <15 s. | **Backlog, non planifié** ; conserver [la note micro](note-parakeet-micro-l4.md). Le micro Turbo actuel reste. |
 | L5 — acquisition | Installation puis réparation explicite et annulable des modèles. | **Remplacé par L6-perso** ; aucun réseau ni téléchargement dans ce lot. |
-| L6 — distribution | Paquet installable utilisateur courant et candidat exact qualifié FR/EN CPU/GPU. | **Remplacé par L6-perso** ; distribution, GPU et installateur exclus. |
-| L6-perso — installation personnelle | Copie locale dans `%LOCALAPPDATA%\Whisper`, workers release CPU puis GPU après L3 et nouvelle qualification exacte. | [Plan v3 PLANS READY, en attente](plan-parakeet-l6-perso.md) ; à amender après L3 pour le GPU avant accord d'implémentation. |
+| L6 — distribution | Paquet installable utilisateur courant et candidat exact qualifié FR/EN CPU/GPU. | **Remplacé par L6-perso** ; distribution et installateur exclus. |
+| L6-perso — installation personnelle | Copie locale dans `%LOCALAPPDATA%\Whisper`, workers release CPU et GPU et nouvelle qualification exacte. | [Plan v4](plan-parakeet-l6-perso.md) implémenté et revu CLEAN ; installation personnelle publiée, imports CPU/GPU passés. Réserve : rollback entre générations distinctes NOT RUN et recette Windows utilisateur à faire. [Bilan](bilan-parakeet-l6-perso.md). |
 | L7 — qualité et recette | Comparaison attribuée à une vérité terrain et essai final Windows. | Parcours concernés et corpus accepté. **DRAFT**. |
 
 Les anciens détails L1–L7 ne sont pas des `lot.paths` autorisés. Aucun autre lot n'est exécutable par le présent plan. La politique **fichier** reste passe unique jusqu'à 30 min, puis VAD 60–120 s sur silences ≥400 ms avec marge 200 ms ; elle ne sert pas de contrat micro. Le format visant 20 min n'est pas retenu. Le test d'intégration de 60 min à nombreuses coupures reste obligatoire dans un lot consommateur, sans nouvel essai de faisabilité ici.
 
-**Delta de feuille de route du 17/10/2026, corrigé :** la politique VAD longue ci-dessus reste une référence historique de design, sans activation ni lot planifié. VAD adaptative, B8 et L4 sont backlog non planifié. **L3 GPU/import est le prochain lot** ; L6-perso attend son résultat et un amendement pour installer aussi le worker GPU. Motif des différés : utilisateur unique et aucun fichier de plus de 30 min prévu. L6-perso ne reprend pas les gates de distribution L6.
+**Delta de feuille de route du 17/10/2026, corrigé :** la politique VAD longue ci-dessus reste une référence historique de design, sans activation ni lot planifié. VAD adaptative, B8 et L4 sont backlog non planifié. L3 GPU/import a été livré avant L6-perso, qui inclut maintenant le worker GPU. Motif des différés : utilisateur unique et aucun fichier de plus de 30 min prévu. L6-perso ne reprend pas les gates de distribution L6.
 
 ## 2. L1a — contrat et tâches (5)
 

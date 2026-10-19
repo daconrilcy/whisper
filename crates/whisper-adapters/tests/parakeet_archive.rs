@@ -25,6 +25,31 @@ fn required_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("{name} is required")))
 }
 
+fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
+    let missing = variables
+        .iter()
+        .filter(|name| std::env::var_os(name).is_none())
+        .copied()
+        .collect::<Vec<_>>();
+    if missing.is_empty() {
+        return false;
+    }
+    eprintln!(
+        "NOT RUN: missing campaign variable(s): {}",
+        missing.join(", ")
+    );
+    true
+}
+
+fn not_run_without_l2_archive_inputs() -> bool {
+    not_run_without_campaign_variables(&[
+        "PARAKEET_L2_ARCHIVE_ROOT",
+        "PARAKEET_L2_RUNTIME_ROOT",
+        "PARAKEET_L2_MODEL",
+        "PARAKEET_L2_EN_WAV",
+    ])
+}
+
 fn archive_root() -> PathBuf {
     let root = required_path("PARAKEET_L2_ARCHIVE_ROOT");
     let canonical = root.canonicalize().expect("archive root exists");
@@ -71,6 +96,16 @@ fn archive_root() -> PathBuf {
                 .expect("canonical L3d runtime root exists");
             path == &expected && canonical.starts_with(path)
         });
+    let l6p = std::env::var_os("PARAKEET_L6P_EXEC_ROOT")
+        .map(PathBuf::from)
+        .and_then(|path| path.canonicalize().ok())
+        .filter(|path| {
+            let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../target/parakeet-tests/l6-perso")
+                .canonicalize()
+                .expect("canonical L6-perso execution root exists");
+            path == &expected && canonical.starts_with(path)
+        });
     let r8 = std::env::var_os("PARAKEET_R8_EXEC_ROOT")
         .map(PathBuf::from)
         .and_then(|path| path.canonicalize().ok())
@@ -97,7 +132,8 @@ fn archive_root() -> PathBuf {
         .filter(|path| {
             path.ends_with("target/parakeet-tests/l2/l2b/r7") && canonical.starts_with(path)
         });
-    let allowed = l3d
+    let allowed = l6p
+        .or(l3d)
         .or(l3c)
         .or(l3b)
         .or(l3a)
@@ -112,7 +148,7 @@ fn archive_root() -> PathBuf {
         });
     assert!(
         canonical.starts_with(&allowed),
-        "archive root must be inside R6, canonical R7, R8, R9, L3a, L3b, L3c, or L3d"
+        "archive root must be inside R6, canonical R7, R8, R9, L3a, L3b, L3c, L3d, or L6-perso"
     );
     root
 }
@@ -144,8 +180,34 @@ fn retired_l2a_single_pass_key() -> ArchiveQualificationKey {
     key
 }
 
+fn personal_key(backend: whisper_core::model_catalog::Backend) -> ArchiveQualificationKey {
+    let record = model(ModelId::ParakeetTdt06BV3);
+    let configuration = whisper_core::model_registry::personal_configuration_key(record, backend);
+    let mut key = ArchiveQualificationKey::parakeet_cpu_test();
+    key.artifact_revision = configuration.artifact_revision;
+    key.runtime_build = configuration.runtime_build;
+    key.worker_build = configuration.worker_build;
+    key.backend = match backend {
+        whisper_core::model_catalog::Backend::Cpu => "CPU",
+        whisper_core::model_catalog::Backend::Gpu => "CUDA0",
+    }
+    .into();
+    key.inference_profile = configuration.inference_profile;
+    if backend == whisper_core::model_catalog::Backend::Gpu {
+        key.gpu_pci_bus_id =
+            Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PCI_BUS_ID.into());
+        key.gpu_uuid = Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_UUID.into());
+        key.gpu_pnp_instance_id =
+            Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID.into());
+    }
+    key
+}
+
 #[test]
 fn parakeet_model_identity_prepares_persists_and_publishes_txt_srt() {
+    if not_run_without_l2_archive_inputs() {
+        return;
+    }
     let root = archive_root().join("parakeet-archive-pass");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -281,6 +343,9 @@ fn modified_parakeet_model_is_refused_before_pending_after_cache_revalidation() 
 
 #[test]
 fn parakeet_archive_refuses_model_sha_divergence_before_pending_creation() {
+    if not_run_without_l2_archive_inputs() {
+        return;
+    }
     let root = archive_root().join("parakeet-archive-reject");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -315,6 +380,9 @@ fn parakeet_archive_refuses_model_sha_divergence_before_pending_creation() {
 
 #[test]
 fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
+    if not_run_without_l2_archive_inputs() {
+        return;
+    }
     let rejected_root = archive_root().join("parakeet-key-reject");
     let _ = fs::remove_dir_all(&rejected_root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -476,7 +544,105 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
 }
 
 #[test]
+fn registered_personal_pending_cpu_and_gpu_scan_and_resume_without_qualification_feature() {
+    if not_run_without_l2_archive_inputs() {
+        return;
+    }
+    let source = required_path("PARAKEET_L2_EN_WAV");
+    let model_path = required_path("PARAKEET_L2_MODEL");
+    let record = model(ModelId::ParakeetTdt06BV3);
+
+    for (backend, job) in [
+        (whisper_core::model_catalog::Backend::Cpu, 0x1c1),
+        (whisper_core::model_catalog::Backend::Gpu, 0x1c2),
+    ] {
+        let root = archive_root().join(format!("personal-registered-{backend:?}"));
+        let _ = fs::remove_dir_all(&root);
+        let mut request = ImportRequest {
+            job_id: JobId(job),
+            generation: Generation::first(),
+            source_path: source.to_string_lossy().into_owned(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: model_path.to_string_lossy().into_owned(),
+            model_sha256: decode_sha256(record.artifact.sha256),
+            destination: root.to_string_lossy().into_owned(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: match backend {
+                    whisper_core::model_catalog::Backend::Cpu => ComputeChoice::Cpu,
+                    whisper_core::model_catalog::Backend::Gpu => ComputeChoice::Gpu,
+                },
+            },
+        };
+        let key = personal_key(backend);
+        assert!(key.is_registered_personal_import());
+        let prepared = ArchiveStore::new(&root)
+            .prepare_with_qualification(request.clone(), None, Some(key.clone()))
+            .unwrap();
+        let entries = ArchiveStore::scan(&root).unwrap();
+        assert!(entries.iter().any(|entry| {
+            entry.job_id == prepared.job_id && !entry.complete && entry.diagnostic.is_none()
+        }));
+
+        request.generation = prepared.generation.next().unwrap();
+        let (resumed, _segments) = ArchiveStore::new(&root)
+            .resume_from_with_qualification(
+                &prepared,
+                request,
+                Some(&prepared.model_path),
+                Some(key.clone()),
+            )
+            .unwrap();
+        assert_eq!(resumed.generation, prepared.generation.next().unwrap());
+
+        let pending_path = root
+            .join("transcriptions")
+            .join(format!("{:032x}", resumed.job_id.0))
+            .join(resumed.generation.get().to_string())
+            .join("pending.json");
+        let pending_bytes = fs::read(&pending_path).unwrap();
+        let mut pending: serde_json::Value = serde_json::from_slice(&pending_bytes).unwrap();
+        let mut divergent = key.clone();
+        divergent.worker_build = "0".repeat(64);
+        pending["qualification"] = serde_json::to_value(&divergent).unwrap();
+        let divergent_bytes = serde_json::to_vec(&pending).unwrap();
+        fs::write(&pending_path, &divergent_bytes).unwrap();
+
+        let entries = ArchiveStore::scan(&root).unwrap();
+        assert!(entries.iter().any(|entry| {
+            entry.job_id == resumed.job_id
+                && entry
+                    .diagnostic
+                    .as_deref()
+                    .is_some_and(|message| message.contains("pending identity/schema"))
+        }));
+        let mut next = resumed.clone();
+        next.generation = resumed.generation.next().unwrap();
+        let error = ArchiveStore::new(&root)
+            .resume_from_with_qualification(
+                &resumed,
+                next,
+                Some(&resumed.model_path),
+                Some(divergent),
+            )
+            .unwrap_err();
+        assert!(error.contains("pending identity/schema"), "{error}");
+        assert_eq!(fs::read(&pending_path).unwrap(), divergent_bytes);
+        assert!(source.is_file());
+    }
+}
+
+#[test]
 fn r5_2_vad_recipe_is_scoped_and_desktop_test_import_is_rejected_before_pending() {
+    if not_run_without_campaign_variables(&[
+        "PARAKEET_L2_ARCHIVE_ROOT",
+        "PARAKEET_L2_RUNTIME_ROOT",
+        "PARAKEET_L2_MODEL",
+        "PARAKEET_R7_EXEC_ROOT",
+    ]) {
+        return;
+    }
     if std::env::var_os("PARAKEET_R7_VAD_CHILD").is_none() {
         let r7 = required_path("PARAKEET_R7_EXEC_ROOT")
             .canonicalize()
@@ -572,6 +738,9 @@ fn r5_2_vad_recipe_is_scoped_and_desktop_test_import_is_rejected_before_pending(
 
 #[test]
 fn retired_l2a_pending_remains_visible_but_cannot_be_resumed() {
+    if not_run_without_l2_archive_inputs() {
+        return;
+    }
     let root = archive_root().join("parakeet-retired-l2a-pending");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -634,6 +803,9 @@ fn retired_l2a_pending_remains_visible_but_cannot_be_resumed() {
 
 #[test]
 fn retired_r5_2_pending_is_rejected_with_retirement_cause_and_preserved() {
+    if not_run_without_l2_archive_inputs() {
+        return;
+    }
     let root = archive_root().join("parakeet-retired-r5-2-pending");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -690,6 +862,9 @@ fn retired_r5_2_pending_is_rejected_with_retirement_cause_and_preserved() {
 
 #[test]
 fn gpu_pending_is_bound_to_the_qualified_physical_identity() {
+    if not_run_without_l2_archive_inputs() {
+        return;
+    }
     let root = archive_root().join("parakeet-gpu-physical-identity");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -747,6 +922,9 @@ fn gpu_pending_is_bound_to_the_qualified_physical_identity() {
 
 #[test]
 fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix() {
+    if not_run_without_l2_archive_inputs() {
+        return;
+    }
     let destination = archive_root().join("parakeet-queue-resume");
     let _ = fs::remove_dir_all(&destination);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -855,6 +1033,9 @@ fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix() {
 
 #[test]
 fn archive_admission_accepts_exactly_qualified_limit_and_refuses_one_extra_sample() {
+    if not_run_without_l2_archive_inputs() {
+        return;
+    }
     let root = archive_root().join("parakeet-duration-boundary");
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).unwrap();
@@ -897,6 +1078,9 @@ fn archive_admission_accepts_exactly_qualified_limit_and_refuses_one_extra_sampl
 
 #[test]
 fn resume_refuses_over_limit_pending_and_preserves_its_bytes() {
+    if not_run_without_l2_archive_inputs() {
+        return;
+    }
     let root = archive_root().join("parakeet-duration-resume-boundary");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");

@@ -10,5 +10,9 @@ whisper-core.workspace = true
 whisper-adapters.workspace = true
 eframe = { version = "=0.35.0", default-features = false, features = ["accesskit", "default_fonts", "glow"] }
 
+[features]
+default = []
+personal-install = []
+
 [lints]
 workspace = true

@@ -2,7 +2,7 @@ use whisper_core::{
     domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice},
     engine_capabilities::{Capability, LanguageCapability, LanguageCode},
     model_catalog::{Backend, ModelAvailability, ModelId},
-    model_registry::{engine_snapshot, model},
+    model_registry::{engine_snapshot, model, personal_configuration_key},
     model_selection_app::{InferencePath, ModelCommandGuard},
     ports::{ImportRequest, LiveRequest},
 };
@@ -209,6 +209,37 @@ fn current_r6_cpu_and_l3b_cuda_test_keys_are_qualified() {
     assert!(gpu.languages.iter().all(|language| {
         language.recognized.is_admissible() && !language.manual.is_admissible()
     }));
+}
+
+#[test]
+fn personal_release_keys_match_the_qualified_candidate_b_workers_and_dll_sets() {
+    let record = model(ModelId::ParakeetTdt06BV3);
+    let cpu = personal_configuration_key(record, Backend::Cpu);
+    assert_eq!(cpu.runtime, "nemo-speech-asr 0.2.0");
+    assert_eq!(
+        cpu.runtime_build,
+        "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff"
+    );
+    assert_eq!(
+        cpu.worker_build,
+        "84c371d4df55043ada4a1d96b80180ed0c03b208410c599262c8ea3762304e60"
+    );
+    assert_eq!(cpu.backend, Backend::Cpu);
+    assert_eq!(cpu.inference_profile, "import-single-pass");
+
+    let gpu = personal_configuration_key(record, Backend::Gpu);
+    assert_eq!(
+        gpu.runtime_build,
+        "cbf7543a711a341df4387fb9047fcd55d3d5c572465cbe9bbb7d14b5963e6b10"
+    );
+    assert_eq!(
+        gpu.worker_build,
+        "bf58eb9d7300c444864347496b5a27e8584da3d30d634a759be99a598eda5ce4"
+    );
+    assert_eq!(gpu.backend, Backend::Gpu);
+    assert_eq!(gpu.hardware_profile.as_deref(), Some("selected-gpu"));
+    assert_eq!(gpu.inference_profile, "import-single-pass");
+    assert_ne!(cpu, gpu);
 }
 
 #[test]

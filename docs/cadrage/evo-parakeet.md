@@ -1,8 +1,10 @@
-Avancée : faisabilité FR/EN CPU/CUDA0 clôturée et L1a livré ; les décisions utilisateur L1b sur Turbo, sauvegarde et reprises sont intégrées.
-Blocage : le micro Parakeet incrémental et le paquet final restent à qualifier ; les sous-lots L1b attendent leur plan revu et leur accord d'implémentation.
-Décision : L1b est scindé en core/adapters puis desktop ; les capacités Turbo actuelles restent admissibles comme « Existant reconnu » sans prétention de mesure.
+Avancée : L6-perso CPU et CUDA0 est implémenté, revu CLEAN et publié localement ; les imports installés EN5 passent.
+Blocage : la restauration entre deux générations distinctes reste NOT RUN et la recette dans la fenêtre Windows attend l'utilisateur.
+Décision : conserver cette réserve et les décisions historiques de design ci-dessous sans étendre le périmètre.
 
 # Évolution Parakeet et catalogue de modèles — cadrage du 15 octobre 2026
+
+**État du 19/10/2026 — L6-perso.** L'import Parakeet CPU et CUDA0 dispose d'une installation personnelle sous `%LOCALAPPDATA%\Whisper`, indépendante des artefacts de `target/` pour ces deux moteurs. Le code L6-perso a reçu une revue indépendante CLEAN ; A4, EN5, EN30, R8 et les imports EN5 depuis l'installation publiée ont passé. Le retour arrière transactionnel a passé sur une génération complète identique ; la restauration d'une génération différente reste **NOT RUN**. Voir la [fiche](fiche-parakeet-l6-perso.md) et le [bilan](bilan-parakeet-l6-perso.md). Les décisions historiques ci-dessous restent lisibles comme telles.
 
 **Delta utilisateur du 17/10/2026 — feuille de route personnelle, corrigé par décision ultérieure du même jour.** L5 (acquisition réseau) et L6 (paquet distribuable) sont remplacés par [L6-perso](note-parakeet-l6-perso.md), installation locale stable sans réseau sous `%LOCALAPPDATA%\Whisper`. **L3 (GPU Parakeet sur l'import) est le prochain lot.** L6-perso attendra L3 et sera amendé pour inclure son worker GPU avant exécution. L4 (micro Parakeet), VAD adaptative et B8/import-vad sont **backlog, non planifié** ; l'utilisateur unique ne prévoit pas de fichier de plus de 30 min. [La note micro](note-parakeet-micro-l4.md) et [la note VAD](note-parakeet-vad-adaptative.md) sont conservées pour une éventuelle reprise. Les parcours Turbo actuels, la limite Parakeet de 30 min et le refus explicite au-delà restent applicables. Les mentions historiques de Final, L5 et L6 ci-dessous décrivent le design antérieur ; elles n'autorisent pas leur implémentation.
 

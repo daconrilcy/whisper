@@ -22,6 +22,14 @@ use whisper_core::{
 
 #[test]
 fn parakeet_worker_configuration_is_confined_to_the_l2a2_runtime() {
+    if not_run_without_campaign_variables(&[
+        "PARAKEET_L2_RUNTIME_ROOT",
+        "PARAKEET_L2_MODEL",
+        "PARAKEET_L2_WORKER",
+        "PARAKEET_L2_NATIVE_DIR",
+    ]) {
+        return;
+    }
     let runtime = PathBuf::from(
         std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
             .expect("PARAKEET_L2_RUNTIME_ROOT is required by L2a-2 tests"),
@@ -132,6 +140,497 @@ fn gpu_app_fr_en_single_pass() {
             None,
         );
     }
+}
+
+#[test]
+#[cfg(feature = "personal-qualification")]
+#[ignore = "L6-perso release recipe exercises the staged CPU or GPU Parakeet worker"]
+fn l6_personal_application_recipe() {
+    let backend = std::env::var("PARAKEET_L6P_BACKEND").expect("guarded L6-perso backend");
+    let case = std::env::var("PARAKEET_L6P_CASE").expect("guarded L6-perso case");
+    let source = required_path("PARAKEET_L6P_RECIPE_WAV");
+    assert!(matches!(
+        case.as_str(),
+        "fr87" | "fr27" | "en15" | "en5" | "en30"
+    ));
+    let personal_runtime = (backend == "CUDA0").then(|| {
+        required_path("PARAKEET_L2_RUNTIME_ROOT")
+            .canonicalize()
+            .expect("personal runtime root is canonical")
+    });
+    let legacy_log_names = personal_runtime.as_ref().map(|runtime| {
+        fs::read_dir(runtime.join("logs"))
+            .ok()
+            .into_iter()
+            .flatten()
+            .map(|entry| entry.unwrap().file_name())
+            .collect::<std::collections::BTreeSet<_>>()
+    });
+    run_personal_application_import(&case, &source, &backend, false);
+    if let Some(runtime) = personal_runtime {
+        let log_dir = runtime.join("settings/logs");
+        let logs = fs::read_dir(&log_dir)
+            .expect("GPU worker logs stay under the declared settings component")
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(!logs.is_empty(), "GPU import should capture the worker log");
+        assert!(
+            logs.iter().all(|entry| entry.path().starts_with(&runtime)),
+            "worker logs must remain inside the personal runtime"
+        );
+        let legacy_log_names_after = fs::read_dir(runtime.join("logs"))
+            .ok()
+            .into_iter()
+            .flatten()
+            .map(|entry| entry.unwrap().file_name())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(legacy_log_names.as_ref(), Some(&legacy_log_names_after));
+    }
+}
+
+#[test]
+#[cfg(feature = "personal-qualification")]
+#[ignore = "L6-perso GPU release recipe verifies manual refusal and Auto selection/fallback"]
+fn l6_personal_gpu_manual_auto_routes() {
+    assert_eq!(
+        std::env::var("PARAKEET_L6P_BACKEND").as_deref(),
+        Ok("CUDA0")
+    );
+    let source = required_path("PARAKEET_L2_EN_WAV");
+    run_personal_application_route(
+        "auto-qualified-gpu",
+        &source,
+        ComputeChoice::Auto,
+        true,
+        Some("CUDA0"),
+        false,
+    );
+    run_personal_application_route(
+        "auto-unqualified-cpu-parakeet",
+        &source,
+        ComputeChoice::Auto,
+        false,
+        Some("CPU"),
+        false,
+    );
+    run_personal_application_route(
+        "manual-unqualified-refused",
+        &source,
+        ComputeChoice::Gpu,
+        false,
+        None,
+        false,
+    );
+}
+
+#[test]
+#[cfg(feature = "personal-qualification")]
+#[ignore = "L6-perso release recipe verifies the first and second EN5 import timings"]
+fn l6_personal_en5_twice_release() {
+    let backend = std::env::var("PARAKEET_L6P_BACKEND").expect("guarded L6-perso backend");
+    assert!(matches!(backend.as_str(), "CPU" | "CUDA0"));
+    let source = required_path("PARAKEET_L3_EN5_WAV");
+    let model = required_path("PARAKEET_L2_MODEL");
+    let cpu_native = required_path("PARAKEET_L2_CPU_NATIVE_DIR");
+    let gpu_native = required_path("PARAKEET_L6P_GPU_NATIVE_DIR");
+    let artifact_paths = std::iter::once(required_path("PARAKEET_L2_CPU_WORKER"))
+        .chain(std::iter::once(required_path("PARAKEET_L6P_GPU_WORKER")))
+        .chain(
+            [
+                "nemo_speech_asr_c.dll",
+                "nemo_speech_asr.dll",
+                "ggml.dll",
+                "ggml-base.dll",
+                "ggml-cpu.dll",
+                "ggml-cuda.dll",
+                "cudart64_12.dll",
+                "cublas64_12.dll",
+                "cublasLt64_12.dll",
+            ]
+            .into_iter()
+            .map(|name| cpu_native.join(name))
+            .chain(
+                [
+                    "nemo_speech_asr_c.dll",
+                    "nemo_speech_asr.dll",
+                    "ggml.dll",
+                    "ggml-base.dll",
+                    "ggml-cpu.dll",
+                    "ggml-cuda.dll",
+                    "cudart64_12.dll",
+                    "cublas64_12.dll",
+                    "cublasLt64_12.dll",
+                ]
+                .into_iter()
+                .map(|name| gpu_native.join(name)),
+            ),
+        )
+        .collect::<Vec<_>>();
+    let artifact_reads_before = artifact_paths
+        .iter()
+        .map(|path| {
+            whisper_adapters::model_catalog::artifact_sha256_full_read_count(path).unwrap_or(0)
+        })
+        .collect::<Vec<_>>();
+    let before = whisper_adapters::model_catalog::model_sha256_full_read_count(&model)
+        .expect("model cache counter is available");
+    let first = run_personal_application_import("en5-first", &source, &backend, false);
+    let after_first = whisper_adapters::model_catalog::model_sha256_full_read_count(&model)
+        .expect("model cache counter is available after first import");
+    let artifact_reads_after_first = artifact_paths
+        .iter()
+        .map(|path| {
+            whisper_adapters::model_catalog::artifact_sha256_full_read_count(path).unwrap_or(0)
+        })
+        .collect::<Vec<_>>();
+    let second = run_personal_application_import("en5-second", &source, &backend, false);
+    let after_second = whisper_adapters::model_catalog::model_sha256_full_read_count(&model)
+        .expect("model cache counter is available after second import");
+    let artifact_reads_after = artifact_paths
+        .iter()
+        .map(|path| {
+            whisper_adapters::model_catalog::artifact_sha256_full_read_count(path).unwrap_or(0)
+        })
+        .collect::<Vec<_>>();
+    assert!(first.as_millis() > 0 && second.as_millis() > 0);
+    assert!(after_first.saturating_sub(before) <= 1);
+    assert_eq!(after_second, after_first, "second import reread the model");
+    for (((path, before), after_first), after_second) in artifact_paths
+        .iter()
+        .zip(artifact_reads_before)
+        .zip(artifact_reads_after_first)
+        .zip(artifact_reads_after)
+    {
+        assert!(
+            after_first.saturating_sub(before) <= 1,
+            "more than one adapter SHA read for {}",
+            path.display()
+        );
+        assert_eq!(
+            after_second,
+            after_first,
+            "second import reread worker or DLL {}",
+            path.display()
+        );
+    }
+    if backend == "CUDA0" {
+        assert!(
+            first <= Duration::from_secs(15),
+            "first release GPU import took {first:?}"
+        );
+    }
+    eprintln!(
+        "L6P_EN5 backend={backend} first_total_ms={} second_total_ms={} adapter_model_reads_first={} adapter_model_reads_second={} worker_restart_each_import=true",
+        first.as_millis(),
+        second.as_millis(),
+        after_first.saturating_sub(before),
+        after_second.saturating_sub(after_first)
+    );
+}
+
+#[test]
+#[cfg(feature = "personal-qualification")]
+#[ignore = "L6-perso release recipe checks the over-30-minute refusal before pending"]
+fn l6_personal_rejects_over_limit_before_pending() {
+    let backend = std::env::var("PARAKEET_L6P_BACKEND").expect("guarded L6-perso backend");
+    let source = required_path("PARAKEET_L3_EN30_WAV");
+    let output = required_path("PARAKEET_L6P_EXEC_ROOT").join("fixtures/over-limit-one-sample.wav");
+    extend_pcm16_wav_by_one_sample(&source, &output);
+    let elapsed = run_personal_application_import("over-limit", &output, &backend, true);
+    assert!(
+        elapsed.is_zero(),
+        "over-limit input should be refused before worker startup"
+    );
+}
+
+#[cfg(feature = "personal-qualification")]
+fn run_personal_application_import(
+    case: &str,
+    source: &std::path::Path,
+    backend: &str,
+    expect_over_limit: bool,
+) -> Duration {
+    run_personal_application_route(
+        case,
+        source,
+        if backend == "CPU" {
+            ComputeChoice::Cpu
+        } else {
+            ComputeChoice::Gpu
+        },
+        true,
+        Some(backend),
+        expect_over_limit,
+    )
+}
+
+#[cfg(feature = "personal-qualification")]
+fn run_personal_application_route(
+    case: &str,
+    source: &std::path::Path,
+    compute: ComputeChoice,
+    candidate_valid: bool,
+    expected_backend: Option<&str>,
+    expect_over_limit: bool,
+) -> Duration {
+    let backend = std::env::var("PARAKEET_L6P_BACKEND").expect("guarded L6-perso backend");
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let execution_root = required_path("PARAKEET_L2_ARCHIVE_ROOT");
+    let model_path = required_path("PARAKEET_L2_MODEL");
+    let cpu_paths = ParakeetWorkerPaths {
+        executable: required_path("PARAKEET_L2_CPU_WORKER"),
+        native_dir: required_path("PARAKEET_L2_CPU_NATIVE_DIR"),
+        model: model_path.clone(),
+        runtime_root: runtime.clone(),
+    };
+    let gpu_paths = ParakeetWorkerPaths {
+        executable: required_path("PARAKEET_L6P_GPU_WORKER"),
+        native_dir: required_path("PARAKEET_L6P_GPU_NATIVE_DIR"),
+        model: model_path.clone(),
+        runtime_root: runtime.clone(),
+    };
+    let key = if backend == "CPU" {
+        cpu_paths.qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
+    } else {
+        gpu_paths
+            .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
+    }
+    .expect("staged artifact identity produces a candidate key");
+    let cpu_key = cpu_paths
+        .qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
+        .expect("staged CPU candidate key");
+    assert!(
+        key.is_parakeet_import_test(),
+        "candidate key must be confined to the L6 harness"
+    );
+    assert!(
+        whisper_adapters::parakeet_import::ParakeetWorkerPaths::personal_candidate_keys_from_env()
+            .contains(&key),
+        "the exact selected candidate must be the only key injected for this recipe"
+    );
+    let destination = execution_root.join("recipes").join(case);
+    let _ = fs::remove_dir_all(&destination);
+    fs::create_dir_all(&destination).unwrap();
+    let turbo_root = runtime.join("app");
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes(
+        WorkerPaths {
+            cpu: turbo_root.join("whisper-worker-cpu.exe"),
+            gpu: turbo_root.join("whisper-worker-gpu.exe"),
+        },
+        model_path.parent().unwrap().to_path_buf(),
+        runtime
+            .join("models/ggml-large-v3-turbo.bin")
+            .to_string_lossy()
+            .into_owned(),
+        Some(cpu_paths),
+        Some(gpu_paths),
+    );
+    let snapshot = whisper_core::model_registry::engine_snapshot(
+        1,
+        |_| whisper_core::model_catalog::ModelAvailability::Ready,
+        vec![],
+    );
+    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
+        snapshot,
+        1,
+        [
+            (
+                ModelId::ParakeetTdt06BV3,
+                model_path.to_string_lossy().into_owned(),
+            ),
+            (
+                ModelId::WhisperLargeV3Turbo,
+                runtime
+                    .join("models/ggml-large-v3-turbo.bin")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+        ],
+    );
+    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let job_id = JobId(
+        0x6f6_u128
+            + u128::from(NEXT_GPU_RECIPE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)),
+    );
+    let generation = Generation::first();
+    if backend == "CUDA0" {
+        let mut candidate = qualified_gpu_candidate();
+        if !candidate_valid {
+            candidate.pci_id = "0000:ff:00.0".into();
+            candidate.pnp_instance_id = r"PCI\VEN_10DE&DEV_FAKE\foreign".into();
+        }
+        app.set_gpu_candidate(job_id, generation, Some(candidate))
+            .unwrap();
+    }
+    let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
+    let request = ImportRequest {
+        job_id,
+        generation,
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: Some(pcm16_mono_sample_count(source)),
+        model_path: model_path.to_string_lossy().into_owned(),
+        model_sha256: decode_sha256(record.artifact.sha256),
+        destination: destination.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute,
+        },
+    };
+    let started = Instant::now();
+    app.dispatch(AppCommand::StartImport { request }).unwrap();
+    let timeout = Duration::from_secs(pcm16_mono_sample_count(source) / 16_000 / 4 + 120);
+    let deadline = started + timeout;
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
+            panic!(
+                "L6-perso {backend}/{case} refresh failed: {error:?}; view={:?}",
+                app.view()
+            )
+        });
+        if expect_over_limit {
+            if view.message.as_deref().is_some_and(|message| {
+                message.contains("DurationUnsupported")
+                    && message.contains("Fichier trop long pour Parakeet, utilisez Turbo")
+            }) {
+                let passage = destination
+                    .join("transcriptions")
+                    .join(format!("{:032x}", job_id.0))
+                    .join("1");
+                assert!(!passage.join("pending.json").exists());
+                return Duration::ZERO;
+            }
+        } else if expected_backend.is_none() {
+            if view
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("BackendMismatch"))
+            {
+                let passage = destination
+                    .join("transcriptions")
+                    .join(format!("{:032x}", job_id.0))
+                    .join("1");
+                assert!(
+                    !passage.join("pending.json").exists(),
+                    "manual GPU refusal must precede pending"
+                );
+                return Duration::ZERO;
+            }
+        } else if view.last_result.is_some() {
+            let passage = destination
+                .join("transcriptions")
+                .join(format!("{:032x}", job_id.0))
+                .join("1");
+            let txt_path = passage.join("transcript.txt");
+            let srt_path = passage.join("transcript.srt");
+            assert!(txt_path.is_file(), "L6-perso TXT missing: {case}");
+            assert!(srt_path.is_file(), "L6-perso SRT missing: {case}");
+            let txt = fs::read_to_string(&txt_path).unwrap();
+            let srt = fs::read_to_string(&srt_path).unwrap();
+            assert!(!txt.is_empty() && !srt.is_empty());
+            assert!(!txt.contains('\u{fffd}') && !srt.contains('\u{fffd}'));
+            if case == "fr87" {
+                assert!(
+                    txt.split_whitespace()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .contains("faire? Je"),
+                    "FR87 boundary: {txt}"
+                );
+            }
+            if case == "fr27" {
+                assert!(
+                    txt.split_whitespace()
+                        .last()
+                        .is_some_and(|word| word.chars().any(char::is_alphabetic)),
+                    "FR27 final token invalid: {txt}"
+                );
+            }
+            let pending: serde_json::Value =
+                serde_json::from_slice(&fs::read(passage.join("pending.json")).unwrap()).unwrap();
+            let actual_backend =
+                expected_backend.expect("successful route has an expected backend");
+            let expected_key = if actual_backend == "CPU" {
+                &cpu_key
+            } else {
+                &key
+            };
+            assert_eq!(
+                pending["qualification"]["backend"].as_str(),
+                Some(actual_backend)
+            );
+            assert_eq!(
+                pending["qualification"]["worker_build"].as_str(),
+                Some(expected_key.worker_build.as_str())
+            );
+            assert!(
+                ArchiveStore::scan(&destination)
+                    .unwrap()
+                    .iter()
+                    .any(|entry| entry.job_id == job_id && entry.complete)
+            );
+            eprintln!(
+                "L6P_RECIPE backend={backend} case={case} actual_backend={actual_backend} elapsed_ms={} model={} worker_sha={}",
+                started.elapsed().as_millis(),
+                key.model,
+                expected_key.worker_build
+            );
+            if case == "en5" && backend == "CUDA0" && !cfg!(debug_assertions) {
+                assert!(
+                    started.elapsed() <= Duration::from_secs(15),
+                    "first EN5 GPU release import exceeded 15 s"
+                );
+            }
+            return started.elapsed();
+        }
+        if view.active_job.is_some_and(|(_, state)| {
+            matches!(
+                state,
+                whisper_core::JobState::Recoverable | whisper_core::JobState::Interrupted
+            )
+        }) {
+            let archive_diagnostic = ArchiveStore::scan(&destination);
+            panic!(
+                "L6-perso {backend}/{case} did not complete cleanly: {view:?}; archive={archive_diagnostic:?}"
+            );
+        }
+        assert!(
+            Instant::now() < deadline,
+            "L6-perso {backend}/{case} exceeded {timeout:?}: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(33));
+    }
+}
+
+#[cfg(feature = "personal-qualification")]
+fn extend_pcm16_wav_by_one_sample(source: &std::path::Path, destination: &std::path::Path) {
+    let mut bytes = fs::read(source).expect("read synthetic EN30 WAV");
+    assert!(bytes.len() >= 44 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WAVE");
+    let mut chunk_offset = 12usize;
+    let data_offset = loop {
+        assert!(chunk_offset + 8 <= bytes.len(), "R9 WAV data chunk exists");
+        let chunk_size = u32::from_le_bytes(
+            bytes[chunk_offset + 4..chunk_offset + 8]
+                .try_into()
+                .unwrap(),
+        ) as usize;
+        if &bytes[chunk_offset..chunk_offset + 4] == b"data" {
+            break chunk_offset;
+        }
+        chunk_offset = chunk_offset
+            .checked_add(8 + chunk_size + (chunk_size % 2))
+            .expect("R9 WAV chunk offset does not overflow");
+    };
+    let size_offset = data_offset + 4;
+    let data_size = u32::from_le_bytes(bytes[size_offset..size_offset + 4].try_into().unwrap());
+    assert_eq!(data_size % 2, 0, "R9 WAV is PCM16 aligned");
+    let data_end = data_offset + 8 + data_size as usize;
+    bytes.splice(data_end..data_end, [0, 0]);
+    let riff_size = (bytes.len() - 8) as u32;
+    bytes[4..8].copy_from_slice(&riff_size.to_le_bytes());
+    bytes[size_offset..size_offset + 4].copy_from_slice(&(data_size + 2).to_le_bytes());
+    fs::create_dir_all(destination.parent().unwrap()).unwrap();
+    fs::write(destination, bytes).unwrap();
 }
 
 #[test]
@@ -742,11 +1241,15 @@ fn run_gpu_application_import_with_native(
                 );
                 assert_eq!(
                     qualification["worker_build"].as_str(),
-                    Some(if expected_gpu {
-                        "5054612a05fbfd1039e108def3aa4e598268d2b4274b8c1dc96cd6b8e3f2cd6d"
-                    } else {
-                        "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0"
-                    })
+                    Some(
+                        personal_worker_build(if expected_gpu { "CUDA0" } else { "CPU" })
+                            .as_deref()
+                            .unwrap_or(if expected_gpu {
+                                "5054612a05fbfd1039e108def3aa4e598268d2b4274b8c1dc96cd6b8e3f2cd6d"
+                            } else {
+                                "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0"
+                            })
+                    )
                 );
                 assert_eq!(
                     qualification["model"].as_str(),
@@ -874,6 +1377,24 @@ fn worker_stderr_since(started: SystemTime) -> String {
 }
 
 static NEXT_GPU_RECIPE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+fn personal_worker_build(backend: &str) -> Option<String> {
+    if std::env::var_os("PARAKEET_L6P_STAGE").is_none() {
+        return None;
+    }
+    #[cfg(feature = "personal-qualification")]
+    {
+        return whisper_adapters::parakeet_import::ParakeetWorkerPaths::personal_candidate_keys_from_env()
+            .into_iter()
+            .find(|key| key.backend == backend)
+            .map(|key| key.worker_build);
+    }
+    #[cfg(not(feature = "personal-qualification"))]
+    {
+        let _ = backend;
+        None
+    }
+}
 
 fn qualified_gpu_candidate() -> whisper_core::gpu_inventory::GpuRuntimeIdentity {
     whisper_core::gpu_inventory::GpuRuntimeIdentity {
@@ -1630,6 +2151,7 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let execution_root = r8_exec_root();
     let model_path = required_path("PARAKEET_L2_MODEL");
+    ensure_staged_incompatible_native_fixtures(&runtime);
     assert_cpu_incompatible_native_refusal(&execution_root, &model_path);
     let worker = gpu_worker_path();
     let native = gpu_native_dir();
@@ -1668,18 +2190,28 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
     );
 
     let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
+    let personal_candidate = std::env::var_os("PARAKEET_L6P_STAGE").is_some();
     let bad_paths = ParakeetWorkerPaths {
         executable: worker.clone(),
         native_dir: incompatible_dir.clone(),
         model: model_path.clone(),
         runtime_root: runtime.clone(),
     };
-    assert!(
-        bad_paths
-            .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
-            .is_ok(),
-        "the altered native copy should yield a distinct candidate key for admission to reject"
-    );
+    let bad_key = bad_paths
+        .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS);
+    if personal_candidate {
+        assert!(
+            bad_key
+                .as_ref()
+                .is_err_and(|error| error.starts_with("ProfileUnavailable")),
+            "Personal GPU route must reject a noncanonical native directory: {bad_key:?}"
+        );
+    } else {
+        assert!(
+            bad_key.is_ok(),
+            "the altered native copy should yield a distinct candidate key for admission to reject"
+        );
+    }
 
     let source = required_path("PARAKEET_L2_EN_WAV");
     let destination = execution_root.join(format!("archive/r8-loader-{}", std::process::id()));
@@ -1762,10 +2294,17 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         );
         thread::sleep(Duration::from_millis(10));
     };
-    assert!(
-        refusal_message.contains("ModelNotQualified: Parakeet GPU candidate is not admitted"),
-        "unexpected refusal: {refusal_message}"
-    );
+    if personal_candidate {
+        assert!(
+            refusal_message.contains("ProfileUnavailable"),
+            "Personal route must explain why the incompatible DLL directory is refused: {refusal_message}"
+        );
+    } else {
+        assert!(
+            refusal_message.contains("ModelNotQualified: Parakeet GPU candidate is not admitted"),
+            "unexpected refusal: {refusal_message}"
+        );
+    }
     let passage = passage_dir(&destination, job_id, generation);
     assert!(
         !passage.join("pending.json").exists(),
@@ -1833,6 +2372,99 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         auto.last_result.is_some(),
         "Auto must complete through Parakeet CPU when the registered GPU DLL identity differs: {auto:?}"
     );
+}
+
+fn ensure_staged_incompatible_native_fixtures(runtime: &std::path::Path) {
+    let fixture_root = runtime.join("r8/native");
+    fs::create_dir_all(&fixture_root).expect("create isolated R8 fixture root");
+    let source_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let cpu_root = source_root.join("target/parakeet-tests/l2/l2a-2/native");
+    let gpu_root = source_root.join("target/parakeet-tests/l3/l3b/r8/native");
+    let has_cpu_fixture = fs::read_dir(&fixture_root)
+        .expect("staged R8 fixture root is readable")
+        .filter_map(Result::ok)
+        .any(|entry| {
+            entry.file_type().is_ok_and(|kind| kind.is_dir())
+                && entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("r8-incompatible-")
+                && fs::read_dir(entry.path())
+                    .is_ok_and(|files| files.filter_map(Result::ok).count() == 5)
+        });
+    if !has_cpu_fixture {
+        for entry in fs::read_dir(&cpu_root)
+            .expect("read preserved CPU R8 fixtures")
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry.file_type().is_ok_and(|kind| kind.is_dir())
+                    && entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with("r8-incompatible-")
+            })
+        {
+            let destination = fixture_root.join(entry.file_name());
+            if !destination.exists() {
+                copy_fixture_directory(&entry.path(), &destination);
+            }
+        }
+    }
+    let has_gpu_fixture = fs::read_dir(&fixture_root)
+        .expect("staged R8 fixture root is readable")
+        .filter_map(Result::ok)
+        .any(|entry| {
+            entry.file_type().is_ok_and(|kind| kind.is_dir())
+                && entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("r8-incompatible-")
+                && [
+                    "cublas64_12.dll",
+                    "cublasLt64_12.dll",
+                    "cudart64_12.dll",
+                    "nemo_speech_asr_c.dll",
+                    "nemo_speech_asr.dll",
+                    "ggml.dll",
+                    "ggml-base.dll",
+                    "ggml-cpu.dll",
+                    "ggml-cuda.dll",
+                ]
+                .iter()
+                .all(|name| entry.path().join(name).is_file())
+        });
+    if !has_gpu_fixture {
+        let candidate = fs::read_dir(&gpu_root)
+            .expect("read preserved GPU R8 fixtures")
+            .filter_map(Result::ok)
+            .find(|entry| {
+                entry.file_type().is_ok_and(|kind| kind.is_dir())
+                    && entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with("r8-incompatible-")
+                    && sha256(&entry.path().join("nemo_speech_asr_c.dll"))
+                        == "9148ba2ed0eaeee385d09eba37e1a297d5e2f0649a02ffd4e325fea562c29ea6"
+            })
+            .expect("preserved GPU fixture with the intentional ABI mismatch");
+        let destination = fixture_root.join(candidate.file_name());
+        if !destination.exists() {
+            copy_fixture_directory(&candidate.path(), &destination);
+        }
+    }
+}
+
+fn copy_fixture_directory(source: &std::path::Path, destination: &std::path::Path) {
+    fs::create_dir_all(destination).expect("create staged R8 fixture directory");
+    for entry in fs::read_dir(source)
+        .expect("read preserved R8 fixture directory")
+        .filter_map(Result::ok)
+    {
+        if entry.file_type().is_ok_and(|kind| kind.is_file()) {
+            fs::copy(entry.path(), destination.join(entry.file_name()))
+                .expect("copy read-only R8 fixture into the staging runtime");
+        }
+    }
 }
 
 fn existing_incompatible_gpu_fixture(runtime: &std::path::Path) -> PathBuf {
@@ -2394,32 +3026,61 @@ fn assert_registered_gpu_key(paths: &ParakeetWorkerPaths) {
     let actual = paths
         .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
         .expect("the frozen GPU worker and DLL set produce a qualification key");
+    #[cfg(feature = "personal-qualification")]
+    let personal_candidate = std::env::var_os("PARAKEET_L6P_STAGE").is_some();
+    #[cfg(not(feature = "personal-qualification"))]
+    let personal_candidate = false;
     let registered = whisper_core::model_registry::configuration_key(
         whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3),
         whisper_core::model_catalog::Backend::Gpu,
     );
-    assert_eq!(
-        actual,
-        whisper_adapters::archive::ArchiveQualificationKey::parakeet_gpu_test(),
-        "the qualified worker, DLLs, and archive key use the same frozen identity"
-    );
+    if personal_candidate {
+        #[cfg(feature = "personal-qualification")]
+        assert!(
+            whisper_adapters::parakeet_import::ParakeetWorkerPaths::personal_candidate_keys_from_env()
+                .contains(&actual),
+            "staged GPU identity is the exact candidate admitted only to this harness"
+        );
+    } else {
+        assert_eq!(
+            actual,
+            whisper_adapters::archive::ArchiveQualificationKey::parakeet_gpu_test(),
+            "the qualified worker, DLLs, and archive key use the same frozen identity"
+        );
+    }
     assert_eq!(actual.model, "parakeet-tdt-0.6b-v3");
     assert_eq!(actual.artifact, registered.artifact);
     assert_eq!(actual.artifact_revision, registered.artifact_revision);
     assert_eq!(actual.runtime, registered.runtime);
-    assert_eq!(actual.runtime_build, registered.runtime_build);
+    if !personal_candidate {
+        assert_eq!(actual.runtime_build, registered.runtime_build);
+    }
     assert_eq!(actual.worker, registered.worker);
-    assert_eq!(actual.worker_build, registered.worker_build);
+    if !personal_candidate {
+        assert_eq!(actual.worker_build, registered.worker_build);
+    }
     assert_eq!(actual.worker_protocol, registered.worker_protocol);
     assert_eq!(actual.backend, "CUDA0");
     assert_eq!(actual.inference_profile, registered.inference_profile);
 }
 
 fn gpu_worker_path() -> PathBuf {
+    #[cfg(feature = "personal-qualification")]
+    if std::env::var_os("PARAKEET_L6P_STAGE").is_some() {
+        if let Some(path) = std::env::var_os("PARAKEET_L6P_GPU_WORKER") {
+            return PathBuf::from(path);
+        }
+    }
     required_path("PARAKEET_L2_WORKER")
 }
 
 fn gpu_native_dir() -> PathBuf {
+    #[cfg(feature = "personal-qualification")]
+    if std::env::var_os("PARAKEET_L6P_STAGE").is_some() {
+        if let Some(path) = std::env::var_os("PARAKEET_L6P_GPU_NATIVE_DIR") {
+            return PathBuf::from(path);
+        }
+    }
     required_path("PARAKEET_L2_NATIVE_DIR")
 }
 
@@ -2456,6 +3117,22 @@ fn required_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("{name} is required")))
 }
 
+fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
+    let missing = variables
+        .iter()
+        .filter(|name| std::env::var_os(name).is_none())
+        .copied()
+        .collect::<Vec<_>>();
+    if missing.is_empty() {
+        return false;
+    }
+    eprintln!(
+        "NOT RUN: missing campaign variable(s): {}",
+        missing.join(", ")
+    );
+    true
+}
+
 fn cpu_worker_path() -> PathBuf {
     std::env::var_os("PARAKEET_L2_CPU_WORKER")
         .or_else(|| std::env::var_os("PARAKEET_L2_WORKER"))
@@ -2481,6 +3158,30 @@ fn r8_exec_root() -> PathBuf {
     let configured_runtime = required_path("PARAKEET_L2_RUNTIME_ROOT")
         .canonicalize()
         .expect("configured runtime root exists");
+    if let (Some(local_app_data), Ok(backend)) = (
+        std::env::var_os("LOCALAPPDATA").map(PathBuf::from),
+        std::env::var("PARAKEET_L6P_BACKEND"),
+    ) {
+        if matches!(backend.as_str(), "CPU" | "CUDA0") {
+            let staging_parent = local_app_data
+                .join("Whisper/.staging")
+                .canonicalize()
+                .expect("canonical Personal staging parent exists");
+            if configured_runtime.parent() == Some(staging_parent.as_path()) {
+                let expected = configured_runtime
+                    .join("qualification")
+                    .join(backend)
+                    .join("r8")
+                    .canonicalize()
+                    .expect("canonical Personal R8 execution root exists");
+                assert_eq!(
+                    root, expected,
+                    "Personal R8 scenarios stay in the selected backend staging root"
+                );
+                return root;
+            }
+        }
+    }
     let l3b_r8 = l3b_runtime.join("r8");
     if configured_runtime == l3b_runtime && root == l3b_r8 {
         return root;

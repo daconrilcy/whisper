@@ -8,6 +8,22 @@ use whisper_core::{
     ports::ImportRequest,
 };
 
+fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
+    let missing = variables
+        .iter()
+        .filter(|name| std::env::var_os(name).is_none())
+        .copied()
+        .collect::<Vec<_>>();
+    if missing.is_empty() {
+        return false;
+    }
+    eprintln!(
+        "NOT RUN: missing campaign variable(s): {}",
+        missing.join(", ")
+    );
+    true
+}
+
 fn models_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models")
 }
@@ -72,6 +88,9 @@ fn closed_catalog_reports_both_pinned_model_files_and_exact_observations() {
 
 #[test]
 fn missing_and_corrupt_models_are_reported_without_touching_the_catalog_root() {
+    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
+        return;
+    }
     let missing_root = runtime_root("catalog-missing");
     let missing = LocalModelCatalog::new(&missing_root).inspect(1);
     assert!(
@@ -131,6 +150,9 @@ fn known_historical_turbo_path_rebinds_to_the_verified_test_catalog_path() {
 
 #[test]
 fn model_hash_cache_reuses_physical_identity_and_rehashes_changed_fingerprints() {
+    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
+        return;
+    }
     use whisper_adapters::model_catalog::{cached_model_sha256, model_sha256_full_read_count};
 
     let root = cache_test_path("identity");
@@ -173,6 +195,9 @@ fn model_hash_cache_reuses_physical_identity_and_rehashes_changed_fingerprints()
 
 #[test]
 fn model_hash_cache_serializes_concurrent_first_reads_and_fails_closed_on_missing_files() {
+    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
+        return;
+    }
     use std::sync::Arc;
     use whisper_adapters::model_catalog::{cached_model_sha256, model_sha256_full_read_count};
 

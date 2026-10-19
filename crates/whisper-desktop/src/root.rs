@@ -40,11 +40,19 @@ pub struct DesktopComposition {
 }
 
 pub fn compose() -> DesktopComposition {
-    let model_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(2)
-        .unwrap_or_else(|| std::path::Path::new("."))
-        .join("models");
+    let personal_root = personal_install_root();
+    let model_root = if cfg!(feature = "personal-install") {
+        personal_root
+            .as_ref()
+            .map(|root| root.join("models"))
+            .unwrap_or_else(|| PathBuf::from("\0"))
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .unwrap_or_else(|| std::path::Path::new("."))
+            .join("models")
+    };
     let (catalog_sender, catalog_receiver) = std::sync::mpsc::channel();
     let (admission_sender, admission_receiver) = std::sync::mpsc::channel();
     let catalog_root = model_root.clone();
@@ -120,8 +128,29 @@ pub fn compose() -> DesktopComposition {
     let (preference_command_sender, preference_command_receiver) =
         model_preference_command_channel();
     let (preference_event_sender, preference_event_receiver) = std::sync::mpsc::sync_channel(4);
+    let personal_install = cfg!(feature = "personal-install");
+    let preference_file = personal_root
+        .as_ref()
+        .map(|root| personal_settings_path(root));
     std::thread::spawn(move || {
-        let preferences = ModelPreferencesApp::new(Box::new(WindowsModelPreferencePort::new()));
+        if personal_install && preference_file.is_none() {
+            let _ = preference_event_sender.send(ModelPreferenceEvent::Initialized {
+                model: None,
+                startup_compute: StartupComputePreference::FollowProbe,
+                notice: Some("Profil Perso indisponible : LOCALAPPDATA n'est pas défini.".into()),
+            });
+            return;
+        }
+        let preference_port: Box<dyn whisper_core::path_settings::ModelPreferencePort> =
+            if personal_install {
+                Box::new(WindowsModelPreferencePort::new_at(
+                    preference_file.expect("personal root checked above"),
+                    whisper_desktop::ui::default_model_path(),
+                ))
+            } else {
+                Box::new(WindowsModelPreferencePort::new())
+            };
+        let preferences = ModelPreferencesApp::new(preference_port);
         let Ok(mut preferences) = preferences else {
             let _ = preference_event_sender.send(ModelPreferenceEvent::Initialized {
                 model: None,
@@ -168,19 +197,45 @@ pub fn compose() -> DesktopComposition {
             }
         }
     });
+    let path_port = if cfg!(feature = "personal-install") {
+        personal_root.as_ref().map(|root| {
+            Box::new(WindowsPathPort::new_at(personal_settings_path(root)))
+                as Box<dyn whisper_core::path_settings::PathPort>
+        })
+    } else {
+        Some(Box::new(WindowsPathPort::new()) as Box<dyn whisper_core::path_settings::PathPort>)
+    };
     let paths = PathSettingsApp::new(
         PathDefaults {
             audio_directory: whisper_desktop::ui::default_audio_directory(),
-            model_path: whisper_desktop::ui::default_model_path(),
+            model_path: if cfg!(feature = "personal-install") {
+                model_root
+                    .join(
+                        model_registry::model(ModelId::WhisperLargeV3Turbo)
+                            .artifact
+                            .file_name,
+                    )
+                    .to_string_lossy()
+                    .into_owned()
+            } else {
+                whisper_desktop::ui::default_model_path()
+            },
             destination: whisper_desktop::ui::default_destination(),
         },
-        Box::new(WindowsPathPort::new()),
+        path_port.unwrap_or_else(|| Box::new(WindowsPathPort::new_at(PathBuf::new()))),
     );
     let executable = std::env::current_exe().ok();
     let worker_path = |worker_name: &str| {
         let sibling = executable
             .as_ref()
             .and_then(|path| path.parent().map(|parent| parent.join(worker_name)));
+        if cfg!(feature = "personal-install") {
+            return sibling
+                .clone()
+                .filter(|path| path.is_file())
+                .or(sibling)
+                .unwrap_or_else(|| PathBuf::from(worker_name));
+        }
         let isolated = executable.as_ref().and_then(|path| {
             let release = path.parent()?;
             let target = release.parent()?;
@@ -225,7 +280,11 @@ pub fn compose() -> DesktopComposition {
     DesktopComposition {
         application,
         compute_choice: ComputeChoice::Cpu,
-        startup_message: Some("Vérification du GPU en cours…".into()),
+        startup_message: if cfg!(feature = "personal-install") && personal_root.is_none() {
+            Some("Profil Perso indisponible : LOCALAPPDATA n'est pas défini.".into())
+        } else {
+            Some("Vérification du GPU en cours…".into())
+        },
         paths,
         gpu_probe: receiver,
         gpu_inventory: GpuInventoryApp::new(Box::new(WindowsGpuInventoryPort::new(
@@ -240,6 +299,13 @@ pub fn compose() -> DesktopComposition {
 }
 
 fn configured_parakeet_worker() -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths> {
+    if cfg!(feature = "personal-install") {
+        let root = personal_install_root()?;
+        return Some(personal_worker_paths(
+            &root,
+            whisper_core::model_catalog::Backend::Cpu,
+        ));
+    }
     let runtime_root = PathBuf::from(std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")?);
     Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
         executable: std::env::var_os("PARAKEET_L2_CPU_WORKER")
@@ -257,6 +323,13 @@ fn configured_parakeet_worker() -> Option<whisper_adapters::parakeet_import::Par
 
 fn configured_gpu_parakeet_worker() -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths>
 {
+    if cfg!(feature = "personal-install") {
+        let root = personal_install_root()?;
+        return Some(personal_worker_paths(
+            &root,
+            whisper_core::model_catalog::Backend::Gpu,
+        ));
+    }
     let runtime_root = PathBuf::from(std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")?);
     Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
         executable: PathBuf::from(std::env::var_os("PARAKEET_L2_WORKER")?),
@@ -266,10 +339,51 @@ fn configured_gpu_parakeet_worker() -> Option<whisper_adapters::parakeet_import:
     })
 }
 
+fn personal_install_root() -> Option<PathBuf> {
+    if !cfg!(feature = "personal-install") {
+        return None;
+    }
+    std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .map(|root| root.join("Whisper"))
+}
+
+fn personal_model_root(root: &std::path::Path) -> PathBuf {
+    root.join("models")
+}
+
+fn personal_settings_path(root: &std::path::Path) -> PathBuf {
+    root.join("settings/settings.json")
+}
+
+fn personal_worker_paths(
+    root: &std::path::Path,
+    backend: whisper_core::model_catalog::Backend,
+) -> whisper_adapters::parakeet_import::ParakeetWorkerPaths {
+    let (worker, native) = match backend {
+        whisper_core::model_catalog::Backend::Cpu => {
+            ("whisper-worker-parakeet-cpu.exe", "native/cpu")
+        }
+        whisper_core::model_catalog::Backend::Gpu => {
+            ("whisper-worker-parakeet-gpu.exe", "native/gpu")
+        }
+    };
+    whisper_adapters::parakeet_import::ParakeetWorkerPaths {
+        executable: root.join("worker").join(worker),
+        native_dir: root.join(native),
+        model: personal_model_root(root).join("parakeet-tdt-0.6b-v3.q8_0.gguf"),
+        runtime_root: root.to_path_buf(),
+    }
+}
+
 fn qualify_parakeet_catalog_entry(snapshot: &mut CatalogSnapshot) {
     use whisper_core::model_catalog::{Backend, ModelId};
     let record = model_registry::model(ModelId::ParakeetTdt06BV3);
-    let key = model_registry::configuration_key(record, Backend::Cpu);
+    let key = if cfg!(feature = "personal-install") {
+        model_registry::personal_configuration_key(record, Backend::Cpu)
+    } else {
+        model_registry::configuration_key(record, Backend::Cpu)
+    };
     let catalog_model_ready = snapshot.entries.iter().any(|entry| {
         entry.id == ModelId::ParakeetTdt06BV3
             && entry.availability == ModelAvailability::Ready
@@ -298,7 +412,12 @@ fn parakeet_gpu_route_is_qualified(snapshot: &CatalogSnapshot) -> bool {
         paths
             .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
             .is_ok_and(|actual| {
-                actual == whisper_adapters::archive::ArchiveQualificationKey::parakeet_gpu_test()
+                if cfg!(feature = "personal-install") {
+                    actual.is_registered_personal_import()
+                } else {
+                    actual
+                        == whisper_adapters::archive::ArchiveQualificationKey::parakeet_gpu_test()
+                }
             })
     })
 }
@@ -331,7 +450,14 @@ fn parakeet_worker_runtime_is_qualified(
     paths: &whisper_adapters::parakeet_import::ParakeetWorkerPaths,
 ) -> bool {
     let record = model_registry::model(ModelId::ParakeetTdt06BV3);
-    let key = model_registry::configuration_key(record, whisper_core::model_catalog::Backend::Cpu);
+    let key = if cfg!(feature = "personal-install") {
+        model_registry::personal_configuration_key(
+            record,
+            whisper_core::model_catalog::Backend::Cpu,
+        )
+    } else {
+        model_registry::configuration_key(record, whisper_core::model_catalog::Backend::Cpu)
+    };
     paths
         .verify_worker_runtime(&key.runtime_build, &key.worker_build)
         .is_ok()
@@ -662,7 +788,7 @@ mod tests {
             );
             configured
         } else {
-            repo.join("target/parakeet-tests/l1b-2")
+            std::env::temp_dir().join("whisper-desktop-tests")
         };
         let suffix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -672,17 +798,25 @@ mod tests {
     }
 
     fn is_allowed_campaign_root(configured: &Path, repository: &Path) -> bool {
-        ["l3b", "l3c", "l3d"].into_iter().any(|lot| {
-            repository
-                .join(format!("target/parakeet-tests/l3/{lot}"))
-                .canonicalize()
-                .is_ok_and(|expected| configured == &expected || configured.starts_with(expected))
-        })
+        let l6_perso = repository
+            .join("target/parakeet-tests/l6-perso")
+            .canonicalize()
+            .is_ok_and(|expected| configured == &expected || configured.starts_with(expected));
+        l6_perso
+            || ["l3b", "l3c", "l3d"].into_iter().any(|lot| {
+                repository
+                    .join(format!("target/parakeet-tests/l3/{lot}"))
+                    .canonicalize()
+                    .is_ok_and(|expected| {
+                        configured == &expected || configured.starts_with(expected)
+                    })
+            })
     }
 
     #[test]
     fn fixture_root_uses_canonical_l3b_campaign_root_when_configured() {
         let Some(configured) = std::env::var_os("WHISPER_DESKTOP_TEST_ROOT") else {
+            eprintln!("NOT RUN: WHISPER_DESKTOP_TEST_ROOT is not set");
             return;
         };
         let configured = PathBuf::from(configured).canonicalize().unwrap();
@@ -696,6 +830,7 @@ mod tests {
     #[test]
     fn fixture_root_accepts_only_the_canonical_l3c_campaign_root() {
         let Some(configured) = std::env::var_os("WHISPER_DESKTOP_TEST_ROOT") else {
+            eprintln!("NOT RUN: WHISPER_DESKTOP_TEST_ROOT is not set");
             return;
         };
         let configured = PathBuf::from(configured).canonicalize().unwrap();
@@ -1395,6 +1530,33 @@ mod tests {
             refusal.is_some(),
             "changed catalog artifact must be rejected before worker delegation; view={:?}",
             app.view().message
+        );
+    }
+
+    #[cfg(feature = "personal-install")]
+    #[test]
+    fn personal_profile_uses_only_the_stable_model_worker_and_settings_layout() {
+        let root = PathBuf::from(r"C:\Users\tester\AppData\Local\Whisper");
+        assert_eq!(personal_model_root(&root), root.join("models"));
+        let cpu = personal_worker_paths(&root, whisper_core::model_catalog::Backend::Cpu);
+        assert_eq!(
+            cpu.executable,
+            root.join("worker/whisper-worker-parakeet-cpu.exe")
+        );
+        assert_eq!(cpu.native_dir, root.join("native/cpu"));
+        assert_eq!(
+            cpu.model,
+            root.join("models/parakeet-tdt-0.6b-v3.q8_0.gguf")
+        );
+        let gpu = personal_worker_paths(&root, whisper_core::model_catalog::Backend::Gpu);
+        assert_eq!(
+            gpu.executable,
+            root.join("worker/whisper-worker-parakeet-gpu.exe")
+        );
+        assert_eq!(gpu.native_dir, root.join("native/gpu"));
+        assert_eq!(
+            personal_settings_path(&root),
+            root.join("settings/settings.json")
         );
     }
 }

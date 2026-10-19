@@ -1,8 +1,10 @@
-Avancée : L3d est CLEAN et sa recette Windows a été acceptée ; L6-perso v4 inclut le worker GPU et a reçu CLEAN documentaire.
-Blocage : les deux clés release Perso et leur installation restent à qualifier ; aucun binaire Perso n'est encore admis.
-Décision : PLANS READY pour le périmètre CPU+GPU ; attendre un accord écrit d'implémentation.
+Avancée : L6-perso CPU+GPU est implémenté, revu CLEAN et publié localement ; A4, EN5, EN30 et R8 ont passé.
+Blocage : rollback entre générations distinctes NOT RUN et validation dans la fenêtre Windows encore ouverte.
+Décision : garder le plan v4 comme référence exécutée et suivre les réserves dans le bilan L6-perso.
 
 # PLAN-PARA-L6-PERSO — v4, PLANS READY (19/10/2026)
+
+**État d'exécution du 19/10/2026 :** autorisation écrite reçue ; candidat implémenté, revu CLEAN après deux cycles de correction, puis installation personnelle CPU+GPU publiée. Les recettes installées EN5 et le rollback transactionnel C→C passent. La restauration inter-génération B→C est NOT RUN ; la validation dans la fenêtre Windows reste à l'utilisateur. Les prescriptions ci-dessous sont conservées comme référence du lot ; [fiche](fiche-parakeet-l6-perso.md), [bilan](bilan-parakeet-l6-perso.md), [recette](recette-parakeet-l6-perso.md).
 
 Base : branche `evo-startup-perf` au commit de validation Windows L3d `e33a0161`, [note L6-perso](note-parakeet-l6-perso.md) (cadrage CPU historique), [fiche R6 Test](fiche-parakeet-r6.md), [fiche GPU L3a](fiche-parakeet-l3a-gpu.md), [fiche GPU Test L3b](fiche-parakeet-l3-gpu-test.md) et [fiche L3d](fiche-parakeet-l3d-latence.md). Auteur documentaire : session Codex principale. La v3 a reçu CLEAN ciblé après fermeture de L6P-02 ; ce v4 ajoute le GPU qualifié depuis L3a–L3d et prime sur les passages CPU seulement de la note. Revue indépendante du v4 au commit `56b6d0bf` : CLEAN, aucun REQUIRED ; clarification mineure intégrée ci-dessous. L6-perso remplace L5/L6 pour l'utilisateur unique. L4, VAD adaptative et B8 restent backlog non planifié ; leurs notes sont conservées. **Aucun code, copie sous `%LOCALAPPDATA%` ni qualification Perso n'est autorisé par ce plan.**
 
