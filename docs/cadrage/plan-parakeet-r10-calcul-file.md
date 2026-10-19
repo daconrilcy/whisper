@@ -1,12 +1,12 @@
-Avancée : correctif R10 implémenté ; revue indépendante du code CLEAN après deux passes et gate workspace vert.
-Blocage : la recette R10-1 dans la fenêtre Windows reste NOT RUN.
-Décision : conserver l'installation Perso actuelle et faire la recette sur le binaire R10 avant publication.
+Avancée : correctif R10 commité, revue indépendante du code CLEAN et recette Windows déclarée OK par l'utilisateur.
+Blocage : aucun pour le lot R10 ; publication et remplacement de l'installation personnelle restent distincts.
+Décision : clore R10 localement sur la validation utilisateur du 19/10/2026, sans push ni installation.
 
-# R10 — Calcul choisi au lancement d'un import en file (proposition)
+# R10 — Calcul choisi au lancement d'un import en file (validé localement)
 
 Base : `evo-startup-perf` à `0e610c95`, après L6-perso. Autorisation écrite R10 reçue le 19/10/2026 pour les trois fichiers de code ci-dessous ; le helper d'archive a été ouvert séparément par l'utilisateur pendant la campagne. Aucun déploiement ni push autorisé par cet accord.
 
-État au 19/10/2026 : 402 tests réussis, 0 échec, 34 ignorés sur 52 cibles du gate workspace sous garde ; revue du code CLEAN, R1 fermé au deuxième passage. Le desktop `personal-install` de recette est copié sous `target/parakeet-tests/r10/desktop/whisper-desktop.exe`, SHA-256 `96c2c420c3d4b3e41cc927bbe4946da927ba005f07c19954a86e1622938c9e93`. La recette dans la fenêtre Windows reste à exécuter par l'utilisateur ; son absence ne vaut pas PASS de R10-1.
+État au 19/10/2026 : correctif au commit `09a574a6` ; 402 tests réussis, 0 échec, 34 ignorés sur 52 cibles du gate workspace sous garde ; revue du code CLEAN, R1 fermé au deuxième passage. Le desktop `personal-install` de recette est copié sous `target/parakeet-tests/r10/desktop/whisper-desktop.exe`, SHA-256 `96c2c420c3d4b3e41cc927bbe4946da927ba005f07c19954a86e1622938c9e93`, avec les deux workers Turbo qualifiés à côté ; les deux workers Parakeet qualifiés sont chargés depuis l'installation Perso stable. Après cette mise à disposition, l'utilisateur a déclaré « tout est ok cette fois » : recette R10-1 **PASS selon validation utilisateur dans la fenêtre Windows**. Le détail des observations TXT/SRT n'a pas été remis séparément et aucune mesure supplémentaire n'est revendiquée.
 
 ## Constat
 
