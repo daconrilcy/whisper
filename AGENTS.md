@@ -26,3 +26,9 @@ G1 est arrêté définitivement. Une tâche Whisper doit servir l'objectif produ
 - Utiliser un seul `CARGO_TARGET_DIR` de compilation : `target/parakeet-tests/cargo-shared/`. Les racines de lot reçoivent uniquement sorties, temporaires et preuves. La garde à échec fermé vérifie séparément cette racine Cargo canonique et les racines d'écriture du lot ; aucune commande Cargo n'est lancée si une variable sort de sa racine autorisée.
 - Pendant les campagnes, fixer dans l'environnement `CARGO_INCREMENTAL=0` et `CARGO_PROFILE_DEV_DEBUG=line-tables-only`, sans modifier `Cargo.toml` pour ces réglages.
 - À la clôture du lot, archiver les petites preuves en préservant leur arborescence et en vérifiant nombre et SHA-256 ; retirer uniquement les copies et WAV temporaires inscrits dans un manifeste approuvé ; relever à nouveau l'espace libre dans le bilan. Ne pas nettoyer le `cargo-shared` ni les entrées encore nécessaires à un lot actif.
+
+## Remise d'une recette manuelle Windows
+
+- Tout dossier remis pour tester un EXE Whisper inclut **dans ce même dossier de remise** les workers Parakeet CPU et GPU et leurs runtimes natifs complets (cinq DLL CPU, neuf DLL GPU), même si le scénario principal n'exerce qu'un backend. Vérifier avant remise la présence, le nombre et les SHA-256 des copies face aux fiches de qualification ; vérifier séparément les modèles locaux nécessaires.
+- Donner avec l'EXE les chemins effectifs que l'application ouvrira. Si le profil Test impose des chemins canoniques distincts des copies livrées, le dire explicitement : la présence de fichiers dans le dossier de remise ne prouve pas que l'application les utilise et le dossier n'est pas annoncé comme autonome. Une recette de paquet autonome exige une qualification de ce routage avant remise.
+- La validation dans la fenêtre Windows reste celle de l'utilisateur ; indiquer ce qui a été construit et vérifié automatiquement et ce qui reste à observer manuellement.

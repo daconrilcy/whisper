@@ -90,3 +90,9 @@ r7_private_worker_timing_child
 ```
 
 La recette D-A8 avec un vrai audio déjà traité dans la fenêtre Windows reste **NOT RUN**. Le code est prêt pour cette vérification utilisateur ; l'installation personnelle `%LOCALAPPDATA%\Whisper` n'est pas modifiée par R11.
+
+## Paquet remis pour la recette Windows — 20/10/2026
+
+Le dossier hors Git `target/parakeet-tests/r11/manual/` contient `whisper-desktop-r11.exe` (Release, SHA-256 `e2b059e9e0b9fef1aebb5b2f9002e19f4786909ec3b07e4b4586a2aeab5163f3`), `worker/whisper-worker-parakeet-cpu.exe` (SHA R6 `1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0`) et `worker/whisper-worker-parakeet-gpu.exe` (SHA L3a `5054612a05fbfd1039e108def3aa4e598268d2b4274b8c1dc96cd6b8e3f2cd6d`). Les cinq DLL CPU sont sous `native/cpu/` et les neuf DLL GPU sous `native/gpu/`. Chaque copie a été comparée par SHA-256 à sa source et à la [fiche R6](fiche-parakeet-r6.md) ou à la [fiche L3a](fiche-parakeet-l3a-gpu.md). Les deux modèles restent dans `models/` du dépôt, hors Git, et sont requis pour la recette.
+
+**Portée du paquet :** le binaire Release fourni est le profil **Test**. Sa qualification lie encore les workers aux racines canoniques L2b/R6 et L3b/L3a du dépôt. Les copies dans `manual/` rendent les ressources visibles et vérifiables dans la remise, mais la commande de lancement Test continue de désigner les originaux qualifiés ; cette remise n'est donc pas un paquet autonome. L'installation personnelle `%LOCALAPPDATA%\Whisper` n'a pas été modifiée. La règle permanente de remise a été ajoutée à `AGENTS.md`.
