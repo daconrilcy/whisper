@@ -94,6 +94,43 @@ pub struct ImportRequest {
     pub config: JobConfig,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DuplicateImportChoice {
+    Replace,
+    CreateNew,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PublishedImport {
+    pub job_id: JobId,
+    pub generation: Generation,
+    pub source_sha256: String,
+    pub export_basename: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DuplicateImportPrompt {
+    pub request: ImportRequest,
+    pub source_sha256: String,
+    pub source_samples: u64,
+    pub publications: Vec<PublishedImport>,
+    /// Export basename currently available for the user's selected action.
+    /// It must be revalidated before enqueue; a collision requires a new prompt.
+    #[serde(default)]
+    pub export_basename: String,
+    #[serde(default)]
+    pub revalidation_notice: Option<String>,
+    /// Present when the prompt is reconfirming an interrupted publication.
+    /// The original interrupted request owns the durable reservation; `request`
+    /// is the next generation to resume after the user confirms the new name.
+    #[serde(default)]
+    pub resume_from: Option<ImportRequest>,
+    /// Basename held by the interrupted publication before the user is asked
+    /// to confirm a replacement name.
+    #[serde(default)]
+    pub reserved_export_basename: Option<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LiveRequest {
     pub job_id: JobId,
@@ -157,6 +194,10 @@ pub enum ImportEffect {
     StartLive(LiveRequest),
     StartDirectLive(LiveRequest),
     Enqueue(ImportRequest),
+    ConfirmDuplicateImport {
+        prompt: DuplicateImportPrompt,
+        choice: DuplicateImportChoice,
+    },
     RemoveQueued {
         job_id: JobId,
         generation: Generation,
@@ -174,6 +215,11 @@ pub enum ImportEffect {
     StartWorker(ImportRequest),
     ScanHistory {
         destination: String,
+    },
+    ResolveImportPublication {
+        destination: String,
+        job_id: JobId,
+        generation: Generation,
     },
     ResolveLivePublication(LiveRequest),
     PersistSegment(WorkerSegment),
@@ -257,6 +303,12 @@ pub enum ImportEvent {
         generation: Generation,
     },
     Queue(Vec<ImportQueueEntry>),
+    QueueAdmission {
+        submitted_job_id: JobId,
+        submitted_generation: Generation,
+        queue: Vec<ImportQueueEntry>,
+    },
+    DuplicateImportFound(DuplicateImportPrompt),
     ResumeCheckpoint {
         job_id: JobId,
         generation: Generation,

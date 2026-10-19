@@ -1,6 +1,6 @@
-Avancée : candidat R11 implémenté ; R1 à R6 fermés, voie sans lien physique testée en adaptateur.
-Blocage : une coupure entre création exclusive d'un export et persistance de son identité empêche sa reprise sûre (R7, D-A5/D-A7).
-Décision : LIVRÉ AVEC RÉSERVES ; le correctif final nécessite un élargissement explicite du sous-lot à l'interface et aux contrats R11.
+Avancée : R11 et son correctif élargi R7 sont revus CLEAN ; R1 à R8 fermés, gate workspace vert sous garde.
+Blocage : recette D-A8 dans la fenêtre Windows non exécutée par l'utilisateur.
+Décision : candidat technique prêt ; commit local du code et du bilan, sans installation ni push.
 
 # Bilan provisoire R11 — retraitement d'un audio déjà publié
 
@@ -41,3 +41,52 @@ Le correctif R7 a été limité à `crates/whisper-adapters/src/archive.rs` et `
 Une coupure immédiatement après `create_new`, avant la persistance de l'identité du fichier final, laisse toutefois un export sans provenance. La reprise refuse ce fichier et conserve le pending et les anciennes publications ; le test n'aboutit qu'après suppression manuelle du fichier ambigu. Le reviewer indépendant classe donc **R7 BLOQUANT** pour D-A5/D-A7. Le gate workspace complet de ce candidat est **NOT RUN**, arrêté sur ce défaut. Aucun code R7 n'a été commité.
 
 L'adjudication du reviewer situe le refus dans `archive.rs::install_owned_export` vers la ligne 3224 et la reprise vers la ligne 3176. Elle conclut qu'une résolution sans adoption d'un fichier tiers demande une nouvelle confirmation visible et la transmission de ce choix. Les chemins supplémentaires minimaux sont `crates/whisper-desktop/src/ui.rs`, `crates/whisper-core/src/ports.rs`, `crates/whisper-core/src/application.rs` et `crates/whisper-adapters/src/worker_ipc.rs`. Ils figurent dans les neuf chemins du plan R11, mais pas dans le sous-périmètre R7 autorisé à ce stade. Aucune édition supplémentaire n'a été engagée.
+
+## Correctif R7 élargi et clôture technique
+
+L'utilisateur a autorisé l'extension aux quatre chemins ci-dessus. Le candidat réutilise la confirmation visible de l'application : après une coupure qui laisse un export final sans identité persistée, il garde ce fichier intact, demande un nouveau nom et n'engage la génération suivante qu'après le choix explicite. La voie sans liens physiques publie par création exclusive. Les artefacts internes restent indépendants des TXT/SRT modifiables ; une collision avec un fichier tiers aux mêmes octets ne lui transfère aucune propriété.
+
+Un test intégré déterministe couvre premier import et Remplacer : absence forcée de liens physiques, coupure après création exclusive du SRT, redémarrage, `ResumeInterrupted`, dialogue visible, choix du nom suffixé, reprise du préfixe et publication de la génération suivante. Il vérifie TXT/SRT, anciennes publications encore actives avant le commit et fichier tiers inchangé. La première revue du candidat élargi demandait cette preuve intégrée et le rétablissement des fins de ligne LF de `worker_ipc.rs` ; la seconde revue a déclaré **CLEAN**, R7/R8 fermés, R1–R6 toujours fermés. Deux revues et une correction ont été utilisées.
+
+Vérifications finales sous garde R11 : formatage PASS ; `git diff --check` PASS ; tests adapters PASS (109 tests de bibliothèque réussis, 2 ignorés) ; `cargo test --offline --locked --workspace --no-fail-fast` PASS (code 0, aucun échec). La garde n'a relevé aucun écart d'écriture. Espace libre final rapporté : 53,73 Gio. L'empreinte SHA-256 indépendante du diff brut du candidat, avant commit, est `391d9b1bf0886941807aca7c841de5acd77163adc956c1d6486af25a3ec257b4` selon le reviewer.
+
+Les 34 tests ignorés/NOT RUN du gate workspace sont listés ci-dessous ; leurs recettes natives ou matérielles ne sont pas requalifiées par R11 :
+
+```text
+capture::tests::native_selected_microphone_survives_initial_discontinuity
+capture::tests::native_wasapi_input_catalog_has_stable_parseable_ids
+modified_parakeet_model_is_refused_before_pending_after_cache_revalidation
+r5_2_a4_product_route_publishes_french_and_english_txt_srt
+r5_2_b9_reports_noise_floor_silences_and_cut_plans
+r5_2_long_tests::en_sixty_minute_reference_and_vad_use_same_candidate_and_boundary_policy
+r5_2_long_tests::fr_synthetic_long_reference_and_vad_use_same_candidate
+resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once
+resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once
+stop_and_quit_at_preparation_and_publication_barriers_preserve_truthful_state
+stop_during_parakeet_inference_waits_for_exit_and_preserves_pending_without_publication
+stop_queue_journal_failure_settles_runtime_and_allows_next_import
+incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary
+incomplete_result_frame_is_rejected_as_transport_decode_failure
+killed_native_worker_is_reported_as_exit_without_result
+product_route_incomplete_result_preserves_pending_source_and_rejects_completion
+product_route_worker_death_preserves_pending_source_and_rejects_completion
+r6_application_single_pass_recipe
+r7_application_timing
+r9_application_recipe
+b9_reports_noise_floor_silence_counts_and_cut_plans
+en_sixty_minute_reference_and_vad_use_same_candidate_and_boundary_policy
+fr_synthetic_long_reference_and_vad_use_same_candidate
+root::tests::parakeet_worker_key_changes_regray_and_readmit_without_restarting
+cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache
+worker_decoder_matches_turbo_decoder_for_wav_and_mp3_within_one_i16_unit
+cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload
+cpu_worker_normalizes_fr87_fr27_and_en15_short_fixtures
+gpu_worker_fr_en_single_pass
+gpu_worker_rejects_wrong_device_before_audio
+gpu_worker_twenty_calls
+r6_reference_en60
+r7_private_worker_timing
+r7_private_worker_timing_child
+```
+
+La recette D-A8 avec un vrai audio déjà traité dans la fenêtre Windows reste **NOT RUN**. Le code est prêt pour cette vérification utilisateur ; l'installation personnelle `%LOCALAPPDATA%\Whisper` n'est pas modifiée par R11.

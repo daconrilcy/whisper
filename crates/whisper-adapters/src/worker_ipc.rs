@@ -35,13 +35,62 @@ use whisper_core::{
     JobId,
     ipc::{BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerEvent},
     ports::{
-        DecodeRequest, DecoderPort, ImportRequest, LiveRequest, PortError, SourceIdentity,
-        WorkerSegment,
+        DecodeRequest, DecoderPort, DuplicateImportChoice, DuplicateImportPrompt, ImportRequest,
+        LiveRequest, PortError, SourceIdentity, WorkerSegment,
     },
 };
 
 const MAX_FRAME_BYTES: usize = 1_048_576;
 const TDT_FRAME_OVERLAP_SAMPLES: u64 = 80 * 16;
+static NEXT_IMPORT_JOB_ID: AtomicU64 = AtomicU64::new(1);
+
+enum PreflightResult {
+    Duplicate(DuplicateImportPrompt),
+    Queued {
+        submitted: (JobId, Generation),
+        admitted: (JobId, Generation),
+        entries: Vec<whisper_core::ports::ImportQueueEntry>,
+    },
+}
+
+fn collision_free_job_id(
+    destination: &Path,
+    preferred: JobId,
+    generation: Generation,
+    queue: &[whisper_core::ports::ImportQueueEntry],
+) -> JobId {
+    let in_use = |candidate: JobId| {
+        crate::archive::ArchiveStore::job_identity_exists(destination, candidate, generation)
+            || queue.iter().any(|entry| {
+                entry.request.job_id == candidate && entry.request.generation == generation
+            })
+    };
+    if !in_use(preferred) {
+        return preferred;
+    }
+    loop {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(1, |time| time.as_nanos().min(u64::MAX as u128) as u64);
+        let mut observed = NEXT_IMPORT_JOB_ID.load(Ordering::Relaxed);
+        let serial = loop {
+            let next = now.max(observed.saturating_add(1));
+            match NEXT_IMPORT_JOB_ID.compare_exchange_weak(
+                observed,
+                next,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break next,
+                Err(actual) => observed = actual,
+            }
+        };
+        let candidate = JobId(((std::process::id() as u128) << 64) | serial as u128);
+        if !in_use(candidate) {
+            return candidate;
+        }
+    }
+}
 
 fn vad_word_overlap_within_one_tdt_frame(start_sample: u64, previous_end_sample: u64) -> bool {
     start_sample.saturating_add(TDT_FRAME_OVERLAP_SAMPLES) >= previous_end_sample
@@ -350,7 +399,18 @@ fn scan_archive_history(root: &Path) -> Vec<ArchiveHistoryItem> {
             generation: item.generation,
             complete: item.complete,
             source_sha256: item.source_sha256,
-            diagnostic: item.diagnostic,
+            diagnostic: item.diagnostic.or_else(|| {
+                if item.publication_recovery {
+                    Some(
+                        "Recoverable: publication R11 complète, en attente d'activation explicite"
+                            .into(),
+                    )
+                } else {
+                    item.export_basename
+                        .as_ref()
+                        .map(|base| format!("Export: {base}"))
+                }
+            }),
             live_recovery: recoveries
                 .iter()
                 .find(|recovery| {
@@ -1830,6 +1890,125 @@ impl ImportRuntime {
             .as_ref()
             .map_or_else(|| Ok(request.clone()), |catalog| catalog.bind_live(request))
     }
+
+    fn confirm_interrupted_publication(
+        &mut self,
+        mut prompt: DuplicateImportPrompt,
+        choice: DuplicateImportChoice,
+        events: &mut VecDeque<ImportEvent>,
+    ) {
+        let Some(previous) = prompt.resume_from.clone() else {
+            return;
+        };
+        let Some(reserved_basename) = prompt.reserved_export_basename.clone() else {
+            events.push_back(ImportEvent::Failed {
+                job_id: prompt.request.job_id,
+                generation: prompt.request.generation,
+                message: "StorageCorrupt: interrupted export prompt is missing its reserved name"
+                    .into(),
+            });
+            return;
+        };
+        let mut request = prompt.request.clone();
+        let result = self
+            .bind_import_request(&request)
+            .map(|bound| request = bound)
+            .and_then(|()| crate::archive::ArchiveStore::identify_source(&mut request))
+            .and_then(|()| self.bind_import_request(&request).map(|bound| request = bound))
+            .and_then(|()| {
+                crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
+            })
+            .and_then(|()| {
+                let destination = PathBuf::from(&request.destination);
+                let source_sha256 = request
+                    .source_sha256
+                    .as_ref()
+                    .map(format_sha256)
+                    .ok_or_else(|| "SourceChanged: resume source identity is missing".to_owned())?;
+                let same_request = request.job_id == previous.job_id
+                    && previous.generation.next() == Some(request.generation)
+                    && request.source_path == previous.source_path
+                    && request.destination == previous.destination
+                    && previous.source_sha256.map(|sha| format_sha256(&sha)).as_deref()
+                        == Some(source_sha256.as_str())
+                    && previous.source_samples == request.source_samples
+                    && request.model_sha256 == previous.model_sha256;
+                let source_matches = same_request
+                    && source_sha256 == prompt.source_sha256
+                    && request.source_samples == Some(prompt.source_samples);
+                let current = crate::archive::ArchiveStore::published_imports(
+                    &destination,
+                    &source_sha256,
+                )?;
+                if !source_matches || current != prompt.publications {
+                    prompt.request = request;
+                    prompt.source_sha256 = source_sha256;
+                    prompt.source_samples = prompt.request.source_samples.unwrap_or(0);
+                    prompt.publications = current;
+                    prompt.revalidation_notice = Some(
+                        "La source ou les transcriptions existantes ont changé. Vérifiez l'état actuel avant de reprendre.".into(),
+                    );
+                    events.push_back(ImportEvent::DuplicateImportFound(prompt.clone()));
+                    return Ok(None);
+                }
+                let current_basename =
+                    crate::archive::ArchiveStore::suggest_duplicate_export_basename(
+                        &destination,
+                        &request.source_path,
+                    )?;
+                if current_basename != prompt.export_basename {
+                    prompt.request = request;
+                    prompt.export_basename = current_basename;
+                    prompt.revalidation_notice = Some(
+                        "Le nom proposé n'est plus disponible. Vérifiez le nouveau nom avant de confirmer la reprise.".into(),
+                    );
+                    events.push_back(ImportEvent::DuplicateImportFound(prompt.clone()));
+                    return Ok(None);
+                }
+                match crate::archive::ArchiveStore::reconfirm_interrupted_publication(
+                    &destination,
+                    &previous,
+                    &source_sha256,
+                    prompt.source_samples,
+                    &current,
+                    choice,
+                    &reserved_basename,
+                    &prompt.export_basename,
+                ) {
+                    Ok(()) => Ok(Some(request)),
+                    Err(error) if error.starts_with("DuplicateExportNameChanged:") => {
+                        prompt.request = request;
+                        prompt.export_basename =
+                            crate::archive::ArchiveStore::suggest_duplicate_export_basename(
+                                &destination,
+                                &prompt.request.source_path,
+                            )?;
+                        prompt.revalidation_notice = Some(
+                            "Le nom proposé a été pris pendant la confirmation. Vérifiez ce nouveau nom avant de reprendre.".into(),
+                        );
+                        events.push_back(ImportEvent::DuplicateImportFound(prompt.clone()));
+                        Ok(None)
+                    }
+                    Err(error) => Err(error),
+                }
+            });
+        match result {
+            Ok(Some(request)) => self.effect(
+                ImportEffect::ResumeInterrupted {
+                    previous: Box::new(previous),
+                    request,
+                },
+                events,
+            ),
+            Ok(None) => {}
+            Err(message) => events.push_back(ImportEvent::Failed {
+                job_id: prompt.request.job_id,
+                generation: prompt.request.generation,
+                message,
+            }),
+        }
+    }
+
     fn effect(&mut self, effect: ImportEffect, events: &mut VecDeque<ImportEvent>) {
         if matches!(&effect, ImportEffect::StartLive(_)) {
             self.idle_worker = None;
@@ -1911,26 +2090,232 @@ impl ImportRuntime {
                 }
             }
             ImportEffect::Enqueue(mut request) => {
-                let id = (request.job_id, request.generation);
+                let submitted = (request.job_id, request.generation);
                 let result = self
                     .bind_import_request(&request)
-                    .map(|_| ())
+                    .map(|bound| {
+                        request = bound;
+                        ()
+                    })
                     .and_then(|()| crate::archive::ArchiveStore::identify_source(&mut request))
-                    .and_then(|()| self.bind_import_request(&request).map(|_| ()))
+                    .and_then(|()| {
+                        self.bind_import_request(&request).map(|bound| {
+                            request = bound;
+                            ()
+                        })
+                    })
                     .and_then(|()| {
                         crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
                     })
-                    .and_then(|()| crate::queue_store::QueueStore::open(&request.destination))
-                    .and_then(|mut queue| {
-                        queue.enqueue(request)?;
-                        Ok(queue.entries())
+                    .and_then(|()| {
+                        let destination = Path::new(&request.destination);
+                        let _lock = crate::archive::ArchiveStore::lock_publications(destination)?;
+                        let source_sha = request
+                            .source_sha256
+                            .as_ref()
+                            .map(format_sha256)
+                            .ok_or_else(|| {
+                                "SourceChanged: source identity is missing".to_owned()
+                            })?;
+                        let publications = crate::archive::ArchiveStore::published_imports(
+                            destination,
+                            &source_sha,
+                        )?;
+                        if !publications.is_empty() {
+                            let source_samples = request.source_samples.unwrap_or(0);
+                            let export_basename =
+                                crate::archive::ArchiveStore::suggest_duplicate_export_basename(
+                                    destination,
+                                    &request.source_path,
+                                )?;
+                            return Ok(PreflightResult::Duplicate(DuplicateImportPrompt {
+                                request,
+                                source_sha256: source_sha,
+                                source_samples,
+                                publications,
+                                export_basename,
+                                revalidation_notice: None,
+                                resume_from: None,
+                                reserved_export_basename: None,
+                            }));
+                        }
+                        let mut queue = crate::queue_store::QueueStore::open(destination)?;
+                        let original = (request.job_id, request.generation);
+                        request.job_id = collision_free_job_id(
+                            destination,
+                            request.job_id,
+                            request.generation,
+                            &queue.entries(),
+                        );
+                        let source_sha = request
+                            .source_sha256
+                            .as_ref()
+                            .map(format_sha256)
+                            .ok_or_else(|| {
+                                "SourceChanged: source identity is missing".to_owned()
+                            })?;
+                        crate::archive::ArchiveStore::reserve_new_import(
+                            destination,
+                            &request,
+                            &source_sha,
+                        )?;
+                        let admitted = (request.job_id, request.generation);
+                        if let Err(error) = queue.enqueue(request.clone()) {
+                            let _ = crate::archive::ArchiveStore::clear_duplicate_reservation(
+                                destination,
+                                request.job_id,
+                                request.generation,
+                            );
+                            return Err(error);
+                        }
+                        Ok(PreflightResult::Queued {
+                            submitted: original,
+                            admitted,
+                            entries: queue.entries(),
+                        })
                     });
                 match result {
-                    Ok(queue) => {
-                        events.push_back(ImportEvent::Queue(queue));
+                    Ok(PreflightResult::Duplicate(prompt)) => {
+                        events.push_back(ImportEvent::DuplicateImportFound(prompt));
                         Ok(())
                     }
-                    Err(error) => Err((id.0, id.1, error)),
+                    Ok(PreflightResult::Queued {
+                        submitted,
+                        admitted,
+                        entries,
+                    }) => {
+                        if submitted == admitted {
+                            events.push_back(ImportEvent::Queue(entries));
+                        } else {
+                            events.push_back(ImportEvent::QueueAdmission {
+                                submitted_job_id: submitted.0,
+                                submitted_generation: submitted.1,
+                                queue: entries,
+                            });
+                        }
+                        Ok(())
+                    }
+                    Err(error) => Err((submitted.0, submitted.1, error)),
+                }
+            }
+            ImportEffect::ConfirmDuplicateImport { mut prompt, choice } => {
+                if prompt.resume_from.is_some() {
+                    self.confirm_interrupted_publication(prompt, choice, events);
+                    return;
+                }
+                let submitted = (prompt.request.job_id, prompt.request.generation);
+                let mut request = prompt.request.clone();
+                let result = self
+                    .bind_import_request(&request)
+                    .map(|bound| { request = bound; () })
+                    .and_then(|()| crate::archive::ArchiveStore::identify_source(&mut request))
+                    .and_then(|()| self.bind_import_request(&request).map(|bound| { request = bound; () }))
+                    .and_then(|()| {
+                        crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
+                    })
+                    .and_then(|()| {
+                        let destination = Path::new(&request.destination);
+                        let _lock = crate::archive::ArchiveStore::lock_publications(destination)?;
+                        let source_sha = request
+                            .source_sha256
+                            .as_ref()
+                            .map(format_sha256)
+                            .ok_or_else(|| "SourceChanged: source identity is missing".to_owned())?;
+                        let current = crate::archive::ArchiveStore::published_imports(
+                            destination,
+                            &source_sha,
+                        )?;
+                        let source_matches = source_sha == prompt.source_sha256
+                            && request.source_samples == Some(prompt.source_samples)
+                            && request.destination == prompt.request.destination;
+                        if !source_matches || current != prompt.publications {
+                            prompt.request = request;
+                            prompt.source_sha256 = source_sha;
+                            prompt.source_samples = prompt.request.source_samples.unwrap_or(0);
+                            prompt.publications = current;
+                            prompt.revalidation_notice = Some(
+                                "La source ou les transcriptions existantes ont changé. Vérifiez l'état actuel avant de choisir.".into(),
+                            );
+                            return Ok(PreflightResult::Duplicate(prompt));
+                        }
+                        let current_basename =
+                            crate::archive::ArchiveStore::suggest_duplicate_export_basename(
+                                destination,
+                                &request.source_path,
+                            )?;
+                        if current_basename != prompt.export_basename {
+                            prompt.export_basename = current_basename;
+                            prompt.revalidation_notice = Some(
+                                "Le nom de sortie proposé n'est plus disponible. Vérifiez le nouveau nom avant de confirmer.".into(),
+                            );
+                            return Ok(PreflightResult::Duplicate(prompt));
+                        }
+                        let mut queue = crate::queue_store::QueueStore::open(destination)?;
+                        let original = (request.job_id, request.generation);
+                        request.job_id = collision_free_job_id(
+                            destination,
+                            request.job_id,
+                            request.generation,
+                            &queue.entries(),
+                        );
+                        if let Err(error) = crate::archive::ArchiveStore::reserve_duplicate_import(
+                            destination,
+                            &request,
+                            &source_sha,
+                            request.source_samples.unwrap_or(0),
+                            &current,
+                            choice,
+                            &prompt.export_basename,
+                        ) {
+                            if error.starts_with("DuplicateExportNameChanged:") {
+                                prompt.export_basename = crate::archive::ArchiveStore::suggest_duplicate_export_basename(
+                                    destination,
+                                    &request.source_path,
+                                )?;
+                                prompt.revalidation_notice = Some(
+                                    "Le nom de sortie proposé n'est plus disponible. Vérifiez le nouveau nom avant de confirmer.".into(),
+                                );
+                                return Ok(PreflightResult::Duplicate(prompt));
+                            }
+                            return Err(error);
+                        }
+                        let admitted = (request.job_id, request.generation);
+                        if let Err(error) = queue.enqueue(request.clone()) {
+                            let _ = crate::archive::ArchiveStore::clear_duplicate_reservation(
+                                destination,
+                                request.job_id,
+                                request.generation,
+                            );
+                            return Err(error);
+                        }
+                        Ok(PreflightResult::Queued {
+                            submitted: original,
+                            admitted,
+                            entries: queue.entries(),
+                        })
+                    });
+                match result {
+                    Ok(PreflightResult::Duplicate(prompt)) => {
+                        events.push_back(ImportEvent::DuplicateImportFound(prompt));
+                        Ok(())
+                    }
+                    Ok(PreflightResult::Queued {
+                        submitted,
+                        admitted,
+                        entries,
+                    }) => {
+                        if submitted == admitted {
+                            events.push_back(ImportEvent::Queue(entries));
+                        } else {
+                            events.push_back(ImportEvent::QueueAdmission {
+                                submitted_job_id: submitted.0,
+                                submitted_generation: submitted.1,
+                                queue: entries,
+                            });
+                        }
+                        Ok(())
+                    }
+                    Err(error) => Err((submitted.0, submitted.1, error)),
                 }
             }
             ImportEffect::RemoveQueued {
@@ -2151,6 +2536,98 @@ impl ImportRuntime {
                     });
                     return;
                 }
+                let destination = Path::new(&request.destination);
+                match crate::archive::ArchiveStore::publication_reconfirmation_required(
+                    &destination,
+                    previous.job_id,
+                    previous.generation,
+                ) {
+                    Ok(Some(reserved_export_basename)) => {
+                        let _lock =
+                            match crate::archive::ArchiveStore::lock_publications(destination) {
+                                Ok(lock) => lock,
+                                Err(error) => {
+                                    events.push_back(ImportEvent::Failed {
+                                        job_id: id.0,
+                                        generation: id.1,
+                                        message: error,
+                                    });
+                                    return;
+                                }
+                            };
+                        let source_sha256 = match previous.source_sha256 {
+                            Some(sha) => format_sha256(&sha),
+                            None => {
+                                events.push_back(ImportEvent::Failed {
+                                    job_id: id.0,
+                                    generation: id.1,
+                                    message: "SourceChanged: resume source identity is missing"
+                                        .into(),
+                                });
+                                return;
+                            }
+                        };
+                        let publications = match crate::archive::ArchiveStore::published_imports(
+                            destination,
+                            &source_sha256,
+                        ) {
+                            Ok(publications) => publications,
+                            Err(message) => {
+                                events.push_back(ImportEvent::Failed {
+                                    job_id: id.0,
+                                    generation: id.1,
+                                    message,
+                                });
+                                return;
+                            }
+                        };
+                        let export_basename =
+                            match crate::archive::ArchiveStore::suggest_duplicate_export_basename(
+                                destination,
+                                &previous.source_path,
+                            ) {
+                                Ok(name) => name,
+                                Err(message) => {
+                                    events.push_back(ImportEvent::Failed {
+                                        job_id: id.0,
+                                        generation: id.1,
+                                        message,
+                                    });
+                                    return;
+                                }
+                            };
+                        let Some(source_samples) = previous.source_samples else {
+                            events.push_back(ImportEvent::Failed {
+                                job_id: id.0,
+                                generation: id.1,
+                                message: "SourceChanged: resume source duration is missing".into(),
+                            });
+                            return;
+                        };
+                        events.push_back(ImportEvent::DuplicateImportFound(DuplicateImportPrompt {
+                            request,
+                            source_sha256,
+                            source_samples,
+                            publications,
+                            export_basename,
+                            revalidation_notice: Some(format!(
+                                "Une sortie interrompue au nom « {reserved_export_basename} » ne peut pas être attribuée sans risque. Confirmez explicitement ce nouveau nom pour reprendre ; l'ancienne sortie et les traitements existants sont conservés."
+                            )),
+                            resume_from: Some(*previous),
+                            reserved_export_basename: Some(reserved_export_basename),
+                        }));
+                        return;
+                    }
+                    Ok(None) => {}
+                    Err(message) => {
+                        events.push_back(ImportEvent::Failed {
+                            job_id: id.0,
+                            generation: id.1,
+                            message,
+                        });
+                        return;
+                    }
+                }
                 // Keep the historical model identity in the durable checkpoint. The execution
                 // request is rebound to the verified catalog only after the checkpoint exists.
                 let archive_destination = request.destination.clone();
@@ -2286,7 +2763,38 @@ impl ImportRuntime {
             }
             ImportEffect::ScanHistory { destination } => {
                 let root = PathBuf::from(destination);
-                events.push_back(ImportEvent::History(scan_archive_history(&root)));
+                let reconciliation = ArchiveStore::reconcile_publications(&root);
+                let mut history = scan_archive_history(&root);
+                if let Err(error) = reconciliation {
+                    history.push(ArchiveHistoryItem {
+                        job_id: JobId(0),
+                        generation: Generation::first(),
+                        complete: false,
+                        source_sha256: String::new(),
+                        diagnostic: Some(error),
+                        live_recovery: None,
+                    });
+                }
+                events.push_back(ImportEvent::History(history));
+                Ok(())
+            }
+            ImportEffect::ResolveImportPublication {
+                destination,
+                job_id,
+                generation,
+            } => {
+                let root = PathBuf::from(destination);
+                let resolution =
+                    ArchiveStore::resolve_import_publication(&root, job_id, generation);
+                let mut history = scan_archive_history(&root);
+                if let Err(error) = resolution
+                    && let Some(item) = history
+                        .iter_mut()
+                        .find(|item| item.job_id == job_id && item.generation == generation)
+                {
+                    item.diagnostic = Some(error);
+                }
+                events.push_back(ImportEvent::History(history));
                 Ok(())
             }
             ImportEffect::ResolveLivePublication(request) => {
@@ -8539,6 +9047,427 @@ fn main() {
                 compute: ComputeChoice::Cpu,
             },
         }
+    }
+
+    fn compile_r7_resume_worker(root: &Path, ready: &Path, release: &Path) -> PathBuf {
+        let source = root.join("r7-resume-worker.rs");
+        let executable = root.join("r7-resume-worker.exe");
+        let ready = serde_json::to_string(&ready.to_string_lossy().to_string()).unwrap();
+        let release = serde_json::to_string(&release.to_string_lossy().to_string()).unwrap();
+        let program = r#"
+use std::{io::{self, BufRead, Write}, thread, time::Duration};
+const READY: &str = __READY__;
+const RELEASE: &str = __RELEASE__;
+fn field(line: &str, name: &str) -> String {
+    let token = format!("\"{name}\":");
+    line.split_once(&token).expect("wire field").1.trim_start()
+        .chars().take_while(|c| c.is_ascii_digit()).collect()
+}
+fn emit(body: String) { println!("{{\"version\":2,\"message\":{{{body}}}}}"); io::stdout().flush().unwrap(); }
+fn main() {
+    let start = io::stdin().lock().lines().next().unwrap().unwrap();
+    let job = field(&start, "job_id");
+    let generation = field(&start, "generation");
+    let instance = field(&start, "instance_id");
+    let samples = field(&start, "expected_source_samples");
+    emit(format!("\"Ready\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"backend\":\"Cpu\"}}"));
+    std::fs::write(READY, b"ready").unwrap();
+    while !std::path::Path::new(RELEASE).is_file() { thread::sleep(Duration::from_millis(5)); }
+    emit(format!("\"Segment\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"segment_id\":1,\"range\":{{\"start_sample\":0,\"end_sample\":16000,\"sample_rate_hz\":16000}},\"text\":\"r7 confirmed transcript\"}}"));
+    emit(format!("\"Segment\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"segment_id\":2,\"range\":{{\"start_sample\":16000,\"end_sample\":{samples},\"sample_rate_hz\":16000}},\"text\":\"r7 resumed transcript\"}}"));
+    emit(format!("\"Progress\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"completed_samples\":{samples},\"total_samples\":{samples}}}"));
+    emit(format!("\"End\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"last_sequence\":2,\"last_offset\":{samples}}}"));
+}
+"#
+            .replace("__READY__", &ready)
+            .replace("__RELEASE__", &release);
+        std::fs::write(&source, program).unwrap();
+        let output = Command::new("rustc")
+            .args(["--edition=2021", "--crate-name", "whisper_r7_resume_worker"])
+            .arg(&source)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .expect("compile deterministic R7 resume worker");
+        assert!(
+            output.status.success(),
+            "rustc fake worker failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        executable
+    }
+
+    fn write_r7_resume_wav(path: &Path, samples: u32) {
+        use std::io::Write;
+        let data_bytes = samples * 2;
+        let mut file = std::fs::File::create(path).unwrap();
+        file.write_all(b"RIFF").unwrap();
+        file.write_all(&(36 + data_bytes).to_le_bytes()).unwrap();
+        file.write_all(b"WAVEfmt ").unwrap();
+        file.write_all(&16_u32.to_le_bytes()).unwrap();
+        file.write_all(&1_u16.to_le_bytes()).unwrap();
+        file.write_all(&1_u16.to_le_bytes()).unwrap();
+        file.write_all(&16_000_u32.to_le_bytes()).unwrap();
+        file.write_all(&32_000_u32.to_le_bytes()).unwrap();
+        file.write_all(&2_u16.to_le_bytes()).unwrap();
+        file.write_all(&16_u16.to_le_bytes()).unwrap();
+        file.write_all(b"data").unwrap();
+        file.write_all(&data_bytes.to_le_bytes()).unwrap();
+        file.write_all(&vec![0_u8; data_bytes as usize]).unwrap();
+    }
+
+    fn r7_resume_request(
+        job_id: JobId,
+        source: &Path,
+        destination: &Path,
+        model: &Path,
+        model_sha256: [u8; 32],
+    ) -> ImportRequest {
+        ImportRequest {
+            job_id,
+            generation: Generation::first(),
+            source_path: source.to_string_lossy().into_owned(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: model.to_string_lossy().into_owned(),
+            model_sha256,
+            destination: destination.to_string_lossy().into_owned(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        }
+    }
+
+    fn r7_hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    fn r7_generation_path(root: &Path, job_id: JobId, generation: Generation) -> PathBuf {
+        root.join("transcriptions")
+            .join(format!("{:032x}", job_id.0))
+            .join(generation.get().to_string())
+    }
+
+    fn wait_r7_prompt(
+        app: &mut ImportApplication<AsyncImportIo>,
+    ) -> whisper_core::ports::DuplicateImportPrompt {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        loop {
+            let _ = app.dispatch(AppCommand::Refresh);
+            let view = app.view();
+            if let Some(prompt) = view.duplicate_import_prompt {
+                return prompt;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "resume confirmation prompt timed out"
+            );
+            thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    fn run_r7_integrated_copy_resume_case(root: &Path, replace_existing: bool, model: &Path) {
+        use whisper_core::ports::DuplicateImportChoice;
+
+        let destination = root.join(if replace_existing { "replace" } else { "first" });
+        let source = root.join(if replace_existing {
+            "replace-source.wav"
+        } else {
+            "first-source.wav"
+        });
+        std::fs::create_dir_all(&destination).unwrap();
+        write_r7_resume_wav(&source, 32_000);
+        let model_sha256 = crate::model_catalog::cached_model_sha256(model).unwrap().1;
+        let source_hash = |request: &ImportRequest| r7_hex(&request.source_sha256.unwrap());
+
+        let old_publications = if replace_existing {
+            let mut previous = r7_resume_request(
+                JobId(((std::process::id() as u128) << 64) | 0x771),
+                &source,
+                &destination,
+                model,
+                model_sha256,
+            );
+            ArchiveStore::identify_source(&mut previous).unwrap();
+            let mut old_archive = ArchiveStore::new(&destination);
+            let prepared = old_archive.prepare(previous).unwrap();
+            old_archive
+                .persist_segment(&whisper_core::ports::WorkerSegment {
+                    job_id: prepared.job_id,
+                    generation: prepared.generation,
+                    instance_id: 1,
+                    segment_id: whisper_core::SegmentId(1),
+                    range: whisper_core::SourceRange::new(0, 32_000, 16_000).unwrap(),
+                    text: "older published transcript".into(),
+                })
+                .unwrap();
+            old_archive
+                .publish(prepared.job_id, prepared.generation, 1)
+                .unwrap();
+            ArchiveStore::published_imports(&destination, &source_hash(&prepared)).unwrap()
+        } else {
+            Vec::new()
+        };
+
+        let mut interrupted = r7_resume_request(
+            JobId(
+                ((std::process::id() as u128) << 64) | if replace_existing { 0x772 } else { 0x773 },
+            ),
+            &source,
+            &destination,
+            model,
+            model_sha256,
+        );
+        ArchiveStore::identify_source(&mut interrupted).unwrap();
+        let choice = if replace_existing {
+            DuplicateImportChoice::Replace
+        } else {
+            DuplicateImportChoice::CreateNew
+        };
+        if replace_existing {
+            let basename = ArchiveStore::suggest_duplicate_export_basename(
+                &destination,
+                &interrupted.source_path,
+            )
+            .unwrap();
+            ArchiveStore::reserve_duplicate_import(
+                &destination,
+                &interrupted,
+                &source_hash(&interrupted),
+                interrupted.source_samples.unwrap(),
+                &old_publications,
+                choice,
+                &basename,
+            )
+            .unwrap();
+        } else {
+            crate::archive::ArchiveStore::reserve_new_import(
+                &destination,
+                &interrupted,
+                &source_hash(&interrupted),
+            )
+            .unwrap();
+        }
+        let mut interrupted_archive = ArchiveStore::new(&destination);
+        interrupted = interrupted_archive.prepare(interrupted).unwrap();
+        interrupted_archive
+            .persist_segment(&whisper_core::ports::WorkerSegment {
+                job_id: interrupted.job_id,
+                generation: interrupted.generation,
+                instance_id: 1,
+                segment_id: whisper_core::SegmentId(1),
+                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                text: "r7 confirmed transcript".into(),
+            })
+            .unwrap();
+        let generation =
+            r7_generation_path(&destination, interrupted.job_id, interrupted.generation);
+        crate::archive::inject_copy_fallback_publication_cut(&destination, "srt");
+        let interrupted_result =
+            interrupted_archive.publish(interrupted.job_id, interrupted.generation, 1);
+        assert!(
+            interrupted_result
+                .as_ref()
+                .is_err_and(|error| error.contains("test interruption after final srt create_new")),
+            "the fault must occur after final SRT create_new and before identity persistence: {interrupted_result:?}"
+        );
+        assert!(!generation.join("CURRENT").exists());
+        assert_eq!(
+            ArchiveStore::published_imports(&destination, &source_hash(&interrupted)).unwrap(),
+            old_publications,
+            "old active publications stay visible after the export-copy interruption"
+        );
+
+        let intent_path = destination
+            .join(".whisper-publications/reservations")
+            .join(format!("{:032x}-1.json", interrupted.job_id.0));
+        let intent: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(intent_path).unwrap()).unwrap();
+        let interrupted_basename = intent["export_basename"].as_str().unwrap().to_owned();
+        let ambiguous_txt = destination
+            .join("exports")
+            .join(format!("{interrupted_basename}.txt"));
+        let ambiguous_srt = destination
+            .join("exports")
+            .join(format!("{interrupted_basename}.srt"));
+        let ambiguous_txt_bytes = std::fs::read(&ambiguous_txt).unwrap();
+        let ambiguous_srt_bytes = std::fs::read(&ambiguous_srt).unwrap();
+        let ambiguous_txt_identity = same_file::Handle::from_path(&ambiguous_txt).unwrap();
+        let ambiguous_srt_identity = same_file::Handle::from_path(&ambiguous_srt).unwrap();
+        let transcript_srt = std::fs::read(generation.join("transcript.srt")).unwrap();
+
+        // This is an independently created, byte-identical third-party collision at
+        // the next candidate name. The restart flow must suggest another name.
+        let collision_basename =
+            ArchiveStore::suggest_duplicate_export_basename(&destination, &interrupted.source_path)
+                .unwrap();
+        let third_party = destination
+            .join("exports")
+            .join(format!("{collision_basename}.srt"));
+        std::fs::write(&third_party, &transcript_srt).unwrap();
+        let third_party_identity = same_file::Handle::from_path(&third_party).unwrap();
+        let third_party_bytes = std::fs::read(&third_party).unwrap();
+        let final_basename =
+            ArchiveStore::suggest_duplicate_export_basename(&destination, &interrupted.source_path)
+                .unwrap();
+
+        let mut queue = crate::queue_store::QueueStore::open(&destination).unwrap();
+        queue.enqueue(interrupted.clone()).unwrap();
+        queue
+            .set_status(
+                interrupted.job_id,
+                interrupted.generation,
+                crate::queue_store::QueueStatus::Interrupted,
+            )
+            .unwrap();
+
+        let ready = root.join(format!("resume-ready-{}", interrupted.job_id.0));
+        let release = root.join(format!("resume-release-{}", interrupted.job_id.0));
+        let worker = compile_r7_resume_worker(root, &ready, &release);
+        let mut app = ImportApplication::new(AsyncImportIo::start(worker));
+        app.dispatch(AppCommand::ResumeInterrupted {
+            request: interrupted.clone(),
+        })
+        .unwrap();
+        let prompt = wait_r7_prompt(&mut app);
+        assert_eq!(prompt.resume_from, Some(interrupted.clone()));
+        assert_eq!(prompt.export_basename, final_basename);
+        assert!(
+            prompt
+                .revalidation_notice
+                .as_deref()
+                .is_some_and(|notice| { notice.contains("Confirmez explicitement") }),
+            "ambiguous export must require visible reconfirmation"
+        );
+        assert_eq!(prompt.publications, old_publications);
+        app.dispatch(AppCommand::ResolveDuplicateImport { prompt, choice })
+            .unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(60);
+        while !ready.is_file() {
+            assert!(
+                Instant::now() < deadline,
+                "resumed worker did not reach Ready; view={:?}",
+                app.view()
+            );
+            let _ = app.dispatch(AppCommand::Refresh).unwrap();
+            thread::sleep(Duration::from_millis(5));
+        }
+        let resumed = interrupted.clone_with_next_generation();
+        let current_queue = crate::queue_store::QueueStore::open(&destination).unwrap();
+        let row = current_queue
+            .entries()
+            .into_iter()
+            .find(|entry| entry.request.job_id == resumed.job_id)
+            .expect("resumed request is durable in queue");
+        assert_eq!(row.request.generation, resumed.generation);
+        assert_eq!(row.status, crate::queue_store::QueueStatus::Running);
+        assert_eq!(
+            ArchiveStore::published_imports(&destination, &source_hash(&interrupted)).unwrap(),
+            old_publications,
+            "Replace leaves all old publications active until the resumed generation commits"
+        );
+        assert_eq!(std::fs::read(&ambiguous_txt).unwrap(), ambiguous_txt_bytes);
+        assert_eq!(std::fs::read(&ambiguous_srt).unwrap(), ambiguous_srt_bytes);
+        assert_eq!(
+            same_file::Handle::from_path(&ambiguous_txt).unwrap(),
+            ambiguous_txt_identity
+        );
+        assert_eq!(
+            same_file::Handle::from_path(&ambiguous_srt).unwrap(),
+            ambiguous_srt_identity
+        );
+
+        std::fs::write(&release, b"continue").unwrap();
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let completed = loop {
+            let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
+                panic!("resume refresh failed: {error:?}; view={:?}", app.view())
+            });
+            if view.active_job == Some((resumed.job_id, JobState::Complete)) {
+                break view;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "resumed worker did not publish; view={:?}",
+                app.view()
+            );
+            thread::sleep(Duration::from_millis(5));
+        };
+        assert!(completed.last_result.is_some());
+        let published =
+            ArchiveStore::published_imports(&destination, &source_hash(&interrupted)).unwrap();
+        assert_eq!(published.len(), 1);
+        assert_eq!(
+            (published[0].job_id, published[0].generation),
+            (resumed.job_id, resumed.generation)
+        );
+        let resumed_generation =
+            r7_generation_path(&destination, resumed.job_id, resumed.generation);
+        assert!(resumed_generation.join("CURRENT").is_file());
+        assert_eq!(
+            std::fs::read(resumed_generation.join("transcript.txt")).unwrap(),
+            b"r7 confirmed transcript\nr7 resumed transcript"
+        );
+        assert!(
+            destination
+                .join("exports")
+                .join(format!("{final_basename}.txt"))
+                .is_file()
+        );
+        assert!(
+            destination
+                .join("exports")
+                .join(format!("{final_basename}.srt"))
+                .is_file()
+        );
+        assert_eq!(std::fs::read(&third_party).unwrap(), third_party_bytes);
+        assert_eq!(
+            same_file::Handle::from_path(&third_party).unwrap(),
+            third_party_identity,
+            "byte-identical third-party collision is never moved or adopted"
+        );
+        assert_eq!(std::fs::read(&ambiguous_txt).unwrap(), ambiguous_txt_bytes);
+        assert_eq!(std::fs::read(&ambiguous_srt).unwrap(), ambiguous_srt_bytes);
+        drop(app);
+        crate::archive::clear_copy_fallback_publication_cut();
+        std::fs::remove_dir_all(destination).unwrap();
+    }
+
+    trait NextGeneration {
+        fn clone_with_next_generation(&self) -> Self;
+    }
+
+    impl NextGeneration for ImportRequest {
+        fn clone_with_next_generation(&self) -> Self {
+            let mut resumed = self.clone();
+            resumed.generation = self.generation.next().unwrap();
+            resumed
+        }
+    }
+
+    #[test]
+    fn r7_restart_resume_integrates_copy_crash_dialog_queue_and_publication() {
+        let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let model = repository.join("models/ggml-large-v3-turbo.bin");
+        if !model.is_file() {
+            eprintln!("NOT RUN: local Turbo model missing for integrated R7 resume test");
+            return;
+        }
+        let root = test_artifact_root("r7-integrated-copy-resume").join(format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        run_r7_integrated_copy_resume_case(&root, false, &model);
+        run_r7_integrated_copy_resume_case(&root, true, &model);
+        crate::archive::clear_copy_fallback_publication_cut();
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

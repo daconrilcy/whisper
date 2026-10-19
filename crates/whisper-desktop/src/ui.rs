@@ -16,6 +16,7 @@ use whisper_core::model_catalog::{Backend, ModelId};
 use whisper_core::model_registry::TURBO_LANGUAGE_INPUTS;
 use whisper_core::model_selection_app::ModelSelectionApp;
 use whisper_core::path_settings::{PathDefaults, PathField, PathSettingsApp, SaveStatus};
+use whisper_core::ports::DuplicateImportChoice;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ModelPreferenceCommand {
@@ -121,6 +122,29 @@ pub const APPROVED_MODEL_SHA256: &str =
     "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69";
 const IMPORT_CPU_MVP: bool = true;
 static NEXT_JOB: AtomicU64 = AtomicU64::new(1);
+static NEXT_IMPORT_JOB_ID: AtomicU64 = AtomicU64::new(1);
+
+fn next_import_job_id() -> JobId {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(1, |duration| {
+            duration.as_nanos().min(u64::MAX as u128) as u64
+        });
+    let mut observed = NEXT_IMPORT_JOB_ID.load(Ordering::Relaxed);
+    let serial = loop {
+        let next = now.max(observed.saturating_add(1));
+        match NEXT_IMPORT_JOB_ID.compare_exchange_weak(
+            observed,
+            next,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => break next,
+            Err(actual) => observed = actual,
+        }
+    };
+    JobId(((std::process::id() as u128) << 64) | serial as u128)
+}
 
 pub struct DesktopApp<A> {
     application: AppFacade<A>,
@@ -594,8 +618,7 @@ impl<A: Application> DesktopApp<A> {
             self.view.message = Some("Le modèle sélectionné n'est pas disponible.".into());
             return;
         };
-        let serial = NEXT_JOB.fetch_add(1, Ordering::Relaxed);
-        let job_id = JobId(((std::process::id() as u128) << 64) | serial as u128);
+        let job_id = next_import_job_id();
         let generation = Generation::first();
         let config = JobConfig {
             language: selected_language(&self.selection),
@@ -1081,6 +1104,66 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             }
         });
 
+        if let Some(prompt) = self.view.duplicate_import_prompt.clone() {
+            egui::Modal::new(egui::Id::new("duplicate_import_confirmation")).show(ui.ctx(), |ui| {
+                ui.set_min_width(360.0);
+                if prompt.resume_from.is_some() {
+                    ui.heading("Reprise de publication interrompue");
+                    ui.label(format!(
+                        "{} transcription(s) antérieure(s) sont conservées. Confirmez explicitement le nouveau nom avant de reprendre.",
+                        prompt.publications.len()
+                    ));
+                } else {
+                    ui.heading("Audio déjà traité");
+                    ui.label(format!(
+                        "Ce contenu audio possède {} transcription(s) dans la destination choisie.",
+                        prompt.publications.len()
+                    ));
+                }
+                ui.label(format!(
+                    "Nom proposé : {}.txt / {}.srt",
+                    prompt.export_basename, prompt.export_basename
+                ));
+                if let Some(notice) = &prompt.revalidation_notice {
+                    ui.colored_label(egui::Color32::YELLOW, notice);
+                }
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            !prompt.publications.is_empty(),
+                            egui::Button::new(if prompt.resume_from.is_some() {
+                                "Reprendre et remplacer les traitements existants"
+                            } else {
+                                "Remplacer les traitements existants"
+                            }),
+                        )
+                        .clicked()
+                    {
+                        self.dispatch(AppCommand::ResolveDuplicateImport {
+                            prompt: prompt.clone(),
+                            choice: DuplicateImportChoice::Replace,
+                        });
+                    }
+                    if ui
+                        .button(if prompt.resume_from.is_some() {
+                            "Reprendre sous un nouveau nom"
+                        } else {
+                            "Créer un nouveau"
+                        })
+                        .clicked()
+                    {
+                        self.dispatch(AppCommand::ResolveDuplicateImport {
+                            prompt: prompt.clone(),
+                            choice: DuplicateImportChoice::CreateNew,
+                        });
+                    }
+                });
+                if ui.button("Annuler").clicked() {
+                    self.dispatch(AppCommand::CancelDuplicateImport);
+                }
+            });
+        }
+
         let micro_active = self.view.active_job.is_some_and(|(job_id, _)| {
             self.live_request
                 .as_ref()
@@ -1336,7 +1419,26 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 item.source_sha256
             ));
             if let Some(diagnostic) = &item.diagnostic {
-                ui.colored_label(egui::Color32::LIGHT_RED, diagnostic);
+                if let Some(base) = diagnostic.strip_prefix("Export: ") {
+                    ui.label(format!(
+                        "TXT/SRT : exports/{base}.txt et exports/{base}.srt"
+                    ));
+                } else if diagnostic.starts_with("Recoverable: publication R11") {
+                    ui.label(diagnostic);
+                    if !busy
+                        && ui
+                            .button("Reprendre l'activation de cette transcription")
+                            .clicked()
+                    {
+                        self.dispatch(AppCommand::ResolveImportPublication {
+                            destination: destination.clone(),
+                            job_id: item.job_id,
+                            generation: item.generation,
+                        });
+                    }
+                } else {
+                    ui.colored_label(egui::Color32::LIGHT_RED, diagnostic);
+                }
             }
             if let Some(recovery) = item.live_recovery {
                 ui.label(format!(

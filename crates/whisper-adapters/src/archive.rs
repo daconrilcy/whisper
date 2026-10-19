@@ -2,8 +2,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File, OpenOptions},
-    io::{BufRead, BufReader, Read, Seek, SeekFrom, Write},
+    hash::{Hash, Hasher},
+    io::{self, BufRead, BufReader, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
+    sync::Arc,
     time::Instant,
 };
 use symphonia::core::audio::Channels;
@@ -13,7 +15,7 @@ use symphonia::core::{
 };
 use whisper_core::{
     Generation, JobId, SourceRange,
-    ports::{ImportRequest, LiveRequest, WorkerSegment},
+    ports::{DuplicateImportChoice, ImportRequest, LiveRequest, PublishedImport, WorkerSegment},
 };
 
 #[cfg(test)]
@@ -29,6 +31,59 @@ fn is_registered_model(hash: &str, size: u64) -> bool {
 }
 const PCM_STAGING_HEADER: &[u8] = b"WHISPCM1\0\x80\x3e\0\0\x01\0";
 static L04_CAMPAIGN_OCCURRENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+#[cfg(test)]
+#[derive(Default)]
+struct PublicationCopyFault {
+    root: Option<PathBuf>,
+    cut_after_extension: Option<String>,
+}
+
+#[cfg(test)]
+static PUBLICATION_COPY_FAULT: std::sync::OnceLock<std::sync::Mutex<PublicationCopyFault>> =
+    std::sync::OnceLock::new();
+
+#[cfg(test)]
+pub(crate) fn inject_copy_fallback_publication_cut(root: &Path, extension: &str) {
+    let fault = PUBLICATION_COPY_FAULT.get_or_init(Default::default);
+    let mut fault = fault.lock().expect("publication fault mutex");
+    fault.root = Some(root.to_path_buf());
+    fault.cut_after_extension = Some(extension.to_owned());
+}
+
+#[cfg(test)]
+pub(crate) fn clear_copy_fallback_publication_cut() {
+    if let Some(fault) = PUBLICATION_COPY_FAULT.get() {
+        *fault.lock().expect("publication fault mutex") = PublicationCopyFault::default();
+    }
+}
+
+#[cfg(test)]
+fn publication_copy_fault_applies(root: &Path) -> bool {
+    PUBLICATION_COPY_FAULT
+        .get()
+        .and_then(|fault| fault.lock().ok())
+        .is_some_and(|fault| fault.root.as_deref() == Some(root))
+}
+
+#[cfg(test)]
+fn publication_copy_fault_after(root: &Path, extension: &str) -> Result<(), String> {
+    let Some(fault) = PUBLICATION_COPY_FAULT.get() else {
+        return Ok(());
+    };
+    let mut fault = fault
+        .lock()
+        .map_err(|_| "test publication fault mutex poisoned".to_owned())?;
+    if fault.root.as_deref() == Some(root)
+        && fault.cut_after_extension.as_deref() == Some(extension)
+    {
+        fault.cut_after_extension = None;
+        return Err(format!(
+            "test interruption after final {extension} create_new"
+        ));
+    }
+    Ok(())
+}
 
 fn l04_campaign_after(before: &str) -> Option<&'static str> {
     match before {
@@ -735,6 +790,29 @@ struct CompleteRecord {
     srt: ArtifactRecord,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct InstalledExportOwnership {
+    version: u32,
+    job_id: JobId,
+    generation: Generation,
+    source_sha256: String,
+    export_basename: String,
+    text_sha256: String,
+    srt_sha256: String,
+    #[serde(default)]
+    text_file_identity: Option<String>,
+    #[serde(default)]
+    srt_file_identity: Option<String>,
+    #[serde(default)]
+    text_temporary_identity: Option<String>,
+    #[serde(default)]
+    srt_temporary_identity: Option<String>,
+}
+
+fn installed_export_ownership_path(directory: &Path) -> PathBuf {
+    directory.join("installed-exports.json")
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArchiveEntry {
     pub job_id: JobId,
@@ -742,11 +820,64 @@ pub struct ArchiveEntry {
     pub complete: bool,
     pub source_sha256: String,
     pub diagnostic: Option<String>,
+    pub export_basename: Option<String>,
+    pub publication_recovery: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct PublicationIndex {
+    version: u32,
+    records: Vec<PublicationRecord>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct PublicationRecord {
+    job_id: JobId,
+    generation: Generation,
+    source_sha256: String,
+    export_basename: Option<String>,
+    active: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct PublicationIdentity {
+    job_id: JobId,
+    generation: Generation,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct PublicationIntent {
+    version: u32,
+    operation_id: String,
+    choice: DuplicateImportChoice,
+    source_sha256: String,
+    source_samples: u64,
+    expected_active: Vec<PublicationIdentity>,
+    export_basename: String,
+}
+
+impl Default for PublicationIntent {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            operation_id: "legacy-test".into(),
+            choice: DuplicateImportChoice::CreateNew,
+            source_sha256: String::new(),
+            source_samples: 0,
+            expected_active: Vec::new(),
+            export_basename: "transcription".into(),
+        }
+    }
+}
+
+pub struct PublicationLock {
+    _file: File,
 }
 
 pub struct ArchiveStore {
     root: PathBuf,
     current: Option<ActiveArchive>,
+    export_hard_linker: Arc<dyn Fn(&Path, &Path) -> io::Result<()> + Send + Sync>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -1467,13 +1598,318 @@ struct ActiveArchive {
     source_sha256: [u8; 32],
     source_samples: u64,
     expected_sequence: u64,
+    publication: PublicationIntent,
 }
 
 impl ArchiveStore {
+    pub fn lock_publications(root: &Path) -> Result<PublicationLock, String> {
+        fs::create_dir_all(root.join(".whisper-publications"))
+            .map_err(|error| format!("StorageUnavailable: publication directory: {error}"))?;
+        let path = root.join(".whisper-publications.lock");
+        let file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(path)
+            .map_err(|error| format!("StorageUnavailable: publication lock: {error}"))?;
+        file.lock()
+            .map_err(|error| format!("StorageUnavailable: publication lock: {error}"))?;
+        Ok(PublicationLock { _file: file })
+    }
+
+    pub fn published_imports(
+        root: &Path,
+        source_sha256: &str,
+    ) -> Result<Vec<PublishedImport>, String> {
+        let entries = Self::scan(root)?;
+        if let Some(diagnostic) = entries.iter().find_map(|entry| {
+            entry
+                .diagnostic
+                .as_deref()
+                .filter(|message| message.starts_with("StorageCorrupt:"))
+        }) {
+            return Err(diagnostic.to_owned());
+        }
+        let mut found = Vec::new();
+        for entry in entries
+            .into_iter()
+            .filter(|entry| entry.complete && entry.source_sha256 == source_sha256)
+        {
+            if entry.publication_recovery {
+                continue;
+            }
+            found.push(PublishedImport {
+                job_id: entry.job_id,
+                generation: entry.generation,
+                source_sha256: entry.source_sha256,
+                export_basename: entry.export_basename,
+            });
+        }
+        found.sort_by_key(|item| (item.job_id.0, item.generation.get()));
+        Ok(found)
+    }
+
+    pub fn job_identity_exists(root: &Path, job_id: JobId, generation: Generation) -> bool {
+        root.join("transcriptions")
+            .join(format!("{:032x}", job_id.0))
+            .join(generation.get().to_string())
+            .exists()
+    }
+
+    pub fn reserve_new_import(
+        root: &Path,
+        request: &ImportRequest,
+        source_sha256: &str,
+    ) -> Result<(), String> {
+        let basename = reserve_export_basename(root, &request.source_path)?;
+        write_publication_reservation(
+            root,
+            request,
+            source_sha256,
+            request.source_samples.unwrap_or(0),
+            Vec::new(),
+            DuplicateImportChoice::CreateNew,
+            basename,
+        )
+    }
+
+    pub fn reserve_duplicate_import(
+        root: &Path,
+        request: &ImportRequest,
+        source_sha256: &str,
+        source_samples: u64,
+        expected_active: &[PublishedImport],
+        choice: DuplicateImportChoice,
+        export_basename: &str,
+    ) -> Result<(), String> {
+        let current = Self::published_imports(root, source_sha256)?;
+        if current != expected_active {
+            return Err("DuplicateStateChanged: publications changed before enqueue".into());
+        }
+        let expected = current
+            .iter()
+            .map(|item| PublicationIdentity {
+                job_id: item.job_id,
+                generation: item.generation,
+            })
+            .collect();
+        let basename = reserve_export_basename(root, &request.source_path)?;
+        if basename != export_basename {
+            return Err(
+                "DuplicateExportNameChanged: proposed export name is no longer available".into(),
+            );
+        }
+        write_publication_reservation(
+            root,
+            request,
+            source_sha256,
+            source_samples,
+            expected,
+            choice,
+            basename,
+        )
+    }
+
+    pub fn suggest_duplicate_export_basename(
+        root: &Path,
+        source_path: &str,
+    ) -> Result<String, String> {
+        reserve_export_basename(root, source_path)
+    }
+
+    /// Returns the reserved basename when a visible export cannot be proven
+    /// to belong to the interrupted publication. Content equality is never
+    /// used as ownership evidence.
+    pub fn publication_reconfirmation_required(
+        root: &Path,
+        job_id: JobId,
+        generation: Generation,
+    ) -> Result<Option<String>, String> {
+        let _lock = Self::lock_publications(root)?;
+        publication_reconfirmation_required_unlocked(root, job_id, generation)
+    }
+
+    /// Reassigns an interrupted publication only after the user confirms the
+    /// newly proposed name. The ambiguous prior export is left untouched.
+    pub fn reconfirm_interrupted_publication(
+        root: &Path,
+        previous: &ImportRequest,
+        source_sha256: &str,
+        source_samples: u64,
+        expected_active: &[PublishedImport],
+        choice: DuplicateImportChoice,
+        reserved_basename: &str,
+        confirmed_basename: &str,
+    ) -> Result<(), String> {
+        let _lock = Self::lock_publications(root)?;
+        let current = Self::published_imports(root, source_sha256)?;
+        if current != expected_active {
+            return Err(
+                "DuplicateStateChanged: publications changed before resume confirmation".into(),
+            );
+        }
+        let path = publication_reservation_path(root, previous.job_id, previous.generation);
+        let mut intent: PublicationIntent =
+            serde_json::from_slice(&fs::read(&path).map_err(|error| {
+                format!("StorageCorrupt: interrupted publication reservation: {error}")
+            })?)
+            .map_err(|error| {
+                format!("StorageCorrupt: interrupted publication reservation: {error}")
+            })?;
+        if intent.source_sha256 != source_sha256
+            || intent.source_samples != source_samples
+            || intent.export_basename != reserved_basename
+            || publication_reconfirmation_required_unlocked(
+                root,
+                previous.job_id,
+                previous.generation,
+            )?
+            .as_deref()
+                != Some(reserved_basename)
+        {
+            return Err(
+                "DuplicateStateChanged: interrupted export changed before confirmation".into(),
+            );
+        }
+        let available = reserve_export_basename(root, &previous.source_path)?;
+        if available != confirmed_basename {
+            return Err(
+                "DuplicateExportNameChanged: proposed export name is no longer available".into(),
+            );
+        }
+        intent.choice = choice;
+        intent.expected_active = current
+            .iter()
+            .map(|item| PublicationIdentity {
+                job_id: item.job_id,
+                generation: item.generation,
+            })
+            .collect();
+        intent.export_basename = confirmed_basename.to_owned();
+
+        let directory = generation_path(root, previous.job_id, previous.generation);
+        let ownership_path = installed_export_ownership_path(&directory);
+        if ownership_path.is_file() {
+            let mut ownership: InstalledExportOwnership =
+                serde_json::from_slice(&fs::read(&ownership_path).map_err(|error| {
+                    format!("StorageCorrupt: export ownership record: {error}")
+                })?)
+                .map_err(|error| format!("StorageCorrupt: export ownership record: {error}"))?;
+            if ownership.job_id != previous.job_id
+                || ownership.generation != previous.generation
+                || ownership.source_sha256 != source_sha256
+                || (ownership.export_basename != reserved_basename
+                    && ownership.export_basename != confirmed_basename)
+            {
+                return Err(
+                    "StorageCorrupt: interrupted export ownership does not match reservation"
+                        .into(),
+                );
+            }
+            ownership.export_basename = confirmed_basename.to_owned();
+            ownership.version = 3;
+            ownership.text_file_identity = None;
+            ownership.srt_file_identity = None;
+            ownership.text_temporary_identity = Some(persisted_file_identity(
+                &export_install_temporary_path(&directory, "txt"),
+            )?);
+            ownership.srt_temporary_identity = Some(persisted_file_identity(
+                &export_install_temporary_path(&directory, "srt"),
+            )?);
+            if hex(&sha256_file(&export_install_temporary_path(
+                &directory, "txt",
+            ))?) != ownership.text_sha256
+                || hex(&sha256_file(&export_install_temporary_path(
+                    &directory, "srt",
+                ))?) != ownership.srt_sha256
+            {
+                return Err(
+                    "StorageCorrupt: staged exports changed before resume confirmation".into(),
+                );
+            }
+            write_replace_synced(
+                &ownership_path,
+                &serde_json::to_vec(&ownership).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| {
+                format!("StorageUnavailable: update interrupted export ownership: {error}")
+            })?;
+        }
+        write_replace_synced(
+            &path,
+            &serde_json::to_vec(&intent).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| format!("StorageUnavailable: update interrupted publication: {error}"))?;
+        Ok(())
+    }
+
+    pub fn clear_duplicate_reservation(
+        root: &Path,
+        job_id: JobId,
+        generation: Generation,
+    ) -> Result<(), String> {
+        let path = publication_reservation_path(root, job_id, generation);
+        match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(format!(
+                "StorageUnavailable: publication reservation cleanup: {error}"
+            )),
+        }
+    }
+
+    pub fn reconcile_publications(root: &Path) -> Result<(), String> {
+        let _lock = Self::lock_publications(root)?;
+        let path = publication_index_path(root);
+        if !path.is_file() {
+            return Ok(());
+        }
+        reconcile_replaced_exports(root, &read_publication_index(root)?)
+    }
+
+    pub fn resolve_import_publication(
+        root: &Path,
+        job_id: JobId,
+        generation: Generation,
+    ) -> Result<(), String> {
+        let _lock = Self::lock_publications(root)?;
+        let dir = generation_path(root, job_id, generation);
+        let intent = load_publication_intent(&dir)?;
+        if !dir.join("CURRENT").is_file() {
+            return Err("InvalidInput: publication is not complete".into());
+        }
+        let current = Self::published_imports(root, &intent.source_sha256)?;
+        let expected: Vec<_> = intent
+            .expected_active
+            .iter()
+            .map(|item| (item.job_id, item.generation))
+            .collect();
+        let actual: Vec<_> = current
+            .iter()
+            .map(|item| (item.job_id, item.generation))
+            .collect();
+        if expected != actual {
+            return Err(
+                "DuplicateStateChanged: publication set changed; re-import to confirm".into(),
+            );
+        }
+        install_publication_exports(root, &dir, &intent)?;
+        let index = apply_publication_intent(
+            load_or_migrate_publication_index(root)?,
+            job_id,
+            generation,
+            &intent,
+        );
+        write_publication_index(root, &index)?;
+        reconcile_replaced_exports(root, &index)?;
+        Self::clear_duplicate_reservation(root, job_id, generation)
+    }
+
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self {
             root: root.into(),
             current: None,
+            export_hard_linker: Arc::new(|source, target| fs::hard_link(source, target)),
         }
     }
     pub fn root_path(&self) -> PathBuf {
@@ -1836,6 +2272,45 @@ impl ArchiveStore {
             .join("transcriptions")
             .join(format!("{:032x}", request.job_id.0))
             .join(request.generation.get().to_string());
+        if directory.join("CURRENT").is_file() {
+            return Err(
+                "ImportIdentityConflict: generation is already published; a new JobId is required"
+                    .into(),
+            );
+        }
+        let reservation =
+            publication_reservation_path(&destination, request.job_id, request.generation);
+        let publication = if reservation.is_file() {
+            serde_json::from_slice(&fs::read(reservation).map_err(|error| error.to_string())?)
+                .map_err(|error| format!("StorageCorrupt: publication reservation: {error}"))?
+        } else {
+            let expected_active = Self::published_imports(&destination, &hex(&source_sha))?
+                .into_iter()
+                .map(|item| PublicationIdentity {
+                    job_id: item.job_id,
+                    generation: item.generation,
+                })
+                .collect();
+            let export_basename = reserve_export_basename(&destination, &request.source_path)?;
+            PublicationIntent {
+                version: 1,
+                operation_id: format!(
+                    "legacy-{:032x}-{}",
+                    request.job_id.0,
+                    request.generation.get()
+                ),
+                choice: DuplicateImportChoice::CreateNew,
+                source_sha256: hex(&source_sha),
+                source_samples,
+                expected_active,
+                export_basename,
+            }
+        };
+        if publication.source_sha256 != hex(&source_sha)
+            || publication.source_samples != source_samples
+        {
+            return Err("SourceChanged: publication reservation does not match source".into());
+        }
         fs::create_dir_all(&directory).map_err(|e| format!("StorageUnavailable: {e}"))?;
         let pending = PendingRecord {
             version: if vad_qualification {
@@ -1865,6 +2340,7 @@ impl ArchiveStore {
             source_sha256: source_sha,
             source_samples,
             expected_sequence,
+            publication,
         });
         if let Some(executable_model_path) = executable_model_path {
             request.model_path = executable_model_path.to_owned();
@@ -1982,6 +2458,42 @@ impl ArchiveStore {
             return Err(
                 "StorageCorrupt: confirmed resume prefix is not a valid ordered checkpoint".into(),
             );
+        }
+        let destination = PathBuf::from(&previous.destination);
+        let _publication_lock = Self::lock_publications(&destination)?;
+        let previous_reservation =
+            publication_reservation_path(&destination, previous.job_id, previous.generation);
+        if previous_reservation.is_file() {
+            let mut intent: PublicationIntent = serde_json::from_slice(
+                &fs::read(&previous_reservation)
+                    .map_err(|error| format!("StorageCorrupt: resume reservation: {error}"))?,
+            )
+            .map_err(|error| format!("StorageCorrupt: resume reservation: {error}"))?;
+            if intent.source_sha256 != pending.source_sha256
+                || intent.source_samples != pending.source_samples
+            {
+                return Err("SourceChanged: resume reservation does not match checkpoint".into());
+            }
+            let current = Self::published_imports(&destination, &intent.source_sha256)?;
+            let current_ids: Vec<_> = current
+                .iter()
+                .map(|item| PublicationIdentity {
+                    job_id: item.job_id,
+                    generation: item.generation,
+                })
+                .collect();
+            if current_ids != intent.expected_active {
+                return Err("DuplicateStateChanged: publications changed before resume".into());
+            }
+            intent.operation_id = format!("{:032x}-{}", request.job_id.0, request.generation.get());
+            let next_reservation =
+                publication_reservation_path(&destination, request.job_id, request.generation);
+            write_publication_intent(&destination, &request, &intent)?;
+            if previous_reservation != next_reservation {
+                fs::remove_file(&previous_reservation).map_err(|error| {
+                    format!("StorageUnavailable: settle previous publication reservation: {error}")
+                })?;
+            }
         }
         let prepared = self.prepare_inner(request, executable_model_path, qualification)?;
         self.copy_resume_prefix(&prepared, &prefix)?;
@@ -2155,6 +2667,24 @@ impl ArchiveStore {
                 .map_err(|e| format!("StorageCorrupt: manifest: {e}"))?;
         verify_artifact(&active.directory, &verified.text)?;
         verify_artifact(&active.directory, &verified.srt)?;
+        let marker_path = active.directory.join("r11-publication.json");
+        write_replace_synced(
+            &marker_path,
+            &serde_json::to_vec(&active.publication).map_err(|error| error.to_string())?,
+        )?;
+        for (extension, artifact) in [("txt", &verified.text), ("srt", &verified.srt)] {
+            let staged = active.directory.join(format!("export.{extension}.pending"));
+            let source = active.directory.join(&artifact.path);
+            write_replace_synced(
+                &staged,
+                &fs::read(source).map_err(|error| error.to_string())?,
+            )?;
+            if hex(&sha256_file(&staged)?) != artifact.sha256 {
+                return Err(format!(
+                    "StorageCorrupt: staged export {extension} does not match the manifest"
+                ));
+            }
+        }
         crate::worker_ipc::record_r7_timing(
             "archive_prepare_publish",
             started.elapsed(),
@@ -2172,6 +2702,32 @@ impl ArchiveStore {
         if active.job_id != job_id || active.generation != generation {
             return Err("StaleResponse: publish commit targets another generation".into());
         }
+        let root = self.root.clone();
+        let _lock = Self::lock_publications(&root)?;
+        let current = Self::published_imports(&root, &active.publication.source_sha256)?;
+        let expected: Vec<_> = active
+            .publication
+            .expected_active
+            .iter()
+            .map(|item| (item.job_id, item.generation))
+            .collect();
+        let actual: Vec<_> = current
+            .iter()
+            .map(|item| (item.job_id, item.generation))
+            .collect();
+        if expected != actual {
+            return Err(
+                "DuplicateStateChanged: publications changed during processing; confirm again"
+                    .into(),
+            );
+        }
+        let publication = active.publication.clone();
+        install_publication_exports_with(
+            &root,
+            &active.directory,
+            &publication,
+            self.export_hard_linker.as_ref(),
+        )?;
         l04_campaign_gate("import.before_current", job_id.0, generation.get(), 0)?;
         let current_path = active.directory.join("CURRENT");
         let operation = write_replace_synced(&current_path, b"manifest.json\n");
@@ -2185,6 +2741,15 @@ impl ArchiveStore {
         )?;
         operation?;
         l04_campaign_gate("import.after_current", job_id.0, generation.get(), 0)?;
+        let index = apply_publication_intent(
+            load_or_migrate_publication_index(&root)?,
+            job_id,
+            generation,
+            &publication,
+        );
+        write_publication_index(&root, &index)?;
+        reconcile_replaced_exports(&root, &index)?;
+        Self::clear_duplicate_reservation(&root, job_id, generation)?;
         self.current = None;
         crate::worker_ipc::record_r7_timing(
             "archive_commit_publish",
@@ -2205,6 +2770,51 @@ impl ArchiveStore {
     }
 
     pub fn scan(root: &Path) -> Result<Vec<ArchiveEntry>, String> {
+        let mut entries = Self::scan_raw(root)?;
+        let index_path = publication_index_path(root);
+        let index = if index_path.exists() {
+            Some(read_publication_index(root)?)
+        } else {
+            None
+        };
+        entries.retain_mut(|entry| {
+            if !entry.complete {
+                return true;
+            }
+            let directory = generation_path(root, entry.job_id, entry.generation);
+            let record = index.as_ref().and_then(|value| {
+                value.records.iter().find(|record| {
+                    record.job_id == entry.job_id && record.generation == entry.generation
+                })
+            });
+            if directory.join("r11-publication.json").is_file() {
+                if let Some(record) = record {
+                    if !record.active {
+                        return false;
+                    }
+                    entry.export_basename = record.export_basename.clone();
+                    return true;
+                }
+                entry.complete = false;
+                entry.publication_recovery = true;
+                entry.diagnostic = Some(
+                    "Recoverable: publication R11 complète, en attente d'activation explicite"
+                        .into(),
+                );
+                return true;
+            }
+            if let Some(record) = record {
+                if !record.active {
+                    return false;
+                }
+                entry.export_basename = record.export_basename.clone();
+            }
+            true
+        });
+        Ok(entries)
+    }
+
+    fn scan_raw(root: &Path) -> Result<Vec<ArchiveEntry>, String> {
         l04_campaign_assert_archive(root)?;
         let mut entries = Vec::new();
         let base = root.join("transcriptions");
@@ -2276,6 +2886,1042 @@ impl ArchiveStore {
     }
 }
 
+fn publication_index_path(root: &Path) -> PathBuf {
+    root.join(".whisper-publications").join("index.json")
+}
+
+fn publication_reservation_path(root: &Path, job_id: JobId, generation: Generation) -> PathBuf {
+    root.join(".whisper-publications")
+        .join("reservations")
+        .join(format!("{:032x}-{}.json", job_id.0, generation.get()))
+}
+
+fn publication_reconfirmation_required_unlocked(
+    root: &Path,
+    job_id: JobId,
+    generation: Generation,
+) -> Result<Option<String>, String> {
+    let reservation_path = publication_reservation_path(root, job_id, generation);
+    if !reservation_path.is_file() {
+        return Ok(None);
+    }
+    let intent: PublicationIntent = serde_json::from_slice(
+        &fs::read(&reservation_path)
+            .map_err(|error| format!("StorageCorrupt: publication reservation: {error}"))?,
+    )
+    .map_err(|error| format!("StorageCorrupt: publication reservation: {error}"))?;
+    let directory = generation_path(root, job_id, generation);
+    let ownership_path = installed_export_ownership_path(&directory);
+    let ownership = match fs::read(&ownership_path) {
+        Ok(bytes) => Some(
+            serde_json::from_slice::<InstalledExportOwnership>(&bytes)
+                .map_err(|error| format!("StorageCorrupt: export ownership record: {error}"))?,
+        ),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(format!(
+                "StorageUnavailable: export ownership record: {error}"
+            ));
+        }
+    };
+    let exports = root.join("exports");
+    for extension in ["txt", "srt"] {
+        let final_path = exports.join(format!("{}.{}", intent.export_basename, extension));
+        if !final_path.exists() {
+            continue;
+        }
+        let identity = persisted_file_identity(&final_path)?;
+        let proven = ownership.as_ref().is_some_and(|record| {
+            if record.job_id != job_id
+                || record.generation != generation
+                || record.source_sha256 != intent.source_sha256
+                || record.export_basename != intent.export_basename
+            {
+                return false;
+            }
+            let final_identity = match extension {
+                "txt" => record.text_file_identity.as_deref(),
+                "srt" => record.srt_file_identity.as_deref(),
+                _ => None,
+            };
+            if final_identity == Some(identity.as_str()) {
+                return true;
+            }
+            let temporary_identity = match extension {
+                "txt" => record.text_temporary_identity.as_deref(),
+                "srt" => record.srt_temporary_identity.as_deref(),
+                _ => None,
+            };
+            let temporary = export_install_temporary_path(&directory, extension);
+            temporary_identity == Some(identity.as_str())
+                && same_file::is_same_file(&final_path, &temporary).unwrap_or(false)
+        });
+        if !proven {
+            return Ok(Some(intent.export_basename));
+        }
+    }
+    Ok(None)
+}
+
+fn generation_path(root: &Path, job_id: JobId, generation: Generation) -> PathBuf {
+    root.join("transcriptions")
+        .join(format!("{:032x}", job_id.0))
+        .join(generation.get().to_string())
+}
+
+fn write_publication_reservation(
+    root: &Path,
+    request: &ImportRequest,
+    source_sha256: &str,
+    source_samples: u64,
+    expected_active: Vec<PublicationIdentity>,
+    choice: DuplicateImportChoice,
+    export_basename: String,
+) -> Result<(), String> {
+    let path = publication_reservation_path(root, request.job_id, request.generation);
+    if path.exists() {
+        return Err("DuplicateStateChanged: reservation already exists".into());
+    }
+    fs::create_dir_all(path.parent().expect("reservation parent"))
+        .map_err(|error| format!("StorageUnavailable: reservation directory: {error}"))?;
+    let operation_id = format!("{:032x}-{}", request.job_id.0, request.generation.get());
+    let intent = PublicationIntent {
+        version: 1,
+        operation_id,
+        choice,
+        source_sha256: source_sha256.to_owned(),
+        source_samples,
+        expected_active,
+        export_basename,
+    };
+    write_publication_intent(root, request, &intent)
+}
+
+fn write_publication_intent(
+    root: &Path,
+    request: &ImportRequest,
+    intent: &PublicationIntent,
+) -> Result<(), String> {
+    let path = publication_reservation_path(root, request.job_id, request.generation);
+    if path.exists() {
+        let existing: PublicationIntent =
+            serde_json::from_slice(&fs::read(&path).map_err(|error| {
+                format!("StorageCorrupt: existing publication reservation: {error}")
+            })?)
+            .map_err(|error| {
+                format!("StorageCorrupt: existing publication reservation: {error}")
+            })?;
+        if existing == *intent {
+            return Ok(());
+        }
+        return Err("DuplicateStateChanged: reservation already exists with another intent".into());
+    }
+    fs::create_dir_all(path.parent().expect("reservation parent"))
+        .map_err(|error| format!("StorageUnavailable: reservation directory: {error}"))?;
+    write_new_synced(
+        &path,
+        &serde_json::to_vec(intent).map_err(|error| error.to_string())?,
+    )
+}
+
+fn load_publication_intent(directory: &Path) -> Result<PublicationIntent, String> {
+    let marker = directory.join("r11-publication.json");
+    if marker.is_file() {
+        return serde_json::from_slice(
+            &fs::read(marker)
+                .map_err(|error| format!("StorageCorrupt: publication marker: {error}"))?,
+        )
+        .map_err(|error| format!("StorageCorrupt: publication marker: {error}"));
+    }
+    let pending: PendingRecord = serde_json::from_slice(
+        &fs::read(directory.join("pending.json")).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| format!("StorageCorrupt: pending publication: {error}"))?;
+    let reservation = publication_reservation_path(
+        directory.ancestors().nth(3).unwrap_or(directory),
+        pending.job_id,
+        pending.generation,
+    );
+    if reservation.is_file() {
+        return serde_json::from_slice(&fs::read(reservation).map_err(|error| error.to_string())?)
+            .map_err(|error| format!("StorageCorrupt: publication reservation: {error}"));
+    }
+    let source = Path::new(&pending.source_path);
+    Ok(PublicationIntent {
+        version: 1,
+        operation_id: format!(
+            "legacy-{:032x}-{}",
+            pending.job_id.0,
+            pending.generation.get()
+        ),
+        choice: DuplicateImportChoice::CreateNew,
+        source_sha256: pending.source_sha256,
+        source_samples: pending.source_samples,
+        expected_active: Vec::new(),
+        export_basename: safe_export_stem(
+            source
+                .file_stem()
+                .and_then(|name| name.to_str())
+                .unwrap_or("transcription"),
+        ),
+    })
+}
+
+fn read_publication_index(root: &Path) -> Result<PublicationIndex, String> {
+    let path = publication_index_path(root);
+    let index: PublicationIndex = serde_json::from_slice(
+        &fs::read(path).map_err(|error| format!("StorageCorrupt: publication index: {error}"))?,
+    )
+    .map_err(|error| format!("StorageCorrupt: publication index: {error}"))?;
+    if index.version != 1 {
+        return Err("StorageCorrupt: unsupported publication index version".into());
+    }
+    Ok(index)
+}
+
+fn load_or_migrate_publication_index(root: &Path) -> Result<PublicationIndex, String> {
+    let path = publication_index_path(root);
+    if path.exists() {
+        return read_publication_index(root);
+    }
+    let mut records = Vec::new();
+    for entry in ArchiveStore::scan_raw(root)?
+        .into_iter()
+        .filter(|entry| entry.complete)
+    {
+        let directory = generation_path(root, entry.job_id, entry.generation);
+        if directory.join("r11-publication.json").exists() {
+            continue;
+        }
+        records.push(PublicationRecord {
+            job_id: entry.job_id,
+            generation: entry.generation,
+            source_sha256: entry.source_sha256,
+            export_basename: None,
+            active: true,
+        });
+    }
+    Ok(PublicationIndex {
+        version: 1,
+        records,
+    })
+}
+
+fn write_publication_index(root: &Path, index: &PublicationIndex) -> Result<(), String> {
+    let path = publication_index_path(root);
+    fs::create_dir_all(path.parent().expect("index parent"))
+        .map_err(|error| format!("StorageUnavailable: publication index directory: {error}"))?;
+    write_replace_synced(
+        &path,
+        &serde_json::to_vec(index).map_err(|error| error.to_string())?,
+    )
+}
+
+fn install_publication_exports(
+    root: &Path,
+    directory: &Path,
+    intent: &PublicationIntent,
+) -> Result<(), String> {
+    install_publication_exports_with(root, directory, intent, &|source, target| {
+        fs::hard_link(source, target)
+    })
+}
+
+fn install_publication_exports_with(
+    root: &Path,
+    directory: &Path,
+    intent: &PublicationIntent,
+    hard_linker: &dyn Fn(&Path, &Path) -> io::Result<()>,
+) -> Result<(), String> {
+    #[cfg(test)]
+    let force_copy = publication_copy_fault_applies(root);
+    #[cfg(test)]
+    let link = |source: &Path, target: &Path| {
+        if force_copy {
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "test forces copy fallback",
+            ))
+        } else {
+            hard_linker(source, target)
+        }
+    };
+    #[cfg(not(test))]
+    let link = |source: &Path, target: &Path| hard_linker(source, target);
+
+    #[cfg(test)]
+    let after_copy = |extension: &str, _path: &Path| publication_copy_fault_after(root, extension);
+    #[cfg(not(test))]
+    let after_copy = |_: &str, _: &Path| Ok(());
+
+    install_publication_exports_with_copy_hook(root, directory, intent, &link, &after_copy)
+}
+
+fn install_publication_exports_with_copy_hook(
+    root: &Path,
+    directory: &Path,
+    intent: &PublicationIntent,
+    hard_linker: &dyn Fn(&Path, &Path) -> io::Result<()>,
+    after_final_copy: &dyn Fn(&str, &Path) -> Result<(), String>,
+) -> Result<(), String> {
+    let manifest: CompleteRecord = serde_json::from_slice(
+        &fs::read(directory.join("manifest.json"))
+            .map_err(|error| format!("StorageCorrupt: export manifest: {error}"))?,
+    )
+    .map_err(|error| format!("StorageCorrupt: export manifest: {error}"))?;
+    if manifest.job_id != intent_job_id(directory)?
+        || manifest.generation != intent_generation(directory)?
+        || (!intent.source_sha256.is_empty() && manifest.source_sha256 != intent.source_sha256)
+    {
+        return Err("StorageCorrupt: export manifest identity mismatch".into());
+    }
+    let exports = root.join("exports");
+    fs::create_dir_all(&exports)
+        .map_err(|error| format!("StorageUnavailable: exports: {error}"))?;
+    verify_artifact(directory, &manifest.text)?;
+    verify_artifact(directory, &manifest.srt)?;
+    let mut ownership = InstalledExportOwnership {
+        version: 1,
+        job_id: manifest.job_id,
+        generation: manifest.generation,
+        source_sha256: manifest.source_sha256.clone(),
+        export_basename: intent.export_basename.clone(),
+        text_sha256: manifest.text.sha256.clone(),
+        srt_sha256: manifest.srt.sha256.clone(),
+        text_file_identity: None,
+        srt_file_identity: None,
+        text_temporary_identity: None,
+        srt_temporary_identity: None,
+    };
+    let ownership_path = installed_export_ownership_path(directory);
+    if ownership_path.exists() {
+        let existing: InstalledExportOwnership = serde_json::from_slice(
+            &fs::read(&ownership_path)
+                .map_err(|error| format!("StorageCorrupt: export ownership record: {error}"))?,
+        )
+        .map_err(|error| format!("StorageCorrupt: export ownership record: {error}"))?;
+        if !same_export_ownership(&existing, &ownership) {
+            return Err("StorageCorrupt: export ownership identity mismatch".into());
+        }
+        if existing.version == 1 {
+            verify_owned_export(&exports, directory, &existing, &manifest.text, "txt")?;
+            verify_owned_export(&exports, directory, &existing, &manifest.srt, "srt")?;
+            return Ok(());
+        }
+        if !matches!(existing.version, 2 | 3) {
+            return Err("StorageCorrupt: unsupported export ownership version".into());
+        }
+        ownership = existing;
+        if ownership.version == 2 {
+            ownership.text_temporary_identity = ownership.text_file_identity.clone();
+            ownership.srt_temporary_identity = ownership.srt_file_identity.clone();
+            ownership.version = 3;
+            write_replace_synced(
+                &ownership_path,
+                &serde_json::to_vec(&ownership).map_err(|error| error.to_string())?,
+            )?;
+        }
+        install_owned_export(
+            &exports,
+            directory,
+            &ownership_path,
+            &mut ownership,
+            &manifest.text,
+            "txt",
+            hard_linker,
+            after_final_copy,
+        )?;
+        install_owned_export(
+            &exports,
+            directory,
+            &ownership_path,
+            &mut ownership,
+            &manifest.srt,
+            "srt",
+            hard_linker,
+            after_final_copy,
+        )?;
+        verify_owned_export(&exports, directory, &ownership, &manifest.text, "txt")?;
+        verify_owned_export(&exports, directory, &ownership, &manifest.srt, "srt")?;
+        return Ok(());
+    }
+
+    // First reject collisions before creating any temporary output. A byte
+    // match alone never proves that an existing path belongs to this app.
+    for extension in ["txt", "srt"] {
+        let final_path = exports.join(format!("{}.{}", intent.export_basename, extension));
+        if final_path.exists() {
+            let staged_export = directory.join(format!("export.{extension}.pending"));
+            if same_file::is_same_file(&final_path, &staged_export).unwrap_or(false) {
+                continue;
+            }
+            if !is_archived_export_file(root, &final_path, extension)? {
+                return Err(format!(
+                    "StorageUnavailable: export name collision for {extension}"
+                ));
+            }
+            let index_path = publication_index_path(root);
+            if index_path.exists()
+                && read_publication_index(root)?.records.iter().any(|record| {
+                    record.active
+                        && record.export_basename.as_deref()
+                            == Some(intent.export_basename.as_str())
+                })
+            {
+                return Err(format!(
+                    "StorageUnavailable: active export name collision for {extension}"
+                ));
+            }
+            fs::remove_file(&final_path).map_err(|error| {
+                format!("StorageUnavailable: remove verified orphan export: {error}")
+            })?;
+        }
+    }
+
+    // Build owned temporary files on the destination volume. Prefer hard
+    // links, with exclusive copies as the filesystem fallback. Final install
+    // also uses a no-clobber hard link, then create_new copy if unsupported.
+    for (extension, artifact) in [("txt", &manifest.text), ("srt", &manifest.srt)] {
+        let final_path = exports.join(format!("{}.{}", intent.export_basename, extension));
+        let staged_export = directory.join(format!("export.{extension}.pending"));
+        if hex(&sha256_file(&staged_export)?) != artifact.sha256 {
+            return Err(format!(
+                "StorageCorrupt: staged {extension} export failed verification"
+            ));
+        }
+        if final_path.exists()
+            && same_file::is_same_file(&final_path, &staged_export).unwrap_or(false)
+        {
+            let identity = persisted_file_identity(&final_path)?;
+            set_export_file_identity(&mut ownership, extension, identity.clone());
+            set_export_temporary_identity(&mut ownership, extension, identity);
+            continue;
+        }
+        let temporary = export_install_temporary_path(directory, extension);
+        if temporary.exists() {
+            fs::remove_file(&temporary).map_err(|error| {
+                format!("StorageUnavailable: clear stale {extension} export temporary: {error}")
+            })?;
+        }
+        if hard_linker(&staged_export, &temporary).is_err() {
+            copy_file_create_new(&staged_export, &temporary)?;
+        }
+        if hex(&sha256_file(&temporary)?) != artifact.sha256 {
+            return Err(format!(
+                "StorageCorrupt: temporary {extension} export failed verification"
+            ));
+        }
+        let identity = persisted_file_identity(&temporary)?;
+        set_export_temporary_identity(&mut ownership, extension, identity);
+    }
+    ownership.version = 3;
+    write_new_synced(
+        &ownership_path,
+        &serde_json::to_vec(&ownership).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| format!("StorageUnavailable: export ownership record: {error}"))?;
+    install_owned_export(
+        &exports,
+        directory,
+        &ownership_path,
+        &mut ownership,
+        &manifest.text,
+        "txt",
+        hard_linker,
+        after_final_copy,
+    )?;
+    install_owned_export(
+        &exports,
+        directory,
+        &ownership_path,
+        &mut ownership,
+        &manifest.srt,
+        "srt",
+        hard_linker,
+        after_final_copy,
+    )?;
+    verify_owned_export(&exports, directory, &ownership, &manifest.text, "txt")?;
+    verify_owned_export(&exports, directory, &ownership, &manifest.srt, "srt")?;
+    Ok(())
+}
+
+fn same_export_ownership(
+    existing: &InstalledExportOwnership,
+    expected: &InstalledExportOwnership,
+) -> bool {
+    existing.job_id == expected.job_id
+        && existing.generation == expected.generation
+        && existing.source_sha256 == expected.source_sha256
+        && existing.export_basename == expected.export_basename
+        && existing.text_sha256 == expected.text_sha256
+        && existing.srt_sha256 == expected.srt_sha256
+}
+
+fn export_install_temporary_path(directory: &Path, extension: &str) -> PathBuf {
+    directory.join(format!("export.{extension}.install.pending"))
+}
+
+fn persisted_file_identity(path: &Path) -> Result<String, String> {
+    let handle = same_file::Handle::from_path(path)
+        .map_err(|error| format!("StorageUnavailable: export file identity: {error}"))?;
+    let mut hasher = FileIdentityHasher::default();
+    handle.hash(&mut hasher);
+    Ok(hex(&Sha256::digest(hasher.bytes)))
+}
+
+#[derive(Default)]
+struct FileIdentityHasher {
+    bytes: Vec<u8>,
+}
+
+impl Hasher for FileIdentityHasher {
+    fn finish(&self) -> u64 {
+        0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        self.bytes.extend_from_slice(bytes);
+    }
+
+    fn write_u8(&mut self, value: u8) {
+        self.bytes.push(value);
+    }
+
+    fn write_u64(&mut self, value: u64) {
+        self.bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn write_usize(&mut self, value: usize) {
+        self.write_u64(value as u64);
+    }
+}
+
+fn set_export_file_identity(
+    ownership: &mut InstalledExportOwnership,
+    extension: &str,
+    identity: String,
+) {
+    match extension {
+        "txt" => ownership.text_file_identity = Some(identity),
+        "srt" => ownership.srt_file_identity = Some(identity),
+        _ => unreachable!("validated export extension"),
+    }
+}
+
+fn set_export_temporary_identity(
+    ownership: &mut InstalledExportOwnership,
+    extension: &str,
+    identity: String,
+) {
+    match extension {
+        "txt" => ownership.text_temporary_identity = Some(identity),
+        "srt" => ownership.srt_temporary_identity = Some(identity),
+        _ => unreachable!("validated export extension"),
+    }
+}
+
+fn copy_file_create_new(source: &Path, target: &Path) -> Result<(), String> {
+    let mut source_file = File::open(source)
+        .map_err(|error| format!("StorageUnavailable: open staged export copy: {error}"))?;
+    let mut target_file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(target)
+        .map_err(|error| format!("StorageUnavailable: create export copy: {error}"))?;
+    io::copy(&mut source_file, &mut target_file)
+        .and_then(|_| target_file.sync_all())
+        .map_err(|error| format!("StorageUnavailable: sync export copy: {error}"))
+}
+
+fn install_owned_export(
+    exports: &Path,
+    generation: &Path,
+    ownership_path: &Path,
+    ownership: &mut InstalledExportOwnership,
+    artifact: &ArtifactRecord,
+    extension: &str,
+    hard_linker: &dyn Fn(&Path, &Path) -> io::Result<()>,
+    after_final_copy: &dyn Fn(&str, &Path) -> Result<(), String>,
+) -> Result<(), String> {
+    let expected_final_identity = match extension {
+        "txt" => ownership.text_file_identity.clone(),
+        "srt" => ownership.srt_file_identity.clone(),
+        _ => return Err("StorageCorrupt: unsupported owned export type".into()),
+    };
+    let expected_temporary_identity = match extension {
+        "txt" => ownership.text_temporary_identity.clone(),
+        "srt" => ownership.srt_temporary_identity.clone(),
+        _ => return Err("StorageCorrupt: unsupported owned export type".into()),
+    }
+    .ok_or_else(|| format!("StorageCorrupt: missing {extension} temporary identity"))?;
+    let final_path = exports.join(format!("{}.{}", ownership.export_basename, extension));
+    if final_path.exists() {
+        let actual_identity = persisted_file_identity(&final_path)?;
+        if expected_final_identity.as_deref() == Some(actual_identity.as_str()) {
+            if hex(&sha256_file(&final_path)?) != artifact.sha256 {
+                return Err(format!(
+                    "StorageCorrupt: installed {extension} export failed verification"
+                ));
+            }
+            return Ok(());
+        }
+        let temporary = export_install_temporary_path(generation, extension);
+        if ownership.version == 3
+            && actual_identity == expected_temporary_identity
+            && same_file::is_same_file(&final_path, &temporary).unwrap_or(false)
+        {
+            set_export_file_identity(ownership, extension, actual_identity);
+            write_replace_synced(
+                ownership_path,
+                &serde_json::to_vec(ownership).map_err(|error| error.to_string())?,
+            )?;
+            return Ok(());
+        }
+        if expected_final_identity.is_none() {
+            return Err(format!(
+                "StorageUnavailable: export name collision for {extension}"
+            ));
+        }
+        return Err(format!(
+            "StorageUnavailable: export name collision for {extension}"
+        ));
+    }
+    let temporary = export_install_temporary_path(generation, extension);
+    if !temporary.is_file()
+        || persisted_file_identity(&temporary)? != expected_temporary_identity
+        || hex(&sha256_file(&temporary)?) != artifact.sha256
+    {
+        return Err(format!(
+            "StorageCorrupt: owned {extension} export temporary is unavailable or changed"
+        ));
+    }
+    if hard_linker(&temporary, &final_path).is_ok() {
+        set_export_file_identity(ownership, extension, expected_temporary_identity.clone());
+    } else {
+        if final_path.exists() {
+            return Err(format!(
+                "StorageUnavailable: export name collision for {extension}"
+            ));
+        }
+        copy_file_create_new(&temporary, &final_path)?;
+        after_final_copy(extension, &final_path)?;
+        set_export_file_identity(ownership, extension, persisted_file_identity(&final_path)?);
+    }
+    write_replace_synced(
+        ownership_path,
+        &serde_json::to_vec(ownership).map_err(|error| error.to_string())?,
+    )?;
+    Ok(())
+}
+
+fn intent_job_id(directory: &Path) -> Result<JobId, String> {
+    let (job_id, _) = parse_generation_directory(directory)?;
+    Ok(job_id)
+}
+
+fn intent_generation(directory: &Path) -> Result<Generation, String> {
+    let (_, generation) = parse_generation_directory(directory)?;
+    Ok(generation)
+}
+
+fn parse_generation_directory(directory: &Path) -> Result<(JobId, Generation), String> {
+    let generation = directory
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| name.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .ok_or_else(|| "StorageCorrupt: non-canonical export generation path".to_owned())?;
+    let job_id = directory
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .and_then(parse_job_id)
+        .ok_or_else(|| "StorageCorrupt: non-canonical export job path".to_owned())?;
+    let generation = serde_json::from_value(serde_json::Value::from(generation))
+        .map_err(|_| "StorageCorrupt: invalid export generation".to_owned())?;
+    Ok((job_id, generation))
+}
+
+fn verify_owned_export(
+    exports: &Path,
+    generation: &Path,
+    ownership: &InstalledExportOwnership,
+    artifact: &ArtifactRecord,
+    extension: &str,
+) -> Result<(), String> {
+    let expected_hash = match extension {
+        "txt" => &ownership.text_sha256,
+        "srt" => &ownership.srt_sha256,
+        _ => return Err("StorageCorrupt: unsupported owned export type".into()),
+    };
+    if expected_hash != &artifact.sha256 {
+        return Err(format!(
+            "StorageCorrupt: owned {extension} export provenance differs from manifest"
+        ));
+    }
+    let path = exports.join(format!("{}.{}", ownership.export_basename, extension));
+    let actual = hex(&sha256_file(&path)
+        .map_err(|error| format!("StorageUnavailable: owned {extension} export: {error}"))?);
+    if &actual != expected_hash {
+        return Err(format!(
+            "StorageCorrupt: owned {extension} export no longer matches its provenance"
+        ));
+    }
+    let staged_export = generation.join(format!("export.{extension}.pending"));
+    if hex(&sha256_file(&staged_export).map_err(|error| {
+        format!("StorageUnavailable: verify staged {extension} identity: {error}")
+    })?) != *expected_hash
+    {
+        return Err(format!(
+            "StorageCorrupt: staged {extension} export no longer matches its provenance"
+        ));
+    }
+    let identity_matches = match (ownership.version, extension) {
+        (2, "txt") => {
+            ownership.text_file_identity.as_deref()
+                == Some(persisted_file_identity(&path)?.as_str())
+        }
+        (2, "srt") => {
+            ownership.srt_file_identity.as_deref() == Some(persisted_file_identity(&path)?.as_str())
+        }
+        (3, "txt") => {
+            ownership.text_file_identity.as_deref()
+                == Some(persisted_file_identity(&path)?.as_str())
+        }
+        (3, "srt") => {
+            ownership.srt_file_identity.as_deref() == Some(persisted_file_identity(&path)?.as_str())
+        }
+        (1, _) => same_file::is_same_file(&path, &staged_export).map_err(|error| {
+            format!("StorageUnavailable: verify owned {extension} identity: {error}")
+        })?,
+        _ => false,
+    };
+    let temporary_identity_matches = match (ownership.version, extension) {
+        (3, "txt") => {
+            ownership.text_temporary_identity.as_deref()
+                == Some(
+                    persisted_file_identity(&export_install_temporary_path(generation, extension))?
+                        .as_str(),
+                )
+        }
+        (3, "srt") => {
+            ownership.srt_temporary_identity.as_deref()
+                == Some(
+                    persisted_file_identity(&export_install_temporary_path(generation, extension))?
+                        .as_str(),
+                )
+        }
+        _ => true,
+    };
+    if !identity_matches || !temporary_identity_matches {
+        return Err(format!(
+            "StorageCorrupt: owned {extension} export has different file identity (final_match={identity_matches}, temporary_match={temporary_identity_matches})"
+        ));
+    }
+    Ok(())
+}
+
+fn is_archived_export_file(root: &Path, candidate: &Path, extension: &str) -> Result<bool, String> {
+    let transcriptions = root.join("transcriptions");
+    if !transcriptions.is_dir() {
+        return Ok(false);
+    }
+    for job_entry in fs::read_dir(&transcriptions)
+        .map_err(|error| format!("StorageUnavailable: export provenance jobs: {error}"))?
+    {
+        let job_dir = job_entry
+            .map_err(|error| format!("StorageUnavailable: export provenance job: {error}"))?
+            .path();
+        if !job_dir.is_dir() {
+            continue;
+        }
+        for generation_entry in fs::read_dir(&job_dir).map_err(|error| {
+            format!("StorageUnavailable: export provenance generations: {error}")
+        })? {
+            let generation = generation_entry
+                .map_err(|error| {
+                    format!("StorageUnavailable: export provenance generation: {error}")
+                })?
+                .path();
+            if !generation.is_dir() {
+                continue;
+            }
+            let Ok(bytes) = fs::read(generation.join("manifest.json")) else {
+                continue;
+            };
+            let Ok(manifest) = serde_json::from_slice::<CompleteRecord>(&bytes) else {
+                continue;
+            };
+            let (Ok(job_id), Ok(generation_id)) =
+                (intent_job_id(&generation), intent_generation(&generation))
+            else {
+                continue;
+            };
+            if manifest.job_id != job_id || manifest.generation != generation_id {
+                continue;
+            }
+            let artifact = match extension {
+                "txt" => &manifest.text,
+                "srt" => &manifest.srt,
+                _ => continue,
+            };
+            if verify_artifact(&generation, artifact).is_err() {
+                continue;
+            }
+            let staged_export = generation.join(format!("export.{extension}.pending"));
+            if hex(&sha256_file(&staged_export)?) != artifact.sha256 {
+                continue;
+            }
+            let owned = match fs::read(installed_export_ownership_path(&generation)) {
+                Ok(ownership_bytes) => {
+                    let Ok(ownership) =
+                        serde_json::from_slice::<InstalledExportOwnership>(&ownership_bytes)
+                    else {
+                        continue;
+                    };
+                    let expected_name = format!("{}.{}", ownership.export_basename, extension);
+                    let expected_hash = match extension {
+                        "txt" => &ownership.text_sha256,
+                        "srt" => &ownership.srt_sha256,
+                        _ => continue,
+                    };
+                    if ownership.job_id != job_id
+                        || ownership.generation != generation_id
+                        || candidate.file_name().and_then(|name| name.to_str())
+                            != Some(&expected_name)
+                        || expected_hash != &artifact.sha256
+                    {
+                        continue;
+                    }
+                    match ownership.version {
+                        1 => same_file::is_same_file(candidate, &staged_export).unwrap_or(false),
+                        2 | 3 => {
+                            let expected_identity = match extension {
+                                "txt" => ownership.text_file_identity.as_deref(),
+                                "srt" => ownership.srt_file_identity.as_deref(),
+                                _ => None,
+                            };
+                            expected_identity.is_some_and(|expected| {
+                                persisted_file_identity(candidate)
+                                    .is_ok_and(|actual| actual == expected)
+                            })
+                        }
+                        _ => false,
+                    }
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    // A crash may leave a legacy R11 hard link before its
+                    // ownership record was written. Only its file identity,
+                    // never content equality, establishes that provenance.
+                    same_file::is_same_file(candidate, &staged_export).unwrap_or(false)
+                }
+                Err(_) => false,
+            };
+            if owned {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
+fn apply_publication_intent(
+    mut index: PublicationIndex,
+    job_id: JobId,
+    generation: Generation,
+    intent: &PublicationIntent,
+) -> PublicationIndex {
+    if intent.choice == DuplicateImportChoice::Replace {
+        for record in &mut index.records {
+            if record.active && record.source_sha256 == intent.source_sha256 {
+                record.active = false;
+            }
+        }
+    }
+    index
+        .records
+        .retain(|record| !(record.job_id == job_id && record.generation == generation));
+    index.records.push(PublicationRecord {
+        job_id,
+        generation,
+        source_sha256: intent.source_sha256.clone(),
+        export_basename: Some(intent.export_basename.clone()),
+        active: true,
+    });
+    index
+}
+
+fn reserve_export_basename(root: &Path, source_path: &str) -> Result<String, String> {
+    let stem = safe_export_stem(
+        Path::new(source_path)
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or("transcription"),
+    );
+    let exports = root.join("exports");
+    let mut reserved = std::collections::HashSet::new();
+    for record in load_or_migrate_publication_index(root)?.records {
+        if let Some(name) = record.export_basename {
+            reserved.insert(name);
+        }
+    }
+    let reservation_dir = root.join(".whisper-publications").join("reservations");
+    if reservation_dir.exists() {
+        for entry in fs::read_dir(&reservation_dir)
+            .map_err(|error| format!("StorageUnavailable: reservation listing: {error}"))?
+        {
+            let path = entry
+                .map_err(|error| format!("StorageUnavailable: reservation entry: {error}"))?
+                .path();
+            let intent: PublicationIntent = serde_json::from_slice(
+                &fs::read(path)
+                    .map_err(|error| format!("StorageCorrupt: reservation read: {error}"))?,
+            )
+            .map_err(|error| format!("StorageCorrupt: reservation JSON: {error}"))?;
+            reserved.insert(intent.export_basename);
+        }
+    }
+    let mut suffix = 1u64;
+    loop {
+        let candidate = if suffix == 1 {
+            stem.clone()
+        } else {
+            format!("{stem} ({suffix})")
+        };
+        if !reserved.contains(&candidate)
+            && !exports.join(format!("{candidate}.txt")).exists()
+            && !exports.join(format!("{candidate}.srt")).exists()
+        {
+            return Ok(candidate);
+        }
+        suffix += 1;
+    }
+}
+
+fn safe_export_stem(stem: &str) -> String {
+    let cleaned: String = stem
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | ' ') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let cleaned = cleaned.trim().trim_matches('.');
+    if cleaned.is_empty() {
+        "transcription".into()
+    } else {
+        cleaned.chars().take(80).collect()
+    }
+}
+
+fn reconcile_replaced_exports(root: &Path, index: &PublicationIndex) -> Result<(), String> {
+    let backup = root.join("transcriptions-remplacees");
+    for record in index.records.iter().filter(|record| !record.active) {
+        let Some(name) = &record.export_basename else {
+            continue;
+        };
+        if index
+            .records
+            .iter()
+            .any(|current| current.active && current.export_basename.as_ref() == Some(name))
+        {
+            continue;
+        }
+        let generation = generation_path(root, record.job_id, record.generation);
+        let manifest: CompleteRecord =
+            serde_json::from_slice(&fs::read(generation.join("manifest.json")).map_err(
+                |error| format!("StorageCorrupt: replaced export manifest is unavailable: {error}"),
+            )?)
+            .map_err(|error| format!("StorageCorrupt: replaced export manifest: {error}"))?;
+        if manifest.job_id != record.job_id || manifest.generation != record.generation {
+            return Err("StorageCorrupt: replaced export manifest identity mismatch".into());
+        }
+        if manifest.source_sha256 != record.source_sha256 {
+            return Err("StorageCorrupt: replaced export source identity mismatch".into());
+        }
+        verify_artifact(&generation, &manifest.text)?;
+        verify_artifact(&generation, &manifest.srt)?;
+        let ownership_path = installed_export_ownership_path(&generation);
+        let Ok(ownership_bytes) = fs::read(&ownership_path) else {
+            // Legacy exports without an app-written provenance record remain
+            // visible. Their content alone cannot establish ownership.
+            continue;
+        };
+        let ownership: InstalledExportOwnership = serde_json::from_slice(&ownership_bytes)
+            .map_err(|error| format!("StorageCorrupt: export ownership record: {error}"))?;
+        if !matches!(ownership.version, 1 | 2 | 3)
+            || ownership.job_id != record.job_id
+            || ownership.generation != record.generation
+            || ownership.source_sha256 != record.source_sha256
+            || ownership.export_basename != *name
+            || ownership.text_sha256 != manifest.text.sha256
+            || ownership.srt_sha256 != manifest.srt.sha256
+        {
+            return Err("StorageCorrupt: replaced export provenance mismatch".into());
+        }
+        fs::create_dir_all(&backup)
+            .map_err(|error| format!("StorageUnavailable: replaced export backup: {error}"))?;
+        let suffix = format!(
+            "{}-{}",
+            format!("{:032x}", record.job_id.0),
+            record.generation.get()
+        );
+        for (ext, artifact) in [("txt", &manifest.text), ("srt", &manifest.srt)] {
+            let source = root.join("exports").join(format!("{name}.{ext}"));
+            if !source.exists() {
+                continue;
+            }
+            let expected_owned_hash = if ext == "txt" {
+                &ownership.text_sha256
+            } else {
+                &ownership.srt_sha256
+            };
+            let identity_matches = match (ownership.version, ext) {
+                (1, _) => same_file::is_same_file(
+                    &source,
+                    generation.join(format!("export.{ext}.pending")),
+                )
+                .unwrap_or(false),
+                (2, "txt") => {
+                    ownership.text_file_identity.as_deref()
+                        == Some(persisted_file_identity(&source)?.as_str())
+                }
+                (2, "srt") => {
+                    ownership.srt_file_identity.as_deref()
+                        == Some(persisted_file_identity(&source)?.as_str())
+                }
+                (3, "txt") => {
+                    ownership.text_file_identity.as_deref()
+                        == Some(persisted_file_identity(&source)?.as_str())
+                }
+                (3, "srt") => {
+                    ownership.srt_file_identity.as_deref()
+                        == Some(persisted_file_identity(&source)?.as_str())
+                }
+                _ => false,
+            };
+            if hex(&sha256_file(&source)?) != artifact.sha256
+                || &artifact.sha256 != expected_owned_hash
+                || !identity_matches
+            {
+                // Another file may now occupy this visible name. Never move it as if
+                // it belonged to the replaced generation.
+                continue;
+            }
+            let target = backup.join(format!("{name}-{suffix}.{ext}"));
+            if target.exists() {
+                continue;
+            }
+            fs::rename(source, target)
+                .map_err(|error| format!("StorageUnavailable: archive replaced export: {error}"))?;
+        }
+    }
+    Ok(())
+}
+
 fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, String> {
     l04_campaign_gate("recovery.before_scan_live", expected_job.0, 0, 0)?;
     if format!("{:032x}", expected_job.0)
@@ -2317,6 +3963,8 @@ fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, Strin
                 diagnostic: (!complete).then(|| {
                     "Recoverable: passage manifest exists but CURRENT did not commit it".into()
                 }),
+                export_basename: None,
+                publication_recovery: false,
             });
         }
     }
@@ -2356,7 +4004,7 @@ fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, Strin
             }
             if !entries.iter().any(|entry| entry.generation == generation) {
                 entries.push(ArchiveEntry { job_id: expected_job, generation, complete: false,
-                    source_sha256: String::new(), diagnostic: Some("Recoverable: live passage was not atomically published; explicit resume or discard required".into()) });
+                    source_sha256: String::new(), diagnostic: Some("Recoverable: live passage was not atomically published; explicit resume or discard required".into()), export_basename: None, publication_recovery: false });
             }
         }
     }
@@ -2751,6 +4399,8 @@ fn scan_generation(
             complete: true,
             source_sha256: pending.source_sha256,
             diagnostic: None,
+            export_basename: None,
+            publication_recovery: false,
         }));
     }
     if dir.join("pending.json").is_file() {
@@ -2765,6 +4415,8 @@ fn scan_generation(
             complete: false,
             source_sha256: pending.source_sha256,
             diagnostic: None,
+            export_basename: None,
+            publication_recovery: false,
         }));
     }
     if dir.join("manifest.json").exists() || dir.join("segments.jsonl").exists() {
@@ -2911,6 +4563,8 @@ fn corrupt_entry(job_id: JobId, location: &str, error: String) -> ArchiveEntry {
         complete: false,
         source_sha256: String::new(),
         diagnostic: Some(format!("StorageCorrupt: {location}: {error}")),
+        export_basename: None,
+        publication_recovery: false,
     }
 }
 
@@ -3261,6 +4915,325 @@ mod tests {
     }
 
     #[test]
+    fn r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision() {
+        let root = std::env::temp_dir().join(format!(
+            "whisper-r7-export-recovery-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let job_id = JobId(0x7711);
+        let generation = Generation::first();
+        let directory = generation_path(&root, job_id, generation);
+        fs::create_dir_all(&directory).unwrap();
+        let text = b"R7 transcript";
+        let srt = b"1\n00:00:00,000 --> 00:00:01,000\nR7 transcript\n";
+        fs::write(directory.join("transcript.txt"), text).unwrap();
+        fs::write(directory.join("transcript.srt"), srt).unwrap();
+        fs::write(directory.join("export.txt.pending"), text).unwrap();
+        fs::write(directory.join("export.srt.pending"), srt).unwrap();
+        let artifact = |path: &str, content: &[u8]| ArtifactRecord {
+            path: path.to_owned(),
+            sha256: hex(&Sha256::digest(content)),
+            bytes: content.len() as u64,
+        };
+        let manifest = CompleteRecord {
+            version: 1,
+            job_id,
+            generation,
+            source_sha256: "77".repeat(32),
+            segments: 1,
+            text: artifact("transcript.txt", text),
+            srt: artifact("transcript.srt", srt),
+        };
+        let previous_job_id = JobId(0x7710);
+        let previous_generation = Generation::first();
+        let previous_directory = generation_path(&root, previous_job_id, previous_generation);
+        fs::create_dir_all(&previous_directory).unwrap();
+        let previous_text = b"previous publication";
+        let previous_srt = b"1\n00:00:00,000 --> 00:00:01,000\nprevious publication\n";
+        fs::write(previous_directory.join("transcript.txt"), previous_text).unwrap();
+        fs::write(previous_directory.join("transcript.srt"), previous_srt).unwrap();
+        let mut previous_segments = serde_json::to_vec(&SegmentRecord {
+            sequence: 1,
+            range: SourceRange::new(0, 16_000, 16_000).unwrap(),
+            text: "previous publication".into(),
+        })
+        .unwrap();
+        previous_segments.push(b'\n');
+        fs::write(previous_directory.join("segments.jsonl"), previous_segments).unwrap();
+        let previous_manifest = CompleteRecord {
+            version: 1,
+            job_id: previous_job_id,
+            generation: previous_generation,
+            source_sha256: manifest.source_sha256.clone(),
+            segments: 1,
+            text: artifact("transcript.txt", previous_text),
+            srt: artifact("transcript.srt", previous_srt),
+        };
+        fs::write(
+            previous_directory.join("manifest.json"),
+            serde_json::to_vec(&previous_manifest).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            previous_directory.join("pending.json"),
+            serde_json::to_vec(&PendingRecord {
+                version: 1,
+                job_id: previous_job_id,
+                generation: previous_generation,
+                source_path: "r7-audio.wav".into(),
+                source_sha256: manifest.source_sha256.clone(),
+                source_samples: 16_000,
+                model_path: "model.bin".into(),
+                model_sha256: APPROVED_MODEL_SHA256.into(),
+                model_size: APPROVED_MODEL_SIZE,
+                qualification: None,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(previous_directory.join("CURRENT"), b"manifest.json\n").unwrap();
+        write_publication_index(
+            &root,
+            &PublicationIndex {
+                version: 1,
+                records: vec![PublicationRecord {
+                    job_id: previous_job_id,
+                    generation: previous_generation,
+                    source_sha256: manifest.source_sha256.clone(),
+                    export_basename: Some("r7-prior".into()),
+                    active: true,
+                }],
+            },
+        )
+        .unwrap();
+        let prior_publications =
+            ArchiveStore::published_imports(&root, &manifest.source_sha256).unwrap();
+        assert_eq!(prior_publications.len(), 1);
+        assert_eq!(prior_publications[0].job_id, previous_job_id);
+        fs::write(
+            directory.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            directory.join("pending.json"),
+            serde_json::to_vec(&PendingRecord {
+                version: 1,
+                job_id,
+                generation,
+                source_path: "r7-audio.wav".into(),
+                source_sha256: manifest.source_sha256.clone(),
+                source_samples: 16_000,
+                model_path: "model.bin".into(),
+                model_sha256: APPROVED_MODEL_SHA256.into(),
+                model_size: APPROVED_MODEL_SIZE,
+                qualification: None,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let intent = PublicationIntent {
+            version: 1,
+            operation_id: "r7-copy-fallback-recovery".into(),
+            choice: DuplicateImportChoice::Replace,
+            source_sha256: manifest.source_sha256.clone(),
+            source_samples: 16_000,
+            expected_active: prior_publications
+                .iter()
+                .map(|publication| PublicationIdentity {
+                    job_id: publication.job_id,
+                    generation: publication.generation,
+                })
+                .collect(),
+            export_basename: "r7-audio".into(),
+        };
+        let previous = ImportRequest {
+            job_id,
+            generation,
+            source_path: "r7-audio.wav".into(),
+            source_sha256: Some([0x77; 32]),
+            source_samples: Some(16_000),
+            model_path: "model.bin".into(),
+            model_sha256: [0; 32],
+            destination: root.to_string_lossy().into_owned(),
+            config: whisper_core::JobConfig {
+                language: whisper_core::LanguageChoice::Automatic,
+                compute: whisper_core::ComputeChoice::Cpu,
+            },
+        };
+        write_publication_reservation(
+            &root,
+            &previous,
+            &intent.source_sha256,
+            intent.source_samples,
+            prior_publications
+                .iter()
+                .map(|publication| PublicationIdentity {
+                    job_id: publication.job_id,
+                    generation: publication.generation,
+                })
+                .collect(),
+            intent.choice,
+            intent.export_basename.clone(),
+        )
+        .unwrap();
+        let exports = root.join("exports");
+        fs::create_dir_all(&exports).unwrap();
+        let no_hard_links = |_: &Path, _: &Path| {
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "test filesystem does not support hard links",
+            ))
+        };
+        let calls = std::cell::Cell::new(0);
+        let third_party = exports.join("r7-audio.srt");
+        let third_party_bytes = srt.to_vec();
+        let fail_links_and_collide_after_txt = |_: &Path, _target: &Path| {
+            let call = calls.get() + 1;
+            calls.set(call);
+            if call == 4 {
+                fs::write(&third_party, &third_party_bytes)?;
+            }
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "test filesystem does not support hard links",
+            ))
+        };
+        let first = install_publication_exports_with(
+            &root,
+            &directory,
+            &intent,
+            &fail_links_and_collide_after_txt,
+        );
+        let error = first.unwrap_err();
+        assert!(error.contains("export name collision for srt"), "{error}");
+        assert_eq!(fs::read(exports.join("r7-audio.txt")).unwrap(), text);
+        let third_party_identity = persisted_file_identity(&third_party).unwrap();
+        assert_eq!(fs::read(&third_party).unwrap(), third_party_bytes);
+        assert_eq!(
+            persisted_file_identity(&third_party).unwrap(),
+            third_party_identity
+        );
+        assert!(!directory.join("CURRENT").exists());
+
+        // Inject a process interruption immediately after the exclusive copy
+        // creates the final SRT, before its file identity can be persisted.
+        fs::remove_file(&third_party).unwrap();
+        let interrupted_copy = |extension: &str, _path: &Path| {
+            if extension == "srt" {
+                Err("test process interruption after create_new".into())
+            } else {
+                Ok(())
+            }
+        };
+        let create_new_cut = install_publication_exports_with_copy_hook(
+            &root,
+            &directory,
+            &intent,
+            &no_hard_links,
+            &interrupted_copy,
+        )
+        .unwrap_err();
+        assert!(create_new_cut.contains("test process interruption"));
+        assert_eq!(fs::read(&third_party).unwrap(), third_party_bytes);
+        let unrecorded_identity = persisted_file_identity(&third_party).unwrap();
+        let recovery_error =
+            install_publication_exports_with(&root, &directory, &intent, &no_hard_links)
+                .unwrap_err();
+        assert!(
+            recovery_error.contains("export name collision for srt"),
+            "{recovery_error}"
+        );
+        assert_eq!(fs::read(&third_party).unwrap(), third_party_bytes);
+        assert_eq!(
+            persisted_file_identity(&third_party).unwrap(),
+            unrecorded_identity
+        );
+        assert!(!directory.join("CURRENT").exists());
+        assert_eq!(
+            ArchiveStore::publication_reconfirmation_required(&root, job_id, generation).unwrap(),
+            Some("r7-audio".into())
+        );
+        let new_basename =
+            ArchiveStore::suggest_duplicate_export_basename(&root, &previous.source_path).unwrap();
+        assert_eq!(new_basename, "r7-audio (2)");
+        ArchiveStore::reconfirm_interrupted_publication(
+            &root,
+            &previous,
+            &intent.source_sha256,
+            intent.source_samples,
+            &prior_publications,
+            DuplicateImportChoice::Replace,
+            "r7-audio",
+            &new_basename,
+        )
+        .unwrap();
+        let confirmed_intent: PublicationIntent = serde_json::from_slice(
+            &fs::read(publication_reservation_path(&root, job_id, generation)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(confirmed_intent.export_basename, new_basename);
+        install_publication_exports_with(&root, &directory, &confirmed_intent, &no_hard_links)
+            .unwrap();
+        assert_eq!(fs::read(exports.join("r7-audio (2).txt")).unwrap(), text);
+        assert_eq!(fs::read(exports.join("r7-audio (2).srt")).unwrap(), srt);
+        assert_eq!(fs::read(&third_party).unwrap(), third_party_bytes);
+        assert_eq!(
+            persisted_file_identity(&third_party).unwrap(),
+            unrecorded_identity
+        );
+        assert_eq!(fs::read(directory.join("transcript.txt")).unwrap(), text);
+        assert_eq!(fs::read(directory.join("transcript.srt")).unwrap(), srt);
+        assert_eq!(
+            ArchiveStore::published_imports(&root, &intent.source_sha256).unwrap(),
+            prior_publications,
+            "the prior publication remains active until the recovered generation commits"
+        );
+        assert!(!directory.join("CURRENT").exists());
+
+        // Repeating export installation is idempotent before the commit point.
+        install_publication_exports_with(&root, &directory, &confirmed_intent, &no_hard_links)
+            .unwrap();
+        assert_eq!(fs::read(exports.join("r7-audio (2).srt")).unwrap(), srt);
+        let mut segments = serde_json::to_vec(&SegmentRecord {
+            sequence: 1,
+            range: SourceRange::new(0, 16_000, 16_000).unwrap(),
+            text: "R7 transcript".into(),
+        })
+        .unwrap();
+        segments.push(b'\n');
+        fs::write(directory.join("segments.jsonl"), segments).unwrap();
+        fs::write(directory.join("CURRENT"), b"manifest.json\n").unwrap();
+        let index = apply_publication_intent(
+            read_publication_index(&root).unwrap(),
+            job_id,
+            generation,
+            &confirmed_intent,
+        );
+        write_publication_index(&root, &index).unwrap();
+        reconcile_replaced_exports(&root, &index).unwrap();
+        let active = ArchiveStore::published_imports(&root, &intent.source_sha256).unwrap();
+        assert_eq!(active.len(), 1);
+        assert_eq!(
+            (active[0].job_id, active[0].generation),
+            (job_id, generation)
+        );
+        assert!(directory.join("CURRENT").is_file());
+        assert_eq!(fs::read(exports.join("r7-audio (2).txt")).unwrap(), text);
+        assert_eq!(fs::read(exports.join("r7-audio (2).srt")).unwrap(), srt);
+        assert_eq!(fs::read(&third_party).unwrap(), third_party_bytes);
+        assert_eq!(
+            persisted_file_identity(&third_party).unwrap(),
+            unrecorded_identity
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn segment_recovery_keeps_synced_prefix_and_drops_only_a_partial_tail() {
         let path = std::env::temp_dir().join(format!(
             "whisper-segments-{}-{}.jsonl",
@@ -3536,6 +5509,7 @@ mod tests {
             source_sha256: [0; 32],
             source_samples: 160,
             expected_sequence: 1,
+            publication: PublicationIntent::default(),
         });
         archive
             .persist_segment(&WorkerSegment {
@@ -3641,6 +5615,7 @@ mod tests {
             source_sha256: [0; 32],
             source_samples: 320,
             expected_sequence: 1,
+            publication: PublicationIntent::default(),
         });
         interrupted_archive
             .persist_segment(&WorkerSegment {
@@ -3666,6 +5641,7 @@ mod tests {
             source_sha256: [0; 32],
             source_samples: 320,
             expected_sequence,
+            publication: PublicationIntent::default(),
         });
         retried_archive
             .copy_resume_prefix(&request, &prefix)
@@ -3683,6 +5659,7 @@ mod tests {
             source_sha256: [0; 32],
             source_samples: 320,
             expected_sequence,
+            publication: PublicationIntent::default(),
         });
         second_retry.copy_resume_prefix(&request, &prefix).unwrap();
         assert_eq!(
@@ -3836,5 +5813,362 @@ mod tests {
             .unwrap();
         assert!(zero_result.success());
         fs::remove_dir_all(zero).unwrap();
+    }
+
+    #[test]
+    fn r11_replace_deactivates_every_matching_publication_and_keeps_other_audio() {
+        let generation = Generation::first();
+        let original = PublicationIndex {
+            version: 1,
+            records: vec![
+                PublicationRecord {
+                    job_id: JobId(1),
+                    generation,
+                    source_sha256: "a".repeat(64),
+                    export_basename: Some("audio".into()),
+                    active: true,
+                },
+                PublicationRecord {
+                    job_id: JobId(2),
+                    generation,
+                    source_sha256: "a".repeat(64),
+                    export_basename: Some("audio (2)".into()),
+                    active: true,
+                },
+                PublicationRecord {
+                    job_id: JobId(3),
+                    generation,
+                    source_sha256: "b".repeat(64),
+                    export_basename: Some("other".into()),
+                    active: true,
+                },
+            ],
+        };
+        let intent = PublicationIntent {
+            version: 1,
+            operation_id: "r11-test".into(),
+            choice: DuplicateImportChoice::Replace,
+            source_sha256: "a".repeat(64),
+            source_samples: 16000,
+            expected_active: vec![
+                PublicationIdentity {
+                    job_id: JobId(1),
+                    generation,
+                },
+                PublicationIdentity {
+                    job_id: JobId(2),
+                    generation,
+                },
+            ],
+            export_basename: "audio (3)".into(),
+        };
+        let replaced = apply_publication_intent(original, JobId(4), generation, &intent);
+        assert_eq!(
+            replaced
+                .records
+                .iter()
+                .filter(|record| record.source_sha256 == "a".repeat(64) && record.active)
+                .count(),
+            1
+        );
+        assert!(
+            replaced
+                .records
+                .iter()
+                .any(|record| record.job_id == JobId(1) && !record.active)
+        );
+        assert!(
+            replaced
+                .records
+                .iter()
+                .any(|record| record.job_id == JobId(2) && !record.active)
+        );
+        assert!(
+            replaced
+                .records
+                .iter()
+                .any(|record| record.job_id == JobId(3) && record.active)
+        );
+        assert!(
+            replaced
+                .records
+                .iter()
+                .any(|record| record.job_id == JobId(4) && record.active)
+        );
+    }
+
+    #[test]
+    fn r11_create_new_preserves_existing_publications_and_index_write_is_atomic() {
+        let root = std::env::temp_dir().join(format!(
+            "whisper-r11-index-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let generation = Generation::first();
+        let index = PublicationIndex {
+            version: 1,
+            records: vec![PublicationRecord {
+                job_id: JobId(1),
+                generation,
+                source_sha256: "a".repeat(64),
+                export_basename: Some("audio".into()),
+                active: true,
+            }],
+        };
+        let intent = PublicationIntent {
+            version: 1,
+            operation_id: "new".into(),
+            choice: DuplicateImportChoice::CreateNew,
+            source_sha256: "a".repeat(64),
+            source_samples: 16000,
+            expected_active: vec![PublicationIdentity {
+                job_id: JobId(1),
+                generation,
+            }],
+            export_basename: "audio (2)".into(),
+        };
+        let next = apply_publication_intent(index, JobId(2), generation, &intent);
+        assert_eq!(
+            next.records.iter().filter(|record| record.active).count(),
+            2
+        );
+        write_publication_index(&root, &next).unwrap();
+        assert_eq!(read_publication_index(&root).unwrap(), next);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn r11_export_names_remain_reserved_by_the_index_after_visible_files_are_removed() {
+        let root = std::env::temp_dir().join(format!(
+            "whisper-r11-indexed-name-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        write_publication_index(
+            &root,
+            &PublicationIndex {
+                version: 1,
+                records: vec![PublicationRecord {
+                    job_id: JobId(81),
+                    generation: Generation::first(),
+                    source_sha256: "a".repeat(64),
+                    export_basename: Some("audio".into()),
+                    active: false,
+                }],
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            reserve_export_basename(&root, "C:/input/audio.wav").unwrap(),
+            "audio (2)",
+            "an indexed basename remains reserved even after its visible exports disappear"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn r11_replaced_export_reconciliation_never_moves_a_third_party_same_name_file() {
+        let root = std::env::temp_dir().join(format!(
+            "whisper-r11-third-party-export-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let generation = Generation::first();
+        let job_id = JobId(82);
+        let directory = generation_path(&root, job_id, generation);
+        fs::create_dir_all(&directory).unwrap();
+        let text = b"old generated transcription";
+        let srt = b"old generated subtitles";
+        let text_path = directory.join("transcript.txt");
+        let srt_path = directory.join("transcript.srt");
+        fs::write(&text_path, text).unwrap();
+        fs::write(&srt_path, srt).unwrap();
+        let artifact = |path: &str, bytes: &[u8]| ArtifactRecord {
+            path: path.into(),
+            sha256: hex(&Sha256::digest(bytes)),
+            bytes: bytes.len() as u64,
+        };
+        fs::write(
+            directory.join("manifest.json"),
+            serde_json::to_vec(&CompleteRecord {
+                version: 1,
+                job_id,
+                generation,
+                source_sha256: "a".repeat(64),
+                segments: 1,
+                text: artifact("transcript.txt", text),
+                srt: artifact("transcript.srt", srt),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let exports = root.join("exports");
+        fs::create_dir_all(&exports).unwrap();
+        let third_party = b"unrelated user file";
+        fs::write(exports.join("audio.txt"), third_party).unwrap();
+        let index = PublicationIndex {
+            version: 1,
+            records: vec![PublicationRecord {
+                job_id,
+                generation,
+                source_sha256: "a".repeat(64),
+                export_basename: Some("audio".into()),
+                active: false,
+            }],
+        };
+        reconcile_replaced_exports(&root, &index).unwrap();
+        assert_eq!(fs::read(exports.join("audio.txt")).unwrap(), third_party);
+        assert!(
+            !root
+                .join("transcriptions-remplacees/audio-00000000000000000000000000000052-1.txt")
+                .exists()
+        );
+        assert_eq!(fs::read(exports.join("audio.txt")).unwrap(), third_party);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn r11_recovery_between_current_and_index_keeps_legacy_visible_until_explicit_activation() {
+        let root = std::env::temp_dir().join(format!(
+            "whisper-r11-cut-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let source_sha256 = "a".repeat(64);
+        let generation = Generation::first();
+        let legacy_job = JobId(31);
+        let r11_job = JobId(32);
+
+        let write_complete = |job_id: JobId, marker: Option<PublicationIntent>| {
+            let directory = generation_path(&root, job_id, generation);
+            fs::create_dir_all(&directory).unwrap();
+            let pending = PendingRecord {
+                version: 1,
+                job_id,
+                generation,
+                source_path: "legacy-source.wav".into(),
+                source_sha256: source_sha256.clone(),
+                source_samples: 160,
+                model_path: "model.bin".into(),
+                model_sha256: APPROVED_MODEL_SHA256.into(),
+                model_size: APPROVED_MODEL_SIZE,
+                qualification: None,
+            };
+            fs::write(
+                directory.join("pending.json"),
+                serde_json::to_vec(&pending).unwrap(),
+            )
+            .unwrap();
+            let segment = SegmentRecord {
+                sequence: 1,
+                range: SourceRange::new(0, 160, 16_000).unwrap(),
+                text: format!("transcript-{}", job_id.0),
+            };
+            fs::write(
+                directory.join("segments.jsonl"),
+                [serde_json::to_vec(&segment).unwrap(), vec![b'\n']].concat(),
+            )
+            .unwrap();
+            fs::write(directory.join("transcript.txt"), segment.text.as_bytes()).unwrap();
+            fs::write(
+                directory.join("transcript.srt"),
+                b"1\n00:00:00,000 --> 00:00:00,010\ntext\n",
+            )
+            .unwrap();
+            let manifest = CompleteRecord {
+                version: 1,
+                job_id,
+                generation,
+                source_sha256: source_sha256.clone(),
+                segments: 1,
+                text: verified_artifact(&directory, &directory.join("transcript.txt")).unwrap(),
+                srt: verified_artifact(&directory, &directory.join("transcript.srt")).unwrap(),
+            };
+            fs::write(
+                directory.join("manifest.json"),
+                serde_json::to_vec(&manifest).unwrap(),
+            )
+            .unwrap();
+            fs::copy(
+                directory.join("transcript.txt"),
+                directory.join("export.txt.pending"),
+            )
+            .unwrap();
+            fs::copy(
+                directory.join("transcript.srt"),
+                directory.join("export.srt.pending"),
+            )
+            .unwrap();
+            if let Some(intent) = marker {
+                fs::write(
+                    directory.join("r11-publication.json"),
+                    serde_json::to_vec(&intent).unwrap(),
+                )
+                .unwrap();
+            }
+            fs::write(directory.join("CURRENT"), b"manifest.json\n").unwrap();
+            directory
+        };
+
+        write_complete(legacy_job, None);
+        let intent = PublicationIntent {
+            version: 1,
+            operation_id: "r11-cut-between-current-index".into(),
+            choice: DuplicateImportChoice::Replace,
+            source_sha256: source_sha256.clone(),
+            source_samples: 160,
+            expected_active: vec![PublicationIdentity {
+                job_id: legacy_job,
+                generation,
+            }],
+            export_basename: "legacy-source (2)".into(),
+        };
+        write_complete(r11_job, Some(intent));
+
+        let before_recovery = ArchiveStore::scan(&root).unwrap();
+        assert!(before_recovery.iter().any(|item| {
+            item.job_id == legacy_job && item.generation == generation && item.complete
+        }));
+        assert!(before_recovery.iter().any(|item| {
+            item.job_id == r11_job
+                && item.generation == generation
+                && !item.complete
+                && item.publication_recovery
+        }));
+        assert_eq!(
+            ArchiveStore::published_imports(&root, &source_sha256)
+                .unwrap()
+                .iter()
+                .map(|item| item.job_id)
+                .collect::<Vec<_>>(),
+            vec![legacy_job],
+            "a CURRENT-before-index cut keeps the legacy publication visible"
+        );
+
+        ArchiveStore::resolve_import_publication(&root, r11_job, generation).unwrap();
+        let after_recovery = ArchiveStore::published_imports(&root, &source_sha256).unwrap();
+        assert_eq!(
+            after_recovery
+                .iter()
+                .map(|item| item.job_id)
+                .collect::<Vec<_>>(),
+            vec![r11_job],
+            "explicit activation applies Replace after revalidating the visible legacy set"
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 }

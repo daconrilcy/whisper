@@ -5,8 +5,164 @@ use std::{
 use whisper_adapters::{archive::sha256_file, worker_ipc::AsyncImportIo};
 use whisper_core::{
     AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
-    JobConfig, JobId, JobState, LanguageChoice,
+    JobConfig, JobId, JobState, LanguageChoice, SourceRange, ports::WorkerSegment,
 };
+
+#[test]
+fn r11_mp3_content_identity_is_independent_of_filename_and_destination() {
+    let Some(fixture) = std::env::var_os("WHISPER_L02_MP3_FIXTURE").map(PathBuf::from) else {
+        eprintln!("R11 MP3 duplicate identity NOT RUN: WHISPER_L02_MP3_FIXTURE is absent");
+        return;
+    };
+    let root = std::env::temp_dir().join(format!(
+        "whisper-r11-mp3-identity-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    let first = root.join("original.mp3");
+    let renamed = root.join("renamed.mp3");
+    std::fs::copy(&fixture, &first).unwrap();
+    std::fs::copy(&fixture, &renamed).unwrap();
+    assert_eq!(sha256_file(&first).unwrap(), sha256_file(&renamed).unwrap());
+    let destination_a = root.join("destination-a");
+    let destination_b = root.join("destination-b");
+    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let model = std::env::var_os("WHISPER_L01_MODEL")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| repo.join("models/ggml-large-v3-turbo.bin"));
+    if !model.is_file() {
+        eprintln!("R11 MP3 duplicate identity NOT RUN: local Turbo model is missing");
+        let _ = std::fs::remove_dir_all(root);
+        return;
+    }
+    let mut published_request = r11_mp3_request(301, &first, &destination_a, &model);
+    whisper_adapters::archive::ArchiveStore::identify_source(&mut published_request).unwrap();
+    let mut archive = whisper_adapters::archive::ArchiveStore::new(&destination_a);
+    let prepared = archive.prepare(published_request).unwrap();
+    archive
+        .persist_segment(&WorkerSegment {
+            job_id: prepared.job_id,
+            generation: prepared.generation,
+            instance_id: 1,
+            segment_id: whisper_core::SegmentId(1),
+            range: SourceRange::new(0, prepared.source_samples.unwrap(), 16_000).unwrap(),
+            text: "fixture publication for duplicate identity".into(),
+        })
+        .unwrap();
+    archive
+        .publish(prepared.job_id, prepared.generation, 1)
+        .unwrap();
+    let identity = hex(&sha256_file(&first).unwrap());
+    let prior =
+        whisper_adapters::archive::ArchiveStore::published_imports(&destination_a, &identity)
+            .unwrap();
+    assert_eq!(prior.len(), 1, "the MP3 fixture is published first");
+
+    let mut app = ImportApplication::new(AsyncImportIo::start(root.join("unused-worker.exe")));
+    app.dispatch(AppCommand::EnqueueImport {
+        request: r11_mp3_request(302, &renamed, &destination_a, &model),
+    })
+    .unwrap();
+    let same_destination_prompt = wait_r11_mp3_prompt(&mut app);
+    assert_eq!(same_destination_prompt.publications, prior);
+    assert!(app.dispatch(AppCommand::Refresh).unwrap().queue.is_empty());
+    assert!(
+        !whisper_adapters::archive::ArchiveStore::job_identity_exists(
+            &destination_a,
+            same_destination_prompt.request.job_id,
+            same_destination_prompt.request.generation,
+        )
+    );
+    app.dispatch(AppCommand::CancelDuplicateImport).unwrap();
+    assert!(app.dispatch(AppCommand::Refresh).unwrap().queue.is_empty());
+
+    app.dispatch(AppCommand::EnqueueImport {
+        request: r11_mp3_request(303, &renamed, &destination_b, &model),
+    })
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(view.duplicate_import_prompt.is_none());
+        if !view.queue.is_empty() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "other destination admission timed out"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(
+        whisper_adapters::archive::ArchiveStore::published_imports(&destination_a, &identity)
+            .unwrap(),
+        prior,
+        "the first destination publication is independent"
+    );
+    assert!(
+        whisper_adapters::archive::ArchiveStore::published_imports(&destination_b, &identity)
+            .unwrap()
+            .is_empty()
+    );
+    drop(app);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+fn r11_mp3_request(
+    serial: u128,
+    source: &std::path::Path,
+    destination: &std::path::Path,
+    model: &std::path::Path,
+) -> ImportRequest {
+    ImportRequest {
+        job_id: JobId(((std::process::id() as u128) << 64) | serial),
+        generation: Generation::first(),
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: model.to_string_lossy().into_owned(),
+        model_sha256: [
+            0x1f, 0xc7, 0x0f, 0x77, 0x4d, 0x38, 0xeb, 0x16, 0x99, 0x93, 0xac, 0x39, 0x1e, 0xea,
+            0x35, 0x7e, 0xf4, 0x7c, 0x88, 0x75, 0x7e, 0xf7, 0x2e, 0xe5, 0x94, 0x38, 0x79, 0xb7,
+            0xe8, 0xe2, 0xbc, 0x69,
+        ],
+        destination: destination.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Manual("fr".into()),
+            compute: ComputeChoice::Cpu,
+        },
+    }
+}
+
+fn wait_r11_mp3_prompt(
+    app: &mut ImportApplication<AsyncImportIo>,
+) -> whisper_core::ports::DuplicateImportPrompt {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        if let Some(prompt) = app
+            .dispatch(AppCommand::Refresh)
+            .unwrap()
+            .duplicate_import_prompt
+        {
+            return prompt;
+        }
+        assert!(Instant::now() < deadline, "MP3 duplicate prompt timed out");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
 
 #[test]
 fn source_changed_after_queue_admission_is_refused_without_worker_launch() {

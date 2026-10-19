@@ -1,7 +1,8 @@
 use crate::domain::{Generation, JobConfig, JobId, JobState};
 use crate::ports::{
-    ArchiveHistoryItem, DiagnosticNotice, ImportEffect, ImportEvent, ImportIoPort,
-    ImportQueueEntry, ImportRequest, LiveRequest, PortError,
+    ArchiveHistoryItem, DiagnosticNotice, DuplicateImportChoice, DuplicateImportPrompt,
+    ImportEffect, ImportEvent, ImportIoPort, ImportQueueEntry, ImportRequest, LiveRequest,
+    PortError,
 };
 
 const MAX_EVENTS_PER_REFRESH: usize = 4;
@@ -106,7 +107,10 @@ fn l3d_event_trace(event: &ImportEvent) {
             Some(request.generation),
             None,
         ),
-        ImportEvent::History(_) | ImportEvent::Queue(_) => (event.kind_name(), None, None, None),
+        ImportEvent::History(_)
+        | ImportEvent::Queue(_)
+        | ImportEvent::QueueAdmission { .. }
+        | ImportEvent::DuplicateImportFound(_) => (event.kind_name(), None, None, None),
     };
     l3d_timing_line(kind, job_id, generation, sequence);
 }
@@ -127,6 +131,8 @@ impl ImportEvent {
             Self::LiveRetryingOnCpu { .. } => "live_retrying_on_cpu",
             Self::LiveFinalizing { .. } => "live_finalizing",
             Self::Queue(_) => "queue",
+            Self::QueueAdmission { .. } => "queue_admission",
+            Self::DuplicateImportFound(_) => "duplicate_import_found",
             Self::ResumeCheckpoint { .. } => "resume_checkpoint",
             Self::Prepared(_) => "prepared",
             Self::History(_) => "history",
@@ -157,6 +163,11 @@ pub enum AppCommand {
     EnqueueImport {
         request: ImportRequest,
     },
+    ResolveDuplicateImport {
+        prompt: DuplicateImportPrompt,
+        choice: DuplicateImportChoice,
+    },
+    CancelDuplicateImport,
     ProcessQueued {
         request: ImportRequest,
     },
@@ -196,6 +207,11 @@ pub enum AppCommand {
     ResolveLivePublication {
         request: LiveRequest,
     },
+    ResolveImportPublication {
+        destination: String,
+        job_id: JobId,
+        generation: Generation,
+    },
 }
 
 impl AppCommand {
@@ -234,6 +250,11 @@ impl AppCommand {
                 generation: request.generation,
             }),
             Self::ScanHistory { .. } => None,
+            Self::ResolveDuplicateImport { prompt, .. } => Some(CommandIdentity {
+                job_id: prompt.request.job_id,
+                generation: prompt.request.generation,
+            }),
+            Self::CancelDuplicateImport | Self::ResolveImportPublication { .. } => None,
         }
     }
 
@@ -252,6 +273,7 @@ pub struct AppView {
     pub progress: Option<(u64, u64)>,
     pub last_result: Option<String>,
     pub history: Vec<ArchiveHistoryItem>,
+    pub duplicate_import_prompt: Option<DuplicateImportPrompt>,
     pub queue: Vec<ImportQueueEntry>,
     pub history_scan_pending: bool,
     pub queue_scan_pending: bool,
@@ -404,6 +426,48 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
                 self.view.queued_jobs = queue.len();
                 self.view.queue = queue.clone();
+                return Ok(());
+            }
+            ImportEvent::QueueAdmission {
+                submitted_job_id,
+                submitted_generation,
+                queue,
+            } => {
+                self.view.queue_scan_pending = false;
+                let submitted = CommandIdentity {
+                    job_id: *submitted_job_id,
+                    generation: *submitted_generation,
+                };
+                let acknowledged = self.pending_enqueues.contains(&submitted);
+                self.pending_enqueues
+                    .retain(|identity| *identity != submitted);
+                if acknowledged {
+                    self.view.message = Some(
+                        "Import ajouté à la file durable avec un nouvel identifiant disponible. Choisissez Traiter pour le démarrer.".into(),
+                    );
+                }
+                self.view.queued_jobs = queue.len();
+                self.view.queue = queue.clone();
+                return Ok(());
+            }
+            ImportEvent::DuplicateImportFound(prompt) => {
+                self.pending_enqueues.retain(|identity| {
+                    *identity
+                        != CommandIdentity {
+                            job_id: prompt.request.job_id,
+                            generation: prompt.request.generation,
+                        }
+                });
+                if prompt.resume_from.is_some() {
+                    self.active = None;
+                    self.request = None;
+                    self.stopping = None;
+                    self.view.active_job = None;
+                    self.view.active_generation = None;
+                    self.view.progress = None;
+                }
+                self.view.duplicate_import_prompt = Some(prompt.clone());
+                self.view.message = None;
                 return Ok(());
             }
             ImportEvent::Failed {
@@ -602,7 +666,11 @@ impl<P: ImportIoPort> ImportApplication<P> {
             ImportEvent::History(_) => {
                 unreachable!("non-lifecycle events are handled before job admission")
             }
-            ImportEvent::Queue(_) => unreachable!("queue events are handled before job admission"),
+            ImportEvent::Queue(_)
+            | ImportEvent::QueueAdmission { .. }
+            | ImportEvent::DuplicateImportFound(_) => {
+                unreachable!("queue/admission events are handled before job admission")
+            }
             ImportEvent::ResumeCheckpoint {
                 confirmed_segments,
                 confirmed_offset,
@@ -1073,6 +1141,67 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.message =
                     Some("Vérification de la source et ajout à la file durable en cours…".into());
             }
+            AppCommand::ResolveDuplicateImport { prompt, choice } => {
+                if self.active.is_some() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let identity = CommandIdentity {
+                    job_id: prompt.request.job_id,
+                    generation: prompt.request.generation,
+                };
+                if self.view.duplicate_import_prompt.as_ref() != Some(&prompt) {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let is_resume_confirmation = prompt.resume_from.is_some();
+                let confirmed_request = prompt.request.clone();
+                self.io
+                    .submit(ImportEffect::ConfirmDuplicateImport { prompt, choice })
+                    .map_err(|e| self.fail(e))?;
+                if is_resume_confirmation {
+                    self.request = Some(confirmed_request);
+                    self.active = Some(identity);
+                    self.stopping = None;
+                    self.next_sequence = 1;
+                    self.pending_persistence = 0;
+                    self.ended_at = None;
+                    self.max_segment_offset = 0;
+                    self.final_source_samples = None;
+                    self.view.active_job = Some((identity.job_id, JobState::Queued));
+                    self.view.active_generation = Some(identity.generation);
+                    self.view.progress = None;
+                } else {
+                    self.pending_enqueues.push(identity);
+                }
+                self.view.duplicate_import_prompt = None;
+                self.view.message = Some(if is_resume_confirmation {
+                    "Confirmation de reprise en cours…".into()
+                } else {
+                    "Confirmation en cours…".into()
+                });
+            }
+            AppCommand::CancelDuplicateImport => {
+                self.view.duplicate_import_prompt = None;
+                self.view.message = Some("Nouvelle transcription annulée.".into());
+            }
+            AppCommand::ResolveImportPublication {
+                destination,
+                job_id,
+                generation,
+            } => {
+                if self.active.is_some() || destination.trim().is_empty() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.io
+                    .submit(ImportEffect::ResolveImportPublication {
+                        destination,
+                        job_id,
+                        generation,
+                    })
+                    .map_err(|error| self.fail(error))?;
+                self.view.history_scan_pending = true;
+                self.view.message =
+                    Some("Vérification et récupération de la publication interrompue…".into());
+            }
             AppCommand::ProcessQueued { request } => {
                 if self.active.is_some() {
                     return Err(ApplicationError::InvalidCommand);
@@ -1222,7 +1351,10 @@ impl ImportEvent {
                 job_id, generation, ..
             } => (*job_id, *generation),
             Self::Prepared(request) => (request.job_id, request.generation),
-            Self::History(_) | Self::Queue(_) => (JobId(0), Generation::first()),
+            Self::History(_)
+            | Self::Queue(_)
+            | Self::QueueAdmission { .. }
+            | Self::DuplicateImportFound(_) => (JobId(0), Generation::first()),
             Self::Segment(segment) => (segment.job_id, segment.generation),
         }
     }
