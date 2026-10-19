@@ -1,6 +1,6 @@
 Avancée : L3d est implémenté et ses recettes automatiques passent sous garde, dont trois premiers imports EN5 en moins de 15 s.
-Blocage : aucun finding de code ouvert ; la recette dans la fenêtre Windows reste à faire par l'utilisateur.
-Décision : L3d est CLEAN pour le profil Test et peut être conservé en commit local, sans push.
+Blocage : aucun finding de code ouvert ni anomalie signalée lors de la recette dans la fenêtre Windows.
+Décision : L3d est CLEAN et accepté manuellement pour le profil Test, sans push.
 
 # Bilan L3d — latence du premier import GPU
 
@@ -21,4 +21,6 @@ Le chemin applicatif traite une petite rafale d'événements disponibles à chaq
 | NOT RUN | 34 tests ignorés dans le gate workspace, dont cinq R8 exécutés séparément avec succès ; les 29 restants sont hors des recettes L3d. |
 | Revue | Deux lectures indépendantes, une correction ; verdict final CLEAN, aucun constat ouvert. |
 
-L'essai initial avec 32 événements par rafraîchissement avait échoué sur EN30 (`PortUnavailable` après saturation) et ne qualifie pas le produit. Le candidat final à quatre événements a été rejoué après la correction de persistance. Aucun worker, DLL, modèle, protocole natif, micro ou comportement Turbo n'a été modifié. Aucun push ni validation manuelle dans la fenêtre Windows n'est compris dans ce bilan.
+L'essai initial avec 32 événements par rafraîchissement avait échoué sur EN30 (`PortUnavailable` après saturation) et ne qualifie pas le produit. Le candidat final à quatre événements a été rejoué après la correction de persistance. Aucun worker, DLL, modèle, protocole natif, micro ou comportement Turbo n'a été modifié. Aucun push n'est compris dans ce bilan.
+
+Le 19/10/2026, l'utilisateur a lancé l'exécutable release L3d avec le profil Test GPU et a déclaré sa recette dans la fenêtre Windows concluante (« tout est ok »). Aucun chronométrage manuel précis ni détail de sortie supplémentaire n'a été fourni ; les valeurs du tableau restent celles des campagnes automatiques.

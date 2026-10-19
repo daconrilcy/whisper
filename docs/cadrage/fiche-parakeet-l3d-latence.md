@@ -1,6 +1,6 @@
 Avancée : l'import Parakeet GPU Test tient le seuil de 15 s au premier EN5 sur trois sessions release neuves.
-Blocage : aucun constat de revue ouvert sur L3d ; la validation dans la fenêtre Windows reste réservée à l'utilisateur.
-Décision : retenir le candidat L3d pour le profil Test, sans changer la clé du worker GPU figé.
+Blocage : aucun constat de revue ouvert sur L3d ; aucun point bloquant signalé lors de la recette Windows de l'utilisateur.
+Décision : retenir L3d validé manuellement pour le profil Test, sans changer la clé du worker GPU figé.
 
 # Fiche de qualification L3d — latence et persistance de l'import GPU
 
@@ -17,4 +17,6 @@ Date : 19/10/2026. Plan : [PLAN-PARA-L3d v4](plan-parakeet-l3d-latence-import.md
 
 La suite workspace signale 34 tests `#[ignore]` comme **NOT RUN** dans ce gate. Les cinq scénarios R8 ont été lancés séparément et ont passé ; les 29 autres restent des recettes matérielles, de mutation isolée ou de référence hors du périmètre L3d. Les noms exacts sont dans `target/parakeet-tests/l3/l3d/logs/Workspace.stdout.log`. Les trois journaux EN5 conservés sont sous `target/parakeet-tests/l3/l3d/logs/en5-release-captured-session-{2,3,4}/` ; les SHA du gate sont dans `Workspace-sha-before.json` et `Workspace-sha-after.json` du même dossier `logs/`.
 
-La revue indépendante a rendu **CLEAN** au second passage : L3D-R1, risque de perte lors de la saturation de la file de persistance, est fermé après une correction. La validation finale dans la fenêtre Windows n'est pas couverte par ces tests.
+La revue indépendante a rendu **CLEAN** au second passage : L3D-R1, risque de perte lors de la saturation de la file de persistance, est fermé après une correction.
+
+**Recette Windows utilisateur, 19/10/2026 : PASS déclaré.** Après lancement de l'exécutable release L3d avec les chemins Test GPU, l'utilisateur a indiqué que « tout est ok ». Cette observation complète les tests automatiques ; aucun temps manuel chiffré ni relevé détaillé de TXT/SRT n'a été fourni.
