@@ -620,6 +620,7 @@ impl<P: ImportIoPort> Application for DesktopAdmissionApplication<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
     use std::time::{SystemTime, UNIX_EPOCH};
     use whisper_core::ports::{ImportEvent, PortError};
     use whisper_core::{
@@ -654,20 +655,10 @@ mod tests {
             let configured = PathBuf::from(configured)
                 .canonicalize()
                 .expect("WHISPER_DESKTOP_TEST_ROOT must exist and resolve canonically");
-            let expected = repo
-                .join("target/parakeet-tests/l3/l3b")
-                .canonicalize()
-                .expect("canonical L3b test root must exist");
-            let l3c = repo
-                .join("target/parakeet-tests/l3/l3c")
-                .canonicalize()
-                .expect("canonical L3c test root must exist");
+            let repository = repo.canonicalize().expect("canonical repository root");
             assert!(
-                configured == expected
-                    || configured.starts_with(&expected)
-                    || configured == l3c
-                    || configured.starts_with(&l3c),
-                "WHISPER_DESKTOP_TEST_ROOT must be inside canonical L3b or L3c"
+                is_allowed_campaign_root(&configured, &repository),
+                "WHISPER_DESKTOP_TEST_ROOT must be inside canonical L3b, L3c, or L3d"
             );
             configured
         } else {
@@ -678,6 +669,15 @@ mod tests {
             .unwrap()
             .as_nanos();
         base.join(format!("{name}-{}-{suffix}", std::process::id()))
+    }
+
+    fn is_allowed_campaign_root(configured: &Path, repository: &Path) -> bool {
+        ["l3b", "l3c", "l3d"].into_iter().any(|lot| {
+            repository
+                .join(format!("target/parakeet-tests/l3/{lot}"))
+                .canonicalize()
+                .is_ok_and(|expected| configured == &expected || configured.starts_with(expected))
+        })
     }
 
     #[test]
@@ -701,11 +701,20 @@ mod tests {
         let configured = PathBuf::from(configured).canonicalize().unwrap();
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let repo = manifest_dir.ancestors().nth(2).unwrap();
-        let expected = repo
+        let l3c = repo
             .join("target/parakeet-tests/l3/l3c")
             .canonicalize()
             .unwrap();
-        assert!(configured == expected || configured.starts_with(&expected));
+        let l3d = repo
+            .join("target/parakeet-tests/l3/l3d")
+            .canonicalize()
+            .unwrap();
+        assert!(is_allowed_campaign_root(&l3c, repo));
+        assert!(is_allowed_campaign_root(&l3d, repo));
+        assert!(!is_allowed_campaign_root(
+            &repo.join("target/parakeet-tests/l3/l3d-neighbor"),
+            repo
+        ));
         let fixture = fixture_root("l3c-redirect-check");
         assert!(fixture.starts_with(&configured));
     }

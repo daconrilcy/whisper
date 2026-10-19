@@ -141,6 +141,419 @@ fn application_publishes_only_after_end_and_synced_segment_receipt() {
 }
 
 #[test]
+fn refresh_drains_at_most_four_events_and_waits_for_every_persisted_ack() {
+    let io = FakeIo::default();
+    let mut app = ImportApplication::new(io.clone());
+    let job_id = JobId(700);
+    let generation = Generation::first();
+    app.dispatch(AppCommand::StartImport {
+        request: request(job_id),
+    })
+    .unwrap();
+
+    let sample_count = 99 * 1_280;
+    let mut prepared = request(job_id);
+    prepared.source_sha256 = Some([4; 32]);
+    prepared.source_samples = Some(sample_count);
+    io.0.borrow_mut()
+        .events
+        .push_back(ImportEvent::Prepared(prepared));
+    io.0.borrow_mut().events.push_back(ImportEvent::Ready {
+        job_id,
+        generation,
+        backend: "CUDA0".into(),
+    });
+    io.0.borrow_mut().events.push_back(ImportEvent::Progress {
+        job_id,
+        generation,
+        completed_samples: sample_count,
+        total_samples: sample_count,
+    });
+    for sequence in 1..=99 {
+        let start = (sequence - 1) * 1_280;
+        io.0.borrow_mut()
+            .events
+            .push_back(ImportEvent::Segment(WorkerSegment {
+                job_id,
+                generation,
+                instance_id: 5,
+                segment_id: SegmentId(sequence),
+                range: SourceRange::new(start, start + 1_280, 16_000).unwrap(),
+                text: format!("word-{sequence}"),
+            }));
+    }
+    io.0.borrow_mut().events.push_back(ImportEvent::End {
+        job_id,
+        generation,
+        last_sequence: 99,
+        last_offset: sample_count,
+    });
+
+    let mut previous_segments = 0;
+    while !io.0.borrow().events.is_empty() {
+        app.dispatch(AppCommand::Refresh).unwrap();
+        let after =
+            io.0.borrow()
+                .effects
+                .iter()
+                .filter(|effect| matches!(effect, ImportEffect::PersistSegment(_)))
+                .count();
+        assert!(after - previous_segments <= 4);
+        previous_segments = after;
+    }
+    assert_eq!(
+        io.0.borrow()
+            .effects
+            .iter()
+            .filter(|effect| matches!(effect, ImportEffect::PersistSegment(_)))
+            .count(),
+        99
+    );
+    let persisted_sequences =
+        io.0.borrow()
+            .effects
+            .iter()
+            .filter_map(|effect| match effect {
+                ImportEffect::PersistSegment(segment) => Some(segment.segment_id.0),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+    assert_eq!(persisted_sequences, (1..=99).collect::<Vec<_>>());
+    assert!(
+        !io.0
+            .borrow()
+            .effects
+            .iter()
+            .any(|effect| matches!(effect, ImportEffect::Publish { .. })),
+        "End cannot publish until all segment receipts arrive"
+    );
+
+    for sequence in 1..=98 {
+        io.0.borrow_mut().events.push_back(ImportEvent::Persisted {
+            job_id,
+            generation,
+            sequence,
+        });
+    }
+    while !io.0.borrow().events.is_empty() {
+        app.dispatch(AppCommand::Refresh).unwrap();
+    }
+    assert!(
+        !io.0
+            .borrow()
+            .effects
+            .iter()
+            .any(|effect| matches!(effect, ImportEffect::Publish { .. })),
+        "98 of 99 persistence receipts are insufficient for publication"
+    );
+    io.0.borrow_mut().events.push_back(ImportEvent::Persisted {
+        job_id,
+        generation,
+        sequence: 99,
+    });
+    let mut final_view = app.view();
+    while !io.0.borrow().events.is_empty() {
+        final_view = app.dispatch(AppCommand::Refresh).unwrap();
+    }
+    assert_eq!(final_view.active_job, Some((job_id, JobState::Finalizing)));
+    assert!(matches!(
+        io.0.borrow().effects.last(),
+        Some(ImportEffect::Publish {
+            last_sequence: 99,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn persist_backpressure_retains_ninth_segment_until_queue_capacity_returns() {
+    struct BoundedState {
+        events: VecDeque<ImportEvent>,
+        effects_rx: std::sync::mpsc::Receiver<ImportEffect>,
+        persist_attempts: usize,
+    }
+    #[derive(Clone)]
+    struct BoundedIo {
+        effects_tx: std::sync::mpsc::SyncSender<ImportEffect>,
+        state: Rc<RefCell<BoundedState>>,
+    }
+    impl ImportIoPort for BoundedIo {
+        fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
+            let is_segment = matches!(&effect, ImportEffect::PersistSegment(_));
+            if is_segment {
+                self.state.borrow_mut().persist_attempts += 1;
+            }
+            self.effects_tx
+                .try_send(effect)
+                .map_err(|error| match error {
+                    std::sync::mpsc::TrySendError::Full(_) if is_segment => PortError::Backpressure,
+                    std::sync::mpsc::TrySendError::Full(_)
+                    | std::sync::mpsc::TrySendError::Disconnected(_) => PortError::Unavailable,
+                })
+        }
+
+        fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
+            Ok(self.state.borrow_mut().events.pop_front())
+        }
+    }
+
+    let (effects_tx, effects_rx) = std::sync::mpsc::sync_channel(8);
+    let state = Rc::new(RefCell::new(BoundedState {
+        events: VecDeque::new(),
+        effects_rx,
+        persist_attempts: 0,
+    }));
+    let mut app = ImportApplication::new(BoundedIo {
+        effects_tx,
+        state: state.clone(),
+    });
+    let job_id = JobId(702);
+    let generation = Generation::first();
+    app.dispatch(AppCommand::StartImport {
+        request: request(job_id),
+    })
+    .unwrap();
+    assert!(matches!(
+        state.borrow_mut().effects_rx.try_recv(),
+        Ok(ImportEffect::Prepare(_))
+    ));
+
+    let mut prepared = request(job_id);
+    prepared.source_sha256 = Some([6; 32]);
+    prepared.source_samples = Some(9 * 80);
+    state
+        .borrow_mut()
+        .events
+        .push_back(ImportEvent::Prepared(prepared));
+    app.dispatch(AppCommand::Refresh).unwrap();
+    assert!(matches!(
+        state.borrow_mut().effects_rx.try_recv(),
+        Ok(ImportEffect::StartWorker(_))
+    ));
+
+    state.borrow_mut().events.push_back(ImportEvent::Ready {
+        job_id,
+        generation,
+        backend: "CPU".into(),
+    });
+    state.borrow_mut().events.push_back(ImportEvent::Progress {
+        job_id,
+        generation,
+        completed_samples: 9 * 80,
+        total_samples: 9 * 80,
+    });
+    for sequence in 1..=9 {
+        state
+            .borrow_mut()
+            .events
+            .push_back(ImportEvent::Segment(WorkerSegment {
+                job_id,
+                generation,
+                instance_id: 1,
+                segment_id: SegmentId(sequence),
+                range: SourceRange::new((sequence - 1) * 80, sequence * 80, 16_000).unwrap(),
+                text: format!("segment-{sequence}"),
+            }));
+    }
+    state.borrow_mut().events.push_back(ImportEvent::End {
+        job_id,
+        generation,
+        last_sequence: 9,
+        last_offset: 9 * 80,
+    });
+
+    while state.borrow().persist_attempts < 9 {
+        app.dispatch(AppCommand::Refresh).unwrap();
+    }
+    assert_eq!(state.borrow().persist_attempts, 9);
+    let mut accepted = state.borrow_mut().effects_rx.try_iter().collect::<Vec<_>>();
+    assert_eq!(
+        accepted.len(),
+        8,
+        "the bounded consumer stays blocked with exactly eight queued effects"
+    );
+    assert_eq!(
+        state.borrow().events.len(),
+        1,
+        "End remains unread while the ninth segment is retained for retry"
+    );
+
+    let submitted_sequences = |effects: &[ImportEffect]| {
+        effects
+            .iter()
+            .filter_map(|effect| match effect {
+                ImportEffect::PersistSegment(segment) => Some(segment.segment_id.0),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(submitted_sequences(&accepted), (1..=8).collect::<Vec<_>>());
+
+    app.dispatch(AppCommand::Refresh).unwrap();
+    accepted.extend(state.borrow_mut().effects_rx.try_iter());
+    assert_eq!(submitted_sequences(&accepted), (1..=9).collect::<Vec<_>>());
+    assert!(
+        !accepted
+            .iter()
+            .any(|effect| matches!(effect, ImportEffect::Publish { .. })),
+        "the end marker cannot publish while persistence acknowledgments are pending"
+    );
+
+    for sequence in 1..=9 {
+        state.borrow_mut().events.push_back(ImportEvent::Persisted {
+            job_id,
+            generation,
+            sequence,
+        });
+    }
+    while !state.borrow().events.is_empty() {
+        app.dispatch(AppCommand::Refresh).unwrap();
+    }
+    let final_effects = state.borrow_mut().effects_rx.try_iter().collect::<Vec<_>>();
+    assert!(matches!(
+        final_effects.as_slice(),
+        [ImportEffect::Publish {
+            last_sequence: 9,
+            ..
+        }]
+    ));
+    assert_eq!(state.borrow().persist_attempts, 10);
+}
+
+#[test]
+fn disconnected_persist_queue_is_fatal_and_does_not_retry_the_segment() {
+    struct BoundedState {
+        events: VecDeque<ImportEvent>,
+        effects_rx: Option<std::sync::mpsc::Receiver<ImportEffect>>,
+        persist_attempts: usize,
+    }
+    #[derive(Clone)]
+    struct BoundedIo {
+        effects_tx: std::sync::mpsc::SyncSender<ImportEffect>,
+        state: Rc<RefCell<BoundedState>>,
+    }
+    impl ImportIoPort for BoundedIo {
+        fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
+            let is_segment = matches!(&effect, ImportEffect::PersistSegment(_));
+            if is_segment {
+                self.state.borrow_mut().persist_attempts += 1;
+            }
+            self.effects_tx
+                .try_send(effect)
+                .map_err(|error| match error {
+                    std::sync::mpsc::TrySendError::Full(_) if is_segment => PortError::Backpressure,
+                    std::sync::mpsc::TrySendError::Full(_)
+                    | std::sync::mpsc::TrySendError::Disconnected(_) => PortError::Unavailable,
+                })
+        }
+
+        fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
+            Ok(self.state.borrow_mut().events.pop_front())
+        }
+    }
+
+    let (effects_tx, effects_rx) = std::sync::mpsc::sync_channel(8);
+    let state = Rc::new(RefCell::new(BoundedState {
+        events: VecDeque::new(),
+        effects_rx: Some(effects_rx),
+        persist_attempts: 0,
+    }));
+    let mut app = ImportApplication::new(BoundedIo {
+        effects_tx,
+        state: state.clone(),
+    });
+    let job_id = JobId(703);
+    let generation = Generation::first();
+    app.dispatch(AppCommand::StartImport {
+        request: request(job_id),
+    })
+    .unwrap();
+    assert!(matches!(
+        state.borrow_mut().effects_rx.as_mut().unwrap().try_recv(),
+        Ok(ImportEffect::Prepare(_))
+    ));
+    let mut prepared = request(job_id);
+    prepared.source_sha256 = Some([7; 32]);
+    prepared.source_samples = Some(80);
+    state
+        .borrow_mut()
+        .events
+        .push_back(ImportEvent::Prepared(prepared));
+    app.dispatch(AppCommand::Refresh).unwrap();
+    assert!(matches!(
+        state.borrow_mut().effects_rx.as_mut().unwrap().try_recv(),
+        Ok(ImportEffect::StartWorker(_))
+    ));
+    state.borrow_mut().effects_rx.take();
+    state
+        .borrow_mut()
+        .events
+        .push_back(ImportEvent::Segment(WorkerSegment {
+            job_id,
+            generation,
+            instance_id: 1,
+            segment_id: SegmentId(1),
+            range: SourceRange::new(0, 80, 16_000).unwrap(),
+            text: "segment-1".into(),
+        }));
+
+    assert!(app.dispatch(AppCommand::Refresh).is_err());
+    assert_eq!(state.borrow().persist_attempts, 1);
+    assert!(app.view().message.as_deref().is_some_and(|message| {
+        message.contains("Import indisponible") && message.contains("Unavailable")
+    }));
+    app.dispatch(AppCommand::Refresh).unwrap();
+    assert_eq!(
+        state.borrow().persist_attempts,
+        1,
+        "a disconnected queue is fatal, not a retryable backpressure signal"
+    );
+}
+
+#[test]
+fn ready_and_following_failure_are_observable_on_separate_refreshes() {
+    let io = FakeIo::default();
+    let mut app = ImportApplication::new(io.clone());
+    let job_id = JobId(701);
+    let generation = Generation::first();
+    app.dispatch(AppCommand::StartImport {
+        request: request(job_id),
+    })
+    .unwrap();
+
+    let mut prepared = request(job_id);
+    prepared.source_sha256 = Some([5; 32]);
+    prepared.source_samples = Some(80);
+    io.0.borrow_mut()
+        .events
+        .push_back(ImportEvent::Prepared(prepared));
+    io.0.borrow_mut().events.push_back(ImportEvent::Ready {
+        job_id,
+        generation,
+        backend: "CUDA0".into(),
+    });
+    io.0.borrow_mut().events.push_back(ImportEvent::Failed {
+        job_id,
+        generation,
+        message: "WorkerExited: injected after NativeCallStarted".into(),
+    });
+
+    assert_eq!(
+        app.dispatch(AppCommand::Refresh).unwrap().active_job,
+        Some((job_id, JobState::Running))
+    );
+    let failed_view = app.dispatch(AppCommand::Refresh).unwrap();
+    assert_eq!(
+        failed_view.active_job,
+        Some((job_id, JobState::Recoverable))
+    );
+    assert!(failed_view.last_result.is_none());
+    assert!(failed_view.message.as_deref().is_some_and(|message| {
+        message.contains("WorkerExited: injected after NativeCallStarted")
+    }));
+}
+
+#[test]
 fn stop_invalidates_generation_and_rejects_late_segment_but_accepts_stop_receipt() {
     let io = FakeIo::default();
     let mut app = ImportApplication::new(io.clone());

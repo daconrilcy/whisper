@@ -127,13 +127,10 @@ impl ParakeetWorkerPaths {
         {
             return false;
         }
-        let Some(root) = std::env::var_os("PARAKEET_L3C_EXEC_ROOT") else {
+        let Some(root) = l3_acceptance_execution_root() else {
             return false;
         };
-        PathBuf::from(root)
-            .canonicalize()
-            .ok()
-            .is_some_and(|root| canonical.starts_with(root))
+        canonical.starts_with(root)
     }
 
     pub fn verify_qualification(
@@ -283,6 +280,27 @@ impl ParakeetWorkerPaths {
         }
         Ok(())
     }
+}
+
+fn l3_acceptance_execution_root() -> Option<PathBuf> {
+    let l3c = std::env::var_os("PARAKEET_L3C_EXEC_ROOT").map(PathBuf::from);
+    let l3d = std::env::var_os("PARAKEET_L3D_EXEC_ROOT").map(PathBuf::from);
+    let (configured, lot) = match (l3c, l3d) {
+        (Some(path), None) => (path, "l3c"),
+        (None, Some(path)) => (path, "l3d"),
+        _ => return None,
+    };
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .canonicalize()
+        .ok()?;
+    let expected = repository
+        .join(format!("target/parakeet-tests/l3/{lot}"))
+        .canonicalize()
+        .ok()?;
+    let configured = configured.canonicalize().ok()?;
+    (configured == expected).then_some(expected)
 }
 
 fn runtime_sha256(native_dir: &Path) -> Result<String, String> {
@@ -704,8 +722,32 @@ fn worker_stderr_log(
     } else {
         None
     };
-    let l3c_gpu_log = is_gpu_worker && configured_l3c.is_some();
-    let log_root = if is_gpu_worker && configured_l3c.is_some() {
+    let configured_l3d = if let Some(configured) = std::env::var_os("PARAKEET_L3D_EXEC_ROOT") {
+        let configured = PathBuf::from(configured)
+            .canonicalize()
+            .map_err(|error| format!("WorkerLogPath: L3d execution root: {error}"))?;
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .canonicalize()
+            .map_err(|error| format!("WorkerLogPath: repository root: {error}"))?;
+        let expected = repository
+            .join("target/parakeet-tests/l3/l3d")
+            .canonicalize()
+            .map_err(|error| format!("WorkerLogPath: canonical L3d root: {error}"))?;
+        if configured != expected {
+            return Err("PathOutsideRuntime: L3d execution root is not canonical".into());
+        }
+        Some(configured)
+    } else {
+        None
+    };
+    if configured_l3c.is_some() && configured_l3d.is_some() {
+        return Err("PathOutsideRuntime: only one L3 campaign root may be configured".into());
+    }
+    let l3_gpu_log = is_gpu_worker && (configured_l3c.is_some() || configured_l3d.is_some());
+    let configured_campaign = configured_l3d.clone().or(configured_l3c.clone());
+    let log_root = if is_gpu_worker && configured_campaign.is_some() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")
@@ -715,12 +757,14 @@ fn worker_stderr_log(
             .join("target/parakeet-tests/l3/l3b")
             .canonicalize()
             .map_err(|error| format!("WorkerLogPath: canonical L3b root: {error}"))?;
-        if runtime != expected_runtime || configured_l3c.is_none() {
-            return Err("PathOutsideRuntime: GPU ASR log requires canonical L3c/L3b roots".into());
+        if runtime != expected_runtime || !l3_gpu_log {
+            return Err(
+                "PathOutsideRuntime: GPU ASR log requires canonical L3b/L3c/L3d roots".into(),
+            );
         }
         runtime.clone()
     } else {
-        configured_l3c.unwrap_or_else(|| runtime.clone())
+        configured_campaign.unwrap_or_else(|| runtime.clone())
     };
     let log_dir = log_root.join("logs");
     match std::fs::create_dir(&log_dir) {
@@ -740,7 +784,11 @@ fn worker_stderr_log(
         .unwrap_or_default()
         .as_millis();
     let sequence = LOG_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let prefix = worker_log_prefix(is_gpu_worker, l3c_gpu_log);
+    let prefix = worker_log_prefix(
+        is_gpu_worker,
+        configured_l3c.is_some(),
+        configured_l3d.is_some(),
+    );
     let path = log_dir.join(format!(
         "{prefix}-{timestamp_ms}-{}-{sequence}.log",
         std::process::id()
@@ -753,8 +801,10 @@ fn worker_stderr_log(
     Ok((Stdio::from(file), is_gpu_worker.then_some(path)))
 }
 
-fn worker_log_prefix(is_gpu_worker: bool, l3c_gpu_log: bool) -> &'static str {
-    if l3c_gpu_log {
+fn worker_log_prefix(is_gpu_worker: bool, l3c_gpu_log: bool, l3d_gpu_log: bool) -> &'static str {
+    if l3d_gpu_log {
+        "l3d-parakeet-asr"
+    } else if l3c_gpu_log {
         "l3c-parakeet-asr"
     } else if is_gpu_worker {
         "parakeet-asr"
@@ -767,10 +817,17 @@ fn worker_log_prefix(is_gpu_worker: bool, l3c_gpu_log: bool) -> &'static str {
 mod worker_log_mode_tests {
     #[test]
     fn gpu_log_prefix_preserves_l3b_and_scopes_l3c_names() {
-        assert_eq!(super::worker_log_prefix(true, false), "parakeet-asr");
-        assert_eq!(super::worker_log_prefix(true, true), "l3c-parakeet-asr");
+        assert_eq!(super::worker_log_prefix(true, false, false), "parakeet-asr");
         assert_eq!(
-            super::worker_log_prefix(false, false),
+            super::worker_log_prefix(true, true, false),
+            "l3c-parakeet-asr"
+        );
+        assert_eq!(
+            super::worker_log_prefix(true, false, true),
+            "l3d-parakeet-asr"
+        );
+        assert_eq!(
+            super::worker_log_prefix(false, false, false),
             "parakeet-worker-cpu"
         );
     }

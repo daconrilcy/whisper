@@ -315,6 +315,7 @@ impl From<PortError> for WorkerErrorCode {
     fn from(value: PortError) -> Self {
         match value {
             PortError::Unavailable => Self::BackendUnavailable,
+            PortError::Backpressure => Self::Internal,
             PortError::InvalidInput => Self::InvalidRequest,
             PortError::StaleResponse => Self::StaleResponse,
             PortError::Committing => Self::Internal,

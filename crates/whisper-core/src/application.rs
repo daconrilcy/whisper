@@ -4,6 +4,144 @@ use crate::ports::{
     ImportQueueEntry, ImportRequest, LiveRequest, PortError,
 };
 
+const MAX_EVENTS_PER_REFRESH: usize = 4;
+
+fn l3d_timing_line(
+    phase: &str,
+    job_id: Option<JobId>,
+    generation: Option<Generation>,
+    sequence: Option<u64>,
+) {
+    if std::env::var_os("PARAKEET_L3D_TIMING_ACTIVE").as_deref() != Some(std::ffi::OsStr::new("1"))
+    {
+        return;
+    }
+    static ORIGIN: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    static REFRESHES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let elapsed_us = ORIGIN
+        .get_or_init(std::time::Instant::now)
+        .elapsed()
+        .as_micros();
+    let refresh = if phase == "refresh" {
+        REFRESHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1
+    } else {
+        REFRESHES.load(std::sync::atomic::Ordering::Relaxed)
+    };
+    eprintln!(
+        "L3D_APP_TRACE pid={} elapsed_us={elapsed_us} refresh={refresh} phase={phase} job_id={job_id:?} generation={generation:?} sequence={sequence:?}",
+        std::process::id()
+    );
+}
+
+fn l3d_event_trace(event: &ImportEvent) {
+    let (kind, job_id, generation, sequence) = match event {
+        ImportEvent::DirectCaptureActive {
+            job_id, generation, ..
+        }
+        | ImportEvent::DirectPublished {
+            job_id, generation, ..
+        }
+        | ImportEvent::Diagnostic {
+            job_id, generation, ..
+        }
+        | ImportEvent::LiveCounters {
+            job_id, generation, ..
+        }
+        | ImportEvent::WindowFinished {
+            job_id, generation, ..
+        }
+        | ImportEvent::AwaitingCpuChoice { job_id, generation }
+        | ImportEvent::LiveAttemptReset {
+            job_id, generation, ..
+        }
+        | ImportEvent::LiveAttemptStarting { job_id, generation }
+        | ImportEvent::LiveRetryingOnCpu { job_id, generation }
+        | ImportEvent::LiveFinalizing { job_id, generation }
+        | ImportEvent::ResumeCheckpoint {
+            job_id, generation, ..
+        }
+        | ImportEvent::Ready {
+            job_id, generation, ..
+        }
+        | ImportEvent::Progress {
+            job_id, generation, ..
+        }
+        | ImportEvent::Persisted {
+            job_id, generation, ..
+        }
+        | ImportEvent::End {
+            job_id, generation, ..
+        }
+        | ImportEvent::Published { job_id, generation }
+        | ImportEvent::Failed {
+            job_id, generation, ..
+        }
+        | ImportEvent::Stopped { job_id, generation } => {
+            let sequence = match event {
+                ImportEvent::WindowFinished {
+                    window_sequence, ..
+                } => Some(*window_sequence),
+                ImportEvent::Persisted { sequence, .. } => Some(*sequence),
+                ImportEvent::End { last_sequence, .. } => Some(*last_sequence),
+                _ => None,
+            };
+            (
+                event.kind_name(),
+                Some(*job_id),
+                Some(*generation),
+                sequence,
+            )
+        }
+        ImportEvent::DirectConfirmed(segment)
+        | ImportEvent::LiveProvisional { segment, .. }
+        | ImportEvent::Segment(segment) => (
+            event.kind_name(),
+            Some(segment.job_id),
+            Some(segment.generation),
+            Some(segment.segment_id.0),
+        ),
+        ImportEvent::Prepared(request) => (
+            event.kind_name(),
+            Some(request.job_id),
+            Some(request.generation),
+            None,
+        ),
+        ImportEvent::History(_) | ImportEvent::Queue(_) => (event.kind_name(), None, None, None),
+    };
+    l3d_timing_line(kind, job_id, generation, sequence);
+}
+
+impl ImportEvent {
+    fn kind_name(&self) -> &'static str {
+        match self {
+            Self::DirectCaptureActive { .. } => "direct_capture_active",
+            Self::DirectConfirmed(_) => "direct_confirmed",
+            Self::DirectPublished { .. } => "direct_published",
+            Self::Diagnostic { .. } => "diagnostic",
+            Self::LiveProvisional { .. } => "live_provisional",
+            Self::LiveCounters { .. } => "live_counters",
+            Self::WindowFinished { .. } => "window_finished",
+            Self::AwaitingCpuChoice { .. } => "awaiting_cpu_choice",
+            Self::LiveAttemptReset { .. } => "live_attempt_reset",
+            Self::LiveAttemptStarting { .. } => "live_attempt_starting",
+            Self::LiveRetryingOnCpu { .. } => "live_retrying_on_cpu",
+            Self::LiveFinalizing { .. } => "live_finalizing",
+            Self::Queue(_) => "queue",
+            Self::ResumeCheckpoint { .. } => "resume_checkpoint",
+            Self::Prepared(_) => "prepared",
+            Self::History(_) => "history",
+            Self::Ready { .. } => "ready",
+            Self::Progress { .. } => "progress",
+            Self::Segment(_) => "segment",
+            Self::Persisted { .. } => "persisted",
+            Self::End { .. } => "end",
+            Self::Published { .. } => "published",
+            Self::Failed { .. } => "failed",
+            Self::Stopped { .. } => "stopped",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CommandIdentity {
     pub job_id: JobId,
@@ -161,6 +299,7 @@ pub struct ImportApplication<P> {
     direct_live: bool,
     next_sequence: u64,
     pending_persistence: usize,
+    pending_segments: std::collections::VecDeque<crate::ports::WorkerSegment>,
     pending_live_segments: std::collections::BTreeMap<u64, crate::ports::WorkerSegment>,
     pending_enqueues: Vec<CommandIdentity>,
     auto_stop_after_speech_samples: Option<u64>,
@@ -181,6 +320,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
             direct_live: false,
             next_sequence: 0,
             pending_persistence: 0,
+            pending_segments: std::collections::VecDeque::new(),
             pending_live_segments: std::collections::BTreeMap::new(),
             pending_enqueues: Vec::new(),
             auto_stop_after_speech_samples: None,
@@ -212,9 +352,27 @@ impl<P: ImportIoPort> ImportApplication<P> {
     }
 
     fn poll_once(&mut self) -> Result<(), ApplicationError> {
-        let Some(event) = self.io.poll().map_err(|e| self.fail(e))? else {
+        if !self.retry_pending_segment()? {
             return Ok(());
-        };
+        }
+        for _ in 0..MAX_EVENTS_PER_REFRESH {
+            let Some(event) = self.io.poll().map_err(|e| self.fail(e))? else {
+                return Ok(());
+            };
+            let became_ready = matches!(&event, ImportEvent::Ready { .. });
+            l3d_event_trace(&event);
+            self.handle_event(event)?;
+            if !self.pending_segments.is_empty() {
+                return Ok(());
+            }
+            if became_ready {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_event(&mut self, event: ImportEvent) -> Result<(), ApplicationError> {
         match &event {
             ImportEvent::History(history) => {
                 self.view.history = history.clone();
@@ -660,16 +818,37 @@ impl<P: ImportIoPort> ImportApplication<P> {
         {
             return Err(ApplicationError::InvalidCommand);
         }
-        self.max_segment_offset = self.max_segment_offset.max(segment.range.end_sample);
-        self.next_sequence = self
+        self.pending_segments.push_back(segment);
+        let _ = self.retry_pending_segment()?;
+        Ok(())
+    }
+
+    /// Try one bounded persistence submission. The event remains owned by the application
+    /// until the adapter confirms that the effect entered its bounded queue.
+    fn retry_pending_segment(&mut self) -> Result<bool, ApplicationError> {
+        let Some(segment) = self.pending_segments.front() else {
+            return Ok(true);
+        };
+        let next_sequence = self
             .next_sequence
             .checked_add(1)
             .ok_or(ApplicationError::InvalidCommand)?;
-        self.io
-            .submit(ImportEffect::PersistSegment(segment))
-            .map_err(|e| self.fail(e))?;
+        match self
+            .io
+            .submit(ImportEffect::PersistSegment(segment.clone()))
+        {
+            Ok(()) => {}
+            Err(PortError::Backpressure) => return Ok(false),
+            Err(error) => {
+                self.pending_segments.clear();
+                return Err(self.fail(error));
+            }
+        }
+        let segment = self.pending_segments.pop_front().unwrap();
+        self.max_segment_offset = self.max_segment_offset.max(segment.range.end_sample);
+        self.next_sequence = next_sequence;
         self.pending_persistence += 1;
-        Ok(())
+        Ok(true)
     }
 }
 
@@ -718,7 +897,16 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
         }
 
         match command {
-            AppCommand::Refresh => self.poll_once()?,
+            AppCommand::Refresh => {
+                let identity = self.active;
+                l3d_timing_line(
+                    "refresh",
+                    identity.map(|identity| identity.job_id),
+                    identity.map(|identity| identity.generation),
+                    None,
+                );
+                self.poll_once()?;
+            }
             AppCommand::ScanHistory { destination } => {
                 self.io
                     .submit(ImportEffect::ScanHistory {
@@ -849,6 +1037,12 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.io
                     .submit(ImportEffect::Prepare(request.clone()))
                     .map_err(|e| self.fail(e))?;
+                l3d_timing_line(
+                    "start_import",
+                    Some(request.job_id),
+                    Some(request.generation),
+                    None,
+                );
                 self.request = Some(request);
                 self.auto_stop_after_speech_samples = None;
                 self.active = Some(identity);

@@ -61,6 +61,16 @@ fn archive_root() -> PathBuf {
                 .expect("canonical L3c runtime root exists");
             path == &expected && canonical.starts_with(path)
         });
+    let l3d = std::env::var_os("PARAKEET_L3D_EXEC_ROOT")
+        .map(PathBuf::from)
+        .and_then(|path| path.canonicalize().ok())
+        .filter(|path| {
+            let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../target/parakeet-tests/l3/l3d")
+                .canonicalize()
+                .expect("canonical L3d runtime root exists");
+            path == &expected && canonical.starts_with(path)
+        });
     let r8 = std::env::var_os("PARAKEET_R8_EXEC_ROOT")
         .map(PathBuf::from)
         .and_then(|path| path.canonicalize().ok())
@@ -87,15 +97,22 @@ fn archive_root() -> PathBuf {
         .filter(|path| {
             path.ends_with("target/parakeet-tests/l2/l2b/r7") && canonical.starts_with(path)
         });
-    let allowed = l3c.or(l3b).or(l3a).or(r9).or(r8).or(r7).unwrap_or_else(|| {
-        runtime
-            .join("r6")
-            .canonicalize()
-            .expect("R6 runtime root exists")
-    });
+    let allowed = l3d
+        .or(l3c)
+        .or(l3b)
+        .or(l3a)
+        .or(r9)
+        .or(r8)
+        .or(r7)
+        .unwrap_or_else(|| {
+            runtime
+                .join("r6")
+                .canonicalize()
+                .expect("R6 runtime root exists")
+        });
     assert!(
         canonical.starts_with(&allowed),
-        "archive root must be inside R6, canonical R7, R8, R9, L3a, or L3b"
+        "archive root must be inside R6, canonical R7, R8, R9, L3a, L3b, L3c, or L3d"
     );
     root
 }

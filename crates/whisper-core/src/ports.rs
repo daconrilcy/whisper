@@ -3,6 +3,8 @@ use crate::domain::{Generation, JobConfig, JobId, JobState, SegmentId, SourceRan
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PortError {
     Unavailable,
+    /// A bounded effect queue is temporarily full; the caller may retry the same effect.
+    Backpressure,
     InvalidInput,
     StaleResponse,
     Committing,

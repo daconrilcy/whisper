@@ -235,14 +235,16 @@ fn l2a2_acceptance_take_worker_fault(
         .canonicalize()
         .map_err(|error| format!("PathOutsideRuntime: destination unavailable: {error}"))?;
     let control = destination.join(".l2a2-acceptance");
-    let l3c_execution_root = std::env::var_os("PARAKEET_L3C_EXEC_ROOT")
-        .and_then(|path| PathBuf::from(path).canonicalize().ok());
+    let l3c_execution_root = canonical_l3_acceptance_root(
+        std::env::var_os("PARAKEET_L3C_EXEC_ROOT").map(PathBuf::from),
+        std::env::var_os("PARAKEET_L3D_EXEC_ROOT").map(PathBuf::from),
+    );
     let in_l2a2 = destination.starts_with(&runtime) && control.starts_with(&runtime);
-    let in_l3c_test_root = option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_some()
+    let in_l3_test_root = option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_some()
         && l3c_execution_root
             .as_ref()
             .is_some_and(|root| destination.starts_with(root) && control.starts_with(root));
-    if !in_l2a2 && !in_l3c_test_root {
+    if !in_l2a2 && !in_l3_test_root {
         return Err("PathOutsideRuntime: acceptance fault is outside L2a-2".into());
     }
     for (signal, message) in [
@@ -267,6 +269,24 @@ fn l2a2_acceptance_take_worker_fault(
         }
     }
     Ok(None)
+}
+
+fn canonical_l3_acceptance_root(l3c: Option<PathBuf>, l3d: Option<PathBuf>) -> Option<PathBuf> {
+    let (configured, lot) = match (l3c, l3d) {
+        (Some(path), None) => (path, "l3c"),
+        (None, Some(path)) => (path, "l3d"),
+        _ => return None,
+    };
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .canonicalize()
+        .ok()?;
+    let expected = repository
+        .join(format!("target/parakeet-tests/l3/{lot}"))
+        .canonicalize()
+        .ok()?;
+    (configured.canonicalize().ok()? == expected).then_some(expected)
 }
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(1);
 
@@ -6106,9 +6126,10 @@ impl ImportIoPort for AsyncImportIo {
                 self.publication_gate.activate();
                 return Ok(());
             }
-            self.effects.try_send(effect).map_err(|e| match e {
-                TrySendError::Full(_) => PortError::Unavailable,
-                TrySendError::Disconnected(_) => PortError::Unavailable,
+            let retry_on_full = matches!(&effect, ImportEffect::PersistSegment(_));
+            self.effects.try_send(effect).map_err(|error| match error {
+                TrySendError::Full(_) if retry_on_full => PortError::Backpressure,
+                TrySendError::Full(_) | TrySendError::Disconnected(_) => PortError::Unavailable,
             })
         }
     }
@@ -8112,6 +8133,50 @@ fn main() {
     }
 
     #[test]
+    fn persist_segment_queue_full_is_distinct_from_disconnection() {
+        let gate = Arc::new(PublicationGate::default());
+        let (mut io, effects, _, _) = AsyncImportIo::for_test(gate);
+        let segment = |sequence| WorkerSegment {
+            job_id: JobId(904),
+            generation: Generation::first(),
+            instance_id: 1,
+            segment_id: whisper_core::SegmentId(sequence),
+            range: whisper_core::SourceRange::new((sequence - 1) * 80, sequence * 80, 16_000)
+                .unwrap(),
+            text: format!("segment-{sequence}"),
+        };
+
+        for sequence in 1..=8 {
+            io.submit(ImportEffect::PersistSegment(segment(sequence)))
+                .unwrap();
+        }
+        assert_eq!(
+            io.submit(ImportEffect::PersistSegment(segment(9))),
+            Err(PortError::Backpressure),
+            "a full persistence queue is retryable"
+        );
+        assert_eq!(
+            effects
+                .try_iter()
+                .filter_map(|effect| match effect {
+                    ImportEffect::PersistSegment(segment) => Some(segment.segment_id.0),
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+            (1..=8).collect::<Vec<_>>()
+        );
+
+        let gate = Arc::new(PublicationGate::default());
+        let (mut disconnected, effects, _, _) = AsyncImportIo::for_test(gate);
+        drop(effects);
+        assert_eq!(
+            disconnected.submit(ImportEffect::PersistSegment(segment(1))),
+            Err(PortError::Unavailable),
+            "a disconnected consumer remains fatal and is never classified as backpressure"
+        );
+    }
+
+    #[test]
     fn event_65_backpressures_all_production_stages_then_delivers_in_order() {
         struct WireRuntime {
             worker_events: Receiver<WorkerReaderMessage>,
@@ -8370,10 +8435,11 @@ fn main() {
     #[test]
     fn l3c_acceptance_fault_is_confined_to_its_canonical_execution_root() {
         assert!(option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_some());
-        let root =
-            PathBuf::from(std::env::var_os("PARAKEET_L3C_EXEC_ROOT").expect("L3c execution root"))
-                .canonicalize()
-                .unwrap();
+        let root = canonical_l3_acceptance_root(
+            std::env::var_os("PARAKEET_L3C_EXEC_ROOT").map(PathBuf::from),
+            std::env::var_os("PARAKEET_L3D_EXEC_ROOT").map(PathBuf::from),
+        )
+        .expect("exactly one canonical L3c or L3d execution root");
         let destination = root.join("r8/acceptance-test");
         std::fs::create_dir_all(destination.join(".l2a2-acceptance")).unwrap();
         std::fs::write(
@@ -8398,6 +8464,26 @@ fn main() {
                 .unwrap_err()
                 .starts_with("PathOutsideRuntime")
         );
+
+        let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .canonicalize()
+            .unwrap();
+        for lot in ["l3c", "l3d"] {
+            let canonical = repository
+                .join(format!("target/parakeet-tests/l3/{lot}"))
+                .canonicalize()
+                .unwrap();
+            assert_eq!(
+                canonical_l3_acceptance_root(
+                    (lot == "l3c").then(|| canonical.clone()),
+                    (lot == "l3d").then(|| canonical.clone()),
+                ),
+                Some(canonical),
+                "the test-only acceptance boundary keeps canonical {lot}"
+            );
+        }
     }
 
     #[test]

@@ -149,6 +149,24 @@ fn gpu_app_en5() {
 }
 
 #[test]
+fn gpu_app_en5_timing_diagnostic() {
+    if !selected_recipe("gpu_app_en5_timing_diagnostic") {
+        return;
+    }
+    let view = run_gpu_application_import(
+        "en5-timing-diagnostic",
+        &required_path("PARAKEET_L3_EN5_WAV"),
+        ComputeChoice::Gpu,
+        true,
+        None,
+    );
+    assert!(
+        view.last_result.is_some(),
+        "diagnostic import did not publish: {view:?}"
+    );
+}
+
+#[test]
 #[cfg(feature = "l3-gpu-qualification")]
 fn gpu_app_en30() {
     if !selected_recipe("gpu_app_en30") {
@@ -235,40 +253,71 @@ fn gpu_rejects_bad_identity_before_pending() {
     }));
 }
 
-fn recipe_selector_matches(name: &str, l3b: Option<&str>, l3c: Option<&str>) -> bool {
-    l3c.or(l3b) == Some(name)
+fn recipe_selector_matches(
+    name: &str,
+    l3b: Option<&str>,
+    l3c: Option<&str>,
+    l3d: Option<&str>,
+) -> bool {
+    let mut selectors = [l3b, l3c, l3d].into_iter().flatten();
+    let Some(selected) = selectors.next() else {
+        return false;
+    };
+    selected == name && selectors.next().is_none()
 }
 
 fn selected_recipe(name: &str) -> bool {
     let l3b = std::env::var("PARAKEET_L3B_RECIPE_CASE").ok();
     let l3c = std::env::var("PARAKEET_L3C_RECIPE_CASE").ok();
-    if recipe_selector_matches(name, l3b.as_deref(), l3c.as_deref()) {
+    let l3d = std::env::var("PARAKEET_L3D_RECIPE_CASE").ok();
+    if recipe_selector_matches(name, l3b.as_deref(), l3c.as_deref(), l3d.as_deref()) {
         true
     } else {
-        let campaign = if l3c.is_some() { "L3c" } else { "L3b" };
+        let campaign = if l3d.is_some() {
+            "L3d"
+        } else if l3c.is_some() {
+            "L3c"
+        } else {
+            "L3b"
+        };
         eprintln!("{campaign}_RECIPE_NOT_RUN {name}: no matching guarded recipe selector");
         false
     }
 }
 
 #[test]
-fn gpu_recipe_selector_preserves_l3b_and_supports_explicit_l3c() {
+fn gpu_recipe_selector_preserves_l3b_l3c_and_supports_explicit_l3d() {
     assert!(recipe_selector_matches(
         "gpu_app_en5",
+        Some("gpu_app_en5"),
+        None,
+        None
+    ));
+    assert!(recipe_selector_matches(
+        "gpu_app_en5",
+        None,
         Some("gpu_app_en5"),
         None
     ));
     assert!(recipe_selector_matches(
         "gpu_app_en5",
         None,
+        None,
         Some("gpu_app_en5")
     ));
     assert!(!recipe_selector_matches(
         "gpu_app_en5",
         Some("gpu_app_en5"),
-        Some("gpu_app_en30")
+        Some("gpu_app_en30"),
+        None
     ));
-    assert!(!recipe_selector_matches("gpu_app_en5", None, None));
+    assert!(!recipe_selector_matches("gpu_app_en5", None, None, None));
+    assert!(!recipe_selector_matches(
+        "gpu_app_en5",
+        None,
+        Some("gpu_app_en5"),
+        Some("gpu_app_en5")
+    ));
 }
 
 #[test]
@@ -650,9 +699,12 @@ fn run_gpu_application_import_with_native(
     };
     let timeout = Duration::from_secs(pcm16_mono_sample_count(source) / 16_000 / 4 + 120);
     let deadline = Instant::now() + timeout;
+    let started = Instant::now();
     let worker_log_started = SystemTime::now();
     app.dispatch(AppCommand::StartImport { request }).unwrap();
+    let mut refresh_count = 0_u64;
     loop {
+        refresh_count += 1;
         let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
             panic!(
                 "L3b {case} refresh failed: {error:?}; view={:?}",
@@ -701,6 +753,18 @@ fn run_gpu_application_import_with_native(
                     Some("parakeet-tdt-0.6b-v3"),
                     "Auto fallback stays on Parakeet rather than switching to Turbo"
                 );
+                if std::env::var_os("PARAKEET_L3D_TIMING_ACTIVE").is_some() {
+                    eprintln!(
+                        "L3D_TIMING_DIAGNOSTIC case={case} total_ms={} refresh_count={refresh_count} txt_bytes={} srt_bytes={} worker_log_started_unix_ms={}",
+                        started.elapsed().as_millis(),
+                        fs::metadata(passage.join("transcript.txt")).unwrap().len(),
+                        fs::metadata(passage.join("transcript.srt")).unwrap().len(),
+                        worker_log_started
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis()
+                    );
+                }
                 return view;
             }
             let passage = destination
@@ -750,7 +814,13 @@ fn run_gpu_application_import_with_native(
             Instant::now() < deadline,
             "L3b {case} exceeded {timeout:?}: {view:?}"
         );
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep(Duration::from_millis(
+            if std::env::var_os("PARAKEET_L3D_TIMING_ACTIVE").is_some() {
+                33
+            } else {
+                50
+            },
+        ));
     }
 }
 
@@ -1717,7 +1787,12 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         .env(
             "PARAKEET_L3_ASR_LOG",
             asr_log_dir.join(format!(
-                "l3c-parakeet-asr-r8-incompatible-{}-{}.log",
+                "{}-parakeet-asr-r8-incompatible-{}-{}.log",
+                if std::env::var_os("PARAKEET_L3D_EXEC_ROOT").is_some() {
+                    "l3d"
+                } else {
+                    "l3c"
+                },
                 std::process::id(),
                 SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -2422,9 +2497,13 @@ fn r8_exec_root() -> PathBuf {
         .join("../../target/parakeet-tests/l3/l3c/r8")
         .canonicalize()
         .expect("canonical L3c R8 execution root exists");
+    let l3d_r8 = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target/parakeet-tests/l3/l3d/r8")
+        .canonicalize()
+        .expect("canonical L3d R8 execution root exists");
     assert!(
-        root == r8 || root == r9 || root == l3c_r8,
-        "R8 scenarios are confined to a canonical R8, R9, or L3c execution root"
+        root == r8 || root == r9 || root == l3c_r8 || root == l3d_r8,
+        "R8 scenarios are confined to a canonical R8, R9, L3c, or L3d execution root"
     );
     root
 }
