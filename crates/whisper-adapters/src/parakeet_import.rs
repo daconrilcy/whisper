@@ -38,7 +38,9 @@ impl ParakeetWorkerPaths {
             let canonical = path
                 .canonicalize()
                 .map_err(|error| format!("{label} unavailable: {error}"))?;
-            if !canonical.starts_with(&root) && !self.is_canonical_l3b_reference(label, &canonical)
+            if !canonical.starts_with(&root)
+                && !self.is_canonical_l3b_reference(label, &canonical)
+                && !self.is_canonical_l3c_test_artifact(&canonical)
             {
                 return Err(format!(
                     "PathOutsideRuntime: {label} is outside the active Parakeet runtime"
@@ -117,6 +119,21 @@ impl ParakeetWorkerPaths {
             .canonicalize()
             .ok()
             .is_some_and(|path| path == canonical)
+    }
+
+    fn is_canonical_l3c_test_artifact(&self, canonical: &Path) -> bool {
+        if !cfg!(feature = "l3-gpu-qualification")
+            || option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_none()
+        {
+            return false;
+        }
+        let Some(root) = std::env::var_os("PARAKEET_L3C_EXEC_ROOT") else {
+            return false;
+        };
+        PathBuf::from(root)
+            .canonicalize()
+            .ok()
+            .is_some_and(|root| canonical.starts_with(root))
     }
 
     pub fn verify_qualification(
@@ -298,11 +315,12 @@ fn runtime_sha256(native_dir: &Path) -> Result<String, String> {
 
 fn sha256_file(path: &Path) -> Result<String, String> {
     let started = Instant::now();
-    let mut file = std::fs::File::open(path).map_err(|error| format!("HashOpen: {error}"))?;
-    let mut hasher = Sha256::new();
-    let bytes =
-        std::io::copy(&mut file, &mut hasher).map_err(|error| format!("HashRead: {error}"))?;
-    let sha = format!("{:x}", hasher.finalize());
+    let (bytes, digest, full_read) = crate::model_catalog::cached_artifact_sha256_with_read(path)
+        .map_err(|error| format!("HashRead: {error}"))?;
+    let sha = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
     crate::worker_ipc::record_r7_timing(
         "sha256",
         started.elapsed(),
@@ -311,6 +329,7 @@ fn sha256_file(path: &Path) -> Result<String, String> {
             "role": if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("dll")) { "runtime_dll" } else if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("gguf")) { "model" } else if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("wav")) { "audio" } else if path.file_name().is_some_and(|name| name.to_string_lossy().contains("worker")) { "worker" } else { "other" },
             "bytes": bytes,
             "sha256": sha,
+            "full_read": full_read,
         }),
     );
     Ok(sha)
@@ -665,7 +684,45 @@ fn worker_stderr_log(
         .runtime_root
         .canonicalize()
         .map_err(|error| format!("WorkerLogPath: runtime root: {error}"))?;
-    let log_dir = runtime.join("logs");
+    let configured_l3c = if let Some(configured) = std::env::var_os("PARAKEET_L3C_EXEC_ROOT") {
+        let configured = PathBuf::from(configured)
+            .canonicalize()
+            .map_err(|error| format!("WorkerLogPath: L3c execution root: {error}"))?;
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .canonicalize()
+            .map_err(|error| format!("WorkerLogPath: repository root: {error}"))?;
+        let expected = repository
+            .join("target/parakeet-tests/l3/l3c")
+            .canonicalize()
+            .map_err(|error| format!("WorkerLogPath: canonical L3c root: {error}"))?;
+        if configured != expected {
+            return Err("PathOutsideRuntime: L3c execution root is not canonical".into());
+        }
+        Some(configured)
+    } else {
+        None
+    };
+    let l3c_gpu_log = is_gpu_worker && configured_l3c.is_some();
+    let log_root = if is_gpu_worker && configured_l3c.is_some() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .canonicalize()
+            .map_err(|error| format!("WorkerLogPath: repository root: {error}"))?;
+        let expected_runtime = repository
+            .join("target/parakeet-tests/l3/l3b")
+            .canonicalize()
+            .map_err(|error| format!("WorkerLogPath: canonical L3b root: {error}"))?;
+        if runtime != expected_runtime || configured_l3c.is_none() {
+            return Err("PathOutsideRuntime: GPU ASR log requires canonical L3c/L3b roots".into());
+        }
+        runtime.clone()
+    } else {
+        configured_l3c.unwrap_or_else(|| runtime.clone())
+    };
+    let log_dir = log_root.join("logs");
     match std::fs::create_dir(&log_dir) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
@@ -674,8 +731,8 @@ fn worker_stderr_log(
     let log_dir = log_dir
         .canonicalize()
         .map_err(|error| format!("WorkerLogPath: canonical runtime logs: {error}"))?;
-    if !log_dir.starts_with(&runtime) {
-        return Err("PathOutsideRuntime: worker stderr log is outside the runtime root".into());
+    if !log_dir.starts_with(&log_root) {
+        return Err("PathOutsideRuntime: worker stderr log is outside its execution root".into());
     }
     static LOG_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let timestamp_ms = SystemTime::now()
@@ -683,11 +740,7 @@ fn worker_stderr_log(
         .unwrap_or_default()
         .as_millis();
     let sequence = LOG_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let prefix = if is_gpu_worker {
-        "parakeet-asr"
-    } else {
-        "parakeet-worker-cpu"
-    };
+    let prefix = worker_log_prefix(is_gpu_worker, l3c_gpu_log);
     let path = log_dir.join(format!(
         "{prefix}-{timestamp_ms}-{}-{sequence}.log",
         std::process::id()
@@ -697,7 +750,30 @@ fn worker_stderr_log(
         .create_new(true)
         .open(&path)
         .map_err(|error| format!("WorkerLogOpen: {}: {error}", path.display()))?;
-    Ok((Stdio::from(file), Some(path)))
+    Ok((Stdio::from(file), is_gpu_worker.then_some(path)))
+}
+
+fn worker_log_prefix(is_gpu_worker: bool, l3c_gpu_log: bool) -> &'static str {
+    if l3c_gpu_log {
+        "l3c-parakeet-asr"
+    } else if is_gpu_worker {
+        "parakeet-asr"
+    } else {
+        "parakeet-worker-cpu"
+    }
+}
+
+#[cfg(test)]
+mod worker_log_mode_tests {
+    #[test]
+    fn gpu_log_prefix_preserves_l3b_and_scopes_l3c_names() {
+        assert_eq!(super::worker_log_prefix(true, false), "parakeet-asr");
+        assert_eq!(super::worker_log_prefix(true, true), "l3c-parakeet-asr");
+        assert_eq!(
+            super::worker_log_prefix(false, false),
+            "parakeet-worker-cpu"
+        );
+    }
 }
 
 /// The immutable R6 CPU worker authorizes only the canonical L2b runtime. During L3b,

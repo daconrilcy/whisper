@@ -116,7 +116,7 @@ fn parakeet_worker_configuration_is_confined_to_the_l2a2_runtime() {
 
 #[test]
 fn gpu_app_fr_en_single_pass() {
-    if !selected_l3b_recipe("gpu_app_fr_en_single_pass") {
+    if !selected_recipe("gpu_app_fr_en_single_pass") {
         return;
     }
     for (label, variable) in [
@@ -136,7 +136,7 @@ fn gpu_app_fr_en_single_pass() {
 
 #[test]
 fn gpu_app_en5() {
-    if !selected_l3b_recipe("gpu_app_en5") {
+    if !selected_recipe("gpu_app_en5") {
         return;
     }
     run_gpu_application_import(
@@ -151,7 +151,7 @@ fn gpu_app_en5() {
 #[test]
 #[cfg(feature = "l3-gpu-qualification")]
 fn gpu_app_en30() {
-    if !selected_l3b_recipe("gpu_app_en30") {
+    if !selected_recipe("gpu_app_en30") {
         return;
     }
     run_gpu_application_import(
@@ -166,7 +166,7 @@ fn gpu_app_en30() {
 #[test]
 #[cfg(feature = "l3-gpu-qualification")]
 fn gpu_manual_and_auto_fallback() {
-    if !selected_l3b_recipe("gpu_manual_and_auto_fallback") {
+    if !selected_recipe("gpu_manual_and_auto_fallback") {
         return;
     }
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -217,7 +217,7 @@ fn gpu_manual_and_auto_fallback() {
 #[test]
 #[cfg(feature = "l3-gpu-qualification")]
 fn gpu_rejects_bad_identity_before_pending() {
-    if !selected_l3b_recipe("gpu_rejects_bad_identity_before_pending") {
+    if !selected_recipe("gpu_rejects_bad_identity_before_pending") {
         return;
     }
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -235,14 +235,304 @@ fn gpu_rejects_bad_identity_before_pending() {
     }));
 }
 
-fn selected_l3b_recipe(name: &str) -> bool {
-    match std::env::var("PARAKEET_L3B_RECIPE_CASE") {
-        Ok(selected) if selected == name => true,
-        _ => {
-            eprintln!("L3B_RECIPE_NOT_RUN {name}: no matching guarded recipe selector");
-            false
-        }
+fn recipe_selector_matches(name: &str, l3b: Option<&str>, l3c: Option<&str>) -> bool {
+    l3c.or(l3b) == Some(name)
+}
+
+fn selected_recipe(name: &str) -> bool {
+    let l3b = std::env::var("PARAKEET_L3B_RECIPE_CASE").ok();
+    let l3c = std::env::var("PARAKEET_L3C_RECIPE_CASE").ok();
+    if recipe_selector_matches(name, l3b.as_deref(), l3c.as_deref()) {
+        true
+    } else {
+        let campaign = if l3c.is_some() { "L3c" } else { "L3b" };
+        eprintln!("{campaign}_RECIPE_NOT_RUN {name}: no matching guarded recipe selector");
+        false
     }
+}
+
+#[test]
+fn gpu_recipe_selector_preserves_l3b_and_supports_explicit_l3c() {
+    assert!(recipe_selector_matches(
+        "gpu_app_en5",
+        Some("gpu_app_en5"),
+        None
+    ));
+    assert!(recipe_selector_matches(
+        "gpu_app_en5",
+        None,
+        Some("gpu_app_en5")
+    ));
+    assert!(!recipe_selector_matches(
+        "gpu_app_en5",
+        Some("gpu_app_en5"),
+        Some("gpu_app_en30")
+    ));
+    assert!(!recipe_selector_matches("gpu_app_en5", None, None));
+}
+
+#[test]
+fn gpu_app_en5_twice_release() {
+    if !selected_recipe("gpu_app_en5_twice_release") {
+        return;
+    }
+    let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
+    let execution_root = required_path("PARAKEET_L2_ARCHIVE_ROOT");
+    let source = required_path("PARAKEET_L3_EN5_WAV");
+    let model_path = required_path("PARAKEET_L2_MODEL");
+    let gpu_worker = required_path("PARAKEET_L2_WORKER");
+    let gpu_native = required_path("PARAKEET_L2_NATIVE_DIR");
+    let cpu_worker = cpu_worker_path();
+    let cpu_native = cpu_native_dir();
+    let turbo_worker = runtime.join("worker/not-used-turbo.exe");
+    let historical_turbo = runtime.join("historical/ggml-large-v3-turbo.bin");
+
+    let artifact_paths = std::iter::once(gpu_worker.clone())
+        .chain(
+            [
+                "cublas64_12.dll",
+                "cublasLt64_12.dll",
+                "cudart64_12.dll",
+                "ggml-base.dll",
+                "ggml-cpu.dll",
+                "ggml-cuda.dll",
+                "ggml.dll",
+                "nemo_speech_asr.dll",
+                "nemo_speech_asr_c.dll",
+            ]
+            .into_iter()
+            .map(|name| gpu_native.join(name)),
+        )
+        .collect::<Vec<_>>();
+    let reads_before = artifact_paths
+        .iter()
+        .map(|path| {
+            whisper_adapters::model_catalog::artifact_sha256_full_read_count(path).unwrap_or(0)
+        })
+        .collect::<Vec<_>>();
+    let model_reads_before =
+        whisper_adapters::model_catalog::model_sha256_full_read_count(&model_path)
+            .expect("model identity available before release recipe");
+
+    let gpu_paths = ParakeetWorkerPaths {
+        executable: gpu_worker,
+        native_dir: gpu_native,
+        model: model_path.clone(),
+        runtime_root: runtime.clone(),
+    };
+    // The desktop performs this same qualification in its background catalog task
+    // before the user can start an import. Keep it in this session's cache, but
+    // outside the request-to-publication stopwatch.
+    let preflight_started = Instant::now();
+    let qualified_key = gpu_paths
+        .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
+        .expect("the qualified L3b GPU route is ready before the import request");
+    assert_eq!(
+        qualified_key,
+        whisper_adapters::archive::ArchiveQualificationKey::parakeet_gpu_test(),
+        "match the exact GPU qualification completed by the desktop catalog before selection"
+    );
+    eprintln!(
+        "L3C_RELEASE_PREFLIGHT elapsed_ms={} adapter_artifact_full_reads={} model_full_reads={}",
+        preflight_started.elapsed().as_millis(),
+        artifact_paths
+            .iter()
+            .map(
+                |path| whisper_adapters::model_catalog::artifact_sha256_full_read_count(path)
+                    .unwrap_or(0),
+            )
+            .sum::<u64>(),
+        whisper_adapters::model_catalog::model_sha256_full_read_count(&model_path).unwrap()
+    );
+    let cpu_paths = ParakeetWorkerPaths {
+        executable: cpu_worker,
+        native_dir: cpu_native,
+        model: model_path.clone(),
+        runtime_root: required_path("PARAKEET_L2_CPU_RUNTIME_ROOT"),
+    };
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes(
+        WorkerPaths {
+            cpu: turbo_worker.clone(),
+            gpu: turbo_worker,
+        },
+        model_path.parent().unwrap().to_path_buf(),
+        historical_turbo.to_string_lossy().into_owned(),
+        Some(cpu_paths),
+        Some(gpu_paths),
+    );
+    let snapshot = whisper_core::model_registry::engine_snapshot(
+        1,
+        |_| whisper_core::model_catalog::ModelAvailability::Ready,
+        vec![],
+    );
+    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
+        snapshot,
+        1,
+        [
+            (
+                ModelId::ParakeetTdt06BV3,
+                model_path.to_string_lossy().into_owned(),
+            ),
+            (
+                ModelId::WhisperLargeV3Turbo,
+                historical_turbo.to_string_lossy().into_owned(),
+            ),
+        ],
+    );
+    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let candidate = qualified_gpu_candidate();
+    let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
+    let archive_root = execution_root.join("en5-twice");
+    let _ = fs::remove_dir_all(&archive_root);
+    fs::create_dir_all(&archive_root).unwrap();
+    let samples = pcm16_mono_sample_count(&source);
+    let timeout = Duration::from_secs(samples / 16_000 / 4 + 120);
+    let mut elapsed = Vec::new();
+    let mut refreshes = Vec::new();
+    let mut reads_after_import = Vec::new();
+
+    for (index, name) in ["first", "second"].into_iter().enumerate() {
+        let job_id = JobId(0x6c00 + index as u128);
+        let destination = archive_root.join(name);
+        fs::create_dir_all(&destination).unwrap();
+        app.set_gpu_candidate(job_id, Generation::first(), Some(candidate.clone()))
+            .unwrap();
+        let request = ImportRequest {
+            job_id,
+            generation: Generation::first(),
+            source_path: source.to_string_lossy().into_owned(),
+            source_sha256: None,
+            source_samples: Some(samples),
+            model_path: model_path.to_string_lossy().into_owned(),
+            model_sha256: decode_sha256(record.artifact.sha256),
+            destination: destination.to_string_lossy().into_owned(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Gpu,
+            },
+        };
+        let started = Instant::now();
+        app.dispatch(AppCommand::StartImport { request }).unwrap();
+        let deadline = started + timeout;
+        let mut refresh_count = 0_u64;
+        loop {
+            refresh_count += 1;
+            let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
+                panic!(
+                    "L3c {name} import refresh failed: {error:?}; view={:?}",
+                    app.view()
+                )
+            });
+            if view.active_job == Some((job_id, whisper_core::JobState::Complete)) {
+                break;
+            }
+            if let Some((_, state)) = view.active_job {
+                assert_ne!(
+                    state,
+                    whisper_core::JobState::Recoverable,
+                    "L3c {name}: {view:?}"
+                );
+                assert_ne!(
+                    state,
+                    whisper_core::JobState::Interrupted,
+                    "L3c {name}: {view:?}"
+                );
+            }
+            assert!(
+                Instant::now() < deadline,
+                "L3c {name} exceeded {timeout:?}: {view:?}"
+            );
+            thread::sleep(Duration::from_millis(33));
+        }
+        let passage = destination
+            .join("transcriptions")
+            .join(format!("{:032x}", job_id.0))
+            .join("1");
+        let txt = fs::read(passage.join("transcript.txt")).expect("durable transcript TXT");
+        let srt = fs::read(passage.join("transcript.srt")).expect("durable transcript SRT");
+        assert!(
+            !txt.is_empty() && !srt.is_empty(),
+            "L3c {name} transcript files are empty"
+        );
+        let import_elapsed = started.elapsed();
+        let pending: serde_json::Value =
+            serde_json::from_slice(&fs::read(passage.join("pending.json")).unwrap()).unwrap();
+        assert_eq!(pending["qualification"]["backend"].as_str(), Some("CUDA0"));
+        assert_eq!(
+            pending["qualification"]["worker_build"].as_str(),
+            Some("5054612a05fbfd1039e108def3aa4e598268d2b4274b8c1dc96cd6b8e3f2cd6d")
+        );
+        elapsed.push(import_elapsed);
+        refreshes.push(refresh_count);
+        reads_after_import.push(
+            artifact_paths
+                .iter()
+                .map(|path| {
+                    whisper_adapters::model_catalog::artifact_sha256_full_read_count(path)
+                        .unwrap_or(0)
+                })
+                .collect::<Vec<_>>(),
+        );
+        eprintln!(
+            "L3C_RELEASE_IMPORT name={name} total_ms={} refresh_count={refresh_count} txt_bytes={} srt_bytes={}",
+            import_elapsed.as_millis(),
+            txt.len(),
+            srt.len()
+        );
+    }
+
+    for (index, (path, before)) in artifact_paths.iter().zip(reads_before).enumerate() {
+        assert_eq!(
+            reads_after_import[0][index] - before,
+            1,
+            "first import should hash artifact once: {}",
+            path.display()
+        );
+        assert_eq!(
+            reads_after_import[1][index] - reads_after_import[0][index],
+            0,
+            "second import must not reread artifact: {}",
+            path.display()
+        );
+        let after = whisper_adapters::model_catalog::artifact_sha256_full_read_count(path).unwrap();
+        assert_eq!(
+            after - before,
+            1,
+            "artifact should be read once across both imports: {}",
+            path.display()
+        );
+    }
+    let model_reads_after =
+        whisper_adapters::model_catalog::model_sha256_full_read_count(&model_path).unwrap();
+    assert_eq!(
+        model_reads_after - model_reads_before,
+        1,
+        "model should be read once across both imports"
+    );
+    assert_eq!(
+        reads_after_import[1], reads_after_import[0],
+        "second import must have zero new artifact reads"
+    );
+    let report = serde_json::json!({
+        "first_total_ms": elapsed[0].as_millis(), "second_total_ms": elapsed[1].as_millis(),
+        "first_refresh_count": refreshes[0], "second_refresh_count": refreshes[1],
+        "adapter_artifact_full_reads": artifact_paths.len(), "adapter_model_full_reads": model_reads_after - model_reads_before,
+        "worker_native_sha_is_separate": true,
+    });
+    let log = required_path("PARAKEET_R7_TIMING_LOG");
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .unwrap();
+    serde_json::to_writer(&mut file, &report).unwrap();
+    file.write_all(b"\n").unwrap();
+    eprintln!("L3C_RELEASE_SUMMARY {report}");
+    assert!(
+        elapsed[0] <= Duration::from_secs(15),
+        "first EN5 release import exceeded 15 s: {:?}",
+        elapsed[0]
+    );
 }
 
 fn run_gpu_application_import(
@@ -1279,11 +1569,8 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         model: model_path.clone(),
         runtime_root: runtime.clone(),
     });
-    let incompatible_dir = execution_root
-        .join("native")
-        .join(format!("r8-incompatible-{}", std::process::id()));
-    fs::create_dir_all(&incompatible_dir).unwrap();
-    for name in [
+    let incompatible_dir = existing_incompatible_gpu_fixture(&runtime);
+    let required_dlls = [
         "cublas64_12.dll",
         "cublasLt64_12.dll",
         "cudart64_12.dll",
@@ -1293,14 +1580,22 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         "ggml-base.dll",
         "ggml-cpu.dll",
         "ggml-cuda.dll",
-    ] {
-        fs::copy(native.join(name), incompatible_dir.join(name)).unwrap();
-    }
-    fs::copy(
-        native.join("ggml.dll"),
-        incompatible_dir.join("nemo_speech_asr_c.dll"),
-    )
-    .unwrap();
+    ];
+    assert!(
+        required_dlls
+            .iter()
+            .all(|name| incompatible_dir.join(name).is_file())
+    );
+    assert_eq!(
+        sha256(&incompatible_dir.join("nemo_speech_asr_c.dll")),
+        "9148ba2ed0eaeee385d09eba37e1a297d5e2f0649a02ffd4e325fea562c29ea6",
+        "the preserved L3b fixture must retain its intentionally incompatible ABI DLL"
+    );
+    assert_eq!(
+        sha256(&incompatible_dir.join("nemo_speech_asr_c.dll")),
+        sha256(&incompatible_dir.join("ggml.dll")),
+        "the preserved fixture records the deliberate ggml-to-NeMo ABI mismatch"
+    );
 
     let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
     let bad_paths = ParakeetWorkerPaths {
@@ -1409,7 +1704,8 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
     assert!(!passage.join("transcript.txt").exists());
     assert!(!passage.join("transcript.srt").exists());
 
-    fs::create_dir_all(runtime.join("logs")).unwrap();
+    let asr_log_dir = runtime.join("logs");
+    fs::create_dir_all(&asr_log_dir).unwrap();
     let output = Command::new(&worker)
         .arg("--model")
         .arg(&model_path)
@@ -1420,9 +1716,14 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         .env("PARAKEET_L2_RUNTIME_ROOT", &runtime)
         .env(
             "PARAKEET_L3_ASR_LOG",
-            runtime
-                .join("logs")
-                .join(format!("r8-incompatible-{}.log", std::process::id())),
+            asr_log_dir.join(format!(
+                "l3c-parakeet-asr-r8-incompatible-{}-{}.log",
+                std::process::id(),
+                SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos()
+            )),
         )
         .stdin(Stdio::null())
         .output()
@@ -1457,6 +1758,30 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         auto.last_result.is_some(),
         "Auto must complete through Parakeet CPU when the registered GPU DLL identity differs: {auto:?}"
     );
+}
+
+fn existing_incompatible_gpu_fixture(runtime: &std::path::Path) -> PathBuf {
+    let fixture_root = runtime.join("r8/native");
+    let mut candidates = fs::read_dir(&fixture_root)
+        .expect("preserved L3b R8 fixture directory exists")
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry.file_type().is_ok_and(|kind| kind.is_dir())
+                && entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("r8-incompatible-")
+        })
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    candidates.sort();
+    candidates
+        .into_iter()
+        .find(|candidate| {
+            sha256(&candidate.join("nemo_speech_asr_c.dll"))
+                == "9148ba2ed0eaeee385d09eba37e1a297d5e2f0649a02ffd4e325fea562c29ea6"
+        })
+        .expect("a preserved read-only L3b fixture has the intentional NeMo ABI mismatch")
 }
 
 fn assert_cpu_incompatible_native_refusal(
@@ -1768,7 +2093,7 @@ fn incomplete_result_frame_is_rejected_as_transport_decode_failure() {
         executable: fake_worker.clone(),
         native_dir: cpu_native_fixture,
         model: model.clone(),
-        runtime_root: required_path("PARAKEET_L3B_EXEC_ROOT"),
+        runtime_root: required_path("PARAKEET_L2_RUNTIME_ROOT"),
     };
     assert_incomplete_result_frame(&cpu_paths);
 
@@ -2093,9 +2418,13 @@ fn r8_exec_root() -> PathBuf {
         .join("../../target/parakeet-tests/l2/l2b/r9")
         .canonicalize()
         .expect("canonical R9 execution root exists");
+    let l3c_r8 = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target/parakeet-tests/l3/l3c/r8")
+        .canonicalize()
+        .expect("canonical L3c R8 execution root exists");
     assert!(
-        root == r8 || root == r9,
-        "R8 scenarios are confined to the canonical R8 or R9 execution root"
+        root == r8 || root == r9 || root == l3c_r8,
+        "R8 scenarios are confined to a canonical R8, R9, or L3c execution root"
     );
     root
 }

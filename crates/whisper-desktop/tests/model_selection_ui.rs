@@ -70,6 +70,40 @@ fn snapshot_renders_catalog_models_and_all_turbo_languages_without_model_path_in
 }
 
 #[test]
+fn selection_ui_rendering_does_not_hash_model_or_runtime_files() {
+    let model_reads_before = whisper_adapters::model_catalog::model_sha256_full_read_total();
+    let artifact_reads_before = whisper_adapters::model_catalog::artifact_sha256_full_read_total();
+    let snapshot = model_registry::engine_snapshot(
+        1,
+        |_| ModelAvailability::Ready,
+        Vec::<ResourceObservation>::new(),
+    );
+    let projection = whisper_core::model_selection_app::ModelSelectionApp::new(snapshot)
+        .projection(1)
+        .expect("matching snapshot generation");
+    let context = egui::Context::default();
+    let _ = context.run_ui(Default::default(), |ui| {
+        let mut selection = SelectionWidgetState {
+            model: Some(ModelId::ParakeetTdt06BV3),
+            manual_language: None,
+        };
+        model_selection_combo(ui, &projection, &mut selection);
+        language_selection_combo(ui, &projection, ComputeChoice::Gpu, &mut selection);
+    });
+
+    assert_eq!(
+        whisper_adapters::model_catalog::model_sha256_full_read_total(),
+        model_reads_before,
+        "the UI must consume a prepared catalog snapshot rather than hash model files"
+    );
+    assert_eq!(
+        whisper_adapters::model_catalog::artifact_sha256_full_read_total(),
+        artifact_reads_before,
+        "the UI must consume a prepared catalog snapshot rather than hash workers or DLLs"
+    );
+}
+
+#[test]
 fn language_availability_uses_selected_backend_and_auto_intersection() {
     use whisper_core::engine_capabilities::RefusalCause;
 

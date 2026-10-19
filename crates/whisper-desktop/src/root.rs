@@ -1,7 +1,7 @@
 use std::{
     path::PathBuf,
     sync::mpsc::{self, Receiver, TryRecvError},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 use whisper_adapters::model_catalog::CatalogSnapshot;
 use whisper_adapters::{
@@ -305,7 +305,7 @@ fn parakeet_gpu_route_is_qualified(snapshot: &CatalogSnapshot) -> bool {
 
 fn gpu_worker_file_metadata(
     paths: &whisper_adapters::parakeet_import::ParakeetWorkerPaths,
-) -> Option<Vec<(u64, SystemTime)>> {
+) -> Option<Vec<whisper_adapters::model_catalog::ArtifactFileIdentity>> {
     const GPU_DLLS: [&str; 9] = [
         "cublas64_12.dll",
         "cublasLt64_12.dll",
@@ -337,9 +337,11 @@ fn parakeet_worker_runtime_is_qualified(
         .is_ok()
 }
 
-fn file_metadata(path: &std::path::Path) -> Option<(u64, SystemTime)> {
-    let metadata = std::fs::metadata(path).ok()?;
-    Some((metadata.len(), metadata.modified().ok()?))
+fn file_metadata(
+    path: &std::path::Path,
+) -> Option<whisper_adapters::model_catalog::ArtifactFileIdentity> {
+    let identity = whisper_adapters::model_catalog::artifact_file_identity(path).ok()?;
+    Some(identity)
 }
 
 fn parakeet_artifact_matches(snapshot: &CatalogSnapshot) -> bool {
@@ -656,9 +658,16 @@ mod tests {
                 .join("target/parakeet-tests/l3/l3b")
                 .canonicalize()
                 .expect("canonical L3b test root must exist");
+            let l3c = repo
+                .join("target/parakeet-tests/l3/l3c")
+                .canonicalize()
+                .expect("canonical L3c test root must exist");
             assert!(
-                configured == expected || configured.starts_with(&expected),
-                "WHISPER_DESKTOP_TEST_ROOT must be inside canonical L3b"
+                configured == expected
+                    || configured.starts_with(&expected)
+                    || configured == l3c
+                    || configured.starts_with(&l3c),
+                "WHISPER_DESKTOP_TEST_ROOT must be inside canonical L3b or L3c"
             );
             configured
         } else {
@@ -682,6 +691,57 @@ mod tests {
             fixture.starts_with(&configured),
             "desktop fixture escaped L3b: {fixture:?}"
         );
+    }
+
+    #[test]
+    fn fixture_root_accepts_only_the_canonical_l3c_campaign_root() {
+        let Some(configured) = std::env::var_os("WHISPER_DESKTOP_TEST_ROOT") else {
+            return;
+        };
+        let configured = PathBuf::from(configured).canonicalize().unwrap();
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let repo = manifest_dir.ancestors().nth(2).unwrap();
+        let expected = repo
+            .join("target/parakeet-tests/l3/l3c")
+            .canonicalize()
+            .unwrap();
+        assert!(configured == expected || configured.starts_with(&expected));
+        let fixture = fixture_root("l3c-redirect-check");
+        assert!(fixture.starts_with(&configured));
+    }
+
+    #[test]
+    fn artifact_metadata_detects_replacement_with_same_size_and_modified_time() {
+        use std::fs::{self, File, FileTimes};
+        use std::io::Write;
+
+        let root = fixture_root("artifact-identity");
+        fs::create_dir_all(&root).unwrap();
+        let original = root.join("worker.dll");
+        fs::write(&original, b"alpha").unwrap();
+        let before = file_metadata(&original).unwrap();
+        let metadata = fs::metadata(&original).unwrap();
+        let replacement = root.join("replacement.dll");
+        let mut file = File::create(&replacement).unwrap();
+        file.write_all(b"bravo").unwrap();
+        file.set_times(FileTimes::new().set_modified(metadata.modified().unwrap()))
+            .unwrap();
+        drop(file);
+        fs::rename(&original, root.join("parked.dll")).unwrap();
+        fs::rename(&replacement, &original).unwrap();
+
+        let after = file_metadata(&original).unwrap();
+        let after_metadata = fs::metadata(&original).unwrap();
+        assert_eq!(after_metadata.len(), metadata.len());
+        assert_eq!(
+            after_metadata.modified().unwrap(),
+            metadata.modified().unwrap()
+        );
+        assert_ne!(
+            before, after,
+            "the file identifier must distinguish replacement"
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     fn turbo_sha() -> [u8; 32] {

@@ -235,7 +235,14 @@ fn l2a2_acceptance_take_worker_fault(
         .canonicalize()
         .map_err(|error| format!("PathOutsideRuntime: destination unavailable: {error}"))?;
     let control = destination.join(".l2a2-acceptance");
-    if !destination.starts_with(&runtime) || !control.starts_with(&runtime) {
+    let l3c_execution_root = std::env::var_os("PARAKEET_L3C_EXEC_ROOT")
+        .and_then(|path| PathBuf::from(path).canonicalize().ok());
+    let in_l2a2 = destination.starts_with(&runtime) && control.starts_with(&runtime);
+    let in_l3c_test_root = option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_some()
+        && l3c_execution_root
+            .as_ref()
+            .is_some_and(|root| destination.starts_with(root) && control.starts_with(root));
+    if !in_l2a2 && !in_l3c_test_root {
         return Err("PathOutsideRuntime: acceptance fault is outside L2a-2".into());
     }
     for (signal, message) in [
@@ -8357,6 +8364,40 @@ fn main() {
                 compute: ComputeChoice::Cpu,
             },
         }
+    }
+
+    #[cfg(feature = "l3-gpu-qualification")]
+    #[test]
+    fn l3c_acceptance_fault_is_confined_to_its_canonical_execution_root() {
+        assert!(option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_some());
+        let root =
+            PathBuf::from(std::env::var_os("PARAKEET_L3C_EXEC_ROOT").expect("L3c execution root"))
+                .canonicalize()
+                .unwrap();
+        let destination = root.join("r8/acceptance-test");
+        std::fs::create_dir_all(destination.join(".l2a2-acceptance")).unwrap();
+        std::fs::write(
+            destination.join(".l2a2-acceptance/worker-death.enabled"),
+            b"enabled",
+        )
+        .unwrap();
+        assert!(
+            l2a2_acceptance_take_worker_fault(&destination, true)
+                .unwrap()
+                .is_some()
+        );
+
+        let outside = root
+            .parent()
+            .expect("L3c root parent exists")
+            .join("l3a")
+            .canonicalize()
+            .expect("existing L3a root is a canonical path outside L3c and L3b");
+        assert!(
+            l2a2_acceptance_take_worker_fault(&outside, true)
+                .unwrap_err()
+                .starts_with("PathOutsideRuntime")
+        );
     }
 
     #[test]
