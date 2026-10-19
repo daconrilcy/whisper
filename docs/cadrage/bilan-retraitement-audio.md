@@ -1,6 +1,6 @@
-Avancée : candidat R11 implémenté dans les neuf chemins du plan ; tests automatisés verts sous garde.
-Blocage : la revue indépendante relève une reprise impossible après une coupure entre la création des exports et `CURRENT` (R5, D-A5).
-Décision : LIVRÉ AVEC RÉSERVES après deux cycles ; aucun code commité ni installation avant arbitrage utilisateur.
+Avancée : candidat R11 implémenté ; R1 à R6 fermés et tests automatisés verts sous garde.
+Blocage : la publication requiert un lien physique indisponible sur des destinations exFAT/FAT32 (R7, D-A3/D-A4).
+Décision : LIVRÉ AVEC RÉSERVES après le second ensemble de deux cycles ; aucun code commité ni installation avant arbitrage utilisateur.
 
 # Bilan provisoire R11 — retraitement d'un audio déjà publié
 
@@ -22,4 +22,14 @@ Dans `archive.rs`, `commit_publish` appelle `install_publication_exports` avant 
 
 Références de revue : `crates/whisper-adapters/src/archive.rs::commit_publish` lignes 2533–2536 ; `install_publication_exports` lignes 2887–2935 ; `resume_from_with_qualification` lignes 2273–2307. Un échec après le premier des deux exports peut créer le même blocage.
 
-Conformément au plan, R11 n'est pas livrable tant que D-A1 à D-A7 ne sont pas satisfaits ensemble. Aucun troisième cycle de correction n'est lancé sans décision de l'utilisateur. Le candidat reste non commité et l'installation personnelle n'est pas modifiée.
+## Reprise demandée par l'utilisateur après le premier verdict
+
+L'utilisateur a autorisé de nouveaux cycles de revue/correction pour lever les réserves. Le correctif R5 a été limité à `archive.rs` et `import_cpu.rs`. Il couvre deux interruptions : après la création du seul TXT, puis après les deux exports et avant `CURRENT`. La reprise dans une nouvelle génération aboutit, les anciennes publications restant actives jusqu'au commit. Le refus d'un fichier tiers ayant les mêmes octets reste testé.
+
+La première nouvelle revue a fermé R5, puis ouvert R6 : un lien physique direct entre export et artefact interne permettait à l'édition du TXT exporté de corrompre l'artefact vérifié par le manifeste. Le correctif a isolé l'artefact interne avec une copie préparée distincte. Le test ciblé vérifie l'édition de l'export, le SHA interne, le scan d'archive et la recherche de doublon. La seconde revue a fermé R6 et confirmé R1 à R5 fermés.
+
+La seconde revue a ouvert **R7 BLOQUANT** : `archive.rs::install_publication_exports`, lignes 2937–2940, exige `fs::hard_link` sans alternative. Une destination exFAT/FAT32 reste sélectionnable, mais ne permet pas cette publication TXT/SRT, contrairement à D-A3/D-A4. La preuve de fermeture demandée est : premier import et Remplacer sur une destination sans liens physiques, TXT/SRT vérifiés, reprise avant `CURRENT`, et fichier tiers en collision intact.
+
+Le nouveau candidat conserve exactement les neuf chemins de code R11. Formatage et suite workspace complète sous garde : PASS, 52 groupes, 0 échec, 34 tests ignorés. La recette D-A8 dans la fenêtre Windows reste NOT RUN. Le diff de ces neuf chemins par rapport à `e3918aab` est identifié par le SHA-1 Git `5344ad96ef3526998978e1a0a1894dcba88669e6` selon le reviewer. Les deux cycles de ce nouveau passage sont épuisés ; aucune correction supplémentaire n'a été lancée.
+
+Conformément au plan, R11 n'est pas livrable tant que D-A1 à D-A7 ne sont pas satisfaits ensemble. Le candidat reste non commité et l'installation personnelle n'est pas modifiée.
