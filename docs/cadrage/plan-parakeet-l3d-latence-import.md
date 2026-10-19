@@ -1,10 +1,20 @@
-Avancée : L3d v2 a été revu CLEAN — PLANS READY sur les trois écarts laissés par L3c.
-Blocage : le candidat L3c reste non commité et G-LOG demande un accord d'écriture ciblé avant l'exécution.
-Décision : attendre l'acceptation du plan et l'autorisation écrite du lot ; aucun code L3d n'est autorisé ici.
+Avancée : L3c est commité ; L3d a passé ses recettes, mais la première revue a ouvert L3D-R1 sur la saturation de la file.
+Blocage : L3D-R1 demande un signal distinct pour file pleine et déconnexion avant la qualification du candidat.
+Décision : l'amendement L3D-R1 du 19/10/2026 est autorisé par l'utilisateur ; reprendre uniquement sa correction et sa vérification avant de conclure L3d.
 
 # PLAN-PARA-L3d — latence du premier import GPU et vérifications manquantes
 
-Version : v2, PLANS READY après revue CLEAN, 19/10/2026. Source : revue indépendante L3c `LIVRÉ AVEC RÉSERVES`, candidat non commité sur `evo-startup-perf` à partir de `088681edc345174b7845a07f8f5e08a3bd9046f3`, et [plan L3c](plan-parakeet-l3c-sha-cache.md). Workspace : `C:\dev\whisper`. Mode : **plan seulement, aucun code produit autorisé**. Confiance : **medium** ; les traces identifient le délai, mais l'effet du traitement groupé reste à mesurer. Contrôle qualité du plan : à faire après revue.
+Version : v3, amendement ciblé L3D-R1 du 19/10/2026 au plan v2 revu CLEAN. Base Git L3c commitée : `27f58ceb1e968c4f3b16d24653f66f40e7c5b896`. Le candidat L3d est dans l'arbre de travail, limité aux sept chemins v2. Workspace : `C:\dev\whisper`. L'utilisateur a autorisé dans cette session l'ouverture du contrat de port et de la soumission de l'adaptateur, avec leurs tests, pour corriger la saturation et la reprise. Les autres contraintes v2 restent applicables.
+
+### Amendement L3D-R1 — saturation de la file de persistance
+
+La première revue du candidat L3d a constaté qu'un `Refresh` peut retirer un `Segment` et avancer `next_sequence` avant que `PersistSegment` soit accepté. Si la file interne de huit effets est pleine, le segment peut être perdu. `PortError::Unavailable` confond actuellement `TrySendError::Full` et `Disconnected` dans la soumission de `AsyncImportIo` ; un réessai aveugle pourrait masquer une déconnexion.
+
+**Chemins supplémentaires et portée exacte autorisés :** `crates/whisper-core/src/ports.rs` pour un signal de saturation réessayable distinct de la déconnexion dans le contrat `ImportIoPort` ; `crates/whisper-adapters/src/worker_ipc.rs` pour le seul mapping produit de `TrySendError::Full` et `Disconnected` lors de `ImportIoPort::submit`, en plus du périmètre de test déjà ouvert ; tests dans `crates/whisper-core/tests/import_contract.rs` et les tests existants de `worker_ipc.rs`. Aucun autre fichier, protocole IPC, canal, taille de file ni traitement d'archive n'est ouvert par cet amendement.
+
+**Comportement requis :** lorsque la soumission de `PersistSegment` rencontre une saturation temporaire, l'application conserve l'effet et ses données sans avancer définitivement la séquence ni publier la fin ; un `Refresh` ultérieur réessaie dans l'ordre, sans attente active et avec une borne de travail. Une déconnexion reste une erreur fatale explicite. Aucun segment n'est perdu ni persisté deux fois ; la publication attend tous les accusés. Les transitions Ready/Failed, Stop/reprise, micro et Turbo restent couvertes par les assertions existantes.
+
+**Preuve déterministe :** bloquer le consommateur de la file, fournir au moins neuf segments, constater la saturation sans perte ni publication anticipée, libérer le consommateur puis vérifier que chaque `PersistSegment` est accepté une seule fois et dans l'ordre avant TXT/SRT ; injecter aussi une déconnexion et vérifier son refus sans réessai infini. Le test doit être exécuté sous la garde L3d. Rejouer ensuite les trois sessions release EN5 (premier import ≤15 s), EN30, A4, les cinq R8, format/build/suite workspace complète et contrôles SHA. Deux cycles revue/correction maximum pour le candidat L3d ; le premier a produit L3D-R1 et aucune correction. Si un autre chemin devient nécessaire : `PLAN_CHANGE_REQUIRED`, sans édition hors périmètre.
 
 ## 1. Audit Digest
 
