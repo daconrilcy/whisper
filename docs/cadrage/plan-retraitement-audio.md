@@ -1,10 +1,10 @@
-Avancée : plan de retraitement d'un audio déjà publié, révisé après les deux constats de revue.
-Blocage : la cause exacte du refus observé après « Importer et transcrire » doit être établie au préflight R11.
-Décision : aucune implémentation ni publication n'est autorisée par ce plan seul.
+Avancée : plan de retraitement d'un audio déjà publié, revu CLEAN sur `df6535e9`.
+Blocage : la cause exacte du refus observé après « Importer et transcrire » reste à établir au préflight R11.
+Décision : accord utilisateur sur le plan, ses trois choix proposés et les chemins R11 encore requis avant code.
 
 # PLAN-RETRAITEMENT-AUDIO v3 — Import déjà publié
 
-Base lue : `evo-startup-perf` à `bb0cb741`, le 19/10/2026. Statut : **DRAFT — revue ciblée supplémentaire demandée par l'utilisateur**. Auteur documentaire : session Codex principale. Qualification du besoin relue `PASS`. Première revue du plan sur `4b4f1620` : R11-P01/P02 (requis) et R11-P03/P04/P05 (conseils). Seconde revue sur `ec14ca30` : R11-P01/P02/P04/P05 fermés, R11-P03 partiel et R11-P06 requis (racines de campagne rejetées). La section 6 corrige R11-P06 ; seul le reviewer peut le fermer.
+Base lue : `evo-startup-perf` à `bb0cb741`, le 19/10/2026. Statut : **PLANS READY sur le plan v3 — en attente d'acceptation et d'autorisation d'implémentation**. Auteur documentaire : session Codex principale. Qualification du besoin relue `PASS`. Première revue du plan sur `4b4f1620` : R11-P01/P02 (requis) et R11-P03/P04/P05 (conseils). Seconde revue sur `ec14ca30` : R11-P01/P02/P04/P05 fermés, R11-P03 partiel et R11-P06 requis. Revue ciblée supplémentaire demandée par l'utilisateur sur `df6535e9` : **CLEAN**, R11-P03/P06 fermés, aucun constat ouvert. Aucun build ni test produit n'a été exécuté lors de ces revues.
 
 ## 1. Besoin et décisions
 
@@ -103,4 +103,4 @@ Chaque commande Cargo passe par la garde R11 et ses variables de campagne requis
 
 ## 7. Readiness
 
-Statut : **DRAFT / NOT IMPLEMENTATION READY** jusqu'à revue indépendante du plan puis acceptation explicite de ses trois interprétations proposées, de R11 et de ses chemins. Tests produit : **NOT RUN**. La recette Windows n'est pas remplacée par un test Rust vert.
+Statut : **PLANS READY / AWAITING USER ACCEPTANCE**. La revue indépendante du v3 est CLEAN ; l'acceptation explicite des trois interprétations proposées, de R11 et de ses chemins d'écriture reste nécessaire avant tout code. Tests produit : **NOT RUN**. La recette Windows n'est pas remplacée par un test Rust vert.
