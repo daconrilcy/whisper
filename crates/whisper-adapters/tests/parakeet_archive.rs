@@ -106,6 +106,16 @@ fn archive_root() -> PathBuf {
                 .expect("canonical L6-perso execution root exists");
             path == &expected && canonical.starts_with(path)
         });
+    let r10 = std::env::var_os("PARAKEET_R10_EXEC_ROOT")
+        .map(PathBuf::from)
+        .and_then(|path| path.canonicalize().ok())
+        .filter(|path| {
+            let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../target/parakeet-tests/r10")
+                .canonicalize()
+                .expect("canonical R10 execution root exists");
+            path == &expected && canonical.starts_with(path)
+        });
     let r8 = std::env::var_os("PARAKEET_R8_EXEC_ROOT")
         .map(PathBuf::from)
         .and_then(|path| path.canonicalize().ok())
@@ -133,6 +143,7 @@ fn archive_root() -> PathBuf {
             path.ends_with("target/parakeet-tests/l2/l2b/r7") && canonical.starts_with(path)
         });
     let allowed = l6p
+        .or(r10)
         .or(l3d)
         .or(l3c)
         .or(l3b)
@@ -148,7 +159,7 @@ fn archive_root() -> PathBuf {
         });
     assert!(
         canonical.starts_with(&allowed),
-        "archive root must be inside R6, canonical R7, R8, R9, L3a, L3b, L3c, L3d, or L6-perso"
+        "archive root must be inside R6, canonical R7, R8, R9, R10, L3a, L3b, L3c, L3d, or L6-perso"
     );
     root
 }

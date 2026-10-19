@@ -6,7 +6,7 @@ use std::{
     io::{BufRead, BufReader, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
-use whisper_core::{Generation, JobId, ports::ImportRequest};
+use whisper_core::{ComputeChoice, Generation, JobId, ports::ImportRequest};
 
 const QUEUE_SCHEMA: u32 = 1;
 
@@ -194,6 +194,53 @@ impl QueueStore {
             .cloned()
             .ok_or_else(|| "InvalidInput: queued job was not found".to_owned())?;
         entry.status = status;
+        self.append(QueueRecord::Upsert {
+            version: QUEUE_SCHEMA,
+            entry: Box::new(entry.clone()),
+        })?;
+        self.entries.insert(entry.sequence, entry.clone());
+        Ok(entry)
+    }
+
+    /// Changes only the calculation choice of a still-pending durable entry.
+    /// `expected` must be the complete entry request observed by the caller so
+    /// an intervening identity change cannot be overwritten.
+    pub(crate) fn set_pending_compute(
+        &mut self,
+        expected: &ImportRequest,
+        compute: ComputeChoice,
+    ) -> Result<QueueEntry, String> {
+        let mut entry = self
+            .entries
+            .values()
+            .find(|entry| {
+                entry.request.job_id == expected.job_id
+                    && entry.request.generation == expected.generation
+            })
+            .cloned()
+            .ok_or_else(|| "InvalidInput: queued job was not found".to_owned())?;
+        if !matches!(
+            entry.status,
+            QueueStatus::Queued | QueueStatus::AwaitingChoice
+        ) {
+            return Err("InvalidInput: calculation can change only before processing".into());
+        }
+        if entry.request != *expected {
+            return Err("SourceChanged: queued request identity changed before processing".into());
+        }
+        if self
+            .entries
+            .first_key_value()
+            .map(|(_, first)| (first.request.job_id, first.request.generation))
+            != Some((expected.job_id, expected.generation))
+        {
+            return Err("InvalidInput: process queued jobs in FIFO order".into());
+        }
+        if entry.request.config.compute == compute {
+            return Ok(entry);
+        }
+
+        entry.request.config.compute = compute;
         self.append(QueueRecord::Upsert {
             version: QUEUE_SCHEMA,
             entry: Box::new(entry.clone()),
@@ -428,6 +475,117 @@ impl QueueStore {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use whisper_core::{JobConfig, ports::ImportRequest};
+
+    fn root() -> PathBuf {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock")
+            .as_nanos();
+        std::env::temp_dir()
+            .join("r10-queue-store-tests")
+            .join(format!("{}-{nonce}", std::process::id()))
+    }
+
+    fn request(job_id: u128, destination: &Path) -> ImportRequest {
+        ImportRequest {
+            job_id: JobId(job_id),
+            generation: Generation::first(),
+            source_path: format!("source-{job_id}.wav"),
+            source_sha256: Some([job_id as u8; 32]),
+            source_samples: Some(16_000),
+            model_path: "parakeet.gguf".into(),
+            model_sha256: [9; 32],
+            destination: destination.to_string_lossy().into_owned(),
+            config: JobConfig {
+                language: whisper_core::LanguageChoice::Manual("fr".into()),
+                compute: ComputeChoice::Gpu,
+            },
+        }
+    }
+
+    #[test]
+    fn pending_compute_change_persists_only_the_choice_and_keeps_fifo() {
+        let root = root();
+        let mut queue = QueueStore::open(&root).unwrap();
+        let first = request(1, &root);
+        let second = request(2, &root);
+        let first_entry = queue.enqueue(first.clone()).unwrap();
+        queue.enqueue(second.clone()).unwrap();
+
+        let changed = queue
+            .set_pending_compute(&first, ComputeChoice::Cpu)
+            .unwrap();
+
+        let mut expected = first;
+        expected.config.compute = ComputeChoice::Cpu;
+        assert_eq!(changed.request, expected);
+        assert_eq!(changed.sequence, first_entry.sequence);
+        assert_eq!(
+            queue
+                .entries()
+                .iter()
+                .map(|entry| entry.request.job_id)
+                .collect::<Vec<_>>(),
+            [JobId(1), JobId(2)]
+        );
+        let reopened = QueueStore::open(&root).unwrap();
+        assert_eq!(reopened.entries()[0].request, expected);
+        assert_eq!(reopened.entries()[1].request, second);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn pending_compute_change_rejects_identity_or_status_changes() {
+        let root = root();
+        let mut queue = QueueStore::open(&root).unwrap();
+        let first = request(3, &root);
+        queue.enqueue(first.clone()).unwrap();
+
+        let mut altered = first.clone();
+        altered.source_path.push_str("-changed");
+        assert!(
+            queue
+                .set_pending_compute(&altered, ComputeChoice::Cpu)
+                .is_err()
+        );
+        assert_eq!(queue.entries()[0].request, first);
+
+        queue
+            .set_status(first.job_id, first.generation, QueueStatus::Interrupted)
+            .unwrap();
+        assert!(
+            queue
+                .set_pending_compute(&first, ComputeChoice::Cpu)
+                .unwrap_err()
+                .contains("only before processing")
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn pending_compute_change_cannot_skip_the_fifo_head() {
+        let root = root();
+        let mut queue = QueueStore::open(&root).unwrap();
+        let first = request(4, &root);
+        let second = request(5, &root);
+        queue.enqueue(first.clone()).unwrap();
+        queue.enqueue(second.clone()).unwrap();
+
+        assert!(
+            queue
+                .set_pending_compute(&second, ComputeChoice::Cpu)
+                .unwrap_err()
+                .contains("FIFO order")
+        );
+        assert_eq!(queue.entries()[1].request, second);
+        std::fs::remove_dir_all(root).unwrap();
     }
 }
 

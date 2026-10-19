@@ -1503,6 +1503,58 @@ fn request_is_parakeet(request: &ImportRequest) -> bool {
     .is_ok_and(|sha| request.model_sha256 == sha)
 }
 
+fn queued_request_identity_matches(
+    durable: &ImportRequest,
+    requested: &ImportRequest,
+    same_model: bool,
+) -> bool {
+    if durable == requested {
+        return true;
+    }
+    if !same_model {
+        return false;
+    }
+    let mut comparable = durable.clone();
+    comparable.model_path = requested.model_path.clone();
+    comparable.config.compute = requested.config.compute;
+    comparable == *requested
+}
+
+fn validate_current_queued_gpu_candidate(
+    request: &ImportRequest,
+    candidate: Option<&whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+) -> Result<(), String> {
+    if !request_is_parakeet(request) || request.config.compute != whisper_core::ComputeChoice::Gpu {
+        return Ok(());
+    }
+    let candidate = candidate.ok_or_else(|| {
+        "BackendMismatch: selected GPU has no current runtime identity proof".to_owned()
+    })?;
+    if candidate.generation != request.generation.get() {
+        return Err("BackendMismatch: selected GPU identity belongs to a stale generation".into());
+    }
+    Ok(())
+}
+
+fn validate_queued_gpu_preflight(
+    request: &ImportRequest,
+    candidate: Option<&whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+    qualification: Option<&crate::archive::ArchiveQualificationKey>,
+) -> Result<(), String> {
+    validate_current_queued_gpu_candidate(request, candidate)?;
+    if !request_is_parakeet(request) || request.config.compute != whisper_core::ComputeChoice::Gpu {
+        return Ok(());
+    }
+    let key = qualification
+        .ok_or_else(|| "ModelNotQualified: GPU Test key is not admitted".to_owned())?;
+    if key.backend != "CUDA0"
+        || key.inference_profile != whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+    {
+        return Err("ModelNotQualified: GPU Test key is not admitted".into());
+    }
+    Ok(())
+}
+
 fn archive_qualification_for_request(
     request: &ImportRequest,
     parakeet_paths: Option<&crate::parakeet_import::ParakeetWorkerPaths>,
@@ -1910,7 +1962,7 @@ impl ImportRuntime {
                 let result =
                     crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
                         .and_then(|()| crate::queue_store::QueueStore::open(&request.destination))
-                        .and_then(|queue| {
+                        .and_then(|mut queue| {
                             let entries = queue.entries();
                             let first = entries
                                 .first()
@@ -1928,11 +1980,9 @@ impl ImportRuntime {
                                     "InvalidInput: process queued jobs in FIFO order".into()
                                 );
                             }
-                            let mut comparable = entry.request.clone();
                             let same_model = if request_is_parakeet(&entry.request)
                                 && request_is_parakeet(&request)
                             {
-                                comparable.model_path = request.model_path.clone();
                                 entry.request.model_sha256 == request.model_sha256
                             } else if let Some((snapshot, known_path)) = &model_catalog {
                                 let durable_id = snapshot.resolve_model_identity(
@@ -1941,12 +1991,15 @@ impl ImportRuntime {
                                 )?;
                                 let requested_id = snapshot
                                     .resolve_model_identity(&request.model_path, known_path)?;
-                                comparable.model_path = request.model_path.clone();
                                 durable_id == requested_id
                             } else {
                                 false
                             };
-                            if entry.request != request && (!same_model || comparable != request) {
+                            if !queued_request_identity_matches(
+                                &entry.request,
+                                &request,
+                                same_model,
+                            ) {
                                 return Err(
                             "SourceChanged: queued request identity differs from the durable entry"
                                 .into(),
@@ -1962,8 +2015,43 @@ impl ImportRuntime {
                                 .into(),
                         );
                             }
-                            let durable_request = entry.request;
-                            if request_is_parakeet(&durable_request) {
+                            let gpu_candidate = self
+                                .gpu_candidates
+                                .get(&(id.0, id.1.get()))
+                                .and_then(Option::as_ref);
+                            validate_current_queued_gpu_candidate(&request, gpu_candidate)?;
+                            let prevalidated_gpu_executable =
+                                if request_is_parakeet(&request)
+                                    && request.config.compute == whisper_core::ComputeChoice::Gpu
+                                {
+                                    let executable = self.bind_import_request(&request)?;
+                                    let qualification = archive_qualification_for_request(
+                                        &request,
+                                        self.parakeet_paths.as_ref(),
+                                        self.gpu_parakeet_paths.as_ref(),
+                                        gpu_candidate,
+                                    );
+                                    validate_queued_gpu_preflight(
+                                        &request,
+                                        gpu_candidate,
+                                        qualification.as_ref(),
+                                    )?;
+                                    crate::parakeet_import::expected_gpu_for_candidate(
+                                gpu_candidate.expect("current manual GPU proof was checked"),
+                            )
+                            .map_err(|error| {
+                                format!("BackendMismatch: GPU identity validation failed: {error}")
+                            })?;
+                                    Some(executable)
+                                } else {
+                                    None
+                                };
+                            let durable_request = queue
+                                .set_pending_compute(&entry.request, request.config.compute)?
+                                .request;
+                            if let Some(executable) = prevalidated_gpu_executable {
+                                Ok((durable_request, executable))
+                            } else if request_is_parakeet(&durable_request) {
                                 self.bind_import_request(&durable_request)
                                     .map(|executable| (durable_request, executable))
                             } else if let Some((snapshot, known_path)) = &model_catalog {
@@ -8450,6 +8538,136 @@ fn main() {
                 language: LanguageChoice::Manual("fr".into()),
                 compute: ComputeChoice::Cpu,
             },
+        }
+    }
+
+    #[test]
+    fn queued_request_identity_allows_only_compute_choice_and_verified_model_path_binding() {
+        let mut durable = test_request(JobId(910), Generation::first());
+        durable.source_sha256 = Some([1; 32]);
+        durable.source_samples = Some(16_000);
+        let mut requested = durable.clone();
+        requested.config.compute = ComputeChoice::Cpu;
+        assert!(queued_request_identity_matches(&durable, &requested, true));
+
+        requested.config.language = LanguageChoice::Automatic;
+        assert!(!queued_request_identity_matches(&durable, &requested, true));
+        requested = durable.clone();
+        requested.config.compute = ComputeChoice::Auto;
+        requested.model_path = "verified-catalog-path.gguf".into();
+        assert!(queued_request_identity_matches(&durable, &requested, true));
+        assert!(!queued_request_identity_matches(
+            &durable, &requested, false
+        ));
+    }
+
+    #[test]
+    fn queued_manual_gpu_preflight_requires_a_current_candidate_and_gpu_key() {
+        let mut request = test_request(JobId(911), Generation::first());
+        request.model_sha256 = decode_sha256(
+            whisper_core::model_registry::model(
+                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+            )
+            .artifact
+            .sha256,
+        )
+        .unwrap();
+        request.config.compute = ComputeChoice::Gpu;
+        let key = crate::archive::ArchiveQualificationKey::parakeet_gpu_test();
+        let mut candidate = fake_gpu_candidate();
+        candidate.generation = request.generation.get();
+
+        assert!(validate_queued_gpu_preflight(&request, Some(&candidate), Some(&key)).is_ok());
+        assert_eq!(
+            validate_queued_gpu_preflight(&request, None, Some(&key)).unwrap_err(),
+            "BackendMismatch: selected GPU has no current runtime identity proof"
+        );
+        let mut stale = candidate.clone();
+        stale.generation += 1;
+        assert_eq!(
+            validate_queued_gpu_preflight(&request, Some(&stale), Some(&key)).unwrap_err(),
+            "BackendMismatch: selected GPU identity belongs to a stale generation"
+        );
+        assert_eq!(
+            validate_queued_gpu_preflight(&request, Some(&candidate), None).unwrap_err(),
+            "ModelNotQualified: GPU Test key is not admitted"
+        );
+    }
+
+    #[test]
+    fn queued_manual_gpu_without_current_proof_refuses_before_pending_creation() {
+        for stale_proof in [false, true] {
+            let job_id = JobId(if stale_proof { 913 } else { 912 });
+            let generation = Generation::first();
+            let root = test_artifact_root(if stale_proof {
+                "r10-queued-gpu-stale-proof"
+            } else {
+                "r10-queued-gpu-missing-proof"
+            });
+            let destination = root.join("archive");
+            let mut request = test_request(job_id, generation);
+            request.model_sha256 = decode_sha256(
+                whisper_core::model_registry::model(
+                    whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+                )
+                .artifact
+                .sha256,
+            )
+            .unwrap();
+            request.source_sha256 = Some([9; 32]);
+            request.source_samples = Some(16_000);
+            request.destination = destination.to_string_lossy().into_owned();
+            request.config.compute = ComputeChoice::Gpu;
+            crate::queue_store::QueueStore::open(&destination)
+                .unwrap()
+                .enqueue(request.clone())
+                .unwrap();
+
+            let mut runtime = ImportRuntime::new(
+                WorkerPaths {
+                    cpu: root.join("unused-cpu.exe"),
+                    gpu: root.join("unused-gpu.exe"),
+                },
+                Arc::new(PublicationGate::default()),
+            );
+            if stale_proof {
+                let mut stale = fake_gpu_candidate();
+                stale.generation = generation.get() + 1;
+                runtime
+                    .gpu_candidates
+                    .insert((job_id, generation.get()), Some(stale));
+            }
+
+            let mut events = VecDeque::new();
+            runtime.effect(ImportEffect::ProcessQueued(request.clone()), &mut events);
+            let expected_message = if stale_proof {
+                "BackendMismatch: selected GPU identity belongs to a stale generation"
+            } else {
+                "BackendMismatch: selected GPU has no current runtime identity proof"
+            };
+            assert!(events.iter().any(|event| matches!(event,
+                ImportEvent::Failed { job_id: failed_job, generation: failed_generation, message }
+                    if *failed_job == job_id
+                        && *failed_generation == generation
+                        && message == expected_message
+            )));
+
+            let pending = destination
+                .join("transcriptions")
+                .join(format!("{:032x}", job_id.0))
+                .join(generation.get().to_string())
+                .join("pending.json");
+            assert!(!pending.exists(), "refusal must precede pending creation");
+            let queue = crate::queue_store::QueueStore::open(&destination).unwrap();
+            assert_eq!(
+                queue.entries()[0].request.config.compute,
+                ComputeChoice::Gpu
+            );
+            assert_eq!(
+                queue.entries()[0].status,
+                crate::queue_store::QueueStatus::Queued
+            );
+            std::fs::remove_dir_all(root).unwrap();
         }
     }
 

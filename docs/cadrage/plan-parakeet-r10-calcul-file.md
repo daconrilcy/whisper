@@ -1,10 +1,12 @@
-Avancée : cause du refus CPU après ajout GPU identifiée dans le parcours de file.
-Blocage : le changement de calcul d'une entrée durable avant traitement n'est pas autorisé par le plan L6-perso.
-Décision : faire accepter ce correctif R10 et ses trois chemins de code avant toute implémentation.
+Avancée : correctif R10 implémenté ; revue indépendante du code CLEAN après deux passes et gate workspace vert.
+Blocage : la recette R10-1 dans la fenêtre Windows reste NOT RUN.
+Décision : conserver l'installation Perso actuelle et faire la recette sur le binaire R10 avant publication.
 
 # R10 — Calcul choisi au lancement d'un import en file (proposition)
 
-Base : `evo-startup-perf` à `0e610c95`, après L6-perso. Ce document prépare un correctif ; il n'autorise aucun code, déploiement ou push.
+Base : `evo-startup-perf` à `0e610c95`, après L6-perso. Autorisation écrite R10 reçue le 19/10/2026 pour les trois fichiers de code ci-dessous ; le helper d'archive a été ouvert séparément par l'utilisateur pendant la campagne. Aucun déploiement ni push autorisé par cet accord.
+
+État au 19/10/2026 : 402 tests réussis, 0 échec, 34 ignorés sur 52 cibles du gate workspace sous garde ; revue du code CLEAN, R1 fermé au deuxième passage. Le desktop `personal-install` de recette est copié sous `target/parakeet-tests/r10/desktop/whisper-desktop.exe`, SHA-256 `96c2c420c3d4b3e41cc927bbe4946da927ba005f07c19954a86e1622938c9e93`. La recette dans la fenêtre Windows reste à exécuter par l'utilisateur ; son absence ne vaut pas PASS de R10-1.
 
 ## Constat
 
@@ -19,6 +21,7 @@ Pour une entrée `Queued` ou `AwaitingChoice`, le clic sur « Traiter » appliqu
 - `crates/whisper-desktop/src/ui.rs` : former la demande `ProcessQueued` à partir de l'entrée visible et du choix de calcul courant, sans altérer les autres champs ; utiliser le calcul de **la commande** pour sélectionner la preuve GPU, notamment lors d'une reprise. Tests locaux de changement GPU→CPU, CPU→GPU, Auto et reprise inchangée.
 - `crates/whisper-adapters/src/worker_ipc.rs` : admettre uniquement la divergence du champ `config.compute` pour une entrée `Queued` ou `AwaitingChoice` ; préserver toutes les comparaisons d'identité des autres champs, la FIFO, l'admission du modèle et les refus de reprise. Persister le nouveau calcul avant `prepare_with_qualification`, puis employer la demande ainsi persistée pour l'archive et le worker. Tests locaux des refus et du parcours.
 - `crates/whisper-adapters/src/queue_store.rs` : opération durable ciblée modifiant seulement `config.compute` sur une entrée en attente, après contrôle de l'identité complète et du statut ; conserver l'ordre, la source vérifiée et les autres champs. Aucun changement du schéma ou de la validation des reprises.
+- Amendement accepté pendant l'exécution : `crates/whisper-adapters/tests/parakeet_archive.rs`, uniquement le helper `archive_root()` ; admettre `PARAKEET_R10_EXEC_ROOT` si sa forme canonique est exactement `target/parakeet-tests/r10/` et si la racine d'archive est son descendant. Les assertions des tests restent inchangées. Cet ajout est nécessaire au gate complet : dix tests historiques refusaient la nouvelle racine de campagne, sans échec produit identifié.
 
 Exécution des builds, tests et preuves sous `target/parakeet-tests/r10/` et Cargo partagé `target/parakeet-tests/cargo-shared/`, avec garde à échec fermé existante. Aucune écriture dans `models/`, `sound example/`, le runtime CPU/GPU figé, l'installation Perso ou les sorties utilisateur pendant la recette automatisée.
 

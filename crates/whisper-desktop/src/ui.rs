@@ -445,6 +445,7 @@ impl<A: Application> DesktopApp<A> {
     }
 
     fn dispatch(&mut self, command: AppCommand) -> bool {
+        let requested_compute = command_compute_choice(&command).unwrap_or(self.compute_choice);
         let gpu_selection_command = matches!(
             &command,
             AppCommand::StartImport { .. }
@@ -456,15 +457,14 @@ impl<A: Application> DesktopApp<A> {
                 | AppCommand::StartDirectLiveConfigured { .. }
         );
         if gpu_selection_command
-            && let Some((job_id, generation)) =
-                command.identity().map(|id| (id.job_id, id.generation))
+            && let Some((job_id, generation)) = gpu_selection_identity(&command)
         {
-            let candidate = if self.compute_choice == ComputeChoice::Cpu {
+            let candidate = if requested_compute == ComputeChoice::Cpu {
                 None
             } else {
                 self.gpu_inventory.as_ref().and_then(|inventory| {
                     let preferred = self.paths.gpu_preference();
-                    match inventory.resolve_selection(self.compute_choice, preferred) {
+                    match inventory.resolve_selection(requested_compute, preferred) {
                         SelectionResolution::Candidate(SessionCandidate::Gpu(candidate)) => {
                             inventory
                                 .runtime_identities()
@@ -1261,9 +1261,8 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     .clicked()
                 {
                     self.active_identity = Some(identity);
-                    self.dispatch(AppCommand::ProcessQueued {
-                        request: entry.request.clone(),
-                    });
+                    let request = queued_request_for_compute(&entry.request, self.compute_choice);
+                    self.dispatch(AppCommand::ProcessQueued { request });
                 }
                 if entry.status == whisper_core::ports::ImportQueueStatus::Interrupted {
                     if self.resume_confirmation == Some(identity) {
@@ -1794,6 +1793,35 @@ pub fn compute_for_model(
     preferred
 }
 
+fn queued_request_for_compute(durable: &ImportRequest, compute: ComputeChoice) -> ImportRequest {
+    let mut request = durable.clone();
+    request.config.compute = compute;
+    request
+}
+
+fn command_compute_choice(command: &AppCommand) -> Option<ComputeChoice> {
+    match command {
+        AppCommand::StartImport { request }
+        | AppCommand::EnqueueImport { request }
+        | AppCommand::ProcessQueued { request }
+        | AppCommand::ResumeInterrupted { request } => Some(request.config.compute),
+        AppCommand::StartLiveConfigured { request }
+        | AppCommand::StartDirectLiveConfigured { request } => Some(request.config.compute),
+        _ => None,
+    }
+}
+
+fn gpu_selection_identity(command: &AppCommand) -> Option<(JobId, Generation)> {
+    match command {
+        AppCommand::ResumeInterrupted { request } => {
+            Some((request.job_id, request.generation.next()?))
+        }
+        _ => command
+            .identity()
+            .map(|identity| (identity.job_id, identity.generation)),
+    }
+}
+
 pub fn model_supports_live(model: Option<whisper_core::model_catalog::ModelId>) -> bool {
     model != Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
 }
@@ -2164,10 +2192,11 @@ fn record_first_render(
 #[cfg(test)]
 mod tests {
     use super::{
-        CatalogSnapshot, DesktopApp, ModelId, ModelSelectionRuntime, compute_for_model,
-        import_enqueue_enabled, manual_stop_available, microphone_device_label,
-        model_preference_command_channel, parakeet_gpu_catalog_ready, record_first_render,
-        speech_limit_samples, window_must_remain_open,
+        CatalogSnapshot, DesktopApp, ModelId, ModelSelectionRuntime, command_compute_choice,
+        compute_for_model, gpu_selection_identity, import_enqueue_enabled, manual_stop_available,
+        microphone_device_label, model_preference_command_channel, parakeet_gpu_catalog_ready,
+        queued_request_for_compute, record_first_render, speech_limit_samples,
+        window_must_remain_open,
     };
     use std::{cell::RefCell, collections::VecDeque, rc::Rc};
     use whisper_core::gpu_inventory::{GpuObservation, GpuPresence, GpuState};
@@ -2191,6 +2220,67 @@ mod tests {
         assert_eq!(
             compute_for_model(Some(ModelId::WhisperLargeV3Turbo), ComputeChoice::Auto),
             ComputeChoice::Auto
+        );
+    }
+
+    #[test]
+    fn queued_import_uses_current_compute_and_preserves_the_durable_request() {
+        let original = ImportRequest {
+            job_id: JobId(74),
+            generation: Generation::first(),
+            source_path: "queued.wav".into(),
+            source_sha256: Some([4; 32]),
+            source_samples: Some(16_000),
+            model_path: "parakeet.gguf".into(),
+            model_sha256: [8; 32],
+            destination: "archive".into(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Gpu,
+            },
+        };
+
+        for compute in [ComputeChoice::Cpu, ComputeChoice::Gpu, ComputeChoice::Auto] {
+            let request = queued_request_for_compute(&original, compute);
+            let mut expected = original.clone();
+            expected.config.compute = compute;
+            assert_eq!(request, expected);
+            assert_eq!(
+                command_compute_choice(&AppCommand::ProcessQueued {
+                    request: request.clone()
+                }),
+                Some(compute)
+            );
+        }
+        assert_eq!(original.config.compute, ComputeChoice::Gpu);
+    }
+
+    #[test]
+    fn resumed_import_uses_its_durable_compute_instead_of_the_global_selector() {
+        let mut request = ImportRequest {
+            job_id: JobId(75),
+            generation: Generation::first(),
+            source_path: "queued.wav".into(),
+            source_sha256: Some([4; 32]),
+            source_samples: Some(16_000),
+            model_path: "parakeet.gguf".into(),
+            model_sha256: [8; 32],
+            destination: "archive".into(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Gpu,
+            },
+        };
+        request.generation = request.generation.next().unwrap();
+
+        let command = AppCommand::ResumeInterrupted { request };
+        assert_eq!(command_compute_choice(&command), Some(ComputeChoice::Gpu));
+        assert_eq!(
+            gpu_selection_identity(&command),
+            Some((
+                JobId(75),
+                Generation::first().next().unwrap().next().unwrap()
+            ))
         );
     }
 
