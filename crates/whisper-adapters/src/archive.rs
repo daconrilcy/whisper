@@ -1998,7 +1998,12 @@ impl ArchiveStore {
             return Err("DuplicateStateChanged: aucun traitement vérifié à remplacer".into());
         }
         let current = Self::reprocessing_catalog(root, source_sha256)?;
-        if current != expected_catalog {
+        let verified_current = current
+            .iter()
+            .filter(|item| item.verified_present)
+            .cloned()
+            .collect::<Vec<_>>();
+        if verified_current != expected_catalog {
             return Err("DuplicateStateChanged: le catalogue des traitements a changé".into());
         }
         if selected

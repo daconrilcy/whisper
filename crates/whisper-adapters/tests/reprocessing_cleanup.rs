@@ -228,6 +228,44 @@ fn seed_treatment_generation(destination: &Path, source: &Path, id: u128, genera
     binding.retire().unwrap();
 }
 
+fn historical_catalog_fixture(
+    name: &str,
+) -> (
+    PathBuf,
+    PathBuf,
+    String,
+    Vec<whisper_core::ports::PublishedImport>,
+) {
+    let root = root().join(name);
+    let destination = root.join("destination");
+    fs::create_dir_all(&destination).unwrap();
+    let source = root.join("audio.wav");
+    wav(&source);
+    for id in [3_001, 3_002, 3_003, 3_004] {
+        seed_treatment(&destination, &source, id);
+    }
+
+    // Keep the publication index rows as historical metadata while removing
+    // two treatment containers, matching a user who deleted old outputs.
+    for id in [3_001, 3_002] {
+        fs::remove_dir_all(
+            destination
+                .join("transcriptions")
+                .join(format!("{id:032x}")),
+        )
+        .unwrap();
+    }
+
+    let source_sha = sha_hex(sha256_file(&source).unwrap());
+    let catalog = ArchiveStore::reprocessing_catalog(&destination, &source_sha).unwrap();
+    assert_eq!(catalog.len(), 4);
+    assert_eq!(
+        catalog.iter().filter(|item| item.verified_present).count(),
+        2
+    );
+    (destination, source, source_sha, catalog)
+}
+
 fn compile_worker(root: &Path) -> PathBuf {
     let source = root.join("rtc02-fake-worker.rs");
     let binary = root.join("rtc02-fake-worker.exe");
@@ -574,6 +612,126 @@ fn durable_legacy_cleanup_replay_keeps_empty_parent_without_container_proof() {
     );
     assert!(!restored_old_generation.exists());
     fs::remove_dir_all(fixture.root).unwrap();
+}
+
+#[test]
+fn replacement_reservation_ignores_historical_rows_without_treatments() {
+    let cases = [
+        ("latest", DuplicateImportChoice::ReplaceLatest, vec![3_004]),
+        ("all", DuplicateImportChoice::ReplaceAll, vec![3_003, 3_004]),
+        (
+            "selected",
+            DuplicateImportChoice::ReplaceSelectedPath(String::new()),
+            vec![3_003],
+        ),
+    ];
+
+    for (name, mut choice, selected_ids) in cases {
+        let (destination, source, source_sha, catalog) = historical_catalog_fixture(name);
+        let expected = catalog
+            .iter()
+            .filter(|item| item.verified_present)
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(expected.len(), 2);
+
+        if matches!(&choice, DuplicateImportChoice::ReplaceSelectedPath(_)) {
+            choice = DuplicateImportChoice::ReplaceSelectedPath(
+                destination
+                    .join("transcriptions")
+                    .join(format!("{:032x}", selected_ids[0]))
+                    .join("1")
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
+        let destination_identity = destination.canonicalize().unwrap();
+        let selected = selected_ids
+            .iter()
+            .map(|id| whisper_core::ports::TreatmentIdentity {
+                destination: destination_identity.to_string_lossy().into_owned(),
+                job_id: JobId(*id),
+                generation: Generation::first(),
+            })
+            .collect::<Vec<_>>();
+        let successor_id = 4_000 + selected_ids[0];
+        let mut incoming = request(&destination, &source, successor_id);
+        incoming.source_sha256 = Some(sha256_file(&source).unwrap());
+        incoming.source_samples = Some(16_000);
+
+        ArchiveStore::reserve_reprocessing_import(
+            &destination,
+            &incoming,
+            &source_sha,
+            16_000,
+            &expected,
+            &selected,
+            choice,
+        )
+        .unwrap();
+
+        let intent_path = destination
+            .join(".whisper-publications/reservations")
+            .join(format!("{successor_id:032x}-1.json"));
+        let intent: serde_json::Value =
+            serde_json::from_slice(&fs::read(intent_path).unwrap()).unwrap();
+        let mut reserved_ids = intent["cleanup_targets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|target| target["treatment"]["job_id"].as_u64().unwrap() as u128)
+            .collect::<Vec<_>>();
+        reserved_ids.sort_unstable();
+        let mut expected_ids = selected_ids;
+        expected_ids.sort_unstable();
+        assert_eq!(
+            reserved_ids, expected_ids,
+            "{name} reserves only verified treatments"
+        );
+    }
+}
+
+#[test]
+fn replacement_reservation_still_rejects_a_changed_verified_catalog() {
+    let (destination, source, source_sha, catalog) = historical_catalog_fixture("changed");
+    let expected = catalog
+        .iter()
+        .filter(|item| item.verified_present)
+        .cloned()
+        .collect::<Vec<_>>();
+    let latest_container = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", 3_004));
+    fs::remove_dir_all(latest_container).unwrap();
+
+    let destination_identity = destination.canonicalize().unwrap();
+    let selected = vec![whisper_core::ports::TreatmentIdentity {
+        destination: destination_identity.to_string_lossy().into_owned(),
+        job_id: JobId(3_003),
+        generation: Generation::first(),
+    }];
+    let mut incoming = request(&destination, &source, 5_003);
+    incoming.source_sha256 = Some(sha256_file(&source).unwrap());
+    incoming.source_samples = Some(16_000);
+
+    let error = ArchiveStore::reserve_reprocessing_import(
+        &destination,
+        &incoming,
+        &source_sha,
+        16_000,
+        &expected,
+        &selected,
+        DuplicateImportChoice::ReplaceSelectedPath(
+            destination
+                .join("transcriptions")
+                .join(format!("{:032x}", 3_003))
+                .join("1")
+                .to_string_lossy()
+                .into_owned(),
+        ),
+    )
+    .unwrap_err();
+    assert!(error.starts_with("DuplicateStateChanged:"), "{error}");
 }
 
 #[test]
