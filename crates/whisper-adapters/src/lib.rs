@@ -9,6 +9,7 @@ pub mod parakeet_import;
 pub mod path_settings;
 pub mod queue_store;
 pub mod recovery;
+pub mod source_binding;
 pub mod staging;
 pub mod supervisor;
 pub mod vad;

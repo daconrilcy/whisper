@@ -1029,6 +1029,17 @@ mod tests {
     use whisper_core::ports::WorkerSegment;
     use whisper_core::{ComputeChoice, JobConfig, LanguageChoice, SegmentId, SourceRange};
 
+    fn test_directory(label: &str) -> PathBuf {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "direct-live-{label}-{}-{nonce}",
+            std::process::id()
+        ))
+    }
+
     #[test]
     fn cpu_ready_after_auto_fallback_needs_no_gpu_candidate_attestation() {
         let mut candidate = Some(whisper_core::gpu_inventory::GpuRuntimeIdentity {
@@ -1173,10 +1184,7 @@ fn main() {
 
     #[test]
     fn auto_microphone_falls_back_while_capture_is_open_and_keeps_auto_preference() {
-        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-            "../../target/direct-live-auto-startup-{}",
-            std::process::id()
-        ));
+        let directory = test_directory("auto-startup");
         std::fs::create_dir_all(&directory).unwrap();
         let cpu = startup_worker(&directory, "cpu");
         let gpu = startup_worker(&directory, "gpu");
@@ -1275,10 +1283,7 @@ fn main() {
 
     #[test]
     fn auto_without_gpu_worker_clears_candidate_and_accepts_cpu_ready() {
-        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-            "../../target/direct-live-no-gpu-worker-{}",
-            std::process::id()
-        ));
+        let directory = test_directory("no-gpu-worker");
         std::fs::create_dir_all(&directory).unwrap();
         let cpu = startup_worker(&directory, "cpu-ready");
         let workers = crate::supervisor::WorkerPaths {
@@ -1315,12 +1320,7 @@ fn main() {
 
     #[test]
     fn auto_microphone_stop_before_gpu_ready_keeps_cpu_retry_for_recorded_audio() {
-        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target")
-            .join(format!(
-                "direct-live-stop-before-ready-{}",
-                std::process::id()
-            ));
+        let directory = test_directory("stop-before-ready");
         std::fs::create_dir_all(&directory).unwrap();
         let cpu = startup_worker(&directory, "cpu-marker");
         let gpu = startup_worker(&directory, "gpu-stop-fail");
@@ -1383,8 +1383,7 @@ fn main() {
 
     #[test]
     fn wav_output_keeps_the_exact_converted_samples() {
-        let directory =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/direct-live-tests");
+        let directory = test_directory("wav-output");
         let job_id = whisper_core::JobId(
             ((std::process::id() as u128) << 64)
                 | std::time::SystemTime::now()
@@ -1421,8 +1420,7 @@ fn main() {
 
     #[test]
     fn stop_before_engine_ready_flushes_captured_audio_to_the_wav() {
-        let directory =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/direct-live-tests");
+        let directory = test_directory("stop-before-engine-ready");
         let mut request = startup_request(&directory, ComputeChoice::Cpu);
         request.job_id = whisper_core::JobId(
             ((std::process::id() as u128) << 64)
@@ -1482,8 +1480,7 @@ fn main() {
 
     #[test]
     fn wav_backlog_fills_bounded_windows_without_drops_or_reordering() {
-        let directory =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/direct-live-tests");
+        let directory = test_directory("wav-backlog");
         let job_id = whisper_core::JobId(
             ((std::process::id() as u128) << 64)
                 | std::time::SystemTime::now()
@@ -1517,8 +1514,7 @@ fn main() {
 
     #[test]
     fn simulated_gpu_failure_keeps_wav_and_confirmed_text_with_incomplete_suffix() {
-        let directory =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/direct-live-tests");
+        let directory = test_directory("simulated-gpu-failure");
         let job_id = whisper_core::JobId(
             ((std::process::id() as u128) << 64)
                 | std::time::SystemTime::now()
@@ -1581,8 +1577,7 @@ fn main() {
 
     #[test]
     fn microphone_interruption_finalizes_cpu_outputs_without_gpu_message() {
-        let directory =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/direct-live-tests");
+        let directory = test_directory("microphone-interruption");
         let mut request = startup_request(&directory, ComputeChoice::Cpu);
         request.job_id = whisper_core::JobId(
             ((std::process::id() as u128) << 64)

@@ -100,6 +100,66 @@ pub enum DuplicateImportChoice {
     CreateNew,
 }
 
+/// Encoded-file identity used to group prior transcription generations.
+/// The format tag keeps differently encoded source formats distinct even
+/// when their decoded audio happens to match.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AudioIdentity {
+    pub sha256: [u8; 32],
+    pub format: AudioFormat,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AudioFormat {
+    Wav,
+    Mp3,
+    Other,
+}
+
+/// Identifies one stored transcription without granting authority to mutate it.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TreatmentIdentity {
+    pub destination: String,
+    pub job_id: JobId,
+    pub generation: Generation,
+}
+
+/// Identifies one import attempt independently from the audio it processes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct OperationIdentity {
+    pub job_id: JobId,
+    pub generation: Generation,
+}
+
+/// A user-confirmed target selection; adapters resolve it to immutable
+/// treatment identities before any destructive operation is attempted.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ReprocessingTarget {
+    CreateNew,
+    LatestSuccessful,
+    AllVerifiedPresent,
+    Selected(TreatmentIdentity),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ReprocessingStage {
+    Snapshotting,
+    Queued,
+    Transcribing,
+    Publishing,
+    Complete,
+    Cancelled,
+    Failed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ReprocessingProgress {
+    pub operation: OperationIdentity,
+    pub stage: ReprocessingStage,
+    pub completed: u64,
+    pub total: Option<u64>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PublishedImport {
     pub job_id: JobId,
@@ -197,6 +257,11 @@ pub enum ImportEffect {
     ConfirmDuplicateImport {
         prompt: DuplicateImportPrompt,
         choice: DuplicateImportChoice,
+    },
+    ReleaseSourceBinding {
+        job_id: JobId,
+        generation: Generation,
+        destination: String,
     },
     RemoveQueued {
         job_id: JobId,

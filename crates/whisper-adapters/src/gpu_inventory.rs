@@ -811,8 +811,8 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/gpu-selection-tests")
+        std::env::temp_dir()
+            .join("gpu-selection-tests")
             .join(format!(
                 "gpu-inventory-{}-{nonce}-{suffix}",
                 std::process::id()

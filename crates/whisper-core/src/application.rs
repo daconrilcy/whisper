@@ -1180,7 +1180,15 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 });
             }
             AppCommand::CancelDuplicateImport => {
-                self.view.duplicate_import_prompt = None;
+                if let Some(prompt) = self.view.duplicate_import_prompt.take() {
+                    self.io
+                        .submit(ImportEffect::ReleaseSourceBinding {
+                            job_id: prompt.request.job_id,
+                            generation: prompt.request.generation,
+                            destination: prompt.request.destination,
+                        })
+                        .map_err(|error| self.fail(error))?;
+                }
                 self.view.message = Some("Nouvelle transcription annulée.".into());
             }
             AppCommand::ResolveImportPublication {
@@ -1477,6 +1485,53 @@ mod tests {
             view.message
                 .as_deref()
                 .is_some_and(|message| message.contains("destination is not a directory"))
+        );
+    }
+
+    #[test]
+    fn cancelling_duplicate_import_releases_only_the_new_source_snapshot() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let job_id = JobId(101);
+        let generation = Generation::first();
+        let destination = "archive".to_owned();
+        app.view.duplicate_import_prompt = Some(DuplicateImportPrompt {
+            request: ImportRequest {
+                job_id,
+                generation,
+                source_path: "source.wav".into(),
+                source_sha256: Some([1; 32]),
+                source_samples: Some(16_000),
+                model_path: "model.bin".into(),
+                model_sha256: [2; 32],
+                destination: destination.clone(),
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+            source_sha256: "01".repeat(32),
+            source_samples: 16_000,
+            publications: Vec::new(),
+            export_basename: String::new(),
+            revalidation_notice: None,
+            resume_from: None,
+            reserved_export_basename: None,
+        });
+
+        let view = app.dispatch(AppCommand::CancelDuplicateImport).unwrap();
+
+        assert!(view.duplicate_import_prompt.is_none());
+        assert_eq!(
+            view.message.as_deref(),
+            Some("Nouvelle transcription annulée.")
+        );
+        assert_eq!(
+            app.io.effects,
+            vec![ImportEffect::ReleaseSourceBinding {
+                job_id,
+                generation,
+                destination,
+            }]
         );
     }
 

@@ -854,6 +854,8 @@ struct PublicationIntent {
     source_samples: u64,
     expected_active: Vec<PublicationIdentity>,
     export_basename: String,
+    #[serde(default)]
+    internal_only: bool,
 }
 
 impl Default for PublicationIntent {
@@ -866,6 +868,7 @@ impl Default for PublicationIntent {
             source_samples: 0,
             expected_active: Vec::new(),
             export_basename: "transcription".into(),
+            internal_only: false,
         }
     }
 }
@@ -1673,6 +1676,45 @@ impl ArchiveStore {
         )
     }
 
+    /// Reserves a new import whose only final TXT/SRT pair lives in its
+    /// transcription generation directory.
+    pub fn reserve_create_only_import(
+        root: &Path,
+        request: &ImportRequest,
+        source_sha256: &str,
+        source_samples: u64,
+    ) -> Result<(), String> {
+        write_publication_reservation_with_storage(
+            root,
+            request,
+            source_sha256,
+            source_samples,
+            Vec::new(),
+            DuplicateImportChoice::CreateNew,
+            "transcript".into(),
+            true,
+        )
+    }
+
+    /// Reserves the first publication in a destination without creating an
+    /// `exports/` copy. Existing legacy reservation APIs retain their format.
+    pub fn reserve_create_only_new_import(
+        root: &Path,
+        request: &ImportRequest,
+        source_sha256: &str,
+    ) -> Result<(), String> {
+        write_publication_reservation_with_storage(
+            root,
+            request,
+            source_sha256,
+            request.source_samples.unwrap_or(0),
+            Vec::new(),
+            DuplicateImportChoice::CreateNew,
+            "transcript".into(),
+            true,
+        )
+    }
+
     pub fn reserve_duplicate_import(
         root: &Path,
         request: &ImportRequest,
@@ -1878,7 +1920,11 @@ impl ArchiveStore {
         if !dir.join("CURRENT").is_file() {
             return Err("InvalidInput: publication is not complete".into());
         }
-        let current = Self::published_imports(root, &intent.source_sha256)?;
+        let current = if intent.internal_only {
+            Vec::new()
+        } else {
+            Self::published_imports(root, &intent.source_sha256)?
+        };
         let expected: Vec<_> = intent
             .expected_active
             .iter()
@@ -1888,12 +1934,14 @@ impl ArchiveStore {
             .iter()
             .map(|item| (item.job_id, item.generation))
             .collect();
-        if expected != actual {
+        if !intent.internal_only && expected != actual {
             return Err(
                 "DuplicateStateChanged: publication set changed; re-import to confirm".into(),
             );
         }
-        install_publication_exports(root, &dir, &intent)?;
+        if !intent.internal_only {
+            install_publication_exports(root, &dir, &intent)?;
+        }
         let index = apply_publication_intent(
             load_or_migrate_publication_index(root)?,
             job_id,
@@ -1901,7 +1949,9 @@ impl ArchiveStore {
             &intent,
         );
         write_publication_index(root, &index)?;
-        reconcile_replaced_exports(root, &index)?;
+        if !intent.internal_only {
+            reconcile_replaced_exports(root, &index)?;
+        }
         Self::clear_duplicate_reservation(root, job_id, generation)
     }
 
@@ -2153,6 +2203,24 @@ impl ArchiveStore {
         self.prepare_inner(request, executable_model_path, qualification)
     }
 
+    pub fn prepare_with_source_binding(
+        &mut self,
+        request: ImportRequest,
+        executable_model_path: Option<&str>,
+        qualification: Option<ArchiveQualificationKey>,
+        binding: &crate::source_binding::SourceBinding,
+    ) -> Result<ImportRequest, String> {
+        let started = Instant::now();
+        let result =
+            self.prepare_inner_impl(request, executable_model_path, qualification, Some(binding));
+        crate::worker_ipc::record_r7_timing(
+            "archive_prepare_pending",
+            started.elapsed(),
+            serde_json::json!({ "success": result.is_ok(), "source_binding": true }),
+        );
+        result
+    }
+
     fn prepare_inner(
         &mut self,
         request: ImportRequest,
@@ -2160,7 +2228,7 @@ impl ArchiveStore {
         qualification: Option<ArchiveQualificationKey>,
     ) -> Result<ImportRequest, String> {
         let started = Instant::now();
-        let result = self.prepare_inner_impl(request, executable_model_path, qualification);
+        let result = self.prepare_inner_impl(request, executable_model_path, qualification, None);
         crate::worker_ipc::record_r7_timing(
             "archive_prepare_pending",
             started.elapsed(),
@@ -2174,34 +2242,54 @@ impl ArchiveStore {
         mut request: ImportRequest,
         executable_model_path: Option<&str>,
         qualification: Option<ArchiveQualificationKey>,
+        source_binding: Option<&crate::source_binding::SourceBinding>,
     ) -> Result<ImportRequest, String> {
         l04_campaign_assert_archive(&self.root)?;
         if self.current.is_some() {
             return Err("Busy: an import is already active".into());
         }
-        let source = Path::new(&request.source_path);
-        if !source.is_file() {
-            return Err("SourceMissing: selected audio source does not exist".into());
-        }
-        let source_sha = sha256_file(source)?;
-        if request
-            .source_sha256
-            .is_some_and(|expected| expected != source_sha)
-        {
-            return Err("SourceChanged: source hash differs from the accepted identity".into());
-        }
-        let source_samples = source_output_samples(source)?;
-        if request
-            .source_samples
-            .is_some_and(|expected| expected != source_samples)
-        {
-            return Err("SourceChanged: source duration differs from the accepted identity".into());
-        }
-        if sha256_file(source)? != source_sha {
-            return Err(
-                "SourceChanged: audio source changed while its duration was inspected".into(),
-            );
-        }
+        let (source_sha, source_samples) = if let Some(binding) = source_binding {
+            if binding.original_path() != request.source_path
+                || request
+                    .source_sha256
+                    .is_some_and(|sha| sha != binding.source_sha256())
+                || request
+                    .source_samples
+                    .is_some_and(|samples| samples != binding.source_samples())
+            {
+                return Err(
+                    "SourceChanged: accepted request differs from its source snapshot".into(),
+                );
+            }
+            (binding.source_sha256(), binding.source_samples())
+        } else {
+            let source = Path::new(&request.source_path);
+            if !source.is_file() {
+                return Err("SourceMissing: selected audio source does not exist".into());
+            }
+            let source_sha = sha256_file(source)?;
+            if request
+                .source_sha256
+                .is_some_and(|expected| expected != source_sha)
+            {
+                return Err("SourceChanged: source hash differs from the accepted identity".into());
+            }
+            let source_samples = source_output_samples(source)?;
+            if request
+                .source_samples
+                .is_some_and(|expected| expected != source_samples)
+            {
+                return Err(
+                    "SourceChanged: source duration differs from the accepted identity".into(),
+                );
+            }
+            if sha256_file(source)? != source_sha {
+                return Err(
+                    "SourceChanged: audio source changed while its duration was inspected".into(),
+                );
+            }
+            (source_sha, source_samples)
+        };
         let durable_model_path = request.model_path.clone();
         let model_path = executable_model_path.unwrap_or(&request.model_path);
         let model_meta = fs::metadata(model_path).map_err(|e| format!("ModelMissing: {e}"))?;
@@ -2304,6 +2392,7 @@ impl ArchiveStore {
                 source_samples,
                 expected_active,
                 export_basename,
+                internal_only: false,
             }
         };
         if publication.source_sha256 != hex(&source_sha)
@@ -2672,17 +2761,19 @@ impl ArchiveStore {
             &marker_path,
             &serde_json::to_vec(&active.publication).map_err(|error| error.to_string())?,
         )?;
-        for (extension, artifact) in [("txt", &verified.text), ("srt", &verified.srt)] {
-            let staged = active.directory.join(format!("export.{extension}.pending"));
-            let source = active.directory.join(&artifact.path);
-            write_replace_synced(
-                &staged,
-                &fs::read(source).map_err(|error| error.to_string())?,
-            )?;
-            if hex(&sha256_file(&staged)?) != artifact.sha256 {
-                return Err(format!(
-                    "StorageCorrupt: staged export {extension} does not match the manifest"
-                ));
+        if !active.publication.internal_only {
+            for (extension, artifact) in [("txt", &verified.text), ("srt", &verified.srt)] {
+                let staged = active.directory.join(format!("export.{extension}.pending"));
+                let source = active.directory.join(&artifact.path);
+                write_replace_synced(
+                    &staged,
+                    &fs::read(source).map_err(|error| error.to_string())?,
+                )?;
+                if hex(&sha256_file(&staged)?) != artifact.sha256 {
+                    return Err(format!(
+                        "StorageCorrupt: staged export {extension} does not match the manifest"
+                    ));
+                }
             }
         }
         crate::worker_ipc::record_r7_timing(
@@ -2704,30 +2795,34 @@ impl ArchiveStore {
         }
         let root = self.root.clone();
         let _lock = Self::lock_publications(&root)?;
-        let current = Self::published_imports(&root, &active.publication.source_sha256)?;
-        let expected: Vec<_> = active
-            .publication
-            .expected_active
-            .iter()
-            .map(|item| (item.job_id, item.generation))
-            .collect();
-        let actual: Vec<_> = current
-            .iter()
-            .map(|item| (item.job_id, item.generation))
-            .collect();
-        if expected != actual {
-            return Err(
-                "DuplicateStateChanged: publications changed during processing; confirm again"
-                    .into(),
-            );
+        if !active.publication.internal_only {
+            let current = Self::published_imports(&root, &active.publication.source_sha256)?;
+            let expected: Vec<_> = active
+                .publication
+                .expected_active
+                .iter()
+                .map(|item| (item.job_id, item.generation))
+                .collect();
+            let actual: Vec<_> = current
+                .iter()
+                .map(|item| (item.job_id, item.generation))
+                .collect();
+            if expected != actual {
+                return Err(
+                    "DuplicateStateChanged: publications changed during processing; confirm again"
+                        .into(),
+                );
+            }
         }
         let publication = active.publication.clone();
-        install_publication_exports_with(
-            &root,
-            &active.directory,
-            &publication,
-            self.export_hard_linker.as_ref(),
-        )?;
+        if !publication.internal_only {
+            install_publication_exports_with(
+                &root,
+                &active.directory,
+                &publication,
+                self.export_hard_linker.as_ref(),
+            )?;
+        }
         l04_campaign_gate("import.before_current", job_id.0, generation.get(), 0)?;
         let current_path = active.directory.join("CURRENT");
         let operation = write_replace_synced(&current_path, b"manifest.json\n");
@@ -2748,7 +2843,9 @@ impl ArchiveStore {
             &publication,
         );
         write_publication_index(&root, &index)?;
-        reconcile_replaced_exports(&root, &index)?;
+        if !publication.internal_only {
+            reconcile_replaced_exports(&root, &index)?;
+        }
         Self::clear_duplicate_reservation(&root, job_id, generation)?;
         self.current = None;
         crate::worker_ipc::record_r7_timing(
@@ -2994,6 +3091,28 @@ fn write_publication_reservation(
     choice: DuplicateImportChoice,
     export_basename: String,
 ) -> Result<(), String> {
+    write_publication_reservation_with_storage(
+        root,
+        request,
+        source_sha256,
+        source_samples,
+        expected_active,
+        choice,
+        export_basename,
+        false,
+    )
+}
+
+fn write_publication_reservation_with_storage(
+    root: &Path,
+    request: &ImportRequest,
+    source_sha256: &str,
+    source_samples: u64,
+    expected_active: Vec<PublicationIdentity>,
+    choice: DuplicateImportChoice,
+    export_basename: String,
+    internal_only: bool,
+) -> Result<(), String> {
     let path = publication_reservation_path(root, request.job_id, request.generation);
     if path.exists() {
         return Err("DuplicateStateChanged: reservation already exists".into());
@@ -3009,6 +3128,7 @@ fn write_publication_reservation(
         source_samples,
         expected_active,
         export_basename,
+        internal_only,
     };
     write_publication_intent(root, request, &intent)
 }
@@ -3080,6 +3200,7 @@ fn load_publication_intent(directory: &Path) -> Result<PublicationIntent, String
                 .and_then(|name| name.to_str())
                 .unwrap_or("transcription"),
         ),
+        internal_only: false,
     })
 }
 
@@ -3761,7 +3882,7 @@ fn apply_publication_intent(
         job_id,
         generation,
         source_sha256: intent.source_sha256.clone(),
-        export_basename: Some(intent.export_basename.clone()),
+        export_basename: (!intent.internal_only).then(|| intent.export_basename.clone()),
         active: true,
     });
     index
@@ -5066,6 +5187,7 @@ mod tests {
                 })
                 .collect(),
             export_basename: "r7-audio".into(),
+            internal_only: false,
         };
         let previous = ImportRequest {
             job_id,
@@ -5877,6 +5999,7 @@ mod tests {
                 },
             ],
             export_basename: "audio (3)".into(),
+            internal_only: false,
         };
         let replaced = apply_publication_intent(original, JobId(4), generation, &intent);
         assert_eq!(
@@ -5946,6 +6069,7 @@ mod tests {
                 generation,
             }],
             export_basename: "audio (2)".into(),
+            internal_only: false,
         };
         let next = apply_publication_intent(index, JobId(2), generation, &intent);
         assert_eq!(
@@ -6152,6 +6276,7 @@ mod tests {
                 generation,
             }],
             export_basename: "legacy-source (2)".into(),
+            internal_only: false,
         };
         write_complete(r11_job, Some(intent));
 

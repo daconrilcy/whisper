@@ -268,12 +268,13 @@ pub fn compose() -> DesktopComposition {
         let _ = sender.send(result);
     });
     let historical_model_path = whisper_desktop::ui::default_model_path();
-    let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes(
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes_and_snapshot_registry(
         workers,
         model_root.clone(),
         historical_model_path.clone(),
         configured_parakeet_worker(),
         configured_gpu_parakeet_worker(),
+        reprocessing_snapshot_registry_root(),
     );
     let application =
         guarded_application(io, &model_root, historical_model_path, admission_receiver);
@@ -354,6 +355,14 @@ fn personal_model_root(root: &std::path::Path) -> PathBuf {
 
 fn personal_settings_path(root: &std::path::Path) -> PathBuf {
     root.join("settings/settings.json")
+}
+
+fn reprocessing_snapshot_registry_root() -> Option<PathBuf> {
+    std::env::var_os("LOCALAPPDATA").map(|root| {
+        PathBuf::from(root)
+            .join("Whisper")
+            .join("settings/reprocessing-snapshots")
+    })
 }
 
 fn personal_worker_paths(

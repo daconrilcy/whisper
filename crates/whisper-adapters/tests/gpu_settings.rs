@@ -21,8 +21,8 @@ fn isolated_dir(label: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/gpu-selection-tests")
+    let path = std::env::temp_dir()
+        .join("gpu-selection-tests")
         .join(format!("{label}-{}-{nonce}", std::process::id()));
     fs::create_dir_all(&path).unwrap();
     path

@@ -1120,10 +1120,13 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         prompt.publications.len()
                     ));
                 }
-                ui.label(format!(
-                    "Nom proposé : {}.txt / {}.srt",
-                    prompt.export_basename, prompt.export_basename
-                ));
+                ui.label("Créer un nouveau produit une paire TXT/SRT dans le nouveau dossier de transcription, sans copie dans exports/.");
+                if !prompt.export_basename.is_empty() {
+                    ui.label(format!(
+                        "Nom proposé pour le remplacement : {}.txt / {}.srt",
+                        prompt.export_basename, prompt.export_basename
+                    ));
+                }
                 if let Some(notice) = &prompt.revalidation_notice {
                     ui.colored_label(egui::Color32::YELLOW, notice);
                 }

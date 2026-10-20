@@ -12,7 +12,7 @@ use crate::{
 use serde::{Serialize, de::DeserializeOwned};
 use std::{
     cell::RefCell,
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     fs,
     io::{self, BufRead, BufReader, Write},
     path::{Path, PathBuf},
@@ -1290,6 +1290,8 @@ struct ImportRuntime {
     model_catalog: Option<RuntimeModelCatalog>,
     parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
     gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+    snapshot_registry_root: Option<PathBuf>,
+    require_snapshot_registry: bool,
     parakeet: Option<crate::parakeet_import::ParakeetProcess>,
     parakeet_events: VecDeque<WorkerEvent>,
     parakeet_expected_gpu: Option<whisper_core::parakeet_ipc::ExpectedGpu>,
@@ -1305,6 +1307,7 @@ struct ImportRuntime {
     diagnostic_degraded_reported: bool,
     progress: Option<ProgressSupervisor>,
     archive: ArchiveStore,
+    source_bindings: HashMap<(JobId, u64), crate::source_binding::SourceBinding>,
     active: Option<ImportRequestState>,
     transport: Option<ChildWorkerTransport>,
     publication_gate: Arc<PublicationGate>,
@@ -1861,11 +1864,33 @@ impl ImportRuntime {
         parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
         gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
     ) -> Self {
+        Self::new_with_workers_and_parakeet_registry(
+            workers,
+            publication_gate,
+            model_catalog,
+            parakeet_paths,
+            gpu_parakeet_paths,
+            None,
+            false,
+        )
+    }
+
+    fn new_with_workers_and_parakeet_registry(
+        workers: WorkerPaths,
+        publication_gate: Arc<PublicationGate>,
+        model_catalog: Option<RuntimeModelCatalog>,
+        parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+        gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+        snapshot_registry_root: Option<PathBuf>,
+        require_snapshot_registry: bool,
+    ) -> Self {
         Self {
             workers,
             model_catalog,
             parakeet_paths,
             gpu_parakeet_paths,
+            snapshot_registry_root,
+            require_snapshot_registry,
             parakeet: None,
             parakeet_events: VecDeque::new(),
             parakeet_expected_gpu: None,
@@ -1881,6 +1906,7 @@ impl ImportRuntime {
             diagnostic_degraded_reported: false,
             progress: None,
             archive: ArchiveStore::new("."),
+            source_bindings: HashMap::new(),
             active: None,
             transport: None,
             publication_gate,
@@ -1919,6 +1945,89 @@ impl ImportRuntime {
             || Ok(request.clone()),
             |catalog| catalog.bind_import(request),
         )
+    }
+
+    fn ensure_source_binding(&mut self, request: &mut ImportRequest) -> Result<(), String> {
+        let Some(registry_root) = self.snapshot_registry_root.as_deref() else {
+            if self.require_snapshot_registry {
+                return Err("SourceSnapshotRegistryUnavailable: application settings root is not configured".into());
+            }
+            return crate::archive::ArchiveStore::identify_source(request);
+        };
+        let key = (request.job_id, request.generation.get());
+        if !self.source_bindings.contains_key(&key) {
+            let binding = crate::source_binding::SourceBinding::acquire(request, registry_root)?;
+            self.source_bindings.insert(key, binding);
+        }
+        let binding = self
+            .source_bindings
+            .get(&key)
+            .expect("binding inserted or already present");
+        if binding.original_path() != request.source_path
+            || request
+                .source_sha256
+                .is_some_and(|sha| sha != binding.source_sha256())
+            || request
+                .source_samples
+                .is_some_and(|samples| samples != binding.source_samples())
+        {
+            return Err(
+                "SourceSnapshotMismatch: stored source binding differs from the request".into(),
+            );
+        }
+        request.source_sha256 = Some(binding.source_sha256());
+        request.source_samples = Some(binding.source_samples());
+        Ok(())
+    }
+
+    fn rebind_source_binding(
+        &mut self,
+        old: (JobId, Generation),
+        new: (JobId, Generation),
+    ) -> Result<(), String> {
+        if old == new {
+            return Ok(());
+        }
+        if !self.source_bindings.contains_key(&(old.0, old.1.get()))
+            && !self.require_snapshot_registry
+        {
+            return Ok(());
+        }
+        let binding = self
+            .source_bindings
+            .remove(&(old.0, old.1.get()))
+            .ok_or_else(|| {
+                "SourceSnapshotUnavailable: accepted source binding is missing".to_owned()
+            })?;
+        let binding = binding.rebind(new.0, new.1)?;
+        self.source_bindings.insert((new.0, new.1.get()), binding);
+        Ok(())
+    }
+
+    fn release_source_binding(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        destination: &Path,
+    ) -> Result<(), String> {
+        let Some(registry_root) = self.snapshot_registry_root.as_deref() else {
+            return Ok(());
+        };
+        let binding =
+            if let Some(binding) = self.source_bindings.remove(&(job_id, generation.get())) {
+                Some(binding)
+            } else {
+                crate::source_binding::SourceBinding::reopen_for_identity(
+                    registry_root,
+                    destination,
+                    job_id,
+                    generation,
+                )?
+            };
+        if let Some(binding) = binding {
+            binding.retire()?;
+        }
+        Ok(())
     }
 
     fn bind_live_request(
@@ -2136,13 +2245,15 @@ impl ImportRuntime {
                     Path::new(&request.destination),
                 );
                 let started = Instant::now();
+                let mut binding_key = submitted;
+                let binding_destination = PathBuf::from(&request.destination);
                 let result = self
                     .bind_import_request(&request)
                     .map(|bound| {
                         request = bound;
                         ()
                     })
-                    .and_then(|()| crate::archive::ArchiveStore::identify_source(&mut request))
+                    .and_then(|()| self.ensure_source_binding(&mut request))
                     .and_then(|()| {
                         self.bind_import_request(&request).map(|bound| {
                             request = bound;
@@ -2162,23 +2273,43 @@ impl ImportRuntime {
                             .ok_or_else(|| {
                                 "SourceChanged: source identity is missing".to_owned()
                             })?;
-                        let publications = crate::archive::ArchiveStore::published_imports(
-                            destination,
-                            &source_sha,
-                        )?;
+                        let legacy_export_basename = if self.snapshot_registry_root.is_none() {
+                            crate::archive::ArchiveStore::suggest_duplicate_export_basename(
+                                destination,
+                                &request.source_path,
+                            )?
+                        } else {
+                            String::new()
+                        };
+                        let publications = match
+                            crate::archive::ArchiveStore::published_imports(destination, &source_sha)
+                        {
+                            Ok(publications) => publications,
+                            Err(error) if error.starts_with("StorageCorrupt:") => {
+                                let source_samples = request.source_samples.unwrap_or(0);
+                                return Ok(PreflightResult::Duplicate(DuplicateImportPrompt {
+                                    request,
+                                    source_sha256: source_sha,
+                                    source_samples,
+                                    publications: Vec::new(),
+                                    export_basename: legacy_export_basename.clone(),
+                                    revalidation_notice: Some(
+                                        "Certains anciens traitements sont illisibles. Vous pouvez créer un nouveau dossier ; les anciens resteront intacts.".into(),
+                                    ),
+                                    resume_from: None,
+                                    reserved_export_basename: None,
+                                }));
+                            }
+                            Err(error) => return Err(error),
+                        };
                         if !publications.is_empty() {
                             let source_samples = request.source_samples.unwrap_or(0);
-                            let export_basename =
-                                crate::archive::ArchiveStore::suggest_duplicate_export_basename(
-                                    destination,
-                                    &request.source_path,
-                                )?;
                             return Ok(PreflightResult::Duplicate(DuplicateImportPrompt {
                                 request,
                                 source_sha256: source_sha,
                                 source_samples,
                                 publications,
-                                export_basename,
+                                export_basename: legacy_export_basename,
                                 revalidation_notice: None,
                                 resume_from: None,
                                 reserved_export_basename: None,
@@ -2199,17 +2330,41 @@ impl ImportRuntime {
                             .ok_or_else(|| {
                                 "SourceChanged: source identity is missing".to_owned()
                             })?;
-                        crate::archive::ArchiveStore::reserve_new_import(
-                            destination,
-                            &request,
-                            &source_sha,
-                        )?;
+                        if self.snapshot_registry_root.is_some() {
+                            crate::archive::ArchiveStore::reserve_create_only_new_import(
+                                destination,
+                                &request,
+                                &source_sha,
+                            )?;
+                        } else {
+                            crate::archive::ArchiveStore::reserve_new_import(
+                                destination,
+                                &request,
+                                &source_sha,
+                            )?;
+                        }
+                        if let Err(error) = self
+                            .rebind_source_binding(original, (request.job_id, request.generation))
+                        {
+                            let _ = crate::archive::ArchiveStore::clear_duplicate_reservation(
+                                destination,
+                                request.job_id,
+                                request.generation,
+                            );
+                            return Err(error);
+                        }
+                        binding_key = (request.job_id, request.generation);
                         let admitted = (request.job_id, request.generation);
                         if let Err(error) = queue.enqueue(request.clone()) {
                             let _ = crate::archive::ArchiveStore::clear_duplicate_reservation(
                                 destination,
                                 request.job_id,
                                 request.generation,
+                            );
+                            let _ = self.release_source_binding(
+                                request.job_id,
+                                request.generation,
+                                destination,
                             );
                             return Err(error);
                         }
@@ -2254,7 +2409,14 @@ impl ImportRuntime {
                         }
                         Ok(())
                     }
-                    Err(error) => Err((submitted.0, submitted.1, error)),
+                    Err(error) => {
+                        let _ = self.release_source_binding(
+                            binding_key.0,
+                            binding_key.1,
+                            &binding_destination,
+                        );
+                        Err((submitted.0, submitted.1, error))
+                    }
                 }
             }
             ImportEffect::ConfirmDuplicateImport { mut prompt, choice } => {
@@ -2270,10 +2432,23 @@ impl ImportRuntime {
                 );
                 let started = Instant::now();
                 let mut request = prompt.request.clone();
+                let mut binding_key = submitted;
+                let binding_destination = PathBuf::from(&request.destination);
+                if choice == DuplicateImportChoice::CreateNew
+                    && self.require_snapshot_registry
+                    && self.snapshot_registry_root.is_none()
+                {
+                    events.push_back(ImportEvent::Failed {
+                        job_id: submitted.0,
+                        generation: submitted.1,
+                        message: "SourceSnapshotRegistryUnavailable: Créer un nouveau requiert le registre de snapshots de l'application".into(),
+                    });
+                    return;
+                }
                 let result = self
                     .bind_import_request(&request)
                     .map(|bound| { request = bound; () })
-                    .and_then(|()| crate::archive::ArchiveStore::identify_source(&mut request))
+                    .and_then(|()| self.ensure_source_binding(&mut request))
                     .and_then(|()| self.bind_import_request(&request).map(|bound| { request = bound; () }))
                     .and_then(|()| {
                         crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
@@ -2286,14 +2461,24 @@ impl ImportRuntime {
                             .as_ref()
                             .map(format_sha256)
                             .ok_or_else(|| "SourceChanged: source identity is missing".to_owned())?;
-                        let current = crate::archive::ArchiveStore::published_imports(
-                            destination,
-                            &source_sha,
-                        )?;
+                        let current = if choice == DuplicateImportChoice::CreateNew
+                            && self.snapshot_registry_root.is_some()
+                        {
+                            Vec::new()
+                        } else {
+                            crate::archive::ArchiveStore::published_imports(
+                                destination,
+                                &source_sha,
+                            )?
+                        };
                         let source_matches = source_sha == prompt.source_sha256
                             && request.source_samples == Some(prompt.source_samples)
                             && request.destination == prompt.request.destination;
-                        if !source_matches || current != prompt.publications {
+                        if !source_matches
+                            || ((choice != DuplicateImportChoice::CreateNew
+                                || self.snapshot_registry_root.is_none())
+                                && current != prompt.publications)
+                        {
                             prompt.request = request;
                             prompt.source_sha256 = source_sha;
                             prompt.source_samples = prompt.request.source_samples.unwrap_or(0);
@@ -2303,12 +2488,16 @@ impl ImportRuntime {
                             );
                             return Ok(PreflightResult::Duplicate(prompt));
                         }
-                        let current_basename =
-                            crate::archive::ArchiveStore::suggest_duplicate_export_basename(
+                        let current_basename = if choice == DuplicateImportChoice::Replace {
+                            Some(crate::archive::ArchiveStore::suggest_duplicate_export_basename(
                                 destination,
                                 &request.source_path,
-                            )?;
-                        if current_basename != prompt.export_basename {
+                            )?)
+                        } else {
+                            None
+                        };
+                        if current_basename.as_deref().is_some_and(|name| name != prompt.export_basename) {
+                            let current_basename = current_basename.expect("checked Some");
                             prompt.export_basename = current_basename;
                             prompt.revalidation_notice = Some(
                                 "Le nom de sortie proposé n'est plus disponible. Vérifiez le nouveau nom avant de confirmer.".into(),
@@ -2323,15 +2512,27 @@ impl ImportRuntime {
                             request.generation,
                             &queue.entries(),
                         );
-                        if let Err(error) = crate::archive::ArchiveStore::reserve_duplicate_import(
-                            destination,
-                            &request,
-                            &source_sha,
-                            request.source_samples.unwrap_or(0),
-                            &current,
-                            choice,
-                            &prompt.export_basename,
-                        ) {
+                        let reservation = if choice == DuplicateImportChoice::CreateNew
+                            && self.snapshot_registry_root.is_some()
+                        {
+                            crate::archive::ArchiveStore::reserve_create_only_import(
+                                destination,
+                                &request,
+                                &source_sha,
+                                request.source_samples.unwrap_or(0),
+                            )
+                        } else {
+                            crate::archive::ArchiveStore::reserve_duplicate_import(
+                                destination,
+                                &request,
+                                &source_sha,
+                                request.source_samples.unwrap_or(0),
+                                &current,
+                                choice,
+                                &prompt.export_basename,
+                            )
+                        };
+                        if let Err(error) = reservation {
                             if error.starts_with("DuplicateExportNameChanged:") {
                                 prompt.export_basename = crate::archive::ArchiveStore::suggest_duplicate_export_basename(
                                     destination,
@@ -2344,6 +2545,15 @@ impl ImportRuntime {
                             }
                             return Err(error);
                         }
+                        if let Err(error) = self.rebind_source_binding(original, (request.job_id, request.generation)) {
+                            let _ = crate::archive::ArchiveStore::clear_duplicate_reservation(
+                                destination,
+                                request.job_id,
+                                request.generation,
+                            );
+                            return Err(error);
+                        }
+                        binding_key = (request.job_id, request.generation);
                         let admitted = (request.job_id, request.generation);
                         if let Err(error) = queue.enqueue(request.clone()) {
                             let _ = crate::archive::ArchiveStore::clear_duplicate_reservation(
@@ -2351,6 +2561,7 @@ impl ImportRuntime {
                                 request.job_id,
                                 request.generation,
                             );
+                            let _ = self.release_source_binding(request.job_id, request.generation, destination);
                             return Err(error);
                         }
                         Ok(PreflightResult::Queued {
@@ -2398,9 +2609,23 @@ impl ImportRuntime {
                         }
                         Ok(())
                     }
-                    Err(error) => Err((submitted.0, submitted.1, error)),
+                    Err(error) => {
+                        let _ = self.release_source_binding(
+                            binding_key.0,
+                            binding_key.1,
+                            &binding_destination,
+                        );
+                        Err((submitted.0, submitted.1, error))
+                    }
                 }
             }
+            ImportEffect::ReleaseSourceBinding {
+                job_id,
+                generation,
+                destination,
+            } => self
+                .release_source_binding(job_id, generation, Path::new(&destination))
+                .map_err(|error| (job_id, generation, error)),
             ImportEffect::RemoveQueued {
                 job_id,
                 generation,
@@ -2413,8 +2638,17 @@ impl ImportRuntime {
                         Ok(queue.entries())
                     }) {
                     Ok(queue) => {
-                        events.push_back(ImportEvent::Queue(queue));
-                        Ok(())
+                        match self.release_source_binding(
+                            job_id,
+                            generation,
+                            Path::new(&destination),
+                        ) {
+                            Ok(()) => {
+                                events.push_back(ImportEvent::Queue(queue));
+                                Ok(())
+                            }
+                            Err(error) => Err((job_id, generation, error)),
+                        }
                     }
                     Err(error) => Err((job_id, generation, error)),
                 }
@@ -2536,45 +2770,66 @@ impl ImportRuntime {
                             }
                         });
                 match result {
-                    Ok((durable_request, verified_executable)) => {
-                        let executable_model_path = model_catalog
-                            .as_ref()
-                            .map(|_| verified_executable.model_path.as_str());
-                        let mut archive = ArchiveStore::new(&durable_request.destination);
-                        match archive.prepare_with_qualification(
-                            durable_request.clone(),
-                            executable_model_path,
-                            archive_qualification_for_request(
+                    Ok((mut durable_request, verified_executable)) => {
+                        let binding_result = self.ensure_source_binding(&mut durable_request);
+                        if let Err(error) = binding_result {
+                            Err((id.0, id.1, error))
+                        } else {
+                            let executable_model_path = model_catalog
+                                .as_ref()
+                                .map(|_| verified_executable.model_path.as_str());
+                            let mut archive = ArchiveStore::new(&durable_request.destination);
+                            let qualification = archive_qualification_for_request(
                                 &durable_request,
                                 self.parakeet_paths.as_ref(),
                                 self.gpu_parakeet_paths.as_ref(),
                                 self.gpu_candidates
                                     .get(&(id.0, id.1.get()))
                                     .and_then(Option::as_ref),
-                            ),
-                        ) {
-                            Ok(prepared) => {
-                                let queue_result =
-                                    crate::queue_store::QueueStore::open(&prepared.destination)
-                                        .and_then(|mut queue| {
-                                            queue.set_status(
-                                                id.0,
-                                                id.1,
-                                                crate::queue_store::QueueStatus::Running,
-                                            )?;
-                                            Ok(queue.entries())
-                                        });
-                                match queue_result {
-                                    Ok(queue) => {
-                                        self.archive = archive;
-                                        events.push_back(ImportEvent::Queue(queue));
-                                        events.push_back(ImportEvent::Prepared(prepared));
-                                        Ok(())
+                            );
+                            let prepared = if let Some(binding) =
+                                self.source_bindings.get(&(id.0, id.1.get()))
+                            {
+                                archive.prepare_with_source_binding(
+                                    durable_request.clone(),
+                                    executable_model_path,
+                                    qualification,
+                                    binding,
+                                )
+                            } else if self.require_snapshot_registry {
+                                Err("SourceSnapshotUnavailable: binding missing before prepare"
+                                    .into())
+                            } else {
+                                archive.prepare_with_qualification(
+                                    durable_request.clone(),
+                                    executable_model_path,
+                                    qualification,
+                                )
+                            };
+                            match prepared {
+                                Ok(prepared) => {
+                                    let queue_result =
+                                        crate::queue_store::QueueStore::open(&prepared.destination)
+                                            .and_then(|mut queue| {
+                                                queue.set_status(
+                                                    id.0,
+                                                    id.1,
+                                                    crate::queue_store::QueueStatus::Running,
+                                                )?;
+                                                Ok(queue.entries())
+                                            });
+                                    match queue_result {
+                                        Ok(queue) => {
+                                            self.archive = archive;
+                                            events.push_back(ImportEvent::Queue(queue));
+                                            events.push_back(ImportEvent::Prepared(prepared));
+                                            Ok(())
+                                        }
+                                        Err(error) => Err((id.0, id.1, error)),
                                     }
-                                    Err(error) => Err((id.0, id.1, error)),
                                 }
+                                Err(error) => Err((id.0, id.1, error)),
                             }
-                            Err(message) => Err((id.0, id.1, message)),
                         }
                     }
                     Err(error) => Err((id.0, id.1, error)),
@@ -3236,11 +3491,13 @@ impl ImportRuntime {
     }
     fn prepare(
         &mut self,
-        request: ImportRequest,
+        mut request: ImportRequest,
         candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
+        self.ensure_source_binding(&mut request)
+            .map_err(|error| (id.0, id.1, error))?;
         crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
             .map_err(|error| (id.0, id.1, error))?;
         if request_is_parakeet(&request)
@@ -3296,7 +3553,14 @@ impl ImportRuntime {
             self.gpu_parakeet_paths.as_ref(),
             candidate.as_ref(),
         );
-        match archive.prepare_with_qualification(request, None, qualification) {
+        let prepared = if let Some(binding) = self.source_bindings.get(&(id.0, id.1.get())) {
+            archive.prepare_with_source_binding(request, None, qualification, binding)
+        } else if self.require_snapshot_registry {
+            Err("SourceSnapshotUnavailable: binding missing before prepare".into())
+        } else {
+            archive.prepare_with_qualification(request, None, qualification)
+        };
+        match prepared {
             Ok(prepared) => {
                 self.archive = archive;
                 l2a2_acceptance_barrier("prepare", Path::new(&prepared.destination))
@@ -3327,6 +3591,12 @@ impl ImportRuntime {
         request: whisper_core::ports::ImportRequest,
         selection: Option<Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>>,
     ) -> Result<(), (JobId, Generation, String)> {
+        let request = self
+            .source_bindings
+            .get(&(request.job_id, request.generation.get()))
+            .map_or(request.clone(), |binding| {
+                binding.apply_to_request(&request)
+            });
         match selection {
             Some(None) if request.config.compute == whisper_core::ComputeChoice::Gpu => Err((
                 request.job_id,
@@ -4372,6 +4642,8 @@ impl ImportRuntime {
                         .into(),
                 ));
             }
+            self.release_source_binding(job, generation, &root)
+                .map_err(|error| (job, generation, error))?;
             events.push_back(ImportEvent::Published {
                 job_id: job,
                 generation,
@@ -6637,7 +6909,7 @@ impl AsyncImportIo {
     }
 
     pub fn start_with_workers(workers: WorkerPaths) -> Self {
-        Self::start_inner(workers, None, None, None)
+        Self::start_inner(workers, None, None, None, None, false)
     }
 
     /// Starts the import runtime with a catalog guard used by all model-bearing effects.
@@ -6656,6 +6928,8 @@ impl AsyncImportIo {
             }),
             None,
             None,
+            None,
+            false,
         )
     }
 
@@ -6681,6 +6955,47 @@ impl AsyncImportIo {
         cpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
         gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
     ) -> Self {
+        Self::start_with_model_catalog_and_parakeet_routes_inner(
+            workers,
+            catalog_root,
+            known_historical_turbo_path,
+            cpu_parakeet_paths,
+            gpu_parakeet_paths,
+            None,
+            false,
+        )
+    }
+
+    /// Starts the desktop import runtime with an explicitly injected durable
+    /// snapshot registry. A missing application settings root is fail-closed.
+    pub fn start_with_model_catalog_and_parakeet_routes_and_snapshot_registry(
+        workers: WorkerPaths,
+        catalog_root: PathBuf,
+        known_historical_turbo_path: String,
+        cpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+        gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+        snapshot_registry_root: Option<PathBuf>,
+    ) -> Self {
+        Self::start_with_model_catalog_and_parakeet_routes_inner(
+            workers,
+            catalog_root,
+            known_historical_turbo_path,
+            cpu_parakeet_paths,
+            gpu_parakeet_paths,
+            snapshot_registry_root,
+            true,
+        )
+    }
+
+    fn start_with_model_catalog_and_parakeet_routes_inner(
+        workers: WorkerPaths,
+        catalog_root: PathBuf,
+        known_historical_turbo_path: String,
+        cpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+        gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+        snapshot_registry_root: Option<PathBuf>,
+        require_snapshot_registry: bool,
+    ) -> Self {
         Self::start_inner(
             workers,
             Some(RuntimeModelCatalog {
@@ -6691,6 +7006,8 @@ impl AsyncImportIo {
             }),
             cpu_parakeet_paths,
             gpu_parakeet_paths,
+            snapshot_registry_root,
+            require_snapshot_registry,
         )
     }
 
@@ -6699,6 +7016,8 @@ impl AsyncImportIo {
         model_catalog: Option<RuntimeModelCatalog>,
         parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
         gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+        snapshot_registry_root: Option<PathBuf>,
+        require_snapshot_registry: bool,
     ) -> Self {
         let (effect_tx, effect_rx) = mpsc::sync_channel(8);
         let (stop_tx, stop_rx) = mpsc::sync_channel(1);
@@ -6718,12 +7037,14 @@ impl AsyncImportIo {
         thread::spawn({
             let publication_gate = publication_gate.clone();
             move || {
-                let runtime = ImportRuntime::new_with_workers_and_parakeet(
+                let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
                     workers,
                     publication_gate,
                     model_catalog,
                     parakeet_paths,
                     gpu_parakeet_paths,
+                    snapshot_registry_root,
+                    require_snapshot_registry,
                 );
                 service_loop(effect_rx, stop_rx, event_tx, runtime)
             }
