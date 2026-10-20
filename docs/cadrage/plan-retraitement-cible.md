@@ -1,12 +1,14 @@
-Avancée : plan v2 relu CLEAN et RTC-01 autorisé ; candidat partiel arrêté sur le plafond global après redémarrage.
-Blocage : la file par destination ne permet pas de retrouver les snapshots d'autres destinations après redémarrage.
-Décision : faire relire l'amendement v3 du registre central avant de reprendre RTC-01.
+Avancée : RTC-01 v3 relu CLEAN, registre global implémenté ; tests ciblés et build PASS sous garde.
+Blocage : le gate workspace crée des dossiers historiques `target/direct-live-*` hors des racines RTC-01.
+Décision : faire relire l'amendement v4 limité aux chemins de sortie de trois fichiers de tests avant la reprise.
 
-# PLAN-RETRAITEMENT-CIBLE v3 — AMENDEMENT RTC-01 À RELIRE
+# PLAN-RETRAITEMENT-CIBLE v4 — AMENDEMENT DU GATE RTC-01 À RELIRE
 
 Base : [mandat](mandat-retraitement-cible.md), [design](design-retraitement-cible.md) accepté par l'utilisateur le 20/10/2026 et revu CLEAN au commit `25075b44f67a36084bd3d6e85cedcd42e69954d5`. Auteur documentaire : session Codex principale ; proposition technique en lecture seule de `rust_plan_writer`. HEAD de départ du plan : `25075b44`. **Ce plan ne donne aucune autorisation de code, de suppression de données utilisateur, d'installation ou de push.** Chaque lot demande ensuite un accord écrit précis sur ses tâches et chemins. L'unsafe Windows de T6 exige un accord technique distinct ; l'acceptation du design ne le donne pas.
 
 Le plan v2 a été relu CLEAN puis accepté pour RTC-01 le 20/10/2026 avec un plafond de deux snapshots. En cours d'implémentation, `QueueStore::open` (`crates/whisper-adapters/src/queue_store.rs:107-108`) et les sidecars de source ont révélé que les opérations sont rangées par destination. `ImportRuntime` (`worker_ipc.rs:1288, 1843-1858`) ne reçoit aucune racine permettant d'énumérer toutes les destinations au redémarrage. Le candidat partiel est préservé sans commit ; `cargo fmt --all -- --check` a échoué sur une accolade de `worker_ipc.rs:2705` et le format d'un test ; aucun test Cargo n'a encore tourné. L'utilisateur a accepté le 20/10/2026 un **registre central durable** et l'ouverture du seul chemin supplémentaire `crates/whisper-desktop/src/root.rs`, sous réserve de cette revue avant reprise du code. Le présent amendement ne touche ni RTC-02 ni la frontière Windows T6.
+
+L'amendement v3 du registre central a été relu CLEAN et commité en `d08ef6e8`. Sur le candidat v3 non commité, la garde RTC-01 a exécuté `Fmt` PASS, `SourceBinding` 6/6 PASS, `Create` 1/1 PASS, `CoreLib` 34/34 PASS et `BuildWorkspace` PASS. La suite workspace a été arrêtée le 20/10/2026 à 17:44:21 (heure de Paris) sur la création de `target/direct-live-auto-startup-15304`, attribuée à `crates/whisper-adapters/src/direct_live.rs:1175-1276`. Le document [tolérance des écritures historiques](tolerance-ecritures-tests.md) identifie aussi `target/direct-live-*`, `target/direct-live-tests/` et `target/gpu-selection-tests/` comme sorties de tests existants. **Aucune tolérance d'écriture hors racine n'est ajoutée pour RTC-01.** L'utilisateur a autorisé le 20/10/2026 l'ouverture de trois chemins de tests, sous réserve de revue de ce delta, pour les rediriger sous la racine du lot. Le dossier observé n'a été ni effacé ni déplacé.
 
 ## 1. État de la mesure de référence et préflight E0
 
@@ -57,9 +59,14 @@ crates/whisper-adapters/tests/source_binding.rs
 crates/whisper-adapters/tests/reprocessing_create.rs
 crates/whisper-desktop/src/ui.rs
 crates/whisper-desktop/src/root.rs (ajout v3 : injection du registre central uniquement)
+crates/whisper-adapters/src/direct_live.rs (ajout v4 : chemins des tests uniquement)
+crates/whisper-adapters/src/gpu_inventory.rs (ajout v4 : chemins des tests uniquement)
+crates/whisper-adapters/tests/gpu_settings.rs (ajout v4 : chemins des tests uniquement)
 ```
 
-**Amendement RTC-01/T2, registre des deux slots.** `root.rs` résout la racine persistante des réglages de l'application et injecte à `AsyncImportIo` un chemin dédié, par exemple `%LOCALAPPDATA%\Whisper\settings\reprocessing-snapshots.jsonl`. Le code produit n'utilise ni le dossier courant ni une variable de campagne comme repli si cette racine manque : nouvelle admission refusée avec cause explicite. Les constructeurs/tests peuvent injecter une racine isolée sous `target/parakeet-tests/retraitement-cible/rtc-01/`; la campagne ne touche jamais les réglages personnels. Le registre central associe chaque slot réservé à l'opération, à la destination canonique et au binding ; une réservation est durable **avant** la copie. La réservation, la libération et la récupération sont sérialisées pour éviter qu'un autre import ou processus dépasse deux slots. Après panne, toute entrée/snapshot ambigu est compté occupé et signalé ; il n'est pas effacé ni réattribué implicitement. Un slot ne se libère qu'après fin/annulation et retrait vérifié du snapshot. Une écriture interrompue du registre échoue en mode fermé. Aucun scan arbitraire de dossiers utilisateur, aucune modification de `root.rs` hors de la résolution/injection du registre et de ses tests directement liés. Les dix chemins v2 restent les seuls autres chemins d'écriture RTC-01.
+**Amendement RTC-01/gate v4.** Dans les trois nouveaux chemins, seules les fonctions/tests `#[cfg(test)]` ou fichiers de tests sont éditables. Remplacer leurs destinations `../../target/direct-live-*`, `../../target/direct-live-tests` et `../../target/gpu-selection-tests` par des sous-dossiers nommés de `std::env::temp_dir()` ; la garde fixe `TEMP/TMP` canoniquement sous `target/parakeet-tests/retraitement-cible/rtc-01/`. Conserver les noms distinctifs et la séparation entre tests concurrents. Ne modifier ni logique produit, ni assertions, ni statut `#[ignore]`. Un test relancé sans TEMP/TMP conforme au lot ne doit pas ouvrir un chemin de sortie extérieur pendant la campagne ; la garde refuse avant Cargo. Les sorties historiques déjà présentes restent intactes. La revue du candidat vérifie le diff exact de ces trois chemins. Tout autre test écrivant hors racines arrête la campagne et demande un nouvel arbitrage, sans élargir silencieusement la tolérance.
+
+**Amendement RTC-01/T2, registre des deux slots.** `root.rs` résout la racine persistante des réglages de l'application et injecte à `AsyncImportIo` un chemin dédié, par exemple `%LOCALAPPDATA%\Whisper\settings\reprocessing-snapshots.jsonl`. Le code produit n'utilise ni le dossier courant ni une variable de campagne comme repli si cette racine manque : nouvelle admission refusée avec cause explicite. Les constructeurs/tests peuvent injecter une racine isolée sous `target/parakeet-tests/retraitement-cible/rtc-01/`; la campagne ne touche jamais les réglages personnels. Le registre central associe chaque slot réservé à l'opération, à la destination canonique et au binding ; une réservation est durable **avant** la copie. La réservation, la libération et la récupération sont sérialisées pour éviter qu'un autre import ou processus dépasse deux slots. Après panne, toute entrée/snapshot ambigu est compté occupé et signalé ; il n'est pas effacé ni réattribué implicitement. Un slot ne se libère qu'après fin/annulation et retrait vérifié du snapshot. Une écriture interrompue du registre échoue en mode fermé. Aucun scan arbitraire de dossiers utilisateur, aucune modification de `root.rs` hors de la résolution/injection du registre et de ses tests directement liés. Les dix chemins v2 et les trois chemins de tests v4 sont les seuls autres chemins d'écriture RTC-01.
 
 **RTC-02, chemins de code/tests proposés exclusivement :**
 
@@ -77,7 +84,7 @@ crates/whisper-adapters/tests/reprocessing_cleanup.rs
 crates/whisper-desktop/src/ui.rs
 ```
 
-RTC-03 n'ajoute pas de chemin produit : une correction reste dans les chemins RTC-01/02 explicitement rouverts par l'accord sur la correction. Les chemins documentaires de plan/bilan, si autorisés, sont sous `docs/cadrage/`. Aucun worker, `root.rs`, test historique, modèle, DLL, `sound example/`, installation personnelle ni destination réelle n'est ouvert par ce plan.
+RTC-03 n'ajoute pas de chemin produit : une correction reste dans les chemins RTC-01/02 explicitement rouverts par l'accord sur la correction. Les chemins documentaires de plan/bilan, si autorisés, sont sous `docs/cadrage/`. Hormis `root.rs` et les trois chemins de tests RTC-01 explicitement listés ci-dessus, aucun worker, autre test historique, modèle, DLL, `sound example/`, installation personnelle ni destination réelle n'est ouvert par ce plan.
 
 ## 4. Frontière Windows proposée pour T6
 
@@ -102,7 +109,7 @@ Toutes les cartes sont **NOT RUN** à ce stade. Une variante non exercée reste 
 | C11 | Interruption à chaque frontière de publication/nettoyage, reprise répétée. | Aucun second successeur, aucune cible ajoutée, nouvelle vérification avant reprise. |
 | C12 | Dialogue fermé, confirmation répétée, réponse ancienne, réouverture. | Annulation avant traitement ; réponse périmée ignorée ; reprise destructive demandée à l'utilisateur. |
 | C13 | E0 puis candidat, mêmes WAV/MP3 et parcours, deux passages. | Tableau par opération/PID : nombre/octet/temps SHA, probe, scan, copie, worker, temps total et attente humaine distincte ; pas de seuil de temps fictif. |
-| C14 | Contrats moteur, micro, file/reprise, limite 30 min, suite workspace. | Préférences/refus inchangés, liste d'échecs et de NOT RUN ; test pur ≠ recette native. |
+| C14 | Contrats moteur, micro, file/reprise, limite 30 min, suite workspace. | Préférences/refus inchangés, liste d'échecs et de NOT RUN ; test pur ≠ recette native. Les tests historiques `direct_live` et GPU continuent de tourner avec les mêmes assertions et écrivent seulement sous TEMP/TMP RTC-01. |
 | C15 | Candidat Git et paquet de recette. | Revue indépendante ≤2 cycles ; validation de la fenêtre Windows réservée à l'utilisateur. |
 
 ## 6. Préflight, garde et vérifications futures
@@ -132,9 +139,9 @@ Les cibles de test nouvelles ne sont lancées qu'après leur création dans le l
 | Design accepté et relu CLEAN | ACQUIS au `25075b44` | Base du plan. |
 | Limite des copies simultanées | Décision utilisateur du 20/10/2026 : limiter et refuser clairement à saturation ; proposition du plan = 2 par service d'import | À accepter explicitement avec le plan ; C04 couvre saturation et reprise. |
 | E0 mesure R11 existante | PASS 18/18 imports ; ventilation native par cellule PARTIAL/NOT RUN, signalée dans le bilan | Réutiliser la même matrice au lot RTC-03 sans extrapoler les champs absents. |
-| Présent plan | v2 CLEAN et accepté ; v3 limité au registre central soumis à une revue ciblée | Reprise du candidat seulement si v3 CLEAN. |
-| Accord RTC-01 | DONNÉ le 20/10/2026 pour les dix chemins v2 et deux snapshots ; accord complémentaire sur `root.rs` et revue | T1–T4 autorisés, sous réserve du verdict v3 pour la reprise. |
+| Présent plan | v2 CLEAN ; v3 registre central CLEAN et commité `d08ef6e8` ; v4 gate test soumis à revue ciblée | Reprise du gate seulement si v4 CLEAN. |
+| Accord RTC-01 | DONNÉ le 20/10/2026 pour les dix chemins v2 et deux snapshots ; compléments sur `root.rs` et les trois chemins de tests v4 | T1–T4 autorisés, sous réserve du verdict v4 pour la reprise du gate. |
 | Accord RTC-02 et frontière Windows T6 | NON DONNÉS | Nécessaires après RTC-01 et avant T5–T8. |
 | Validation automatique et fenêtre Windows | NOT RUN | Après candidats, par rôles prévus. |
 
-La revue ciblée v3 vérifie le décompte global durable entre destinations, l'échec fermé, l'unique nouveau chemin, le confinement des tests et l'absence d'extension RTC-02. Au maximum deux cycles revue/correction pour cet amendement ; au-delà, décision de l'utilisateur avec réserves. **PLANS READY v3 n'est pas revendiqué avant son verdict.**
+La revue ciblée v4 vérifie l'exactitude des trois nouveaux chemins, leur seul code de test, le confinement de leurs sorties, l'absence d'affaiblissement des assertions et l'absence d'extension RTC-02. Au maximum deux cycles revue/correction pour cet amendement ; au-delà, décision de l'utilisateur avec réserves. **PLANS READY v4 n'est pas revendiqué avant son verdict.**
