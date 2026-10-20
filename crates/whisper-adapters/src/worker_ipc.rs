@@ -11,6 +11,7 @@ use crate::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 use std::{
+    cell::RefCell,
     collections::VecDeque,
     fs,
     io::{self, BufRead, BufReader, Write},
@@ -43,6 +44,39 @@ use whisper_core::{
 const MAX_FRAME_BYTES: usize = 1_048_576;
 const TDT_FRAME_OVERLAP_SAMPLES: u64 = 80 * 16;
 static NEXT_IMPORT_JOB_ID: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Clone)]
+struct R7TimingContext {
+    operation: String,
+    operation_id: String,
+    destination: String,
+}
+
+thread_local! {
+    static R7_TIMING_CONTEXT: RefCell<Option<R7TimingContext>> = const { RefCell::new(None) };
+}
+
+struct R7TimingContextGuard(Option<R7TimingContext>);
+
+impl R7TimingContextGuard {
+    fn enter(operation: &str, operation_id: String, destination: &Path) -> Self {
+        let context = R7TimingContext {
+            operation: operation.to_owned(),
+            operation_id,
+            destination: destination.to_string_lossy().into_owned(),
+        };
+        Self(R7_TIMING_CONTEXT.with(|current| current.replace(Some(context))))
+    }
+}
+
+impl Drop for R7TimingContextGuard {
+    fn drop(&mut self) {
+        let previous = self.0.take();
+        R7_TIMING_CONTEXT.with(|current| {
+            current.replace(previous);
+        });
+    }
+}
 
 enum PreflightResult {
     Duplicate(DuplicateImportPrompt),
@@ -136,12 +170,17 @@ pub(crate) fn record_r7_timing(stage: &str, elapsed: Duration, details: serde_js
             return;
         }
     };
+    let context = R7_TIMING_CONTEXT.with(|current| current.borrow().clone());
     let row = serde_json::json!({
         "process": "adapter",
+        "origin": if context.is_some() { "product" } else { "unscoped" },
         "pid": std::process::id(),
         "at_ms": at_ms,
         "stage": stage,
         "elapsed_ms": elapsed.as_secs_f64() * 1000.0,
+        "operation": context.as_ref().map(|value| value.operation.as_str()),
+        "operation_id": context.as_ref().map(|value| value.operation_id.as_str()),
+        "destination": context.as_ref().map(|value| value.destination.as_str()),
         "details": details,
     });
     if serde_json::to_writer(&mut file, &row).is_err() || file.write_all(b"\n").is_err() {
@@ -2091,6 +2130,12 @@ impl ImportRuntime {
             }
             ImportEffect::Enqueue(mut request) => {
                 let submitted = (request.job_id, request.generation);
+                let _timing_context = R7TimingContextGuard::enter(
+                    "enqueue-import",
+                    format!("{:032x}-{}", submitted.0.0, submitted.1.get()),
+                    Path::new(&request.destination),
+                );
+                let started = Instant::now();
                 let result = self
                     .bind_import_request(&request)
                     .map(|bound| {
@@ -2174,6 +2219,20 @@ impl ImportRuntime {
                             entries: queue.entries(),
                         })
                     });
+                record_r7_timing(
+                    "import-admission",
+                    started.elapsed(),
+                    serde_json::json!({
+                        "operation": format!("{:032x}-{}", submitted.0.0, submitted.1.get()),
+                        "pid": std::process::id(),
+                        "phase": "admission",
+                        "outcome": match result.as_ref() {
+                            Ok(PreflightResult::Duplicate(_)) => "duplicate",
+                            Ok(PreflightResult::Queued { .. }) => "queued",
+                            Err(_) => "error",
+                        },
+                    }),
+                );
                 match result {
                     Ok(PreflightResult::Duplicate(prompt)) => {
                         events.push_back(ImportEvent::DuplicateImportFound(prompt));
@@ -2204,6 +2263,12 @@ impl ImportRuntime {
                     return;
                 }
                 let submitted = (prompt.request.job_id, prompt.request.generation);
+                let _timing_context = R7TimingContextGuard::enter(
+                    "confirm-duplicate-import",
+                    format!("{:032x}-{}", submitted.0.0, submitted.1.get()),
+                    Path::new(&prompt.request.destination),
+                );
+                let started = Instant::now();
                 let mut request = prompt.request.clone();
                 let result = self
                     .bind_import_request(&request)
@@ -2294,6 +2359,24 @@ impl ImportRuntime {
                             entries: queue.entries(),
                         })
                     });
+                record_r7_timing(
+                    "import-confirmation",
+                    started.elapsed(),
+                    serde_json::json!({
+                        "operation": format!("{:032x}-{}", submitted.0.0, submitted.1.get()),
+                        "pid": std::process::id(),
+                        "phase": "confirmation",
+                        "choice": match choice {
+                            DuplicateImportChoice::CreateNew => "create-new",
+                            DuplicateImportChoice::Replace => "replace",
+                        },
+                        "outcome": match result.as_ref() {
+                            Ok(PreflightResult::Duplicate(_)) => "reconfirmation-required",
+                            Ok(PreflightResult::Queued { .. }) => "queued",
+                            Err(_) => "error",
+                        },
+                    }),
+                );
                 match result {
                     Ok(PreflightResult::Duplicate(prompt)) => {
                         events.push_back(ImportEvent::DuplicateImportFound(prompt));
@@ -2338,6 +2421,11 @@ impl ImportRuntime {
             }
             ImportEffect::ProcessQueued(request) => {
                 let id = (request.job_id, request.generation);
+                let _timing_context = R7TimingContextGuard::enter(
+                    "process-queued-import",
+                    format!("{:032x}-{}", id.0.0, id.1.get()),
+                    Path::new(&request.destination),
+                );
                 let model_catalog = self.model_catalog.as_ref().map(|catalog| {
                     (
                         catalog.snapshot(),
@@ -4239,6 +4327,12 @@ impl ImportRuntime {
         count: u64,
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
+        let destination = self.archive.root_path();
+        let _timing_context = R7TimingContextGuard::enter(
+            "publish-import",
+            format!("{:032x}-{}", job.0, generation.get()),
+            &destination,
+        );
         let result = (|| {
             if let Some(progress) = self.progress.as_mut() {
                 progress.close(ProgressPhase::Draining);

@@ -2770,6 +2770,22 @@ impl ArchiveStore {
     }
 
     pub fn scan(root: &Path) -> Result<Vec<ArchiveEntry>, String> {
+        let started = Instant::now();
+        let result = Self::scan_publications(root);
+        crate::worker_ipc::record_r7_timing(
+            "archive-publication-scan",
+            started.elapsed(),
+            serde_json::json!({
+                "scan_operation": "ArchiveStore::scan",
+                "destination": root.to_string_lossy(),
+                "phase": "publication-scan",
+                "outcome": if result.is_ok() { "ok" } else { "error" },
+            }),
+        );
+        result
+    }
+
+    fn scan_publications(root: &Path) -> Result<Vec<ArchiveEntry>, String> {
         let mut entries = Self::scan_raw(root)?;
         let index_path = publication_index_path(root);
         let index = if index_path.exists() {
