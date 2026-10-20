@@ -2,7 +2,7 @@ use crate::domain::{Generation, JobConfig, JobId, JobState};
 use crate::ports::{
     ArchiveHistoryItem, DiagnosticNotice, DuplicateImportChoice, DuplicateImportPrompt,
     ImportEffect, ImportEvent, ImportIoPort, ImportQueueEntry, ImportRequest, LiveRequest,
-    PortError,
+    PortError, ReplacementCleanupInfo,
 };
 
 const MAX_EVENTS_PER_REFRESH: usize = 4;
@@ -108,6 +108,7 @@ fn l3d_event_trace(event: &ImportEvent) {
             None,
         ),
         ImportEvent::History(_)
+        | ImportEvent::ReplacementCleanups(_)
         | ImportEvent::Queue(_)
         | ImportEvent::QueueAdmission { .. }
         | ImportEvent::DuplicateImportFound(_) => (event.kind_name(), None, None, None),
@@ -136,6 +137,7 @@ impl ImportEvent {
             Self::ResumeCheckpoint { .. } => "resume_checkpoint",
             Self::Prepared(_) => "prepared",
             Self::History(_) => "history",
+            Self::ReplacementCleanups(_) => "replacement_cleanups",
             Self::Ready { .. } => "ready",
             Self::Progress { .. } => "progress",
             Self::Segment(_) => "segment",
@@ -212,6 +214,10 @@ pub enum AppCommand {
         job_id: JobId,
         generation: Generation,
     },
+    ResumeReplacementCleanup {
+        destination: String,
+        cleanup_id: String,
+    },
 }
 
 impl AppCommand {
@@ -254,7 +260,9 @@ impl AppCommand {
                 job_id: prompt.request.job_id,
                 generation: prompt.request.generation,
             }),
-            Self::CancelDuplicateImport | Self::ResolveImportPublication { .. } => None,
+            Self::CancelDuplicateImport
+            | Self::ResolveImportPublication { .. }
+            | Self::ResumeReplacementCleanup { .. } => None,
         }
     }
 
@@ -273,6 +281,7 @@ pub struct AppView {
     pub progress: Option<(u64, u64)>,
     pub last_result: Option<String>,
     pub history: Vec<ArchiveHistoryItem>,
+    pub replacement_cleanups: Vec<ReplacementCleanupInfo>,
     pub duplicate_import_prompt: Option<DuplicateImportPrompt>,
     pub queue: Vec<ImportQueueEntry>,
     pub history_scan_pending: bool,
@@ -399,6 +408,10 @@ impl<P: ImportIoPort> ImportApplication<P> {
             ImportEvent::History(history) => {
                 self.view.history = history.clone();
                 self.view.history_scan_pending = false;
+                return Ok(());
+            }
+            ImportEvent::ReplacementCleanups(cleanups) => {
+                self.view.replacement_cleanups = cleanups.clone();
                 return Ok(());
             }
             ImportEvent::Queue(queue) => {
@@ -844,6 +857,9 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 self.ended_at = None;
                 self.pending_persistence = 0;
             }
+            // Handled before the job-identity gate above; it is a background
+            // archive-history update and does not belong to an active import.
+            ImportEvent::ReplacementCleanups(_) => return Ok(()),
         }
         Ok(())
     }
@@ -1210,6 +1226,22 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.message =
                     Some("Vérification et récupération de la publication interrompue…".into());
             }
+            AppCommand::ResumeReplacementCleanup {
+                destination,
+                cleanup_id,
+            } => {
+                if self.active.is_some() || destination.trim().is_empty() || cleanup_id.is_empty() {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.io
+                    .submit(ImportEffect::ResumeReplacementCleanup {
+                        destination,
+                        cleanup_id,
+                    })
+                    .map_err(|error| self.fail(error))?;
+                self.view.message =
+                    Some("Vérification des éléments restants et reprise demandée…".into());
+            }
             AppCommand::ProcessQueued { request } => {
                 if self.active.is_some() {
                     return Err(ApplicationError::InvalidCommand);
@@ -1360,6 +1392,7 @@ impl ImportEvent {
             } => (*job_id, *generation),
             Self::Prepared(request) => (request.job_id, request.generation),
             Self::History(_)
+            | Self::ReplacementCleanups(_)
             | Self::Queue(_)
             | Self::QueueAdmission { .. }
             | Self::DuplicateImportFound(_) => (JobId(0), Generation::first()),
@@ -1532,6 +1565,54 @@ mod tests {
                 generation,
                 destination,
             }]
+        );
+    }
+
+    #[test]
+    fn stale_duplicate_dialog_response_cannot_submit_a_replacement() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let current = DuplicateImportPrompt {
+            request: ImportRequest {
+                job_id: JobId(201),
+                generation: Generation::first(),
+                source_path: "source.wav".into(),
+                source_sha256: Some([1; 32]),
+                source_samples: Some(16_000),
+                model_path: "model.bin".into(),
+                model_sha256: [2; 32],
+                destination: "archive".into(),
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+            source_sha256: "01".repeat(32),
+            source_samples: 16_000,
+            publications: Vec::new(),
+            export_basename: String::new(),
+            revalidation_notice: None,
+            resume_from: None,
+            reserved_export_basename: None,
+        };
+        let mut stale = current.clone();
+        stale.request.job_id = JobId(202);
+        app.view.duplicate_import_prompt = Some(current);
+
+        let result = app.dispatch(AppCommand::ResolveDuplicateImport {
+            prompt: stale,
+            choice: DuplicateImportChoice::ReplaceAll,
+        });
+
+        assert!(matches!(result, Err(ApplicationError::InvalidCommand)));
+        assert_eq!(app.io.effects, Vec::new());
+        assert_eq!(
+            app.view
+                .duplicate_import_prompt
+                .as_ref()
+                .unwrap()
+                .request
+                .job_id,
+            JobId(201)
         );
     }
 

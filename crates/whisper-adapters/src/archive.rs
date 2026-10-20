@@ -15,7 +15,10 @@ use symphonia::core::{
 };
 use whisper_core::{
     Generation, JobId, SourceRange,
-    ports::{DuplicateImportChoice, ImportRequest, LiveRequest, PublishedImport, WorkerSegment},
+    ports::{
+        DuplicateImportChoice, ImportRequest, LiveRequest, PublishedImport, ReplacementCleanupInfo,
+        TreatmentIdentity, WorkerSegment,
+    },
 };
 
 #[cfg(test)]
@@ -837,6 +840,8 @@ struct PublicationRecord {
     source_sha256: String,
     export_basename: Option<String>,
     active: bool,
+    #[serde(default)]
+    success_ordinal: Option<u64>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -856,6 +861,64 @@ struct PublicationIntent {
     export_basename: String,
     #[serde(default)]
     internal_only: bool,
+    #[serde(default)]
+    cleanup_id: Option<String>,
+    #[serde(default)]
+    cleanup_targets: Vec<CleanupTarget>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct CleanupObjectIdentity {
+    volume_serial: u64,
+    file_id: [u8; 16],
+    is_directory: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct CleanupObject {
+    relative_path: String,
+    identity: CleanupObjectIdentity,
+    sha256: Option<String>,
+    #[serde(default = "cleanup_object_owned_default")]
+    owned: bool,
+    removed: bool,
+    error: Option<String>,
+}
+
+fn cleanup_object_owned_default() -> bool {
+    true
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct CleanupAncestor {
+    relative_path: String,
+    identity: CleanupObjectIdentity,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct CleanupTarget {
+    treatment: TreatmentIdentity,
+    source_sha256: String,
+    ancestors: Vec<CleanupAncestor>,
+    objects: Vec<CleanupObject>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct CleanupPlan {
+    version: u32,
+    cleanup_id: String,
+    destination: String,
+    source_path: String,
+    source_sha256: String,
+    successor: TreatmentIdentity,
+    successor_directory: CleanupObjectIdentity,
+    #[serde(default)]
+    successor_files: Vec<CleanupObject>,
+    #[serde(default)]
+    successor_index: Option<CleanupObject>,
+    published: bool,
+    targets: Vec<CleanupTarget>,
+    last_error: Option<String>,
 }
 
 impl Default for PublicationIntent {
@@ -869,6 +932,8 @@ impl Default for PublicationIntent {
             expected_active: Vec::new(),
             export_basename: "transcription".into(),
             internal_only: false,
+            cleanup_id: None,
+            cleanup_targets: Vec::new(),
         }
     }
 }
@@ -1605,6 +1670,25 @@ struct ActiveArchive {
 }
 
 impl ArchiveStore {
+    #[cfg(windows)]
+    pub fn browse_treatment_folder(destination: &Path) -> Option<String> {
+        let initial = destination.join("transcriptions");
+        rfd::FileDialog::new()
+            .set_title("Choisir le traitement Whisper à remplacer")
+            .set_directory(if initial.is_dir() {
+                initial
+            } else {
+                destination.to_path_buf()
+            })
+            .pick_folder()
+            .map(|path| path.to_string_lossy().into_owned())
+    }
+
+    #[cfg(not(windows))]
+    pub fn browse_treatment_folder(_destination: &Path) -> Option<String> {
+        None
+    }
+
     pub fn lock_publications(root: &Path) -> Result<PublicationLock, String> {
         fs::create_dir_all(root.join(".whisper-publications"))
             .map_err(|error| format!("StorageUnavailable: publication directory: {error}"))?;
@@ -1634,6 +1718,7 @@ impl ArchiveStore {
             return Err(diagnostic.to_owned());
         }
         let mut found = Vec::new();
+        let index = load_or_migrate_publication_index(root)?;
         for entry in entries
             .into_iter()
             .filter(|entry| entry.complete && entry.source_sha256 == source_sha256)
@@ -1646,10 +1731,146 @@ impl ArchiveStore {
                 generation: entry.generation,
                 source_sha256: entry.source_sha256,
                 export_basename: entry.export_basename,
+                active: true,
+                success_ordinal: index
+                    .records
+                    .iter()
+                    .find(|record| {
+                        record.job_id == entry.job_id && record.generation == entry.generation
+                    })
+                    .and_then(|record| record.success_ordinal),
+                verified_present: true,
             });
         }
         found.sort_by_key(|item| (item.job_id.0, item.generation.get()));
         Ok(found)
+    }
+
+    /// Returns every indexed treatment for the encoded audio identity,
+    /// including inactive R11 entries. Entries are selectable only when the
+    /// complete archive scan verifies their current presence.
+    pub fn reprocessing_catalog(
+        root: &Path,
+        source_sha256: &str,
+    ) -> Result<Vec<PublishedImport>, String> {
+        let index = load_or_migrate_publication_index(root)?;
+        let scanned = Self::scan_raw(root)?;
+        let mut candidates = Vec::new();
+        for record in index
+            .records
+            .iter()
+            .filter(|record| record.source_sha256 == source_sha256)
+        {
+            let present = scanned.iter().any(|entry| {
+                entry.job_id == record.job_id
+                    && entry.generation == record.generation
+                    && entry.complete
+                    && !entry.publication_recovery
+                    && entry.source_sha256 == source_sha256
+            });
+            candidates.push(PublishedImport {
+                job_id: record.job_id,
+                generation: record.generation,
+                source_sha256: source_sha256.to_owned(),
+                export_basename: record.export_basename.clone(),
+                active: record.active,
+                success_ordinal: record.success_ordinal,
+                verified_present: present,
+            });
+        }
+        for entry in scanned.iter().filter(|entry| {
+            entry.complete && !entry.publication_recovery && entry.source_sha256 == source_sha256
+        }) {
+            if !candidates.iter().any(|candidate| {
+                candidate.job_id == entry.job_id && candidate.generation == entry.generation
+            }) {
+                candidates.push(PublishedImport {
+                    job_id: entry.job_id,
+                    generation: entry.generation,
+                    source_sha256: source_sha256.to_owned(),
+                    export_basename: entry.export_basename.clone(),
+                    active: true,
+                    success_ordinal: None,
+                    verified_present: true,
+                });
+            }
+        }
+        candidates.sort_by_key(|candidate| {
+            (
+                candidate.success_ordinal.is_none(),
+                candidate.success_ordinal.unwrap_or(u64::MAX),
+                candidate.job_id.0,
+                candidate.generation.get(),
+            )
+        });
+        Ok(candidates)
+    }
+
+    pub fn replacement_cleanups(root: &Path) -> Result<Vec<ReplacementCleanupInfo>, String> {
+        let directory = cleanup_plans_path(root);
+        if !directory.exists() {
+            return Ok(Vec::new());
+        }
+        // Discovery may recover a publication that reached CURRENT but did
+        // not finish writing its index/cleanup proof. Serialize that replay
+        // with all other publication-index writers to prevent lost updates.
+        let _lock = Self::lock_publications(root)?;
+        let mut pending = Vec::new();
+        for entry in fs::read_dir(&directory)
+            .map_err(|error| format!("StorageUnavailable: lister les reprises: {error}"))?
+        {
+            let entry =
+                entry.map_err(|error| format!("StorageUnavailable: entrée reprise: {error}"))?;
+            if entry.path().extension().and_then(|value| value.to_str()) != Some("json") {
+                continue;
+            }
+            let mut plan: CleanupPlan = serde_json::from_slice(
+                &fs::read(entry.path())
+                    .map_err(|error| format!("StorageCorrupt: lire la reprise: {error}"))?,
+            )
+            .map_err(|error| format!("StorageCorrupt: reprise JSON: {error}"))?;
+            if !plan.published && recover_published_cleanup_successor(root, &mut plan)? {
+                plan.published = true;
+                write_cleanup_plan(root, &plan)?;
+            }
+            if !plan.published {
+                continue;
+            }
+            let remaining = cleanup_remaining(&plan);
+            let preserved = cleanup_preserved(root, &plan);
+            if remaining.is_empty() && preserved.is_empty() {
+                continue;
+            }
+            pending.push(ReplacementCleanupInfo {
+                cleanup_id: plan.cleanup_id,
+                successor: plan.successor,
+                remaining,
+                preserved,
+                last_error: plan.last_error,
+            });
+        }
+        pending.sort_by(|a, b| a.cleanup_id.cmp(&b.cleanup_id));
+        Ok(pending)
+    }
+
+    pub fn resume_replacement_cleanup(root: &Path, cleanup_id: &str) -> Result<(), String> {
+        let _lock = Self::lock_publications(root)?;
+        let mut plan = read_cleanup_plan(root, cleanup_id)?;
+        if !plan.published && recover_published_cleanup_successor(root, &mut plan)? {
+            plan.published = true;
+            write_cleanup_plan(root, &plan)?;
+        }
+        if !plan.published {
+            return Err("CleanupNotPublished: le nouveau traitement n'est pas publié".into());
+        }
+        match run_cleanup_plan_locked(root, &mut plan) {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                plan.last_error = Some(error.clone());
+                write_cleanup_plan(root, &plan)?;
+                Err(error)
+            }
+        }
     }
 
     pub fn job_identity_exists(root: &Path, job_id: JobId, generation: Generation) -> bool {
@@ -1750,6 +1971,90 @@ impl ArchiveStore {
             choice,
             basename,
         )
+    }
+
+    /// Freezes verified replacement targets and writes the cleanup plan in the
+    /// same durable publication reservation as the new import.
+    pub fn reserve_reprocessing_import(
+        root: &Path,
+        request: &ImportRequest,
+        source_sha256: &str,
+        source_samples: u64,
+        expected_catalog: &[PublishedImport],
+        selected: &[TreatmentIdentity],
+        choice: DuplicateImportChoice,
+    ) -> Result<(), String> {
+        if !matches!(
+            &choice,
+            DuplicateImportChoice::ReplaceLatest
+                | DuplicateImportChoice::ReplaceAll
+                | DuplicateImportChoice::ReplaceSelectedPath(_)
+        ) {
+            return Err("InvalidInput: choix de remplacement RTC-02 invalide".into());
+        }
+        if selected.is_empty() {
+            return Err("DuplicateStateChanged: aucun traitement vérifié à remplacer".into());
+        }
+        let current = Self::reprocessing_catalog(root, source_sha256)?;
+        if current != expected_catalog {
+            return Err("DuplicateStateChanged: le catalogue des traitements a changé".into());
+        }
+        if selected
+            .iter()
+            .enumerate()
+            .any(|(index, item)| selected[..index].iter().any(|previous| previous == item))
+        {
+            return Err("InvalidInput: cible de remplacement dupliquée".into());
+        }
+        let destination = root
+            .canonicalize()
+            .map_err(|error| format!("StorageUnavailable: destination: {error}"))?;
+        let mut targets = Vec::with_capacity(selected.len());
+        for treatment in selected {
+            if Path::new(&treatment.destination)
+                .canonicalize()
+                .ok()
+                .as_deref()
+                != Some(destination.as_path())
+            {
+                return Err(
+                    "InvalidInput: le traitement choisi n'appartient pas à la destination courante"
+                        .into(),
+                );
+            }
+            let candidate = current
+                .iter()
+                .find(|candidate| {
+                    candidate.job_id == treatment.job_id
+                        && candidate.generation == treatment.generation
+                        && candidate.source_sha256 == source_sha256
+                        && candidate.verified_present
+                })
+                .ok_or_else(|| {
+                    "InvalidInput: le traitement choisi n'est pas vérifié pour cet audio".to_owned()
+                })?;
+            targets.push(capture_cleanup_target(&destination, candidate)?);
+        }
+        let cleanup_id = format!("{:032x}-{}", request.job_id.0, request.generation.get());
+        let intent = PublicationIntent {
+            version: 1,
+            operation_id: cleanup_id.clone(),
+            choice,
+            source_sha256: source_sha256.to_owned(),
+            source_samples,
+            expected_active: Self::published_imports(&destination, source_sha256)?
+                .iter()
+                .map(|item| PublicationIdentity {
+                    job_id: item.job_id,
+                    generation: item.generation,
+                })
+                .collect(),
+            export_basename: "transcript".into(),
+            internal_only: true,
+            cleanup_id: Some(cleanup_id),
+            cleanup_targets: targets,
+        };
+        write_publication_intent(&destination, request, &intent)
     }
 
     pub fn suggest_duplicate_export_basename(
@@ -2393,6 +2698,8 @@ impl ArchiveStore {
                 expected_active,
                 export_basename,
                 internal_only: false,
+                cleanup_id: None,
+                cleanup_targets: Vec::new(),
             }
         };
         if publication.source_sha256 != hex(&source_sha)
@@ -2815,6 +3122,65 @@ impl ArchiveStore {
             }
         }
         let publication = active.publication.clone();
+        if let Some(cleanup_id) = publication.cleanup_id.as_deref() {
+            #[cfg(windows)]
+            {
+                let pending: PendingRecord = serde_json::from_slice(
+                    &fs::read(active.directory.join("pending.json"))
+                        .map_err(|error| format!("StorageCorrupt: replacement pending: {error}"))?,
+                )
+                .map_err(|error| format!("StorageCorrupt: replacement pending: {error}"))?;
+                let successor = TreatmentIdentity {
+                    destination: root
+                        .canonicalize()
+                        .map_err(|error| {
+                            format!("StorageUnavailable: canonicaliser destination: {error}")
+                        })?
+                        .to_string_lossy()
+                        .into_owned(),
+                    job_id,
+                    generation,
+                };
+                let successor_directory = identity_snapshot(
+                    crate::windows_file_identity::inspect(&active.directory, true)?,
+                )?;
+                let successor_files = capture_successor_files(&root, &active.directory)?;
+                let mut plan = CleanupPlan {
+                    version: 1,
+                    cleanup_id: cleanup_id.to_owned(),
+                    destination: root
+                        .canonicalize()
+                        .map_err(|error| {
+                            format!("StorageUnavailable: canonicaliser destination: {error}")
+                        })?
+                        .to_string_lossy()
+                        .into_owned(),
+                    source_path: pending.source_path,
+                    source_sha256: publication.source_sha256.clone(),
+                    successor,
+                    successor_directory,
+                    successor_files,
+                    successor_index: None,
+                    published: false,
+                    targets: publication.cleanup_targets.clone(),
+                    last_error: None,
+                };
+                let path = cleanup_plan_path(&root, cleanup_id);
+                if path.exists() {
+                    let existing = read_cleanup_plan(&root, cleanup_id)?;
+                    if existing != plan {
+                        return Err(
+                            "DuplicateStateChanged: nettoyage durable déjà différent".into()
+                        );
+                    }
+                    plan = existing;
+                } else {
+                    write_cleanup_plan(&root, &plan)?;
+                }
+            }
+            #[cfg(not(windows))]
+            return Err("Unsupported: le remplacement RTC-02 nécessite les handles Windows".into());
+        }
         if !publication.internal_only {
             install_publication_exports_with(
                 &root,
@@ -2843,6 +3209,25 @@ impl ArchiveStore {
             &publication,
         );
         write_publication_index(&root, &index)?;
+        if let Some(cleanup_id) = publication.cleanup_id.as_deref() {
+            #[cfg(windows)]
+            {
+                let mut plan = read_cleanup_plan(&root, cleanup_id)?;
+                plan.successor_files = capture_successor_files(&root, &active.directory)?;
+                plan.successor_files.push(capture_cleanup_file(
+                    &root,
+                    &active.directory.join("CURRENT"),
+                )?);
+                plan.successor_index =
+                    Some(capture_cleanup_file(&root, &publication_index_path(&root))?);
+                plan.published = true;
+                write_cleanup_plan(&root, &plan)?;
+                if let Err(error) = run_cleanup_plan_locked(&root, &mut plan) {
+                    plan.last_error = Some(error);
+                    write_cleanup_plan(&root, &plan)?;
+                }
+            }
+        }
         if !publication.internal_only {
             reconcile_replaced_exports(&root, &index)?;
         }
@@ -3082,6 +3467,972 @@ fn generation_path(root: &Path, job_id: JobId, generation: Generation) -> PathBu
         .join(generation.get().to_string())
 }
 
+#[cfg(windows)]
+fn capture_cleanup_target(
+    root: &Path,
+    candidate: &PublishedImport,
+) -> Result<CleanupTarget, String> {
+    use crate::windows_file_identity::{FileIdentity, inspect};
+    let treatment = TreatmentIdentity {
+        destination: root.to_string_lossy().into_owned(),
+        job_id: candidate.job_id,
+        generation: candidate.generation,
+    };
+    let directory = generation_path(root, candidate.job_id, candidate.generation);
+    let canonical = directory
+        .canonicalize()
+        .map_err(|error| format!("CleanupUnverified: traitement absent: {error}"))?;
+    if canonical != directory {
+        return Err("CleanupUnverified: chemin de traitement redirigé".into());
+    }
+    let manifest: CompleteRecord = serde_json::from_slice(
+        &fs::read(directory.join("manifest.json"))
+            .map_err(|error| format!("CleanupUnverified: manifeste illisible: {error}"))?,
+    )
+    .map_err(|error| format!("CleanupUnverified: manifeste illisible: {error}"))?;
+    if manifest.job_id != candidate.job_id
+        || manifest.generation != candidate.generation
+        || manifest.source_sha256 != candidate.source_sha256
+    {
+        return Err("CleanupUnverified: manifeste différent du catalogue".into());
+    }
+    verify_artifact(&directory, &manifest.text)?;
+    verify_artifact(&directory, &manifest.srt)?;
+    let mut ancestors = Vec::new();
+    for ancestor in [
+        root.join("transcriptions"),
+        directory.parent().unwrap().to_path_buf(),
+    ] {
+        capture_cleanup_ancestor(root, &ancestor, &mut ancestors)?;
+    }
+
+    const KNOWN_GENERATION_FILES: &[&str] = &[
+        "CURRENT",
+        "manifest.json",
+        "pending.json",
+        "segments.jsonl",
+        "transcript.txt",
+        "transcript.srt",
+        "r11-publication.json",
+        "installed-exports.json",
+        "vad-windows.jsonl",
+    ];
+    let mut objects = Vec::new();
+    let generation_identity = identity_snapshot(inspect(&directory, true)?)?;
+    for entry in fs::read_dir(&directory)
+        .map_err(|error| format!("CleanupUnverified: lister le traitement: {error}"))?
+    {
+        let entry =
+            entry.map_err(|error| format!("CleanupUnverified: entrée traitement: {error}"))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|error| format!("CleanupUnverified: type d'entrée: {error}"))?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if file_type.is_symlink() {
+            return Err(format!(
+                "CleanupUnverified: lien symbolique conservé sans suivi: {}",
+                entry.path().display()
+            ));
+        }
+        let known = file_type.is_file() && KNOWN_GENERATION_FILES.contains(&name.as_str());
+        let identity = identity_snapshot(inspect(&entry.path(), file_type.is_dir())?)?;
+        objects.push(CleanupObject {
+            relative_path: relative_to_root(root, &entry.path())?,
+            identity,
+            sha256: file_type
+                .is_file()
+                .then(|| sha256_file(&entry.path()).map(|sha| hex(&sha)))
+                .transpose()?,
+            owned: known,
+            removed: false,
+            error: (!known).then(|| "élément conservé : propriété non vérifiée".into()),
+        });
+    }
+    objects.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    objects.push(CleanupObject {
+        relative_path: relative_to_root(root, &directory)?,
+        identity: generation_identity,
+        sha256: None,
+        owned: true,
+        removed: false,
+        error: None,
+    });
+
+    let ownership_path = installed_export_ownership_path(&directory);
+    let ownership = match fs::read(&ownership_path) {
+        Ok(bytes) => Some(
+            serde_json::from_slice::<InstalledExportOwnership>(&bytes)
+                .map_err(|error| format!("CleanupUnverified: preuve export invalide: {error}"))?,
+        ),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(format!("CleanupUnverified: lire la preuve export: {error}"));
+        }
+    };
+    if let Some(export_basename) = candidate.export_basename.as_deref() {
+        let suffix = format!("{:032x}-{}", candidate.job_id.0, candidate.generation.get());
+        for extension in ["txt", "srt"] {
+            let candidates = [
+                root.join("exports")
+                    .join(format!("{export_basename}.{extension}")),
+                root.join("transcriptions-remplacees")
+                    .join(format!("{export_basename}-{suffix}.{extension}")),
+            ];
+            for path in candidates {
+                let metadata = match fs::symlink_metadata(&path) {
+                    Ok(metadata) => metadata,
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                    Err(error) => {
+                        return Err(format!(
+                            "CleanupUnverified: inspecter export {}: {error}",
+                            path.display()
+                        ));
+                    }
+                };
+                if metadata.file_type().is_symlink() || !metadata.is_file() {
+                    return Err(format!(
+                        "CleanupUnverified: export non régulier conservé: {}",
+                        path.display()
+                    ));
+                }
+                let parent = path
+                    .parent()
+                    .ok_or_else(|| "CleanupUnverified: export sans dossier parent".to_owned())?;
+                capture_cleanup_ancestor(root, parent, &mut ancestors)?;
+                let sha = hex(&sha256_file(&path)?);
+                let identity = identity_snapshot(inspect(&path, false)?)?;
+                let proof = ownership
+                    .as_ref()
+                    .filter(|record| {
+                        matches!(record.version, 2 | 3)
+                            && record.job_id == candidate.job_id
+                            && record.generation == candidate.generation
+                            && record.source_sha256 == candidate.source_sha256
+                            && record.export_basename == export_basename
+                    })
+                    .and_then(|record| match extension {
+                        "txt" => Some((
+                            record.text_sha256.as_str(),
+                            record.text_file_identity.as_deref(),
+                        )),
+                        "srt" => Some((
+                            record.srt_sha256.as_str(),
+                            record.srt_file_identity.as_deref(),
+                        )),
+                        _ => None,
+                    });
+                let owned = proof.is_some_and(|(expected_sha, expected_identity)| {
+                    sha == expected_sha
+                        && persisted_file_identity(&path).ok().as_deref() == expected_identity
+                });
+                objects.push(CleanupObject {
+                    relative_path: relative_to_root(root, &path)?,
+                    identity,
+                    sha256: Some(sha),
+                    owned,
+                    removed: false,
+                    error: (!owned).then(|| "export conservé : propriété non vérifiée".into()),
+                });
+            }
+        }
+    }
+    Ok(CleanupTarget {
+        treatment,
+        source_sha256: candidate.source_sha256.clone(),
+        ancestors,
+        objects,
+    })
+}
+
+#[cfg(windows)]
+fn capture_cleanup_ancestor(
+    root: &Path,
+    path: &Path,
+    ancestors: &mut Vec<CleanupAncestor>,
+) -> Result<(), String> {
+    use crate::windows_file_identity::inspect;
+    let canonical = path
+        .canonicalize()
+        .map_err(|error| format!("CleanupUnverified: dossier parent: {error}"))?;
+    let expected = root
+        .canonicalize()
+        .map_err(|error| format!("CleanupUnverified: destination: {error}"))?
+        .join(relative_to_root(root, path)?);
+    if canonical != expected {
+        return Err(format!(
+            "CleanupUnverified: parent redirigé: {}",
+            path.display()
+        ));
+    }
+    let relative_path = relative_to_root(root, path)?;
+    if let Some(existing) = ancestors
+        .iter()
+        .find(|ancestor| ancestor.relative_path == relative_path)
+    {
+        return Ok(());
+    }
+    ancestors.push(CleanupAncestor {
+        relative_path,
+        identity: identity_snapshot(inspect(path, true)?)?,
+    });
+    Ok(())
+}
+
+#[cfg(windows)]
+fn capture_cleanup_file(root: &Path, path: &Path) -> Result<CleanupObject, String> {
+    use crate::windows_file_identity::inspect;
+    let canonical = path
+        .canonicalize()
+        .map_err(|error| format!("CleanupUnverified: artefact successeur absent: {error}"))?;
+    let expected = root
+        .canonicalize()
+        .map_err(|error| format!("CleanupUnverified: destination: {error}"))?
+        .join(relative_to_root(root, path)?);
+    if canonical != expected {
+        return Err(format!(
+            "CleanupUnverified: artefact successeur redirigé: {}",
+            path.display()
+        ));
+    }
+    Ok(CleanupObject {
+        relative_path: relative_to_root(root, path)?,
+        identity: identity_snapshot(inspect(path, false)?)?,
+        sha256: Some(hex(&sha256_file(path)?)),
+        owned: true,
+        removed: false,
+        error: None,
+    })
+}
+
+#[cfg(windows)]
+fn capture_successor_files(root: &Path, directory: &Path) -> Result<Vec<CleanupObject>, String> {
+    let manifest_path = directory.join("manifest.json");
+    let manifest: CompleteRecord = serde_json::from_slice(
+        &fs::read(&manifest_path)
+            .map_err(|error| format!("CleanupUnverified: lire manifeste successeur: {error}"))?,
+    )
+    .map_err(|error| format!("CleanupUnverified: décoder manifeste successeur: {error}"))?;
+    verify_artifact(directory, &manifest.text)?;
+    verify_artifact(directory, &manifest.srt)?;
+    [
+        manifest_path,
+        directory.join(&manifest.text.path),
+        directory.join(&manifest.srt.path),
+        directory.join("pending.json"),
+        directory.join("segments.jsonl"),
+    ]
+    .iter()
+    .map(|path| capture_cleanup_file(root, path))
+    .collect()
+}
+
+#[cfg(windows)]
+fn recover_published_cleanup_successor(
+    root: &Path,
+    plan: &mut CleanupPlan,
+) -> Result<bool, String> {
+    use crate::windows_file_identity::VerifiedFile;
+
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|error| format!("CleanupUnsafePath: destination: {error}"))?;
+    if canonical_root.to_string_lossy() != plan.destination {
+        return Err("CleanupUnsafePath: destination de reprise divergente".into());
+    }
+    let successor_root = Path::new(&plan.destination);
+    let successor_path = generation_path(
+        successor_root,
+        plan.successor.job_id,
+        plan.successor.generation,
+    );
+    if successor_path.canonicalize().ok().as_deref() != Some(successor_path.as_path()) {
+        return Err("CleanupIdentityChanged: le nouveau traitement a été déplacé".into());
+    }
+    let successor_directory = VerifiedFile::open(&successor_path, true)?;
+    successor_directory.verify(&runtime_identity(&plan.successor_directory))?;
+
+    const PREPUBLICATION_FILES: [&str; 5] = [
+        "manifest.json",
+        "transcript.txt",
+        "transcript.srt",
+        "pending.json",
+        "segments.jsonl",
+    ];
+    if plan.successor_files.len() != PREPUBLICATION_FILES.len() {
+        return Err("CleanupIdentityChanged: preuves prépublication incomplètes".into());
+    }
+    let mut held = Vec::new();
+    let mut manifest = None;
+    let mut pending = None;
+    let mut segments = None;
+    for (proof, expected_name) in plan.successor_files.iter().zip(PREPUBLICATION_FILES) {
+        let expected_path = generation_path(root, plan.successor.job_id, plan.successor.generation)
+            .join(expected_name);
+        if proof.relative_path != relative_to_root(root, &expected_path)? {
+            return Err("CleanupIdentityChanged: chemin de preuve successeur inattendu".into());
+        }
+        let path = safe_cleanup_path(root, &proof.relative_path)?;
+        let mut handle = VerifiedFile::open(&path, false)?;
+        handle.verify(&runtime_identity(&proof.identity))?;
+        let bytes = handle.read_all()?;
+        if Some(hex(&Sha256::digest(&bytes))) != proof.sha256 {
+            return Err(format!(
+                "CleanupIdentityChanged: preuve successeur divergente {expected_name}"
+            ));
+        }
+        match expected_name {
+            "manifest.json" => {
+                manifest = Some(serde_json::from_slice::<CompleteRecord>(&bytes).map_err(
+                    |error| format!("CleanupIdentityChanged: manifeste successeur: {error}"),
+                )?);
+            }
+            "pending.json" => {
+                pending = Some(serde_json::from_slice::<PendingRecord>(&bytes).map_err(
+                    |error| format!("CleanupIdentityChanged: pending successeur: {error}"),
+                )?);
+            }
+            "segments.jsonl" => segments = Some(bytes),
+            _ => {}
+        }
+        held.push(handle);
+    }
+    let manifest = manifest.expect("prepublication proof list contains manifest");
+    let pending = pending.expect("prepublication proof list contains pending");
+    if manifest.job_id != plan.successor.job_id
+        || manifest.generation != plan.successor.generation
+        || manifest.source_sha256 != plan.source_sha256
+        || manifest.text.path != "transcript.txt"
+        || manifest.srt.path != "transcript.srt"
+        || pending.job_id != plan.successor.job_id
+        || pending.generation != plan.successor.generation
+        || pending.source_sha256 != plan.source_sha256
+    {
+        return Err("CleanupIdentityChanged: contrat du successeur divergent".into());
+    }
+    let segment_bytes = segments.expect("prepublication proof list contains segments");
+    if !segment_bytes.is_empty() && !segment_bytes.ends_with(b"\n") {
+        return Err("CleanupIdentityChanged: journal segments tronqué".into());
+    }
+    let parsed_segments = segment_bytes
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            serde_json::from_slice::<SegmentRecord>(line)
+                .map_err(|error| format!("CleanupIdentityChanged: journal segments: {error}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if parsed_segments.len() as u64 != manifest.segments
+        || parsed_segments
+            .iter()
+            .enumerate()
+            .any(|(index, segment)| segment.sequence != index as u64 + 1)
+    {
+        return Err("CleanupIdentityChanged: journal segments incohérent".into());
+    }
+
+    let intent = load_publication_intent(&successor_path)?;
+    if intent.cleanup_id.as_deref() != Some(plan.cleanup_id.as_str()) {
+        return Err("CleanupIdentityChanged: identifiant d'intention divergent".into());
+    }
+    if intent.source_sha256 != plan.source_sha256 {
+        return Err("CleanupIdentityChanged: empreinte de source d'intention divergente".into());
+    }
+    if !cleanup_targets_match_intent(&intent.cleanup_targets, &plan.targets) {
+        return Err("CleanupIdentityChanged: cibles de l'intention divergentes".into());
+    }
+
+    let current_path =
+        generation_path(root, plan.successor.job_id, plan.successor.generation).join("CURRENT");
+    let mut current = match VerifiedFile::open(&current_path, false) {
+        Ok(current) => current,
+        Err(_) => return Ok(false),
+    };
+    if current.read_all()? != b"manifest.json\n" {
+        return Err("CleanupIdentityChanged: CURRENT ne référence pas le manifeste attendu".into());
+    }
+
+    // CURRENT is the commit marker. If a crash occurred before the index write,
+    // replaying this intent idempotently restores the successor's active row.
+    let index = apply_publication_intent(
+        load_or_migrate_publication_index(root)?,
+        plan.successor.job_id,
+        plan.successor.generation,
+        &intent,
+    );
+    write_publication_index(root, &index)?;
+    plan.successor_files.push(CleanupObject {
+        relative_path: relative_to_root(root, &current_path)?,
+        identity: identity_snapshot(current.identity.clone())?,
+        sha256: Some(current.sha256()?),
+        owned: true,
+        removed: false,
+        error: None,
+    });
+    plan.successor_index = Some(capture_cleanup_file(root, &publication_index_path(root))?);
+    let _held_through_recovery = (successor_directory, held, current);
+    Ok(true)
+}
+
+#[cfg(not(windows))]
+fn recover_published_cleanup_successor(
+    _root: &Path,
+    _plan: &mut CleanupPlan,
+) -> Result<bool, String> {
+    Ok(false)
+}
+
+#[cfg(not(windows))]
+fn capture_cleanup_target(
+    _root: &Path,
+    _candidate: &PublishedImport,
+) -> Result<CleanupTarget, String> {
+    Err("Unsupported: le nettoyage RTC-02 nécessite les handles Windows qualifiés".into())
+}
+
+#[cfg(windows)]
+fn identity_snapshot(
+    identity: crate::windows_file_identity::FileIdentity,
+) -> Result<CleanupObjectIdentity, String> {
+    Ok(CleanupObjectIdentity {
+        volume_serial: identity.volume_serial,
+        file_id: identity.file_id,
+        is_directory: identity.is_directory,
+    })
+}
+
+#[cfg(not(windows))]
+fn identity_snapshot(_identity: ()) -> Result<CleanupObjectIdentity, String> {
+    unreachable!()
+}
+
+fn relative_to_root(root: &Path, path: &Path) -> Result<String, String> {
+    let relative = path
+        .strip_prefix(root)
+        .map_err(|_| "CleanupUnsafePath: chemin hors destination".to_owned())?;
+    if relative
+        .components()
+        .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err("CleanupUnsafePath: chemin relatif non canonique".into());
+    }
+    Ok(relative.to_string_lossy().into_owned())
+}
+
+fn cleanup_plans_path(root: &Path) -> PathBuf {
+    root.join(".whisper-publications")
+        .join("replacement-cleanups")
+}
+
+fn cleanup_plan_path(root: &Path, cleanup_id: &str) -> PathBuf {
+    cleanup_plans_path(root).join(format!("{cleanup_id}.json"))
+}
+
+fn read_cleanup_plan(root: &Path, cleanup_id: &str) -> Result<CleanupPlan, String> {
+    if cleanup_id.is_empty()
+        || !cleanup_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
+        return Err("InvalidInput: identifiant de nettoyage invalide".into());
+    }
+    serde_json::from_slice(
+        &fs::read(cleanup_plan_path(root, cleanup_id))
+            .map_err(|error| format!("StorageUnavailable: lire la reprise: {error}"))?,
+    )
+    .map_err(|error| format!("StorageCorrupt: reprise de nettoyage: {error}"))
+}
+
+fn write_cleanup_plan(root: &Path, plan: &CleanupPlan) -> Result<(), String> {
+    if root
+        .canonicalize()
+        .map_err(|error| format!("CleanupUnsafePath: destination: {error}"))?
+        .to_string_lossy()
+        != plan.destination
+    {
+        return Err("CleanupUnsafePath: destination de reprise divergente".into());
+    }
+    let directory = cleanup_plans_path(root);
+    fs::create_dir_all(&directory)
+        .map_err(|error| format!("StorageUnavailable: dossier de reprise: {error}"))?;
+    write_replace_synced(
+        &cleanup_plan_path(root, &plan.cleanup_id),
+        &serde_json::to_vec(plan).map_err(|error| error.to_string())?,
+    )
+}
+
+fn cleanup_remaining(plan: &CleanupPlan) -> Vec<String> {
+    plan.targets
+        .iter()
+        .flat_map(|target| target.objects.iter())
+        .filter(|object| object.owned && !object.removed)
+        .map(|object| {
+            object.error.as_ref().map_or_else(
+                || object.relative_path.clone(),
+                |error| format!("{} ({error})", object.relative_path),
+            )
+        })
+        .collect()
+}
+
+fn cleanup_targets_match_intent(intent: &[CleanupTarget], plan: &[CleanupTarget]) -> bool {
+    intent.len() == plan.len()
+        && intent.iter().zip(plan).all(|(expected, actual)| {
+            if expected.treatment != actual.treatment
+                || expected.source_sha256 != actual.source_sha256
+                || expected.ancestors != actual.ancestors
+            {
+                return false;
+            }
+
+            let mut expected_objects = expected.objects.iter();
+            let mut matched_expected = 0;
+            let mut actual_paths = std::collections::HashSet::new();
+            for actual_object in &actual.objects {
+                if !actual_paths.insert(&actual_object.relative_path) {
+                    return false;
+                }
+                if let Some(expected_object) = expected_objects.clone().next()
+                    && expected_object.relative_path == actual_object.relative_path
+                    && expected_object.identity == actual_object.identity
+                    && expected_object.sha256 == actual_object.sha256
+                    && expected_object.owned == actual_object.owned
+                {
+                    expected_objects.next();
+                    matched_expected += 1;
+                } else if actual_object.owned {
+                    // A plan may gain late, unowned entries for reporting, but
+                    // it must never gain or replace a deletion target.
+                    return false;
+                }
+            }
+            matched_expected == expected.objects.len()
+        })
+}
+
+fn cleanup_preserved(root: &Path, plan: &CleanupPlan) -> Vec<String> {
+    plan.targets
+        .iter()
+        .flat_map(|target| target.objects.iter())
+        .filter(|object| !object.owned && !object.removed)
+        .filter(|object| {
+            let Ok(path) = safe_cleanup_path(root, &object.relative_path) else {
+                return true;
+            };
+            !matches!(
+                fs::symlink_metadata(path),
+                Err(ref error) if error.kind() == io::ErrorKind::NotFound
+            )
+        })
+        .map(|object| {
+            format!(
+                "{} ({})",
+                object.relative_path,
+                object.error.as_deref().unwrap_or("propriété non vérifiée")
+            )
+        })
+        .collect()
+}
+
+#[cfg(windows)]
+fn runtime_identity(value: &CleanupObjectIdentity) -> crate::windows_file_identity::FileIdentity {
+    crate::windows_file_identity::FileIdentity {
+        volume_serial: value.volume_serial,
+        file_id: value.file_id,
+        is_directory: value.is_directory,
+    }
+}
+
+#[cfg(windows)]
+fn run_cleanup_plan_locked(root: &Path, plan: &mut CleanupPlan) -> Result<(), String> {
+    use crate::windows_file_identity::{
+        VerifiedFile, delete_if_identity_matches, open_and_hash_source,
+    };
+    if !plan.published
+        || root.canonicalize().ok().as_deref()
+            != Some(
+                Path::new(&plan.destination)
+                    .canonicalize()
+                    .map_err(|error| format!("CleanupUnsafePath: destination: {error}"))?
+                    .as_path(),
+            )
+    {
+        return Err("CleanupUnsafePath: destination de reprise divergente".into());
+    }
+    let source = open_and_hash_source(Path::new(&plan.source_path))?;
+    if hex(&source.sha256) != plan.source_sha256 {
+        return Err("SourceChanged: l'audio original ne correspond plus au snapshot traité".into());
+    }
+    let _source_handle = source;
+
+    // Build from the canonical destination captured in the durable intent so
+    // Windows' `\\?\` canonical path prefix does not cause a false mismatch.
+    let successor_root = Path::new(&plan.destination);
+    let successor_path = generation_path(
+        successor_root,
+        plan.successor.job_id,
+        plan.successor.generation,
+    );
+    if successor_path.canonicalize().ok().as_deref() != Some(successor_path.as_path()) {
+        return Err("CleanupIdentityChanged: le nouveau traitement a été déplacé".into());
+    }
+    let successor_handle = VerifiedFile::open(&successor_path, true)?;
+    successor_handle.verify(&runtime_identity(&plan.successor_directory))?;
+    if plan.successor_files.len() != 6 || plan.successor_index.is_none() {
+        return Err("CleanupIdentityChanged: preuve durable du successeur incomplète".into());
+    }
+    let expected_successor_names = [
+        "manifest.json",
+        "transcript.txt",
+        "transcript.srt",
+        "pending.json",
+        "segments.jsonl",
+        "CURRENT",
+    ];
+    let mut held_successor_files = Vec::new();
+    let mut successor_manifest = None;
+    let mut successor_pending = None;
+    let mut successor_segments = None;
+    for (index, expected_name) in expected_successor_names.iter().enumerate() {
+        let proof = &plan.successor_files[index];
+        if proof.relative_path
+            != relative_to_root(successor_root, &successor_path.join(expected_name))?
+        {
+            return Err("CleanupIdentityChanged: chemin de preuve successeur inattendu".into());
+        }
+        let path = safe_cleanup_path(root, &proof.relative_path)?;
+        let mut handle = VerifiedFile::open(&path, false)?;
+        handle.verify(&runtime_identity(&proof.identity))?;
+        if Some(handle.sha256()?).as_deref() != proof.sha256.as_deref() {
+            return Err(format!(
+                "CleanupIdentityChanged: preuve successeur divergente {expected_name}"
+            ));
+        }
+        if *expected_name == "CURRENT" && handle.read_all()? != b"manifest.json\n" {
+            return Err(
+                "CleanupIdentityChanged: CURRENT ne référence pas le manifeste attendu".into(),
+            );
+        }
+        if *expected_name == "manifest.json" {
+            let manifest: CompleteRecord =
+                serde_json::from_slice(&handle.read_all()?).map_err(|error| {
+                    format!("CleanupIdentityChanged: manifeste successeur: {error}")
+                })?;
+            if manifest.job_id != plan.successor.job_id
+                || manifest.generation != plan.successor.generation
+                || manifest.source_sha256 != plan.source_sha256
+                || manifest.text.path != "transcript.txt"
+                || manifest.srt.path != "transcript.srt"
+            {
+                return Err(
+                    "CleanupIdentityChanged: manifeste successeur ne correspond pas".into(),
+                );
+            }
+            successor_manifest = Some(manifest);
+        }
+        if *expected_name == "pending.json" {
+            successor_pending = Some(
+                serde_json::from_slice::<PendingRecord>(&handle.read_all()?).map_err(|error| {
+                    format!("CleanupIdentityChanged: pending successeur: {error}")
+                })?,
+            );
+        }
+        if *expected_name == "segments.jsonl" {
+            successor_segments = Some(handle.read_all()?);
+        }
+        held_successor_files.push(handle);
+    }
+    let manifest = successor_manifest.expect("six successor proofs include manifest");
+    let pending = successor_pending.expect("six successor proofs include pending");
+    let segment_bytes = successor_segments.expect("six successor proofs include segments");
+    if manifest.source_sha256 != plan.source_sha256
+        || pending.job_id != plan.successor.job_id
+        || pending.generation != plan.successor.generation
+        || pending.source_sha256 != plan.source_sha256
+    {
+        return Err("CleanupIdentityChanged: identité du successeur divergente".into());
+    }
+    if !segment_bytes.is_empty() && !segment_bytes.ends_with(b"\n") {
+        return Err("CleanupIdentityChanged: journal segments tronqué".into());
+    }
+    let segments = segment_bytes
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            serde_json::from_slice::<SegmentRecord>(line)
+                .map_err(|error| format!("CleanupIdentityChanged: journal segments: {error}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if segments.len() as u64 != manifest.segments
+        || segments
+            .iter()
+            .enumerate()
+            .any(|(index, segment)| segment.sequence != index as u64 + 1)
+    {
+        return Err("CleanupIdentityChanged: journal segments incohérent".into());
+    }
+    let intent = load_publication_intent(&successor_path)?;
+    if intent.cleanup_id.as_deref() != Some(plan.cleanup_id.as_str())
+        || intent.source_sha256 != plan.source_sha256
+        || !cleanup_targets_match_intent(&intent.cleanup_targets, &plan.targets)
+    {
+        return Err("CleanupIdentityChanged: intention de publication divergente".into());
+    }
+    let index_proof = plan.successor_index.as_ref().unwrap();
+    if index_proof.relative_path != relative_to_root(root, &publication_index_path(root))? {
+        return Err("CleanupIdentityChanged: chemin de l'index successeur inattendu".into());
+    }
+    let index_path = safe_cleanup_path(root, &index_proof.relative_path)?;
+    let mut index_handle = VerifiedFile::open(&index_path, false)?;
+    index_handle.verify(&runtime_identity(&index_proof.identity))?;
+    if Some(index_handle.sha256()?).as_deref() != index_proof.sha256.as_deref() {
+        return Err("CleanupIdentityChanged: index de publication modifié".into());
+    }
+    let index: PublicationIndex = serde_json::from_slice(&index_handle.read_all()?)
+        .map_err(|error| format!("CleanupIdentityChanged: index de publication: {error}"))?;
+    if index.version != 1
+        || !index.records.iter().any(|record| {
+            record.job_id == plan.successor.job_id
+                && record.generation == plan.successor.generation
+                && record.source_sha256 == plan.source_sha256
+                && record.active
+        })
+    {
+        return Err("CleanupIdentityChanged: successeur absent de l'index actif".into());
+    }
+    let successor_identity_set: std::collections::HashSet<_> = std::iter::once((
+        plan.successor_directory.volume_serial,
+        plan.successor_directory.file_id,
+        plan.successor_directory.is_directory,
+    ))
+    .chain(plan.successor_files.iter().map(|object| {
+        (
+            object.identity.volume_serial,
+            object.identity.file_id,
+            object.identity.is_directory,
+        )
+    }))
+    .chain(std::iter::once((
+        index_proof.identity.volume_serial,
+        index_proof.identity.file_id,
+        index_proof.identity.is_directory,
+    )))
+    .collect();
+    for target in &plan.targets {
+        for object in &target.objects {
+            if successor_identity_set.contains(&(
+                object.identity.volume_serial,
+                object.identity.file_id,
+                object.identity.is_directory,
+            )) {
+                return Err(
+                    "CleanupUnsafePath: un objet successeur est aliasé par une cible".into(),
+                );
+            }
+        }
+    }
+    let _successor_handles = (successor_handle, held_successor_files, index_handle);
+
+    // Preflight every target before the first disposition. The original source,
+    // successor and all ancestor handles remain open with no write/delete sharing.
+    let mut held_ancestors = Vec::new();
+    let mut held_ancestors_by_path = std::collections::HashMap::new();
+    for target in &plan.targets {
+        if target.treatment.destination != plan.destination
+            || target.source_sha256 != plan.source_sha256
+            || (target.treatment.job_id == plan.successor.job_id
+                && target.treatment.generation == plan.successor.generation)
+        {
+            return Err(
+                "CleanupUnsafePath: cible chevauche le successeur ou autre destination".into(),
+            );
+        }
+        for ancestor in &target.ancestors {
+            if let Some(previous) = held_ancestors_by_path.get(&ancestor.relative_path) {
+                if previous != &ancestor.identity {
+                    return Err(format!(
+                        "CleanupIdentityChanged: identités d'ancêtre divergentes {}",
+                        ancestor.relative_path
+                    ));
+                }
+                continue;
+            }
+            let path = safe_cleanup_path(root, &ancestor.relative_path)?;
+            let handle = VerifiedFile::open(&path, true)?;
+            handle.verify(&runtime_identity(&ancestor.identity))?;
+            held_ancestors.push(handle);
+            held_ancestors_by_path
+                .insert(ancestor.relative_path.clone(), ancestor.identity.clone());
+        }
+    }
+    for target in &mut plan.targets {
+        for object in &mut target.objects {
+            if object.removed {
+                continue;
+            }
+            let path = safe_cleanup_path(root, &object.relative_path)?;
+            if fs::symlink_metadata(&path)
+                .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+            {
+                object.removed = true;
+                object.error = None;
+                continue;
+            }
+            let path = safe_cleanup_path(root, &object.relative_path)?;
+            let actual =
+                crate::windows_file_identity::inspect(&path, object.identity.is_directory)?;
+            if identity_snapshot(actual)? != object.identity {
+                return Err(format!("CleanupIdentityChanged: {}", object.relative_path));
+            }
+            if let Some(expected_sha) = &object.sha256 {
+                if hex(&sha256_file(&path)?) != *expected_sha {
+                    return Err(format!(
+                        "CleanupIdentityChanged: empreinte modifiée {}",
+                        object.relative_path
+                    ));
+                }
+            }
+        }
+    }
+    let mut held_target_directories = std::collections::HashMap::new();
+    for target in &mut plan.targets {
+        let directory = generation_path(root, target.treatment.job_id, target.treatment.generation);
+        let directory_relative = relative_to_root(root, &directory)?;
+        let directory_proof = target
+            .objects
+            .iter()
+            .find(|object| {
+                object.relative_path == directory_relative && object.identity.is_directory
+            })
+            .ok_or_else(|| "CleanupIdentityChanged: preuve du dossier cible absente".to_owned())?;
+        if directory_proof.removed {
+            continue;
+        }
+        let directory_handle = VerifiedFile::open(&directory, true)?;
+        directory_handle.verify(&runtime_identity(&directory_proof.identity))?;
+        for entry in fs::read_dir(&directory).map_err(|error| {
+            format!("CleanupIdentityChanged: inventorier le dossier cible: {error}")
+        })? {
+            let entry =
+                entry.map_err(|error| format!("CleanupIdentityChanged: entrée cible: {error}"))?;
+            let relative = relative_to_root(root, &entry.path())?;
+            if target
+                .objects
+                .iter()
+                .any(|object| object.relative_path == relative)
+            {
+                continue;
+            }
+            let file_type = entry.file_type().map_err(|error| error.to_string())?;
+            if file_type.is_symlink() {
+                return Err(format!(
+                    "CleanupUnsafePath: nouvel élément reparse conservé: {relative}"
+                ));
+            }
+            let identity = identity_snapshot(crate::windows_file_identity::inspect(
+                &entry.path(),
+                file_type.is_dir(),
+            )?)?;
+            let sha = file_type
+                .is_file()
+                .then(|| sha256_file(&entry.path()).map(|value| hex(&value)))
+                .transpose()?;
+            target.objects.push(CleanupObject {
+                relative_path: relative.clone(),
+                identity,
+                sha256: sha,
+                owned: false,
+                removed: false,
+                error: Some(format!(
+                    "élément ajouté après confirmation, conservé: {relative}"
+                )),
+            });
+        }
+        held_target_directories.insert(directory_relative, directory_handle);
+    }
+    write_cleanup_plan(root, plan)?;
+
+    for target_index in 0..plan.targets.len() {
+        let mut indices: Vec<usize> = (0..plan.targets[target_index].objects.len()).collect();
+        indices.sort_by_key(|index| {
+            let object = &plan.targets[target_index].objects[*index];
+            (
+                object.identity.is_directory,
+                std::cmp::Reverse(
+                    object
+                        .relative_path
+                        .chars()
+                        .filter(|character| matches!(character, '\\' | '/'))
+                        .count(),
+                ),
+            )
+        });
+        for object_index in indices {
+            let object = &mut plan.targets[target_index].objects[object_index];
+            if object.removed || !object.owned {
+                continue;
+            }
+            let path = safe_cleanup_path(root, &object.relative_path)?;
+            let result = (|| {
+                if fs::symlink_metadata(&path)
+                    .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+                {
+                    return Ok(());
+                }
+                if object.identity.is_directory {
+                    // Only the generation directory is included; parent folders are
+                    // deliberately retained, so no broad recursive removal occurs.
+                    let handle = held_target_directories
+                        .remove(&object.relative_path)
+                        .ok_or_else(|| {
+                            "CleanupIdentityChanged: handle du dossier cible absent".to_owned()
+                        })?;
+                    handle.mark_delete(&runtime_identity(&object.identity), None)
+                } else {
+                    delete_if_identity_matches(
+                        &path,
+                        &runtime_identity(&object.identity),
+                        object.sha256.as_deref(),
+                    )
+                }
+            })();
+            match result {
+                Ok(()) => {
+                    object.removed = true;
+                    object.error = None;
+                }
+                Err(error) => {
+                    object.error = Some(error.clone());
+                    plan.last_error = Some(error.clone());
+                    write_cleanup_plan(root, plan)?;
+                    return Err(error);
+                }
+            }
+            write_cleanup_plan(root, plan)?;
+        }
+    }
+    let _keep_ancestors = (held_ancestors, held_target_directories);
+    plan.last_error = None;
+    write_cleanup_plan(root, plan)
+}
+
+#[cfg(not(windows))]
+fn run_cleanup_plan_locked(_root: &Path, _plan: &mut CleanupPlan) -> Result<(), String> {
+    Err("Unsupported: le nettoyage RTC-02 nécessite les handles Windows".into())
+}
+
+fn safe_cleanup_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
+    let path = Path::new(relative);
+    if path.as_os_str().is_empty()
+        || path.is_absolute()
+        || path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err("CleanupUnsafePath: chemin relatif invalide dans le plan".into());
+    }
+    Ok(root.join(path))
+}
+
 fn write_publication_reservation(
     root: &Path,
     request: &ImportRequest,
@@ -3129,6 +4480,8 @@ fn write_publication_reservation_with_storage(
         expected_active,
         export_basename,
         internal_only,
+        cleanup_id: None,
+        cleanup_targets: Vec::new(),
     };
     write_publication_intent(root, request, &intent)
 }
@@ -3201,6 +4554,8 @@ fn load_publication_intent(directory: &Path) -> Result<PublicationIntent, String
                 .unwrap_or("transcription"),
         ),
         internal_only: false,
+        cleanup_id: None,
+        cleanup_targets: Vec::new(),
     })
 }
 
@@ -3236,6 +4591,7 @@ fn load_or_migrate_publication_index(root: &Path) -> Result<PublicationIndex, St
             source_sha256: entry.source_sha256,
             export_basename: None,
             active: true,
+            success_ordinal: None,
         });
     }
     Ok(PublicationIndex {
@@ -3875,6 +5231,28 @@ fn apply_publication_intent(
             }
         }
     }
+    for target in &intent.cleanup_targets {
+        for record in &mut index.records {
+            if record.job_id == target.treatment.job_id
+                && record.generation == target.treatment.generation
+                && record.source_sha256 == target.source_sha256
+            {
+                record.active = false;
+            }
+        }
+    }
+    let existing_ordinal = index
+        .records
+        .iter()
+        .find(|record| record.job_id == job_id && record.generation == generation)
+        .and_then(|record| record.success_ordinal);
+    let next_ordinal = index
+        .records
+        .iter()
+        .filter_map(|record| record.success_ordinal)
+        .max()
+        .unwrap_or(0)
+        .saturating_add(1);
     index
         .records
         .retain(|record| !(record.job_id == job_id && record.generation == generation));
@@ -3884,6 +5262,7 @@ fn apply_publication_intent(
         source_sha256: intent.source_sha256.clone(),
         export_basename: (!intent.internal_only).then(|| intent.export_basename.clone()),
         active: true,
+        success_ordinal: existing_ordinal.or(Some(next_ordinal)),
     });
     index
 }
@@ -5143,6 +6522,7 @@ mod tests {
                     source_sha256: manifest.source_sha256.clone(),
                     export_basename: Some("r7-prior".into()),
                     active: true,
+                    success_ordinal: None,
                 }],
             },
         )
@@ -5188,6 +6568,8 @@ mod tests {
                 .collect(),
             export_basename: "r7-audio".into(),
             internal_only: false,
+            cleanup_id: None,
+            cleanup_targets: Vec::new(),
         };
         let previous = ImportRequest {
             job_id,
@@ -5215,7 +6597,7 @@ mod tests {
                     generation: publication.generation,
                 })
                 .collect(),
-            intent.choice,
+            intent.choice.clone(),
             intent.export_basename.clone(),
         )
         .unwrap();
@@ -5965,6 +7347,7 @@ mod tests {
                     source_sha256: "a".repeat(64),
                     export_basename: Some("audio".into()),
                     active: true,
+                    success_ordinal: None,
                 },
                 PublicationRecord {
                     job_id: JobId(2),
@@ -5972,6 +7355,7 @@ mod tests {
                     source_sha256: "a".repeat(64),
                     export_basename: Some("audio (2)".into()),
                     active: true,
+                    success_ordinal: None,
                 },
                 PublicationRecord {
                     job_id: JobId(3),
@@ -5979,6 +7363,7 @@ mod tests {
                     source_sha256: "b".repeat(64),
                     export_basename: Some("other".into()),
                     active: true,
+                    success_ordinal: None,
                 },
             ],
         };
@@ -6000,6 +7385,8 @@ mod tests {
             ],
             export_basename: "audio (3)".into(),
             internal_only: false,
+            cleanup_id: None,
+            cleanup_targets: Vec::new(),
         };
         let replaced = apply_publication_intent(original, JobId(4), generation, &intent);
         assert_eq!(
@@ -6056,6 +7443,7 @@ mod tests {
                 source_sha256: "a".repeat(64),
                 export_basename: Some("audio".into()),
                 active: true,
+                success_ordinal: None,
             }],
         };
         let intent = PublicationIntent {
@@ -6070,6 +7458,8 @@ mod tests {
             }],
             export_basename: "audio (2)".into(),
             internal_only: false,
+            cleanup_id: None,
+            cleanup_targets: Vec::new(),
         };
         let next = apply_publication_intent(index, JobId(2), generation, &intent);
         assert_eq!(
@@ -6102,6 +7492,7 @@ mod tests {
                     source_sha256: "a".repeat(64),
                     export_basename: Some("audio".into()),
                     active: false,
+                    success_ordinal: None,
                 }],
             },
         )
@@ -6165,6 +7556,7 @@ mod tests {
                 source_sha256: "a".repeat(64),
                 export_basename: Some("audio".into()),
                 active: false,
+                success_ordinal: None,
             }],
         };
         reconcile_replaced_exports(&root, &index).unwrap();
@@ -6277,6 +7669,8 @@ mod tests {
             }],
             export_basename: "legacy-source (2)".into(),
             internal_only: false,
+            cleanup_id: None,
+            cleanup_targets: Vec::new(),
         };
         write_complete(r11_job, Some(intent));
 

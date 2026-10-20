@@ -13,6 +13,8 @@ pub mod source_binding;
 pub mod staging;
 pub mod supervisor;
 pub mod vad;
+#[cfg(windows)]
+mod windows_file_identity;
 pub mod worker_ipc;
 
 /// Transport boundary supplied by the composition root in a later lot.

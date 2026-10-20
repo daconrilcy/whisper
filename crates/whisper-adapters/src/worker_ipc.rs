@@ -37,13 +37,91 @@ use whisper_core::{
     ipc::{BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerEvent},
     ports::{
         DecodeRequest, DecoderPort, DuplicateImportChoice, DuplicateImportPrompt, ImportRequest,
-        LiveRequest, PortError, SourceIdentity, WorkerSegment,
+        LiveRequest, PortError, PublishedImport, SourceIdentity, TreatmentIdentity, WorkerSegment,
     },
 };
 
 const MAX_FRAME_BYTES: usize = 1_048_576;
 const TDT_FRAME_OVERLAP_SAMPLES: u64 = 80 * 16;
 static NEXT_IMPORT_JOB_ID: AtomicU64 = AtomicU64::new(1);
+
+fn resolve_reprocessing_targets(
+    destination: &Path,
+    catalog: &[PublishedImport],
+    choice: &DuplicateImportChoice,
+) -> Result<Vec<TreatmentIdentity>, String> {
+    let root = destination
+        .canonicalize()
+        .map_err(|error| format!("InvalidInput: destination non accessible: {error}"))?;
+    let verified: Vec<_> = catalog
+        .iter()
+        .filter(|item| item.verified_present)
+        .collect();
+    let selected = match choice {
+        DuplicateImportChoice::ReplaceAll => verified,
+        DuplicateImportChoice::ReplaceLatest => {
+            let latest_ordinal = verified
+                .iter()
+                .filter_map(|item| item.success_ordinal)
+                .max();
+            let latest = if let Some(ordinal) = latest_ordinal {
+                verified
+                    .iter()
+                    .copied()
+                    .filter(|item| item.success_ordinal == Some(ordinal))
+                    .collect::<Vec<_>>()
+            } else if verified.len() == 1 {
+                verified.clone()
+            } else {
+                return Err("Impossible de déterminer le dernier traitement : l'ordre historique est inconnu. Choisissez tous les traitements ou Parcourir.".into());
+            };
+            if latest.len() != 1 {
+                return Err("Impossible de déterminer un dernier traitement unique. Choisissez tous les traitements ou Parcourir.".into());
+            }
+            latest
+        }
+        DuplicateImportChoice::ReplaceSelectedPath(selected_path) => {
+            let chosen = Path::new(selected_path)
+                .canonicalize()
+                .map_err(|error| format!("Le dossier choisi n'est pas accessible : {error}"))?;
+            let transcriptions = root
+                .join("transcriptions")
+                .canonicalize()
+                .map_err(|error| {
+                    format!("La destination ne contient pas de catalogue : {error}")
+                })?;
+            if !chosen.starts_with(&transcriptions) {
+                return Err("Le traitement doit appartenir à la destination courante.".into());
+            }
+            let matches = verified
+                .into_iter()
+                .filter(|item| {
+                    let path = root
+                        .join("transcriptions")
+                        .join(format!("{:032x}", item.job_id.0))
+                        .join(item.generation.get().to_string());
+                    path.canonicalize().ok().as_deref() == Some(chosen.as_path())
+                })
+                .collect::<Vec<_>>();
+            if matches.len() != 1 {
+                return Err("Le dossier choisi n'est pas un traitement vérifié du même audio dans cette destination.".into());
+            }
+            matches
+        }
+        _ => return Err("Choix de remplacement non pris en charge".into()),
+    };
+    if selected.is_empty() {
+        return Err("Aucun traitement vérifié et présent ne peut être remplacé.".into());
+    }
+    Ok(selected
+        .into_iter()
+        .map(|item| TreatmentIdentity {
+            destination: root.to_string_lossy().into_owned(),
+            job_id: item.job_id,
+            generation: item.generation,
+        })
+        .collect())
+}
 
 #[derive(Clone)]
 struct R7TimingContext {
@@ -2282,7 +2360,7 @@ impl ImportRuntime {
                             String::new()
                         };
                         let publications = match
-                            crate::archive::ArchiveStore::published_imports(destination, &source_sha)
+                            crate::archive::ArchiveStore::reprocessing_catalog(destination, &source_sha)
                         {
                             Ok(publications) => publications,
                             Err(error) if error.starts_with("StorageCorrupt:") => {
@@ -2461,10 +2539,18 @@ impl ImportRuntime {
                             .as_ref()
                             .map(format_sha256)
                             .ok_or_else(|| "SourceChanged: source identity is missing".to_owned())?;
+                        let is_reprocessing_choice = matches!(
+                            &choice,
+                            DuplicateImportChoice::ReplaceLatest
+                                | DuplicateImportChoice::ReplaceAll
+                                | DuplicateImportChoice::ReplaceSelectedPath(_)
+                        );
                         let current = if choice == DuplicateImportChoice::CreateNew
                             && self.snapshot_registry_root.is_some()
                         {
                             Vec::new()
+                        } else if is_reprocessing_choice {
+                            crate::archive::ArchiveStore::reprocessing_catalog(destination, &source_sha)?
                         } else {
                             crate::archive::ArchiveStore::published_imports(
                                 destination,
@@ -2521,6 +2607,24 @@ impl ImportRuntime {
                                 &source_sha,
                                 request.source_samples.unwrap_or(0),
                             )
+                        } else if is_reprocessing_choice {
+                            match resolve_reprocessing_targets(destination, &current, &choice) {
+                                Ok(targets) => crate::archive::ArchiveStore::reserve_reprocessing_import(
+                                    destination,
+                                    &request,
+                                    &source_sha,
+                                    request.source_samples.unwrap_or(0),
+                                    &current,
+                                    &targets,
+                                    choice.clone(),
+                                ),
+                                Err(error) => {
+                                    prompt.request = request;
+                                    prompt.publications = current;
+                                    prompt.revalidation_notice = Some(error);
+                                    return Ok(PreflightResult::Duplicate(prompt));
+                                }
+                            }
                         } else {
                             crate::archive::ArchiveStore::reserve_duplicate_import(
                                 destination,
@@ -2528,7 +2632,7 @@ impl ImportRuntime {
                                 &source_sha,
                                 request.source_samples.unwrap_or(0),
                                 &current,
-                                choice,
+                                choice.clone(),
                                 &prompt.export_basename,
                             )
                         };
@@ -2580,6 +2684,9 @@ impl ImportRuntime {
                         "choice": match choice {
                             DuplicateImportChoice::CreateNew => "create-new",
                             DuplicateImportChoice::Replace => "replace",
+                            DuplicateImportChoice::ReplaceLatest => "replace-latest",
+                            DuplicateImportChoice::ReplaceAll => "replace-all",
+                            DuplicateImportChoice::ReplaceSelectedPath(_) => "replace-selected",
                         },
                         "outcome": match result.as_ref() {
                             Ok(PreflightResult::Duplicate(_)) => "reconfirmation-required",
@@ -3119,6 +3226,39 @@ impl ImportRuntime {
                     });
                 }
                 events.push_back(ImportEvent::History(history));
+                match ArchiveStore::replacement_cleanups(&root) {
+                    Ok(cleanups) => events.push_back(ImportEvent::ReplacementCleanups(cleanups)),
+                    Err(error) => events.push_back(ImportEvent::ReplacementCleanups(vec![
+                        whisper_core::ports::ReplacementCleanupInfo {
+                            cleanup_id: "unavailable".into(),
+                            successor: TreatmentIdentity {
+                                destination: root.to_string_lossy().into_owned(),
+                                job_id: JobId(0),
+                                generation: Generation::first(),
+                            },
+                            remaining: Vec::new(),
+                            preserved: Vec::new(),
+                            last_error: Some(error),
+                        },
+                    ])),
+                }
+                Ok(())
+            }
+            ImportEffect::ResumeReplacementCleanup {
+                destination,
+                cleanup_id,
+            } => {
+                let root = PathBuf::from(destination);
+                let result = ArchiveStore::resume_replacement_cleanup(&root, &cleanup_id);
+                let mut cleanups = ArchiveStore::replacement_cleanups(&root).unwrap_or_default();
+                if let Err(error) = result
+                    && let Some(cleanup) = cleanups
+                        .iter_mut()
+                        .find(|item| item.cleanup_id == cleanup_id)
+                {
+                    cleanup.last_error = Some(error);
+                }
+                events.push_back(ImportEvent::ReplacementCleanups(cleanups));
                 Ok(())
             }
             ImportEffect::ResolveImportPublication {
@@ -4648,6 +4788,20 @@ impl ImportRuntime {
                 job_id: job,
                 generation,
             });
+            let cleanups = ArchiveStore::replacement_cleanups(&root).unwrap_or_else(|error| {
+                vec![whisper_core::ports::ReplacementCleanupInfo {
+                    cleanup_id: "unavailable".into(),
+                    successor: TreatmentIdentity {
+                        destination: root.to_string_lossy().into_owned(),
+                        job_id: job,
+                        generation,
+                    },
+                    remaining: Vec::new(),
+                    preserved: Vec::new(),
+                    last_error: Some(error),
+                }]
+            });
+            events.push_back(ImportEvent::ReplacementCleanups(cleanups));
             Ok(())
         })();
 
@@ -7334,6 +7488,129 @@ mod tests {
         JobConfig, JobId, JobState, LanguageChoice,
     };
 
+    fn reprocessing_candidate(
+        job_id: u128,
+        source_sha256: &str,
+        success_ordinal: Option<u64>,
+        active: bool,
+        verified_present: bool,
+    ) -> PublishedImport {
+        PublishedImport {
+            job_id: JobId(job_id),
+            generation: Generation::first(),
+            source_sha256: source_sha256.to_owned(),
+            export_basename: None,
+            active,
+            success_ordinal,
+            verified_present,
+        }
+    }
+
+    fn reprocessing_test_root(name: &str) -> PathBuf {
+        let base =
+            PathBuf::from(std::env::var_os("PARAKEET_RTC02_EXEC_ROOT").expect("RTC-02 root"));
+        let root = base
+            .join("archive")
+            .join(format!("{name}-{}", std::process::id()));
+        let treatment = root.join("transcriptions/00000000000000000000000000000001/1");
+        fs::create_dir_all(&treatment).unwrap();
+        root
+    }
+
+    #[test]
+    fn reprocessing_latest_requires_known_unique_order_and_all_includes_inactive_present() {
+        let root = reprocessing_test_root("catalog-choice");
+        let sha = "a".repeat(64);
+        let catalog = vec![
+            reprocessing_candidate(1, &sha, None, true, true),
+            reprocessing_candidate(2, &sha, None, false, true),
+            reprocessing_candidate(3, &sha, Some(3), false, false),
+        ];
+        let unknown = resolve_reprocessing_targets(
+            &root,
+            &catalog[..2],
+            &DuplicateImportChoice::ReplaceLatest,
+        );
+        assert!(
+            unknown
+                .unwrap_err()
+                .contains("ordre historique est inconnu")
+        );
+
+        let all = resolve_reprocessing_targets(&root, &catalog, &DuplicateImportChoice::ReplaceAll)
+            .unwrap();
+        assert_eq!(all.len(), 2);
+        assert!(all.iter().any(|item| item.job_id == JobId(2)));
+        assert!(!all.iter().any(|item| item.job_id == JobId(3)));
+
+        let known_order = vec![
+            reprocessing_candidate(1, &sha, Some(1), true, true),
+            reprocessing_candidate(2, &sha, Some(2), false, true),
+            reprocessing_candidate(3, &sha, Some(3), false, false),
+        ];
+        let latest = resolve_reprocessing_targets(
+            &root,
+            &known_order,
+            &DuplicateImportChoice::ReplaceLatest,
+        )
+        .unwrap();
+        assert_eq!(latest.len(), 1);
+        assert_eq!(latest[0].job_id, JobId(2));
+    }
+
+    #[test]
+    fn browse_accepts_only_exact_verified_treatment_in_current_destination() {
+        let root = reprocessing_test_root("browse-choice");
+        let sha = "b".repeat(64);
+        let candidate = reprocessing_candidate(1, &sha, Some(1), true, true);
+        let selected = root.join("transcriptions/00000000000000000000000000000001/1");
+        let accepted = resolve_reprocessing_targets(
+            &root,
+            std::slice::from_ref(&candidate),
+            &DuplicateImportChoice::ReplaceSelectedPath(selected.to_string_lossy().into_owned()),
+        )
+        .unwrap();
+        assert_eq!(accepted.len(), 1);
+        assert_eq!(accepted[0].job_id, JobId(1));
+
+        let unrelated_audio = root.join("transcriptions/00000000000000000000000000000002/1");
+        fs::create_dir_all(&unrelated_audio).unwrap();
+        assert!(
+            resolve_reprocessing_targets(
+                &root,
+                std::slice::from_ref(&candidate),
+                &DuplicateImportChoice::ReplaceSelectedPath(
+                    unrelated_audio.to_string_lossy().into_owned()
+                ),
+            )
+            .is_err()
+        );
+
+        let tier = root.join("transcriptions/not-a-treatment");
+        fs::create_dir_all(&tier).unwrap();
+        assert!(
+            resolve_reprocessing_targets(
+                &root,
+                std::slice::from_ref(&candidate),
+                &DuplicateImportChoice::ReplaceSelectedPath(tier.to_string_lossy().into_owned()),
+            )
+            .is_err()
+        );
+
+        let other_destination = root.parent().unwrap().join("external-treatment");
+        fs::create_dir_all(&other_destination).unwrap();
+        assert!(
+            resolve_reprocessing_targets(
+                &root,
+                &[candidate],
+                &DuplicateImportChoice::ReplaceSelectedPath(
+                    other_destination.to_string_lossy().into_owned()
+                ),
+            )
+            .is_err()
+        );
+    }
+
     fn test_artifact_root(name: &str) -> PathBuf {
         let base = std::env::var_os("PARAKEET_R6_TEST_ROOT")
             .map(PathBuf::from)
@@ -9652,7 +9929,7 @@ fn main() {
                 &source_hash(&interrupted),
                 interrupted.source_samples.unwrap(),
                 &old_publications,
-                choice,
+                choice.clone(),
                 &basename,
             )
             .unwrap();

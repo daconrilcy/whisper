@@ -94,9 +94,15 @@ pub struct ImportRequest {
     pub config: JobConfig,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum DuplicateImportChoice {
+    /// Legacy replacement request kept for historical test and archive callers.
     Replace,
+    ReplaceLatest,
+    ReplaceAll,
+    /// A folder selected by the user. The adapter must resolve and verify it
+    /// against the current destination before admitting any work.
+    ReplaceSelectedPath(String),
     CreateNew,
 }
 
@@ -166,6 +172,12 @@ pub struct PublishedImport {
     pub generation: Generation,
     pub source_sha256: String,
     pub export_basename: Option<String>,
+    #[serde(default)]
+    pub active: bool,
+    #[serde(default)]
+    pub success_ordinal: Option<u64>,
+    #[serde(default)]
+    pub verified_present: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -281,6 +293,10 @@ pub enum ImportEffect {
     ScanHistory {
         destination: String,
     },
+    ResumeReplacementCleanup {
+        destination: String,
+        cleanup_id: String,
+    },
     ResolveImportPublication {
         destination: String,
         job_id: JobId,
@@ -382,6 +398,7 @@ pub enum ImportEvent {
     },
     Prepared(ImportRequest),
     History(Vec<ArchiveHistoryItem>),
+    ReplacementCleanups(Vec<ReplacementCleanupInfo>),
     Ready {
         job_id: JobId,
         generation: Generation,
@@ -428,6 +445,16 @@ pub struct ArchiveHistoryItem {
     pub source_sha256: String,
     pub diagnostic: Option<String>,
     pub live_recovery: Option<LiveRecoveryInfo>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ReplacementCleanupInfo {
+    pub cleanup_id: String,
+    pub successor: TreatmentIdentity,
+    pub remaining: Vec<String>,
+    #[serde(default)]
+    pub preserved: Vec<String>,
+    pub last_error: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]

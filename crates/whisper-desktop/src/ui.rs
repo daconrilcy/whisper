@@ -1120,8 +1120,8 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         prompt.publications.len()
                     ));
                 }
-                ui.label("Créer un nouveau produit une paire TXT/SRT dans le nouveau dossier de transcription, sans copie dans exports/.");
-                if !prompt.export_basename.is_empty() {
+                ui.label("Créer un nouveau enregistre une paire TXT/SRT dans un nouveau dossier de transcription, sans copie dans exports/.");
+                if prompt.resume_from.is_some() && !prompt.export_basename.is_empty() {
                     ui.label(format!(
                         "Nom proposé pour le remplacement : {}.txt / {}.srt",
                         prompt.export_basename, prompt.export_basename
@@ -1130,37 +1130,65 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 if let Some(notice) = &prompt.revalidation_notice {
                     ui.colored_label(egui::Color32::YELLOW, notice);
                 }
-                ui.horizontal(|ui| {
-                    if ui
-                        .add_enabled(
-                            !prompt.publications.is_empty(),
-                            egui::Button::new(if prompt.resume_from.is_some() {
-                                "Reprendre et remplacer les traitements existants"
-                            } else {
-                                "Remplacer les traitements existants"
-                            }),
-                        )
-                        .clicked()
-                    {
-                        self.dispatch(AppCommand::ResolveDuplicateImport {
-                            prompt: prompt.clone(),
-                            choice: DuplicateImportChoice::Replace,
-                        });
+                if prompt.resume_from.is_some() {
+                    ui.horizontal(|ui| {
+                        if ui.button("Reprendre et remplacer les traitements existants").clicked() {
+                            self.dispatch(AppCommand::ResolveDuplicateImport {
+                                prompt: prompt.clone(),
+                                choice: DuplicateImportChoice::Replace,
+                            });
+                        }
+                        if ui.button("Reprendre sous un nouveau nom").clicked() {
+                            self.dispatch(AppCommand::ResolveDuplicateImport {
+                                prompt: prompt.clone(),
+                                choice: DuplicateImportChoice::CreateNew,
+                            });
+                        }
+                    });
+                } else {
+                    let verified_count = prompt.publications.iter().filter(|item| item.verified_present).count();
+                    let latest_available = verified_count == 1
+                        || (verified_count > 1 && prompt.publications.iter().any(|item| item.verified_present && item.success_ordinal.is_some()));
+                    ui.label("Traitements associés à ce fichier audio :");
+                    for publication in &prompt.publications {
+                        ui.label(format!(
+                            "{} — job {:032x}, génération {} — {} — {}",
+                            if publication.verified_present { "Présent" } else { "Indisponible / non vérifié" },
+                            publication.job_id.0,
+                            publication.generation.get(),
+                            if publication.active { "actif" } else { "remplacé" },
+                            publication.success_ordinal.map_or_else(|| "ordre historique inconnu".to_owned(), |ordinal| format!("succès #{ordinal}")),
+                        ));
                     }
-                    if ui
-                        .button(if prompt.resume_from.is_some() {
-                            "Reprendre sous un nouveau nom"
-                        } else {
-                            "Créer un nouveau"
-                        })
-                        .clicked()
-                    {
-                        self.dispatch(AppCommand::ResolveDuplicateImport {
-                            prompt: prompt.clone(),
-                            choice: DuplicateImportChoice::CreateNew,
-                        });
-                    }
-                });
+                    ui.horizontal(|ui| {
+                        if ui.add_enabled(latest_available, egui::Button::new("Remplacer le dernier traitement")).clicked() {
+                            self.dispatch(AppCommand::ResolveDuplicateImport {
+                                prompt: prompt.clone(),
+                                choice: DuplicateImportChoice::ReplaceLatest,
+                            });
+                        }
+                        if ui.add_enabled(verified_count > 0, egui::Button::new("Remplacer tous les traitements")).clicked() {
+                            self.dispatch(AppCommand::ResolveDuplicateImport {
+                                prompt: prompt.clone(),
+                                choice: DuplicateImportChoice::ReplaceAll,
+                            });
+                        }
+                        if ui.add_enabled(verified_count > 0, egui::Button::new("Parcourir…")).clicked()
+                            && let Some(selected_path) = whisper_adapters::archive::ArchiveStore::browse_treatment_folder(std::path::Path::new(&prompt.request.destination))
+                        {
+                            self.dispatch(AppCommand::ResolveDuplicateImport {
+                                prompt: prompt.clone(),
+                                choice: DuplicateImportChoice::ReplaceSelectedPath(selected_path),
+                            });
+                        }
+                        if ui.button("Créer un nouveau").clicked() {
+                            self.dispatch(AppCommand::ResolveDuplicateImport {
+                                prompt: prompt.clone(),
+                                choice: DuplicateImportChoice::CreateNew,
+                            });
+                        }
+                    });
+                }
                 if ui.button("Annuler").clicked() {
                     self.dispatch(AppCommand::CancelDuplicateImport);
                 }
@@ -1405,6 +1433,34 @@ impl<A: Application> eframe::App for DesktopApp<A> {
         }
         ui.separator();
         ui.heading("Historique local");
+        for cleanup in self.view.replacement_cleanups.clone() {
+            ui.group(|ui| {
+                ui.label(format!(
+                    "Le nouveau traitement job {:032x}, génération {} est publié. Des anciens éléments restent à vérifier ou à retirer.",
+                    cleanup.successor.job_id.0,
+                    cleanup.successor.generation.get(),
+                ));
+                for path in &cleanup.remaining {
+                    ui.label(path);
+                }
+                for path in &cleanup.preserved {
+                    ui.label(format!("Conservé car sa propriété n'est pas vérifiée : {path}"));
+                }
+                if let Some(error) = &cleanup.last_error {
+                    ui.colored_label(egui::Color32::YELLOW, format!("Nettoyage interrompu : {error}"));
+                }
+                if cleanup.cleanup_id != "unavailable"
+                    && !busy
+                    && !cleanup.remaining.is_empty()
+                    && ui.button("Reprendre le retrait des anciens traitements").clicked()
+                {
+                    self.dispatch(AppCommand::ResumeReplacementCleanup {
+                        destination: destination.clone(),
+                        cleanup_id: cleanup.cleanup_id.clone(),
+                    });
+                }
+            });
+        }
         if self.view.history.is_empty() {
             ui.label("Aucune transcription publiée dans ce dossier.");
         }
