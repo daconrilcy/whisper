@@ -1,5 +1,5 @@
 Avancée : R11 et son correctif élargi R7 sont revus CLEAN ; gate workspace vert et recette manuelle D-A8 confirmée dans la fenêtre Windows.
-Blocage : aucun sur les parcours R11 testés ; les exports nommés sous `exports/` n'ont pas été identifiés séparément par l'utilisateur.
+Blocage : aucun sur les parcours R11 testés ; la paire d'exports lisibles a été vérifiée en lecture seule après la recette.
 Décision : consigner le retour de recette dans un commit documentaire local, sans installation ni push.
 
 # Bilan R11 — retraitement d'un audio déjà publié
@@ -113,4 +113,6 @@ La **remise R11 corrigée** revient au profil Test prévu par le [plan R11](plan
 
 L'utilisateur confirme que le traitement fonctionne avec le paquet corrigé, ainsi que les deux choix proposés pour un audio déjà traité : **remplacer** les transcriptions existantes et **créer une nouvelle** transcription. En cas d'**annulation**, la fenêtre se ferme, l'import est annulé et la transcription ancienne reste inchangée et disponible. « Créer un nouveau » conserve aussi l'ancien traitement et crée un dossier de transcription distinct, avec `transcript.txt` et `transcript.srt` dans ce dossier. Ce retour constitue la preuve manuelle de ces parcours ; il ne remplace pas les résultats des tests automatisés ci-dessus.
 
-La recette manuelle **D-A8 est PASS** pour le dialogue, l'annulation, le remplacement et la création d'une paire TXT/SRT dans un dossier distinct. Les fichiers internes observés portent le nom `transcript` ; l'utilisateur n'a pas identifié séparément la paire d'exports lisibles sous `exports/`. La réservation et l'écriture de ces exports sont couvertes par les tests automatisés R11, mais leur observation manuelle précise reste une limite de ce retour.
+La recette manuelle **D-A8 est PASS** pour le dialogue, l'annulation, le remplacement et la création d'une paire TXT/SRT dans un dossier distinct. Les fichiers internes observés portent le nom `transcript`.
+
+Vérification complémentaire en lecture seule, sur le dossier de nouvelle transcription indiqué par l'utilisateur (`transcriptions/000000000000a89c18e02da0b75f9e10/1`) : `transcript.txt` (687 octets) et `transcript.srt` (1 141 octets) existent et correspondent respectivement, octet pour octet et par SHA-256, à `exports/voice-bench-60s (5).txt` (`a00dedb443dd6aa0f9bfd819c04d48d8c36baebcd3294609fcb6876158fcdafb`) et `exports/voice-bench-60s (5).srt` (`32066cddbbf1dfb54a5c22e807b26f3a0a6960b8a3fdefcc3dec866a69e4a119`). Le SRT contient un bloc au format attendu. La paire précédente `exports/voice-bench-60s (4).txt/.srt` est toujours présente. Cette vérification confirme la paire lisible nommée sans modifier les fichiers de l'utilisateur.
