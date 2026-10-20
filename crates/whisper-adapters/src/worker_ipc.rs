@@ -123,6 +123,13 @@ fn resolve_reprocessing_targets(
         .collect())
 }
 
+fn verified_present_publications(publications: Vec<PublishedImport>) -> Vec<PublishedImport> {
+    publications
+        .into_iter()
+        .filter(|publication| publication.verified_present)
+        .collect()
+}
+
 #[derive(Clone)]
 struct R7TimingContext {
     operation: String,
@@ -2091,21 +2098,38 @@ impl ImportRuntime {
         let Some(registry_root) = self.snapshot_registry_root.as_deref() else {
             return Ok(());
         };
-        let binding =
-            if let Some(binding) = self.source_bindings.remove(&(job_id, generation.get())) {
-                Some(binding)
-            } else {
-                crate::source_binding::SourceBinding::reopen_for_identity(
-                    registry_root,
-                    destination,
-                    job_id,
-                    generation,
-                )?
-            };
-        if let Some(binding) = binding {
-            binding.retire()?;
+        if let Some(binding) = self.source_bindings.remove(&(job_id, generation.get())) {
+            return binding.retire();
         }
-        Ok(())
+        crate::source_binding::SourceBinding::retire_for_identity(
+            registry_root,
+            destination,
+            job_id,
+            generation,
+        )
+    }
+
+    fn active_snapshot_bindings(&self) -> Vec<(JobId, u64)> {
+        let mut active = self.source_bindings.keys().copied().collect::<Vec<_>>();
+        if let Some(request) = &self.active {
+            active.push((request.job_id, request.generation.get()));
+        }
+        active.sort_unstable_by_key(|identity| (identity.0.0, identity.1));
+        active.dedup();
+        active
+    }
+
+    fn inspect_source_snapshot_recovery(
+        &self,
+    ) -> Result<Vec<whisper_core::ports::SourceSnapshotRecoveryCandidate>, String> {
+        let registry_root = self.snapshot_registry_root.as_deref().ok_or_else(|| {
+            "SourceSnapshotRegistryUnavailable: application settings root is not configured"
+                .to_owned()
+        })?;
+        crate::source_binding::SourceBinding::inspect_recovery_candidates(
+            registry_root,
+            &self.active_snapshot_bindings(),
+        )
     }
 
     fn bind_live_request(
@@ -2380,6 +2404,7 @@ impl ImportRuntime {
                             }
                             Err(error) => return Err(error),
                         };
+                        let publications = verified_present_publications(publications);
                         if !publications.is_empty() {
                             let source_samples = request.source_samples.unwrap_or(0);
                             return Ok(PreflightResult::Duplicate(DuplicateImportPrompt {
@@ -2550,7 +2575,9 @@ impl ImportRuntime {
                         {
                             Vec::new()
                         } else if is_reprocessing_choice {
-                            crate::archive::ArchiveStore::reprocessing_catalog(destination, &source_sha)?
+                            verified_present_publications(
+                                crate::archive::ArchiveStore::reprocessing_catalog(destination, &source_sha)?,
+                            )
                         } else {
                             crate::archive::ArchiveStore::published_imports(
                                 destination,
@@ -2733,6 +2760,44 @@ impl ImportRuntime {
             } => self
                 .release_source_binding(job_id, generation, Path::new(&destination))
                 .map_err(|error| (job_id, generation, error)),
+            ImportEffect::InspectSourceSnapshotRecovery => {
+                let candidates = self.inspect_source_snapshot_recovery();
+                match candidates {
+                    Ok(candidates) => {
+                        events.push_back(ImportEvent::SourceSnapshotRecoveryInspected(candidates))
+                    }
+                    Err(error) => events.push_back(ImportEvent::SourceSnapshotRecoveryCompleted {
+                        freed: 0,
+                        candidates: Vec::new(),
+                        error: Some(error),
+                    }),
+                }
+                Ok(())
+            }
+            ImportEffect::ConfirmSourceSnapshotRecovery => {
+                let result = self.snapshot_registry_root.as_deref()
+                    .ok_or_else(|| "SourceSnapshotRegistryUnavailable: application settings root is not configured".to_owned())
+                    .and_then(|root| crate::source_binding::SourceBinding::recover_abandoned(root, &self.active_snapshot_bindings()));
+                match result {
+                    Ok((freed, candidates)) => {
+                        events.push_back(ImportEvent::SourceSnapshotRecoveryCompleted {
+                            freed,
+                            candidates,
+                            error: None,
+                        })
+                    }
+                    Err(error) => {
+                        let candidates =
+                            self.inspect_source_snapshot_recovery().unwrap_or_default();
+                        events.push_back(ImportEvent::SourceSnapshotRecoveryCompleted {
+                            freed: 0,
+                            candidates,
+                            error: Some(error),
+                        });
+                    }
+                }
+                Ok(())
+            }
             ImportEffect::RemoveQueued {
                 job_id,
                 generation,
@@ -7515,6 +7580,41 @@ mod tests {
         let treatment = root.join("transcriptions/00000000000000000000000000000001/1");
         fs::create_dir_all(&treatment).unwrap();
         root
+    }
+
+    #[test]
+    fn emptied_transcriptions_keeps_history_but_offers_no_duplicate_targets() {
+        let root = reprocessing_test_root("empty-destination-history");
+        let source_sha = "ab".repeat(32);
+        let index_dir = root.join(".whisper-publications");
+        fs::create_dir_all(&index_dir).unwrap();
+        fs::write(
+            index_dir.join("index.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "version": 1,
+                "records": [{
+                    "job_id": 1,
+                    "generation": 1,
+                    "source_sha256": source_sha,
+                    "export_basename": null,
+                    "active": true,
+                    "success_ordinal": 1
+                }]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::remove_dir_all(root.join("transcriptions")).unwrap();
+
+        let historical = ArchiveStore::reprocessing_catalog(&root, &source_sha).unwrap();
+        assert_eq!(historical.len(), 1, "durable history must remain intact");
+        assert!(!historical[0].verified_present);
+        assert!(verified_present_publications(historical).is_empty());
+        assert!(
+            !root.join("transcriptions").exists(),
+            "catalog inspection must not recreate the user's emptied destination"
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

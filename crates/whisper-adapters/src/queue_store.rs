@@ -104,6 +104,57 @@ pub struct QueueStore {
 }
 
 impl QueueStore {
+    /// Reads the durable queue without creating directories, opening it for
+    /// repair, or changing an incomplete tail. Recovery checks must fail closed
+    /// on an unreadable journal rather than making it writable as a side effect.
+    pub fn inspect_read_only(destination: impl AsRef<Path>) -> Result<Vec<QueueEntry>, String> {
+        let path = destination
+            .as_ref()
+            .join("transcriptions")
+            .join("queue.jsonl");
+        let file = match File::open(&path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(format!("StorageCorrupt: queue inspection: {error}")),
+        };
+        let mut entries = BTreeMap::<u64, QueueEntry>::new();
+        for (line_no, line) in BufReader::new(file).lines().enumerate() {
+            let line = line.map_err(|error| {
+                format!(
+                    "StorageCorrupt: queue inspection line {}: {error}",
+                    line_no + 1
+                )
+            })?;
+            let record: QueueRecord = serde_json::from_str(&line).map_err(|error| {
+                format!(
+                    "StorageCorrupt: queue inspection line {}: {error}",
+                    line_no + 1
+                )
+            })?;
+            match record {
+                QueueRecord::Upsert { version, entry }
+                    if version == QUEUE_SCHEMA && entry.sequence > 0 =>
+                {
+                    entries.insert(entry.sequence, *entry);
+                }
+                QueueRecord::Remove {
+                    version,
+                    job_id,
+                    generation,
+                } if version == QUEUE_SCHEMA => entries.retain(|_, entry| {
+                    entry.request.job_id != job_id || entry.request.generation != generation
+                }),
+                _ => {
+                    return Err(format!(
+                        "StorageCorrupt: unsupported queue record at line {}",
+                        line_no + 1
+                    ));
+                }
+            }
+        }
+        Ok(entries.into_values().collect())
+    }
+
     pub fn open(destination: impl AsRef<Path>) -> Result<Self, String> {
         let directory = destination.as_ref().join("transcriptions");
         fs::create_dir_all(&directory).map_err(|e| format!("StorageUnavailable: {e}"))?;
@@ -595,6 +646,30 @@ mod tests {
         );
         assert_eq!(queue.entries()[1].request, second);
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn recovery_inspection_is_read_only_for_missing_and_corrupt_queues() {
+        let destination = root();
+        assert_eq!(QueueStore::inspect_read_only(&destination).unwrap(), []);
+        assert!(!destination.join("transcriptions").exists());
+
+        let queue_path = destination.join("transcriptions/queue.jsonl");
+        std::fs::create_dir_all(queue_path.parent().unwrap()).unwrap();
+        let corrupt = b"{\"op\":\"upsert\",\"version\":1";
+        std::fs::write(&queue_path, corrupt).unwrap();
+        let before = std::fs::metadata(&queue_path).unwrap().modified().unwrap();
+        assert!(
+            QueueStore::inspect_read_only(&destination)
+                .unwrap_err()
+                .contains("StorageCorrupt: queue inspection")
+        );
+        assert_eq!(std::fs::read(&queue_path).unwrap(), corrupt);
+        assert_eq!(
+            std::fs::metadata(&queue_path).unwrap().modified().unwrap(),
+            before
+        );
+        std::fs::remove_dir_all(destination).unwrap();
     }
 }
 

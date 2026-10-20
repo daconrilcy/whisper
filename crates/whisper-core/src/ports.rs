@@ -256,6 +256,16 @@ pub struct ImportQueueEntry {
     pub status: ImportQueueStatus,
 }
 
+/// One durable source snapshot reservation shown by the explicit recovery flow.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SourceSnapshotRecoveryCandidate {
+    pub job_id: JobId,
+    pub generation: Generation,
+    pub destination: String,
+    pub recoverable: bool,
+    pub reason: Option<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportEffect {
     SetGpuCandidate {
@@ -275,6 +285,8 @@ pub enum ImportEffect {
         generation: Generation,
         destination: String,
     },
+    InspectSourceSnapshotRecovery,
+    ConfirmSourceSnapshotRecovery,
     RemoveQueued {
         job_id: JobId,
         generation: Generation,
@@ -388,6 +400,12 @@ pub enum ImportEvent {
         submitted_job_id: JobId,
         submitted_generation: Generation,
         queue: Vec<ImportQueueEntry>,
+    },
+    SourceSnapshotRecoveryInspected(Vec<SourceSnapshotRecoveryCandidate>),
+    SourceSnapshotRecoveryCompleted {
+        freed: usize,
+        candidates: Vec<SourceSnapshotRecoveryCandidate>,
+        error: Option<String>,
     },
     DuplicateImportFound(DuplicateImportPrompt),
     ResumeCheckpoint {

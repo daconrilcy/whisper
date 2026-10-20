@@ -2,7 +2,7 @@ use crate::domain::{Generation, JobConfig, JobId, JobState};
 use crate::ports::{
     ArchiveHistoryItem, DiagnosticNotice, DuplicateImportChoice, DuplicateImportPrompt,
     ImportEffect, ImportEvent, ImportIoPort, ImportQueueEntry, ImportRequest, LiveRequest,
-    PortError, ReplacementCleanupInfo,
+    PortError, ReplacementCleanupInfo, SourceSnapshotRecoveryCandidate,
 };
 
 const MAX_EVENTS_PER_REFRESH: usize = 4;
@@ -111,7 +111,11 @@ fn l3d_event_trace(event: &ImportEvent) {
         | ImportEvent::ReplacementCleanups(_)
         | ImportEvent::Queue(_)
         | ImportEvent::QueueAdmission { .. }
-        | ImportEvent::DuplicateImportFound(_) => (event.kind_name(), None, None, None),
+        | ImportEvent::DuplicateImportFound(_)
+        | ImportEvent::SourceSnapshotRecoveryInspected(_)
+        | ImportEvent::SourceSnapshotRecoveryCompleted { .. } => {
+            (event.kind_name(), None, None, None)
+        }
     };
     l3d_timing_line(kind, job_id, generation, sequence);
 }
@@ -133,6 +137,8 @@ impl ImportEvent {
             Self::LiveFinalizing { .. } => "live_finalizing",
             Self::Queue(_) => "queue",
             Self::QueueAdmission { .. } => "queue_admission",
+            Self::SourceSnapshotRecoveryInspected(_) => "source_snapshot_recovery_inspected",
+            Self::SourceSnapshotRecoveryCompleted { .. } => "source_snapshot_recovery_completed",
             Self::DuplicateImportFound(_) => "duplicate_import_found",
             Self::ResumeCheckpoint { .. } => "resume_checkpoint",
             Self::Prepared(_) => "prepared",
@@ -170,6 +176,9 @@ pub enum AppCommand {
         choice: DuplicateImportChoice,
     },
     CancelDuplicateImport,
+    InspectSourceSnapshotRecovery,
+    ConfirmSourceSnapshotRecovery,
+    CancelSourceSnapshotRecovery,
     ProcessQueued {
         request: ImportRequest,
     },
@@ -261,6 +270,9 @@ impl AppCommand {
                 generation: prompt.request.generation,
             }),
             Self::CancelDuplicateImport
+            | Self::InspectSourceSnapshotRecovery
+            | Self::ConfirmSourceSnapshotRecovery
+            | Self::CancelSourceSnapshotRecovery
             | Self::ResolveImportPublication { .. }
             | Self::ResumeReplacementCleanup { .. } => None,
         }
@@ -283,6 +295,8 @@ pub struct AppView {
     pub history: Vec<ArchiveHistoryItem>,
     pub replacement_cleanups: Vec<ReplacementCleanupInfo>,
     pub duplicate_import_prompt: Option<DuplicateImportPrompt>,
+    pub source_snapshot_recovery: Option<Vec<SourceSnapshotRecoveryCandidate>>,
+    pub source_snapshot_recovery_available: bool,
     pub queue: Vec<ImportQueueEntry>,
     pub history_scan_pending: bool,
     pub queue_scan_pending: bool,
@@ -412,6 +426,26 @@ impl<P: ImportIoPort> ImportApplication<P> {
             }
             ImportEvent::ReplacementCleanups(cleanups) => {
                 self.view.replacement_cleanups = cleanups.clone();
+                return Ok(());
+            }
+            ImportEvent::SourceSnapshotRecoveryInspected(candidates) => {
+                self.view.source_snapshot_recovery = Some(candidates.clone());
+                return Ok(());
+            }
+            ImportEvent::SourceSnapshotRecoveryCompleted {
+                freed,
+                candidates,
+                error,
+            } => {
+                self.view.source_snapshot_recovery = Some(candidates.clone());
+                self.view.source_snapshot_recovery_available = false;
+                self.view.message = Some(error.clone().unwrap_or_else(|| {
+                    if *freed > 0 {
+                        format!("{freed} copie(s) audio retenue(s) récupérée(s). Vous pouvez relancer l’import.")
+                    } else {
+                        "Aucune réservation abandonnée récupérable. Les éléments protégés sont conservés.".into()
+                    }
+                }));
                 return Ok(());
             }
             ImportEvent::Queue(queue) => {
@@ -681,7 +715,9 @@ impl<P: ImportIoPort> ImportApplication<P> {
             }
             ImportEvent::Queue(_)
             | ImportEvent::QueueAdmission { .. }
-            | ImportEvent::DuplicateImportFound(_) => {
+            | ImportEvent::DuplicateImportFound(_)
+            | ImportEvent::SourceSnapshotRecoveryInspected(_)
+            | ImportEvent::SourceSnapshotRecoveryCompleted { .. } => {
                 unreachable!("queue/admission events are handled before job admission")
             }
             ImportEvent::ResumeCheckpoint {
@@ -833,6 +869,9 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
                 if self.pending_enqueues.contains(&identity) {
                     self.pending_enqueues.retain(|pending| *pending != identity);
+                    if message.starts_with("SourceSnapshotCapacity:") {
+                        self.view.source_snapshot_recovery_available = true;
+                    }
                     self.view.message = Some(message);
                 } else if self.stopping == Some(identity) && self.request.is_some() {
                     self.view.active_job = Some((job_id, JobState::Cancelled));
@@ -1002,6 +1041,33 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     .map_err(|e| self.fail(e))?;
                 self.view.history_scan_pending = true;
                 self.view.queue_scan_pending = true;
+            }
+            AppCommand::InspectSourceSnapshotRecovery => {
+                self.io
+                    .submit(ImportEffect::InspectSourceSnapshotRecovery)
+                    .map_err(|error| self.fail(error))?;
+                self.view.source_snapshot_recovery = None;
+            }
+            AppCommand::ConfirmSourceSnapshotRecovery => {
+                if self
+                    .view
+                    .source_snapshot_recovery
+                    .as_ref()
+                    .is_none_or(|candidates| {
+                        !candidates.iter().any(|candidate| candidate.recoverable)
+                    })
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.io
+                    .submit(ImportEffect::ConfirmSourceSnapshotRecovery)
+                    .map_err(|error| self.fail(error))?;
+                self.view.source_snapshot_recovery = None;
+                self.view.message =
+                    Some("Nouvelle vérification de sécurité avant récupération…".into());
+            }
+            AppCommand::CancelSourceSnapshotRecovery => {
+                self.view.source_snapshot_recovery = None;
             }
             AppCommand::ResolveLivePublication { request } => {
                 if self.active.is_some() || request.destination.trim().is_empty() {
@@ -1395,7 +1461,9 @@ impl ImportEvent {
             | Self::ReplacementCleanups(_)
             | Self::Queue(_)
             | Self::QueueAdmission { .. }
-            | Self::DuplicateImportFound(_) => (JobId(0), Generation::first()),
+            | Self::DuplicateImportFound(_)
+            | Self::SourceSnapshotRecoveryInspected(_)
+            | Self::SourceSnapshotRecoveryCompleted { .. } => (JobId(0), Generation::first()),
             Self::Segment(segment) => (segment.job_id, segment.generation),
         }
     }
