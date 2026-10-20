@@ -151,29 +151,34 @@ fn add_owned_and_unowned_export_fixtures(destination: &Path, id: u128) {
 // Seed a fully verifiable, real archive generation without invoking an ASR
 // engine. The fixture is private to target/rtc-02/archive.
 fn seed_treatment(destination: &Path, source: &Path, id: u128) {
+    seed_treatment_generation(destination, source, id, Generation::first());
+}
+
+fn seed_treatment_generation(destination: &Path, source: &Path, id: u128, generation: Generation) {
     let mut request = request(destination, source, id);
+    request.generation = generation;
     let binding = SourceBinding::acquire(&request, &snapshot_registry(destination)).unwrap();
     request.source_sha256 = Some(binding.source_sha256());
     request.source_samples = Some(binding.source_samples());
     let source_sha = sha_hex(binding.source_sha256());
     ArchiveStore::reserve_create_only_new_import(destination, &request, &source_sha).unwrap();
 
-    let generation = destination
+    let generation_dir = destination
         .join("transcriptions")
         .join(format!("{id:032x}"))
-        .join("1");
-    fs::create_dir_all(&generation).unwrap();
+        .join(generation.get().to_string());
+    fs::create_dir_all(&generation_dir).unwrap();
     let text = format!("fixture transcript {id}");
     let srt = format!("1\n00:00:00,000 --> 00:00:01,000\n{text}\n");
-    fs::write(generation.join("transcript.txt"), &text).unwrap();
-    fs::write(generation.join("transcript.srt"), &srt).unwrap();
+    fs::write(generation_dir.join("transcript.txt"), &text).unwrap();
+    fs::write(generation_dir.join("transcript.srt"), &srt).unwrap();
     let model = whisper_core::model_registry::model(
         whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo,
     );
     let pending = serde_json::json!({
         "version": 1,
         "job_id": id,
-        "generation": 1,
+        "generation": generation.get(),
         "source_path": request.source_path,
         "source_sha256": source_sha,
         "source_samples": binding.source_samples(),
@@ -183,7 +188,7 @@ fn seed_treatment(destination: &Path, source: &Path, id: u128) {
         "qualification": null
     });
     fs::write(
-        generation.join("pending.json"),
+        generation_dir.join("pending.json"),
         serde_json::to_vec(&pending).unwrap(),
     )
     .unwrap();
@@ -193,7 +198,7 @@ fn seed_treatment(destination: &Path, source: &Path, id: u128) {
         "text": text
     });
     fs::write(
-        generation.join("segments.jsonl"),
+        generation_dir.join("segments.jsonl"),
         [serde_json::to_vec(&segment).unwrap(), b"\n".to_vec()].concat(),
     )
     .unwrap();
@@ -207,19 +212,19 @@ fn seed_treatment(destination: &Path, source: &Path, id: u128) {
     let manifest = serde_json::json!({
         "version": 1,
         "job_id": id,
-        "generation": 1,
+        "generation": generation.get(),
         "source_sha256": source_sha,
         "segments": 1,
         "text": artifact("transcript.txt", &text),
         "srt": artifact("transcript.srt", &srt)
     });
     fs::write(
-        generation.join("manifest.json"),
+        generation_dir.join("manifest.json"),
         serde_json::to_vec(&manifest).unwrap(),
     )
     .unwrap();
-    fs::write(generation.join("CURRENT"), b"manifest.json\n").unwrap();
-    ArchiveStore::resolve_import_publication(destination, JobId(id), Generation::first()).unwrap();
+    fs::write(generation_dir.join("CURRENT"), b"manifest.json\n").unwrap();
+    ArchiveStore::resolve_import_publication(destination, JobId(id), generation).unwrap();
     binding.retire().unwrap();
 }
 
@@ -265,6 +270,312 @@ fn main() {
     binary
 }
 
+enum ContainerMutation {
+    Reparse,
+    ReplaceIdentity,
+}
+
+struct FailedCleanupFixture {
+    root: PathBuf,
+    destination: PathBuf,
+    old_container: PathBuf,
+    held_container: PathBuf,
+    old_generation: PathBuf,
+    successor_generation: PathBuf,
+    cleanup_id: String,
+}
+
+fn create_junction(link: &Path, target: &Path) {
+    let quote = |path: &Path| path.to_string_lossy().replace('\'', "''");
+    let script = format!(
+        "New-Item -ItemType Junction -Path '{}' -Target '{}' -ErrorAction Stop | Out-Null",
+        quote(link),
+        quote(target)
+    );
+    let output = Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+        .expect("create isolated junction fixture");
+    assert!(
+        output.status.success(),
+        "create isolated junction: {} {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn create_failed_cleanup_fixture(name: &str, mutation: ContainerMutation) -> FailedCleanupFixture {
+    let root = root().join(name);
+    let destination = root.join("destination");
+    fs::create_dir_all(&destination).unwrap();
+    let source = root.join("audio.wav");
+    wav(&source);
+    let old_job = JobId(2_001);
+    let successor_job = JobId(2_002);
+    seed_treatment(&destination, &source, old_job.0);
+
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let model_path = repository.join("models/ggml-large-v3-turbo.bin");
+    let catalog = LocalModelCatalog::new(repository.join("models")).inspect(1);
+    let model_sha: [u8; 32] = catalog
+        .entries
+        .iter()
+        .find(|entry| entry.id == whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo)
+        .and_then(|entry| entry.observed_sha256.as_ref())
+        .expect("local Turbo model")
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    let worker = compile_worker(&root);
+    let io = whisper_adapters::worker_ipc::AsyncImportIo::start_with_model_catalog_and_parakeet_routes_and_snapshot_registry(
+        whisper_adapters::supervisor::WorkerPaths {
+            cpu: worker.clone(),
+            gpu: worker,
+        },
+        repository.join("models"),
+        fs::canonicalize(&model_path)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned(),
+        None,
+        None,
+        Some(snapshot_registry(&root)),
+    );
+    let mut app = ImportApplication::new(io);
+    let mut incoming = request(&destination, &source, successor_job.0);
+    incoming.model_path = fs::canonicalize(&model_path)
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    incoming.model_sha256 = model_sha;
+    app.dispatch(AppCommand::EnqueueImport { request: incoming })
+        .unwrap();
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    let prompt = loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if let Some(prompt) = view.duplicate_import_prompt {
+            break prompt;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "duplicate prompt missing for {name}: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+    assert_eq!(prompt.publications.len(), 1);
+    app.dispatch(AppCommand::ResolveDuplicateImport {
+        prompt,
+        choice: DuplicateImportChoice::ReplaceAll,
+    })
+    .unwrap();
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    let queued = loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if let Some(entry) = view
+            .queue
+            .iter()
+            .find(|entry| entry.request.job_id == successor_job)
+        {
+            break entry.request.clone();
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "replacement not queued for {name}: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+
+    let old_container = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", old_job.0));
+    let held_container = destination
+        .join("transcriptions")
+        .join(format!("{:032x}.rtc04-held", old_job.0));
+    fs::rename(&old_container, &held_container).unwrap();
+    match mutation {
+        ContainerMutation::Reparse => create_junction(&old_container, &held_container),
+        ContainerMutation::ReplaceIdentity => {
+            fs::create_dir(&old_container).unwrap();
+            fs::write(
+                old_container.join("replacement-note.txt"),
+                b"preserve replacement",
+            )
+            .unwrap();
+        }
+    }
+
+    app.dispatch(AppCommand::ProcessQueued { request: queued })
+        .unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if view.active_job == Some((successor_job, JobState::Complete)) {
+            break;
+        }
+        assert_ne!(
+            view.active_job,
+            Some((successor_job, JobState::Recoverable)),
+            "successor publication failed for {name}: {:?}",
+            view.message
+        );
+        assert!(
+            std::time::Instant::now() < deadline,
+            "successor publication timed out for {name}: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    let cleanup = ArchiveStore::replacement_cleanups(&destination)
+        .unwrap()
+        .into_iter()
+        .find(|cleanup| cleanup.last_error.is_some())
+        .expect("failed cleanup is durably recorded");
+    assert!(
+        cleanup
+            .last_error
+            .as_deref()
+            .is_some_and(|error| error.contains("Cleanup")),
+        "cleanup cause is visible: {cleanup:?}"
+    );
+    FailedCleanupFixture {
+        old_generation: held_container.join("1"),
+        successor_generation: destination
+            .join("transcriptions")
+            .join(format!("{:032x}", successor_job.0))
+            .join("1"),
+        root,
+        destination,
+        old_container,
+        held_container,
+        cleanup_id: cleanup.cleanup_id,
+    }
+}
+
+#[test]
+fn reparse_container_is_rejected_before_any_old_artifact_is_removed() {
+    let fixture = create_failed_cleanup_fixture("reparse-container", ContainerMutation::Reparse);
+    let old_text = fixture.old_generation.join("transcript.txt");
+    let original = fs::read(&old_text).unwrap();
+    let error = ArchiveStore::resume_replacement_cleanup(&fixture.destination, &fixture.cleanup_id)
+        .unwrap_err();
+    assert!(
+        error.contains("CleanupUnsafePath: conteneur redirigé"),
+        "{error}"
+    );
+    assert!(error.contains("transcriptions"), "{error}");
+    assert_eq!(fs::read(&old_text).unwrap(), original);
+    assert!(
+        fixture.old_container.is_dir(),
+        "the reparse path remains present"
+    );
+    assert!(
+        fixture
+            .successor_generation
+            .join("transcript.txt")
+            .is_file()
+    );
+    assert!(fixture.held_container.join("1/transcript.srt").is_file());
+    fs::remove_dir_all(fixture.root).unwrap();
+}
+
+#[test]
+fn replaced_container_identity_is_rejected_and_both_directories_are_preserved() {
+    let fixture =
+        create_failed_cleanup_fixture("replaced-container", ContainerMutation::ReplaceIdentity);
+    let old_text = fixture.old_generation.join("transcript.txt");
+    let original = fs::read(&old_text).unwrap();
+    let error = ArchiveStore::resume_replacement_cleanup(&fixture.destination, &fixture.cleanup_id)
+        .unwrap_err();
+    assert!(error.contains("CleanupIdentityChanged"), "{error}");
+    assert!(error.contains("transcriptions"), "{error}");
+    assert_eq!(fs::read(&old_text).unwrap(), original);
+    assert_eq!(
+        fs::read(fixture.old_container.join("replacement-note.txt")).unwrap(),
+        b"preserve replacement"
+    );
+    assert!(
+        fixture
+            .successor_generation
+            .join("transcript.txt")
+            .is_file()
+    );
+    fs::remove_dir_all(fixture.root).unwrap();
+}
+
+#[test]
+fn durable_legacy_cleanup_replay_keeps_empty_parent_without_container_proof() {
+    let fixture = create_failed_cleanup_fixture("legacy-plan", ContainerMutation::ReplaceIdentity);
+    let replacement_note = fixture.old_container.join("replacement-note.txt");
+    fs::remove_file(&replacement_note).unwrap();
+    fs::remove_dir(&fixture.old_container).unwrap();
+    fs::rename(&fixture.held_container, &fixture.old_container).unwrap();
+
+    let plan_path = fixture
+        .destination
+        .join(".whisper-publications/replacement-cleanups")
+        .join(format!("{}.json", fixture.cleanup_id));
+    let mut plan: serde_json::Value =
+        serde_json::from_slice(&fs::read(&plan_path).unwrap()).unwrap();
+    for target in plan["targets"].as_array_mut().unwrap() {
+        target.as_object_mut().unwrap().remove("container");
+    }
+    fs::write(&plan_path, serde_json::to_vec(&plan).unwrap()).unwrap();
+
+    let intent_path = fixture.successor_generation.join("r11-publication.json");
+    let mut intent: serde_json::Value =
+        serde_json::from_slice(&fs::read(&intent_path).unwrap()).unwrap();
+    for target in intent["cleanup_targets"].as_array_mut().unwrap() {
+        target.as_object_mut().unwrap().remove("container");
+    }
+    fs::write(&intent_path, serde_json::to_vec(&intent).unwrap()).unwrap();
+
+    // This is the RTC-02 crash boundary after a generation directory was
+    // dispositioned but before the durable object progress was updated.
+    let restored_old_generation = fixture.old_container.join("1");
+    fs::remove_dir_all(&restored_old_generation).unwrap();
+    assert!(fixture.old_container.is_dir());
+    assert!(
+        fs::read_dir(&fixture.old_container)
+            .unwrap()
+            .next()
+            .is_none()
+    );
+    assert!(
+        fixture
+            .successor_generation
+            .join("transcript.txt")
+            .is_file()
+    );
+
+    ArchiveStore::resume_replacement_cleanup(&fixture.destination, &fixture.cleanup_id).unwrap();
+
+    assert!(fixture.old_container.is_dir());
+    assert!(
+        fs::read_dir(&fixture.old_container)
+            .unwrap()
+            .next()
+            .is_none()
+    );
+    assert!(
+        fixture
+            .successor_generation
+            .join("transcript.txt")
+            .is_file()
+    );
+    assert!(!restored_old_generation.exists());
+    fs::remove_dir_all(fixture.root).unwrap();
+}
+
 #[test]
 fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request() {
     let root = root();
@@ -275,25 +586,99 @@ fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request
     seed_treatment(&destination, &source, 101);
     seed_treatment(&destination, &source, 102);
     seed_treatment(&destination, &source, 103);
+    seed_treatment_generation(
+        &destination,
+        &source,
+        101,
+        Generation::first().next().unwrap(),
+    );
     add_owned_and_unowned_export_fixtures(&destination, 102);
 
     let source_sha = sha_hex(sha256_file(&source).unwrap());
     let initial_catalog = ArchiveStore::reprocessing_catalog(&destination, &source_sha).unwrap();
     let publication_index = destination.join(".whisper-publications/index.json");
     let prepublication_index = fs::read(&publication_index).unwrap();
-    assert_eq!(initial_catalog.len(), 3);
+    assert_eq!(initial_catalog.len(), 4);
     assert_eq!(
         initial_catalog
             .iter()
             .map(|item| item.success_ordinal)
             .collect::<Vec<_>>(),
-        vec![Some(1), Some(2), Some(3)]
+        vec![Some(1), Some(2), Some(3), Some(4)]
     );
     assert!(
         initial_catalog
             .iter()
             .all(|item| item.active && item.verified_present)
     );
+
+    let canonical_destination = destination.canonicalize().unwrap();
+    let partial_request = request(&destination, &source, 900);
+    let partial_selected = vec![whisper_core::ports::TreatmentIdentity {
+        destination: canonical_destination.to_string_lossy().into_owned(),
+        job_id: JobId(101),
+        generation: Generation::first(),
+    }];
+    ArchiveStore::reserve_reprocessing_import(
+        &destination,
+        &partial_request,
+        &sha_hex(sha256_file(&source).unwrap()),
+        16_000,
+        &initial_catalog,
+        &partial_selected,
+        DuplicateImportChoice::ReplaceSelectedPath(
+            destination
+                .join("transcriptions/00000000000000000000000000000065/1")
+                .to_string_lossy()
+                .into_owned(),
+        ),
+    )
+    .unwrap();
+    let partial_intent_path = destination
+        .join(".whisper-publications/reservations/00000000000000000000000000000384-1.json");
+    let partial_intent: serde_json::Value =
+        serde_json::from_slice(&fs::read(&partial_intent_path).unwrap()).unwrap();
+    assert!(partial_intent["cleanup_targets"][0]["container"].is_null());
+    assert!(
+        destination
+            .join("transcriptions/00000000000000000000000000000065")
+            .is_dir()
+    );
+    ArchiveStore::clear_duplicate_reservation(&destination, JobId(900), Generation::first())
+        .unwrap();
+
+    let all_generations_request = request(&destination, &source, 901);
+    let all_generations_selected = [Generation::first(), Generation::first().next().unwrap()]
+        .into_iter()
+        .map(|generation| whisper_core::ports::TreatmentIdentity {
+            destination: canonical_destination.to_string_lossy().into_owned(),
+            job_id: JobId(101),
+            generation,
+        })
+        .collect::<Vec<_>>();
+    ArchiveStore::reserve_reprocessing_import(
+        &destination,
+        &all_generations_request,
+        &sha_hex(sha256_file(&source).unwrap()),
+        16_000,
+        &initial_catalog,
+        &all_generations_selected,
+        DuplicateImportChoice::ReplaceAll,
+    )
+    .unwrap();
+    let all_intent_path = destination
+        .join(".whisper-publications/reservations/00000000000000000000000000000385-1.json");
+    let all_intent: serde_json::Value =
+        serde_json::from_slice(&fs::read(&all_intent_path).unwrap()).unwrap();
+    assert!(
+        all_intent["cleanup_targets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|target| !target["container"].is_null())
+    );
+    ArchiveStore::clear_duplicate_reservation(&destination, JobId(901), Generation::first())
+        .unwrap();
 
     let latest_generation = destination.join("transcriptions/00000000000000000000000000000066/1");
     let latest_txt = latest_generation.join("transcript.txt");
@@ -355,14 +740,14 @@ fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request
         );
         thread::sleep(Duration::from_millis(10));
     };
-    assert_eq!(prompt.publications.len(), 3);
+    assert_eq!(prompt.publications.len(), 4);
     assert_eq!(
         prompt
             .publications
             .iter()
             .map(|item| item.success_ordinal)
             .collect::<Vec<_>>(),
-        vec![Some(1), Some(2), Some(3)]
+        vec![Some(1), Some(2), Some(3), Some(4)]
     );
     app.dispatch(AppCommand::ResolveDuplicateImport {
         prompt,
@@ -388,6 +773,14 @@ fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request
         );
         thread::sleep(Duration::from_millis(10));
     };
+    let late_container_file = destination
+        .join("transcriptions/00000000000000000000000000000067")
+        .join("keep-container-note.txt");
+    fs::write(&late_container_file, b"keep this later container data").unwrap();
+    let legacy_container_file = destination
+        .join("transcriptions/00000000000000000000000000000066")
+        .join("legacy-container-note.txt");
+    fs::write(&legacy_container_file, b"container predates RTC-04").unwrap();
 
     // A changed original must block every deletion. After it is restored, an
     // unknown child forces a durable partial cleanup and explicit resume.
@@ -691,7 +1084,10 @@ fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request
         .as_array_mut()
         .unwrap()
         .iter_mut()
-        .find(|target| target["treatment"]["job_id"] == serde_json::json!(101))
+        .find(|target| {
+            target["treatment"]["job_id"] == serde_json::json!(101)
+                && target["container"].is_object()
+        })
         .expect("first confirmed treatment remains in durable target list");
     let stale_object = older_target["objects"]
         .as_array_mut()
@@ -730,6 +1126,46 @@ fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request
     }
     assert!(!latest_generation.exists());
     assert!(!third_generation.exists());
+    assert!(
+        !destination
+            .join("transcriptions/00000000000000000000000000000065/2")
+            .exists(),
+        "the second generation selected for replacement is removed"
+    );
+    assert!(
+        !destination
+            .join("transcriptions/00000000000000000000000000000065")
+            .exists(),
+        "the container with multiple selected generations is removed only after both are gone"
+    );
+    assert!(
+        destination
+            .join("transcriptions/00000000000000000000000000000066")
+            .is_dir(),
+        "a container with pre-existing non-generation content is not admitted for removal"
+    );
+    assert_eq!(
+        fs::read(&legacy_container_file).unwrap(),
+        b"container predates RTC-04"
+    );
+    assert!(
+        destination
+            .join("transcriptions/00000000000000000000000000000067")
+            .is_dir(),
+        "late container content prevents parent removal"
+    );
+    assert_eq!(
+        fs::read(&late_container_file).unwrap(),
+        b"keep this later container data"
+    );
+    assert!(
+        destination
+            .join("transcriptions")
+            .join(format!("{:032x}", queued.job_id.0))
+            .is_dir(),
+        "the successor container is retained"
+    );
+    assert!(destination.join("transcriptions").is_dir());
     assert!(!destination.join("exports/voice-bench.txt").exists());
     assert!(
         destination.join("exports/voice-bench.srt").is_file(),
@@ -747,8 +1183,21 @@ fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request
         .find(|item| item.cleanup_id == cleanup.cleanup_id)
         .expect("selected treatment cleanup remains visible");
     assert!(durable_cleanup.remaining.is_empty());
-    assert_eq!(durable_cleanup.preserved.len(), 1);
-    assert!(durable_cleanup.preserved[0].contains("exports\\voice-bench.srt"));
+    assert_eq!(durable_cleanup.preserved.len(), 3);
+    assert!(
+        durable_cleanup
+            .preserved
+            .iter()
+            .any(|path| path.contains("exports\\voice-bench.srt"))
+    );
+    assert!(durable_cleanup.preserved.iter().any(|path| {
+        path.contains("transcriptions\\00000000000000000000000000000066")
+            && path.contains("contenu non sélectionné présent")
+    }));
+    assert!(durable_cleanup.preserved.iter().any(|path| {
+        path.contains("transcriptions\\00000000000000000000000000000067")
+            && path.contains("contenu non sélectionné présent")
+    }));
     let final_catalog = ArchiveStore::reprocessing_catalog(&destination, &source_sha).unwrap();
     assert!(
         final_catalog
@@ -767,6 +1216,40 @@ fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request
             .filter(|item| item.active && item.verified_present)
             .count(),
         1
+    );
+
+    let mut stale_container_progress: serde_json::Value =
+        serde_json::from_slice(&fs::read(&plan_path).unwrap()).unwrap();
+    let removed_container = stale_container_progress["targets"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|target| {
+            target["treatment"]["job_id"] == serde_json::json!(101)
+                && target["container"].is_object()
+        })
+        .and_then(|target| target["container"].as_object_mut())
+        .expect("selected empty container has durable identity");
+    removed_container.insert("removed".into(), serde_json::Value::Bool(false));
+    removed_container.insert("error".into(), serde_json::Value::Null);
+    fs::write(
+        &plan_path,
+        serde_json::to_vec(&stale_container_progress).unwrap(),
+    )
+    .unwrap();
+    ArchiveStore::resume_replacement_cleanup(&destination, &cleanup.cleanup_id).unwrap();
+    let replayed_plan: serde_json::Value =
+        serde_json::from_slice(&fs::read(&plan_path).unwrap()).unwrap();
+    assert!(
+        replayed_plan["targets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|target| {
+                target["treatment"]["job_id"] == serde_json::json!(101)
+                    && target["container"].is_object()
+            })
+            .is_some_and(|target| target["container"]["removed"] == true)
     );
 
     // Concurrently publish a different treatment while cleanup discovery is

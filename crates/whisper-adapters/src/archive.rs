@@ -901,6 +901,8 @@ struct CleanupTarget {
     source_sha256: String,
     ancestors: Vec<CleanupAncestor>,
     objects: Vec<CleanupObject>,
+    #[serde(default)]
+    container: Option<CleanupObject>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -2035,6 +2037,7 @@ impl ArchiveStore {
                 })?;
             targets.push(capture_cleanup_target(&destination, candidate)?);
         }
+        attach_empty_container_proofs(&destination, &current, selected, &mut targets)?;
         let cleanup_id = format!("{:032x}-{}", request.job_id.0, request.generation.get());
         let intent = PublicationIntent {
             version: 1,
@@ -3472,7 +3475,7 @@ fn capture_cleanup_target(
     root: &Path,
     candidate: &PublishedImport,
 ) -> Result<CleanupTarget, String> {
-    use crate::windows_file_identity::{FileIdentity, inspect};
+    use crate::windows_file_identity::inspect;
     let treatment = TreatmentIdentity {
         destination: root.to_string_lossy().into_owned(),
         job_id: candidate.job_id,
@@ -3641,7 +3644,101 @@ fn capture_cleanup_target(
         source_sha256: candidate.source_sha256.clone(),
         ancestors,
         objects,
+        container: None,
     })
+}
+
+#[cfg(windows)]
+fn attach_empty_container_proofs(
+    root: &Path,
+    catalog: &[PublishedImport],
+    selected: &[TreatmentIdentity],
+    targets: &mut [CleanupTarget],
+) -> Result<(), String> {
+    use crate::windows_file_identity::inspect;
+
+    let mut jobs = selected.iter().map(|item| item.job_id).collect::<Vec<_>>();
+    jobs.sort_unstable_by_key(|job_id| job_id.0);
+    jobs.dedup();
+    for job_id in jobs {
+        let selected_generations = selected
+            .iter()
+            .filter(|item| item.job_id == job_id)
+            .map(|item| item.generation.get())
+            .collect::<std::collections::HashSet<_>>();
+        let container_path = root
+            .join("transcriptions")
+            .join(format!("{:032x}", job_id.0));
+        let entries = fs::read_dir(&container_path)
+            .map_err(|error| format!("CleanupUnverified: lister le conteneur: {error}"))?;
+        let mut found_generations = std::collections::HashSet::new();
+        let mut eligible = true;
+        for entry in entries {
+            let entry =
+                entry.map_err(|error| format!("CleanupUnverified: entrée conteneur: {error}"))?;
+            let file_type = entry
+                .file_type()
+                .map_err(|error| format!("CleanupUnverified: type conteneur: {error}"))?;
+            let Some(generation) = entry
+                .file_name()
+                .to_str()
+                .and_then(|name| name.parse::<u64>().ok())
+                .filter(|generation| *generation > 0)
+            else {
+                eligible = false;
+                break;
+            };
+            if !file_type.is_dir()
+                || file_type.is_symlink()
+                || !selected_generations.contains(&generation)
+                || !catalog.iter().any(|candidate| {
+                    candidate.job_id == job_id
+                        && candidate.generation.get() == generation
+                        && candidate.verified_present
+                })
+            {
+                eligible = false;
+                break;
+            }
+            found_generations.insert(generation);
+        }
+        if !eligible || found_generations != selected_generations {
+            continue;
+        }
+        let identity = identity_snapshot(inspect(&container_path, true)?)?;
+        let relative_path = relative_to_root(root, &container_path)?;
+        let Some(target_index) = targets
+            .iter()
+            .rposition(|target| target.treatment.job_id == job_id)
+        else {
+            continue;
+        };
+        let target = &mut targets[target_index];
+        if !target.ancestors.iter().any(|ancestor| {
+            ancestor.relative_path == relative_path && ancestor.identity == identity
+        }) {
+            return Err("CleanupUnverified: identité du conteneur absente des ancêtres".into());
+        }
+        target.container = Some(CleanupObject {
+            relative_path,
+            identity,
+            sha256: None,
+            owned: true,
+            removed: false,
+            error: None,
+        });
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn attach_empty_container_proofs(
+    _root: &Path,
+    _catalog: &[PublishedImport],
+    _selected: &[TreatmentIdentity],
+    _targets: &mut [CleanupTarget],
+) -> Result<(), String> {
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -3963,7 +4060,7 @@ fn write_cleanup_plan(root: &Path, plan: &CleanupPlan) -> Result<(), String> {
 fn cleanup_remaining(plan: &CleanupPlan) -> Vec<String> {
     plan.targets
         .iter()
-        .flat_map(|target| target.objects.iter())
+        .flat_map(|target| target.objects.iter().chain(target.container.iter()))
         .filter(|object| object.owned && !object.removed)
         .map(|object| {
             object.error.as_ref().map_or_else(
@@ -3980,6 +4077,10 @@ fn cleanup_targets_match_intent(intent: &[CleanupTarget], plan: &[CleanupTarget]
             if expected.treatment != actual.treatment
                 || expected.source_sha256 != actual.source_sha256
                 || expected.ancestors != actual.ancestors
+                || !cleanup_container_matches(
+                    expected.container.as_ref(),
+                    actual.container.as_ref(),
+                )
             {
                 return false;
             }
@@ -4009,10 +4110,27 @@ fn cleanup_targets_match_intent(intent: &[CleanupTarget], plan: &[CleanupTarget]
         })
 }
 
+fn cleanup_container_matches(
+    expected: Option<&CleanupObject>,
+    actual: Option<&CleanupObject>,
+) -> bool {
+    match (expected, actual) {
+        (None, None) => true,
+        (Some(expected), Some(actual)) => {
+            expected.relative_path == actual.relative_path
+                && expected.identity == actual.identity
+                && expected.sha256 == actual.sha256
+                && (expected.owned == actual.owned
+                    || (expected.owned && !actual.owned && !actual.removed))
+        }
+        _ => false,
+    }
+}
+
 fn cleanup_preserved(root: &Path, plan: &CleanupPlan) -> Vec<String> {
     plan.targets
         .iter()
-        .flat_map(|target| target.objects.iter())
+        .flat_map(|target| target.objects.iter().chain(target.container.iter()))
         .filter(|object| !object.owned && !object.removed)
         .filter(|object| {
             let Ok(path) = safe_cleanup_path(root, &object.relative_path) else {
@@ -4218,7 +4336,7 @@ fn run_cleanup_plan_locked(root: &Path, plan: &mut CleanupPlan) -> Result<(), St
     )))
     .collect();
     for target in &plan.targets {
-        for object in &target.objects {
+        for object in target.objects.iter().chain(target.container.iter()) {
             if successor_identity_set.contains(&(
                 object.identity.volume_serial,
                 object.identity.file_id,
@@ -4234,8 +4352,27 @@ fn run_cleanup_plan_locked(root: &Path, plan: &mut CleanupPlan) -> Result<(), St
 
     // Preflight every target before the first disposition. The original source,
     // successor and all ancestor handles remain open with no write/delete sharing.
-    let mut held_ancestors = Vec::new();
-    let mut held_ancestors_by_path = std::collections::HashMap::new();
+    let mut held_ancestors_by_path: std::collections::HashMap<
+        String,
+        (CleanupObjectIdentity, VerifiedFile),
+    > = std::collections::HashMap::new();
+    let mut removed_container_paths = std::collections::HashSet::new();
+    for target in &mut plan.targets {
+        if let Some(container) = &mut target.container {
+            if container.removed {
+                removed_container_paths.insert(container.relative_path.clone());
+            } else if fs::symlink_metadata(safe_cleanup_path(root, &container.relative_path)?)
+                .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+            {
+                container.removed = true;
+                container.error = None;
+                removed_container_paths.insert(container.relative_path.clone());
+            }
+        }
+    }
+    if !removed_container_paths.is_empty() {
+        write_cleanup_plan(root, plan)?;
+    }
     for target in &plan.targets {
         if target.treatment.destination != plan.destination
             || target.source_sha256 != plan.source_sha256
@@ -4246,9 +4383,45 @@ fn run_cleanup_plan_locked(root: &Path, plan: &mut CleanupPlan) -> Result<(), St
                 "CleanupUnsafePath: cible chevauche le successeur ou autre destination".into(),
             );
         }
+        if let Some(container) = &target.container
+            && !container.removed
+        {
+            let expected_path = root
+                .join("transcriptions")
+                .join(format!("{:032x}", target.treatment.job_id.0));
+            if !container.identity.is_directory
+                || container.sha256.is_some()
+                || container.relative_path != relative_to_root(root, &expected_path)?
+                || !target.ancestors.iter().any(|ancestor| {
+                    ancestor.relative_path == container.relative_path
+                        && ancestor.identity == container.identity
+                })
+            {
+                return Err("CleanupIdentityChanged: preuve du conteneur invalide".into());
+            }
+            let path = safe_cleanup_path(root, &container.relative_path)?;
+            let canonical = path.canonicalize().map_err(|error| {
+                format!(
+                    "CleanupIdentityChanged: conteneur inaccessible {}: {error}",
+                    container.relative_path
+                )
+            })?;
+            let canonical_root = Path::new(&plan.destination)
+                .canonicalize()
+                .map_err(|error| format!("CleanupIdentityChanged: destination: {error}"))?;
+            if canonical != canonical_root.join(&container.relative_path) {
+                return Err(format!(
+                    "CleanupUnsafePath: conteneur redirigé {}",
+                    container.relative_path
+                ));
+            }
+        }
         for ancestor in &target.ancestors {
+            if removed_container_paths.contains(&ancestor.relative_path) {
+                continue;
+            }
             if let Some(previous) = held_ancestors_by_path.get(&ancestor.relative_path) {
-                if previous != &ancestor.identity {
+                if previous.0 != ancestor.identity {
                     return Err(format!(
                         "CleanupIdentityChanged: identités d'ancêtre divergentes {}",
                         ancestor.relative_path
@@ -4258,10 +4431,13 @@ fn run_cleanup_plan_locked(root: &Path, plan: &mut CleanupPlan) -> Result<(), St
             }
             let path = safe_cleanup_path(root, &ancestor.relative_path)?;
             let handle = VerifiedFile::open(&path, true)?;
-            handle.verify(&runtime_identity(&ancestor.identity))?;
-            held_ancestors.push(handle);
-            held_ancestors_by_path
-                .insert(ancestor.relative_path.clone(), ancestor.identity.clone());
+            handle
+                .verify(&runtime_identity(&ancestor.identity))
+                .map_err(|error| format!("{error}: ancêtre {}", ancestor.relative_path))?;
+            held_ancestors_by_path.insert(
+                ancestor.relative_path.clone(),
+                (ancestor.identity.clone(), handle),
+            );
         }
     }
     for target in &mut plan.targets {
@@ -4292,6 +4468,22 @@ fn run_cleanup_plan_locked(root: &Path, plan: &mut CleanupPlan) -> Result<(), St
                 }
             }
         }
+        if let Some(container) = &target.container
+            && !container.removed
+        {
+            let Some((identity, _)) = held_ancestors_by_path.get(&container.relative_path) else {
+                return Err(format!(
+                    "CleanupIdentityChanged: ancêtre du conteneur absent {}",
+                    container.relative_path
+                ));
+            };
+            if identity != &container.identity {
+                return Err(format!(
+                    "CleanupIdentityChanged: identité du conteneur divergente {}",
+                    container.relative_path
+                ));
+            }
+        }
     }
     let mut held_target_directories = std::collections::HashMap::new();
     for target in &mut plan.targets {
@@ -4308,7 +4500,9 @@ fn run_cleanup_plan_locked(root: &Path, plan: &mut CleanupPlan) -> Result<(), St
             continue;
         }
         let directory_handle = VerifiedFile::open(&directory, true)?;
-        directory_handle.verify(&runtime_identity(&directory_proof.identity))?;
+        directory_handle
+            .verify(&runtime_identity(&directory_proof.identity))
+            .map_err(|error| format!("{error}: génération {directory_relative}"))?;
         for entry in fs::read_dir(&directory).map_err(|error| {
             format!("CleanupIdentityChanged: inventorier le dossier cible: {error}")
         })? {
@@ -4410,7 +4604,71 @@ fn run_cleanup_plan_locked(root: &Path, plan: &mut CleanupPlan) -> Result<(), St
             write_cleanup_plan(root, plan)?;
         }
     }
-    let _keep_ancestors = (held_ancestors, held_target_directories);
+    for target_index in 0..plan.targets.len() {
+        let Some(container_snapshot) = plan.targets[target_index].container.clone() else {
+            continue;
+        };
+        if container_snapshot.removed || !container_snapshot.owned {
+            continue;
+        }
+        let path = safe_cleanup_path(root, &container_snapshot.relative_path)?;
+        if fs::symlink_metadata(&path).is_err_and(|error| error.kind() == io::ErrorKind::NotFound) {
+            let container = plan.targets[target_index].container.as_mut().unwrap();
+            container.removed = true;
+            container.error = None;
+            write_cleanup_plan(root, plan)?;
+            continue;
+        }
+        let canonical = path
+            .canonicalize()
+            .map_err(|error| format!("CleanupIdentityChanged: conteneur inaccessible: {error}"))?;
+        let expected = Path::new(&plan.destination)
+            .canonicalize()
+            .map_err(|error| format!("CleanupIdentityChanged: destination: {error}"))?
+            .join(&container_snapshot.relative_path);
+        if canonical != expected {
+            return Err(format!(
+                "CleanupUnsafePath: conteneur redirigé {}",
+                container_snapshot.relative_path
+            ));
+        }
+        let mut entries = fs::read_dir(&path)
+            .map_err(|error| format!("CleanupIdentityChanged: lire conteneur: {error}"))?;
+        if entries
+            .next()
+            .transpose()
+            .map_err(|error| {
+                format!("CleanupIdentityChanged: lire le contenu du conteneur: {error}")
+            })?
+            .is_some()
+        {
+            let container = plan.targets[target_index].container.as_mut().unwrap();
+            container.owned = false;
+            container.error = Some("contenu non sélectionné présent : conteneur conservé".into());
+            write_cleanup_plan(root, plan)?;
+            continue;
+        }
+        let identity = container_snapshot.identity.clone();
+        let relative_path = container_snapshot.relative_path.clone();
+        let handle = held_ancestors_by_path
+            .remove(&relative_path)
+            .ok_or_else(|| {
+                format!("CleanupIdentityChanged: handle du conteneur absent {relative_path}")
+            })?;
+        if let Err(error) = handle.1.mark_delete(&runtime_identity(&identity), None) {
+            let error = format!("{error}: conteneur {}", relative_path);
+            let container = plan.targets[target_index].container.as_mut().unwrap();
+            container.error = Some(error.clone());
+            plan.last_error = Some(error.clone());
+            write_cleanup_plan(root, plan)?;
+            return Err(error);
+        }
+        let container = plan.targets[target_index].container.as_mut().unwrap();
+        container.removed = true;
+        container.error = None;
+        write_cleanup_plan(root, plan)?;
+    }
+    let _keep_ancestors = (held_ancestors_by_path, held_target_directories);
     plan.last_error = None;
     write_cleanup_plan(root, plan)
 }
@@ -6403,6 +6661,30 @@ fn timestamp(sample: u64) -> String {
 mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn legacy_cleanup_target_without_container_proof_deserializes_without_parent_authority() {
+        let legacy = serde_json::json!({
+            "treatment": {
+                "destination": "C:\\\\legacy-destination",
+                "job_id": 7,
+                "generation": 1
+            },
+            "source_sha256": "00",
+            "ancestors": [],
+            "objects": []
+        });
+        let target: CleanupTarget = serde_json::from_value(legacy).unwrap();
+
+        assert!(target.container.is_none());
+        assert!(
+            cleanup_targets_match_intent(
+                std::slice::from_ref(&target),
+                std::slice::from_ref(&target)
+            ),
+            "legacy intent and plan remain compatible without adding container ownership"
+        );
+    }
 
     #[test]
     fn campaign_snapshot_skips_an_active_writer_lock() {
