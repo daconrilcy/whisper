@@ -1,10 +1,12 @@
-Avancée : plan révisé en dix tâches pour la création indépendante, le remplacement ciblé et leur validation ; référence E0 mesurée sur 18 imports.
-Blocage : le plan produit attend sa seconde revue indépendante et l'accord précis de l'utilisateur avant tout lot de code.
-Décision : faire relire cette version puis soumettre RTC-01 et sa limite de deux snapshots à l'utilisateur.
+Avancée : plan v2 relu CLEAN et RTC-01 autorisé ; candidat partiel arrêté sur le plafond global après redémarrage.
+Blocage : la file par destination ne permet pas de retrouver les snapshots d'autres destinations après redémarrage.
+Décision : faire relire l'amendement v3 du registre central avant de reprendre RTC-01.
 
-# PLAN-RETRAITEMENT-CIBLE v2 — REVUE FINALE DEMANDÉE
+# PLAN-RETRAITEMENT-CIBLE v3 — AMENDEMENT RTC-01 À RELIRE
 
 Base : [mandat](mandat-retraitement-cible.md), [design](design-retraitement-cible.md) accepté par l'utilisateur le 20/10/2026 et revu CLEAN au commit `25075b44f67a36084bd3d6e85cedcd42e69954d5`. Auteur documentaire : session Codex principale ; proposition technique en lecture seule de `rust_plan_writer`. HEAD de départ du plan : `25075b44`. **Ce plan ne donne aucune autorisation de code, de suppression de données utilisateur, d'installation ou de push.** Chaque lot demande ensuite un accord écrit précis sur ses tâches et chemins. L'unsafe Windows de T6 exige un accord technique distinct ; l'acceptation du design ne le donne pas.
+
+Le plan v2 a été relu CLEAN puis accepté pour RTC-01 le 20/10/2026 avec un plafond de deux snapshots. En cours d'implémentation, `QueueStore::open` (`crates/whisper-adapters/src/queue_store.rs:107-108`) et les sidecars de source ont révélé que les opérations sont rangées par destination. `ImportRuntime` (`worker_ipc.rs:1288, 1843-1858`) ne reçoit aucune racine permettant d'énumérer toutes les destinations au redémarrage. Le candidat partiel est préservé sans commit ; `cargo fmt --all -- --check` a échoué sur une accolade de `worker_ipc.rs:2705` et le format d'un test ; aucun test Cargo n'a encore tourné. L'utilisateur a accepté le 20/10/2026 un **registre central durable** et l'ouverture du seul chemin supplémentaire `crates/whisper-desktop/src/root.rs`, sous réserve de cette revue avant reprise du code. Le présent amendement ne touche ni RTC-02 ni la frontière Windows T6.
 
 ## 1. État de la mesure de référence et préflight E0
 
@@ -31,7 +33,7 @@ Les tâches ci-dessous sont au nombre de **dix** au total. Le design RTC-01 à R
 | Tâche | Entrée → sortie vérifiable | Carte |
 | --- | --- | --- |
 | T1 Contrats purs | Commandes/états R11 → identités audio/traitement/opération, modes Créer/Dernier/Tous/Choisi, sélection figée, erreurs et progression ; aucun accès disque dans core. | C01, C05, C12 |
-| T2 Source liée | Original → snapshot unique copié et hashé dans un seul flux, scellé et protégé pendant consommation ; probe sur snapshot ; admission/confirmation/préparation réutilisent le binding. Copie impossible : erreur attribuée, anciens intacts. **Maximum deux snapshots simultanément retenus par le service d'import de l'application : un actif et un en attente.** Une troisième demande nécessitant un snapshot est refusée avant pending avec un message indiquant de terminer ou annuler un traitement puis de réessayer ; aucun import accepté n'est silencieusement abandonné. Vérifier aussi l'espace avant copie. À la reprise, reconstruire le compte depuis les opérations/snapshots durables avant toute nouvelle admission ; les pending historiques sans snapshot sont préservés et ne sont rescellés que lorsqu'un emplacement est libre et que leur source est revérifiée. Un snapshot possédé est retiré après fin ou annulation vérifiée ; un orphelin incertain reste signalé et ne libère pas artificiellement un emplacement. | C01, C03, C04, C13 |
+| T2 Source liée | Original → snapshot unique copié et hashé dans un seul flux, scellé et protégé pendant consommation ; probe sur snapshot ; admission/confirmation/préparation réutilisent le binding. Copie impossible : erreur attribuée, anciens intacts. **Maximum deux snapshots simultanément retenus par le service d'import de l'application, toutes destinations confondues : un actif et un en attente.** Une troisième demande nécessitant un snapshot est refusée avant pending avec un message indiquant de terminer ou annuler un traitement puis de réessayer ; aucun import accepté n'est silencieusement abandonné. Vérifier aussi l'espace avant copie. À la reprise, reconstruire le compte depuis le registre durable central et les opérations/snapshots associés **avant** toute nouvelle admission ; les pending historiques sans snapshot sont préservés et ne sont rescellés que lorsqu'un emplacement est libre et que leur source est revérifiée. Un snapshot possédé est retiré après fin ou annulation vérifiée ; un orphelin incertain reste signalé et ne libère pas artificiellement un emplacement. | C01, C03, C04, C13 |
 | T3 Publication unique | Nouveau résultat → dossier inédit, TXT/SRT internes + manifeste vérifiés puis point de succès ; aucun nouveau `exports/` ni `export.*.pending`. Créer ne dépend pas de l'intégrité d'anciens dossiers. | C02, C04 |
 | T4 Parcours Créer | UI/commande → traitement sur snapshot, paire lisible interne et résultat affiché ; annulation avant confirmation sans ancien effet ; tests du premier parcours complet. | C01–C04, C12 |
 | T5 Catalogue et choix | Publications actives/inactives R11 → candidats vérifiés, ordre de succès monotone pour nouvelles publications, ordre historique inconnu visible ; Dernier/Tous/Parcourir résolus en identités et preuves figées. | C05, C06 |
@@ -54,7 +56,10 @@ crates/whisper-adapters/src/queue_store.rs
 crates/whisper-adapters/tests/source_binding.rs
 crates/whisper-adapters/tests/reprocessing_create.rs
 crates/whisper-desktop/src/ui.rs
+crates/whisper-desktop/src/root.rs (ajout v3 : injection du registre central uniquement)
 ```
+
+**Amendement RTC-01/T2, registre des deux slots.** `root.rs` résout la racine persistante des réglages de l'application et injecte à `AsyncImportIo` un chemin dédié, par exemple `%LOCALAPPDATA%\Whisper\settings\reprocessing-snapshots.jsonl`. Le code produit n'utilise ni le dossier courant ni une variable de campagne comme repli si cette racine manque : nouvelle admission refusée avec cause explicite. Les constructeurs/tests peuvent injecter une racine isolée sous `target/parakeet-tests/retraitement-cible/rtc-01/`; la campagne ne touche jamais les réglages personnels. Le registre central associe chaque slot réservé à l'opération, à la destination canonique et au binding ; une réservation est durable **avant** la copie. La réservation, la libération et la récupération sont sérialisées pour éviter qu'un autre import ou processus dépasse deux slots. Après panne, toute entrée/snapshot ambigu est compté occupé et signalé ; il n'est pas effacé ni réattribué implicitement. Un slot ne se libère qu'après fin/annulation et retrait vérifié du snapshot. Une écriture interrompue du registre échoue en mode fermé. Aucun scan arbitraire de dossiers utilisateur, aucune modification de `root.rs` hors de la résolution/injection du registre et de ses tests directement liés. Les dix chemins v2 restent les seuls autres chemins d'écriture RTC-01.
 
 **RTC-02, chemins de code/tests proposés exclusivement :**
 
@@ -87,7 +92,7 @@ Toutes les cartes sont **NOT RUN** à ce stade. Une variante non exercée reste 
 | C01 | WAV copié/renommé, MP3 aux octets différents, source illisible. | Identité juste ; snapshot réellement consommé et lié au SHA ; aucun ancien audio requis. |
 | C02 | Ancien intact/absent/corrompu, deux Créer. | Deux dossiers neufs, chacun une paire interne finale ; aucun nouvel export et anciens inchangés. |
 | C03 | Source modifiée/renommée pendant copie ou worker, même taille/date restaurées. | Mutation empêchée ou erreur attribuée ; résultat lié au snapshot ; zéro suppression ancienne. |
-| C04 | Erreur d'espace/copie, annulation, collision, arrêt avant succès ; deux imports avec snapshots actifs/en attente puis troisième demande ; redémarrage avec deux snapshots durables. | Pas de publication partielle annoncée ni suppression ancienne. Troisième demande refusée **avant pending** avec cause visible, deux premiers préservés. Après redémarrage, compte reconstruit ; aucun troisième snapshot créé avant libération vérifiée d'un emplacement. |
+| C04 | Erreur d'espace/copie, annulation, collision, arrêt avant succès ; deux imports vers **deux destinations distinctes** avec snapshots actifs/en attente puis troisième demande ; redémarrage avec les deux snapshots durables et admission tentée vers une **troisième destination**. | Pas de publication partielle annoncée ni suppression ancienne. Troisième demande refusée **avant pending** avec cause visible, deux premiers préservés. Après redémarrage, compte global reconstruit depuis le registre ; aucun troisième snapshot créé avant libération vérifiée d'un emplacement. Entrée du registre incomplète ou snapshot orphelin : slot conservé et cause visible. |
 | C05 | Plusieurs succès, pending/échec plus récents, R11 inactif, ordre historique inconnu, nouveau concurrent. | Dernier prouvé ; Tous inclut actifs et inactifs vérifiés présents ; historique ambigu demande choix ; cibles figées. |
 | C06 | Parcourir valide absent de liste, autre audio, tiers, hors destination, chemin redirigé. | Seul dossier vérifié accepté avant traitement ; aucun droit de suppression par chemin brut. |
 | C07 | Substitution d'ancien avant/après ouverture, successeur alias ou modifié, ancêtre renommé. | Identité divergente refusée ; disposition sur handle vérifié ; successeur protégé pendant passe. |
@@ -127,9 +132,9 @@ Les cibles de test nouvelles ne sont lancées qu'après leur création dans le l
 | Design accepté et relu CLEAN | ACQUIS au `25075b44` | Base du plan. |
 | Limite des copies simultanées | Décision utilisateur du 20/10/2026 : limiter et refuser clairement à saturation ; proposition du plan = 2 par service d'import | À accepter explicitement avec le plan ; C04 couvre saturation et reprise. |
 | E0 mesure R11 existante | PASS 18/18 imports ; ventilation native par cellule PARTIAL/NOT RUN, signalée dans le bilan | Réutiliser la même matrice au lot RTC-03 sans extrapoler les champs absents. |
-| Présent plan | v2 soumis à la seconde revue indépendante ; RTC-PL-01/02 corrigés | Aucun code produit ouvert avant verdict et accord RTC-01. |
-| Accord RTC-01 | NON DONNÉ | Nécessaire avant T1–T4. |
+| Présent plan | v2 CLEAN et accepté ; v3 limité au registre central soumis à une revue ciblée | Reprise du candidat seulement si v3 CLEAN. |
+| Accord RTC-01 | DONNÉ le 20/10/2026 pour les dix chemins v2 et deux snapshots ; accord complémentaire sur `root.rs` et revue | T1–T4 autorisés, sous réserve du verdict v3 pour la reprise. |
 | Accord RTC-02 et frontière Windows T6 | NON DONNÉS | Nécessaires après RTC-01 et avant T5–T8. |
 | Validation automatique et fenêtre Windows | NOT RUN | Après candidats, par rôles prévus. |
 
-Le premier retour de revue doit distinguer les constats requis par une exigence/acceptation/risque réel des conseils. Au maximum deux cycles de revue/correction pour ce plan ; au-delà, décision de l'utilisateur avec réserves. **PLANS READY n'est pas revendiqué.**
+La revue ciblée v3 vérifie le décompte global durable entre destinations, l'échec fermé, l'unique nouveau chemin, le confinement des tests et l'absence d'extension RTC-02. Au maximum deux cycles revue/correction pour cet amendement ; au-delà, décision de l'utilisateur avec réserves. **PLANS READY v3 n'est pas revendiqué avant son verdict.**
