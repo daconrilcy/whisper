@@ -17,6 +17,7 @@ Le dossier `C:\Users\cyril\Documents\WhisperTranscriptions\transcriptions\` ne c
 3. Pour une entrée `Bound` dont la copie **et** la fiche sont toutes deux absentes, retirer seulement l'entrée après ces vérifications. Pour une copie et une fiche présentes et cohérentes, vérifier leur identité et leur contenu, puis les retirer avec la façade Windows par handle déjà existante ; ne jamais supprimer l'audio original, une transcription, une autre copie, une autre destination ni un objet ajouté entre inspection et confirmation. Si un seul des deux fichiers existe, conserver l'entrée et signaler une réparation manuelle nécessaire.
 4. Rendre le retrait rejouable : enregistrer durablement l'intention et les identités vérifiées avant la première disposition, puis terminer le nettoyage et la libération de la place. Une interruption à chaque frontière peut être reprise par une nouvelle confirmation sans élargir les cibles. Aucun nettoyage rétrospectif automatique des entrées RTC-01 à RTC-04.
 5. Après récupération, actualiser l'état de capacité et permettre à l'utilisateur de relancer l'import. Le refus normal à deux copies **actives** reste inchangé. Une annulation normale du dialogue de doublon et une publication normale libèrent leurs copies comme avant.
+6. Si l'utilisateur a vidé le contenu de `transcriptions/`, ou supprimé ce dossier, traiter la destination comme vierge pour la détection des traitements et la nouvelle admission. `reprocessing_catalog` retourne actuellement les anciens enregistrements de l'index avec `verified_present=false` ; `worker_ipc.rs` ne doit proposer le dialogue de doublon que pour des traitements `verified_present=true`. Les métadonnées historiques restent intactes et ne recréent pas de traitements inexistants. Les réservations de copies audio restées dans le registre nécessitent la **confirmation explicite** des points 1 à 4 avant libération ; aucune purge silencieuse n'est déclenchée par un dossier vide.
 
 ## Chemins d'écriture proposés pour le code
 
@@ -41,6 +42,7 @@ La façade `windows_file_identity.rs` est **réutilisée sans édition ni nouvel
 | R4 | Arrêt après l'intention, après la disposition de la copie, après celle de la fiche, avant la libération du registre. | Reprise explicite idempotente sur les seules identités admises ; aucun autre objet touché. |
 | R5 | Deux copies actives, annulation du dialogue, publication réussie. | Limite de deux conservée ; les parcours normaux libèrent la place ; aucune récupération automatique. |
 | R6 | Application Test dans la fenêtre Windows après code CLEAN. | L'utilisateur récupère les places abandonnées puis importe ; les causes des places protégées sont visibles. |
+| R7 | Destination ayant eu des traitements, puis `transcriptions/` entièrement vidé ou supprimé ; index de publications et deux réservations anciennes conservés hors de ce dossier. | La récupération explicite libère les seules réservations abandonnées vérifiées ; la destination est ensuite traitée comme vierge et un nouveau TXT/SRT est publié. Aucune ancienne cible n'est reconstruite ni effacée ailleurs. |
 
 ## Exécution et remise
 
