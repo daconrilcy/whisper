@@ -1,6 +1,6 @@
-Avancée : R11 et son correctif élargi R7 sont revus CLEAN ; R1 à R8 fermés, gate workspace vert sous garde.
-Blocage : recette D-A8 dans la fenêtre Windows non exécutée par l'utilisateur.
-Décision : candidat technique prêt ; commit local du code et du bilan, sans installation ni push.
+Avancée : R11 et son correctif élargi R7 sont revus CLEAN ; gate workspace vert et traitement, remplacement et création d'une nouvelle transcription confirmés dans la fenêtre Windows.
+Blocage : l'annulation et les noms des fichiers TXT/SRT ne sont pas attestés séparément dans le retour utilisateur ; D-A8 reste partiel.
+Décision : consigner le retour de recette dans un commit documentaire local, sans installation ni push.
 
 # Bilan provisoire R11 — retraitement d'un audio déjà publié
 
@@ -89,7 +89,7 @@ r7_private_worker_timing
 r7_private_worker_timing_child
 ```
 
-La recette D-A8 avec un vrai audio déjà traité dans la fenêtre Windows reste **NOT RUN**. Le code est prêt pour cette vérification utilisateur ; l'installation personnelle `%LOCALAPPDATA%\Whisper` n'est pas modifiée par R11.
+À ce stade du bilan, la recette D-A8 avec un vrai audio déjà traité dans la fenêtre Windows était **NOT RUN**. Le retour de recette du 20/10/2026 figure ci-dessous ; l'installation personnelle `%LOCALAPPDATA%\Whisper` n'est pas modifiée par R11.
 
 ## Paquet remis pour la recette Windows — 20/10/2026
 
@@ -107,4 +107,10 @@ La **remise R11 corrigée** revient au profil Test prévu par le [plan R11](plan
 | `whisper-worker-cpu.exe` | `517320962440b130b6b2d5b2b7c0d7270774ae3c632f64f6b8c5a1e089adf042` | Turbo CPU, fichier frère du desktop |
 | `whisper-worker-gpu.exe` | `9d26e0a7442c29fa42daca8e8d5a7ca945d53b0408ee254d0339979ddbc2a362` | Turbo GPU, fichier frère du desktop |
 
-`lancer-recette-r11.cmd` configure les racines Test canoniques : worker CPU R6 et cinq DLL sous `target/parakeet-tests/l2/l2b/`, worker GPU L3a et neuf DLL sous `target/parakeet-tests/l3/`, modèle Parakeet sous `models/`. Ces chemins sont **externes au dossier de remise**, conformément au profil Test. Son `--check` a passé avec les deux workers Turbo voisins et les ressources Parakeet présentes. Le modèle de la file a le même chemin que celui du catalogue Test, et son SHA correspond à la fiche R6. Le build Release Test d'origine avait passé la garde (`ReleaseBuild`, Cargo 0, aucune déviation) ; les workers Turbo Release ont passé `PersonalTurbo` sous garde. Aucun code produit, réglage personnel, queue ou pending n'a été modifié pour cette correction de paquet. La recette D-A8 dans la fenêtre Windows reste **NOT RUN** sur ce paquet corrigé.
+`lancer-recette-r11.cmd` configure les racines Test canoniques : worker CPU R6 et cinq DLL sous `target/parakeet-tests/l2/l2b/`, worker GPU L3a et neuf DLL sous `target/parakeet-tests/l3/`, modèle Parakeet sous `models/`. Ces chemins sont **externes au dossier de remise**, conformément au profil Test. Son `--check` a passé avec les deux workers Turbo voisins et les ressources Parakeet présentes. Le modèle de la file a le même chemin que celui du catalogue Test, et son SHA correspond à la fiche R6. Le build Release Test d'origine avait passé la garde (`ReleaseBuild`, Cargo 0, aucune déviation) ; les workers Turbo Release ont passé `PersonalTurbo` sous garde. Aucun code produit, réglage personnel, queue ou pending n'a été modifié pour cette correction de paquet.
+
+## Retour de recette dans la fenêtre Windows — 20/10/2026
+
+L'utilisateur confirme que le traitement fonctionne avec le paquet corrigé, ainsi que les deux choix proposés pour un audio déjà traité : **remplacer** les transcriptions existantes et **créer une nouvelle** transcription. Ce retour constitue la preuve manuelle de ces parcours ; il ne remplace pas les résultats des tests automatisés ci-dessus.
+
+La recette D-A8 est **partielle** au regard du critère du plan : le retour ne décrit pas séparément l'annulation du dialogue ni la vérification des noms des fichiers TXT/SRT générés. Ces deux observations restent à confirmer avant de déclarer D-A8 entièrement PASS.
