@@ -1,8 +1,8 @@
-Avancée : R11 et son correctif élargi R7 sont revus CLEAN ; gate workspace vert et traitement, remplacement et création d'une nouvelle transcription confirmés dans la fenêtre Windows.
-Blocage : l'annulation et les noms des fichiers TXT/SRT ne sont pas attestés séparément dans le retour utilisateur ; D-A8 reste partiel.
+Avancée : R11 et son correctif élargi R7 sont revus CLEAN ; gate workspace vert et recette manuelle D-A8 confirmée dans la fenêtre Windows.
+Blocage : aucun sur les parcours R11 testés ; les exports nommés sous `exports/` n'ont pas été identifiés séparément par l'utilisateur.
 Décision : consigner le retour de recette dans un commit documentaire local, sans installation ni push.
 
-# Bilan provisoire R11 — retraitement d'un audio déjà publié
+# Bilan R11 — retraitement d'un audio déjà publié
 
 Date : 19/10/2026. Branche : `evo-startup-perf`. Base : `e3918aab2fe7702e1f2e93e8fea7c3d7338c7446`. Candidat : arbre de travail, patch SHA-256 `D2F2CA61563A39CEE9D4F76489B5AC6E08DEC856CC000A22A82C46A7E6636DF7`.
 
@@ -111,6 +111,6 @@ La **remise R11 corrigée** revient au profil Test prévu par le [plan R11](plan
 
 ## Retour de recette dans la fenêtre Windows — 20/10/2026
 
-L'utilisateur confirme que le traitement fonctionne avec le paquet corrigé, ainsi que les deux choix proposés pour un audio déjà traité : **remplacer** les transcriptions existantes et **créer une nouvelle** transcription. Ce retour constitue la preuve manuelle de ces parcours ; il ne remplace pas les résultats des tests automatisés ci-dessus.
+L'utilisateur confirme que le traitement fonctionne avec le paquet corrigé, ainsi que les deux choix proposés pour un audio déjà traité : **remplacer** les transcriptions existantes et **créer une nouvelle** transcription. En cas d'**annulation**, la fenêtre se ferme, l'import est annulé et la transcription ancienne reste inchangée et disponible. « Créer un nouveau » conserve aussi l'ancien traitement et crée un dossier de transcription distinct, avec `transcript.txt` et `transcript.srt` dans ce dossier. Ce retour constitue la preuve manuelle de ces parcours ; il ne remplace pas les résultats des tests automatisés ci-dessus.
 
-La recette D-A8 est **partielle** au regard du critère du plan : le retour ne décrit pas séparément l'annulation du dialogue ni la vérification des noms des fichiers TXT/SRT générés. Ces deux observations restent à confirmer avant de déclarer D-A8 entièrement PASS.
+La recette manuelle **D-A8 est PASS** pour le dialogue, l'annulation, le remplacement et la création d'une paire TXT/SRT dans un dossier distinct. Les fichiers internes observés portent le nom `transcript` ; l'utilisateur n'a pas identifié séparément la paire d'exports lisibles sous `exports/`. La réservation et l'écriture de ces exports sont couvertes par les tests automatisés R11, mais leur observation manuelle précise reste une limite de ce retour.
