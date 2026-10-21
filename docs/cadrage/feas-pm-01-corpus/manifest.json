@@ -8,7 +8,7 @@
   "archive_external_provenance": "NOT_ATTESTED",
   "ffmpeg_version": "ffmpeg version 9.0.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
   "decode_recipe": "ffmpeg -hide_banner -loglevel error -ss <source_start_s> -i <ogg> -t <wav_frames/16000> -ac 1 -ar 16000 -f s16le pipe:1",
-  "status": "SOURCES_VERIFIEES_TEXTES_CANDIDATS",
+  "status": "SOURCES_VERIFIEES_TEXTES_APPROUVES_ACOUSTIQUE_PARTIELLE",
   "items": [
     {
       "id": "fr_pauses",
@@ -379,5 +379,87 @@
     "boundary_tables": "USER_SAID_OK_WITH_TABLE; timing remains provisional",
     "acoustics": "NOT_REVIEWED_BY_USER; user requested consider ok, not an acoustic label",
     "feas_pm_01": "NOT_AUTHORIZED"
-  }
+  },
+  "acoustic_review_clips": [
+    {
+      "id": "F1_intro_transition",
+      "role": "fr_pauses",
+      "path": "docs/cadrage/feas-pm-01-corpus/acoustic-review/F1_intro_transition.wav",
+      "sha256": "9d91280b04bd925dc2501a4a1cc9cb70557fc1cec00f9a27c463338d1d7df815",
+      "source_wav_sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
+      "start_sample": 0,
+      "end_sample_exclusive": 115200,
+      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+    },
+    {
+      "id": "F2_pause_francaise",
+      "role": "fr_pauses",
+      "path": "docs/cadrage/feas-pm-01-corpus/acoustic-review/F2_pause_francaise.wav",
+      "sha256": "f86dc8ec20ab1344577e90a1bc09a54d24d9df5efaf6a536b89adce3abb3ad54",
+      "source_wav_sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
+      "start_sample": 198400,
+      "end_sample_exclusive": 220800,
+      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+    },
+    {
+      "id": "E1_pause_anglaise",
+      "role": "en_pauses",
+      "path": "docs/cadrage/feas-pm-01-corpus/acoustic-review/E1_pause_anglaise.wav",
+      "sha256": "fa466386d247031261ca110929730caddfa442b197d376a4c8bf87d12776dfec",
+      "source_wav_sha256": "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a",
+      "start_sample": 188800,
+      "end_sample_exclusive": 209600,
+      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+    },
+    {
+      "id": "FC1_parole_faible",
+      "role": "fr_continu",
+      "path": "docs/cadrage/feas-pm-01-corpus/acoustic-review/FC1_parole_faible.wav",
+      "sha256": "c2200f0e336fc5b693f1651b88497fbdaea858e2bcbf3807a53a12572150d809",
+      "source_wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+      "start_sample": 48000,
+      "end_sample_exclusive": 75200,
+      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+    },
+    {
+      "id": "FC2_zone_calme",
+      "role": "fr_continu",
+      "path": "docs/cadrage/feas-pm-01-corpus/acoustic-review/FC2_zone_calme.wav",
+      "sha256": "bb0ca1e85ec6e653e7cb6162f1f842e28009ffadc2af7c7793078fcd3e4bd89f",
+      "source_wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+      "start_sample": 520000,
+      "end_sample_exclusive": 536000,
+      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+    },
+    {
+      "id": "EC1_baisse_energie",
+      "role": "en_continu",
+      "path": "docs/cadrage/feas-pm-01-corpus/acoustic-review/EC1_baisse_energie.wav",
+      "sha256": "d4ef00b551e3a66df0bf92f2a048cf84dcb75db8f0168741f0c0384e0cab711f",
+      "source_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "start_sample": 59200,
+      "end_sample_exclusive": 78400,
+      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+    },
+    {
+      "id": "EC2_baisse_energie",
+      "role": "en_continu",
+      "path": "docs/cadrage/feas-pm-01-corpus/acoustic-review/EC2_baisse_energie.wav",
+      "sha256": "33e6b81acfe225d397cad6eb4cd6c0b8e8422cb6273a4e329499140429537c5c",
+      "source_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "start_sample": 544000,
+      "end_sample_exclusive": 558400,
+      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+    },
+    {
+      "id": "EC3_zone_calme",
+      "role": "en_continu",
+      "path": "docs/cadrage/feas-pm-01-corpus/acoustic-review/EC3_zone_calme.wav",
+      "sha256": "206984ada2307969b7961984389dc37233dcbc54e8a3c6c8228d22a9a87ed0d4",
+      "source_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "start_sample": 872000,
+      "end_sample_exclusive": 886400,
+      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+    }
+  ]
 }
