@@ -1,6 +1,8 @@
 # FEAS-PM-01 — zones critiques à contrôler après l’écoute complète
 
-Toutes les heures et tous les mots ci-dessous viennent de Parakeet ou de l’analyse acoustique : **AUTO_NON_VALIDÉ**. La liste réunit les coupes A forcées et les bords B traversés par un mot ASR, sans exécuter A ni B. Les autres bords restent dans `auto_annotations.json` et ne demandent pas de contrôle manuel systématique pour cette première qualification.
+Retour humain du 21 octobre 2026 : **« OK avec le tableau » pour les quatre cas**. Exception signalée pour `fr_pauses` : texte anglais à 0–4 s, absent des mots Parakeet avant 6,72 s. La note « 0–6 : pause » ne fixe pas un intervalle acoustique non ambigu. Les temps ASR de la table restent provisoires. Le contrôle des pauses, hésitations et bruits ci-dessous n'a pas été effectué ; aucune étiquette acoustique n'est approuvée.
+
+Les mots et temps de départ ci-dessous viennent de Parakeet ou de l'analyse acoustique. Le retour humain accepte le **tableau des zones**, tandis que les **bornes temporelles précises** demeurent `AUTO_NON_VALIDE`. La liste réunit les coupes A forcées et les bords B traversés par un mot ASR, sans exécuter A ni B. Les autres bords restent dans `auto_annotations.json` et ne demandent pas de contrôle manuel systématique pour cette première qualification.
 
 Après avoir écouté le WAV entier et corrigé son texte, parcourir la table du même fichier. Un seul accord explicite peut couvrir toutes ses lignes si aucun écart n’a été trouvé ; sinon noter uniquement les exceptions et leurs temps. Pour rejouer une ligne : `ffplay -nodisp -autoexit -ss <temps-1,5> -t 3 "<WAV>"` (ramener le début à 0 si nécessaire).
 

@@ -31,7 +31,8 @@
         "path": "docs/cadrage/feas-pm-01-corpus/candidate_fr_pauses.txt",
         "bytes": 937,
         "sha256": "9db2295a9c02df03db8cea42cdd3743f4bde36c63299ef9e65a282687ed952e3",
-        "normalization": "CRLF_TO_LF_ONLY"
+        "normalization": "CRLF_TO_LF_ONLY",
+        "status": "SUPERSEDED_BY_HUMAN_EDITED_COPY"
       },
       "original_ogg": {
         "path": "sound example/voxpopuli/clips/raw_audios/original/2020/20200617-0900-PLENARY_original.ogg",
@@ -52,8 +53,20 @@
       "pcm_sha256": "36fd0a2051cebf90c4225370a103bdc8768198448c71da8d249d55b8983bbebd",
       "decoded_ogg_pcm_sha256": "36fd0a2051cebf90c4225370a103bdc8768198448c71da8d249d55b8983bbebd",
       "pcm_exact_match": true,
-      "transcript_status": "CANDIDAT",
-      "human_validation": null
+      "transcript_status": "APPROUVE_HUMAIN",
+      "human_validation": null,
+      "human_approved_reference": {
+        "path": "docs/cadrage/feas-pm-01-corpus/candidate_fr_pauses_copie.txt",
+        "bytes": 1259,
+        "sha256": "abd2ac3ec6bc0fceb7c044f56d8ee0c29c4b2ca4a2ba8ca364ee169cb47e78cf",
+        "wav_sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
+        "status": "APPROUVE_HUMAIN",
+        "approver": "user in this session",
+        "evidence": "Explicit answer: J’approuve les quatre textes",
+        "normalization": "none; SHA-256 of exact saved copy bytes",
+        "recorded_at_utc": "2026-10-21T14:50:42Z",
+        "approval_date_utc": "2026-10-21"
+      }
     },
     {
       "id": "en_pauses",
@@ -76,7 +89,8 @@
         "path": "docs/cadrage/feas-pm-01-corpus/candidate_en_pauses.txt",
         "bytes": 1104,
         "sha256": "c349f550b76ab3f1b6071cea80d61a09fa2a83578f6208c8263309d4a6d4a8c7",
-        "normalization": "CRLF_TO_LF_ONLY"
+        "normalization": "CRLF_TO_LF_ONLY",
+        "status": "SUPERSEDED_BY_HUMAN_EDITED_COPY"
       },
       "original_ogg": {
         "path": "sound example/voxpopuli/clips/raw_audios/original/2020/20201005-0900-PLENARY_original.ogg",
@@ -97,8 +111,20 @@
       "pcm_sha256": "4ff0eafca872101d34809960e648118d697caf43ff0e18dcf4fe5f6eddf08d6b",
       "decoded_ogg_pcm_sha256": "4ff0eafca872101d34809960e648118d697caf43ff0e18dcf4fe5f6eddf08d6b",
       "pcm_exact_match": true,
-      "transcript_status": "CANDIDAT",
-      "human_validation": null
+      "transcript_status": "APPROUVE_HUMAIN",
+      "human_validation": null,
+      "human_approved_reference": {
+        "path": "docs/cadrage/feas-pm-01-corpus/candidate_en_pauses_copie.txt",
+        "bytes": 1105,
+        "sha256": "c2971f66c57658ca613d578df807559604b5581c8b5ef72102900700fcf33cb1",
+        "wav_sha256": "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a",
+        "status": "APPROUVE_HUMAIN",
+        "approver": "user in this session",
+        "evidence": "Explicit answer: J’approuve les quatre textes",
+        "normalization": "none; SHA-256 of exact saved copy bytes",
+        "recorded_at_utc": "2026-10-21T14:50:42Z",
+        "approval_date_utc": "2026-10-21"
+      }
     },
     {
       "id": "fr_continu",
@@ -121,7 +147,8 @@
         "path": "docs/cadrage/feas-pm-01-corpus/candidate_fr_continu.txt",
         "bytes": 1301,
         "sha256": "ad13e548f22aa163449009fe4beab64e3d93467fc902d9e0bfca9a2607e55dc4",
-        "normalization": "CRLF_TO_LF_ONLY"
+        "normalization": "CRLF_TO_LF_ONLY",
+        "status": "SUPERSEDED_BY_HUMAN_EDITED_COPY"
       },
       "original_ogg": {
         "path": "sound example/voxpopuli/clips/raw_audios/original/2020/20201006-0900-PLENARY_original.ogg",
@@ -142,13 +169,33 @@
       "pcm_sha256": "8333094a3f5adcba1ebe4f62d9233076f560fb6dab8da011d6e46a3148b1b0d7",
       "decoded_ogg_pcm_sha256": "8333094a3f5adcba1ebe4f62d9233076f560fb6dab8da011d6e46a3148b1b0d7",
       "pcm_exact_match": true,
-      "transcript_status": "CANDIDAT",
+      "transcript_status": "APPROUVE_HUMAIN",
       "human_validation": null,
       "preexisting_reference_labelled_file": {
         "path": "sound example/voxpopuli/clips/long_examples/fr_continuous60_2020_REFERENCE.txt",
         "bytes": 1309,
         "sha256": "bbe2be079d891aceff7a7a169773343bf95bf3c24128b2ad5cd8d1d8cb362e0e",
         "human_validation": "NOT_EVIDENCED"
+      },
+      "human_approved_reference": {
+        "path": "docs/cadrage/feas-pm-01-corpus/candidate_fr_continu_copie.txt",
+        "bytes": 1374,
+        "sha256": "ed150b6360d409b4d575b23253db5849dd709ab4f1b99416f29ba7d18a921ca7",
+        "wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+        "status": "APPROUVE_HUMAIN",
+        "approver": "user in this session",
+        "evidence": "Explicit answer: J’approuve les quatre textes",
+        "normalization": "none; SHA-256 of exact saved copy bytes",
+        "recorded_at_utc": "2026-10-21T14:50:42Z",
+        "approval_date_utc": "2026-10-21"
+      },
+      "prefix_0_30": {
+        "status": "HUMAN_CONFIRMED_TRUNCATED_WORD_WITH_DERIVED_COMPLETE_WORD_PREFIX",
+        "text_complete_words": "Vous observerez que depuis ce nouveau cycle institutionnel, il y a quelques mois seulement, quelques choix clairs ont été posés. La Chine, par exemple.\nMoi je me souviens d'avoir constaté que pendant longtemps que l'Europe était totalement divisée.\nComment aborder la relation avec la Chine?\nEn quelques mois, grâce à un travail politique, à un dialogue entre nous, nous avons aligné une position claire, stratégique et nous exprimons cher monsieur avec clarté le message.\nQuand je m'adresse au Président Xi je ne baisse pas les yeux s'agissant des valeurs fondamentales, les droits de l'homme. Je parle des Ouïgours, je parle de la",
+        "truncated_word_full_reference_label": "situation",
+        "cut_sample": 480000,
+        "source_reference_sha256": "ed150b6360d409b4d575b23253db5849dd709ab4f1b99416f29ba7d18a921ca7",
+        "word_offset_source": "user confirmation; Parakeet timing not used to override the cut"
       }
     },
     {
@@ -172,7 +219,8 @@
         "path": "docs/cadrage/feas-pm-01-corpus/candidate_en_continu.txt",
         "bytes": 1135,
         "sha256": "e570618d32aaf2dbebc0a6b1e754ba684eec68a5310a8b713a8b0d109e06ee37",
-        "normalization": "CRLF_TO_LF_ONLY"
+        "normalization": "CRLF_TO_LF_ONLY",
+        "status": "SUPERSEDED_BY_HUMAN_EDITED_COPY"
       },
       "original_ogg": {
         "path": "sound example/voxpopuli/clips/raw_audios/original/2020/20201021-0900-PLENARY_original.ogg",
@@ -193,13 +241,33 @@
       "pcm_sha256": "20294a3654a9fe5ceb3e2fb2a9f00bd4e309aae7a52db428d0de8e8b0b262585",
       "decoded_ogg_pcm_sha256": "20294a3654a9fe5ceb3e2fb2a9f00bd4e309aae7a52db428d0de8e8b0b262585",
       "pcm_exact_match": true,
-      "transcript_status": "CANDIDAT",
+      "transcript_status": "APPROUVE_HUMAIN",
       "human_validation": null,
       "preexisting_reference_labelled_file": {
         "path": "sound example/voxpopuli/clips/long_examples/en_continuous60_2020_REFERENCE.txt",
         "bytes": 1141,
         "sha256": "68b43d26dfa6e778e0ea8322e37a822d7e81ffbe7c3c32f779d2a42702389b02",
         "human_validation": "NOT_EVIDENCED"
+      },
+      "human_approved_reference": {
+        "path": "docs/cadrage/feas-pm-01-corpus/candidate_en_continu_copie.txt",
+        "bytes": 1039,
+        "sha256": "93a7ae7ac4c940f98d64eecf5ef6ce0bed883da4202a4df5762b4f4782bf8bad",
+        "wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+        "status": "APPROUVE_HUMAIN",
+        "approver": "user in this session",
+        "evidence": "Explicit answer: J’approuve les quatre textes",
+        "normalization": "none; SHA-256 of exact saved copy bytes",
+        "recorded_at_utc": "2026-10-21T14:50:42Z",
+        "approval_date_utc": "2026-10-21"
+      },
+      "prefix_0_30": {
+        "status": "HUMAN_CONFIRMED_TRUNCATED_WORD_WITH_DERIVED_COMPLETE_WORD_PREFIX",
+        "text_complete_words": "This is why we socialists and Democrats urge member states to stop considering public\nservices as a cost but a contrario as an investment to guarantee a decent life of\nfor all of us in the Union.\nAnd a decent life means well-being\nthat includes access\nto quality education and jobs, as well as social security, healthcare, housing.\njustice and social services and also especially for vulnerable groups. To achieve\nit's important to change the mindset of many EU leaders and to come forward with a model",
+        "truncated_word_full_reference_label": "that",
+        "cut_sample": 480000,
+        "source_reference_sha256": "93a7ae7ac4c940f98d64eecf5ef6ce0bed883da4202a4df5762b4f4782bf8bad",
+        "word_offset_source": "user confirmation; Parakeet timing not used to override the cut"
       }
     }
   ],
@@ -242,20 +310,20 @@
     },
     {
       "path": "docs/cadrage/feas-pm-01-corpus/rapport-conformite.md",
-      "bytes": 7095,
-      "sha256": "632e5fc1014b2f8b25138e2f1de967b937b0e3af74ecfc4ae64dfc2afd4adb12",
+      "bytes": 7688,
+      "sha256": "55c5a9ae3d9fecaaaeeed5c35003923bc5703c0ba40b2d9047b2e2f5f4672c8b",
       "status": "DOCUMENT_PREPARATOIRE"
     },
     {
       "path": "docs/cadrage/feas-pm-01-corpus/validation_humaine.md",
-      "bytes": 6327,
-      "sha256": "573863abf9d0930066bd535487556c01995bd8b7d99b99aff1efc5520275b970",
+      "bytes": 6280,
+      "sha256": "c2630c726fd80a57c94578f8364868a86e851ce52c5043634a81b51f90182d6f",
       "status": "DOCUMENT_PREPARATOIRE"
     },
     {
       "path": "docs/cadrage/feas-pm-01-corpus/zones_critiques.md",
-      "bytes": 11205,
-      "sha256": "f9cad491a80ab81004b553fcf673045dfee3bfe03a90e4f18f3f837ef031d99f",
+      "bytes": 11748,
+      "sha256": "2e07045d3bffa9ba52f1eb3f1e60b822428c5fa057ae53428cc90bbcfa40f7ce",
       "status": "AUTO_NON_VALIDE"
     }
   ],
@@ -305,5 +373,11 @@
       "pcm_exact_slice_verified": true,
       "validation_status": "DERIVED_NOT_HUMAN_REFERENCE"
     }
-  ]
+  ],
+  "human_review": {
+    "texts": "APPROUVE_HUMAIN",
+    "boundary_tables": "USER_SAID_OK_WITH_TABLE; timing remains provisional",
+    "acoustics": "NOT_REVIEWED_BY_USER; user requested consider ok, not an acoustic label",
+    "feas_pm_01": "NOT_AUTHORIZED"
+  }
 }
