@@ -211,6 +211,30 @@
       "status": "AUTO_NON_VALIDE"
     },
     {
+      "path": "docs/cadrage/feas-pm-01-corpus/en_passage_28-32.wav",
+      "bytes": 128078,
+      "sha256": "2d50be312f979ef4ba2c6b5ff0af65f9d9679f604a5adccac8737121cdd3e8eb",
+      "status": "DERIVED_NOT_HUMAN_REFERENCE"
+    },
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/en_prefix_0-30.wav",
+      "bytes": 960078,
+      "sha256": "fb4cffcd4156a217d78abd2ffdacd8e4ab912eb12f2a2e2c135a332e7077723a",
+      "status": "DERIVED_NOT_HUMAN_REFERENCE"
+    },
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/fr_passage_28-32.wav",
+      "bytes": 128078,
+      "sha256": "1841725ca1b9c019c8c53ac5983a13792d081f145f222f98355591c5964f50ad",
+      "status": "DERIVED_NOT_HUMAN_REFERENCE"
+    },
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/fr_prefix_0-30.wav",
+      "bytes": 960078,
+      "sha256": "dc86235c75c80c2a4243050e6b2f2b6cac60932ea5449eabc1b9419baa19703c",
+      "status": "DERIVED_NOT_HUMAN_REFERENCE"
+    },
+    {
       "path": "docs/cadrage/feas-pm-01-corpus/parakeet_word_proposals.json",
       "bytes": 88309,
       "sha256": "36c8f92a8f1fe7e45f464e20a970bbd836057ef4897530e367ef9748cb06f3d7",
@@ -218,16 +242,68 @@
     },
     {
       "path": "docs/cadrage/feas-pm-01-corpus/rapport-conformite.md",
-      "bytes": 6713,
-      "sha256": "9316bce1ea986d91f82b70734e24e164a589989e67a99f636cdf22911949cb32",
+      "bytes": 7095,
+      "sha256": "632e5fc1014b2f8b25138e2f1de967b937b0e3af74ecfc4ae64dfc2afd4adb12",
       "status": "DOCUMENT_PREPARATOIRE"
     },
     {
       "path": "docs/cadrage/feas-pm-01-corpus/validation_humaine.md",
-      "bytes": 7813,
-      "sha256": "7d1f6208e8b85ebc52b63db260c614e6ec5656be93f091358c9ea09e4b725ed1",
+      "bytes": 6327,
+      "sha256": "573863abf9d0930066bd535487556c01995bd8b7d99b99aff1efc5520275b970",
       "status": "DOCUMENT_PREPARATOIRE"
+    },
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/zones_critiques.md",
+      "bytes": 11205,
+      "sha256": "f9cad491a80ab81004b553fcf673045dfee3bfe03a90e4f18f3f837ef031d99f",
+      "status": "AUTO_NON_VALIDE"
     }
   ],
-  "candidate_copy_rule": "For review copies only, replace CRLF with LF byte sequences; source candidate hashes remain the original bytes."
+  "candidate_copy_rule": "For review copies only, replace CRLF with LF byte sequences; source candidate hashes remain the original bytes.",
+  "review_audio_derivatives": [
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/fr_prefix_0-30.wav",
+      "sha256": "dc86235c75c80c2a4243050e6b2f2b6cac60932ea5449eabc1b9419baa19703c",
+      "bytes": 960078,
+      "source_wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+      "start_sample": 0,
+      "end_sample_exclusive": 480000,
+      "sample_rate_hz": 16000,
+      "pcm_exact_slice_verified": true,
+      "validation_status": "DERIVED_NOT_HUMAN_REFERENCE"
+    },
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/fr_passage_28-32.wav",
+      "sha256": "1841725ca1b9c019c8c53ac5983a13792d081f145f222f98355591c5964f50ad",
+      "bytes": 128078,
+      "source_wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+      "start_sample": 448000,
+      "end_sample_exclusive": 512000,
+      "sample_rate_hz": 16000,
+      "pcm_exact_slice_verified": true,
+      "validation_status": "DERIVED_NOT_HUMAN_REFERENCE"
+    },
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/en_prefix_0-30.wav",
+      "sha256": "fb4cffcd4156a217d78abd2ffdacd8e4ab912eb12f2a2e2c135a332e7077723a",
+      "bytes": 960078,
+      "source_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "start_sample": 0,
+      "end_sample_exclusive": 480000,
+      "sample_rate_hz": 16000,
+      "pcm_exact_slice_verified": true,
+      "validation_status": "DERIVED_NOT_HUMAN_REFERENCE"
+    },
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/en_passage_28-32.wav",
+      "sha256": "2d50be312f979ef4ba2c6b5ff0af65f9d9679f604a5adccac8737121cdd3e8eb",
+      "bytes": 128078,
+      "source_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "start_sample": 448000,
+      "end_sample_exclusive": 512000,
+      "sample_rate_hz": 16000,
+      "pcm_exact_slice_verified": true,
+      "validation_status": "DERIVED_NOT_HUMAN_REFERENCE"
+    }
+  ]
 }

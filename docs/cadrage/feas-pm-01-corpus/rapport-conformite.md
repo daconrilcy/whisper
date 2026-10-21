@@ -10,6 +10,7 @@ Décision : corpus non qualifié pour FEAS-PM-01 ; l'étude reste interdite.
 - [Quatre textes candidats et fiche d'écoute](validation_humaine.md) : copies à contenu identique avec fins de ligne LF des textes fournis, avec procédure d'approbation et préfixes de 30 s proposés par Parakeet pour les deux continus.
 - [Mots horodatés Parakeet](parakeet_word_proposals.json) : hypothèses ASR `AUTO_NON_VALIDE`, issues du worker CPU NeMo-Speech.cpp 0.2.0 déjà présent. Ce n'est pas un alignement forcé sur un texte relu.
 - [Annotations automatiques](auto_annotations.json) : bords candidats A/B, mots ASR voisins, pauses exploratoires, énergie acoustique et file de vérification. Aucune stratégie A/B n'a été exécutée.
+- [Fiche de validation humaine](validation_humaine.md) et [zones critiques](zones_critiques.md) : écoute intégrale avec texte directement modifiable, puis contrôle ciblé des mots et de l'acoustique. Quatre extraits WAV exacts de 0–30 s et 28–32 s, dérivés des deux continus, facilitent la décision sur le préfixe ; leurs identités et plages figurent dans le manifeste.
 
 ## Résultat par prérequis
 
