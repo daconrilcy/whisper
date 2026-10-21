@@ -1,0 +1,233 @@
+{
+  "schema": "feas-pm-01-corpus-manifest-v1",
+  "archive": {
+    "path": "sound example/voxpopuli/clips/raw_audios/original_2020.tar",
+    "bytes": 5255792640,
+    "sha256": "c018dbd445dee7d16a45238e8938a8d0671e09df0c0014e1fdf6f27ca4f48b5f"
+  },
+  "archive_external_provenance": "NOT_ATTESTED",
+  "ffmpeg_version": "ffmpeg version 9.0.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+  "decode_recipe": "ffmpeg -hide_banner -loglevel error -ss <source_start_s> -i <ogg> -t <wav_frames/16000> -ac 1 -ar 16000 -f s16le pipe:1",
+  "status": "SOURCES_VERIFIEES_TEXTES_CANDIDATS",
+  "items": [
+    {
+      "id": "fr_pauses",
+      "wav": {
+        "path": "sound example/voxpopuli/clips/long_examples/fr_long_2020.wav",
+        "bytes": 2080718,
+        "sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e"
+      },
+      "json": {
+        "path": "sound example/voxpopuli/clips/long_examples/fr_long_2020.json",
+        "bytes": 2395,
+        "sha256": "7ba8a881e57602eeb82ac342425eed1ecd3c286f071ab2158639ed35cd30e426"
+      },
+      "candidate_source": {
+        "path": "sound example/voxpopuli/clips/long_examples/fr_long_2020.txt",
+        "bytes": 940,
+        "sha256": "d4b98795a1663e6406b86690b0ce26053bafcb87a40814695297f6fa3ad83189"
+      },
+      "candidate_for_review": {
+        "path": "docs/cadrage/feas-pm-01-corpus/candidate_fr_pauses.txt",
+        "bytes": 937,
+        "sha256": "9db2295a9c02df03db8cea42cdd3743f4bde36c63299ef9e65a282687ed952e3",
+        "normalization": "CRLF_TO_LF_ONLY"
+      },
+      "original_ogg": {
+        "path": "sound example/voxpopuli/clips/raw_audios/original/2020/20200617-0900-PLENARY_original.ogg",
+        "bytes": 103828792,
+        "sha256": "17e9385eddd98c6123355de0d91f0da504a7d5cec1cffcb6fb5c3932a5989147"
+      },
+      "archive_member": "original/2020/20200617-0900-PLENARY_original.ogg",
+      "archive_member_sha256": "17e9385eddd98c6123355de0d91f0da504a7d5cec1cffcb6fb5c3932a5989147",
+      "source_start_s": 4252.919,
+      "source_end_s": 4317.9389375,
+      "wav_format": {
+        "codec": "PCM_S16LE",
+        "sample_rate_hz": 16000,
+        "channels": 1,
+        "frames": 1040320,
+        "duration_s": 65.02
+      },
+      "pcm_sha256": "36fd0a2051cebf90c4225370a103bdc8768198448c71da8d249d55b8983bbebd",
+      "decoded_ogg_pcm_sha256": "36fd0a2051cebf90c4225370a103bdc8768198448c71da8d249d55b8983bbebd",
+      "pcm_exact_match": true,
+      "transcript_status": "CANDIDAT",
+      "human_validation": null
+    },
+    {
+      "id": "en_pauses",
+      "wav": {
+        "path": "sound example/voxpopuli/clips/long_examples/en_long_2020.wav",
+        "bytes": 2080078,
+        "sha256": "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a"
+      },
+      "json": {
+        "path": "sound example/voxpopuli/clips/long_examples/en_long_2020.json",
+        "bytes": 3477,
+        "sha256": "5dac0612066561d887d1110bb6f9a0d486c808f7b29b30d82bb44c43ebbd93ff"
+      },
+      "candidate_source": {
+        "path": "sound example/voxpopuli/clips/long_examples/en_long_2020.txt",
+        "bytes": 1112,
+        "sha256": "1c45c1f143fe8a94148a504aa7622a980fbeb672e08194912b1373e4392d535f"
+      },
+      "candidate_for_review": {
+        "path": "docs/cadrage/feas-pm-01-corpus/candidate_en_pauses.txt",
+        "bytes": 1104,
+        "sha256": "c349f550b76ab3f1b6071cea80d61a09fa2a83578f6208c8263309d4a6d4a8c7",
+        "normalization": "CRLF_TO_LF_ONLY"
+      },
+      "original_ogg": {
+        "path": "sound example/voxpopuli/clips/raw_audios/original/2020/20201005-0900-PLENARY_original.ogg",
+        "bytes": 87669736,
+        "sha256": "a9e1596d1c9d5a5399a64ca11b70971d7c2890b1ec99e9d754a7f0a25313f076"
+      },
+      "archive_member": "original/2020/20201005-0900-PLENARY_original.ogg",
+      "archive_member_sha256": "a9e1596d1c9d5a5399a64ca11b70971d7c2890b1ec99e9d754a7f0a25313f076",
+      "source_start_s": 12157.691,
+      "source_end_s": 12222.691,
+      "wav_format": {
+        "codec": "PCM_S16LE",
+        "sample_rate_hz": 16000,
+        "channels": 1,
+        "frames": 1040000,
+        "duration_s": 65.0
+      },
+      "pcm_sha256": "4ff0eafca872101d34809960e648118d697caf43ff0e18dcf4fe5f6eddf08d6b",
+      "decoded_ogg_pcm_sha256": "4ff0eafca872101d34809960e648118d697caf43ff0e18dcf4fe5f6eddf08d6b",
+      "pcm_exact_match": true,
+      "transcript_status": "CANDIDAT",
+      "human_validation": null
+    },
+    {
+      "id": "fr_continu",
+      "wav": {
+        "path": "sound example/voxpopuli/clips/long_examples/fr_continuous60_2020_CANDIDATE.wav",
+        "bytes": 1920078,
+        "sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2"
+      },
+      "json": {
+        "path": "sound example/voxpopuli/clips/long_examples/fr_continuous60_2020_CANDIDATE.json",
+        "bytes": 3011,
+        "sha256": "f445a43d518126b7e02f4508285827c89218d9c098b055f8613e957add0ad18c"
+      },
+      "candidate_source": {
+        "path": "sound example/voxpopuli/clips/long_examples/fr_continuous60_2020_CANDIDATE.txt",
+        "bytes": 1309,
+        "sha256": "bbe2be079d891aceff7a7a169773343bf95bf3c24128b2ad5cd8d1d8cb362e0e"
+      },
+      "candidate_for_review": {
+        "path": "docs/cadrage/feas-pm-01-corpus/candidate_fr_continu.txt",
+        "bytes": 1301,
+        "sha256": "ad13e548f22aa163449009fe4beab64e3d93467fc902d9e0bfca9a2607e55dc4",
+        "normalization": "CRLF_TO_LF_ONLY"
+      },
+      "original_ogg": {
+        "path": "sound example/voxpopuli/clips/raw_audios/original/2020/20201006-0900-PLENARY_original.ogg",
+        "bytes": 137601335,
+        "sha256": "b0728327525fc9d549ab30ca5caa30b2edddaa50414ce7154bbed7b547f295d7"
+      },
+      "archive_member": "original/2020/20201006-0900-PLENARY_original.ogg",
+      "archive_member_sha256": "b0728327525fc9d549ab30ca5caa30b2edddaa50414ce7154bbed7b547f295d7",
+      "source_start_s": 4630.347,
+      "source_end_s": 4690.347,
+      "wav_format": {
+        "codec": "PCM_S16LE",
+        "sample_rate_hz": 16000,
+        "channels": 1,
+        "frames": 960000,
+        "duration_s": 60.0
+      },
+      "pcm_sha256": "8333094a3f5adcba1ebe4f62d9233076f560fb6dab8da011d6e46a3148b1b0d7",
+      "decoded_ogg_pcm_sha256": "8333094a3f5adcba1ebe4f62d9233076f560fb6dab8da011d6e46a3148b1b0d7",
+      "pcm_exact_match": true,
+      "transcript_status": "CANDIDAT",
+      "human_validation": null,
+      "preexisting_reference_labelled_file": {
+        "path": "sound example/voxpopuli/clips/long_examples/fr_continuous60_2020_REFERENCE.txt",
+        "bytes": 1309,
+        "sha256": "bbe2be079d891aceff7a7a169773343bf95bf3c24128b2ad5cd8d1d8cb362e0e",
+        "human_validation": "NOT_EVIDENCED"
+      }
+    },
+    {
+      "id": "en_continu",
+      "wav": {
+        "path": "sound example/voxpopuli/clips/long_examples/en_continuous60_2020_CANDIDATE.wav",
+        "bytes": 1920078,
+        "sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8"
+      },
+      "json": {
+        "path": "sound example/voxpopuli/clips/long_examples/en_continuous60_2020_CANDIDATE.json",
+        "bytes": 2647,
+        "sha256": "2114c9f7fd27c7e1985190ad72e0f168354cf926d1c9b6f64e48653806a4e5d2"
+      },
+      "candidate_source": {
+        "path": "sound example/voxpopuli/clips/long_examples/en_continuous60_2020_CANDIDATE.txt",
+        "bytes": 1141,
+        "sha256": "68b43d26dfa6e778e0ea8322e37a822d7e81ffbe7c3c32f779d2a42702389b02"
+      },
+      "candidate_for_review": {
+        "path": "docs/cadrage/feas-pm-01-corpus/candidate_en_continu.txt",
+        "bytes": 1135,
+        "sha256": "e570618d32aaf2dbebc0a6b1e754ba684eec68a5310a8b713a8b0d109e06ee37",
+        "normalization": "CRLF_TO_LF_ONLY"
+      },
+      "original_ogg": {
+        "path": "sound example/voxpopuli/clips/raw_audios/original/2020/20201021-0900-PLENARY_original.ogg",
+        "bytes": 177713522,
+        "sha256": "aef779205b5bf440486052b2d02a0cc0570fa21a666dd47dfe20a191f1be1725"
+      },
+      "archive_member": "original/2020/20201021-0900-PLENARY_original.ogg",
+      "archive_member_sha256": "aef779205b5bf440486052b2d02a0cc0570fa21a666dd47dfe20a191f1be1725",
+      "source_start_s": 11068.313,
+      "source_end_s": 11128.313,
+      "wav_format": {
+        "codec": "PCM_S16LE",
+        "sample_rate_hz": 16000,
+        "channels": 1,
+        "frames": 960000,
+        "duration_s": 60.0
+      },
+      "pcm_sha256": "20294a3654a9fe5ceb3e2fb2a9f00bd4e309aae7a52db428d0de8e8b0b262585",
+      "decoded_ogg_pcm_sha256": "20294a3654a9fe5ceb3e2fb2a9f00bd4e309aae7a52db428d0de8e8b0b262585",
+      "pcm_exact_match": true,
+      "transcript_status": "CANDIDAT",
+      "human_validation": null,
+      "preexisting_reference_labelled_file": {
+        "path": "sound example/voxpopuli/clips/long_examples/en_continuous60_2020_REFERENCE.txt",
+        "bytes": 1141,
+        "sha256": "68b43d26dfa6e778e0ea8322e37a822d7e81ffbe7c3c32f779d2a42702389b02",
+        "human_validation": "NOT_EVIDENCED"
+      }
+    }
+  ],
+  "derived_artifacts": [
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/auto_annotations.json",
+      "bytes": 222589,
+      "sha256": "3de85376640c7f3f1121d20eeedd9b29aaba1f51ba1179a1fc143d348c1f756e",
+      "status": "AUTO_NON_VALIDE"
+    },
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/parakeet_word_proposals.json",
+      "bytes": 88309,
+      "sha256": "36c8f92a8f1fe7e45f464e20a970bbd836057ef4897530e367ef9748cb06f3d7",
+      "status": "AUTO_NON_VALIDE"
+    },
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/rapport-conformite.md",
+      "bytes": 6713,
+      "sha256": "9316bce1ea986d91f82b70734e24e164a589989e67a99f636cdf22911949cb32",
+      "status": "DOCUMENT_PREPARATOIRE"
+    },
+    {
+      "path": "docs/cadrage/feas-pm-01-corpus/validation_humaine.md",
+      "bytes": 7813,
+      "sha256": "7d1f6208e8b85ebc52b63db260c614e6ec5656be93f091358c9ea09e4b725ed1",
+      "status": "DOCUMENT_PREPARATOIRE"
+    }
+  ],
+  "candidate_copy_rule": "For review copies only, replace CRLF with LF byte sequences; source candidate hashes remain the original bytes."
+}

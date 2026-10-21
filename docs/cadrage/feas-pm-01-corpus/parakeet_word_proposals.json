@@ -1,0 +1,3991 @@
+{
+  "schema": "feas-pm-01-parakeet-word-proposals-v1",
+  "status": "AUTO_NON_VALIDE",
+  "notes": "ASR word offsets; not forced alignment and not a human reference",
+  "model_sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+  "worker_sha256": "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0",
+  "items": [
+    {
+      "id": "fr_long_2020",
+      "wav_sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
+      "status": "AUTO_NON_VALIDE",
+      "backend": "CPU",
+      "worker_identity": {
+        "model_sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+        "runtime_sha256": "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff",
+        "build_sha256": "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0",
+        "profile": "import-single-pass"
+      },
+      "native_version": "nemo-speech-asr 0.2.0",
+      "duration_samples": 1040320,
+      "text": "Merci Madame la Présidente. Madame von der Leyen, l'instrumentalisation de la mort d'un homme, aussi tragique soit elle, pour imposer la fausse idée d'un racisme systémique en Europe, est immorale et scandaleuse. Débattre dans cette enceinte du décès dramatique de George Floyd, c'est importer sur notre continent des sujets, des luttes et des concepts qui lui sont étrangers. La ségrégation raciale est le contraire de l'esprit de notre continent et de la France en particulier. Plutôt que de déboulonner des statuts et de débaptiser le nom des rues, comme cela a été fait à quelques centaines de maîtres de ce Parlement, je préfère célébrer l'histoire de mon pays plutôt que de condamner sans cesse nos ancêtres, je préfère rappeler que la civilisation européenne a été la première du monde à abolir l'esclavage quand il se pratiquait partout. Plutôt que d'accuser, comme en France, les forces de l'ordre de racisme, je préfère les soutenir face aux multiples agressions barbares de plus en plus violentes dont elles sont les victimes, plutôt que de classer les gens en fonction de leur race, je préfère ne reconnaître que la citoyenneté, l'indignation à géométrie.",
+      "words": [
+        {
+          "text": "Merci",
+          "start_ms": 6720,
+          "end_ms": 6960
+        },
+        {
+          "text": "Madame",
+          "start_ms": 7040,
+          "end_ms": 7360
+        },
+        {
+          "text": "la",
+          "start_ms": 7360,
+          "end_ms": 7440
+        },
+        {
+          "text": "Présidente.",
+          "start_ms": 7520,
+          "end_ms": 8160
+        },
+        {
+          "text": "Madame",
+          "start_ms": 8160,
+          "end_ms": 8560
+        },
+        {
+          "text": "von",
+          "start_ms": 8560,
+          "end_ms": 8800
+        },
+        {
+          "text": "der",
+          "start_ms": 8800,
+          "end_ms": 8880
+        },
+        {
+          "text": "Leyen,",
+          "start_ms": 9040,
+          "end_ms": 9680
+        },
+        {
+          "text": "l'instrumentalisation",
+          "start_ms": 9680,
+          "end_ms": 10800
+        },
+        {
+          "text": "de",
+          "start_ms": 10800,
+          "end_ms": 10960
+        },
+        {
+          "text": "la",
+          "start_ms": 10960,
+          "end_ms": 11040
+        },
+        {
+          "text": "mort",
+          "start_ms": 11040,
+          "end_ms": 11280
+        },
+        {
+          "text": "d'un",
+          "start_ms": 11280,
+          "end_ms": 11440
+        },
+        {
+          "text": "homme,",
+          "start_ms": 11440,
+          "end_ms": 11760
+        },
+        {
+          "text": "aussi",
+          "start_ms": 11760,
+          "end_ms": 12000
+        },
+        {
+          "text": "tragique",
+          "start_ms": 12000,
+          "end_ms": 12400
+        },
+        {
+          "text": "soit",
+          "start_ms": 12400,
+          "end_ms": 12640
+        },
+        {
+          "text": "elle,",
+          "start_ms": 12720,
+          "end_ms": 13200
+        },
+        {
+          "text": "pour",
+          "start_ms": 13200,
+          "end_ms": 13440
+        },
+        {
+          "text": "imposer",
+          "start_ms": 13440,
+          "end_ms": 13840
+        },
+        {
+          "text": "la",
+          "start_ms": 13840,
+          "end_ms": 13920
+        },
+        {
+          "text": "fausse",
+          "start_ms": 13920,
+          "end_ms": 14320
+        },
+        {
+          "text": "idée",
+          "start_ms": 14320,
+          "end_ms": 14640
+        },
+        {
+          "text": "d'un",
+          "start_ms": 14640,
+          "end_ms": 14800
+        },
+        {
+          "text": "racisme",
+          "start_ms": 14800,
+          "end_ms": 15440
+        },
+        {
+          "text": "systémique",
+          "start_ms": 15440,
+          "end_ms": 16000
+        },
+        {
+          "text": "en",
+          "start_ms": 16000,
+          "end_ms": 16240
+        },
+        {
+          "text": "Europe,",
+          "start_ms": 16240,
+          "end_ms": 16720
+        },
+        {
+          "text": "est",
+          "start_ms": 16720,
+          "end_ms": 16960
+        },
+        {
+          "text": "immorale",
+          "start_ms": 16960,
+          "end_ms": 17520
+        },
+        {
+          "text": "et",
+          "start_ms": 17520,
+          "end_ms": 17600
+        },
+        {
+          "text": "scandaleuse.",
+          "start_ms": 17600,
+          "end_ms": 18720
+        },
+        {
+          "text": "Débattre",
+          "start_ms": 18720,
+          "end_ms": 19280
+        },
+        {
+          "text": "dans",
+          "start_ms": 19280,
+          "end_ms": 19360
+        },
+        {
+          "text": "cette",
+          "start_ms": 19360,
+          "end_ms": 19600
+        },
+        {
+          "text": "enceinte",
+          "start_ms": 19600,
+          "end_ms": 20000
+        },
+        {
+          "text": "du",
+          "start_ms": 20000,
+          "end_ms": 20160
+        },
+        {
+          "text": "décès",
+          "start_ms": 20160,
+          "end_ms": 20560
+        },
+        {
+          "text": "dramatique",
+          "start_ms": 20560,
+          "end_ms": 21040
+        },
+        {
+          "text": "de",
+          "start_ms": 21040,
+          "end_ms": 21200
+        },
+        {
+          "text": "George",
+          "start_ms": 21200,
+          "end_ms": 21520
+        },
+        {
+          "text": "Floyd,",
+          "start_ms": 21520,
+          "end_ms": 22160
+        },
+        {
+          "text": "c'est",
+          "start_ms": 22160,
+          "end_ms": 22560
+        },
+        {
+          "text": "importer",
+          "start_ms": 22560,
+          "end_ms": 23040
+        },
+        {
+          "text": "sur",
+          "start_ms": 23040,
+          "end_ms": 23200
+        },
+        {
+          "text": "notre",
+          "start_ms": 23200,
+          "end_ms": 23360
+        },
+        {
+          "text": "continent",
+          "start_ms": 23360,
+          "end_ms": 23840
+        },
+        {
+          "text": "des",
+          "start_ms": 23840,
+          "end_ms": 24000
+        },
+        {
+          "text": "sujets,",
+          "start_ms": 24000,
+          "end_ms": 24320
+        },
+        {
+          "text": "des",
+          "start_ms": 24320,
+          "end_ms": 24480
+        },
+        {
+          "text": "luttes",
+          "start_ms": 24480,
+          "end_ms": 24800
+        },
+        {
+          "text": "et",
+          "start_ms": 24800,
+          "end_ms": 24960
+        },
+        {
+          "text": "des",
+          "start_ms": 24960,
+          "end_ms": 25040
+        },
+        {
+          "text": "concepts",
+          "start_ms": 25040,
+          "end_ms": 25600
+        },
+        {
+          "text": "qui",
+          "start_ms": 25600,
+          "end_ms": 25840
+        },
+        {
+          "text": "lui",
+          "start_ms": 25840,
+          "end_ms": 26160
+        },
+        {
+          "text": "sont",
+          "start_ms": 26160,
+          "end_ms": 26400
+        },
+        {
+          "text": "étrangers.",
+          "start_ms": 26400,
+          "end_ms": 27280
+        },
+        {
+          "text": "La",
+          "start_ms": 27280,
+          "end_ms": 27440
+        },
+        {
+          "text": "ségrégation",
+          "start_ms": 27440,
+          "end_ms": 28080
+        },
+        {
+          "text": "raciale",
+          "start_ms": 28080,
+          "end_ms": 28560
+        },
+        {
+          "text": "est",
+          "start_ms": 28560,
+          "end_ms": 28640
+        },
+        {
+          "text": "le",
+          "start_ms": 28640,
+          "end_ms": 28800
+        },
+        {
+          "text": "contraire",
+          "start_ms": 28800,
+          "end_ms": 29200
+        },
+        {
+          "text": "de",
+          "start_ms": 29200,
+          "end_ms": 29280
+        },
+        {
+          "text": "l'esprit",
+          "start_ms": 29280,
+          "end_ms": 29760
+        },
+        {
+          "text": "de",
+          "start_ms": 29760,
+          "end_ms": 29920
+        },
+        {
+          "text": "notre",
+          "start_ms": 29920,
+          "end_ms": 30160
+        },
+        {
+          "text": "continent",
+          "start_ms": 30160,
+          "end_ms": 30640
+        },
+        {
+          "text": "et",
+          "start_ms": 30720,
+          "end_ms": 30880
+        },
+        {
+          "text": "de",
+          "start_ms": 30880,
+          "end_ms": 31040
+        },
+        {
+          "text": "la",
+          "start_ms": 31040,
+          "end_ms": 31120
+        },
+        {
+          "text": "France",
+          "start_ms": 31120,
+          "end_ms": 31440
+        },
+        {
+          "text": "en",
+          "start_ms": 31440,
+          "end_ms": 31600
+        },
+        {
+          "text": "particulier.",
+          "start_ms": 31600,
+          "end_ms": 32560
+        },
+        {
+          "text": "Plutôt",
+          "start_ms": 32560,
+          "end_ms": 32880
+        },
+        {
+          "text": "que",
+          "start_ms": 32880,
+          "end_ms": 32960
+        },
+        {
+          "text": "de",
+          "start_ms": 32960,
+          "end_ms": 33040
+        },
+        {
+          "text": "déboulonner",
+          "start_ms": 33040,
+          "end_ms": 33760
+        },
+        {
+          "text": "des",
+          "start_ms": 33760,
+          "end_ms": 33920
+        },
+        {
+          "text": "statuts",
+          "start_ms": 33920,
+          "end_ms": 34160
+        },
+        {
+          "text": "et",
+          "start_ms": 34240,
+          "end_ms": 34320
+        },
+        {
+          "text": "de",
+          "start_ms": 34320,
+          "end_ms": 34400
+        },
+        {
+          "text": "débaptiser",
+          "start_ms": 34400,
+          "end_ms": 34960
+        },
+        {
+          "text": "le",
+          "start_ms": 34960,
+          "end_ms": 35040
+        },
+        {
+          "text": "nom",
+          "start_ms": 35040,
+          "end_ms": 35200
+        },
+        {
+          "text": "des",
+          "start_ms": 35200,
+          "end_ms": 35360
+        },
+        {
+          "text": "rues,",
+          "start_ms": 35360,
+          "end_ms": 35600
+        },
+        {
+          "text": "comme",
+          "start_ms": 35600,
+          "end_ms": 35680
+        },
+        {
+          "text": "cela",
+          "start_ms": 35680,
+          "end_ms": 35840
+        },
+        {
+          "text": "a",
+          "start_ms": 35840,
+          "end_ms": 35920
+        },
+        {
+          "text": "été",
+          "start_ms": 35920,
+          "end_ms": 36000
+        },
+        {
+          "text": "fait",
+          "start_ms": 36080,
+          "end_ms": 36240
+        },
+        {
+          "text": "à",
+          "start_ms": 36240,
+          "end_ms": 36400
+        },
+        {
+          "text": "quelques",
+          "start_ms": 36400,
+          "end_ms": 36720
+        },
+        {
+          "text": "centaines",
+          "start_ms": 36720,
+          "end_ms": 37200
+        },
+        {
+          "text": "de",
+          "start_ms": 37200,
+          "end_ms": 37360
+        },
+        {
+          "text": "maîtres",
+          "start_ms": 37360,
+          "end_ms": 37680
+        },
+        {
+          "text": "de",
+          "start_ms": 37680,
+          "end_ms": 37840
+        },
+        {
+          "text": "ce",
+          "start_ms": 37840,
+          "end_ms": 38000
+        },
+        {
+          "text": "Parlement,",
+          "start_ms": 38000,
+          "end_ms": 38880
+        },
+        {
+          "text": "je",
+          "start_ms": 38880,
+          "end_ms": 39040
+        },
+        {
+          "text": "préfère",
+          "start_ms": 39040,
+          "end_ms": 39440
+        },
+        {
+          "text": "célébrer",
+          "start_ms": 39440,
+          "end_ms": 39920
+        },
+        {
+          "text": "l'histoire",
+          "start_ms": 39920,
+          "end_ms": 40320
+        },
+        {
+          "text": "de",
+          "start_ms": 40320,
+          "end_ms": 40400
+        },
+        {
+          "text": "mon",
+          "start_ms": 40400,
+          "end_ms": 40560
+        },
+        {
+          "text": "pays",
+          "start_ms": 40560,
+          "end_ms": 40880
+        },
+        {
+          "text": "plutôt",
+          "start_ms": 41040,
+          "end_ms": 41360
+        },
+        {
+          "text": "que",
+          "start_ms": 41360,
+          "end_ms": 41520
+        },
+        {
+          "text": "de",
+          "start_ms": 41520,
+          "end_ms": 41680
+        },
+        {
+          "text": "condamner",
+          "start_ms": 41680,
+          "end_ms": 42160
+        },
+        {
+          "text": "sans",
+          "start_ms": 42160,
+          "end_ms": 42320
+        },
+        {
+          "text": "cesse",
+          "start_ms": 42320,
+          "end_ms": 42640
+        },
+        {
+          "text": "nos",
+          "start_ms": 42640,
+          "end_ms": 42880
+        },
+        {
+          "text": "ancêtres,",
+          "start_ms": 42880,
+          "end_ms": 43440
+        },
+        {
+          "text": "je",
+          "start_ms": 43440,
+          "end_ms": 43600
+        },
+        {
+          "text": "préfère",
+          "start_ms": 43600,
+          "end_ms": 43920
+        },
+        {
+          "text": "rappeler",
+          "start_ms": 43920,
+          "end_ms": 44240
+        },
+        {
+          "text": "que",
+          "start_ms": 44240,
+          "end_ms": 44320
+        },
+        {
+          "text": "la",
+          "start_ms": 44320,
+          "end_ms": 44480
+        },
+        {
+          "text": "civilisation",
+          "start_ms": 44480,
+          "end_ms": 44960
+        },
+        {
+          "text": "européenne",
+          "start_ms": 44960,
+          "end_ms": 45360
+        },
+        {
+          "text": "a",
+          "start_ms": 45360,
+          "end_ms": 45520
+        },
+        {
+          "text": "été",
+          "start_ms": 45520,
+          "end_ms": 45680
+        },
+        {
+          "text": "la",
+          "start_ms": 45680,
+          "end_ms": 45840
+        },
+        {
+          "text": "première",
+          "start_ms": 45840,
+          "end_ms": 46160
+        },
+        {
+          "text": "du",
+          "start_ms": 46160,
+          "end_ms": 46320
+        },
+        {
+          "text": "monde",
+          "start_ms": 46320,
+          "end_ms": 46640
+        },
+        {
+          "text": "à",
+          "start_ms": 46640,
+          "end_ms": 46880
+        },
+        {
+          "text": "abolir",
+          "start_ms": 46880,
+          "end_ms": 47280
+        },
+        {
+          "text": "l'esclavage",
+          "start_ms": 47280,
+          "end_ms": 48080
+        },
+        {
+          "text": "quand",
+          "start_ms": 48080,
+          "end_ms": 48400
+        },
+        {
+          "text": "il",
+          "start_ms": 48400,
+          "end_ms": 48560
+        },
+        {
+          "text": "se",
+          "start_ms": 48560,
+          "end_ms": 48720
+        },
+        {
+          "text": "pratiquait",
+          "start_ms": 48720,
+          "end_ms": 49280
+        },
+        {
+          "text": "partout.",
+          "start_ms": 49280,
+          "end_ms": 49840
+        },
+        {
+          "text": "Plutôt",
+          "start_ms": 49840,
+          "end_ms": 50160
+        },
+        {
+          "text": "que",
+          "start_ms": 50160,
+          "end_ms": 50240
+        },
+        {
+          "text": "d'accuser,",
+          "start_ms": 50240,
+          "end_ms": 50800
+        },
+        {
+          "text": "comme",
+          "start_ms": 50800,
+          "end_ms": 50960
+        },
+        {
+          "text": "en",
+          "start_ms": 50960,
+          "end_ms": 51040
+        },
+        {
+          "text": "France,",
+          "start_ms": 51040,
+          "end_ms": 51360
+        },
+        {
+          "text": "les",
+          "start_ms": 51360,
+          "end_ms": 51440
+        },
+        {
+          "text": "forces",
+          "start_ms": 51440,
+          "end_ms": 51680
+        },
+        {
+          "text": "de",
+          "start_ms": 51680,
+          "end_ms": 51760
+        },
+        {
+          "text": "l'ordre",
+          "start_ms": 51760,
+          "end_ms": 52160
+        },
+        {
+          "text": "de",
+          "start_ms": 52160,
+          "end_ms": 52240
+        },
+        {
+          "text": "racisme,",
+          "start_ms": 52240,
+          "end_ms": 52880
+        },
+        {
+          "text": "je",
+          "start_ms": 52880,
+          "end_ms": 53040
+        },
+        {
+          "text": "préfère",
+          "start_ms": 53040,
+          "end_ms": 53360
+        },
+        {
+          "text": "les",
+          "start_ms": 53360,
+          "end_ms": 53520
+        },
+        {
+          "text": "soutenir",
+          "start_ms": 53520,
+          "end_ms": 53920
+        },
+        {
+          "text": "face",
+          "start_ms": 53920,
+          "end_ms": 54080
+        },
+        {
+          "text": "aux",
+          "start_ms": 54080,
+          "end_ms": 54240
+        },
+        {
+          "text": "multiples",
+          "start_ms": 54240,
+          "end_ms": 54720
+        },
+        {
+          "text": "agressions",
+          "start_ms": 54720,
+          "end_ms": 55360
+        },
+        {
+          "text": "barbares",
+          "start_ms": 55360,
+          "end_ms": 55760
+        },
+        {
+          "text": "de",
+          "start_ms": 56000,
+          "end_ms": 56080
+        },
+        {
+          "text": "plus",
+          "start_ms": 56080,
+          "end_ms": 56240
+        },
+        {
+          "text": "en",
+          "start_ms": 56240,
+          "end_ms": 56400
+        },
+        {
+          "text": "plus",
+          "start_ms": 56400,
+          "end_ms": 56560
+        },
+        {
+          "text": "violentes",
+          "start_ms": 56560,
+          "end_ms": 56960
+        },
+        {
+          "text": "dont",
+          "start_ms": 57040,
+          "end_ms": 57280
+        },
+        {
+          "text": "elles",
+          "start_ms": 57280,
+          "end_ms": 57520
+        },
+        {
+          "text": "sont",
+          "start_ms": 57520,
+          "end_ms": 57680
+        },
+        {
+          "text": "les",
+          "start_ms": 57680,
+          "end_ms": 57840
+        },
+        {
+          "text": "victimes,",
+          "start_ms": 57840,
+          "end_ms": 58480
+        },
+        {
+          "text": "plutôt",
+          "start_ms": 58480,
+          "end_ms": 58800
+        },
+        {
+          "text": "que",
+          "start_ms": 58800,
+          "end_ms": 58880
+        },
+        {
+          "text": "de",
+          "start_ms": 58880,
+          "end_ms": 59040
+        },
+        {
+          "text": "classer",
+          "start_ms": 59040,
+          "end_ms": 59360
+        },
+        {
+          "text": "les",
+          "start_ms": 59360,
+          "end_ms": 59440
+        },
+        {
+          "text": "gens",
+          "start_ms": 59440,
+          "end_ms": 59680
+        },
+        {
+          "text": "en",
+          "start_ms": 59680,
+          "end_ms": 59760
+        },
+        {
+          "text": "fonction",
+          "start_ms": 59760,
+          "end_ms": 60000
+        },
+        {
+          "text": "de",
+          "start_ms": 60000,
+          "end_ms": 60160
+        },
+        {
+          "text": "leur",
+          "start_ms": 60160,
+          "end_ms": 60240
+        },
+        {
+          "text": "race,",
+          "start_ms": 60400,
+          "end_ms": 60960
+        },
+        {
+          "text": "je",
+          "start_ms": 60960,
+          "end_ms": 61120
+        },
+        {
+          "text": "préfère",
+          "start_ms": 61120,
+          "end_ms": 61440
+        },
+        {
+          "text": "ne",
+          "start_ms": 61440,
+          "end_ms": 61600
+        },
+        {
+          "text": "reconnaître",
+          "start_ms": 61600,
+          "end_ms": 62240
+        },
+        {
+          "text": "que",
+          "start_ms": 62240,
+          "end_ms": 62400
+        },
+        {
+          "text": "la",
+          "start_ms": 62400,
+          "end_ms": 62560
+        },
+        {
+          "text": "citoyenneté,",
+          "start_ms": 62560,
+          "end_ms": 63520
+        },
+        {
+          "text": "l'indignation",
+          "start_ms": 63520,
+          "end_ms": 64080
+        },
+        {
+          "text": "à",
+          "start_ms": 64160,
+          "end_ms": 64320
+        },
+        {
+          "text": "géométrie.",
+          "start_ms": 64320,
+          "end_ms": 64960
+        }
+      ],
+      "native_inference_ms": null
+    },
+    {
+      "id": "en_long_2020",
+      "wav_sha256": "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a",
+      "status": "AUTO_NON_VALIDE",
+      "backend": "CPU",
+      "worker_identity": {
+        "model_sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+        "runtime_sha256": "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff",
+        "build_sha256": "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0",
+        "profile": "import-single-pass"
+      },
+      "native_version": "nemo-speech-asr 0.2.0",
+      "duration_samples": 1040000,
+      "text": "You can't even give speaking time to the one Bulgarian opposition member in your group because you're afraid of what he'll say. But it won't work because the Bulgarian people are off their knees and they've had enough. Night after night, including tonight, for over three months they're on the streets. They've been beaten, threatened with water cannons, pepper strayed by the police, but their resolve is stronger. And they're demanding the resignation of Borisov and new elections. And I find it astounding that people come in here and they support elections in every country outside the EU, and you don't think that Bulgarian citizens deserve the same. This motion encapsulates the demands of the protesters. It calls for the general prosecutors in the personage of Ivan Geshev, which has been described as neither politically nor legally binding to be dealt with. It condemns the abuse of EU funds, the staggering revelations of the Prime Minister conniving with former prosecutors to tell judges what to do, the bullying of judges, the suppression of the media, and on and on it goes. But you know what?",
+      "words": [
+        {
+          "text": "You",
+          "start_ms": 0,
+          "end_ms": 240
+        },
+        {
+          "text": "can't",
+          "start_ms": 240,
+          "end_ms": 560
+        },
+        {
+          "text": "even",
+          "start_ms": 560,
+          "end_ms": 800
+        },
+        {
+          "text": "give",
+          "start_ms": 800,
+          "end_ms": 1120
+        },
+        {
+          "text": "speaking",
+          "start_ms": 1120,
+          "end_ms": 1680
+        },
+        {
+          "text": "time",
+          "start_ms": 1680,
+          "end_ms": 2000
+        },
+        {
+          "text": "to",
+          "start_ms": 2000,
+          "end_ms": 2240
+        },
+        {
+          "text": "the",
+          "start_ms": 2240,
+          "end_ms": 2400
+        },
+        {
+          "text": "one",
+          "start_ms": 2400,
+          "end_ms": 2640
+        },
+        {
+          "text": "Bulgarian",
+          "start_ms": 2640,
+          "end_ms": 3440
+        },
+        {
+          "text": "opposition",
+          "start_ms": 3440,
+          "end_ms": 4080
+        },
+        {
+          "text": "member",
+          "start_ms": 4080,
+          "end_ms": 4560
+        },
+        {
+          "text": "in",
+          "start_ms": 4560,
+          "end_ms": 4720
+        },
+        {
+          "text": "your",
+          "start_ms": 4720,
+          "end_ms": 4880
+        },
+        {
+          "text": "group",
+          "start_ms": 4880,
+          "end_ms": 5120
+        },
+        {
+          "text": "because",
+          "start_ms": 5280,
+          "end_ms": 5440
+        },
+        {
+          "text": "you're",
+          "start_ms": 5440,
+          "end_ms": 5840
+        },
+        {
+          "text": "afraid",
+          "start_ms": 5840,
+          "end_ms": 6080
+        },
+        {
+          "text": "of",
+          "start_ms": 6080,
+          "end_ms": 6160
+        },
+        {
+          "text": "what",
+          "start_ms": 6160,
+          "end_ms": 6320
+        },
+        {
+          "text": "he'll",
+          "start_ms": 6320,
+          "end_ms": 6720
+        },
+        {
+          "text": "say.",
+          "start_ms": 6720,
+          "end_ms": 7120
+        },
+        {
+          "text": "But",
+          "start_ms": 7120,
+          "end_ms": 7280
+        },
+        {
+          "text": "it",
+          "start_ms": 7280,
+          "end_ms": 7440
+        },
+        {
+          "text": "won't",
+          "start_ms": 7440,
+          "end_ms": 7840
+        },
+        {
+          "text": "work",
+          "start_ms": 7840,
+          "end_ms": 8000
+        },
+        {
+          "text": "because",
+          "start_ms": 8160,
+          "end_ms": 8400
+        },
+        {
+          "text": "the",
+          "start_ms": 8400,
+          "end_ms": 8560
+        },
+        {
+          "text": "Bulgarian",
+          "start_ms": 8560,
+          "end_ms": 9520
+        },
+        {
+          "text": "people",
+          "start_ms": 9520,
+          "end_ms": 9840
+        },
+        {
+          "text": "are",
+          "start_ms": 9840,
+          "end_ms": 10160
+        },
+        {
+          "text": "off",
+          "start_ms": 10160,
+          "end_ms": 10480
+        },
+        {
+          "text": "their",
+          "start_ms": 10480,
+          "end_ms": 10640
+        },
+        {
+          "text": "knees",
+          "start_ms": 10640,
+          "end_ms": 11040
+        },
+        {
+          "text": "and",
+          "start_ms": 11120,
+          "end_ms": 11360
+        },
+        {
+          "text": "they've",
+          "start_ms": 11360,
+          "end_ms": 11680
+        },
+        {
+          "text": "had",
+          "start_ms": 11680,
+          "end_ms": 11920
+        },
+        {
+          "text": "enough.",
+          "start_ms": 11920,
+          "end_ms": 12640
+        },
+        {
+          "text": "Night",
+          "start_ms": 12640,
+          "end_ms": 13120
+        },
+        {
+          "text": "after",
+          "start_ms": 13120,
+          "end_ms": 13440
+        },
+        {
+          "text": "night,",
+          "start_ms": 13440,
+          "end_ms": 13920
+        },
+        {
+          "text": "including",
+          "start_ms": 13920,
+          "end_ms": 14480
+        },
+        {
+          "text": "tonight,",
+          "start_ms": 14480,
+          "end_ms": 15120
+        },
+        {
+          "text": "for",
+          "start_ms": 15120,
+          "end_ms": 15360
+        },
+        {
+          "text": "over",
+          "start_ms": 15360,
+          "end_ms": 15600
+        },
+        {
+          "text": "three",
+          "start_ms": 15600,
+          "end_ms": 15920
+        },
+        {
+          "text": "months",
+          "start_ms": 15920,
+          "end_ms": 16240
+        },
+        {
+          "text": "they're",
+          "start_ms": 16320,
+          "end_ms": 16560
+        },
+        {
+          "text": "on",
+          "start_ms": 16560,
+          "end_ms": 16720
+        },
+        {
+          "text": "the",
+          "start_ms": 16720,
+          "end_ms": 16800
+        },
+        {
+          "text": "streets.",
+          "start_ms": 16800,
+          "end_ms": 17440
+        },
+        {
+          "text": "They've",
+          "start_ms": 17440,
+          "end_ms": 17760
+        },
+        {
+          "text": "been",
+          "start_ms": 17760,
+          "end_ms": 17920
+        },
+        {
+          "text": "beaten,",
+          "start_ms": 17920,
+          "end_ms": 18560
+        },
+        {
+          "text": "threatened",
+          "start_ms": 18560,
+          "end_ms": 19040
+        },
+        {
+          "text": "with",
+          "start_ms": 19040,
+          "end_ms": 19200
+        },
+        {
+          "text": "water",
+          "start_ms": 19200,
+          "end_ms": 19520
+        },
+        {
+          "text": "cannons,",
+          "start_ms": 19520,
+          "end_ms": 20240
+        },
+        {
+          "text": "pepper",
+          "start_ms": 20240,
+          "end_ms": 20560
+        },
+        {
+          "text": "strayed",
+          "start_ms": 20720,
+          "end_ms": 21280
+        },
+        {
+          "text": "by",
+          "start_ms": 21280,
+          "end_ms": 21360
+        },
+        {
+          "text": "the",
+          "start_ms": 21360,
+          "end_ms": 21520
+        },
+        {
+          "text": "police,",
+          "start_ms": 21520,
+          "end_ms": 22000
+        },
+        {
+          "text": "but",
+          "start_ms": 22000,
+          "end_ms": 22320
+        },
+        {
+          "text": "their",
+          "start_ms": 22320,
+          "end_ms": 22560
+        },
+        {
+          "text": "resolve",
+          "start_ms": 22560,
+          "end_ms": 23200
+        },
+        {
+          "text": "is",
+          "start_ms": 23200,
+          "end_ms": 23440
+        },
+        {
+          "text": "stronger.",
+          "start_ms": 23440,
+          "end_ms": 24080
+        },
+        {
+          "text": "And",
+          "start_ms": 24080,
+          "end_ms": 24320
+        },
+        {
+          "text": "they're",
+          "start_ms": 24320,
+          "end_ms": 24720
+        },
+        {
+          "text": "demanding",
+          "start_ms": 24720,
+          "end_ms": 25280
+        },
+        {
+          "text": "the",
+          "start_ms": 25280,
+          "end_ms": 25520
+        },
+        {
+          "text": "resignation",
+          "start_ms": 25520,
+          "end_ms": 26000
+        },
+        {
+          "text": "of",
+          "start_ms": 26000,
+          "end_ms": 26240
+        },
+        {
+          "text": "Borisov",
+          "start_ms": 26240,
+          "end_ms": 27120
+        },
+        {
+          "text": "and",
+          "start_ms": 27280,
+          "end_ms": 27520
+        },
+        {
+          "text": "new",
+          "start_ms": 27520,
+          "end_ms": 27760
+        },
+        {
+          "text": "elections.",
+          "start_ms": 27760,
+          "end_ms": 28320
+        },
+        {
+          "text": "And",
+          "start_ms": 28320,
+          "end_ms": 28560
+        },
+        {
+          "text": "I",
+          "start_ms": 28560,
+          "end_ms": 28720
+        },
+        {
+          "text": "find",
+          "start_ms": 28720,
+          "end_ms": 28960
+        },
+        {
+          "text": "it",
+          "start_ms": 28960,
+          "end_ms": 29120
+        },
+        {
+          "text": "astounding",
+          "start_ms": 29120,
+          "end_ms": 29920
+        },
+        {
+          "text": "that",
+          "start_ms": 29920,
+          "end_ms": 30240
+        },
+        {
+          "text": "people",
+          "start_ms": 30240,
+          "end_ms": 30480
+        },
+        {
+          "text": "come",
+          "start_ms": 30480,
+          "end_ms": 30720
+        },
+        {
+          "text": "in",
+          "start_ms": 30720,
+          "end_ms": 30880
+        },
+        {
+          "text": "here",
+          "start_ms": 30880,
+          "end_ms": 31040
+        },
+        {
+          "text": "and",
+          "start_ms": 31040,
+          "end_ms": 31200
+        },
+        {
+          "text": "they",
+          "start_ms": 31200,
+          "end_ms": 31440
+        },
+        {
+          "text": "support",
+          "start_ms": 31440,
+          "end_ms": 31840
+        },
+        {
+          "text": "elections",
+          "start_ms": 31840,
+          "end_ms": 32400
+        },
+        {
+          "text": "in",
+          "start_ms": 32400,
+          "end_ms": 32560
+        },
+        {
+          "text": "every",
+          "start_ms": 32560,
+          "end_ms": 32800
+        },
+        {
+          "text": "country",
+          "start_ms": 32800,
+          "end_ms": 33360
+        },
+        {
+          "text": "outside",
+          "start_ms": 33360,
+          "end_ms": 33840
+        },
+        {
+          "text": "the",
+          "start_ms": 33840,
+          "end_ms": 34080
+        },
+        {
+          "text": "EU,",
+          "start_ms": 34080,
+          "end_ms": 34560
+        },
+        {
+          "text": "and",
+          "start_ms": 34560,
+          "end_ms": 34720
+        },
+        {
+          "text": "you",
+          "start_ms": 34720,
+          "end_ms": 34880
+        },
+        {
+          "text": "don't",
+          "start_ms": 34880,
+          "end_ms": 35200
+        },
+        {
+          "text": "think",
+          "start_ms": 35200,
+          "end_ms": 35280
+        },
+        {
+          "text": "that",
+          "start_ms": 35280,
+          "end_ms": 35520
+        },
+        {
+          "text": "Bulgarian",
+          "start_ms": 35520,
+          "end_ms": 36160
+        },
+        {
+          "text": "citizens",
+          "start_ms": 36160,
+          "end_ms": 36720
+        },
+        {
+          "text": "deserve",
+          "start_ms": 36720,
+          "end_ms": 37120
+        },
+        {
+          "text": "the",
+          "start_ms": 37120,
+          "end_ms": 37280
+        },
+        {
+          "text": "same.",
+          "start_ms": 37280,
+          "end_ms": 37840
+        },
+        {
+          "text": "This",
+          "start_ms": 37840,
+          "end_ms": 38160
+        },
+        {
+          "text": "motion",
+          "start_ms": 38160,
+          "end_ms": 38720
+        },
+        {
+          "text": "encapsulates",
+          "start_ms": 38720,
+          "end_ms": 39680
+        },
+        {
+          "text": "the",
+          "start_ms": 39680,
+          "end_ms": 39840
+        },
+        {
+          "text": "demands",
+          "start_ms": 39840,
+          "end_ms": 40240
+        },
+        {
+          "text": "of",
+          "start_ms": 40240,
+          "end_ms": 40400
+        },
+        {
+          "text": "the",
+          "start_ms": 40400,
+          "end_ms": 40560
+        },
+        {
+          "text": "protesters.",
+          "start_ms": 40560,
+          "end_ms": 41440
+        },
+        {
+          "text": "It",
+          "start_ms": 41440,
+          "end_ms": 41600
+        },
+        {
+          "text": "calls",
+          "start_ms": 41600,
+          "end_ms": 41840
+        },
+        {
+          "text": "for",
+          "start_ms": 41840,
+          "end_ms": 42000
+        },
+        {
+          "text": "the",
+          "start_ms": 42000,
+          "end_ms": 42240
+        },
+        {
+          "text": "general",
+          "start_ms": 42240,
+          "end_ms": 42560
+        },
+        {
+          "text": "prosecutors",
+          "start_ms": 42560,
+          "end_ms": 43360
+        },
+        {
+          "text": "in",
+          "start_ms": 43600,
+          "end_ms": 43760
+        },
+        {
+          "text": "the",
+          "start_ms": 43760,
+          "end_ms": 43840
+        },
+        {
+          "text": "personage",
+          "start_ms": 43840,
+          "end_ms": 44320
+        },
+        {
+          "text": "of",
+          "start_ms": 44320,
+          "end_ms": 44480
+        },
+        {
+          "text": "Ivan",
+          "start_ms": 44480,
+          "end_ms": 44800
+        },
+        {
+          "text": "Geshev,",
+          "start_ms": 44880,
+          "end_ms": 45680
+        },
+        {
+          "text": "which",
+          "start_ms": 45680,
+          "end_ms": 45840
+        },
+        {
+          "text": "has",
+          "start_ms": 45840,
+          "end_ms": 46000
+        },
+        {
+          "text": "been",
+          "start_ms": 46000,
+          "end_ms": 46160
+        },
+        {
+          "text": "described",
+          "start_ms": 46160,
+          "end_ms": 46640
+        },
+        {
+          "text": "as",
+          "start_ms": 46640,
+          "end_ms": 46880
+        },
+        {
+          "text": "neither",
+          "start_ms": 46880,
+          "end_ms": 47360
+        },
+        {
+          "text": "politically",
+          "start_ms": 47360,
+          "end_ms": 47920
+        },
+        {
+          "text": "nor",
+          "start_ms": 47920,
+          "end_ms": 48160
+        },
+        {
+          "text": "legally",
+          "start_ms": 48160,
+          "end_ms": 48640
+        },
+        {
+          "text": "binding",
+          "start_ms": 48640,
+          "end_ms": 49040
+        },
+        {
+          "text": "to",
+          "start_ms": 49120,
+          "end_ms": 49280
+        },
+        {
+          "text": "be",
+          "start_ms": 49280,
+          "end_ms": 49440
+        },
+        {
+          "text": "dealt",
+          "start_ms": 49440,
+          "end_ms": 49680
+        },
+        {
+          "text": "with.",
+          "start_ms": 49680,
+          "end_ms": 50080
+        },
+        {
+          "text": "It",
+          "start_ms": 50080,
+          "end_ms": 50240
+        },
+        {
+          "text": "condemns",
+          "start_ms": 50240,
+          "end_ms": 50720
+        },
+        {
+          "text": "the",
+          "start_ms": 50720,
+          "end_ms": 50880
+        },
+        {
+          "text": "abuse",
+          "start_ms": 50880,
+          "end_ms": 51200
+        },
+        {
+          "text": "of",
+          "start_ms": 51200,
+          "end_ms": 51440
+        },
+        {
+          "text": "EU",
+          "start_ms": 51440,
+          "end_ms": 51760
+        },
+        {
+          "text": "funds,",
+          "start_ms": 51760,
+          "end_ms": 52320
+        },
+        {
+          "text": "the",
+          "start_ms": 52320,
+          "end_ms": 52480
+        },
+        {
+          "text": "staggering",
+          "start_ms": 52480,
+          "end_ms": 53200
+        },
+        {
+          "text": "revelations",
+          "start_ms": 53200,
+          "end_ms": 53840
+        },
+        {
+          "text": "of",
+          "start_ms": 53840,
+          "end_ms": 54000
+        },
+        {
+          "text": "the",
+          "start_ms": 54000,
+          "end_ms": 54160
+        },
+        {
+          "text": "Prime",
+          "start_ms": 54160,
+          "end_ms": 54480
+        },
+        {
+          "text": "Minister",
+          "start_ms": 54480,
+          "end_ms": 54880
+        },
+        {
+          "text": "conniving",
+          "start_ms": 55120,
+          "end_ms": 55840
+        },
+        {
+          "text": "with",
+          "start_ms": 55840,
+          "end_ms": 56000
+        },
+        {
+          "text": "former",
+          "start_ms": 56000,
+          "end_ms": 56400
+        },
+        {
+          "text": "prosecutors",
+          "start_ms": 56400,
+          "end_ms": 57280
+        },
+        {
+          "text": "to",
+          "start_ms": 57280,
+          "end_ms": 57440
+        },
+        {
+          "text": "tell",
+          "start_ms": 57440,
+          "end_ms": 57680
+        },
+        {
+          "text": "judges",
+          "start_ms": 57680,
+          "end_ms": 58160
+        },
+        {
+          "text": "what",
+          "start_ms": 58160,
+          "end_ms": 58400
+        },
+        {
+          "text": "to",
+          "start_ms": 58400,
+          "end_ms": 58480
+        },
+        {
+          "text": "do,",
+          "start_ms": 58480,
+          "end_ms": 58880
+        },
+        {
+          "text": "the",
+          "start_ms": 58880,
+          "end_ms": 59040
+        },
+        {
+          "text": "bullying",
+          "start_ms": 59040,
+          "end_ms": 59520
+        },
+        {
+          "text": "of",
+          "start_ms": 59520,
+          "end_ms": 59680
+        },
+        {
+          "text": "judges,",
+          "start_ms": 59680,
+          "end_ms": 60160
+        },
+        {
+          "text": "the",
+          "start_ms": 60160,
+          "end_ms": 60320
+        },
+        {
+          "text": "suppression",
+          "start_ms": 60320,
+          "end_ms": 60800
+        },
+        {
+          "text": "of",
+          "start_ms": 60800,
+          "end_ms": 60880
+        },
+        {
+          "text": "the",
+          "start_ms": 60880,
+          "end_ms": 61120
+        },
+        {
+          "text": "media,",
+          "start_ms": 61120,
+          "end_ms": 61680
+        },
+        {
+          "text": "and",
+          "start_ms": 61680,
+          "end_ms": 62000
+        },
+        {
+          "text": "on",
+          "start_ms": 62000,
+          "end_ms": 62320
+        },
+        {
+          "text": "and",
+          "start_ms": 62480,
+          "end_ms": 62800
+        },
+        {
+          "text": "on",
+          "start_ms": 62800,
+          "end_ms": 63120
+        },
+        {
+          "text": "it",
+          "start_ms": 63120,
+          "end_ms": 63440
+        },
+        {
+          "text": "goes.",
+          "start_ms": 63440,
+          "end_ms": 64000
+        },
+        {
+          "text": "But",
+          "start_ms": 64000,
+          "end_ms": 64240
+        },
+        {
+          "text": "you",
+          "start_ms": 64240,
+          "end_ms": 64400
+        },
+        {
+          "text": "know",
+          "start_ms": 64400,
+          "end_ms": 64560
+        },
+        {
+          "text": "what?",
+          "start_ms": 64560,
+          "end_ms": 64960
+        }
+      ],
+      "native_inference_ms": null
+    },
+    {
+      "id": "fr_continuous60_2020_CANDIDATE",
+      "wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+      "status": "AUTO_NON_VALIDE",
+      "backend": "CPU",
+      "worker_identity": {
+        "model_sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+        "runtime_sha256": "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff",
+        "build_sha256": "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0",
+        "profile": "import-single-pass"
+      },
+      "native_version": "nemo-speech-asr 0.2.0",
+      "duration_samples": 960000,
+      "text": "J'observerai que depuis ce nouveau cycle institutionnel, il y a quelques mois seulement, quelques choix clairs ont été posés. La Chine, par exemple. Moi je me souviens d'avoir constaté pendant longtemps que l'Europe était totalement divisée. Comment aborder la relation avec la Chine? En quelques mois, grâce à un travail politique, un dialogue entre nous, nous avons aligné une position claire, stratégique, et nous exprimons, cher M. Lambert, avec clarté le message. Quand je m'adresse au président Xi, je ne baisse pas les yeux. S'agissant de valeur fondamentale, les droits de l'homme. Je parle des Ouïghours, je parle de la situation à Haute-Gone, je dis que nous n'avons pas le même modèle politique, pas le même modèle économique. Il y a trois points. Nous voulons être engagés avec la Chine, nous croyons aux vertus du dialogue. Nous pensons que la Chine est un partenaire pour gérer les questions comme le Covid, comme la question climatique. Vous observez que la Chine, comme l'Afrique du Sud, s'est engagée sur la question de la neutralité climatique, ce n'est pas suffisant, on va devoir rester vigilant, mais c'est un pas qui montre que l'on a un impact, que l'on a une influence, cela va dans la bonne direction. Et enfin, je voudrais aussi mettre en évidence un autre point qui me plaît de mettre en esorce pour ne pas faire sens.",
+      "words": [
+        {
+          "text": "J'observerai",
+          "start_ms": 80,
+          "end_ms": 640
+        },
+        {
+          "text": "que",
+          "start_ms": 720,
+          "end_ms": 800
+        },
+        {
+          "text": "depuis",
+          "start_ms": 880,
+          "end_ms": 1200
+        },
+        {
+          "text": "ce",
+          "start_ms": 1200,
+          "end_ms": 1360
+        },
+        {
+          "text": "nouveau",
+          "start_ms": 1360,
+          "end_ms": 1680
+        },
+        {
+          "text": "cycle",
+          "start_ms": 1680,
+          "end_ms": 2000
+        },
+        {
+          "text": "institutionnel,",
+          "start_ms": 2080,
+          "end_ms": 2640
+        },
+        {
+          "text": "il",
+          "start_ms": 2640,
+          "end_ms": 2720
+        },
+        {
+          "text": "y",
+          "start_ms": 2720,
+          "end_ms": 2800
+        },
+        {
+          "text": "a",
+          "start_ms": 2800,
+          "end_ms": 2960
+        },
+        {
+          "text": "quelques",
+          "start_ms": 3040,
+          "end_ms": 3280
+        },
+        {
+          "text": "mois",
+          "start_ms": 3280,
+          "end_ms": 3680
+        },
+        {
+          "text": "seulement,",
+          "start_ms": 3680,
+          "end_ms": 4320
+        },
+        {
+          "text": "quelques",
+          "start_ms": 4320,
+          "end_ms": 4640
+        },
+        {
+          "text": "choix",
+          "start_ms": 4640,
+          "end_ms": 4880
+        },
+        {
+          "text": "clairs",
+          "start_ms": 4880,
+          "end_ms": 5200
+        },
+        {
+          "text": "ont",
+          "start_ms": 5200,
+          "end_ms": 5440
+        },
+        {
+          "text": "été",
+          "start_ms": 5440,
+          "end_ms": 5600
+        },
+        {
+          "text": "posés.",
+          "start_ms": 5600,
+          "end_ms": 6080
+        },
+        {
+          "text": "La",
+          "start_ms": 6080,
+          "end_ms": 6240
+        },
+        {
+          "text": "Chine,",
+          "start_ms": 6240,
+          "end_ms": 6560
+        },
+        {
+          "text": "par",
+          "start_ms": 6560,
+          "end_ms": 6720
+        },
+        {
+          "text": "exemple.",
+          "start_ms": 6720,
+          "end_ms": 7200
+        },
+        {
+          "text": "Moi",
+          "start_ms": 7200,
+          "end_ms": 7360
+        },
+        {
+          "text": "je",
+          "start_ms": 7360,
+          "end_ms": 7440
+        },
+        {
+          "text": "me",
+          "start_ms": 7520,
+          "end_ms": 7600
+        },
+        {
+          "text": "souviens",
+          "start_ms": 7600,
+          "end_ms": 7920
+        },
+        {
+          "text": "d'avoir",
+          "start_ms": 7920,
+          "end_ms": 8320
+        },
+        {
+          "text": "constaté",
+          "start_ms": 8320,
+          "end_ms": 8640
+        },
+        {
+          "text": "pendant",
+          "start_ms": 8720,
+          "end_ms": 8880
+        },
+        {
+          "text": "longtemps",
+          "start_ms": 8880,
+          "end_ms": 9120
+        },
+        {
+          "text": "que",
+          "start_ms": 9200,
+          "end_ms": 9360
+        },
+        {
+          "text": "l'Europe",
+          "start_ms": 9360,
+          "end_ms": 9600
+        },
+        {
+          "text": "était",
+          "start_ms": 9680,
+          "end_ms": 9920
+        },
+        {
+          "text": "totalement",
+          "start_ms": 9920,
+          "end_ms": 10400
+        },
+        {
+          "text": "divisée.",
+          "start_ms": 10400,
+          "end_ms": 10880
+        },
+        {
+          "text": "Comment",
+          "start_ms": 11040,
+          "end_ms": 11360
+        },
+        {
+          "text": "aborder",
+          "start_ms": 11360,
+          "end_ms": 11680
+        },
+        {
+          "text": "la",
+          "start_ms": 11680,
+          "end_ms": 11840
+        },
+        {
+          "text": "relation",
+          "start_ms": 11840,
+          "end_ms": 12160
+        },
+        {
+          "text": "avec",
+          "start_ms": 12160,
+          "end_ms": 12320
+        },
+        {
+          "text": "la",
+          "start_ms": 12320,
+          "end_ms": 12400
+        },
+        {
+          "text": "Chine?",
+          "start_ms": 12400,
+          "end_ms": 12720
+        },
+        {
+          "text": "En",
+          "start_ms": 12960,
+          "end_ms": 13200
+        },
+        {
+          "text": "quelques",
+          "start_ms": 13200,
+          "end_ms": 13600
+        },
+        {
+          "text": "mois,",
+          "start_ms": 13600,
+          "end_ms": 14000
+        },
+        {
+          "text": "grâce",
+          "start_ms": 14000,
+          "end_ms": 14320
+        },
+        {
+          "text": "à",
+          "start_ms": 14320,
+          "end_ms": 14400
+        },
+        {
+          "text": "un",
+          "start_ms": 14400,
+          "end_ms": 14560
+        },
+        {
+          "text": "travail",
+          "start_ms": 14560,
+          "end_ms": 15040
+        },
+        {
+          "text": "politique,",
+          "start_ms": 15040,
+          "end_ms": 15520
+        },
+        {
+          "text": "un",
+          "start_ms": 15600,
+          "end_ms": 15760
+        },
+        {
+          "text": "dialogue",
+          "start_ms": 15760,
+          "end_ms": 16320
+        },
+        {
+          "text": "entre",
+          "start_ms": 16320,
+          "end_ms": 16560
+        },
+        {
+          "text": "nous,",
+          "start_ms": 16560,
+          "end_ms": 16960
+        },
+        {
+          "text": "nous",
+          "start_ms": 16960,
+          "end_ms": 17120
+        },
+        {
+          "text": "avons",
+          "start_ms": 17120,
+          "end_ms": 17360
+        },
+        {
+          "text": "aligné",
+          "start_ms": 17360,
+          "end_ms": 17840
+        },
+        {
+          "text": "une",
+          "start_ms": 17840,
+          "end_ms": 18000
+        },
+        {
+          "text": "position",
+          "start_ms": 18000,
+          "end_ms": 18400
+        },
+        {
+          "text": "claire,",
+          "start_ms": 18400,
+          "end_ms": 19040
+        },
+        {
+          "text": "stratégique,",
+          "start_ms": 19040,
+          "end_ms": 19680
+        },
+        {
+          "text": "et",
+          "start_ms": 19680,
+          "end_ms": 19840
+        },
+        {
+          "text": "nous",
+          "start_ms": 19840,
+          "end_ms": 20000
+        },
+        {
+          "text": "exprimons,",
+          "start_ms": 20000,
+          "end_ms": 20560
+        },
+        {
+          "text": "cher",
+          "start_ms": 20560,
+          "end_ms": 20800
+        },
+        {
+          "text": "M.",
+          "start_ms": 20800,
+          "end_ms": 20960
+        },
+        {
+          "text": "Lambert,",
+          "start_ms": 21040,
+          "end_ms": 21680
+        },
+        {
+          "text": "avec",
+          "start_ms": 21680,
+          "end_ms": 21840
+        },
+        {
+          "text": "clarté",
+          "start_ms": 21840,
+          "end_ms": 22160
+        },
+        {
+          "text": "le",
+          "start_ms": 22240,
+          "end_ms": 22320
+        },
+        {
+          "text": "message.",
+          "start_ms": 22320,
+          "end_ms": 22880
+        },
+        {
+          "text": "Quand",
+          "start_ms": 22880,
+          "end_ms": 23040
+        },
+        {
+          "text": "je",
+          "start_ms": 23040,
+          "end_ms": 23120
+        },
+        {
+          "text": "m'adresse",
+          "start_ms": 23120,
+          "end_ms": 23520
+        },
+        {
+          "text": "au",
+          "start_ms": 23520,
+          "end_ms": 23600
+        },
+        {
+          "text": "président",
+          "start_ms": 23600,
+          "end_ms": 23760
+        },
+        {
+          "text": "Xi,",
+          "start_ms": 23920,
+          "end_ms": 24400
+        },
+        {
+          "text": "je",
+          "start_ms": 24400,
+          "end_ms": 24560
+        },
+        {
+          "text": "ne",
+          "start_ms": 24560,
+          "end_ms": 24640
+        },
+        {
+          "text": "baisse",
+          "start_ms": 24640,
+          "end_ms": 24960
+        },
+        {
+          "text": "pas",
+          "start_ms": 24960,
+          "end_ms": 25040
+        },
+        {
+          "text": "les",
+          "start_ms": 25040,
+          "end_ms": 25120
+        },
+        {
+          "text": "yeux.",
+          "start_ms": 25120,
+          "end_ms": 25360
+        },
+        {
+          "text": "S'agissant",
+          "start_ms": 25520,
+          "end_ms": 25920
+        },
+        {
+          "text": "de",
+          "start_ms": 26000,
+          "end_ms": 26080
+        },
+        {
+          "text": "valeur",
+          "start_ms": 26160,
+          "end_ms": 26400
+        },
+        {
+          "text": "fondamentale,",
+          "start_ms": 26400,
+          "end_ms": 26880
+        },
+        {
+          "text": "les",
+          "start_ms": 26960,
+          "end_ms": 27120
+        },
+        {
+          "text": "droits",
+          "start_ms": 27120,
+          "end_ms": 27280
+        },
+        {
+          "text": "de",
+          "start_ms": 27280,
+          "end_ms": 27360
+        },
+        {
+          "text": "l'homme.",
+          "start_ms": 27360,
+          "end_ms": 27760
+        },
+        {
+          "text": "Je",
+          "start_ms": 27760,
+          "end_ms": 27920
+        },
+        {
+          "text": "parle",
+          "start_ms": 27920,
+          "end_ms": 28080
+        },
+        {
+          "text": "des",
+          "start_ms": 28080,
+          "end_ms": 28240
+        },
+        {
+          "text": "Ouïghours,",
+          "start_ms": 28240,
+          "end_ms": 29120
+        },
+        {
+          "text": "je",
+          "start_ms": 29120,
+          "end_ms": 29280
+        },
+        {
+          "text": "parle",
+          "start_ms": 29280,
+          "end_ms": 29440
+        },
+        {
+          "text": "de",
+          "start_ms": 29440,
+          "end_ms": 29520
+        },
+        {
+          "text": "la",
+          "start_ms": 29520,
+          "end_ms": 29600
+        },
+        {
+          "text": "situation",
+          "start_ms": 29600,
+          "end_ms": 29840
+        },
+        {
+          "text": "à",
+          "start_ms": 29840,
+          "end_ms": 30000
+        },
+        {
+          "text": "Haute-Gone,",
+          "start_ms": 30000,
+          "end_ms": 30800
+        },
+        {
+          "text": "je",
+          "start_ms": 30800,
+          "end_ms": 30960
+        },
+        {
+          "text": "dis",
+          "start_ms": 30960,
+          "end_ms": 31120
+        },
+        {
+          "text": "que",
+          "start_ms": 31120,
+          "end_ms": 31280
+        },
+        {
+          "text": "nous",
+          "start_ms": 31280,
+          "end_ms": 31360
+        },
+        {
+          "text": "n'avons",
+          "start_ms": 31360,
+          "end_ms": 31680
+        },
+        {
+          "text": "pas",
+          "start_ms": 31680,
+          "end_ms": 31920
+        },
+        {
+          "text": "le",
+          "start_ms": 31920,
+          "end_ms": 32080
+        },
+        {
+          "text": "même",
+          "start_ms": 32080,
+          "end_ms": 32400
+        },
+        {
+          "text": "modèle",
+          "start_ms": 32400,
+          "end_ms": 33040
+        },
+        {
+          "text": "politique,",
+          "start_ms": 33040,
+          "end_ms": 33680
+        },
+        {
+          "text": "pas",
+          "start_ms": 33680,
+          "end_ms": 33920
+        },
+        {
+          "text": "le",
+          "start_ms": 33920,
+          "end_ms": 34000
+        },
+        {
+          "text": "même",
+          "start_ms": 34000,
+          "end_ms": 34160
+        },
+        {
+          "text": "modèle",
+          "start_ms": 34160,
+          "end_ms": 34560
+        },
+        {
+          "text": "économique.",
+          "start_ms": 34560,
+          "end_ms": 35040
+        },
+        {
+          "text": "Il",
+          "start_ms": 35040,
+          "end_ms": 35200
+        },
+        {
+          "text": "y",
+          "start_ms": 35200,
+          "end_ms": 35280
+        },
+        {
+          "text": "a",
+          "start_ms": 35280,
+          "end_ms": 35360
+        },
+        {
+          "text": "trois",
+          "start_ms": 35360,
+          "end_ms": 35520
+        },
+        {
+          "text": "points.",
+          "start_ms": 35520,
+          "end_ms": 35920
+        },
+        {
+          "text": "Nous",
+          "start_ms": 35920,
+          "end_ms": 36080
+        },
+        {
+          "text": "voulons",
+          "start_ms": 36080,
+          "end_ms": 36400
+        },
+        {
+          "text": "être",
+          "start_ms": 36400,
+          "end_ms": 36560
+        },
+        {
+          "text": "engagés",
+          "start_ms": 36560,
+          "end_ms": 37040
+        },
+        {
+          "text": "avec",
+          "start_ms": 37040,
+          "end_ms": 37280
+        },
+        {
+          "text": "la",
+          "start_ms": 37280,
+          "end_ms": 37440
+        },
+        {
+          "text": "Chine,",
+          "start_ms": 37440,
+          "end_ms": 37680
+        },
+        {
+          "text": "nous",
+          "start_ms": 37760,
+          "end_ms": 37920
+        },
+        {
+          "text": "croyons",
+          "start_ms": 37920,
+          "end_ms": 38240
+        },
+        {
+          "text": "aux",
+          "start_ms": 38240,
+          "end_ms": 38400
+        },
+        {
+          "text": "vertus",
+          "start_ms": 38400,
+          "end_ms": 38640
+        },
+        {
+          "text": "du",
+          "start_ms": 38720,
+          "end_ms": 38800
+        },
+        {
+          "text": "dialogue.",
+          "start_ms": 38800,
+          "end_ms": 39520
+        },
+        {
+          "text": "Nous",
+          "start_ms": 39520,
+          "end_ms": 39680
+        },
+        {
+          "text": "pensons",
+          "start_ms": 39680,
+          "end_ms": 39920
+        },
+        {
+          "text": "que",
+          "start_ms": 39920,
+          "end_ms": 40080
+        },
+        {
+          "text": "la",
+          "start_ms": 40080,
+          "end_ms": 40160
+        },
+        {
+          "text": "Chine",
+          "start_ms": 40160,
+          "end_ms": 40400
+        },
+        {
+          "text": "est",
+          "start_ms": 40400,
+          "end_ms": 40640
+        },
+        {
+          "text": "un",
+          "start_ms": 40640,
+          "end_ms": 40720
+        },
+        {
+          "text": "partenaire",
+          "start_ms": 40720,
+          "end_ms": 41280
+        },
+        {
+          "text": "pour",
+          "start_ms": 41280,
+          "end_ms": 41520
+        },
+        {
+          "text": "gérer",
+          "start_ms": 41520,
+          "end_ms": 41840
+        },
+        {
+          "text": "les",
+          "start_ms": 41840,
+          "end_ms": 42000
+        },
+        {
+          "text": "questions",
+          "start_ms": 42000,
+          "end_ms": 42240
+        },
+        {
+          "text": "comme",
+          "start_ms": 42240,
+          "end_ms": 42400
+        },
+        {
+          "text": "le",
+          "start_ms": 42400,
+          "end_ms": 42560
+        },
+        {
+          "text": "Covid,",
+          "start_ms": 42560,
+          "end_ms": 43120
+        },
+        {
+          "text": "comme",
+          "start_ms": 43120,
+          "end_ms": 43280
+        },
+        {
+          "text": "la",
+          "start_ms": 43280,
+          "end_ms": 43360
+        },
+        {
+          "text": "question",
+          "start_ms": 43360,
+          "end_ms": 43600
+        },
+        {
+          "text": "climatique.",
+          "start_ms": 43600,
+          "end_ms": 44160
+        },
+        {
+          "text": "Vous",
+          "start_ms": 44160,
+          "end_ms": 44320
+        },
+        {
+          "text": "observez",
+          "start_ms": 44320,
+          "end_ms": 44640
+        },
+        {
+          "text": "que",
+          "start_ms": 44720,
+          "end_ms": 44880
+        },
+        {
+          "text": "la",
+          "start_ms": 44880,
+          "end_ms": 44960
+        },
+        {
+          "text": "Chine,",
+          "start_ms": 44960,
+          "end_ms": 45280
+        },
+        {
+          "text": "comme",
+          "start_ms": 45280,
+          "end_ms": 45440
+        },
+        {
+          "text": "l'Afrique",
+          "start_ms": 45440,
+          "end_ms": 45840
+        },
+        {
+          "text": "du",
+          "start_ms": 45840,
+          "end_ms": 45920
+        },
+        {
+          "text": "Sud,",
+          "start_ms": 45920,
+          "end_ms": 46240
+        },
+        {
+          "text": "s'est",
+          "start_ms": 46240,
+          "end_ms": 46480
+        },
+        {
+          "text": "engagée",
+          "start_ms": 46480,
+          "end_ms": 46880
+        },
+        {
+          "text": "sur",
+          "start_ms": 46960,
+          "end_ms": 47120
+        },
+        {
+          "text": "la",
+          "start_ms": 47120,
+          "end_ms": 47200
+        },
+        {
+          "text": "question",
+          "start_ms": 47200,
+          "end_ms": 47360
+        },
+        {
+          "text": "de",
+          "start_ms": 47360,
+          "end_ms": 47440
+        },
+        {
+          "text": "la",
+          "start_ms": 47440,
+          "end_ms": 47520
+        },
+        {
+          "text": "neutralité",
+          "start_ms": 47520,
+          "end_ms": 47920
+        },
+        {
+          "text": "climatique,",
+          "start_ms": 48000,
+          "end_ms": 48480
+        },
+        {
+          "text": "ce",
+          "start_ms": 48480,
+          "end_ms": 48560
+        },
+        {
+          "text": "n'est",
+          "start_ms": 48560,
+          "end_ms": 48720
+        },
+        {
+          "text": "pas",
+          "start_ms": 48720,
+          "end_ms": 48800
+        },
+        {
+          "text": "suffisant,",
+          "start_ms": 48800,
+          "end_ms": 49200
+        },
+        {
+          "text": "on",
+          "start_ms": 49200,
+          "end_ms": 49360
+        },
+        {
+          "text": "va",
+          "start_ms": 49360,
+          "end_ms": 49440
+        },
+        {
+          "text": "devoir",
+          "start_ms": 49440,
+          "end_ms": 49600
+        },
+        {
+          "text": "rester",
+          "start_ms": 49760,
+          "end_ms": 50080
+        },
+        {
+          "text": "vigilant,",
+          "start_ms": 50080,
+          "end_ms": 50720
+        },
+        {
+          "text": "mais",
+          "start_ms": 50720,
+          "end_ms": 50880
+        },
+        {
+          "text": "c'est",
+          "start_ms": 50880,
+          "end_ms": 51040
+        },
+        {
+          "text": "un",
+          "start_ms": 51120,
+          "end_ms": 51280
+        },
+        {
+          "text": "pas",
+          "start_ms": 51280,
+          "end_ms": 51360
+        },
+        {
+          "text": "qui",
+          "start_ms": 51440,
+          "end_ms": 51520
+        },
+        {
+          "text": "montre",
+          "start_ms": 51600,
+          "end_ms": 51760
+        },
+        {
+          "text": "que",
+          "start_ms": 51840,
+          "end_ms": 51920
+        },
+        {
+          "text": "l'on",
+          "start_ms": 51920,
+          "end_ms": 52160
+        },
+        {
+          "text": "a",
+          "start_ms": 52160,
+          "end_ms": 52240
+        },
+        {
+          "text": "un",
+          "start_ms": 52240,
+          "end_ms": 52320
+        },
+        {
+          "text": "impact,",
+          "start_ms": 52320,
+          "end_ms": 52640
+        },
+        {
+          "text": "que",
+          "start_ms": 52720,
+          "end_ms": 52800
+        },
+        {
+          "text": "l'on",
+          "start_ms": 52800,
+          "end_ms": 52960
+        },
+        {
+          "text": "a",
+          "start_ms": 52960,
+          "end_ms": 53040
+        },
+        {
+          "text": "une",
+          "start_ms": 53120,
+          "end_ms": 53200
+        },
+        {
+          "text": "influence,",
+          "start_ms": 53200,
+          "end_ms": 53600
+        },
+        {
+          "text": "cela",
+          "start_ms": 53680,
+          "end_ms": 53840
+        },
+        {
+          "text": "va",
+          "start_ms": 53840,
+          "end_ms": 54000
+        },
+        {
+          "text": "dans",
+          "start_ms": 54000,
+          "end_ms": 54160
+        },
+        {
+          "text": "la",
+          "start_ms": 54160,
+          "end_ms": 54240
+        },
+        {
+          "text": "bonne",
+          "start_ms": 54240,
+          "end_ms": 54480
+        },
+        {
+          "text": "direction.",
+          "start_ms": 54480,
+          "end_ms": 55040
+        },
+        {
+          "text": "Et",
+          "start_ms": 55040,
+          "end_ms": 55280
+        },
+        {
+          "text": "enfin,",
+          "start_ms": 55280,
+          "end_ms": 55760
+        },
+        {
+          "text": "je",
+          "start_ms": 55760,
+          "end_ms": 55840
+        },
+        {
+          "text": "voudrais",
+          "start_ms": 55840,
+          "end_ms": 56240
+        },
+        {
+          "text": "aussi",
+          "start_ms": 56240,
+          "end_ms": 56480
+        },
+        {
+          "text": "mettre",
+          "start_ms": 56480,
+          "end_ms": 56720
+        },
+        {
+          "text": "en",
+          "start_ms": 56720,
+          "end_ms": 56880
+        },
+        {
+          "text": "évidence",
+          "start_ms": 56880,
+          "end_ms": 57280
+        },
+        {
+          "text": "un",
+          "start_ms": 57280,
+          "end_ms": 57440
+        },
+        {
+          "text": "autre",
+          "start_ms": 57440,
+          "end_ms": 57600
+        },
+        {
+          "text": "point",
+          "start_ms": 57600,
+          "end_ms": 57840
+        },
+        {
+          "text": "qui",
+          "start_ms": 57920,
+          "end_ms": 58160
+        },
+        {
+          "text": "me",
+          "start_ms": 58160,
+          "end_ms": 58240
+        },
+        {
+          "text": "plaît",
+          "start_ms": 58240,
+          "end_ms": 58560
+        },
+        {
+          "text": "de",
+          "start_ms": 58560,
+          "end_ms": 58720
+        },
+        {
+          "text": "mettre",
+          "start_ms": 58720,
+          "end_ms": 58880
+        },
+        {
+          "text": "en",
+          "start_ms": 58880,
+          "end_ms": 59040
+        },
+        {
+          "text": "esorce",
+          "start_ms": 59040,
+          "end_ms": 59280
+        },
+        {
+          "text": "pour",
+          "start_ms": 59280,
+          "end_ms": 59360
+        },
+        {
+          "text": "ne",
+          "start_ms": 59360,
+          "end_ms": 59440
+        },
+        {
+          "text": "pas",
+          "start_ms": 59440,
+          "end_ms": 59520
+        },
+        {
+          "text": "faire",
+          "start_ms": 59520,
+          "end_ms": 59600
+        },
+        {
+          "text": "sens.",
+          "start_ms": 59680,
+          "end_ms": 59920
+        }
+      ],
+      "native_inference_ms": null
+    },
+    {
+      "id": "en_continuous60_2020_CANDIDATE",
+      "wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "status": "AUTO_NON_VALIDE",
+      "backend": "CPU",
+      "worker_identity": {
+        "model_sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+        "runtime_sha256": "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff",
+        "build_sha256": "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0",
+        "profile": "import-single-pass"
+      },
+      "native_version": "nemo-speech-asr 0.2.0",
+      "duration_samples": 960000,
+      "text": "This is why we Socialists and Democrats urge Member States to stop considering public services as a cost, but at the contrary as an investment to guarantee a decent life for all of us in the Union. And a decent life means well being that includes access to quality education and jobs, as well as social security, health care, housing, justice and social services, and also especially for vulnerable groups. To achieve this, it's important to change the mindset of many EU leaders and to come forward with a model that puts social and environmental challenges at equal footing with economic ones. This is the only way to align our EU policies with the three dimensions of the SDGs and to avoid a lost generation. If we want our next generation in Europe to be strong and resilient, we must invest in their future and therefore must consider child guarantee and youth guarantee amongst the most precious instruments we have. Dear colleagues, child guarantee and youth guarantee can only be successful if we allocate sufficient financial means and if we are",
+      "words": [
+        {
+          "text": "This",
+          "start_ms": 80,
+          "end_ms": 240
+        },
+        {
+          "text": "is",
+          "start_ms": 240,
+          "end_ms": 320
+        },
+        {
+          "text": "why",
+          "start_ms": 320,
+          "end_ms": 480
+        },
+        {
+          "text": "we",
+          "start_ms": 480,
+          "end_ms": 640
+        },
+        {
+          "text": "Socialists",
+          "start_ms": 800,
+          "end_ms": 1280
+        },
+        {
+          "text": "and",
+          "start_ms": 1280,
+          "end_ms": 1440
+        },
+        {
+          "text": "Democrats",
+          "start_ms": 1440,
+          "end_ms": 2080
+        },
+        {
+          "text": "urge",
+          "start_ms": 2080,
+          "end_ms": 2400
+        },
+        {
+          "text": "Member",
+          "start_ms": 2400,
+          "end_ms": 2720
+        },
+        {
+          "text": "States",
+          "start_ms": 2720,
+          "end_ms": 3040
+        },
+        {
+          "text": "to",
+          "start_ms": 3040,
+          "end_ms": 3280
+        },
+        {
+          "text": "stop",
+          "start_ms": 3280,
+          "end_ms": 3600
+        },
+        {
+          "text": "considering",
+          "start_ms": 3600,
+          "end_ms": 4240
+        },
+        {
+          "text": "public",
+          "start_ms": 4560,
+          "end_ms": 4880
+        },
+        {
+          "text": "services",
+          "start_ms": 5040,
+          "end_ms": 5600
+        },
+        {
+          "text": "as",
+          "start_ms": 5600,
+          "end_ms": 5760
+        },
+        {
+          "text": "a",
+          "start_ms": 5760,
+          "end_ms": 6000
+        },
+        {
+          "text": "cost,",
+          "start_ms": 6000,
+          "end_ms": 6400
+        },
+        {
+          "text": "but",
+          "start_ms": 6400,
+          "end_ms": 6560
+        },
+        {
+          "text": "at",
+          "start_ms": 6720,
+          "end_ms": 6880
+        },
+        {
+          "text": "the",
+          "start_ms": 6880,
+          "end_ms": 6960
+        },
+        {
+          "text": "contrary",
+          "start_ms": 6960,
+          "end_ms": 7440
+        },
+        {
+          "text": "as",
+          "start_ms": 7600,
+          "end_ms": 7760
+        },
+        {
+          "text": "an",
+          "start_ms": 7760,
+          "end_ms": 7920
+        },
+        {
+          "text": "investment",
+          "start_ms": 7920,
+          "end_ms": 8400
+        },
+        {
+          "text": "to",
+          "start_ms": 8480,
+          "end_ms": 8640
+        },
+        {
+          "text": "guarantee",
+          "start_ms": 8640,
+          "end_ms": 9120
+        },
+        {
+          "text": "a",
+          "start_ms": 9120,
+          "end_ms": 9280
+        },
+        {
+          "text": "decent",
+          "start_ms": 9280,
+          "end_ms": 9680
+        },
+        {
+          "text": "life",
+          "start_ms": 9680,
+          "end_ms": 10000
+        },
+        {
+          "text": "for",
+          "start_ms": 10000,
+          "end_ms": 10160
+        },
+        {
+          "text": "all",
+          "start_ms": 10160,
+          "end_ms": 10320
+        },
+        {
+          "text": "of",
+          "start_ms": 10320,
+          "end_ms": 10400
+        },
+        {
+          "text": "us",
+          "start_ms": 10400,
+          "end_ms": 10560
+        },
+        {
+          "text": "in",
+          "start_ms": 10560,
+          "end_ms": 10640
+        },
+        {
+          "text": "the",
+          "start_ms": 10640,
+          "end_ms": 10800
+        },
+        {
+          "text": "Union.",
+          "start_ms": 10800,
+          "end_ms": 11120
+        },
+        {
+          "text": "And",
+          "start_ms": 11120,
+          "end_ms": 11360
+        },
+        {
+          "text": "a",
+          "start_ms": 11360,
+          "end_ms": 11440
+        },
+        {
+          "text": "decent",
+          "start_ms": 11440,
+          "end_ms": 11840
+        },
+        {
+          "text": "life",
+          "start_ms": 11840,
+          "end_ms": 12160
+        },
+        {
+          "text": "means",
+          "start_ms": 12160,
+          "end_ms": 12560
+        },
+        {
+          "text": "well",
+          "start_ms": 12560,
+          "end_ms": 12800
+        },
+        {
+          "text": "being",
+          "start_ms": 12960,
+          "end_ms": 13520
+        },
+        {
+          "text": "that",
+          "start_ms": 13520,
+          "end_ms": 13840
+        },
+        {
+          "text": "includes",
+          "start_ms": 14080,
+          "end_ms": 14800
+        },
+        {
+          "text": "access",
+          "start_ms": 14800,
+          "end_ms": 15440
+        },
+        {
+          "text": "to",
+          "start_ms": 15440,
+          "end_ms": 15680
+        },
+        {
+          "text": "quality",
+          "start_ms": 15680,
+          "end_ms": 16240
+        },
+        {
+          "text": "education",
+          "start_ms": 16240,
+          "end_ms": 16720
+        },
+        {
+          "text": "and",
+          "start_ms": 16720,
+          "end_ms": 16880
+        },
+        {
+          "text": "jobs,",
+          "start_ms": 16880,
+          "end_ms": 17440
+        },
+        {
+          "text": "as",
+          "start_ms": 17440,
+          "end_ms": 17600
+        },
+        {
+          "text": "well",
+          "start_ms": 17600,
+          "end_ms": 17760
+        },
+        {
+          "text": "as",
+          "start_ms": 17760,
+          "end_ms": 18000
+        },
+        {
+          "text": "social",
+          "start_ms": 18000,
+          "end_ms": 18160
+        },
+        {
+          "text": "security,",
+          "start_ms": 18320,
+          "end_ms": 18960
+        },
+        {
+          "text": "health",
+          "start_ms": 18960,
+          "end_ms": 19280
+        },
+        {
+          "text": "care,",
+          "start_ms": 19280,
+          "end_ms": 19680
+        },
+        {
+          "text": "housing,",
+          "start_ms": 19680,
+          "end_ms": 20160
+        },
+        {
+          "text": "justice",
+          "start_ms": 20160,
+          "end_ms": 20560
+        },
+        {
+          "text": "and",
+          "start_ms": 20640,
+          "end_ms": 20880
+        },
+        {
+          "text": "social",
+          "start_ms": 20880,
+          "end_ms": 21120
+        },
+        {
+          "text": "services,",
+          "start_ms": 21120,
+          "end_ms": 21840
+        },
+        {
+          "text": "and",
+          "start_ms": 21840,
+          "end_ms": 22080
+        },
+        {
+          "text": "also",
+          "start_ms": 22080,
+          "end_ms": 22320
+        },
+        {
+          "text": "especially",
+          "start_ms": 22400,
+          "end_ms": 22880
+        },
+        {
+          "text": "for",
+          "start_ms": 22880,
+          "end_ms": 23120
+        },
+        {
+          "text": "vulnerable",
+          "start_ms": 23120,
+          "end_ms": 23760
+        },
+        {
+          "text": "groups.",
+          "start_ms": 23760,
+          "end_ms": 24400
+        },
+        {
+          "text": "To",
+          "start_ms": 24400,
+          "end_ms": 24640
+        },
+        {
+          "text": "achieve",
+          "start_ms": 24640,
+          "end_ms": 25040
+        },
+        {
+          "text": "this,",
+          "start_ms": 25040,
+          "end_ms": 25280
+        },
+        {
+          "text": "it's",
+          "start_ms": 25280,
+          "end_ms": 25760
+        },
+        {
+          "text": "important",
+          "start_ms": 25760,
+          "end_ms": 26000
+        },
+        {
+          "text": "to",
+          "start_ms": 26000,
+          "end_ms": 26240
+        },
+        {
+          "text": "change",
+          "start_ms": 26240,
+          "end_ms": 26560
+        },
+        {
+          "text": "the",
+          "start_ms": 26560,
+          "end_ms": 26720
+        },
+        {
+          "text": "mindset",
+          "start_ms": 26720,
+          "end_ms": 27120
+        },
+        {
+          "text": "of",
+          "start_ms": 27120,
+          "end_ms": 27280
+        },
+        {
+          "text": "many",
+          "start_ms": 27280,
+          "end_ms": 27600
+        },
+        {
+          "text": "EU",
+          "start_ms": 27600,
+          "end_ms": 27840
+        },
+        {
+          "text": "leaders",
+          "start_ms": 27840,
+          "end_ms": 28320
+        },
+        {
+          "text": "and",
+          "start_ms": 28320,
+          "end_ms": 28480
+        },
+        {
+          "text": "to",
+          "start_ms": 28480,
+          "end_ms": 28640
+        },
+        {
+          "text": "come",
+          "start_ms": 28640,
+          "end_ms": 28800
+        },
+        {
+          "text": "forward",
+          "start_ms": 28800,
+          "end_ms": 29120
+        },
+        {
+          "text": "with",
+          "start_ms": 29120,
+          "end_ms": 29280
+        },
+        {
+          "text": "a",
+          "start_ms": 29280,
+          "end_ms": 29440
+        },
+        {
+          "text": "model",
+          "start_ms": 29440,
+          "end_ms": 29760
+        },
+        {
+          "text": "that",
+          "start_ms": 29760,
+          "end_ms": 30000
+        },
+        {
+          "text": "puts",
+          "start_ms": 30000,
+          "end_ms": 30400
+        },
+        {
+          "text": "social",
+          "start_ms": 30400,
+          "end_ms": 30720
+        },
+        {
+          "text": "and",
+          "start_ms": 30720,
+          "end_ms": 31040
+        },
+        {
+          "text": "environmental",
+          "start_ms": 31040,
+          "end_ms": 31680
+        },
+        {
+          "text": "challenges",
+          "start_ms": 31680,
+          "end_ms": 32160
+        },
+        {
+          "text": "at",
+          "start_ms": 32160,
+          "end_ms": 32320
+        },
+        {
+          "text": "equal",
+          "start_ms": 32400,
+          "end_ms": 32720
+        },
+        {
+          "text": "footing",
+          "start_ms": 32720,
+          "end_ms": 33040
+        },
+        {
+          "text": "with",
+          "start_ms": 33040,
+          "end_ms": 33280
+        },
+        {
+          "text": "economic",
+          "start_ms": 33280,
+          "end_ms": 33840
+        },
+        {
+          "text": "ones.",
+          "start_ms": 33840,
+          "end_ms": 34560
+        },
+        {
+          "text": "This",
+          "start_ms": 34560,
+          "end_ms": 34880
+        },
+        {
+          "text": "is",
+          "start_ms": 34880,
+          "end_ms": 35040
+        },
+        {
+          "text": "the",
+          "start_ms": 35040,
+          "end_ms": 35280
+        },
+        {
+          "text": "only",
+          "start_ms": 35280,
+          "end_ms": 35520
+        },
+        {
+          "text": "way",
+          "start_ms": 35520,
+          "end_ms": 35760
+        },
+        {
+          "text": "to",
+          "start_ms": 35760,
+          "end_ms": 35920
+        },
+        {
+          "text": "align",
+          "start_ms": 35920,
+          "end_ms": 36320
+        },
+        {
+          "text": "our",
+          "start_ms": 36320,
+          "end_ms": 36560
+        },
+        {
+          "text": "EU",
+          "start_ms": 36560,
+          "end_ms": 36880
+        },
+        {
+          "text": "policies",
+          "start_ms": 36880,
+          "end_ms": 37280
+        },
+        {
+          "text": "with",
+          "start_ms": 37280,
+          "end_ms": 37440
+        },
+        {
+          "text": "the",
+          "start_ms": 37440,
+          "end_ms": 37520
+        },
+        {
+          "text": "three",
+          "start_ms": 37520,
+          "end_ms": 37840
+        },
+        {
+          "text": "dimensions",
+          "start_ms": 37840,
+          "end_ms": 38320
+        },
+        {
+          "text": "of",
+          "start_ms": 38320,
+          "end_ms": 38480
+        },
+        {
+          "text": "the",
+          "start_ms": 38480,
+          "end_ms": 38720
+        },
+        {
+          "text": "SDGs",
+          "start_ms": 38720,
+          "end_ms": 39440
+        },
+        {
+          "text": "and",
+          "start_ms": 39520,
+          "end_ms": 39760
+        },
+        {
+          "text": "to",
+          "start_ms": 39760,
+          "end_ms": 39920
+        },
+        {
+          "text": "avoid",
+          "start_ms": 39920,
+          "end_ms": 40160
+        },
+        {
+          "text": "a",
+          "start_ms": 40160,
+          "end_ms": 40400
+        },
+        {
+          "text": "lost",
+          "start_ms": 40400,
+          "end_ms": 40800
+        },
+        {
+          "text": "generation.",
+          "start_ms": 40800,
+          "end_ms": 41600
+        },
+        {
+          "text": "If",
+          "start_ms": 41600,
+          "end_ms": 41840
+        },
+        {
+          "text": "we",
+          "start_ms": 41840,
+          "end_ms": 42080
+        },
+        {
+          "text": "want",
+          "start_ms": 42080,
+          "end_ms": 42320
+        },
+        {
+          "text": "our",
+          "start_ms": 42320,
+          "end_ms": 42480
+        },
+        {
+          "text": "next",
+          "start_ms": 42480,
+          "end_ms": 42800
+        },
+        {
+          "text": "generation",
+          "start_ms": 42800,
+          "end_ms": 43280
+        },
+        {
+          "text": "in",
+          "start_ms": 43280,
+          "end_ms": 43520
+        },
+        {
+          "text": "Europe",
+          "start_ms": 43520,
+          "end_ms": 43760
+        },
+        {
+          "text": "to",
+          "start_ms": 43760,
+          "end_ms": 43840
+        },
+        {
+          "text": "be",
+          "start_ms": 43840,
+          "end_ms": 44000
+        },
+        {
+          "text": "strong",
+          "start_ms": 44000,
+          "end_ms": 44240
+        },
+        {
+          "text": "and",
+          "start_ms": 44240,
+          "end_ms": 44400
+        },
+        {
+          "text": "resilient,",
+          "start_ms": 44400,
+          "end_ms": 45200
+        },
+        {
+          "text": "we",
+          "start_ms": 45200,
+          "end_ms": 45360
+        },
+        {
+          "text": "must",
+          "start_ms": 45360,
+          "end_ms": 45600
+        },
+        {
+          "text": "invest",
+          "start_ms": 45600,
+          "end_ms": 45920
+        },
+        {
+          "text": "in",
+          "start_ms": 45920,
+          "end_ms": 46160
+        },
+        {
+          "text": "their",
+          "start_ms": 46160,
+          "end_ms": 46400
+        },
+        {
+          "text": "future",
+          "start_ms": 46400,
+          "end_ms": 46800
+        },
+        {
+          "text": "and",
+          "start_ms": 46880,
+          "end_ms": 47120
+        },
+        {
+          "text": "therefore",
+          "start_ms": 47120,
+          "end_ms": 47440
+        },
+        {
+          "text": "must",
+          "start_ms": 47600,
+          "end_ms": 47840
+        },
+        {
+          "text": "consider",
+          "start_ms": 47840,
+          "end_ms": 48160
+        },
+        {
+          "text": "child",
+          "start_ms": 48240,
+          "end_ms": 48640
+        },
+        {
+          "text": "guarantee",
+          "start_ms": 48640,
+          "end_ms": 49360
+        },
+        {
+          "text": "and",
+          "start_ms": 49360,
+          "end_ms": 49680
+        },
+        {
+          "text": "youth",
+          "start_ms": 49680,
+          "end_ms": 50000
+        },
+        {
+          "text": "guarantee",
+          "start_ms": 50000,
+          "end_ms": 50480
+        },
+        {
+          "text": "amongst",
+          "start_ms": 50480,
+          "end_ms": 50880
+        },
+        {
+          "text": "the",
+          "start_ms": 50880,
+          "end_ms": 51040
+        },
+        {
+          "text": "most",
+          "start_ms": 51040,
+          "end_ms": 51200
+        },
+        {
+          "text": "precious",
+          "start_ms": 51200,
+          "end_ms": 51680
+        },
+        {
+          "text": "instruments",
+          "start_ms": 51680,
+          "end_ms": 52320
+        },
+        {
+          "text": "we",
+          "start_ms": 52320,
+          "end_ms": 52560
+        },
+        {
+          "text": "have.",
+          "start_ms": 52560,
+          "end_ms": 53040
+        },
+        {
+          "text": "Dear",
+          "start_ms": 53040,
+          "end_ms": 53360
+        },
+        {
+          "text": "colleagues,",
+          "start_ms": 53360,
+          "end_ms": 53840
+        },
+        {
+          "text": "child",
+          "start_ms": 53840,
+          "end_ms": 54240
+        },
+        {
+          "text": "guarantee",
+          "start_ms": 54240,
+          "end_ms": 54880
+        },
+        {
+          "text": "and",
+          "start_ms": 54880,
+          "end_ms": 55120
+        },
+        {
+          "text": "youth",
+          "start_ms": 55120,
+          "end_ms": 55440
+        },
+        {
+          "text": "guarantee",
+          "start_ms": 55440,
+          "end_ms": 56000
+        },
+        {
+          "text": "can",
+          "start_ms": 56000,
+          "end_ms": 56240
+        },
+        {
+          "text": "only",
+          "start_ms": 56240,
+          "end_ms": 56480
+        },
+        {
+          "text": "be",
+          "start_ms": 56480,
+          "end_ms": 56640
+        },
+        {
+          "text": "successful",
+          "start_ms": 56640,
+          "end_ms": 57360
+        },
+        {
+          "text": "if",
+          "start_ms": 57360,
+          "end_ms": 57600
+        },
+        {
+          "text": "we",
+          "start_ms": 57600,
+          "end_ms": 57760
+        },
+        {
+          "text": "allocate",
+          "start_ms": 57760,
+          "end_ms": 58240
+        },
+        {
+          "text": "sufficient",
+          "start_ms": 58240,
+          "end_ms": 58720
+        },
+        {
+          "text": "financial",
+          "start_ms": 58720,
+          "end_ms": 59040
+        },
+        {
+          "text": "means",
+          "start_ms": 59040,
+          "end_ms": 59200
+        },
+        {
+          "text": "and",
+          "start_ms": 59280,
+          "end_ms": 59440
+        },
+        {
+          "text": "if",
+          "start_ms": 59440,
+          "end_ms": 59520
+        },
+        {
+          "text": "we",
+          "start_ms": 59520,
+          "end_ms": 59600
+        },
+        {
+          "text": "are",
+          "start_ms": 59600,
+          "end_ms": 59840
+        }
+      ],
+      "native_inference_ms": null
+    }
+  ]
+}
