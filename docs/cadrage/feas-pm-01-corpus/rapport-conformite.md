@@ -1,6 +1,6 @@
 Avancée : les quatre textes `_copie` sont approuvés ; huit zones acoustiques ciblées sont maintenant étiquetées humainement et liées aux SHA-256 des sources.
 Blocage : aucune plage de bruit seul n'est certifiée dans les continus ; la grille de seuils relatifs manque une vraie pause FR et coupe au moins deux zones sans pause.
-Décision : détecteur de pauses non qualifié pour FEAS-PM-01 ; l'étude reste interdite, et le VAD existant est une piste à évaluer.
+Décision : détecteur de pauses non qualifié pour FEAS-PM-01 ; l'étude reste interdite. L'évaluation préparatoire du VAD existant conclut PARTIAL.
 
 # Qualification préparatoire du corpus FEAS-PM-01
 
@@ -12,6 +12,7 @@ Décision : détecteur de pauses non qualifié pour FEAS-PM-01 ; l'étude reste 
 - [Annotations automatiques](auto_annotations.json) : bords candidats A/B, mots ASR voisins, pauses exploratoires, énergie acoustique et file de vérification. Aucune stratégie A/B n'a été exécutée.
 - [Fiche de validation humaine](validation_humaine.md) et [zones critiques](zones_critiques.md) : écoute intégrale avec texte directement modifiable, puis contrôle ciblé des mots et de l'acoustique. Quatre extraits WAV exacts de 0–30 s et 28–32 s, dérivés des deux continus, facilitent la décision sur le préfixe ; leurs identités et plages figurent dans le manifeste.
 - [Revue acoustique ciblée](acoustic-review.md) : huit extraits de 15,6 s cumulées, leurs étiquettes humaines, le balayage des marges RMS +6/+9/+12 dB et la confirmation du début anglophone du WAV FR.
+- [Étude préparatoire du VAD](vad-prep-report.md) : 48 passages des WAV complets, décisions brutes et coupes candidates ; `PARTIAL` car E1 n'est pas détectée par une règle stricte de 400 ms. Le protocole FEAS-PM-01 demeure inchangé.
 
 ## Résultat par prérequis
 
@@ -26,16 +27,16 @@ Décision : détecteur de pauses non qualifié pour FEAS-PM-01 ; l'étude reste 
 | Seuil relatif au bruit pour A | **FAIL pour la qualification** | Aucune base de bruit seul n'est validée dans les continus. Avec les bases automatiques, la grille +6/+9/+12 dB manque la vraie pause FR F2 ; +9 dB coupe FC2 (emphase sans pause) et +12 dB coupe EC3 (sans pause). Les niveaux des zones les plus calmes des continus (−36,05 et −34,33 dBFS au percentile 95 de 200 ms) ne constituent donc pas un étalonnage confirmé. Aucun seuil n'est retenu. |
 | Frontières des stratégies A/B | **PARTIAL** | L'utilisateur a répondu « OK avec le tableau » pour les quatre cas et confirmé à l'écoute l'anglais initial du FR pauses. Les mots aux frontières listées sont acceptés ; leurs bornes ASR exactes restent provisoires. Les coupes A/B n'ont pas été exécutées ; `omis`, `répété` et `altéré` ne seront constatés qu'après une comparaison autorisée. |
 | Éligibilité des deux passages continus de 60 s et de leurs 30 premières secondes | **PARTIAL** | Les textes et frontières à 30 s sont approuvés ; les clips ciblés ont été écoutés. La grille relative produit des coupes dans des zones sans pause ; les autres coupes des 60 s ne sont pas toutes étiquetées. L'absence de pause admissible sur toute la minute et les 30 premières secondes n'est donc pas démontrée avec un détecteur qualifié. |
-| Prêt à lancer FEAS-PM-01 | **FAIL** | Les références textuelles et les huit étiquettes acoustiques ciblées sont approuvées, mais aucun détecteur de pause n'est qualifié et l'éligibilité acoustique complète des continus reste partielle. Autorisation distincte toujours nécessaire. |
+| Prêt à lancer FEAS-PM-01 | **FAIL** | Les références textuelles et les huit étiquettes acoustiques ciblées sont approuvées. L'étude VAD couvre les 60 s complets sans coupe ≥400 ms, mais manque E1 et ne qualifie aucun profil ; le protocole reste inchangé. Autorisation distincte toujours nécessaire. |
 
 ## Calibration reproductible examinée
 
 1. Le calcul RMS par trames de 20 ms, le 95e percentile d'une plage candidate de bruit, les marges +6/+9/+12 dB, la durée minimale de 400 ms et l'espacement de 1 s ont été fixés pour la vérification préparatoire. Les huit extraits et leurs SHA-256 sont dans le manifeste ; les valeurs et les intervalles détectés sont dans la [revue acoustique](acoustic-review.md).
 2. Les plages les plus calmes des continus ne sont pas certifiées « bruit seul ». Avec ces bases provisoires, les marges testées manquent F2 et coupent des zones sans pause humainement étiquetées. Aucun seuil relatif n'est donc figé. Un seuil fixe −35 dBFS donne zéro coupe RMS sur les continus, mais ne satisfait pas le prérequis de calibration relative au bruit.
-3. Le VAD déjà présent dans les adaptateurs Rust peut être évalué sur ces huit zones puis sur les 60 s, sans installation ; sa qualité pour ces coupes n'a pas été mesurée. Ce constat n'autorise ni son raccordement à Parakeet ni FEAS-PM-01.
+3. Le VAD déjà présent dans les adaptateurs Rust a été [évalué hors produit](vad-prep-report.md) sur les quatre WAV complets, sans installation. Le résultat `PARTIAL` ne qualifie ni une nouvelle règle de coupe, ni son raccordement à Parakeet, ni FEAS-PM-01.
 
 ## Interventions humaines restantes
 
-La [fiche d'écoute](validation_humaine.md) rapporte la validation des textes et des frontières ; la [revue acoustique](acoustic-review.md) rapporte les huit étiquettes nouvelles. Aucune nouvelle écoute intégrale ni vérification de tous les mots horodatés n'est demandée. Pour lever le blocage, il faut une méthode de détection qui respecte les zones étiquetées et un contrôle des coupures qu'elle propose sur les deux minutes continues. L'essai du VAD existant serait l'étape préparatoire la plus réduite ; une décision distincte reste nécessaire avant FEAS-PM-01.
+La [fiche d'écoute](validation_humaine.md) rapporte la validation des textes et des frontières ; la [revue acoustique](acoustic-review.md) rapporte les huit étiquettes nouvelles. Aucune nouvelle écoute intégrale ni vérification de tous les mots horodatés n'est demandée. L'[étude VAD](vad-prep-report.md) n'a proposé aucune coupe sur les deux minutes continues, mais E1 reste manquée par la règle stricte. Une règle de coupe validée et une décision distincte sont nécessaires avant FEAS-PM-01.
 
 L'alignement forcé indépendant reste différé. Si les corrections des temps Parakeet deviennent trop nombreuses ou si la zone manquante initiale se répète, en mesurer le volume après la première revue humaine et demander une décision distincte sur l'outil ; aucun aligneur ni modèle supplémentaire n'a été installé.
