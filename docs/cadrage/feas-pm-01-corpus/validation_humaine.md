@@ -1,6 +1,6 @@
 # FEAS-PM-01 — fiche de validation humaine
 
-État au 21 octobre 2026 : les quatre textes `_copie` ont été **approuvés explicitement par l'utilisateur** après correction. Les mots aux frontières de [zones_critiques.md](zones_critiques.md) ont reçu « OK avec le tableau » ; leurs temps ASR restent provisoires. Le contrôle acoustique n'a pas été fait.
+État au 21 octobre 2026 : les quatre textes `_copie` ont été **approuvés explicitement par l'utilisateur** après correction. Les mots aux frontières de [zones_critiques.md](zones_critiques.md) ont reçu « OK avec le tableau » ; leurs temps ASR restent provisoires. Huit zones acoustiques ciblées ont ensuite été étiquetées dans la [revue acoustique](acoustic-review.md), sans qualifier de seuil relatif au bruit.
 
 ## 1. Écouter et corriger les textes
 
@@ -29,7 +29,7 @@ notepad "docs\cadrage\feas-pm-01-corpus\candidate_en_continu_copie.txt"
 ffplay -nodisp -autoexit -i "sound example\voxpopuli\clips\long_examples\en_continuous60_2020_CANDIDATE.wav"
 ```
 
-L'utilisateur a précisé que le début du français avec pauses (0–4 s) est en anglais. Parakeet n'avait proposé aucun mot avant 6,72 s : ses temps ne couvrent donc pas ce début. La note « 0–6 : pause » a été conservée telle quelle, sans en déduire un intervalle acoustique précis.
+L'utilisateur a précisé que le début du français avec pauses (0–4 s) est en anglais. Parakeet n'avait proposé aucun mot avant 6,72 s : ses temps ne couvrent donc pas ce début. L'écoute ciblée F1 confirme maintenant une vraie pause vers 5–6 s et la reprise du français autour de 6,5 s, sans attester les bornes exactes à l'échantillon.
 
 ## 2. Fixer les deux préfixes exacts à 30 secondes
 
@@ -50,7 +50,7 @@ L'utilisateur a répondu « OK avec le tableau » pour les quatre cas, après av
 
 ## 4. Valider séparément l'acoustique
 
-L'utilisateur a indiqué que cette étape n'avait **pas été faite**, car trop fastidieuse, et a demandé de « considérer OK ». Cette instruction dispense d'une nouvelle longue écoute, mais ne fournit aucune étiquette humaine de `PAUSE`, `HÉSITATION_VOISÉE`, `BRUIT` ou `PAROLE_FAIBLE`, ni une plage de bruit seul vérifiée. Le statut acoustique reste **NON VALIDÉ** ; aucun seuil relatif au bruit n'est retenu. Cette réserve est indépendante de l'approbation des textes.
+Après avoir dispensé la revue acoustique longue, l'utilisateur a écouté huit extraits ciblés (15,6 s cumulées) et donné les étiquettes consignées dans la [revue acoustique](acoustic-review.md) et le [manifeste](manifest.json). F1, F2 et E1 contiennent de vraies pauses ; FC2 et EC3 n'en contiennent pas ; FC1, EC1 et EC2 contiennent des reprises de souffle ou micro-pauses. Les plages les plus calmes des continus ne sont pas validées comme bruit seul. Le contrôle acoustique est **PARTIEL** et aucun seuil relatif au bruit n'est retenu. Cette réserve est indépendante de l'approbation des textes.
 
 ## 5. Donner un accord explicite
 

@@ -377,7 +377,7 @@
   "human_review": {
     "texts": "APPROUVE_HUMAIN",
     "boundary_tables": "USER_SAID_OK_WITH_TABLE; timing remains provisional",
-    "acoustics": "NOT_REVIEWED_BY_USER; user requested consider ok, not an acoustic label",
+    "acoustics": "TARGETED_HUMAN_LABELS_RECORDED_2026-10-21; no continuous-WAV noise-only range certified",
     "feas_pm_01": "NOT_AUTHORIZED"
   },
   "acoustic_review_clips": [
@@ -389,7 +389,7 @@
       "source_wav_sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
       "start_sample": 0,
       "end_sample_exclusive": 115200,
-      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+      "status": "HUMAN_LABEL_RECORDED"
     },
     {
       "id": "F2_pause_francaise",
@@ -399,7 +399,7 @@
       "source_wav_sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
       "start_sample": 198400,
       "end_sample_exclusive": 220800,
-      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+      "status": "HUMAN_LABEL_RECORDED"
     },
     {
       "id": "E1_pause_anglaise",
@@ -409,7 +409,7 @@
       "source_wav_sha256": "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a",
       "start_sample": 188800,
       "end_sample_exclusive": 209600,
-      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+      "status": "HUMAN_LABEL_RECORDED"
     },
     {
       "id": "FC1_parole_faible",
@@ -419,7 +419,7 @@
       "source_wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
       "start_sample": 48000,
       "end_sample_exclusive": 75200,
-      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+      "status": "HUMAN_LABEL_RECORDED"
     },
     {
       "id": "FC2_zone_calme",
@@ -429,7 +429,7 @@
       "source_wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
       "start_sample": 520000,
       "end_sample_exclusive": 536000,
-      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+      "status": "HUMAN_LABEL_RECORDED"
     },
     {
       "id": "EC1_baisse_energie",
@@ -439,7 +439,7 @@
       "source_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
       "start_sample": 59200,
       "end_sample_exclusive": 78400,
-      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+      "status": "HUMAN_LABEL_RECORDED"
     },
     {
       "id": "EC2_baisse_energie",
@@ -449,7 +449,7 @@
       "source_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
       "start_sample": 544000,
       "end_sample_exclusive": 558400,
-      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+      "status": "HUMAN_LABEL_RECORDED"
     },
     {
       "id": "EC3_zone_calme",
@@ -459,7 +459,23 @@
       "source_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
       "start_sample": 872000,
       "end_sample_exclusive": 886400,
-      "status": "ACOUSTIC_LABEL_PENDING_HUMAN"
+      "status": "HUMAN_LABEL_RECORDED"
     }
-  ]
+  ],
+  "human_acoustic_labels": {
+    "status": "HUMAN_LABEL_RECORDED",
+    "date": "2026-10-21",
+    "evidence": "Explicit user reply after listening to the eight identified clips; exact wording in acoustic-review.md",
+    "labels": [
+      {"id": "F1_intro_transition", "class": "EN_TO_FR_TRUE_PAUSE_5_TO_6_S"},
+      {"id": "F2_pause_francaise", "class": "TRUE_PAUSE_WITH_BREATH"},
+      {"id": "E1_pause_anglaise", "class": "TRUE_PAUSE_WITH_BREATH"},
+      {"id": "FC1_parole_faible", "class": "VERY_SHORT_BREATH_PAUSE"},
+      {"id": "FC2_zone_calme", "class": "NO_PAUSE_EMPHASIS"},
+      {"id": "EC1_baisse_energie", "class": "MICRO_PAUSE_WITH_BREATH_NOISE"},
+      {"id": "EC2_baisse_energie", "class": "MICRO_PAUSE_WITH_BREATH_NOISE"},
+      {"id": "EC3_zone_calme", "class": "NO_PAUSE"}
+    ],
+    "identity_rule": "Each label id resolves to the acoustic_review_clips record with clip and source WAV SHA-256; modification of either hash invalidates that label"
+  }
 }
