@@ -1,6 +1,6 @@
-Avancée : orientation produit définie à partir du parcours micro, du worker Parakeet et des résultats A/B existants.
-Blocage : la rapidité et la fiabilité des confirmations Parakeet dans l'application restent à vérifier.
-Décision : proposer trois lots de développement ; aucune implémentation n'est autorisée par ce cadrage.
+Avancée : lot 1 validé fonctionnellement par l'utilisateur dans la fenêtre Windows le 23 octobre 2026.
+Blocage : la confirmation progressive reste à réaliser ; le bruit parasite à la coupure reste une réserve du lot 1.
+Décision : lot 1 clos avec réserves ; l'implémentation du lot 2 nécessite un GO distinct.
 
 # Parakeet au microphone : texte provisoire et blocs confirmés
 
@@ -30,6 +30,12 @@ La vitesse d'apparition du provisoire, la précision des mots et le délai du pr
 | 2 — Confirmation et fin | Nouveau module de réconciliation dans `crates/whisper-adapters/src/parakeet_live.rs` ou un module voisin si la taille l'exige ; `crates/whisper-core/src/ports.rs` et `application.rs` : événements et états séparés provisoire/confirmé/lacune ; réutiliser l'export TXT/SRT/WAV et l'état incomplet de `direct_live.rs`. | Préfixe confirmé immuable, aucun saut ni doublon aux raccords, lacunes conservées et fin de séance explicitement complète ou incomplète. |
 | 3 — Interface et recette | `crates/whisper-desktop/src/ui.rs` : autoriser Parakeet micro seulement si le parcours est disponible, montrer provisoire, confirmé, lacunes et calcul effectif ; vérifications ciblées dans les modules touchés, puis essai réel dans la fenêtre Windows par l'utilisateur. | Parcours CPU, GPU, Auto et choix du micro compréhensibles ; imports Parakeet et micro Turbo inchangés ; sorties et messages vérifiés. |
 
+### Clôture du lot 1 — 23 octobre 2026
+
+L'utilisateur valide la recette manuelle du nouvel EXE Test (`SHA-256 F44FD01A5FAECD74FF1DC18C4BE25342A3AC909ED4A1DEA096530BE324C353B0`) : le worker Parakeet GPU démarre, le texte provisoire apparaît et évolue pendant la capture, les WAV enregistrés sont complets et corrects, et le texte provisoire n'est pas exporté comme confirmé. Cette validation porte sur le fonctionnement du lot 1, sans anticiper les blocs confirmés du lot 2.
+
+Lot 1 **clos avec réserves** : la revue indépendante n'a pas pu être effectuée ; un bruit parasite à la coupure a été observé par l'utilisateur, sans cause établie dans cette recette. Aucune nouvelle campagne n'est demandée pour cette clôture.
+
 Le protocole de mots, les profils de worker et les contraintes de durée du worker restent inchangés tant que le contrat fichier suffit. Si le réemploi du worker impose une extension IPC, la limiter au transport des fenêtres, sans modifier l'appel natif ni considérer le profil import comme une preuve de qualité micro. Le plan détaillé de ce point et les chemins exacts seront soumis avec le premier lot.
 
 ## Acceptation dans l'application Windows
@@ -41,4 +47,4 @@ Le protocole de mots, les profils de worker et les contraintes de durée du work
 5. Le calcul demandé et le moteur effectif CPU/GPU/Auto, la source micro choisie et les règles de repli existantes restent respectés. Les imports Parakeet et la dictée Turbo ne régressent pas.
 6. Dans la fenêtre réelle, relever séparément le délai du provisoire et celui du premier bloc confirmé, notamment par rapport à l'exigence GPU de 15 s, ainsi que le retard de traitement. Un échec de cette cible est rapporté ; il n'est pas masqué par un provisoire rapide.
 
-**Gate :** demander un GO écrit précisant le premier lot, les chemins autorisés et les vérifications. Ce document n'autorise ni modification du produit, ni compilation, ni campagne FEAS-PM-01.
+**Gate :** demander un GO écrit précisant le lot 2, les chemins autorisés et les vérifications. Ce document n'autorise ni modification du produit, ni compilation, ni campagne FEAS-PM-01.
