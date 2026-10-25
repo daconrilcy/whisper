@@ -11,7 +11,7 @@ Décision : conserver cette référence documentaire pour rédiger et relire le 
 - Besoin source : « Whisper — Réglage du niveau du microphone », CA-01 à CA-07, fourni dans cette conversation.
 - Acceptation produit dans cette session : **« ok sur les recommandation Q1 à Q5 »**. La réponse suivante a confirmé les décisions ci-dessous et maintenu le corpus précis et les tolérances avant les vérifications concernées.
 - Mission documentaire suivante : **« tu peux passer à la rédaction du plan »**. Elle autorise la rédaction dans `docs/cadrage/` et les commits locaux prévus par AGENTS.md ; aucun code produit, test, compilation, capture, installation, téléchargement ou push n'en découle.
-- La revue conversationnelle antérieure était CLEAN pour une proposition DRAFT. Elle ne vaut pas revue des présents fichiers Git. Statut de cette référence : **à relire sur sa version Git**.
+- La revue conversationnelle antérieure était CLEAN pour une proposition DRAFT. La revue indépendante du fichier Git par `rust_design_reviewer` a ensuite conclu **DESIGN CLEAN sur `d10516808804f461ca1597b78d0d176f3f3baa27`**. Le constat R-MIC-D01 (identité avant ouverture) est fermé. Le conseil de fixture spectrale est précisé ci-dessous ; les versions et la revue PLANS sont suivies dans le plan associé.
 
 ## Objectif, périmètre et décisions acceptées
 
@@ -95,7 +95,7 @@ FFT sur 2048 échantillons contigus, sans remplissage artificiel de la première
 
 Bornes techniques : conserver les 100 blocs audio existants ; file de sonde séparée de quatre blocs mono A/B, chacun d'au plus 20 ms au taux natif (découper un bloc plus grand). Insertion sans attente ; débordement compte les mises à jour perdues, casse la continuité de la fenêtre de sonde et exige une fenêtre complète reconstruite. Calculateur : deux fenêtres FFT de 2048, deux fenêtres RMS bornées par Fs, buffers/scratch FFT dimensionnés à l'ouverture ; dernier instantané partagé sans historique ni file par lecteur. Une nouvelle commande peut remplacer une commande non encore acquise ; seule la révision réellement prise par la capture est confirmée. Accusé d'application et accusé de sauvegarde restent distincts.
 
-Tolérances algorithmiques proposées par l'architecte pour la réalisation : A/B identiques au neutre hors limitation ; RMS/pic erreur absolue <=1e-6 FS ; conversion dB hors silence <=0,001 dB ; identité de Parseval erreur <=`1e-12 + 1e-6*référence` ; compteurs de dépassement, ordre, nombre et frontières d'index exacts. Sinus centré sur un bin non saturé : puissance intégrée amplitude²/2 et rapport pré/post gain². Ce sont des critères techniques, pas des seuils de qualité vocale acceptés implicitement.
+Tolérances algorithmiques proposées par l'architecte pour la réalisation : A/B identiques au neutre hors limitation ; RMS/pic erreur absolue <=1e-6 FS ; conversion dB hors silence <=0,001 dB ; identité de Parseval erreur <=`1e-12 + 1e-6*référence` ; compteurs de dépassement, ordre, nombre et frontières d'index exacts. Pour la fixture sinus non saturée au bin 64 de N=2048, loin de DC/Nyquist : puissance intégrée amplitude²/2 et rapport pré/post gain². Pour les autres bins, l'oracle général est la puissance pondérée de Parseval ci-dessus ; ne pas généraliser amplitude²/2. Précision du conseil ADVISORY du reviewer avant T5. Ce sont des critères techniques, pas des seuils de qualité vocale acceptés implicitement.
 
 ### Persistance et erreurs
 
@@ -135,4 +135,4 @@ Choix FFT : rendre directe la version Rustfft 6.4.1 déjà verrouillée est l'op
 
 ## Passage à la planification
 
-Le plan associé sera `docs/cadrage/plan-evo-micro-level.md`, neuf tâches maximum conformément au découpage déjà présenté. La référence ci-dessus doit être relue sur sa révision Git avant d'en déduire un état prêt pour la planification. Les détails D1/D2/D3 ont leurs échéances propres et ne valent ni refus de rédiger ni autorisation d'exécuter.
+Le plan associé est `docs/cadrage/plan-evo-micro-level.md`, neuf tâches maximum conformément au découpage déjà présenté. La revue DESIGN ci-dessus permet sa rédaction ; les précisions de statut et de fixture seront incluses dans la relecture du couple cadrage/plan. Les détails D1/D2/D3 ont leurs échéances propres et ne valent ni refus de rédiger ni autorisation d'exécuter.
