@@ -1,6 +1,6 @@
-Avancée : défaut d'arrêt du test micro corrigé après retour Windows, régression UI et revue CLEAN ; nouvel EXE personnel compilé.
-Blocage : confirmation de ce correctif dans la fenêtre Windows à refaire ; réserve de complétude Parakeet CPU inchangée.
-Décision : remettre le nouvel EXE pour recette utilisateur, sans nouvelle campagne de qualité ni modification du moteur.
+Avancée : arrêt du test confirmé par l'utilisateur ; redémarrage après capture corrigé et indicateur d'écrêtage ajouté, revue CLEAN et EXE compilé.
+Blocage : confirmation Windows de ces deux nouveaux points à faire ; réserve de complétude Parakeet CPU inchangée.
+Décision : remettre l'EXE pour recette, confirmer le calcul spectral existant sans ajouter de graphique ou modifier le moteur.
 
 # Whisper — Plan du réglage du niveau microphone
 
@@ -376,3 +376,39 @@ Cause dans `crates/whisper-desktop/src/ui.rs` : `busy` devient vrai lorsque le t
 Version manifeste toujours 0.1.0, champ Windows FileVersion non renseigné ; le hash identifie ce correctif. Les ressources personnelles installées (deux workers Parakeet, cinq/neuf DLL CPU/GPU et deux modèles) sont présentes et hashées en lecture seule. Aucun programme utilisateur arrêté, aucune fenêtre pilotée, aucune installation. La réserve Parakeet CPU et les résultats D2 précédents sont inchangés ; aucune campagne native de corpus n'a été répétée pour ce correctif UI.
 
 Archive additionnelle `target/parakeet-tests/micro-level/archives/microphone-stop-ui/` : **7 fichiers, 46 561 octets**, 7/7 SHA de copies conformes, aucun WAV/cache. Surveillance terminée, aucun processus Cargo/rustc/worker restant avant cette rédaction. Espace libre final : **130 317 332 480 octets**. Les seuls commits de cette clôture concernent les deux documents de cadrage ; code non commité, pas de push. **À confirmer par l'utilisateur** : démarrer le test, observer la jauge, l'arrêter, vérifier son état arrêté puis le relancer dans la vraie fenêtre Windows.
+
+## Retour Windows suivant : saturation et reprise du test après capture
+
+### Acceptation et correctifs du périmètre T6/T7
+
+L'utilisateur confirme : **« le test du micro s'arrête correctement maintenant »**. Il demande un indicateur visuel de saturation, la confirmation de la mesure des fréquences et signale qu'après une capture micro il ne peut plus redémarrer le test. L'indicateur d'écrêtage et le cycle de reprise relèvent du périmètre déjà accepté T6/T7 ; aucun graphique fréquentiel ni nouvelle stratégie moteur n'est ajouté.
+
+Le seul fichier source modifié par ce correctif est `crates/whisper-desktop/src/ui.rs` (déjà dirty du lot initial). Cause du redémarrage : bouton et handler refusaient `active_job.is_some()`, alors que le job terminé garde son identifiant pour les résultats. Ils partagent maintenant une garde fondée sur l'activité réelle (`window_must_remain_open`, test actif, phases de capture Initializing/Active). Une capture en cours interdit le test ; un état Complete/Stopped permet de le démarrer sans effacer `last_result`. Le reviewer a vérifié que le vrai cœur accepte cette transition, sans s'appuyer uniquement sur le faux gestionnaire de l'UI.
+
+Indicateur rouge **« Écrêtage après gain détecté »**, à côté de la jauge : il utilise le compteur existant `MicrophoneMeter.limiter_samples > 0`, avec identité/job/génération/source courante, relevé âgé d'au plus 500 ms et activité de capture/test. Un compteur nul, un relevé ancien/périmé ou une capture arrêtée ne produit pas d'alerte actuelle. Il s'agit d'un écrêtage numérique après gain ; ni un diagnostic de saturation analogique amont ni le tampon plein `CAPTURE_SATURATED`. Aucun seuil heuristique ou maintien temporel supplémentaire n'est introduit.
+
+### Revue et preuve de rendu
+
+- Premier candidat : `DesktopMicrophoneStop-20261025T221254784-f54958bb`, **3 tests réussis**, 31 filtrés, SelfTest préalable et contrôles de formatage/diff réussis. Les tests utilisent le rendu egui complet et conservent le résultat précédent après Complete, puis Tester -> Started -> Applied(0 dB/trame 0) -> Meter -> Stop -> réouverture ; l'activité continue est refusée.
+- La première revue émet **R9 IMPORTANT** : après Stop direct, la capture passe à Stopped et le job à Draining, mais le dernier relevé peut rester stocké et encore frais. Le badge restait alors rouge jusqu'à 500 ms. Le correctif R9 réserve le badge à un test actif ou à une capture Initializing/Active, en conservant les autres contrôles. Il ne supprime pas le relevé historique du cœur ; il cesse de le présenter comme alerte actuelle.
+- La régression rend une mesure fraîche écrêtée, vérifie la présence de l'alerte, clique le **vrai bouton Stop direct**, conserve volontairement la mesure pendant Stopped/Draining et constate l'absence du badge dès le frame suivant. Le test Stop du test micro et réouverture reste vert. Deux échecs d'ordre d'assertions dans le test R9 sont corrigés localement et conservés dans leurs logs, sans changement du moteur.
+- `DesktopMicrophoneStop-20261025T222613837-bb7e8da2` : **3 réussis, 0 échec, 0 ignoré** ; SelfTest, formatage ciblé `skip_children=true` et `git diff --check` réussis. Le même reviewer ferme **R9** et rend **CLEAN sur ce delta** au second passage (un cycle de correction). La transmission initiale du constat n'avait pas relancé l'implémenteur terminé ; la session principale a corrigé cette erreur de coordination, sans changement de périmètre.
+- Aucun périphérique réel ni fenêtre Windows piloté ; l'utilisateur a fermé lui-même l'EXE avant remplacement. Les tests headless ne remplacent pas la confirmation matérielle de ces nouveaux comportements.
+
+### Confirmation des mesures de fréquences
+
+Lecture du code existant `microphone_probe.rs` : FFT **2 048 points**, fenêtre **Hann périodique**, PSD unilatérale **1 025 composantes** incluant DC/Nyquist, pré-gain A et post-gain/limitation B au taux natif du flux, jusqu'à **10 publications par seconde**. Une composante d'indice k correspond à `k * Fs / 2048`, jusqu'à `Fs/2` ; calcul hors du callback audio, buffers réutilisés. Les tests numériques Hann/Parseval/multitone déjà exécutés dans le lot restent les preuves de calcul ; ils n'ont pas été rejoués sans modification de la sonde. Le spectre est calculé en arrière-plan, **aucun graphique de fréquences n'est affiché par cette correction**. Aucun nouveau calcul de hauteur fondamentale ni diagnostic par canal n'est revendiqué.
+
+### Paquet courant et limites
+
+Build gardé `PersonalRelease-20261025T222703825-bfee0bf1` : **SelfTest PASS, exit 0 en 4 s**, release personnel hors ligne/verrouillé, sans modification source après la revue. Dossier `target/parakeet-tests/micro-level/recette-personnelle/`, exactement trois EXE vérifiés identiques aux sorties Cargo :
+
+| Fichier | Octets | SHA-256 courant |
+| --- | --- | --- |
+| `whisper-desktop.exe` | 14 325 248 | `93B7738AC3EB3FCA2865321FDDE166F765CFF40D91B49920A7768415091EB6C7` |
+| `whisper-worker-cpu.exe` | 20 809 728 | `3613ADC5884C5D28BCB85992647233E6F72653EC93FC205E1ECCC9284C393E7A` |
+| `whisper-worker-gpu.exe` | 20 882 432 | `3537A0E5E1B1E1A20316651AD2156E32213C67A23B78DA0DFD0E152CE2D24234` |
+
+Version Cargo toujours 0.1.0, FileVersion PE absent ; l'empreinte distingue ce build. Les 18 ressources de l'installation personnelle ont été hashées en lecture seule : deux workers Parakeet, cinq DLL CPU, neuf DLL GPU, deux modèles. Aucun programme utilisateur fermé par l'agent, aucune installation ni fenêtre lancée. Réserve de complétude Parakeet CPU inchangée ; aucune campagne de transcription native supplémentaire pour ce correctif UI.
+
+Archive `target/parakeet-tests/micro-level/archives/microphone-saturation-restart-ui-20261025/` : **12 fichiers, 109 040 octets**, SHA-256 source/copie conformes pour chaque fichier, sans WAV/cache/manifeste nouveau. Garde et processus de campagne terminés avant cette rédaction. Espace libre final : **130 246 270 976 octets**. Aucun code commité ni push ; seuls les deux documents de cadrage sont commités localement par la session principale. À vérifier par l'utilisateur : capture -> arrêt/finalisation -> nouveau test, alerte rouge lors d'un gain provoquant l'écrêtage, disparition à l'arrêt et jauge actualisée pendant le test.

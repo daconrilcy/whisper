@@ -1,6 +1,6 @@
-Avancée : arrêt du test micro corrigé après retour Windows, régression UI et revue CLEAN ; nouvel EXE compilé.
-Blocage : confirmation utilisateur de ce correctif dans la fenêtre à refaire ; réserve Parakeet CPU inchangée.
-Décision : remettre le nouvel EXE et conserver les limites de qualité détaillées dans le plan.
+Avancée : arrêt du test confirmé par l'utilisateur ; reprise après capture corrigée et indicateur rouge d'écrêtage ajouté, revue CLEAN et EXE compilé.
+Blocage : ces nouveaux points restent à confirmer dans la fenêtre ; réserve de qualité Parakeet CPU inchangée.
+Décision : remettre le nouvel EXE et confirmer le spectre calculé en arrière-plan, sans nouvelle visualisation fréquentielle.
 
 # Whisper — Réglage du niveau du microphone
 
@@ -134,6 +134,8 @@ Choix FFT : rendre directe la version Rustfft 6.4.1 déjà verrouillée est l'op
 - Railguard nouveau : non applicable, aucun demandé. AGENTS.md existant reste actif. Reprise après panne et confidentialité de nouvelles archives : pas de fonctionnalité ajoutée ; le test préalable ne crée aucun fichier.
 
 ## Passage à la planification
+
+Retour utilisateur suivant : arrêt du test micro confirmé dans la fenêtre Windows. Le test était ensuite bloqué après une capture parce que son bouton/handler refusaient tout job encore identifié, même Complete ; le correctif UI utilise l'activité réelle et préserve le résultat précédent. Une alerte rouge « Écrêtage après gain détecté » lit le compteur numérique de limitation existant, uniquement pour une mesure actuelle et une capture/test active ; elle disparaît dès Stop, y compris avec un relevé historique encore stocké pendant Draining. Les trois tests headless ciblés passent et la même revue indépendante ferme R9 puis déclare ce delta CLEAN. Le plan contient preuves et nouveau hash EXE. La sonde calcule déjà la PSD A/B avec FFT 2 048/Hann, 1 025 composantes au taux natif jusqu'à 10 publications/s ; le graphique de fréquences n'est pas ajouté. Recette de reprise/saturation à confirmer par l'utilisateur ; qualité Parakeet CPU inchangée.
 
 Retour de recette Windows ultérieur : l'utilisateur confirme le dernier EXE et signale un test micro impossible à arrêter, avec le dernier message de gain à 0 dB/trame 0. Le correctif dans `ui.rs` retire le groupe microphone du conteneur global désactivé pendant `busy`, qui neutralisait aussi Arrêter ; source/actualisation restent verrouillées pendant l'activité. Un test egui sur le rendu complet clique Tester -> reçoit Started/Applied/Meter -> clique le vrai Stop -> vérifie invalidation -> redémarre ; il passe, et la revue indépendante est CLEAN sur ce delta. Le nouvel EXE personnel est compilé et hashé, sans fenêtre pilotée ni nouveau test moteur. Le message de gain reste une dernière application, distincte de l'activité de la jauge. La confirmation matérielle dans la fenêtre reste à l'utilisateur. Le plan contient le build, les empreintes et la recette ; la réserve Parakeet CPU ci-dessous reste inchangée.
 
