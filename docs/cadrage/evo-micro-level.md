@@ -1,6 +1,6 @@
-Avancée : arrêt du test confirmé par l'utilisateur ; reprise après capture corrigée et indicateur rouge d'écrêtage ajouté, revue CLEAN et EXE compilé.
-Blocage : ces nouveaux points restent à confirmer dans la fenêtre ; réserve de qualité Parakeet CPU inchangée.
-Décision : remettre le nouvel EXE et confirmer le spectre calculé en arrière-plan, sans nouvelle visualisation fréquentielle.
+Avancée : extension d'affichage des spectres pendant le test microphone en cours de cadrage, sur autorisation documentaire de l'utilisateur.
+Blocage : proposition spectrale à relire puis à accepter avant implémentation ; réserves Windows et Parakeet CPU précédentes conservées.
+Décision : proposer deux graphes comparables avant gain et après gain/limitation ; aucun code ni EXE modifié par ce cadrage.
 
 # Whisper — Réglage du niveau du microphone
 
@@ -25,7 +25,7 @@ Permettre à l'utilisateur Windows de régler le niveau du microphone dans Whisp
 | Q4 | Sonde mono au taux natif ; A avant gain, B après gain et limitation, avant rééchantillonnage | RMS 100 ms, jusqu'à 20 publications/s ; spectre Hann 2048 échantillons jusqu'à 10 publications/s ; péremption après 500 ms. Pas de diagnostic séparé des canaux. |
 | Q5 | Comparaison de référence à 0 dB, puis voix faible/forte et changements de gain sur Turbo et Parakeet | Vérifier continuité et absence de régression ; corpus concret et règle détaillée de comparaison à arrêter avant la qualification concernée. Aucun seuil WER nouveau accepté. |
 
-Exclus : modification du volume Windows, gain automatique, réglage des imports, visualisations autres que la jauge simple. Différés jusqu'à demande distincte : diagnostic par canal, retour audio, reprise après panne et toute nouvelle visualisation. Les garanties de publication existantes ne deviennent pas une transaction atomique TXT/SRT/WAV.
+Périmètre initial : modification du volume Windows, gain automatique, réglage des imports et visualisations autres que la jauge simple exclus. La demande distincte du 25 octobre 2026 ouvre uniquement l'affichage spectral pendant le test microphone, selon l'extension ci-dessous, encore proposée. Diagnostic par canal, retour audio, reprise après panne et autres visualisations restent différés. Les garanties de publication existantes ne deviennent pas une transaction atomique TXT/SRT/WAV.
 
 ## Observations en lecture seule
 
@@ -144,3 +144,81 @@ Bilan final au 25 octobre 2026 : l'utilisateur a ensuite autorisé le correctif 
 Accord ultérieur de réalisation, 25 octobre 2026 : l'utilisateur demande explicitement l'implémentation du plan associé, autorise l'adaptation et la vérification de la garde existante ainsi que les tests prévus sous `target/parakeet-tests/micro-level/` et la compilation partagée sous `target/parakeet-tests/cargo-shared/`. Il confirme pour D2 les quatre WAV FR/EN du corpus FEAS-PM-01 et leurs textes corrigés `_copie.txt`, avec référence à 0 dB, variantes faible/forte et changement de gain, comparaison de continuité/durée/texte sans nouveau seuil WER ; il choisit le profil personnel existant. Le détail de cet accord et les résultats de réalisation sont suivis dans le plan. Les mentions précédentes de mission documentaire conservent leur portée historique ; aucune ancienne dérogation de campagne n'est réutilisée.
 
 Le plan associé est `docs/cadrage/plan-evo-micro-level.md`, neuf tâches maximum conformément au découpage déjà présenté. La revue DESIGN ci-dessus permet sa rédaction ; les précisions de statut et de fixture seront incluses dans la relecture du couple cadrage/plan. Les détails D1/D2/D3 ont leurs échéances propres et ne valent ni refus de rédiger ni autorisation d'exécuter.
+
+## Extension SPECTRE v1 — affichage pendant le test microphone
+
+### Source, statut et carte du contenu
+
+Demande distincte du 25 octobre 2026 : « Peux tu afficher le spectre des fréquences dans l’interface pendant le test du micro, avant et après gain ? ». Après qualification et revue contradictoire PASS, la session principale a demandé : « M’autorises-tu à compléter les deux documents micro-level existants avec cette extension et son plan, à te soumettre avant de coder ? ». Réponse exacte : **« Je t autorise »**. Cet accord autorise cette rédaction et ses commits locaux, pas l'implémentation, une compilation ou une nouvelle campagne.
+
+CHANGE-S01 est un DESIGN_CHANGE et PLAN_CHANGE limité à l'affichage spectral du test. Il ouvre le différé initial pour ce seul parcours. Base documentaire : `1b31d858`, branche `evo-startup-perf` ; les sources micro-level sont déjà modifiées/non suivies et sont préservées. Leur présence locale est nécessaire au futur lot ; HEAD seul ne contient pas cette implémentation. Aucun code n'est commité par cette mission.
+
+Le présent ajout regroupe besoin, exigences, domaine, architecture, états, risques et acceptation. Le plan associé porte tâches, chemins et vérifications de l'extension. Les sections historiques ci-dessus conservent leurs résultats et réserves ; leurs anciens verdicts CLEAN ne couvrent pas SPECTRE. Auteur des deux fichiers : session principale ; contributions de qualification et d'architecture en lecture seule. Statut initial : proposition à relire puis à soumettre à l'utilisateur.
+
+### Besoin, exigences et critères observables
+
+Utilisateur : personne réglant son microphone dans l'application Windows existante. Résultat : observer la répartition des fréquences avant gain et après gain/limitation, et comparer l'effet du réglage, pendant le test explicite sans moteur ni enregistrement.
+
+Chaque ligne relie le besoin qualifié CA-S01 à S07 à une exigence REQ-S, un parcours UC-S et un critère AC-S de même numéro. Les preuves produit sont **NOT RUN** ; les méthodes sont dans le plan.
+
+| IDs | Scénario et résultat attendu | Responsabilité |
+| --- | --- | --- |
+| S01 | Démarrer Tester : deux zones nommées « Avant gain » et « Après gain et limitation » portent fréquence en Hz et densité en dBFS/Hz. Aucun graphe pendant capture, import ou transcription. | Présentation desktop. |
+| S02 | Sur sinus puis changement de gain, comparer la même fenêtre audio A/B avec mêmes axes/échelles. À 0 dB sans limitation les courbes coïncident ; à +6 dB sans limitation B est décalée de +6 dB aux composantes significatives. Une fenêtre traversant le changement affiche « Gain modifié dans cette fenêtre ». | Sonde, contrat et présentation. |
+| S03 | Au taux natif Fs, montrer les 1 025 composantes FFT2048 de 0 à Fs/2 ; aucune fréquence inventée au-delà. Avant une fenêtre complète : attente, sans remplissage fictif. | Adaptateur et projection graphique. |
+| S04 | Silence valide distinct d'attente, indisponibilité ou péremption. À plus de 500 ms depuis acquisition de la mesure spectrale, retirer les courbes actuelles ; aucune publication RMS intermédiaire ne rafraîchit cet âge. | Application et présentation, horloge contrôlée. |
+| S05 | Arrêt, erreur, perte de source, fermeture, changement de session/source ou passage en capture invalident les courbes. Reprendre un test après capture finalisée affiche une attente puis ses propres données, sans réafficher le spectre précédent. | Cycle application/test. |
+| S06 | Pendant les mises à jour et au redimensionnement, Tester/Arrêter, gain et saturation restent accessibles. L'utilisateur confirme la lisibilité et le fonctionnement dans la fenêtre Windows. | Desktop et recette utilisateur. |
+| S07 | Réutiliser le flux et la FFT existants, conserver seulement le dernier spectre, sans historique ni calcul graphique dans le rappel audio. Mises à jour perdues remplaçables, sans attente sur la voie audio ni modification du PCM WAV/STT. | Adaptateur/application/UI. |
+
+Exclusions SPECTRE : affichage spectral pendant capture/transcription/import ; historique/export ; diagnostic par canal ; fréquence fondamentale ; retour haut-parleur ; égalisation/AGC ; nouvelle acquisition, nouvelle FFT, moteur, modèle, dépendance ou frontière native. Le graphe ne prouve pas l'absence de saturation analogique avant acquisition. La réserve Parakeet CPU antérieure n'est pas réouverte par cette extension.
+
+### Proposition de présentation et états visibles
+
+DEC-S01 proposée : deux graphes alignés verticalement, titres indépendants et axes communs, sous les commandes et l'alerte de saturation. L'alternative de deux courbes superposées économise la hauteur mais masque leur coïncidence à 0 dB ; elle n'est pas retenue. Les commandes restent hors de toute zone graphique pouvant les désactiver ; une zone défilante ou des hauteurs adaptées maintiennent leur accès sur petite fenêtre. La disposition est à confirmer lors de l'acceptation du plan, pas par une décision préalable distincte.
+
+DEC-S02 proposée : axe fréquence linéaire de 0 à Fs/2 avec graduations Hz/kHz, incluant DC et Nyquist ; axe vertical fixe commun de -120 à 0 dBFS/Hz, sans ajustement automatique indépendant. Conversion `10*log10(PSD)` (référence 1 FS²/Hz) ; zéro reste un silence, jamais une valeur mesurée à -120. Le plancher est un seuil de dessin, pas un plancher du microphone. Annoter les valeurs sous/hors échelle ; les données ne sont pas modifiées pour entrer dans le cadre. Alternative logarithmique non retenue pour cette première version, car elle exclurait DC et compliquerait l'affichage intégral ; pas de sélecteur supplémentaire.
+
+Repos : aucune courbe. Ouverture/test sans spectre complet : « En attente du spectre… ». Paire complète valide : courbes et unité ; silence : « Silence détecté » sans fausse énergie au plancher. Une seule courbe silencieuse conserve son propre état, l'autre reste lisible. Mesure rejetée/perdue : « Spectre indisponible » ; mesure trop ancienne : « Spectre périmé », sans anciennes courbes actuelles. Stop/erreur/fermeture/passage capture : retrait immédiat dès la commande, sans attendre la fin du drain. Tout nouveau test repart sans cache. Les jauges RMS/pic et l'alerte d'écrêtage gardent leur propre fenêtre et validité.
+
+Q-S01 (détail réversible, owner desktop, avant recette) : couleurs, nombre de graduations et hauteur, suivant le thème et la largeur disponibles ; aucun changement des unités, des bornes ou des états sans mise à jour de DEC-S01/02. Pas de question produit structurante restant à résoudre avant la revue documentaire.
+
+### Domaine, frontières et contrat spectral proposé
+
+Contribution technique : `rust_architect`, lecture seule des sources locales le 25 octobre 2026 ; intégration par l'auteur principal. DEC-S03 : événement distinct `MicrophoneSpectrum(SpectrumUpdate)` réservé au test, plutôt qu'un ajout de 2 050 valeurs à chaque `MicrophoneMeter`. La jauge et les parcours de capture Turbo/Parakeet ne transportent pas de spectre supplémentaire. Le format est un contrat applicatif local, pas une modification du protocole des workers natifs.
+
+Le domaine pur dans `whisper-core/src/microphone_level.rs` porte la paire et sa validité : job, génération, identité réelle, séquence spectrale, époque de continuité, taux natif, FFT2048, plage `[first_frame,last_frame)` de 2 048 échantillons, temps monotone d'acquisition et premières/dernières valeurs/révisions de gain avec drapeau multirévision calculés sur **cette fenêtre FFT**. Les métadonnées RMS100ms ne peuvent pas être réutilisées comme description de la fenêtre FFT. Les voies A/B partagent exactement cette identité, plage, époque et acquisition.
+
+DEC-S04 : préserver `Eq` et serde du contrat existant avec, pour chaque composante, `Silence` si PSD=0 ou un entier signé en milli-dB de `10*log10(PSD)` arrondi au milli-dB. Vérifier finitude, positivité avant logarithme et représentabilité, sans tronquer aux bornes de dessin ; entrée négative/non finie, nombre différent de 1 025 composantes, paire incomplète, taux/plage incohérents rendent la paire indisponible. Erreur de conversion <=0,0005 dB sur valeurs positives représentables ; aucune nouvelle tolérance vocale. La PSD linéaire f64 et son calcul existants restent la référence dans l'adaptateur. L'alternative d'introduire des flottants dans les événements imposerait des modifications de l'égalité et de plusieurs contrats, sans bénéfice produit ici.
+
+Le calculateur de sonde produit et retient la dernière paire avec ses métadonnées propres, hors rappel audio. Un tick RMS sans nouvelle PSD ne la supprime pas et ne change ni son numéro ni son âge. Reset, rupture de continuité, mise à jour perdue ou invalidation du flux retirent aussi ce dernier spectre ; un état d'invalidation identifiable par époque est consultable sans attendre une nouvelle FFT. Le pump test transmet les nouveautés et une invalidation une seule fois par époque, pas une file historique. Les événements d'acquittement du gain gardent leur priorité, mais l'ordonnancement ne doit pas affamer jauge ou spectre sous commandes répétées : coalescence au dernier état et alternance bornée des publications de mesure. Pas d'acquittement de gain déduit d'une courbe.
+
+L'application est propriétaire du dernier état spectral courant. Elle accepte seulement test actif, identité/génération/source attendues, temps d'acquisition non futur, séquence croissante et époque non ancienne. Un changement d'époque invalide la paire précédente avant reconstruction ; une livraison retardée ne la réactive pas. Elle n'actualise pas le cache sur événement RMS ; stop demandé, erreur, source perdue, nouveau test ou démarrage capture l'effacent. L'UI filtre à nouveau validité et âge (périmée si >500 ms), même sans nouvel événement, grâce à un repaint planifié pendant le test. Aucune courbe n'est persistée ni rechargée au lancement.
+
+| Consommateur | Dépendances et responsabilités autorisées | Interdits / contrôle futur |
+| --- | --- | --- |
+| Domaine/core | Types purs et bornes du spectre ; std/serde déjà présents. | Aucun egui, FFT ou accès périphérique. Revue imports et tests de contrat. |
+| Application/core | Événements/ports qu'elle possède, filtre identité/époque/séquence, état courant et arrêt. | Aucun appel direct adaptateur/UI. Tests de livraison désordonnée et transitions. |
+| Adaptateur | Sonde existante, conversion vers contrat core et publication test. | Pas de second flux, nouveau moteur ou calcul dans callback ; revue rappel et tests de sonde/pump. |
+| Desktop | Vue applicative, projections et Painter egui existant. | Pas de lecture de sonde concrète ni logique de traitement audio. Tests du vrai widget et revue imports. |
+| Composition | Assemblage existant inchangé. | Aucun nouvel état métier parallèle. |
+
+Bornes : 1 025 composantes par voie, un dernier spectre retenu par sonde et par vue, aucun historique ni file non bornée de courbes ; au plus un événement spectral remplaçable en attente. Fréquence maximale du calcul inchangée (10 Hz). Reprojection graphique bornée aux 2 050 points par frame, hors thread audio. Le rappel d'acquisition, le PCM partagé WAV/STT, les fenêtres RMS, le gain et sa mémorisation restent gouvernés par le contrat initial.
+
+DEC-S05 : dessiner avec le Painter egui de l'eframe `=0.35.0` déjà déclaré, sans dépendance graphique, changement de Cargo.lock, technologie ou code natif supplémentaire. Les API Painter de découpage du rectangle, tracé de ligne et texte existent dans les sources Rust locales ; la preuve du rendu réel reste à produire. La réduction éventuelle de points pour la largeur du widget ne doit pas masquer un pic ; pour cette version, le tracé borné des 1 025 points est suffisant.
+
+### Sources, risques et readiness SPECTRE
+
+Preuves documentaires, lecture seule du 25 octobre 2026 : `microphone_probe.rs:26–62,197–210,250–276,353–500` établit cadences, validité, conversion actuelle sans PSD, fenêtres RMS/FFT distinctes et calcul Hann2048/1 025 valeurs. `worker_ipc.rs:1455–1584` établit le propriétaire test, sa file d'événements et son pump. `microphone_level.rs:218–240` et `ports.rs:426–462` établissent les contrats Eq/serde. `application.rs:743–760` établit le stockage de jauge et son retrait à l'arrêt ; les branches d'erreur et arrêt seront incluses au plan. `ui.rs:1323–1508,1590–1604` établit les commandes et le repaint existants ; `whisper-desktop/Cargo.toml` établit eframe. Ce sont des preuves de structure, pas un essai du futur graphe.
+
+| Risque | Mesure de conception / preuve attendue |
+| --- | --- |
+| RISK-S01 : gain RMS attribué à tort au spectre | Métadonnées dérivées des 2 048 échantillons FFT ; test où seule cette fenêtre traverse un changement. |
+| RISK-S02 : courbe périmée conservée pendant publications RMS, ou après perte | Horodatage spectral indépendant, cache par époque, invalidation explicite et horloge simulée ; ancien événement livré après Stop rejeté. |
+| RISK-S03 : commandes masquées par les graphes, arrêt redevenu inaccessible | Commandes au-dessus du bloc graphique, mise en page adaptée ; test headless du vrai rendu complet puis recette utilisateur. |
+| RISK-S04 : coût ou file disproportionnés | Dernière valeur remplaçable, 10 Hz maximum, aucune FFT supplémentaire, tests RMS intercalés et producteur plus rapide que lecteur. |
+| RISK-S05 : silence/échelle trompeurs | Zéro explicite, unités densité, mêmes bornes sans autoscale, indicateurs hors échelle et tests mathématiques. |
+
+Applicabilité : scope/use_cases/errors/domain/dependencies/concurrency/platform/acceptance/risks couverts ci-dessus et dans le plan. Plateforme : application Windows Rust existante, mêmes périphériques et installation personnelle ; pas de nouvelle dépendance native. Persistence/migration : N/A, état spectral seulement volatil, préférences et exports inchangés. Installation : seul futur remplacement du desktop de recette, ressources du profil vérifiées selon AGENTS.md. Reprise après panne et nouveau railguard : N/A hors besoin. Aucun SPIKE ou mécanisme de qualification supplémentaire proposé : la réutilisation est démontrée par les sources ; les tests comportementaux restent NOT RUN avant code.
+
+Readiness SPECTRE : **DESIGN PROPOSÉ, revue indépendante à effectuer sur commit Git**. L'acceptation produit et l'autorisation d'implémenter seront demandées sur le couple design/plan relu ; elles ne sont déduites ni de la demande initiale ni de l'accord documentaire.
