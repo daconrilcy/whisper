@@ -115,6 +115,6 @@ T9 applique AGENTS.md : dossier à autoriser précisément ; pour le profil pers
 ## Revue et état de livraison documentaire
 
 - DESIGN : `rust_design_reviewer`, CLEAN sur `d10516808804f461ca1597b78d0d176f3f3baa27`, R-MIC-D01 fermé ; conseil de fixture bin 64 intégré dans les deux documents.
-- PLANS : à relire sur la version Git contenant ce plan et les précisions documentaires de la conception.
+- PLANS : `rust_design_reviewer`, **CLEAN sur `316de9bcce2d8aeef85098e4e45e0a8b6689b7ae`**, après lecture directe des deux fichiers Git ; aucun constat requis ouvert. Couverture CA-01 à CA-07 / T1 à T9 / V1 à V7, chemins indirects, graphe et prérequis contrôlés. Le conseil spectral est fermé par la fixture bin 64 ; aucun changement de Q1–Q5. Le présent ajout consigne uniquement le verdict, sans modifier les tâches ou contrats.
 - Acceptation du présent plan par l'utilisateur : **non reçue**. Autorisation d'implémenter ou d'exécuter une campagne : **non reçue**.
 - Vérifications réellement exécutées pour cette mission : lectures ciblées et contrôles Git/documentaires uniquement. Aucune compilation, capture, installation, fenêtre pilotée ou exécution de test produit.
