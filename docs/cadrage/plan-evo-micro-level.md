@@ -1,5 +1,5 @@
 Avancée : SPECTRE v2 couvre les graphes en direct pendant test ET capture ; DESIGN CLEAN et PLANS CLEAN sur d6abc438, R01 fermé.
-Blocage : plan v2 et campagne à accepter avant code ; réserves Windows et Parakeet CPU antérieures inchangées.
+Blocage : aucun préalable documentaire ouvert ; réserves Windows et Parakeet CPU antérieures inchangées.
 Décision : conserver sept tâches en ajoutant les chemins de capture et leurs vérifications ; aucun nouvel EXE produit.
 
 # Whisper — Plan du réglage du niveau microphone
@@ -518,3 +518,9 @@ Clôture : petites preuves archivées sous micro-level en préservant leur arbor
 Historique v1 : DESIGN CLEAN sur `1587696ada1d871e1aa33aaa10a00b329a882b52` et PLANS CLEAN sur `c168006db7784da53b64b320c98d0eece808fe6e`, par le même reviewer indépendant `spectre_design_review`. **Ces verdicts ne couvrent pas CHANGE-S02 / SPECTRE v2.** Revue v2 sur `b06136a1` : DESIGN/PLANS FINDINGS, seul SPECTRE-V2-R01 REQUIRED IMPORTANT ; correction documentaire et oracle proposés ci-dessus, fermeture à vérifier par le même reviewer. Acceptation du plan v2, DEC-CAMP-S01 et autorisation de réaliser : **NON REÇUES**. Tests, compilation et recette de SPECTRE : **NOT RUN**. Les résultats et hashes de l'EXE historique ci-dessus restent ceux du candidat précédent.
 
 Revue corrective v2 par le même reviewer indépendant : **SPECTRE-V2-R01 FERMÉ, DESIGN CLEAN / PLANS CLEAN sur `d6abc4381716cef97cea11d30fa7deadd6cdc1d2`** après lecture Git des deux fichiers comparée à `b06136a1`. Aucun constat REQUIRED ouvert ; admission de tous les propriétaires, retrait à Stop et tests associés vérifiés. Ce verdict couvre v2, sans donner acceptation produit ou autorisation de campagne/implémentation. Ces accords restent NON REÇUS ; tests/build/recette v2 restent NOT RUN. Enregistrement du verdict uniquement, aucune tâche ou condition changée.
+
+### Accord de réalisation SPECTRE v2 et préflight courant
+
+Après remise du couple relu à `dd602f1f`, la session principale demande explicitement validation de cette version et autorisation d'implémentation, des tests selon DEC-CAMP-S01 et de remise du nouvel EXE personnel. Réponse utilisateur : **« Ok tu peux implémenter »**. Acceptation et autorisations : **REÇUES** pour ce lot, ses chemins, ses plafonds, ses destinations et DEC-CAMP-S01. Les mentions NON REÇUES ci-dessus décrivent l'état documentaire antérieur. Pas d'installation, téléchargement, modification des ressources personnelles ou push ; recette Windows réservée à l'utilisateur.
+
+Préflight : HEAD `dd602f1f`, branche `evo-startup-perf`, delta micro-level suivi/non suivi présent et préservé, modèles et corpus non suivis conservés. Espace libre C: **129 973 547 008 octets** (environ 121 Gio). Les contrôles de garde/variables et auto-tests restent à exécuter par l'implémenteur avant tout Cargo. Les résultats SPECTRE sont encore NOT RUN à cet instant.

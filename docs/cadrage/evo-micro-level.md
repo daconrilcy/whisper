@@ -1,5 +1,5 @@
 Avancée : SPECTRE v2 couvre le test et la prise de son en direct ; DESIGN CLEAN et PLANS CLEAN sur d6abc438, R01 fermé.
-Blocage : plan v2 et campagne à accepter avant implémentation ; réserves Windows et Parakeet CPU précédentes conservées.
+Blocage : aucun préalable documentaire ouvert ; réserves Windows et Parakeet CPU précédentes conservées.
 Décision : proposer les deux graphes avant/après gain pendant toute acquisition microphone active ; aucun code ni EXE modifié.
 
 # Whisper — Réglage du niveau du microphone
@@ -244,3 +244,5 @@ RISK-S06 : télémétrie publiée avant les événements moteurs et retard du te
 Revue v2 initiale sur `b06136a16570b386b9e00cc65cab0b38b35bd59c` : DESIGN/PLANS FINDINGS, un constat REQUIRED IMPORTANT SPECTRE-V2-R01 sur l'admission LiveCaptureState dépourvue de DirectCapturePhase. La précondition équivalente ci-dessus et les tests du plan proposent sa fermeture ; seul le même reviewer peut la confirmer. Les autres contrôles v2 étaient concluants. Les résultats produit restent NOT RUN ; seuls les verdicts portant explicitement sur v2 pourront qualifier cette révision.
 
 Relecture corrective v2 : le même reviewer indépendant déclare **SPECTRE-V2-R01 FERMÉ, DESIGN CLEAN / PLANS CLEAN sur `d6abc4381716cef97cea11d30fa7deadd6cdc1d2`**, après lecture directe des deux fichiers Git comparée à `b06136a1`. Contexte propriétaire, liaison à la source et oracles liés ST3/ST5/V-S3/V-S4 vérifiés ; aucun constat REQUIRED ouvert. Ces verdicts couvrent la prise de son en direct ajoutée par CHANGE-S02. Acceptation du plan/campagne et autorisation d'implémentation restent à recevoir ; code, tests, build et recette NOT RUN. Le présent ajout enregistre seulement le verdict, sans changer le contrat.
+
+Autorisation de réalisation reçue ensuite : à la question « Valides-tu cette version et autorises-tu son implémentation, les tests selon DEC-CAMP-S01 et la remise du nouvel EXE personnel ? », l'utilisateur répond **« Ok tu peux implémenter »**. Cette réponse accepte SPECTRE v2, ses sept tâches et chemins, DEC-CAMP-S01 et la remise personnelle décrits dans le plan à `dd602f1f`. Aucun téléchargement, installation, modification de ressources personnelles ou push n'en découle. La recette physique reste à l'utilisateur. Préflight courant : HEAD `dd602f1f`, branche `evo-startup-perf`, delta micro-level préexistant conservé ; espace libre C: 129 973 547 008 octets. Les résultats produit seront consignés après exécution et revue.
