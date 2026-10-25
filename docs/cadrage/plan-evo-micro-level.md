@@ -1,6 +1,6 @@
-Avancée : R1 à R7 fermés, harnais diagnostique relu et build personnel réussi ; 16 sorties Turbo CPU conservées.
-Blocage : R8 produit préexistant empêche l'acceptation d'un résultat Parakeet CPU ; D2 Parakeet non qualifié.
-Décision : demander l'accord précis pour corriger R8 côté adaptateur, préserver l'attestation GPU et vérifier les 16 cas CPU restants.
+Avancée : implémentation compilée, R1 à R8 fermés et 32 cas CPU exécutés ; recette personnelle prête.
+Blocage : les 16 transcriptions Parakeet CPU à cadence réelle restent incomplètes ; CA-07/V7 non qualifié et recette Windows non exécutée.
+Décision : LIVRÉ AVEC RÉSERVES, conserver les preuves et soumettre la complétude Parakeet à un arbitrage distinct sans nouvelle modification du moteur.
 
 # Whisper — Plan du réglage du niveau microphone
 
@@ -257,7 +257,7 @@ Ressources Parakeet/CPU/GPU/modèles installées revérifiées en lecture seule 
 
 Archive supplémentaire `target/parakeet-tests/micro-level/archives/d2-replay-r7-epoch4-20261025-203402/` : **214 fichiers, 1 484 539 octets**, tailles et SHA-256 source/destination vérifiés individuellement ; 177 fichiers de logs/preuves, 36 petites sorties D2 et le garde. Aucune inclusion des 17 WAV ni d'un cache, aucun manifeste ajouté ; anciennes archives et résultats invalides conservés. Aucune suppression ni nettoyage du target partagé. Espace final relevé **130 584 543 232 octets** (environ 121,6 Gio). Tous les processus de campagne et la surveillance sont terminés avant cette mise à jour documentaire. Sources/code non commités ; pas de push.
 
-## Bilan courant : diagnostic du harnais Parakeet et réserve produit R8
+## Bilan du diagnostic du harnais Parakeet et de la réserve R8 (historique)
 
 ### Autorisation et périmètre réalisé
 
@@ -291,3 +291,59 @@ L'accord courant exclut explicitement la logique produit : **aucune correction R
 - Dossier `target/parakeet-tests/micro-level/recette-personnelle/`, exactement trois EXE correspondant au build réussi : desktop **14 330 880 octets**, SHA-256 `5823BADE8462FA03980A5EE6283C3FA13D1490E539FCB6A69045596F4F32633C` ; CPU **20 809 728 octets**, SHA `3613ADC5884C5D28BCB85992647233E6F72653EC93FC205E1ECCC9284C393E7A` ; GPU **20 882 432 octets**, SHA `3537A0E5E1B1E1A20316651AD2156E32213C67A23B78DA0DFD0E152CE2D24234`. Workers Parakeet, cinq/neuf DLL CPU/GPU et modèles installés revérifiés en lecture seule. Aucune installation ni fenêtre lancée.
 - Nouvelle archive `target/parakeet-tests/micro-level/archives/d2-parakeet-diagnostic-20261025-2053/` : **24 fichiers, 2 267 458 octets**, arborescence conservée et SHA-256 de chaque copie vérifié ; aucun WAV ni cache. Archives et sorties précédentes intactes, aucune suppression ni manifeste supplémentaire.
 - Aucun processus de campagne actif, surveillance terminée avant cette rédaction. Espace libre final : **130 509 869 056 octets** (environ 121,5 Gio). Code non commité, aucune publication.
+
+## Bilan final de l'implémentation — livré avec réserves
+
+### Accord R8, correctif et revue
+
+L'utilisateur répond **« oui je t'autortise »** à la demande d'un cycle produit ciblé R8 dans `parakeet_live.rs` : accepter la réponse CPU sans l'événement réservé au GPU, maintenir tous les contrôles GPU, ajouter les tests CPU/GPU, puis rejouer les 16 cas Parakeet CPU avec **20 minutes supplémentaires**, sans rejouer Turbo. Aucun changement de worker, bibliothèque native, dépendance ou modèle n'est introduit par ce correctif.
+
+Le Ready doit correspondre au backend attendu de la requête liée ; le marqueur `NativeCallStarted` n'est ensuite obligatoire que pour le GPU validé. Les corrélations de requête, job, génération, tentative, identité, SHA du modèle, fenêtre/durée et la preuve GPU existante sont conservées. **R8 est fermé par le même reviewer indépendant**, comme R1 à R7. `ParakeetContract-20261025T210200635-6fb1ecee` : **4 tests réussis**, 182 filtrés (CPU corrélé sans marqueur, GPU exigeant le marqueur, résultat étranger refusé, backend attendu depuis configuration). Garde SelfTest, formatage ciblé et contrôle de diff réussis.
+
+La relecture vérifie la préservation d'Auto : le binding dans `worker_ipc.rs` choisit le backend effectif, remplace `bound_request.config.compute` par ce choix, et transmet cette requête liée à `ParakeetLive::start`. Une voie Auto -> GPU arrive donc comme Gpu et reste soumise à CUDA0 et à l'attestation ; le correctif ne traite pas un Auto -> GPU légitime comme CPU. Aucune qualification GPU réelle n'a été exécutée.
+
+### Premier rejeu Parakeet après R8 : transport corrigé, charge artificielle
+
+Run `D2Corpus-20261025T210416939-52d9ab09`, **exit 0 en 38 s**, racine `d2/r8-parakeet-replay/`, 16 cas natifs uniquement Parakeet CPU. Chaque processus a un PID de spawn, un Ready CPU avec le hash du worker installé, des réponses de fenêtre acceptées, puis un shutdown exit 0 ; l'erreur de marqueur R8 ne se reproduit plus. Cependant les **16 statuts sont `complete=false`**, textes fragmentaires et intervalles non résolus. Ces cas ne sont pas comptés comme preuve d'une transcription complète.
+
+Le diagnostic en lecture seule établit que la fixture injecte des blocs de 1 600 échantillons (100 ms) sans temporisation, et ne traite qu'un événement par bloc ; 60–65 s d'audio sont livrées en 2,19–2,48 s par cas. La voie ASR bornée n'autorise qu'une fenêtre en vol et saute vers les données récentes lorsque le retard dépasse 8 s. Pour FR pauses, la trace montre les fenêtres 0–32 000 et 0–64 000 puis 960 000–1 024 000, cohérentes avec un intervalle non résolu de 56 s. Le WAV est drainé et finalisé : ce n'est pas une perte de capture au stop. Le polling insuffisant retarde aussi Ready et les réponses. Cette exécution est donc un essai accéléré/surchargé, pas une preuve de qualité à cadence microphone.
+
+### Réglage local du régime d'essai et rejeu à 1×
+
+Pour représenter une capture réelle dans le périmètre T8 et les chemins de test déjà autorisés, la session principale pilote une correction locale **cfg(test) seulement** de `direct_live.rs` : échéances monotones selon `frame_end / 16000`, drainage par lots de 32 événements et polling au plus toutes les 5 ms entre blocs, réancrage après retard pour éviter le rattrapage en rafale, drain final limité à 8 lots, puis le même stop/drain produit. Aucune modification de la file ASR, du seuil de retard de 8 s, des reprises, du moteur ou de sa politique de confirmation. Le même reviewer ne relève plus de défaut du driver après correction de l'anti-rattrapage et de la métadonnée de délai.
+
+Les tests synthétiques de deadline/polling/borne/statut passent : **6 réussis**, 185 filtrés. Les erreurs locales E0502 puis E0596 de ces nouveaux tests sont corrigées dans la fixture et leurs logs conservés séparément. Garde et formatage ciblé réussis avant le natif. Racine fraîche `target/parakeet-tests/micro-level/d2/r8-parakeet-realtime/`, filtre strict Parakeet CPU et watchdog **1 162 000 ms**, soit le reste du budget de calcul de 1 200 s après les 38 s déjà utilisées ; aucune remise à zéro ni augmentation du plafond.
+
+| Preuve du rejeu à cadence réelle | Résultat observé |
+| --- | --- |
+| Run | `D2Corpus-20261025T212130869-543c8d10`, **exit 0 en 1 016 s**, runtime des tests 1 014,86 s. |
+| Couverture | **16/16 cas exécutés**, quatre WAV approuvés × 0/−6/+6/transition −6→+6 ; pas de Turbo ou GPU rejoué. |
+| Rythme | Durées de cas environ 60,5–66,5 s pour 60–65,02 s de source ; pas de rattrapage forcé ni reprise de campagne. |
+| Budget | **38 + 1 016 = 1 054 s (17 min 34 s) de commandes natives**, sous les 1 200 s supplémentaires autorisées ; le run cadencé est lui-même sous 1 162 s. |
+| PCM | **16 001 280 échantillons en entrée et en sortie**, tous les comptes individuels égaux, WAV finalisés conservés. |
+| Gains | Tous les gains/révisions attendus présents ; transitions −6 rév0/indice0 -> +6 rév1 aux indices 520 160, 520 000, 480 000 et 480 000 suivant le corpus. |
+| Moteur effectif | Dans chacun des 16 cas, worker Parakeet CPU installé réellement spawné puis Ready sur le même PID, SHA `84C371D4DF55043ADA4A1D96B80180ED0C03B208410C599262C8EA3762304E60`, shutdown exit 0 ; **584 réponses de fenêtres au total**, aucune erreur `worker-transcribe-error`. |
+| Complétude | **0/16 complet, 16/16 `complete=false`**, diagnostic « une portion audio demeure non confirmée », 211 à 303 intervalles non résolus par cas. |
+| Texte | TXT/SRT marqués incomplets, fragments de texte ; aucune qualité comparable aux références ni aucun seuil WER nouveau déclaré. |
+
+Le reviewer vérifie que le harnais lit le **même export confirmé** que l'application : `ParakeetLive` finalise sa confirmation et exporte `confirmed_segments()` ; l'application présente et fusionne les événements sans acquittement moteur supplémentaire. L'incomplétude du fichier n'est donc pas attribuée à un ack applicatif que la fixture aurait omis. La cause précise des portions résiduelles à cadence réelle n'est pas établie par cette campagne ; **aucun nouveau constat de code R9 ni correctif de politique ASR n'est inventé**.
+
+### Verdict final, remise et limites
+
+**LIVRÉ AVEC RÉSERVES.** L'implémentation du réglage, la mémorisation, la sonde et le test micro sont produits ; les constats de code **R1 à R8 sont fermés**. La sélection de données demandée a été exécutée : **16 cas Turbo CPU** dans `d2/r7-replay/` et **16 cas Parakeet CPU cadencés** dans `d2/r8-parakeet-realtime/`. Les anciennes campagnes fautives/accélérées restent conservées et distinctes. Le marqueur `case-complete` ou l'exit 0 de Cargo ne vaut pas validation de la transcription.
+
+**T8/CA-07/V7 reste PARTIAL/FAILED pour la complétude et la qualité Parakeet CPU.** Le gain et la préservation PCM sont observés, mais les textes Parakeet complets et leur qualité ne sont pas qualifiés. Aucun CLEAN global ou accord produit final n'est affirmé. La comparaison GPU et la recette T9 dans la fenêtre Windows restent à l'utilisateur ; aucun pilotage de la fenêtre, installation ou push n'a eu lieu. Toute évolution de confirmation/moteur/rattrapage pour lever cette réserve demande un périmètre distinct, absent de l'autorisation R8.
+
+Build final gardé `PersonalRelease-20261025T214006635-742e9a73` : **SelfTest PASS, release personnel exit 0 en 27 s**. Dossier `target/parakeet-tests/micro-level/recette-personnelle/`, exactement les trois EXE issus du build et contrôlés par SHA-256 :
+
+| Fichier | Octets | SHA-256 final |
+| --- | --- | --- |
+| `whisper-desktop.exe` | 14 328 320 | `C94B0D4F880C28C3AB09BD6E7C264F8D568710059AF924D59D05BECCA516167B` |
+| `whisper-worker-cpu.exe` | 20 809 728 | `3613ADC5884C5D28BCB85992647233E6F72653EC93FC205E1ECCC9284C393E7A` |
+| `whisper-worker-gpu.exe` | 20 882 432 | `3537A0E5E1B1E1A20316651AD2156E32213C67A23B78DA0DFD0E152CE2D24234` |
+
+Deux workers Parakeet, cinq/neuf DLL CPU/GPU et deux modèles de l'installation stable revérifiés en lecture seule, chacun hashé ; aucune copie Parakeet/DLL superflue dans la recette. Les tests natifs utilisent les workers installés identifiés dans leurs traces ; les nouveaux workers Turbo livrés sont compilés et hashés, sans prétendre que D2 a invoqué ces nouveaux fichiers. Le dossier de recette dépend de l'installation personnelle stable.
+
+Archive du rejeu cadencé sous `target/parakeet-tests/micro-level/archives/d2/r8-parakeet-realtime/` : **97 fichiers, 5 206 789 octets, 97/97 SHA-256 de copies vérifiés**, arborescence conservée, aucun WAV ni cache. Les logs du dernier build y sont inclus. Les anciennes archives restent intactes, aucun manifeste supplémentaire, aucune suppression ni nettoyage du target partagé. L'archive du premier rejeu accéléré R8 reste distincte : `archives/r8-parakeet-replay-20261025-2108/`, 92 fichiers/3 077 674 octets.
+
+Tous les processus et watchers sont terminés avant cette mise à jour. Espace libre final : **130 389 192 704 octets** (environ 121,4 Gio). `git diff --check` et formatage ciblé réussis ; le formatage global conserve son écart préexistant hors périmètre dans `model_selection_app.rs`. Le code reste non commité, les seuls commits de la session principale portent sur les deux documents de cadrage ; aucune publication.
