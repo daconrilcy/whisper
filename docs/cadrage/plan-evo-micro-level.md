@@ -1,6 +1,6 @@
-Avancée : candidat personnel compilé et remis avec réserves ; revue finale ferme R1 à R6 après deux cycles.
-Blocage : R7 invalide le harnais D2 à gain non nul ; comparaison vocale incomplète et recette Windows non exécutée.
-Décision : conserver le candidat et les preuves ; arbitrage utilisateur requis avant toute correction supplémentaire de R7 ou reprise D2.
+Avancée : R1 à R7 fermés après le cycle supplémentaire autorisé ; candidat personnel recompilé, 16 sorties Turbo CPU produites.
+Blocage : premier cas Parakeet CPU sans segments, cause indéterminée ; D2 partiel et recette Windows non exécutée.
+Décision : conserver les preuves et le candidat ; arbitrer un diagnostic ciblé du harnais Parakeet avant toute correction ou reprise.
 
 # Whisper — Plan du réglage du niveau microphone
 
@@ -166,7 +166,7 @@ T9 applique AGENTS.md : dossier à autoriser précisément ; pour le profil pers
 - Incident de périmètre : l'implémenteur a ajouté trop tôt `microphone_gain_db: 0` à onze constructions de requêtes dans trois fichiers hors liste d'édition : 8 dans `crates/whisper-adapters/tests/live_archive.rs`, 2 dans `crates/whisper-core/tests/model_selection_app.rs`, 1 dans `crates/whisper-core/tests/parakeet_import_contract.rs`. Aucune assertion changée. Leur adaptation est motivée par le nouveau champ requis de `LiveRequest`. Ces changements sont conservés et figés ; la demande précise d'extension est soumise à l'utilisateur, sans réponse à ce checkpoint. Ces trois cibles ne sont pas exécutées avant accord.
 - D2 : corpus et méthode acceptés, identités vérifiées, mais aucune comparaison avec les vrais moteurs n'a été exécutée. Les anciens scripts VAD ne couvrent pas ce parcours et ne sont pas présentés comme preuve de qualité. La recette T9 reste non exécutée et réservée à l'utilisateur.
 
-## Bilan de réalisation au 25 octobre 2026
+## Premier bilan de réalisation, avant la reprise R7 (historique)
 
 ### Verdict et état du lot
 
@@ -208,3 +208,51 @@ Dossier courant : `target/parakeet-tests/micro-level/recette-personnelle/`, cont
 Ce dossier utilise les ressources stables de `%LOCALAPPDATA%/Whisper/` : deux workers Parakeet dans `worker/`, cinq DLL CPU et neuf DLL GPU dans `native/`, deux modèles dans `models/`. Présence et SHA-256 revérifiés en lecture seule avant remise ; aucune copie Parakeet ou DLL superflue ajoutée. Le dossier n'est pas autonome et rien n'a été installé ni lancé. La recette future devra appliquer les observations de T9 (deux micros, défaut/repli/reconnexion, gain pendant capture, jauge, volume Windows inchangé, sorties) et la comparaison GPU choisie par l'utilisateur ; ce bilan ne prétend pas les avoir exécutées.
 
 Petites preuves archivées sous `target/parakeet-tests/micro-level/archives/t8-evidence-20261025-194703/` : **177 fichiers, 873 685 octets**, arborescence conservée, taille et SHA-256 source/destination vérifiés pour chaque fichier. Aucun WAV ni cache Cargo inclus ; aucun manifeste supplémentaire créé. Aucune suppression de temporaire/copie ou nettoyage de `cargo-shared` effectué. Espace libre final relevé : **130 713 419 776 octets** (environ 121,7 Gio). Surveillance et processus de campagne terminés avant mise à jour de ce bilan.
+
+## Bilan actualisé après le cycle R7 et le rejeu CPU
+
+### Accord précis et fermeture de R7
+
+L'utilisateur autorise dans cette session : **« Oui, je t’autorise un cycle supplémentaire limité à R7, puis le rejeu des 32 cas CPU avec un plafond supplémentaire de 52 minutes. »** Cet accord constitue la seule exception à la limite précédente : aucun cycle de correction autre que R7 ni changement de logique produit supplémentaire n'en découle.
+
+Correction limitée à `crates/whisper-adapters/src/capture.rs` (injection du PCM brut, gain/révision comme métadonnées) et `crates/whisper-adapters/src/direct_live.rs` (preuve privée). `CaptureTests-20261025T195324467-f855d6ca` : 10 réussis, 2 ignorés matériels ; `DirectLiveTests-20261025T195344880-f6847e14` : 16 réussis, aucun ignoré, dont `test_capture_gain_preserves_probe_a_and_applies_once_to_wav_pcm`. Ce test prouve A égal à la source, B après un seul facteur +6 dB avec limitation et PCM WAV final attendu. SelfTest avant chaque Cargo, formatage ciblé et `git diff --check` réussis.
+
+Le **même reviewer indépendant ferme R7** sur ce candidat (epoch4). **R1 à R7 sont donc fermés**. La validation globale reste **BLOCKED/PARTIAL sur D2 Parakeet**, et non CLEAN : un défaut du harnais corrigé ne vaut pas qualification des moteurs. Aucun correctif supplémentaire n'est appliqué après l'échec décrit ci-dessous.
+
+### Rejeu D2 : 16 sorties Turbo, premier Parakeet en échec
+
+| Élément | Observation |
+| --- | --- |
+| Run | `D2Corpus-20261025T195639074-9f3cb469`, sources Rust figées, nouvelle racine `target/parakeet-tests/micro-level/d2/r7-replay/`. |
+| Limite | Garde adaptée au seul délai D2 : **3 120 000 ms (52 min)**. Départ 19:56:39, échéance 20:48:39 ; aucune remise à zéro. Le checkpoint du test conserve une ancienne métadonnée `timeout_seconds=3600` ; le plafond effectif est celui de la garde externe. |
+| Résultat | **Exit 101 après 1 882 s**, arrêt sur échec au cas 17, **pas un timeout**. Aucune reprise de cas 17 ni lancement des cas 18 à 32. |
+| Turbo CPU | **16 cas `case-complete`**, quatre WAV × quatre variantes ; WAV/TXT/SRT et références conservés. Total **16 001 280 échantillons en entrée et en sortie**, tous les comptes individuels égaux. Durées de cas environ 96,7 à 142,9 s. |
+| Transitions | Deux révisions par cas abrupt : −6 dB à l'indice 0, +6 dB au milieu exact (FR pauses 520 160, EN pauses 520 000, continus 480 000). Les autres variantes appliquent le gain annoncé à l'indice 0. |
+| Parakeet CPU | Cas 17, FR pauses, 0 dB : panic `Parakeet CPU returned no segments`. **Zéro cas Parakeet qualifié**, 15 autres non exécutés. |
+| Preuves cas 17 | WAV de 1 040 320 échantillons (2 080 684 octets), TXT/SRT incomplets vides ; JSON `complete=false`, aucun intervalle confirmé, tout l'audio non résolu, transcription pending. `d2-engine-status.json` absent. |
+
+La comparaison descriptive des textes Turbo reste distincte d'un verdict qualité : sur FR pauses, une séquence introductive présente à 0 dB manque à −6 dB et dans la variante commençant à −6 dB ; les sorties anglaises montrent aussi des différences de ponctuation et de découpage. Aucun nouveau seuil WER ni équivalence de qualité n'est déclaré. Les textes, références et sorties sont disponibles dans le checkpoint et les dossiers des 16 cas. Les comptes PCM corrects ne prouvent pas la qualité du texte ni une capture matérielle Windows.
+
+### Diagnostic en lecture seule de l'échec Parakeet
+
+Le chemin configuré est `C:/Users/cyril/AppData/Local/Whisper/worker/whisper-worker-parakeet-cpu.exe`, présent, SHA-256 `84C371D4DF55043ADA4A1D96B80180ED0C03B208410C599262C8EA3762304E60`. Le modèle installé `parakeet-tdt-0.6b-v3.q8_0.gguf` correspond au hash attendu ; les ressources et WAV ont été lus sans modification. Le code de test crée le parcours de capture puis un thread qui devrait appeler `ParakeetProcess::spawn_live`, mais **les preuves conservées n'attestent pas l'invocation effective du binaire** (pas de PID, de Ready ou de journal de lancement). Le dossier de session est vide. Le stderr du worker personnel CPU est redirigé vers `Stdio::null()` et le stdout IPC n'est pas archivé.
+
+Le harnais ne conserve que certains événements de `live.poll()` et panique sur l'absence de segments avant d'écrire le statut d'arrêt. Le `diagnostic=null` du JSON décrit la transcription automatique finale en attente ; ce n'est pas le diagnostic perdu de `ParakeetCaptureStopped`. **L'origine demeure indéterminée** : invocation/Ready/initialisation native ou résultat vide ne sont pas départagés. Aucun défaut du produit Parakeet n'est établi par ce test échoué.
+
+Plus petite étape proposée, **non appliquée** : dans le harnais de `direct_live.rs`, enregistrer événements, diagnostic d'arrêt, `complete` et compte d'intervalles/segments avant les assertions ; compléter les traces de test de `parakeet_live.rs` pour le lancement/Ready/Failed (PID existant si disponible). Aucune modification de logique produit ou nouvelle frontière native n'est proposée comme autorisée. Une nouvelle décision utilisateur doit définir ce diagnostic ciblé et une éventuelle reprise des **16 seuls cas Parakeet**, sans rejouer les sorties Turbo déjà produites. Sur les 52 minutes supplémentaires autorisées, 1 882 secondes ont été consommées par le run échoué (reste nominal 1 238 secondes, sans relance effectuée).
+
+### Provenance, remise courante et archives
+
+D2 Turbo a réellement exécuté le worker **installé** `C:/Users/cyril/AppData/Local/Whisper/app/whisper-worker-cpu.exe` avec le modèle installé `ggml-large-v3-turbo.bin`. Il n'a pas exécuté les nouveaux workers Turbo du dossier de recette. Les sources des workers ne changent pas dans ce lot ; les preuves sur les ressources installées et sur les EXE recompilés sont rapportées séparément.
+
+Après l'échec, sans modification Rust, `PersonalRelease-20261025T203252434-073359fe` a réussi sous garde (SelfTest exit 0, build exit 0 en **27 s**). Dossier `target/parakeet-tests/micro-level/recette-personnelle/`, exactement trois EXE identiques par SHA-256 aux sorties du build :
+
+| Fichier | Octets | SHA-256 courant |
+| --- | --- | --- |
+| `whisper-desktop.exe` | 14 270 976 | `691AF60D977D525B1823B5B5ABF75AEBE49F61DA6A0F68A63BFB03B88F8981FE` |
+| `whisper-worker-cpu.exe` | 20 809 728 | `3613ADC5884C5D28BCB85992647233E6F72653EC93FC205E1ECCC9284C393E7A` |
+| `whisper-worker-gpu.exe` | 20 882 432 | `3537A0E5E1B1E1A20316651AD2156E32213C67A23B78DA0DFD0E152CE2D24234` |
+
+Ressources Parakeet/CPU/GPU/modèles installées revérifiées en lecture seule ; rien installé ni lancé dans la fenêtre. La recette reste dépendante de cette installation, sans copies Parakeet ou DLL superflues. La comparaison GPU reste réservée à l'utilisateur selon son choix explicite.
+
+Archive supplémentaire `target/parakeet-tests/micro-level/archives/d2-replay-r7-epoch4-20261025-203402/` : **214 fichiers, 1 484 539 octets**, tailles et SHA-256 source/destination vérifiés individuellement ; 177 fichiers de logs/preuves, 36 petites sorties D2 et le garde. Aucune inclusion des 17 WAV ni d'un cache, aucun manifeste ajouté ; anciennes archives et résultats invalides conservés. Aucune suppression ni nettoyage du target partagé. Espace final relevé **130 584 543 232 octets** (environ 121,6 Gio). Tous les processus de campagne et la surveillance sont terminés avant cette mise à jour documentaire. Sources/code non commités ; pas de push.
