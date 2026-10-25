@@ -1,6 +1,6 @@
-Avancée : implémentation compilée, R1 à R8 fermés et 32 cas CPU exécutés ; recette personnelle prête.
-Blocage : les 16 transcriptions Parakeet CPU cadencées restent incomplètes ; CA-07/V7 non qualifié et recette Windows non exécutée.
-Décision : LIVRÉ AVEC RÉSERVES, conserver les preuves sans nouvelle modification du moteur ; voir le bilan final du plan.
+Avancée : arrêt du test micro corrigé après retour Windows, régression UI et revue CLEAN ; nouvel EXE compilé.
+Blocage : confirmation utilisateur de ce correctif dans la fenêtre à refaire ; réserve Parakeet CPU inchangée.
+Décision : remettre le nouvel EXE et conserver les limites de qualité détaillées dans le plan.
 
 # Whisper — Réglage du niveau du microphone
 
@@ -134,6 +134,8 @@ Choix FFT : rendre directe la version Rustfft 6.4.1 déjà verrouillée est l'op
 - Railguard nouveau : non applicable, aucun demandé. AGENTS.md existant reste actif. Reprise après panne et confidentialité de nouvelles archives : pas de fonctionnalité ajoutée ; le test préalable ne crée aucun fichier.
 
 ## Passage à la planification
+
+Retour de recette Windows ultérieur : l'utilisateur confirme le dernier EXE et signale un test micro impossible à arrêter, avec le dernier message de gain à 0 dB/trame 0. Le correctif dans `ui.rs` retire le groupe microphone du conteneur global désactivé pendant `busy`, qui neutralisait aussi Arrêter ; source/actualisation restent verrouillées pendant l'activité. Un test egui sur le rendu complet clique Tester -> reçoit Started/Applied/Meter -> clique le vrai Stop -> vérifie invalidation -> redémarre ; il passe, et la revue indépendante est CLEAN sur ce delta. Le nouvel EXE personnel est compilé et hashé, sans fenêtre pilotée ni nouveau test moteur. Le message de gain reste une dernière application, distincte de l'activité de la jauge. La confirmation matérielle dans la fenêtre reste à l'utilisateur. Le plan contient le build, les empreintes et la recette ; la réserve Parakeet CPU ci-dessous reste inchangée.
 
 Bilan final au 25 octobre 2026 : l'utilisateur a ensuite autorisé le correctif produit ciblé R8, les tests CPU/GPU et les 16 cas Parakeet CPU plafonnés à 20 minutes supplémentaires. L'adaptateur accepte maintenant les résultats CPU corrélés sans le marqueur réservé au GPU, après validation du backend Ready ; l'attestation GPU et les autres contrôles sont conservés, Auto transmis sous son choix effectif. **R1 à R8 sont fermés par la revue indépendante**. Le premier essai Parakeet accéléré a révélé que la fixture surchargeait la voie ASR ; son régime d'injection/polling a été corrigé localement à cadence réelle sans modifier le moteur. Les 16 cas cadencés ont fini en 1 016 s, soit 1 054 s cumulées avec le run accéléré, sous le budget de 1 200 s. Les WAV conservent exactement les frames sources et les gains/révisions attendus, mais **16/16 transcriptions Parakeet restent `complete=false`**, diagnostic de portion audio non confirmée et textes fragmentaires. Le même export que l'application est utilisé ; la cause précise de ces portions résiduelles à 1× n'est pas établie, aucune nouvelle correction ASR n'est appliquée. Sélection demandée exécutée : 16 Turbo CPU et 16 Parakeet CPU cadencés, avec sources/textes/preuves conservés. Candidat personnel compilé et dossier de recette vérifié, preuves archivées. Verdict **LIVRÉ AVEC RÉSERVES**, sans CLEAN global : CA-07/V7 Parakeet reste PARTIAL/FAILED ; comparaison GPU et fenêtre Windows à l'utilisateur. Le plan détaille les résultats, limites et empreintes finales.
 

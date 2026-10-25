@@ -1,6 +1,6 @@
-Avancée : implémentation compilée, R1 à R8 fermés et 32 cas CPU exécutés ; recette personnelle prête.
-Blocage : les 16 transcriptions Parakeet CPU à cadence réelle restent incomplètes ; CA-07/V7 non qualifié et recette Windows non exécutée.
-Décision : LIVRÉ AVEC RÉSERVES, conserver les preuves et soumettre la complétude Parakeet à un arbitrage distinct sans nouvelle modification du moteur.
+Avancée : défaut d'arrêt du test micro corrigé après retour Windows, régression UI et revue CLEAN ; nouvel EXE personnel compilé.
+Blocage : confirmation de ce correctif dans la fenêtre Windows à refaire ; réserve de complétude Parakeet CPU inchangée.
+Décision : remettre le nouvel EXE pour recette utilisateur, sans nouvelle campagne de qualité ni modification du moteur.
 
 # Whisper — Plan du réglage du niveau microphone
 
@@ -292,7 +292,7 @@ L'accord courant exclut explicitement la logique produit : **aucune correction R
 - Nouvelle archive `target/parakeet-tests/micro-level/archives/d2-parakeet-diagnostic-20261025-2053/` : **24 fichiers, 2 267 458 octets**, arborescence conservée et SHA-256 de chaque copie vérifié ; aucun WAV ni cache. Archives et sorties précédentes intactes, aucune suppression ni manifeste supplémentaire.
 - Aucun processus de campagne actif, surveillance terminée avant cette rédaction. Espace libre final : **130 509 869 056 octets** (environ 121,5 Gio). Code non commité, aucune publication.
 
-## Bilan final de l'implémentation — livré avec réserves
+## Bilan de l'implémentation avant retour de recette Windows — livré avec réserves
 
 ### Accord R8, correctif et revue
 
@@ -347,3 +347,32 @@ Deux workers Parakeet, cinq/neuf DLL CPU/GPU et deux modèles de l'installation 
 Archive du rejeu cadencé sous `target/parakeet-tests/micro-level/archives/d2/r8-parakeet-realtime/` : **97 fichiers, 5 206 789 octets, 97/97 SHA-256 de copies vérifiés**, arborescence conservée, aucun WAV ni cache. Les logs du dernier build y sont inclus. Les anciennes archives restent intactes, aucun manifeste supplémentaire, aucune suppression ni nettoyage du target partagé. L'archive du premier rejeu accéléré R8 reste distincte : `archives/r8-parakeet-replay-20261025-2108/`, 92 fichiers/3 077 674 octets.
 
 Tous les processus et watchers sont terminés avant cette mise à jour. Espace libre final : **130 389 192 704 octets** (environ 121,4 Gio). `git diff --check` et formatage ciblé réussis ; le formatage global conserve son écart préexistant hors périmètre dans `model_selection_app.rs`. Le code reste non commité, les seuls commits de la session principale portent sur les deux documents de cadrage ; aucune publication.
+
+## Correctif de recette Windows : arrêt du test microphone
+
+### Retour utilisateur et cause
+
+L'utilisateur a testé le dernier EXE de `micro-level/recette-personnelle/` et signale : « on ne peut pas l'arreter » et le message « Gain microphone appliqué : 0 dB à la trame 0 » reste affiché. Cette identification du binaire testé a été confirmée explicitement. Ce retour sert le correctif borné des critères existants T6/T7, sans nouveau besoin ou périmètre de moteur.
+
+Cause dans `crates/whisper-desktop/src/ui.rs` : `busy` devient vrai lorsque le test micro est actif, et `can_enqueue` devient faux. Or `ui.add_enabled_ui(can_enqueue, ...)` englobait aussi tout le groupe Microphone, dont le bouton d'arrêt. Le bouton était donc désactivé précisément pendant le test. L'affichage du dernier gain ne prouve pas à lui seul un gel du signal : c'est un statut de dernière application ; la jauge est l'indicateur des mesures en cours.
+
+### Correction et preuve
+
+- Le seul fichier source modifié par **ce correctif** est `ui.rs`, déjà modifié par le lot précédent ; les autres changements du candidat sont préservés. Le groupe Microphone sort de l'enveloppe de désactivation des contrôles d'import. Sélection de source et actualisation restent désactivées pendant l'activité ; Tester/Arrêter, gain et jauge ont leurs propres conditions. Aucune modification de capture native, de worker, de préférence personnelle ou de modèle.
+- Régression headless sur le **rendu complet `show_ui` réellement utilisé** : clic sur Tester, réception de Started -> Applied(0 dB, frame 0) -> Meter, jauge mise à jour sans changement de gain, clic sur le vrai Stop, commande `StopMicrophoneTest` observée, capture inactive et mesures/identité invalidées, puis deuxième démarrage. Le test ne se limite pas à un helper de bouton isolé et n'ouvre aucune fenêtre ni périphérique.
+- `DesktopMicrophoneStop-20261025T215453729-d280a974` : garde exit 0, **1 test réussi**, 32 filtrés, test 0,05 s. SelfTest préalable réussi. Le premier échec de compilation, limité à des imports manquants dans le nouveau test, est conservé sous `DesktopMicrophoneStop-20261025T215425731-e3ab437a.stderr.log` (exit 101), puis corrigé localement.
+- Formatage ciblé `skip_children=true` et `git diff --check` réussis. Le même reviewer indépendant déclare **CLEAN sur le delta STOP UI**, aucun constat ; un seul passage de revue, aucune correction de revue nécessaire. Cette preuve UI simulée ne remplace pas la confirmation de libération du microphone physique dans la fenêtre Windows.
+
+### EXE à retester
+
+`PersonalRelease-20261025T215646766-5871c67e` : SelfTest PASS puis build personnel gardé **exit 0 en 4 s**, hors ligne et verrouillé. Dossier inchangé `target/parakeet-tests/micro-level/recette-personnelle/`, exactement les trois EXE issus du build et contrôlés par SHA-256 :
+
+| Fichier | Octets | SHA-256 courant |
+| --- | --- | --- |
+| `whisper-desktop.exe` | 14 325 760 | `A875622A1F9DA9AD0BAC45816A1A3D3C39D2E30B7A752A94D6C6039D5644D074` |
+| `whisper-worker-cpu.exe` | 20 809 728 | `3613ADC5884C5D28BCB85992647233E6F72653EC93FC205E1ECCC9284C393E7A` |
+| `whisper-worker-gpu.exe` | 20 882 432 | `3537A0E5E1B1E1A20316651AD2156E32213C67A23B78DA0DFD0E152CE2D24234` |
+
+Version manifeste toujours 0.1.0, champ Windows FileVersion non renseigné ; le hash identifie ce correctif. Les ressources personnelles installées (deux workers Parakeet, cinq/neuf DLL CPU/GPU et deux modèles) sont présentes et hashées en lecture seule. Aucun programme utilisateur arrêté, aucune fenêtre pilotée, aucune installation. La réserve Parakeet CPU et les résultats D2 précédents sont inchangés ; aucune campagne native de corpus n'a été répétée pour ce correctif UI.
+
+Archive additionnelle `target/parakeet-tests/micro-level/archives/microphone-stop-ui/` : **7 fichiers, 46 561 octets**, 7/7 SHA de copies conformes, aucun WAV/cache. Surveillance terminée, aucun processus Cargo/rustc/worker restant avant cette rédaction. Espace libre final : **130 317 332 480 octets**. Les seuls commits de cette clôture concernent les deux documents de cadrage ; code non commité, pas de push. **À confirmer par l'utilisateur** : démarrer le test, observer la jauge, l'arrêter, vérifier son état arrêté puis le relancer dans la vraie fenêtre Windows.
