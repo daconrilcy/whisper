@@ -1,6 +1,6 @@
-Avancée : R1 à R7 fermés après le cycle supplémentaire autorisé ; candidat personnel recompilé, 16 sorties Turbo CPU produites.
-Blocage : premier cas Parakeet CPU sans segments, cause indéterminée ; D2 partiel et recette Windows non exécutée.
-Décision : conserver les preuves et le candidat ; arbitrer un diagnostic ciblé du harnais Parakeet avant toute correction ou reprise.
+Avancée : R1 à R7 fermés, harnais diagnostique relu et build personnel réussi ; 16 sorties Turbo CPU conservées.
+Blocage : R8 produit préexistant empêche l'acceptation d'un résultat Parakeet CPU ; D2 Parakeet non qualifié.
+Décision : demander l'accord précis pour corriger R8 côté adaptateur, préserver l'attestation GPU et vérifier les 16 cas CPU restants.
 
 # Whisper — Plan du réglage du niveau microphone
 
@@ -209,7 +209,7 @@ Ce dossier utilise les ressources stables de `%LOCALAPPDATA%/Whisper/` : deux wo
 
 Petites preuves archivées sous `target/parakeet-tests/micro-level/archives/t8-evidence-20261025-194703/` : **177 fichiers, 873 685 octets**, arborescence conservée, taille et SHA-256 source/destination vérifiés pour chaque fichier. Aucun WAV ni cache Cargo inclus ; aucun manifeste supplémentaire créé. Aucune suppression de temporaire/copie ou nettoyage de `cargo-shared` effectué. Espace libre final relevé : **130 713 419 776 octets** (environ 121,7 Gio). Surveillance et processus de campagne terminés avant mise à jour de ce bilan.
 
-## Bilan actualisé après le cycle R7 et le rejeu CPU
+## Bilan de la reprise R7 et du premier rejeu CPU (historique)
 
 ### Accord précis et fermeture de R7
 
@@ -256,3 +256,38 @@ Après l'échec, sans modification Rust, `PersonalRelease-20261025T203252434-073
 Ressources Parakeet/CPU/GPU/modèles installées revérifiées en lecture seule ; rien installé ni lancé dans la fenêtre. La recette reste dépendante de cette installation, sans copies Parakeet ou DLL superflues. La comparaison GPU reste réservée à l'utilisateur selon son choix explicite.
 
 Archive supplémentaire `target/parakeet-tests/micro-level/archives/d2-replay-r7-epoch4-20261025-203402/` : **214 fichiers, 1 484 539 octets**, tailles et SHA-256 source/destination vérifiés individuellement ; 177 fichiers de logs/preuves, 36 petites sorties D2 et le garde. Aucune inclusion des 17 WAV ni d'un cache, aucun manifeste ajouté ; anciennes archives et résultats invalides conservés. Aucune suppression ni nettoyage du target partagé. Espace final relevé **130 584 543 232 octets** (environ 121,6 Gio). Tous les processus de campagne et la surveillance sont terminés avant cette mise à jour documentaire. Sources/code non commités ; pas de push.
+
+## Bilan courant : diagnostic du harnais Parakeet et réserve produit R8
+
+### Autorisation et périmètre réalisé
+
+L'utilisateur répond **« je t'autorise »** à la proposition d'**un cycle limité au diagnostic/correctif du seul harnais Parakeet CPU, sans modifier la logique produit, puis la reprise des 16 cas Parakeet avec un plafond de 20 minutes, sans rejouer Turbo**. Modifications limitées aux tests et traces de `direct_live.rs`/`parakeet_live.rs`, et à la configuration du garde ; aucun changement du protocole produit ou des workers autorisé par cet accord.
+
+Le harnais enregistre désormais `d2-engine-status.json` et tous les événements de `live.poll()` **avant** les assertions sur les segments/texte. Une trace de test ajoute chemin configuré, PID après spawn réussi, Ready/Failed, résultats de fenêtres, erreurs et état du processus. Les sorties vont uniquement sous `target/parakeet-tests/micro-level/d2/parakeet-replay/`. Garde : filtre exact `parakeet-cpu`, **16 cas sérialisés**, délai **1 200 000 ms**, rejet pré-Cargo d'un filtre Turbo ; auto-test de garde et test synthétique de statut réussis.
+
+Le même reviewer a contrôlé le harnais et son périmètre. Une compilation release a ensuite signalé six E0609 : six appels de trace utilisaient un champ réservé aux tests hors de `cfg(test)`. Cette erreur d'instrumentation introduite dans ce cycle a été corrigée en protégeant ces six appels par `#[cfg(test)]`, sans changer le contrat `NativeCallStarted`/`Result` ni le comportement attendu CPU/GPU. Le reviewer valide l'isolation cfg et le build ; certains appels du thread restent syntaxiquement présents avec une méthode no-op hors tests, sans preuve d'un coût CPU optimisé strictement nul. Aucun nouveau run natif n'a suivi cette correction de compilation.
+
+### Résultat du run diagnostique
+
+- `D2Corpus-20261025T204718998-919dc125` : **exit 101 après 2 s**, invocation à 20:47:18.384 ; arrêt sur le premier cas Parakeet CPU/FR pauses/0 dB. Ce n'est pas un dépassement de la limite de 20 minutes. **15 autres cas non exécutés**, aucune relance ; les 16 sorties Turbo antérieures sont préservées sans rejeu.
+- Preuves sous `d2/parakeet-replay/01-parakeet-cpu-fr_pauses-0db/` : statut d'arrêt `complete=false`, zéro segment confirmé, intervalle `[0, 1 040 320]` non résolu, diagnostic « une ou plusieurs hypothèses n'ont pas été produites ». Gain 0 dB/révision 0/indice 0 consigné ; le WAV est préservé, TXT/SRT incomplets vides.
+- `d2-worker-events.jsonl` atteste cette fois l'invocation effective de `C:/Users/cyril/AppData/Local/Whisper/worker/whisper-worker-parakeet-cpu.exe`, **PID 38872**, puis **Ready CPU**, profil `import-single-pass`, hash worker `84C371D4DF55043ADA4A1D96B80180ED0C03B208410C599262C8EA3762304E60`. Le modèle installé et le WAV approuvé sont lus sans mutation.
+- Première fenêtre : `worker-transcribe-error` « Réponse Parakeet tardive ou étrangère à la fenêtre ». Le processus était encore actif avant `terminate` ; le code 1 est relevé après terminaison. Aucun crash d'initialisation n'est donc déduit de ce code seul. Le stderr personnel CPU reste redirigé vers `Stdio::null()` et la trame IPC rejetée n'est pas reproduite intégralement dans la trace ; les événements décodés et les statuts disponibles sont conservés.
+
+### R8 : incompatibilité de contrat produit confirmée par le reviewer
+
+**R8 HIGH/BLOQUANT, CA-07/V7**, réserve ouverte. La lecture indépendante des sources établit que le worker CPU n'émet `NativeCallStarted` que dans la branche `is_gpu_worker` de `crates/whisper-worker-parakeet-cpu/src/main.rs`. L'adaptateur, dans `ParakeetProcess::transcribe_window` de `crates/whisper-adapters/src/parakeet_live.rs`, exige pourtant `native_call_started` avant d'accepter un `WorkerEvent::Result`, quel que soit le backend. Un résultat CPU corrélé sans cet événement est alors rejeté par la branche générique « tardive ou étrangère ».
+
+Le reviewer a vérifié que cette contradiction **existe déjà dans la base `b2808898`** ; elle n'est pas introduite par le réglage du niveau. La trace d'invocation/Ready CPU et l'erreur observée sont cohérentes avec ce blocage de contrat. La variante précise de la trame rejetée n'étant pas journalisée intégralement, cette limite d'observation est conservée ; elle n'annule pas la contradiction démontrée des sources. La réserve empêche de qualifier Parakeet CPU pour V7.
+
+**Correction proposée, non appliquée** : exiger `NativeCallStarted` pour le backend **GPU attendu/validé seulement**. Accepter un résultat CPU corrélé sans ce marqueur, tout en conservant les contrôles actuels d'identité, session, modèle, fenêtre, ordre, durée et résultat ; préserver intégralement l'attestation GPU. Périmètre minimal proposé : `parakeet_live.rs` et ses tests privés. Preuves à prévoir : résultat CPU sans marqueur accepté ; résultat GPU sans marqueur refusé ; marqueur GPU valide puis résultat corrélé accepté ; contrôles de corrélation inchangés. Rejouer ensuite les **16 seuls cas Parakeet CPU**, sans toucher aux résultats Turbo.
+
+L'accord courant exclut explicitement la logique produit : **aucune correction R8 ni reprise native n'a été effectuée**. Un accord précis de cycle produit ciblé R8 et de budget de campagne est nécessaire. Verdict courant : **R1 à R7 fermés, R8 ouvert ; D2 Parakeet BLOCKED**, recette Windows et comparaison GPU toujours réservées à l'utilisateur. Aucun CLEAN global ni acceptation produit finale.
+
+### Remise et preuves courantes
+
+- Échec de compilation conservé : `PersonalRelease-20261025T205047315-26524ab6`, exit 101 sur les six appels de trace ; corrigé dans le seul périmètre test autorisé.
+- Build gardé courant : `PersonalRelease-20261025T205201068-5a65bc0e`, **exit 0 en 27 s**, SelfTest préalable réussi. Test synthétique de harnais : `D2HarnessSelfTest-20261025T205237890-0bd25891`, **1 réussi, 181 filtrés**. Formatage ciblé et `git diff --check` réussis. Le défaut de formatage global préexistant hors périmètre reste inchangé.
+- Dossier `target/parakeet-tests/micro-level/recette-personnelle/`, exactement trois EXE correspondant au build réussi : desktop **14 330 880 octets**, SHA-256 `5823BADE8462FA03980A5EE6283C3FA13D1490E539FCB6A69045596F4F32633C` ; CPU **20 809 728 octets**, SHA `3613ADC5884C5D28BCB85992647233E6F72653EC93FC205E1ECCC9284C393E7A` ; GPU **20 882 432 octets**, SHA `3537A0E5E1B1E1A20316651AD2156E32213C67A23B78DA0DFD0E152CE2D24234`. Workers Parakeet, cinq/neuf DLL CPU/GPU et modèles installés revérifiés en lecture seule. Aucune installation ni fenêtre lancée.
+- Nouvelle archive `target/parakeet-tests/micro-level/archives/d2-parakeet-diagnostic-20261025-2053/` : **24 fichiers, 2 267 458 octets**, arborescence conservée et SHA-256 de chaque copie vérifié ; aucun WAV ni cache. Archives et sorties précédentes intactes, aucune suppression ni manifeste supplémentaire.
+- Aucun processus de campagne actif, surveillance terminée avant cette rédaction. Espace libre final : **130 509 869 056 octets** (environ 121,5 Gio). Code non commité, aucune publication.
