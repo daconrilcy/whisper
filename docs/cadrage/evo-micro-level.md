@@ -1,5 +1,5 @@
-Avancée : demande précisée pour un affichage spectral en direct pendant le test et la prise de son ; documents SPECTRE v2 en révision.
-Blocage : les anciens verdicts v1 ne couvrent pas la capture ajoutée ; réserves Windows et Parakeet CPU précédentes conservées.
+Avancée : SPECTRE v2 couvre le test et la prise de son en direct ; DESIGN CLEAN et PLANS CLEAN sur d6abc438, R01 fermé.
+Blocage : plan v2 et campagne à accepter avant implémentation ; réserves Windows et Parakeet CPU précédentes conservées.
 Décision : proposer les deux graphes avant/après gain pendant toute acquisition microphone active ; aucun code ni EXE modifié.
 
 # Whisper — Réglage du niveau du microphone
@@ -242,3 +242,5 @@ Une invalidation par époque doit rester observable jusqu'à consommation même 
 RISK-S06 : télémétrie publiée avant les événements moteurs et retard du texte/arrêt. Fermeture attendue : tests courts à producteurs continus de jauge/spectre, événements texte/terminaux simulés et consommateur applicatif limité à quatre événements par refresh, sur les trois propriétaires actifs et le chemin LiveCaptureState. Vérifier progression bornée des événements, PCM strictement identique vers WAV/STT avec/sans lecteur spectral, et spectre indépendant du moteur retardé. RISK-S07 : ancienne courbe après reset Auto à génération identique ; fermeture par invalidation d'époque observée puis reconstruction, sans changement des politiques Auto. Aucune campagne vocale requise pour ces preuves.
 
 Revue v2 initiale sur `b06136a16570b386b9e00cc65cab0b38b35bd59c` : DESIGN/PLANS FINDINGS, un constat REQUIRED IMPORTANT SPECTRE-V2-R01 sur l'admission LiveCaptureState dépourvue de DirectCapturePhase. La précondition équivalente ci-dessus et les tests du plan proposent sa fermeture ; seul le même reviewer peut la confirmer. Les autres contrôles v2 étaient concluants. Les résultats produit restent NOT RUN ; seuls les verdicts portant explicitement sur v2 pourront qualifier cette révision.
+
+Relecture corrective v2 : le même reviewer indépendant déclare **SPECTRE-V2-R01 FERMÉ, DESIGN CLEAN / PLANS CLEAN sur `d6abc4381716cef97cea11d30fa7deadd6cdc1d2`**, après lecture directe des deux fichiers Git comparée à `b06136a1`. Contexte propriétaire, liaison à la source et oracles liés ST3/ST5/V-S3/V-S4 vérifiés ; aucun constat REQUIRED ouvert. Ces verdicts couvrent la prise de son en direct ajoutée par CHANGE-S02. Acceptation du plan/campagne et autorisation d'implémentation restent à recevoir ; code, tests, build et recette NOT RUN. Le présent ajout enregistre seulement le verdict, sans changer le contrat.
