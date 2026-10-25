@@ -1,5 +1,5 @@
-Avancée : extension d'affichage des spectres pendant le test microphone en cours de cadrage, sur autorisation documentaire de l'utilisateur.
-Blocage : proposition spectrale à relire puis à accepter avant implémentation ; réserves Windows et Parakeet CPU précédentes conservées.
+Avancée : conception SPECTRE v1 revue DESIGN CLEAN sur 1587696a ; plan de l'affichage du test microphone en préparation autorisée.
+Blocage : proposition spectrale et plan à accepter avant implémentation ; réserves Windows et Parakeet CPU précédentes conservées.
 Décision : proposer deux graphes comparables avant gain et après gain/limitation ; aucun code ni EXE modifié par ce cadrage.
 
 # Whisper — Réglage du niveau du microphone
@@ -225,4 +225,4 @@ Complément de l'apport ARCH-SPECTRE-v1 reçu après rédaction : conserver auss
 
 Preuve locale Painter précisée par l'architecte : `target/parakeet-tests/micro-level/cargo-home/registry/src/index.crates.io-1949cf8c6b5b557f/egui-0.35.0/src/painter.rs:71,213,318,327,406,469` (découpage, formes, lignes, cadre et texte). L'apport brut lu par la session principale correspond aux décisions techniques ci-dessus ; ses numéros DEC internes sont remappés vers DEC-S03/04/05 du présent document, sans changement de contenu technique.
 
-Readiness SPECTRE : **DESIGN PROPOSÉ, revue indépendante à effectuer sur commit Git**. L'acceptation produit et l'autorisation d'implémenter seront demandées sur le couple design/plan relu ; elles ne sont déduites ni de la demande initiale ni de l'accord documentaire.
+Readiness SPECTRE : **DESIGN CLEAN sur `1587696ada1d871e1aa33aaa10a00b329a882b52`**, verdict indépendant `rust_design_reviewer` (`spectre_design_review`), aucun constat REQUIRED ouvert. Revue directe du fichier Git, comparée à `1b31d858` ; fenêtres, contrats, API Painter et couverture S01–S07 contrôlés. Le reviewer confirme son indépendance de rédaction/conception. Ce verdict permet la préparation du plan autorisé. L'acceptation produit et l'autorisation d'implémenter seront demandées sur le couple design/plan relu ; elles ne sont déduites ni de la demande initiale ni de l'accord documentaire.

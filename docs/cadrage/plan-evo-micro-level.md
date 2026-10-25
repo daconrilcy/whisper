@@ -1,6 +1,6 @@
-Avancée : arrêt du test confirmé par l'utilisateur ; redémarrage après capture corrigé et indicateur d'écrêtage ajouté, revue CLEAN et EXE compilé.
-Blocage : confirmation Windows de ces deux nouveaux points à faire ; réserve de complétude Parakeet CPU inchangée.
-Décision : remettre l'EXE pour recette, confirmer le calcul spectral existant sans ajouter de graphique ou modifier le moteur.
+Avancée : extension SPECTRE en préparation documentaire autorisée ; conception versionnée, revue et plan dédiés à l'affichage du test microphone.
+Blocage : extension à accepter avant tout code ou campagne ; réserves Windows et Parakeet CPU antérieures inchangées.
+Décision : proposer un lot borné pour afficher les spectres avant/après gain ; aucun nouvel EXE produit dans cette mission.
 
 # Whisper — Plan du réglage du niveau microphone
 
@@ -412,3 +412,97 @@ Build gardé `PersonalRelease-20261025T222703825-bfee0bf1` : **SelfTest PASS, ex
 Version Cargo toujours 0.1.0, FileVersion PE absent ; l'empreinte distingue ce build. Les 18 ressources de l'installation personnelle ont été hashées en lecture seule : deux workers Parakeet, cinq DLL CPU, neuf DLL GPU, deux modèles. Aucun programme utilisateur fermé par l'agent, aucune installation ni fenêtre lancée. Réserve de complétude Parakeet CPU inchangée ; aucune campagne de transcription native supplémentaire pour ce correctif UI.
 
 Archive `target/parakeet-tests/micro-level/archives/microphone-saturation-restart-ui-20261025/` : **12 fichiers, 109 040 octets**, SHA-256 source/copie conformes pour chaque fichier, sans WAV/cache/manifeste nouveau. Garde et processus de campagne terminés avant cette rédaction. Espace libre final : **130 246 270 976 octets**. Aucun code commité ni push ; seuls les deux documents de cadrage sont commités localement par la session principale. À vérifier par l'utilisateur : capture -> arrêt/finalisation -> nouveau test, alerte rouge lors d'un gain provoquant l'écrêtage, disparition à l'arrêt et jauge actualisée pendant le test.
+
+## Extension SPECTRE v1 — plan proposé L-MIC-SPECTRE
+
+### Autorité, références et périmètre
+
+Demande produit et accord documentaire exact « Je t autorise » : voir l'extension SPECTRE du cadrage associé. L'accord actuel porte sur la mise à jour des deux documents et leurs commits locaux. **Aucune autorisation d'implémentation, de campagne ou de remise SPECTRE n'est acquise.** Les accords et résultats du lot initial ne sont pas étendus implicitement.
+
+Parent DESIGN effectivement lu par `rust_plan_writer` : `1587696ada1d871e1aa33aaa10a00b329a882b52`, extension SPECTRE v1 de `evo-micro-level.md`, **DESIGN CLEAN** du reviewer indépendant `spectre_design_review`. Contribution PLANS-SPECTRE-v1 du 25 octobre 2026, en lecture seule ; rédaction/intégration dans Git par la session principale. Le changement local ultérieur du cadrage consigne uniquement ce verdict. Les DEC-S01 à S05 restent proposées à l'utilisateur ; aucune décision de conception nouvelle n'est introduite dans le plan.
+
+Lot distinct de sept tâches : afficher pendant le test explicite deux spectres comparables, réutilisant la sonde/FFT existantes ; REQ/UC/AC-S01 à S07. Le premier parcours complet est atteint en ST4. Exclusions du design inchangées : pas de graphe pendant capture/transcription/import, nouvelle dépendance, moteur, modèle, acquisition, FFT ou frontière native ; aucune campagne vocale. La réserve de complétude Parakeet CPU reste indépendante.
+
+### Chemins proposés pour acceptation
+
+Chemins relatifs à `C:\dev\whisper` ; seules ces éditions sont proposées. Les six sources et trois tests existent dans l'arbre de travail actuel, certains encore non suivis par Git ; ils ne seront ni recréés à partir de HEAD ni remplacés globalement.
+
+| Responsabilité | Chemins d'édition | Motif |
+| --- | --- | --- |
+| Contrat/application | `crates/whisper-core/src/microphone_level.rs`, `crates/whisper-core/src/ports.rs`, `crates/whisper-core/src/application.rs` | Paire/validation, événement test-only, état courant, routage exhaustif et invalidation. |
+| Sonde/publication | `crates/whisper-adapters/src/microphone_probe.rs`, `crates/whisper-adapters/src/worker_ipc.rs` | Métadonnées FFT propres, cache/époque et pump du test. |
+| Présentation | `crates/whisper-desktop/src/ui.rs` | Rendu Painter, états, repaint, disposition et vrais clics de test. |
+| Tests | `crates/whisper-core/tests/microphone_level.rs`, `crates/whisper-adapters/tests/microphone_probe.rs`, `crates/whisper-desktop/tests/microphone_level_ui.rs` | Contrat, sonde et projection ; fixtures privées `#[cfg(test)]` dans les modules ciblés pour application/pump/vrai rendu. |
+| Configuration existante | `target/parakeet-tests/micro-level/guard-micro-level.ps1` | Seulement modes, filtres et plafonds nécessaires à ces vérifications ; ni assouplissement des contrôles ni nouveau lanceur. Le traitement UNATTRIBUTED ci-dessous reste une décision de campagne distincte. |
+| Documentation | `docs/cadrage/evo-micro-level.md`, `docs/cadrage/plan-evo-micro-level.md` | Références et résultats, deux fichiers de rapport au total. |
+
+Lecture/exécution indirecte : manifests et `Cargo.lock`, core `lib.rs`/domaine, adapters `capture.rs`, `direct_live.rs`, `parakeet_live.rs`, sources egui déjà présentes ; tests core `live_contract.rs`, `compute_policy.rs`, `import_contract.rs` appelés par CoreLevel ; workers et ressources installées pour compilation/remise. Ces références n'autorisent aucune édition. Aucun changement de Cargo.lock/manifests, aucun formatage opportuniste. Une branche exhaustive nécessitant un chemin supplémentaire revient au périmètre avant édition.
+
+### Prérequis typés et décision de campagne à accepter
+
+- **DOCUMENT** : design/plan Git relus sans constat bloquant ouvert, acceptation des DEC-S01 à S05 et du lot ; accord précis pour chemins, campagne et remise. Aucun nouveau railguard.
+- **CODE** : conserver le delta micro-level initial, suivi ou non suivi. Base de départ documentaire `1b31d858`, branche `evo-startup-perf` ; relever Git et le diff initial avant le lot. HEAD seul n'est pas une base source complète. Préserver modèles, corpus, réglages, transcriptions et travail extérieur au delta SPECTRE.
+- **EXÉCUTION** : espace libre relevé avant chaque campagne, arrêt sous 30 Gio ; SelfTest de la garde avant tout Cargo. `CARGO_TARGET_DIR` exactement `target/parakeet-tests/cargo-shared/`. `CARGO_HOME`, `TEMP`, `TMP`, `WHISPER_L1B_RUNTIME_ROOT` canoniquement sous `target/parakeet-tests/micro-level/`, sans jonction sortante ni variable absente. `CARGO_INCREMENTAL=0`, `CARGO_PROFILE_DEV_DEBUG=line-tables-only`, hors ligne/verrouillé. Toute autre variable de fixture doit viser une racine autorisée.
+- **EXÉCUTION** : vérifier les auto-tests de refus des chemins hors racine et la surveillance pendant commande. Une seule commande gardée à la fois ; aucun code, document ou état Git modifié pendant sa surveillance. Pas de Cargo direct, même fmt/metadata. Cache existant sous la racine réutilisable ; pas d'écriture dans le cache du profil utilisateur, téléchargement ou installation.
+
+**DEC-CAMP-S01, proposition à approuver expressément pour L-MIC-SPECTRE** : racines des écritures applicatives maîtrisables exclusivement `target/parakeet-tests/micro-level/` et `target/parakeet-tests/cargo-shared/`. La garde actuelle vérifie les chemins et surveille des emplacements ciblés ; elle **ne confine pas préventivement le compte Windows**. Seuls les événements indéterminés observés dans le Temp initial `%LOCALAPPDATA%\Temp` sont consignés UNATTRIBUTED, chemin/heure, sans arrêt automatique à eux seuls. Cela accepte le risque résiduel d'écritures techniques Windows/pilotes/services extérieurs non empêchées ni exhaustivement attribuées. Aucune destination volontaire hors racine n'est autorisée. Toute écriture hors racine attribuée à la campagne, toute modification sensible inexpliquée, violation du préflight, échec build/test impose l'arrêt, conservation et arbitrage avant reprise ; ne pas effacer/restaurer sans état antérieur vérifié. **Sans cet accord précis, la garde de surveillance ne suffit pas à autoriser la campagne ; aucun Cargo n'est lancé.** Les anciennes dérogations ne remplacent pas cet accord.
+
+### Sept tâches et dépendances
+
+| ID | Entrées / dépendances | Travail et critère de fin | Traçabilité |
+| --- | --- | --- | --- |
+| **ST1 — Contrat et préflight** | DOCUMENT ; CODE initial ; EXÉCUTION avant tout test | Relever base/delta, vérifier garde ; types purs de paire/état, metadata FFT, validation, milli-dB/Silence et événement distinct. Refus des formats incohérents, égalité/serde conservées ; aucun champ PSD ajouté à MicrophoneMeter. | S02/03/04/07 |
+| **ST2 — Spectre cohérent** | CODE ST1 | Dernière paire indépendante retenue par sonde ; métadonnées sur 2 048 échantillons, y compris retour au gain initial ; époque/pertes et invalidation consultables. Tick RMS ne supprime ni ne rajeunit le spectre. | S02/03/04/07 |
+| **ST3 — Publication et états** | CODE ST2 | Pump test, état spectral remplaçable et admission applicative identité/séquence/époque/âge ; ordonnancement sans famine dans la limite des quatre événements par refresh. Stop demandé/erreur/perte/nouveau test/capture effacent le cache et refusent les livraisons tardives. Aucun envoi spectral dans les parcours de transcription. | S04/05/07 |
+| **ST4 — Parcours visible complet** | CODE ST3 | Deux graphes du vrai rendu egui, axes/échelles fixes, unités, attente/silence/indisponible/périmé, multirévision et hors-échelle. Commandes/saturation accessibles avant les graphes. Signal synthétique traversant le chemin complet jusqu'au widget. | S01/02/03/06 |
+| **ST5 — Vérifications ciblées** | CODE ST4 ; EXÉCUTION vérifications précédentes | Compléter erreurs, horloge, perte, lecteur lent, arrêt/retest après capture, petite fenêtre et régressions utiles. Résultats attribués aux scénarios ci-dessous, sous-cas ignorés signalés. | S01 à S07 |
+| **ST6 — Revue/corrections** | EXÉCUTION ST5 | `rust_review_coordinator` fait relire le candidat par `rust_reviewer` indépendant ; corrections par `rust_implementer`, au maximum deux cycles. Seul le reviewer ferme les constats et déclare CLEAN ; sinon LIVRÉ AVEC RÉSERVES et décision utilisateur. | S01 à S07 |
+| **ST7 — Remise personnelle et recette** | EXÉCUTION ST6 ; accord de campagne/remise | Build du profil personnel, ressources vérifiées en lecture, trois EXE remis puis recette Windows utilisateur. Bilan dans les deux documents avec limites et espace final ; aucune automatisation de fenêtre. | S01 à S07 |
+
+Ordre séquentiel ST1 -> ST2 -> ST3 -> ST4 -> ST5 -> ST6 -> ST7. L'implémentation est déléguée par la session principale à `rust_implementer` en mode IMPLEMENT, avec ces entrées et chemins ; aucun développement parallèle des mêmes fichiers. Chaque tâche traduit un besoin ou un préalable d'exécution du lot ; pas de tâche d'outillage autonome.
+
+### Carte d'exécutabilité — tous les résultats SPECTRE NOT RUN
+
+Cwd `C:\dev\whisper`, PowerShell. Les noms des nouveaux tests s'inscrivent dans les filtres existants (`microphone_` pour application/pump/UI) ; sinon l'ajustement précis du filtre de garde est réalisé avant exécution, dans son périmètre accepté. SelfTest doit précéder les modes Cargo ci-dessous. Les coûts indiqués sont des plafonds proposés de tests hors compilation, pas une mesure du produit.
+
+| Scénario / tâches / CA | Données, observation et oracle | Modules/tests / modes gardés / coût |
+| --- | --- | --- |
+| **V-S1 / ST1–4 / S01–03** | Sinus bin64 aux taux natifs 16 et 48 kHz, neutre puis +6 dB sans limitation : 1 025 valeurs, 0..Fs/2, A/B même fenêtre, courbes coïncidentes au neutre ; delta +6 dB aux composantes significatives à <=0,001 dB d'arrondi transport. Vérifier silence, conversion positive <=0,0005 dB, entrée négative/non finie et format invalide. Limitation synthétique : B présente les composantes attendues sans fausse promesse de décalage uniforme ; alerte conservée. | Core contrat/tests, sonde/tests, UI/tests ; CoreLevel, ProbeUnit, Probe, DesktopLevel ; <=2 min. |
+| **V-S2 / ST2–5 / S02/04** | Changement traversant seulement l'une des fenêtres RMS/FFT, y compris retour initial : metadata FFT exactes. Une PSD puis plusieurs ticks RMS : acquisition/numéro spectral inchangés. Âges 500 puis 501 ms et temps futur : actuel à 500, périmé à 501, futur rejeté. | Sonde, application, tests ciblés ; ProbeUnit, Probe, CoreGain, DesktopLevel ; <=2 min. |
+| **V-S3 / ST2/3/5 / S04/05/07** | Débordement/perte/époque, lecteur ralenti, publications plus rapides que consommation, fausse source/génération et séquences désordonnées : une dernière paire, invalidation explicite sans attendre prochaine FFT, ancienne paire rejetée, fenêtre complète reconstruite. Tester gain/RMS soutenus avec quatre événements par refresh : aucun type affamé, compteur spectral avance sans file historique. | Sonde, pump et application ; ProbeUnit, LiveGain, CoreGain ; <=2 min. |
+| **V-S4 / ST4/5 / S01/05/06** | Rendu headless complet : clic vrai Stop, événement tardif, redémarrage après capture finalisée, déconnexion simulée, silence/périmé, petite fenêtre et saturation. Deux graphes et mêmes échelles uniquement en test, aucune courbe ancienne/fictive, commandes cliquables, disparition dès Stop et maintien du résultat précédent. | UI/tests et application ; DesktopLevel, DesktopMicrophoneStop, CoreGain ; <=2 min. |
+| **V-S5 / ST5 / S07** | Régressions gain/PCM/test existantes ; aucune modification de flux, de PCM ni du chemin WAV/STT, second flux ou calcul graphique dans callback. Revue du diff et des imports, signaux de référence et sous-cas réellement activés. | Capture/pump/core et tests indirects ; CaptureTests, LiveGain, CoreLevel, Fmt ; <=2 min. |
+
+Chaque CA a au moins une observation : S01 -> V-S1/4, S02 -> V-S1/2, S03 -> V-S1, S04 -> V-S2/3, S05 -> V-S3/4, S06 -> V-S4 + recette, S07 -> V-S3/5. Les contrôles de mémoire/bornes sont des assertions sur dernier état et nombre de composantes/file, complétées par revue du code ; pas de nouveau benchmark.
+
+Commandes proposées derrière les modes, sans exécution dans cette mission :
+
+```text
+SelfTest                contrôles de refus et racines, sans Cargo
+CoreLevel               cargo test --offline --locked -p whisper-core --test microphone_level --test live_contract --test compute_policy --test import_contract
+CoreGain                cargo test --offline --locked -p whisper-core --lib application::tests::microphone_
+Probe                    cargo test --offline --locked -p whisper-adapters --test microphone_probe
+ProbeUnit                cargo test --offline --locked -p whisper-adapters --lib microphone_probe::tests::
+LiveGain                 cargo test --offline --locked -p whisper-adapters --lib worker_ipc::tests::microphone_
+CaptureTests             cargo test --offline --locked -p whisper-adapters --lib capture::tests::
+DesktopLevel             cargo test --offline --locked -p whisper-desktop --test microphone_level_ui
+DesktopMicrophoneStop    cargo test --offline --locked -p whisper-desktop --lib ui::tests::microphone_ -- --test-threads=1
+Fmt                      cargo fmt --all -- --check
+PersonalRelease          cargo build --release --offline --locked -p whisper-desktop -p whisper-worker-cpu -p whisper-worker-gpu --features whisper-desktop/personal-install
+```
+
+Invocation : `& .\target\parakeet-tests\micro-level\guard-micro-level.ps1 -Mode <mode>`, après fixation et vérification des variables d'environnement. Les commandes sont sérialisées, les répétitions ne répondent qu'à une correction ou un doute nouveau. Les tests natifs nécessitant une ressource ou variable non activée restent NOT RUN, même si Cargo renvoie 0. Aucun mode D2/corpus/ASR n'appartient à cette extension.
+
+Plafonds proposés pour acceptation : chaque fixture synthétique <=1 million de frames ; durée cumulée des tests <=10 minutes hors compilation ; durée cumulée des commandes automatiques du lot **<=90 minutes, compilation comprise et corrections incluses**. Arrêt et bilan au plafond, sans relance implicite. Le défaut de formatage préexistant de `crates/whisper-core/src/model_selection_app.rs:144`, s'il persiste, est rapporté distinctement ; ce fichier reste hors édition. Un échec de commande est consigné et arrête la campagne ; aucune correction hors périmètre ni poursuite automatique fondée sur son caractère antérieur.
+
+### Remise, recette et clôture proposées
+
+Profil personnel existant : remise uniquement dans `target/parakeet-tests/micro-level/recette-personnelle/` des trois fichiers `whisper-desktop.exe`, `whisper-worker-cpu.exe`, `whisper-worker-gpu.exe`. Vérifier la fermeture de l'EXE utilisateur avant remplacement ; ne pas le fermer automatiquement. Vérifier présence et SHA-256 des deux workers Turbo livrés, et en lecture seule des deux workers Parakeet, cinq DLL CPU, neuf DLL GPU et deux modèles de l'installation stable du profil personnel. Ne pas copier ces ressources Parakeet dans la recette et ne pas annoncer un paquet autonome. Aucun changement de réglage personnel, runtime ou modèle.
+
+Recette utilisateur après remise : démarrer le test, observer les deux courbes avec la voix, changer le gain et constater le déplacement relatif puis l'indication d'écrêtage si provoqué ; vérifier silence, déconnexion, Stop, nouveau test et reprise du test après capture finalisée. Les commandes doivent rester accessibles sur la fenêtre utilisée. Les courbes disparaissent à Stop et pendant capture/transcription. Aucun nouveau seuil de qualité vocale, aucune campagne GPU. Résultats Windows distincts des tests headless et du build.
+
+Clôture : petites preuves archivées sous micro-level en préservant leur arborescence et en vérifiant nombre/SHA-256 ; relever l'espace libre final. Aucun manifeste nouveau, suppression, reset, nettoyage de cargo-shared, modification des données sources ou push. Un retour arrière éventuel ne retire que le delta SPECTRE identifié, jamais les travaux micro-level préexistants.
+
+### Readiness documentaire SPECTRE
+
+DESIGN : CLEAN sur `1587696ada1d871e1aa33aaa10a00b329a882b52`. PLANS : proposition à relire indépendamment dans Git. Acceptation produit, DEC-CAMP-S01 et autorisation de réaliser : **NON REÇUES**. Tests, compilation et recette de SPECTRE : **NOT RUN**. Les résultats et hashes de l'EXE historique ci-dessus restent ceux du candidat précédent.
