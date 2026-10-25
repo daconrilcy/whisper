@@ -1,6 +1,6 @@
-Avancée : plan documentaire du niveau microphone rédigé à partir des décisions Q1 à Q5 acceptées.
-Blocage : aucune implémentation ni campagne autorisée ; corpus de qualité et préflight d'exécution à fermer à leurs échéances.
-Décision : soumettre les neuf tâches à validation après revue indépendante, sans les exécuter.
+Avancée : candidat personnel compilé et remis avec réserves ; revue finale ferme R1 à R6 après deux cycles.
+Blocage : R7 invalide le harnais D2 à gain non nul ; comparaison vocale incomplète et recette Windows non exécutée.
+Décision : conserver le candidat et les preuves ; arbitrage utilisateur requis avant toute correction supplémentaire de R7 ou reprise D2.
 
 # Whisper — Plan du réglage du niveau microphone
 
@@ -9,7 +9,7 @@ Décision : soumettre les neuf tâches à validation après revue indépendante,
 - Date : 25 octobre 2026. Auteur des fichiers : session Codex principale ; proposition de tâches par `rust_plan_writer`, contrôle indépendant par `rust_design_reviewer`.
 - Référence produit : `878cd1e9a3a37bd062af9802bec68f2eb45f5337`. Conception : [evo-micro-level.md](evo-micro-level.md), revue **DESIGN CLEAN** sur `d10516808804f461ca1597b78d0d176f3f3baa27` ; R-MIC-D01 fermé. Précisions ultérieures limitées au statut et à la fixture spectrale bin 64, sans changement de Q1–Q5.
 - Accord produit exact dans cette session : « ok sur les recommandation Q1 à Q5 ». Accord de rédaction : « tu peux passer à la rédaction du plan ».
-- **Plan proposé, non encore accepté par l'utilisateur. Aucune autorisation d'implémenter.** La revue du plan ne vaut pas acceptation produit, autorisation de campagne, qualification Windows ou publication.
+- **Plan accepté et implémentation autorisée le 25 octobre 2026 dans la session de réalisation**, par la demande « implemente le plan C:/dev/whisper/docs/cadrage/plan-evo-micro-level.md realisé à partir de la note de cadrage C:/dev/whisper/docs/cadrage/evo-micro-level.md ». Autorisation complémentaire « oui je t'autorise » pour adapter et vérifier la garde PowerShell existante puis exécuter les tests prévus, avec les seules destinations de campagne `target/parakeet-tests/micro-level/` et `target/parakeet-tests/cargo-shared/`. Aucun téléchargement, installation, push ou changement des ressources personnelles n'est autorisé. La recette dans la fenêtre reste à l'utilisateur.
 - Deux fichiers de rapport : le cadrage et ce plan. Aucun nouveau railguard, manifeste d'empreintes, journal ou mécanisme d'agent. Aucun push.
 
 ## Résultat du lot proposé
@@ -47,9 +47,12 @@ Chemins relatifs à `C:\dev\whisper`. Cette liste décrit les éditions proposé
 | Dépendance | `crates/whisper-adapters/Cargo.toml`, `Cargo.lock` | T5 déclaration directe Rustfft `=6.4.1` déjà verrouillé. Aucun téléchargement implicite. |
 | Tests nouveaux | `crates/whisper-core/tests/microphone_level.rs`, `crates/whisper-adapters/tests/{microphone_level.rs,microphone_probe.rs}`, `crates/whisper-desktop/tests/microphone_level_ui.rs` | Contrats T1/T2, sonde T5 et présentation T7. |
 | Tests existants éditables | `crates/whisper-core/tests/live_contract.rs`, `crates/whisper-adapters/tests/{live_capture.rs,microphone_settings.rs,model_preferences.rs}` | Intégration T3, compatibilité/mémoire T4. Fixtures privées strictement sous `cfg(test)` dans les modules déjà listés ; aucune API de production ajoutée uniquement pour les tests. |
+| Extension acceptée pendant réalisation | `crates/whisper-adapters/tests/live_archive.rs`, `crates/whisper-core/tests/{model_selection_app.rs,parakeet_import_contract.rs}` | Accord utilisateur exact « Autoriser ces trois adaptations de tests » : seulement 11 initialisations `microphone_gain_db: 0` (8 + 2 + 1), sans changement d'assertion ; régressions correspondantes autorisées. L'édition anticipée reste consignée dans l'historique ci-dessous. |
 | Documentation | `docs/cadrage/evo-micro-level.md`, `docs/cadrage/plan-evo-micro-level.md` | Référence/plan et résultats utiles, deux fichiers maximum prévus pour le rapport de ce lot. |
 
 Sources de régression en lecture/exécution future : `crates/whisper-core/tests/{compute_policy.rs,import_contract.rs}`, `crates/whisper-adapters/tests/{import_cpu.rs,import_mp3.rs,parakeet_import.rs,live_archive.rs}`. Sources indirectes en lecture : `crates/whisper-adapters/src/{supervisor.rs,decoder.rs,archive.rs}`, workers et contrats moteur existants, manifests racine/core/desktop. Aucun changement de worker, d'API moteur ou de façade native prévu. Une modification devenue nécessaire hors liste revient au périmètre avant édition.
+
+Précision de réalisation : `live_archive.rs`, initialement limité à lecture/exécution, bénéficie de la seule extension de fixtures acceptée ci-dessus ; ses assertions restent intactes.
 
 Les destinations d'exécution sont distinctes des chemins d'édition. Les tests utilisent des profils/ports/fixtures isolés sous les racines autorisées, jamais les transcriptions ou réglages personnels réels. Aucun audio, modèle ou corpus préexistant n'est modifié.
 
@@ -116,5 +119,92 @@ T9 applique AGENTS.md : dossier à autoriser précisément ; pour le profil pers
 
 - DESIGN : `rust_design_reviewer`, CLEAN sur `d10516808804f461ca1597b78d0d176f3f3baa27`, R-MIC-D01 fermé ; conseil de fixture bin 64 intégré dans les deux documents.
 - PLANS : `rust_design_reviewer`, **CLEAN sur `316de9bcce2d8aeef85098e4e45e0a8b6689b7ae`**, après lecture directe des deux fichiers Git ; aucun constat requis ouvert. Couverture CA-01 à CA-07 / T1 à T9 / V1 à V7, chemins indirects, graphe et prérequis contrôlés. Le conseil spectral est fermé par la fixture bin 64 ; aucun changement de Q1–Q5. Le présent ajout consigne uniquement le verdict, sans modifier les tâches ou contrats.
-- Acceptation du présent plan par l'utilisateur : **non reçue**. Autorisation d'implémenter ou d'exécuter une campagne : **non reçue**.
-- Vérifications réellement exécutées pour cette mission : lectures ciblées et contrôles Git/documentaires uniquement. Aucune compilation, capture, installation, fenêtre pilotée ou exécution de test produit.
+- Acceptation et autorisation de réalisation : **reçues le 25 octobre 2026**, selon l'accord précis consigné dans le statut ci-dessus. Les mentions de propositions/non-autorisation dans le corps décrivent la rédaction initiale ; les chemins d'édition sont désormais ceux du lot accepté. La garde doit encore satisfaire D3 avant toute commande Cargo ; aucune ancienne dérogation ne s'applique.
+- D2 : l'utilisateur a répondu « Oui, utiliser ce corpus et cette méthode » pour les quatre WAV FR/EN existants de `docs/cadrage/feas-pm-01-corpus/manifest.json`, associés aux quatre références `candidate_*_copie.txt` corrigées. Référence à 0 dB, variantes faible/forte et changement de gain pendant le flux ; comparer Turbo/Parakeet sur les moteurs disponibles, continuité, durée et texte, sans nouveau seuil WER. Les sources restent intactes. Les paramètres précis et les cas exécutés seront rapportés ; cet accord n'est pas une preuve de qualité.
+- Profil de remise choisi par l'utilisateur : **profil personnel existant**. Les ressources installées restent utilisées en lecture ; le dossier de recette éventuel reste sous `target/parakeet-tests/micro-level/`.
+- Préflight initial de réalisation : HEAD `b2808898001056f6d63ea9daf505979d3cda2ccd`, branche `evo-startup-perf`, aucun changement suivi ; `models/` et `sound example/` non suivis à préserver. Espace libre C: relevé à 134 716 538 880 octets (environ 125,5 Gio). Lectures et contrôles Git uniquement à ce stade ; aucune preuve de compilation, capture ou test produit acquise.
+- Vérification D2 en lecture seule : les quatre WAV et les quatre références `human_approved_reference` correspondent aux SHA-256 du manifeste existant. Durées : FR pauses 65,02 s, EN pauses 65 s, FR continu 60 s, EN continu 60 s. Cette vérification d'identité ne constitue pas une comparaison vocale.
+- Préparation de remise personnelle en lecture seule : présence et SHA-256 relevés pour les deux workers Parakeet de `%LOCALAPPDATA%/Whisper/worker/`, les cinq DLL CPU et neuf DLL GPU de `native/`, et les deux modèles de `models/`. Aucun fichier de l'installation n'a été modifié. La vérification des deux workers Turbo du nouveau binaire et la recette utilisateur restent à effectuer.
+
+### Arrêt de la première campagne de réalisation
+
+- Garde adaptée sous `target/parakeet-tests/micro-level/guard-micro-level.ps1` ; auto-tests annoncés réussis (exit 0), y compris refus de variables hors racine et événement interdit synthétique sans création effective hors racine. La surveillance n'est pas un confinement préventif.
+- `Fmt` via garde : exit 1, diagnostic uniquement de formatage préexistant dans `crates/whisper-core/src/model_selection_app.rs:144`, hors périmètre ; diagnostic dans `logs/Fmt.stdout.log`. Aucun succès de formatage global n'est annoncé.
+- `CoreLevel` via garde : campagne interrompue avant tout résultat de test. Création observée de `C:/Users/cyril/AppData/Local/Temp/etilqs_jhCWsj2WNLO1hcS` à `2026-10-25T17:59:12.7919744+01:00`, détection à `17:59:12.8300323+01:00`, action `process-tree-terminated`, exit 1. Le watcher ne démontre ni processus auteur ni provenance ; aucune attribution à Cargo ou à un service externe n'est établie. Aucune ancienne dérogation n'est appliquée.
+- Preuves conservées sous `target/parakeet-tests/micro-level/logs/` : `guard-events.jsonl`, `guard.jsonl`, `CoreLevel.stdout.log`, `CoreLevel.stderr.log`. Aucun effacement ni restauration du fichier temporaire observé ; son absence lors de la lecture ultérieure n'établit pas son auteur.
+- État : T1/T2 partiels, T3 à T9 non réalisés, aucun test PASS, aucun binaire remis, aucune revue de candidat complet. Le contrôle des processus après arrêt n'a retourné aucun `cargo.exe` ou `rustc.exe`. Espace libre après arrêt : 133 871 005 696 octets (environ 124,7 Gio).
+- Écart de périmètre observé après arrêt : `crates/whisper-core/src/model_selection_app.rs` présente désormais un changement de mise en forme de l'expression `matches!` (5 lignes en une), alors que le fichier était propre à la base. L'implémenteur confirme que `rustfmt` lancé sur le `lib.rs` autorisé a parcouru récursivement ses modules et touché ce fichier hors périmètre. Ce changement est attribué à l'implémenteur, sans modification fonctionnelle relevée dans ce diff de formatage ; aucune restauration automatique n'est effectuée. Une reprise devra empêcher la récursion hors des chemins autorisés.
+
+### Arbitrage de reprise
+
+- Le 25 octobre 2026, dans cette même session, l'utilisateur répond « oui je t'autorise » aux deux actions proposées : reprendre uniquement ce lot en consignant sans arrêt automatique les événements du Temp utilisateur dont l'origine reste indéterminée, et annuler le seul changement de formatage hors périmètre identifié ci-dessus.
+- Aucune destination applicative volontaire n'est ajoutée. Toute écriture extérieure attribuée à la campagne impose toujours l'arrêt ; la dérogation ne couvre aucun autre emplacement. Préflight, auto-tests, variables locales et surveillance restent obligatoires. Les événements indéterminés sont conservés comme tels et ne deviennent ni des écritures Cargo prouvées ni des écritures autorisées. La surveillance reste distincte d'un confinement préventif.
+- Cette autorisation permet la reprise des vérifications prévues ; elle n'est pas leur résultat. Aucun résultat de la campagne interrompue n'est présenté comme PASS.
+
+### Vérifications après reprise — état intermédiaire
+
+- Le seul formatage hors périmètre de `model_selection_app.rs` a été annulé ; le contrôle Git confirme un diff vide pour ce fichier. Le défaut de formatage initial reste distinct et n'est pas corrigé dans ce lot.
+- Garde réadaptée et auto-tests réussis : seuls les événements d'origine indéterminée sous le Temp utilisateur initial relèvent de la dérogation. Les signatures de noms évoquant la campagne provoquent un arrêt conservateur `SUSPECTED_CAMPAIGN`, sans prétendre constituer une attribution par processus. Les autres chemins extérieurs restent refusés. Les sorties sont uniques par lancement pour préserver les premiers logs.
+- `CoreLevel-20261025T180238161-f85e2fb2` : exit 0, 23 tests réussis (3 + 11 + 6 + 3), aucun ignoré. Cette preuve couvre seulement le candidat intermédiaire testé ; des changements ultérieurs peuvent exiger sa réactualisation.
+- Première compilation `CaptureTests-20261025T180341698-f1147b1a` : exit 101, erreurs E0615/E0382 dans le delta de `capture.rs`. Campagne arrêtée, traces conservées ; corrections locales autorisées par l'orchestrateur dans le périmètre accepté, sans nouvelle dérogation.
+- Nouvelle campagne `CaptureTests-20261025T180444515-0c7be309` : exit 0, 8 tests réussis, 2 ignorés nécessitant du matériel, 156 hors filtre. `AdapterLevel-20261025T180533856-b23c59f4` : exit 0, 12 tests réussis (3 live_capture, 1 microphone_level, 2 microphone_settings, 6 model_preferences). Les essais matériels ignorés ne sont pas prouvés.
+- Disponibilité hors ligne de Rustfft 6.4.1 annoncée vérifiée dans le cache local du lot ; aucun téléchargement effectué. T3 à T9 restent à réaliser ou à vérifier ; aucune livraison complète ni revue CLEAN n'est annoncée.
+
+### Progression intermédiaire T3 à T5
+
+- T3 : commande core `CoreGain` réussie (1 test) ; `LiveGain-20261025T181322043-8e2a6493` réussie (1 test), chaîne application simulée -> effet runtime -> acquisition -> conversion -> arrêt/WAV finalisé alors que le moteur n'est pas prêt. Un premier échec de fixture de recyclage des blocs est conservé séparément. Cela ne prouve pas encore tous les cas de régression ou une capture Windows.
+- Auto-test de garde : un échec de retrait de la jonction de test a été conservé, puis corrigé par suppression non récursive du seul lien vérifié. La cible `models/` est restée présente. L'invocation est ensuite effectuée avec PowerShell 7 déjà installé ; aucun outil n'a été installé. Les auto-tests suivants ont réussi.
+- T4 : 4 tests core de réglages réussis après correction des nouveaux faux ports ; suites `AdapterLevel` réussies avec racine de profils de test sous `micro-level/`, dont 2 tests microphone_settings et 6 model_preferences réellement activés. Compatibilité/migration et conservation de la carte sont vérifiées à ce stade ; le contrôle des confirmations réelles anciennes reste à consolider.
+- T5 : `ProbeUnit-20261025T182812508-e83d5496` réussie (5 tests), incluant puissance Hann bin 64, Parseval multitone, rapport gain² et révisions mixtes. Les tests ont révélé puis permis de corriger un défaut produit : une publication spectrale ne doit pas effacer le RMS courant. Tests d'intégration de sonde : 3 réussis, dont deux lecteurs et débordement/reconstruction. Tests de capture : 9 réussis, 2 matériels ignorés, dont égalité exacte du PCM et de sa fin avec/sans collecte.
+- Ces preuves sont intermédiaires ; elles seront réévaluées si les éditions suivantes les affectent. Le cycle test/UI T6/T7, la validation complète T8, le build personnel et la recette T9 ne sont pas annoncés réalisés. Aucun verdict de revue indépendante n'a encore été demandé.
+
+### Checkpoint figé T1 à T7 avant revue
+
+- Candidat : working tree sur la base `b2808898001056f6d63ea9daf505979d3cda2ccd`, sans commit produit. Les sources sont figées pendant la revue indépendante déclenchée via `rust_review_coordinator` et `rust_reviewer` ; aucun verdict encore acquis. Le build personnel est en cours sous garde, sans installation ni fenêtre lancée.
+- Dernières suites ciblées annoncées réussies : CoreLevel (dont 6 live_contract et 4 microphone_level), CoreGain (3), CoreSettings (4), AdapterLevel (dont 1 microphone_level, 2 microphone_settings et 6 model_preferences), Probe (3), ProbeUnit (5), CaptureTests (9 réussis, 2 matériels ignorés), LiveGain (2), DesktopLevel (2). Les logs uniques sous `micro-level/logs/` déterminent les sous-cas et le candidat de chaque preuve ; aucun succès synthétique n'est une preuve de capture matérielle.
+- T6 : flux synthétique de test sans moteur/worker/WAV, identité, gain initial/révisions, invalidation sur stop/erreur, propriétaire unique, test -> arrêt -> capture et rejet d'ancienne génération contrôlés dans les tests ciblés. T7 : présentation attente/absence/silence/péremption strictement après 500 ms, avis de défaut changé et nouvelle action explicite contrôlés. Les opérations matérielles et la fenêtre Windows restent non exécutées.
+- Incident de périmètre : l'implémenteur a ajouté trop tôt `microphone_gain_db: 0` à onze constructions de requêtes dans trois fichiers hors liste d'édition : 8 dans `crates/whisper-adapters/tests/live_archive.rs`, 2 dans `crates/whisper-core/tests/model_selection_app.rs`, 1 dans `crates/whisper-core/tests/parakeet_import_contract.rs`. Aucune assertion changée. Leur adaptation est motivée par le nouveau champ requis de `LiveRequest`. Ces changements sont conservés et figés ; la demande précise d'extension est soumise à l'utilisateur, sans réponse à ce checkpoint. Ces trois cibles ne sont pas exécutées avant accord.
+- D2 : corpus et méthode acceptés, identités vérifiées, mais aucune comparaison avec les vrais moteurs n'a été exécutée. Les anciens scripts VAD ne couvrent pas ce parcours et ne sont pas présentés comme preuve de qualité. La recette T9 reste non exécutée et réservée à l'utilisateur.
+
+## Bilan de réalisation au 25 octobre 2026
+
+### Verdict et état du lot
+
+**LIVRÉ AVEC RÉSERVES**, candidat de travail non commité sur la base `b2808898001056f6d63ea9daf505979d3cda2ccd`. Trois passes de revue, deux cycles de correction, limite atteinte. Le `rust_reviewer` indépendant ferme **R1 à R6** ; **R7 reste ouvert**. Le candidat personnel courant compile, mais T8/D2 n'est pas validé et T9 reste à l'utilisateur. Aucun push, installation, ouverture automatisée de fenêtre ou effacement de source/corpus/réglage personnel n'a eu lieu.
+
+| Tâches | État de réalisation et preuve | Limite |
+| --- | --- | --- |
+| T1 à T7 | Code et suites ciblées réalisés ; R1 à R6 fermés par reviewer après correction. Gain par bloc, acquittement après acquisition, identité, réglages et sonde testés sur scénarios simulés. | Deux tests matériels ignorés ; le parcours Windows réel reste à observer. |
+| T8, régressions | CoreLevel 24 tests, CoreFixtureRegression 13, AdapterLevel 12, DirectLiveTests 15, CaptureTests 10 réussis et 2 ignorés ; suites d'accusé/UI/sonde/réglages ciblées réussies sur les candidats concernés. ImportRegression : 24 réussis et 8 ignorés. | `import_cpu` 5 exécutés (~29 s), `import_mp3` 4, `live_archive` 8, `parakeet_import` 7 exécutés et 8 ignorés ; ces derniers ne prouvent pas les chemins natifs ignorés. |
+| T8, revue | R1 identité/gain à l'ouverture, R2 accusé au premier bloc acquis, R3 demandes durant ouverture, R4 restauration partielle JSON, R5 frontière avant copie, R6 cadence RMS : fermés. Dernier test R3 `CoreGain-20261025T192456050-6f135a25`, 4 tests réussis. | R7 du harnais D2 reste ouvert, aucun verdict CLEAN du lot. |
+| T8, build personnel | `PersonalRelease-20261025T194551209-7a3c0f8d`, exit 0 en 29 s, après SelfTest exit 0 ; code courant, profil `personal-install`. | Un build réussi ne valide ni R7, ni D2, ni la fenêtre Windows. |
+| T8, qualité D2 | Campagne CPU autorisée et engagée, arrêtée sur constat de revue. | Preuves de gain invalides ; voir détail ci-dessous. |
+| T9 | Dossier de recette personnel courant préparé, ressources installées vérifiées en lecture seule. | Aucune observation de l'utilisateur dans la fenêtre à ce stade ; comparaison GPU réservée à cette recette. |
+
+Le formatage ciblé passe avec `skip_children=true` et `git diff --check` passe. Le contrôle global `cargo fmt --all -- --check` reste en échec sur le seul formatage préexistant de `crates/whisper-core/src/model_selection_app.rs:144`, hors périmètre ; ce fichier n'a plus de diff. Les échecs de compilation/tests corrigés sont conservés séparément ; ils ne sont pas présentés comme des réussites historiques.
+
+### Campagne D2 autorisée, puis arrêtée sur R7
+
+- Accord utilisateur précis : « Autoriser cette campagne CPU complète » pour 32 transcriptions sérialisées = quatre WAV approuvés × Turbo CPU/Parakeet CPU × 0 dB, −6 dB, +6 dB, transition −6→+6 dB à mi-parcours. Plafond de 60 minutes, arrêt et bilan s'il est atteint ; sorties sous `target/parakeet-tests/micro-level/d2/`, aucun nouveau seuil WER. Deuxième décision : « Réserver la comparaison GPU à ma recette ». Aucune destination GPU hors racine n'est autorisée.
+- Le harnais privé `cfg(test)` et le mode de garde `D2Corpus` sont ajoutés dans les modules déjà autorisés. Les ressources CPU installées et les corpus sont utilisés en lecture seule. Une première compilation a échoué sur une conversion de SHA de modèle, corrigée localement avec trace conservée ; aucune donnée vocale n'avait alors été traitée.
+- Run de données `D2Corpus-20261025T193558669-df0676a2`, invocation à 19:35:58 environ, exit −1 après **475 s**, arrêt dirigé à la suite du constat du reviewer, **pas un dépassement du plafond de 60 minutes**. Trois cas Turbo CPU FR pauses terminés (0/−6/+6 dB) ; cas 4 transition commencé puis interrompu ; 28 autres non lancés. Les trois sorties ne sont pas comptées PASS pour D2. Journaux, `d2/checkpoint.jsonl` et résultats partiels conservés ; aucun worker/Cargo résiduel.
+- **R7 IMPORTANT, ouvert** : `CaptureStream::enqueue_test_block` applique/limite déjà le gain aux échantillons du flux simulé ; `Pcm16Converter` l'applique à nouveau. Les variantes annoncées −6/+6 deviennent donc approximativement −12/+12 dB, avec limitation prématurée ; la sonde A reçoit un signal déjà réglé. Ce helper est réservé aux tests et n'est pas utilisé par le rappel audio réel. Le constat invalide la preuve T8, sans démontrer un double gain dans le produit.
+- Correction concrète proposée, **non exécutée** : injecter le PCM brut dans le helper, transporter seulement gain/révision/indice ; laisser le convertisseur appliquer le gain une fois. Prouver A brut, B/WAV à un seul facteur et la limitation au bon endroit, puis rejouer les cas D2 invalidés. Les deux cycles de revue/correction étant épuisés, un nouvel accord utilisateur précis est requis avant cette correction ou relance. Les 475 secondes de campagne déjà consommées doivent être prises en compte dans toute décision de budget de reprise.
+
+### Incidents de campagne expliqués et conservés
+
+Le premier PersonalRelease a été arrêté par la garde sur une modification de `plan-evo-micro-level.md` à 18:52:00, effectuée par la session principale pendant la surveillance. L'origine est expliquée : erreur de coordination documentaire, sans attribution à Cargo. Les preuves et binaires partiels ont été conservés. Après gel des documents, la relance epoch0 a réussi ; le build courant ci-dessus la remplace pour la recette, après corrections. Aucun événement du dépôt sensible n'a été ignoré pour contourner la garde. Les événements Temp indéterminés restent consignés selon la seule dérogation de cette session ; ils ne constituent pas un confinement ni une attribution de processus.
+
+### Remise personnelle et clôture des preuves
+
+Dossier courant : `target/parakeet-tests/micro-level/recette-personnelle/`, contenant **exactement trois EXE**, chacun identique par SHA-256 au résultat Cargo du dernier build :
+
+| Fichier | Octets | SHA-256 |
+| --- | --- | --- |
+| `whisper-desktop.exe` | 14 270 976 | `D135D05E5F4F0DFD309321605D3A03EDB818C887D4DA18B0BA440E6B1FDF1A86` |
+| `whisper-worker-cpu.exe` | 20 809 728 | `3613ADC5884C5D28BCB85992647233E6F72653EC93FC205E1ECCC9284C393E7A` |
+| `whisper-worker-gpu.exe` | 20 882 432 | `3537A0E5E1B1E1A20316651AD2156E32213C67A23B78DA0DFD0E152CE2D24234` |
+
+Ce dossier utilise les ressources stables de `%LOCALAPPDATA%/Whisper/` : deux workers Parakeet dans `worker/`, cinq DLL CPU et neuf DLL GPU dans `native/`, deux modèles dans `models/`. Présence et SHA-256 revérifiés en lecture seule avant remise ; aucune copie Parakeet ou DLL superflue ajoutée. Le dossier n'est pas autonome et rien n'a été installé ni lancé. La recette future devra appliquer les observations de T9 (deux micros, défaut/repli/reconnexion, gain pendant capture, jauge, volume Windows inchangé, sorties) et la comparaison GPU choisie par l'utilisateur ; ce bilan ne prétend pas les avoir exécutées.
+
+Petites preuves archivées sous `target/parakeet-tests/micro-level/archives/t8-evidence-20261025-194703/` : **177 fichiers, 873 685 octets**, arborescence conservée, taille et SHA-256 source/destination vérifiés pour chaque fichier. Aucun WAV ni cache Cargo inclus ; aucun manifeste supplémentaire créé. Aucune suppression de temporaire/copie ou nettoyage de `cargo-shared` effectué. Espace libre final relevé : **130 713 419 776 octets** (environ 121,7 Gio). Surveillance et processus de campagne terminés avant mise à jour de ce bilan.

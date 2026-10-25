@@ -1,6 +1,6 @@
-Avancée : cadrage du réglage microphone transcrit après acceptation des recommandations Q1 à Q5.
-Blocage : aucune implémentation autorisée ; prérequis des futures campagnes et détails de qualification encore à fermer.
-Décision : conserver cette référence documentaire pour rédiger et relire le plan, sans exécuter le produit.
+Avancée : candidat personnel compilé, livré avec réserves ; revue finale ferme R1 à R6 après deux cycles.
+Blocage : R7 invalide le harnais de comparaison vocale D2 ; recette Windows non exécutée.
+Décision : conserver candidat et preuves ; arbitrage utilisateur avant correction supplémentaire ou reprise D2, selon le bilan du plan.
 
 # Whisper — Réglage du niveau du microphone
 
@@ -134,5 +134,9 @@ Choix FFT : rendre directe la version Rustfft 6.4.1 déjà verrouillée est l'op
 - Railguard nouveau : non applicable, aucun demandé. AGENTS.md existant reste actif. Reprise après panne et confidentialité de nouvelles archives : pas de fonctionnalité ajoutée ; le test préalable ne crée aucun fichier.
 
 ## Passage à la planification
+
+Bilan de réalisation au 25 octobre 2026 : le plan associé consigne les autorisations reçues, l'extension précise de trois fixtures, les tests et le build personnel courant. La revue indépendante ferme R1 à R6 après deux cycles, mais laisse R7 ouvert : le helper de capture du nouveau test D2 applique le gain avant un convertisseur qui l'applique encore. Ce helper n'est pas appelé par la capture réelle ; les résultats D2 ne qualifient donc pas le gain demandé. La campagne CPU de 32 cas, autorisée avec −6/+6 dB et un plafond de 60 minutes, a été arrêtée après 475 secondes et trois sorties non comptées valides. Aucun correctif supplémentaire n'est appliqué sans arbitrage utilisateur, limite de deux cycles atteinte. La comparaison GPU et la fenêtre Windows restent à l'utilisateur. Verdict : **LIVRÉ AVEC RÉSERVES**, sans CLEAN ni acceptation produit finale.
+
+Accord ultérieur de réalisation, 25 octobre 2026 : l'utilisateur demande explicitement l'implémentation du plan associé, autorise l'adaptation et la vérification de la garde existante ainsi que les tests prévus sous `target/parakeet-tests/micro-level/` et la compilation partagée sous `target/parakeet-tests/cargo-shared/`. Il confirme pour D2 les quatre WAV FR/EN du corpus FEAS-PM-01 et leurs textes corrigés `_copie.txt`, avec référence à 0 dB, variantes faible/forte et changement de gain, comparaison de continuité/durée/texte sans nouveau seuil WER ; il choisit le profil personnel existant. Le détail de cet accord et les résultats de réalisation sont suivis dans le plan. Les mentions précédentes de mission documentaire conservent leur portée historique ; aucune ancienne dérogation de campagne n'est réutilisée.
 
 Le plan associé est `docs/cadrage/plan-evo-micro-level.md`, neuf tâches maximum conformément au découpage déjà présenté. La revue DESIGN ci-dessus permet sa rédaction ; les précisions de statut et de fixture seront incluses dans la relecture du couple cadrage/plan. Les détails D1/D2/D3 ont leurs échéances propres et ne valent ni refus de rédiger ni autorisation d'exécuter.
