@@ -1,6 +1,6 @@
-Avancée : SPECTRE v2 couvre les graphes en direct pendant test ET capture ; DESIGN CLEAN et PLANS CLEAN sur d6abc438, R01 fermé.
-Blocage : aucun préalable documentaire ouvert ; réserves Windows et Parakeet CPU antérieures inchangées.
-Décision : conserver sept tâches en ajoutant les chemins de capture et leurs vérifications ; aucun nouvel EXE produit.
+Avancée : ST1 à ST7 automatiques réalisés, delta SPECTRE relu CLEAN et EXE personnel remis le 26 octobre 2026.
+Blocage : recette Windows utilisateur à faire ; formatage global antérieur, deux tests matériels ignorés et réserve Parakeet CPU conservés.
+Décision : tester le nouvel EXE avec les deux spectres en direct pendant le test et la capture microphone.
 
 # Whisper — Plan du réglage du niveau microphone
 
@@ -524,3 +524,55 @@ Revue corrective v2 par le même reviewer indépendant : **SPECTRE-V2-R01 FERMÉ
 Après remise du couple relu à `dd602f1f`, la session principale demande explicitement validation de cette version et autorisation d'implémentation, des tests selon DEC-CAMP-S01 et de remise du nouvel EXE personnel. Réponse utilisateur : **« Ok tu peux implémenter »**. Acceptation et autorisations : **REÇUES** pour ce lot, ses chemins, ses plafonds, ses destinations et DEC-CAMP-S01. Les mentions NON REÇUES ci-dessus décrivent l'état documentaire antérieur. Pas d'installation, téléchargement, modification des ressources personnelles ou push ; recette Windows réservée à l'utilisateur.
 
 Préflight : HEAD `dd602f1f`, branche `evo-startup-perf`, delta micro-level suivi/non suivi présent et préservé, modèles et corpus non suivis conservés. Espace libre C: **129 973 547 008 octets** (environ 121 Gio). Les contrôles de garde/variables et auto-tests restent à exécuter par l'implémenteur avant tout Cargo. Les résultats SPECTRE sont encore NOT RUN à cet instant.
+
+### Résultats de réalisation SPECTRE v2 — 26 octobre 2026
+
+Source logique avant SPECTRE : HEAD documentaire `c6e94c06` et onze copies ordinaires prises avant édition dans `target/parakeet-tests/micro-level/spectre-v2-baseline/`, chemins conservés. Le candidat source micro-level était déjà modifié/non suivi avant ce lot ; aucun reset ou remplacement global. L'implémentation et les corrections sont restées dans les huit sources, trois tests et filtres de la garde autorisés. Auteur source exclusif : `rust_implementer` ; auteur des deux documents et commits documentaires : session principale.
+
+**ST1 à ST5 réalisés.** Contrat spectral Eq/serde en milli-dB/Silence, cache indépendant et métadonnées FFT, invalidation d'époque persistante, contexte applicatif commun et filtre d'identité/âge, publication dans test/direct/Parakeet/LiveCaptureState, deux graphes Painter aux mêmes axes. Acquisition active indépendante de l'attente moteur ; aucune courbe actuelle pendant drain ou transcription sans acquisition.
+
+**ST6 : CLEAN du delta SPECTRE, candidate_epoch2**, par le même `rust_reviewer` indépendant après deux cycles correctifs orchestrés par `rust_review_coordinator`. Fermetures confirmées par le reviewer, pas déduites des déclarations de l'implémenteur :
+
+| Constat | Correction et preuve de fermeture |
+| --- | --- |
+| R01 — BLOQUANT, compteurs durables affamant le transport historique | Quota borné avant retour au transport ; fixture réelle `ImportRuntime::poll` + LiveCaptureState, capture continue, PcmWriter/LiveArchive et worker simulé persistant. En lots d'au plus quatre polls : compteurs durables, RMS, PSD, texte confirmé et événements de fenêtre/fin progressent. |
+| R02 — IMPORTANT, Stop pendant Committing conservant les courbes | Contexte et spectre retirés même lorsque l'effet d'arrêt répond Committing ; fixture vérifie la phase de finalisation sans courbe. |
+| R03 — IMPORTANT, ancien spectre après retry Auto à job/génération identiques | Barrière monotone et époque minimale, rejet côté sonde des blocs acquis avant retry même soumis ensuite ; admission applicative rejette anciens temps/époques. Fixtures contrôlées sur les deux frontières. |
+| R04 — IMPORTANT, comparaison et progression incomplètement démontrées par voie | WAV de Turbo et Parakeet comparés octet pour octet aux conversions de référence ; parcours Parakeet et vraie boucle DirectLive::poll avec capture continue/worker scripté prouvent spectre, texte et fin. La preuve directe finale utilise 100 blocs ×960 frames et plusieurs mises à jour spectrales. |
+
+Vérifications exécutées via la garde existante, environnement hors ligne/verrouillé et target canonique, SelfTest préalable. Aucun appel ASR réel, aucune campagne vocale ou GPU. Les échecs intermédiaires de compilation/fixtures ont été conservés et chaque relance a suivi une correction concrète ; aucun échec relancé à l'identique. Derniers résultats pertinents :
+
+| Mode / observation | Résultat et référence utile |
+| --- | --- |
+| CoreGain | PASS 4/4 ; `logs/CoreGain-20261025T235132914-45a1d804.stdout.log`. |
+| CoreLevel | PASS des six tests micro, avec les régressions appelées par le mode ; `logs/CoreLevel-20261025T235135997-9b8e1f59.stdout.log`. |
+| ProbeUnit | PASS 8/8 ; `logs/ProbeUnit-20261025T235139055-db4b5639.stdout.log`. Inclut PCM/WAV identiques, barrière et cache. |
+| Probe | PASS 4/4 : fréquences, fenêtre multirévision, cache PSD entre ticks RMS et invalidation. |
+| LiveGain | PASS 4/4 ; `logs/LiveGain-20261025T235106108-cde64475.stdout.log`, dont la fixture runtime historique. |
+| DirectLiveTests | PASS 17/17 ; `logs/DirectLiveTests-20261025T235142286-52a9e38b.stdout.log`. |
+| ParakeetSpectrum | PASS 1/1 ; `logs/ParakeetSpectrum-20261025T235146105-b87125dc.stdout.log` : WAV, texte/terminal, RMS et spectre. |
+| DirectLivePoll / VR-R04-DIRECT-POLL | PASS 1/1, test 2,60 s ; `logs/DirectLivePoll-20261025T235738674-1f5c5b32.stdout.log`. Dernière correction limitée à la fixture, mode de worker scripté et filtre exact de la garde. |
+| DesktopLevel / DesktopMicrophoneStop | PASS 2/2 et 3/3 : présentation et vrai rendu egui, deux graphes, Stop/retest et fenêtre 640×480. |
+| CaptureTests | PASS 10 tests ; **2 ignorés** nécessitant le matériel WASAPI. |
+| git diff --check | PASS, après correction puis après build/remise. |
+| Fmt global | **FAIL antérieur**, seul `crates/whisper-core/src/model_selection_app.rs:144` hors périmètre ; fichier inchangé, confirmé de nouveau par la session principale après remise. Échec consigné et commande arrêtée ; arbitrage explicite de la session principale pour poursuivre les vérifications ciblées sans corriger ce fichier. Aucun succès global de formatage annoncé, aucun nouveau replay identique. |
+
+Les modes exacts `ParakeetSpectrum` et `DirectLivePoll` ont été ajoutés aux filtres de la garde existante, conformément au périmètre de configuration accepté, sans nouvelle racine ni assouplissement. La garde a conservé les observations UNATTRIBUTED du Temp initial selon DEC-CAMP-S01 ; elles ne sont pas des écritures Cargo prouvées ni des destinations autorisées. Aucune fuite attribuée ou modification sensible inexpliquée rapportée pendant les commandes ; ce constat de surveillance n'est pas une preuve de confinement ou d'absence exhaustive d'écritures Windows.
+
+Budget spécifique SPECTRE, distinct des anciens logs D2 : **59 commandes gardées depuis le 25 octobre 23:09 jusqu'au build, 322 s cumulées hors SelfTest**, dont 21 s de build ; SelfTests préliminaires exécutés en plus. Commandes et tests sont restés sous les plafonds 90 min / 10 min. Le cumul de tous les anciens lots du journal global n'est pas le coût de SPECTRE. Pas de nettoyage ni suppression.
+
+**ST7 automatique terminé.** SelfTest préalable PASS ; build personnel `PersonalRelease-20261026T000151351-312012d0`, exit 0, durée gardée 21 s. Journaux `logs/PersonalRelease-20261026T000151351-312012d0.stdout.log` et `.stderr.log`. Aucun fichier source/test/config modifié après la revue ; aucun worker d'inférence lancé pour construire ou remettre le binaire. Aucun processus whisper-desktop ouvert au contrôle avant remplacement.
+
+Dossier réel de remise : `C:\dev\whisper\target\parakeet-tests\micro-level\recette-personnelle\`, exactement trois fichiers. Taille et SHA-256 source/copie vérifiés par l'implémenteur et empreintes relues par la session principale :
+
+| EXE | Octets | SHA-256 |
+| --- | ---: | --- |
+| whisper-desktop.exe | 14 365 696 | `469AC98129F93E280DCD7E61CD07CA19A2DF5EF26D158A9CA99FA61A0DB3E913` |
+| whisper-worker-cpu.exe | 20 809 728 | `33CAAAC2C87B65CE0EBB2BC18042A50BE823C6BECE575B662E5C75D601C0B876` |
+| whisper-worker-gpu.exe | 20 882 432 | `D166CC51B6E02F38B38BCD9A00736E381A176B67187B4F283443B9FA0D915809` |
+
+Présence et SHA-256 des 18 ressources personnelles vérifiés en lecture seule (deux workers Parakeet, cinq DLL CPU, neuf DLL GPU, deux modèles). Comparaison par la session principale avec le relevé avant implémentation : **18/18 tailles et empreintes identiques**, aucun fichier installé modifié. Aucun worker Parakeet/DLL recopié dans la recette ; le dossier dépend de l'installation stable et n'est pas annoncé autonome.
+
+Archive des petites preuves : `target/parakeet-tests/micro-level/archives/spectre-v2-20261026/`, **121 fichiers, 1 956 484 octets**, arborescence conservée et tous les SHA-256 copie/source conformes. Contenu : 118 stdout/stderr du lot, journaux de garde et observations, garde utilisée ; aucun WAV/corpus/cache Cargo ni nouveau manifeste. Espace libre final relevé par la session principale après remise : **129 556 926 464 octets**, supérieur à 30 Gio. Watchers et commandes Cargo terminés avant rédaction.
+
+Reste de ST7 : **recette physique Windows NOT RUN**, réservée à l'utilisateur. À observer : deux courbes pendant test puis prise de son Turbo/Parakeet, effet du gain et saturation, texte accessible, Stop retirant immédiatement les courbes, attente au nouveau démarrage et reprise après capture finalisée. Les deux tests matériels ignorés et la réserve D2 Parakeet CPU restent annoncés ; les fixtures simulées ne prouvent pas la qualité ASR native ni la comparaison GPU. Verdict code SPECTRE CLEAN, sans qualification globale nouvelle du produit. Aucun commit de code, push, téléchargement ou installation ; seuls ces deux documents sont commités localement.
