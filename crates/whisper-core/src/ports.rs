@@ -1,4 +1,6 @@
-use crate::domain::{Generation, JobConfig, JobId, JobState, SegmentId, SourceRange};
+use crate::domain::{
+    ComputeChoice, Generation, JobConfig, JobId, JobState, SegmentId, SourceRange,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PortError {
@@ -220,6 +222,82 @@ pub struct LiveRequest {
     pub config: JobConfig,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AutomaticFinalOutputPaths {
+    pub txt_path: String,
+    pub srt_path: String,
+    pub companion_json_path: String,
+}
+
+/// One automatic, explicitly unverified import launched after a finalized
+/// Parakeet capture WAV. Its GPU identity is the one selected for that capture.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AutomaticFinalImport {
+    pub request: ImportRequest,
+    pub outputs: AutomaticFinalOutputPaths,
+    #[serde(default)]
+    pub gpu_candidate: Option<crate::gpu_inventory::GpuRuntimeIdentity>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AutomaticFinalTranscriptionStatus {
+    Pending,
+    Running,
+    ProducedUnverified,
+    FailedOrUnavailable,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutomaticFinalTranscriptionView {
+    pub status: AutomaticFinalTranscriptionStatus,
+    pub txt_path: String,
+    pub srt_path: String,
+    pub model_sha256: [u8; 32],
+    pub requested_compute: ComputeChoice,
+    pub effective_backend: Option<String>,
+    pub diagnostic: Option<String>,
+}
+
+/// Session-scoped presentation data for a Parakeet microphone capture.
+/// These rows live only in the current application process; they are not persisted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ParakeetCaptureIdentity {
+    pub job_id: JobId,
+    pub generation: Generation,
+    pub session_id: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ParakeetCaptureViewState {
+    Starting,
+    Capturing,
+    Finalizing,
+    Finalized,
+    Failed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ParakeetCaptureView {
+    pub identity: ParakeetCaptureIdentity,
+    pub wav_path: Option<String>,
+    pub direct_txt_path: Option<String>,
+    pub direct_srt_path: Option<String>,
+    pub companion_json_path: Option<String>,
+    pub confirmed_segments: Vec<WorkerSegment>,
+    pub provisional_text: Option<String>,
+    pub provisional_range: Option<SourceRange>,
+    pub provisional_sequence: Option<u64>,
+    pub unresolved: Vec<SourceRange>,
+    pub capture_state: ParakeetCaptureViewState,
+    pub capture_complete: Option<bool>,
+    pub capture_diagnostic: Option<String>,
+    pub requested_compute: Option<ComputeChoice>,
+    /// Populated only by a runtime event that identifies the effective backend.
+    pub effective_backend: Option<String>,
+    pub automatic_final: Option<AutomaticFinalTranscriptionView>,
+    pub automatic_final_identity: Option<(JobId, Generation)>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ImportQueueStatus {
     Queued,
@@ -275,6 +353,7 @@ pub enum ImportEffect {
     },
     StartLive(LiveRequest),
     StartDirectLive(LiveRequest),
+    StartAutomaticFinalTranscription(AutomaticFinalImport),
     Enqueue(ImportRequest),
     ConfirmDuplicateImport {
         prompt: DuplicateImportPrompt,
@@ -356,6 +435,86 @@ pub enum ImportEvent {
         segment: WorkerSegment,
         captured_at_unix_ms: u64,
         available_at_unix_ms: u64,
+    },
+    /// Replaceable Parakeet hypothesis. This is deliberately not a `WorkerSegment`:
+    /// the application must never route it to persistence or confirmed text.
+    ParakeetLiveStarted {
+        job_id: JobId,
+        generation: Generation,
+        session_id: u64,
+        backend: String,
+    },
+    ParakeetInferenceReady {
+        job_id: JobId,
+        generation: Generation,
+        session_id: u64,
+        backend: String,
+    },
+    ParakeetHypothesis {
+        job_id: JobId,
+        generation: Generation,
+        session_id: u64,
+        sequence: u64,
+        range: SourceRange,
+        text: String,
+        captured_at_unix_ms: u64,
+        available_at_unix_ms: u64,
+    },
+    /// A native-word-backed block. Once emitted, it cannot be replaced.
+    ParakeetConfirmed {
+        job_id: JobId,
+        generation: Generation,
+        session_id: u64,
+        segment: WorkerSegment,
+    },
+    /// Retained audio whose text has not passed the confirmation rule.
+    ParakeetUnresolved {
+        job_id: JobId,
+        generation: Generation,
+        session_id: u64,
+        range: SourceRange,
+    },
+    ParakeetResolved {
+        job_id: JobId,
+        generation: Generation,
+        session_id: u64,
+        range: SourceRange,
+    },
+    ParakeetCaptureProgress {
+        job_id: JobId,
+        generation: Generation,
+        session_id: u64,
+        captured_samples: u64,
+        audio_durable_samples: u64,
+    },
+    /// Captured audio range was retained, but could not produce a usable hypothesis.
+    ParakeetAudioUnusable {
+        job_id: JobId,
+        generation: Generation,
+        session_id: u64,
+        sequence: Option<u64>,
+        range: SourceRange,
+        message: String,
+    },
+    ParakeetInferenceUnavailable {
+        job_id: JobId,
+        generation: Generation,
+        session_id: u64,
+        message: String,
+    },
+    ParakeetCaptureStopped {
+        job_id: JobId,
+        generation: Generation,
+        session_id: u64,
+        wav_path: String,
+        txt_path: Option<String>,
+        srt_path: Option<String>,
+        complete: bool,
+        final_segments: Vec<WorkerSegment>,
+        unresolved: Vec<SourceRange>,
+        diagnostic: Option<String>,
+        #[serde(default)]
+        automatic_final: Option<AutomaticFinalImport>,
     },
     LiveCounters {
         job_id: JobId,

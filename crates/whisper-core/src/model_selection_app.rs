@@ -90,6 +90,13 @@ impl ModelCommandGuard {
         request: &crate::ports::ImportRequest,
         path: InferencePath,
     ) -> Result<AdmittedSelection, SelectionRefusal> {
+        if path != InferencePath::Import {
+            return Err(SelectionRefusal::Capability(Refusal {
+                cause: crate::engine_capabilities::RefusalCause::CapabilityNotQualified(
+                    crate::engine_capabilities::CapabilityTarget::Compute,
+                ),
+            }));
+        }
         self.admit_fields(
             &request.model_path,
             request.model_sha256,
@@ -137,8 +144,10 @@ impl ModelCommandGuard {
             return Err(SelectionRefusal::UnknownHistoricalModelPath);
         }
         if model_id == ModelId::ParakeetTdt06BV3
-            && (path != InferencePath::Import
-                || !matches!(&config.language, crate::domain::LanguageChoice::Automatic))
+            && !matches!(
+                &config.language,
+                crate::domain::LanguageChoice::Automatic
+            )
         {
             return Err(SelectionRefusal::Capability(Refusal {
                 cause: crate::engine_capabilities::RefusalCause::CapabilityNotQualified(
@@ -227,7 +236,9 @@ impl ModelSelectionApp {
         intent: SelectionIntent,
         current_generation: u64,
     ) -> Result<AdmittedSelection, SelectionRefusal> {
-        if intent.model == ModelId::ParakeetTdt06BV3 && intent.path != InferencePath::Import {
+        if intent.model == ModelId::ParakeetTdt06BV3
+            && !matches!(&intent.language, LanguageChoice::Automatic)
+        {
             return Err(SelectionRefusal::Capability(Refusal {
                 cause: crate::engine_capabilities::RefusalCause::CapabilityNotQualified(
                     crate::engine_capabilities::CapabilityTarget::Compute,

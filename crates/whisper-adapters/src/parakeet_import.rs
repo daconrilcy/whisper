@@ -470,7 +470,7 @@ fn runtime_sha256(native_dir: &Path) -> Result<String, String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-fn sha256_file(path: &Path) -> Result<String, String> {
+pub(crate) fn sha256_file(path: &Path) -> Result<String, String> {
     let started = Instant::now();
     let (bytes, digest, full_read) = crate::model_catalog::cached_artifact_sha256_with_read(path)
         .map_err(|error| format!("HashRead: {error}"))?;
@@ -512,6 +512,19 @@ impl ParakeetProcess {
         Self::spawn_profile(paths, PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
     }
 
+    /// Starts the unchanged import worker while keeping its diagnostic files with this session.
+    pub(crate) fn spawn_live(
+        paths: &ParakeetWorkerPaths,
+        session_log_root: &Path,
+    ) -> Result<Self, String> {
+        // The GPU worker requires its ASR evidence log beneath its runtime root.
+        // Reuse the import path for GPU; retain the session log for CPU.
+        let log_root = (paths.executable.file_name()
+            != Some(std::ffi::OsStr::new("whisper-worker-parakeet-gpu.exe")))
+        .then_some(session_log_root);
+        Self::spawn_profile_with_log_root(paths, PARAKEET_PROFILE_IMPORT_SINGLE_PASS, log_root)
+    }
+
     /// Private L2b harness entry point. It cannot be used outside the canonical L2b runtime.
     #[doc(hidden)]
     pub fn spawn_for_qualification(
@@ -545,6 +558,14 @@ impl ParakeetProcess {
     }
 
     fn spawn_profile(paths: &ParakeetWorkerPaths, profile: &str) -> Result<Self, String> {
+        Self::spawn_profile_with_log_root(paths, profile, None)
+    }
+
+    fn spawn_profile_with_log_root(
+        paths: &ParakeetWorkerPaths,
+        profile: &str,
+        session_log_root: Option<&Path>,
+    ) -> Result<Self, String> {
         paths.validate()?;
         let model_sha256 = whisper_core::model_registry::model(
             whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
@@ -565,7 +586,8 @@ impl ParakeetProcess {
             command.arg("--qualification-reference");
         }
         let cpu_read_runtime = l3b_r6_cpu_read_runtime_root(paths)?;
-        let (stderr, worker_log) = worker_stderr_log(paths, cpu_read_runtime.is_some())?;
+        let (stderr, worker_log) =
+            worker_stderr_log(paths, cpu_read_runtime.is_some(), session_log_root)?;
         let worker_runtime_root = cpu_read_runtime.unwrap_or_else(|| paths.runtime_root.clone());
         if paths
             .executable
@@ -829,6 +851,7 @@ impl ParakeetProcess {
 fn worker_stderr_log(
     paths: &ParakeetWorkerPaths,
     is_l3b_r6_cpu_worker: bool,
+    session_log_root: Option<&Path>,
 ) -> Result<(Stdio, Option<PathBuf>), String> {
     let is_gpu_worker = paths
         .executable
@@ -841,7 +864,9 @@ fn worker_stderr_log(
         .runtime_root
         .canonicalize()
         .map_err(|error| format!("WorkerLogPath: runtime root: {error}"))?;
-    let configured_l3c = if let Some(configured) = std::env::var_os("PARAKEET_L3C_EXEC_ROOT") {
+    let configured_l3c = if session_log_root.is_none()
+        && let Some(configured) = std::env::var_os("PARAKEET_L3C_EXEC_ROOT")
+    {
         let configured = PathBuf::from(configured)
             .canonicalize()
             .map_err(|error| format!("WorkerLogPath: L3c execution root: {error}"))?;
@@ -861,7 +886,9 @@ fn worker_stderr_log(
     } else {
         None
     };
-    let configured_l3d = if let Some(configured) = std::env::var_os("PARAKEET_L3D_EXEC_ROOT") {
+    let configured_l3d = if session_log_root.is_none()
+        && let Some(configured) = std::env::var_os("PARAKEET_L3D_EXEC_ROOT")
+    {
         let configured = PathBuf::from(configured)
             .canonicalize()
             .map_err(|error| format!("WorkerLogPath: L3d execution root: {error}"))?;
@@ -886,7 +913,15 @@ fn worker_stderr_log(
     }
     let l3_gpu_log = is_gpu_worker && (configured_l3c.is_some() || configured_l3d.is_some());
     let configured_campaign = configured_l3d.clone().or(configured_l3c.clone());
-    let log_root = if is_gpu_worker && configured_campaign.is_some() {
+    let log_root = if let Some(session_root) = session_log_root {
+        let canonical = session_root
+            .canonicalize()
+            .map_err(|error| format!("WorkerLogPath: session root: {error}"))?;
+        if !canonical.is_dir() {
+            return Err("WorkerLogPath: session root is not a directory".into());
+        }
+        canonical
+    } else if is_gpu_worker && configured_campaign.is_some() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")

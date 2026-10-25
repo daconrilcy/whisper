@@ -1,6 +1,7 @@
 use std::{
     collections::VecDeque,
     fs,
+    fs::OpenOptions,
     io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
@@ -762,7 +763,7 @@ fn finalize_incomplete_outputs(
     }
 }
 
-fn export_segments(
+pub(crate) fn export_segments(
     request: &LiveRequest,
     segments: &[WorkerSegment],
     incomplete: bool,
@@ -774,12 +775,20 @@ fn export_segments(
     let suffix = if incomplete { "-incomplet" } else { "" };
     let txt = directory.join(format!("{stem}{suffix}.txt"));
     let srt = directory.join(format!("{stem}{suffix}.srt"));
-    let text = segments
+    let mut ordered = segments.iter().collect::<Vec<_>>();
+    ordered.sort_by_key(|segment| {
+        (
+            segment.range.start_sample,
+            segment.range.end_sample,
+            segment.segment_id.0,
+        )
+    });
+    let text = ordered
         .iter()
         .map(|segment| segment.text.as_str())
         .collect::<Vec<_>>()
         .join("\n");
-    let subtitles = segments
+    let subtitles = ordered
         .iter()
         .enumerate()
         .map(|(index, segment)| {
@@ -792,14 +801,192 @@ fn export_segments(
             )
         })
         .collect::<String>();
-    fs::write(&txt, text)
+    let mut txt_file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&txt)
         .map_err(|error| format!("TXT non enregistré. Vérifiez le dossier de sortie : {error}"))?;
-    fs::write(&srt, subtitles)
-        .map_err(|error| format!("SRT non enregistré. Vérifiez le dossier de sortie : {error}"))?;
+    if let Err(error) = txt_file
+        .write_all(text.as_bytes())
+        .and_then(|()| txt_file.flush())
+    {
+        drop(txt_file);
+        let _ = fs::remove_file(&txt);
+        return Err(format!(
+            "TXT non enregistré. Vérifiez le dossier de sortie : {error}"
+        ));
+    }
+    drop(txt_file);
+    let mut srt_file = match OpenOptions::new().write(true).create_new(true).open(&srt) {
+        Ok(file) => file,
+        Err(error) => {
+            let cleanup = fs::remove_file(&txt).err();
+            let suffix = cleanup.map_or_else(String::new, |cleanup| {
+                format!("; TXT temporaire créé par cette exportation non retiré : {cleanup}")
+            });
+            return Err(format!(
+                "SRT non enregistré. Vérifiez le dossier de sortie : {error}{suffix}"
+            ));
+        }
+    };
+    if let Err(error) = srt_file
+        .write_all(subtitles.as_bytes())
+        .and_then(|()| srt_file.flush())
+    {
+        drop(srt_file);
+        let srt_cleanup = fs::remove_file(&srt).err();
+        let txt_cleanup = fs::remove_file(&txt).err();
+        let suffix = [srt_cleanup, txt_cleanup]
+            .into_iter()
+            .flatten()
+            .map(|cleanup| format!("; sortie créée par cette exportation non retirée : {cleanup}"))
+            .collect::<String>();
+        return Err(format!(
+            "SRT non enregistré. Vérifiez le dossier de sortie : {error}{suffix}"
+        ));
+    }
     Ok((
         txt.to_string_lossy().into_owned(),
         srt.to_string_lossy().into_owned(),
     ))
+}
+
+pub(crate) fn automatic_final_output_paths(
+    wav_path: &str,
+) -> Result<whisper_core::ports::AutomaticFinalOutputPaths, String> {
+    let wav = Path::new(wav_path);
+    let parent = wav
+        .parent()
+        .ok_or_else(|| "WAV sans dossier parent".to_owned())?;
+    let stem = wav
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Nom de capture WAV invalide".to_owned())?;
+    Ok(whisper_core::ports::AutomaticFinalOutputPaths {
+        txt_path: parent
+            .join(format!("{stem}-auto-non-verifie.txt"))
+            .to_string_lossy()
+            .into_owned(),
+        srt_path: parent
+            .join(format!("{stem}-auto-non-verifie.srt"))
+            .to_string_lossy()
+            .into_owned(),
+        companion_json_path: wav.with_extension("json").to_string_lossy().into_owned(),
+    })
+}
+
+pub(crate) fn export_parakeet_manifest(
+    request: &LiveRequest,
+    wav_path: &str,
+    audio_samples: u64,
+    segments: &[WorkerSegment],
+    unresolved: &[SourceRange],
+    complete: bool,
+) -> Result<String, String> {
+    let wav = PathBuf::from(wav_path);
+    let mut json = wav.clone();
+    json.set_extension("json");
+    let mut ordered = segments.iter().collect::<Vec<_>>();
+    ordered.sort_by_key(|segment| {
+        (
+            segment.range.start_sample,
+            segment.range.end_sample,
+            segment.segment_id.0,
+        )
+    });
+    let automatic_outputs = automatic_final_output_paths(wav_path)?;
+    let document = serde_json::json!({
+        "version": 1,
+        "capture_id": format!("{:032x}", request.job_id.0),
+        "capture_name": wav.file_name().and_then(|name| name.to_str()).unwrap_or_default(),
+        "audio_samples": audio_samples,
+        "sample_rate_hz": 16_000,
+        "complete": complete,
+        "confirmed_intervals": ordered.iter().map(|segment| serde_json::json!({
+            "segment_id": segment.segment_id.0,
+            "start_sample": segment.range.start_sample.saturating_sub(request.group_offset_samples),
+            "end_sample": segment.range.end_sample.saturating_sub(request.group_offset_samples),
+            "sample_rate_hz": segment.range.sample_rate_hz,
+            "text": segment.text.as_str(),
+            "status": "confirmed",
+        })).collect::<Vec<_>>(),
+        "unresolved_intervals": unresolved.iter().map(|range| serde_json::json!({
+            "start_sample": range.start_sample.saturating_sub(request.group_offset_samples),
+            "end_sample": range.end_sample.saturating_sub(request.group_offset_samples),
+            "sample_rate_hz": range.sample_rate_hz,
+            "status": "unresolved",
+        })).collect::<Vec<_>>(),
+        "automatic_final_transcription": {
+            "status": "pending",
+            "txt_path": automatic_outputs.txt_path,
+            "srt_path": automatic_outputs.srt_path,
+            "model_sha256": request.model_sha256.iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>(),
+            "requested_compute": format!("{:?}", request.config.compute).to_ascii_lowercase(),
+            "effective_backend": serde_json::Value::Null,
+            "diagnostic": serde_json::Value::Null,
+        },
+    });
+    let bytes =
+        serde_json::to_vec_pretty(&document).map_err(|error| format!("JSON invalide : {error}"))?;
+    fs::write(&json, bytes).map_err(|error| format!("écriture JSON impossible : {error}"))?;
+    Ok(json.to_string_lossy().into_owned())
+}
+
+pub(crate) struct ParakeetExportOutcome {
+    pub txt_path: Option<String>,
+    pub srt_path: Option<String>,
+    pub complete: bool,
+    pub diagnostics: Vec<String>,
+}
+
+pub(crate) fn export_parakeet_outputs(
+    request: &LiveRequest,
+    wav_path: &str,
+    audio_samples: u64,
+    segments: &[WorkerSegment],
+    unresolved: &[SourceRange],
+    mut complete: bool,
+) -> ParakeetExportOutcome {
+    let mut diagnostics = Vec::new();
+    let (txt_path, srt_path) = match export_segments(request, segments, !complete) {
+        Ok(paths) => (Some(paths.0), Some(paths.1)),
+        Err(error) => {
+            diagnostics.push(format!("TXT/SRT non enregistrés : {error}"));
+            complete = false;
+            match export_segments(request, segments, true) {
+                Ok(paths) => (Some(paths.0), Some(paths.1)),
+                Err(retry_error) => {
+                    diagnostics.push(format!(
+                        "TXT/SRT incomplets non enregistrés : {retry_error}"
+                    ));
+                    (None, None)
+                }
+            }
+        }
+    };
+    if wav_path.is_empty() {
+        diagnostics.push("JSON de capture non enregistré : chemin WAV indisponible".into());
+        complete = false;
+    } else if let Err(error) = export_parakeet_manifest(
+        request,
+        wav_path,
+        audio_samples,
+        segments,
+        unresolved,
+        complete,
+    ) {
+        diagnostics.push(format!("JSON de capture non enregistré : {error}"));
+        complete = false;
+    }
+    ParakeetExportOutcome {
+        txt_path,
+        srt_path,
+        complete,
+        diagnostics,
+    }
 }
 
 fn spawn_direct_worker(
@@ -886,14 +1073,14 @@ fn fill_pending_from_wav(
     Ok(())
 }
 
-struct WavOutput {
+pub(crate) struct WavOutput {
     file: fs::File,
     path: PathBuf,
     samples: u64,
 }
 
 impl WavOutput {
-    fn create(request: &LiveRequest) -> Result<Self, String> {
+    pub(crate) fn create(request: &LiveRequest) -> Result<Self, String> {
         let directory = PathBuf::from(&request.destination);
         fs::create_dir_all(&directory)
             .map_err(|error| format!("Dossier de sortie inaccessible : {error}"))?;
@@ -912,7 +1099,7 @@ impl WavOutput {
         })
     }
 
-    fn append(&mut self, samples: &[i16]) -> Result<(), String> {
+    pub(crate) fn append(&mut self, samples: &[i16]) -> Result<(), String> {
         let total = self
             .samples
             .checked_add(samples.len() as u64)
@@ -931,7 +1118,7 @@ impl WavOutput {
         Ok(())
     }
 
-    fn read_samples(&mut self, offset: u64, count: usize) -> Result<Vec<i16>, String> {
+    pub(crate) fn read_samples(&mut self, offset: u64, count: usize) -> Result<Vec<i16>, String> {
         if offset
             .checked_add(count as u64)
             .is_none_or(|end| end > self.samples)
@@ -959,7 +1146,11 @@ impl WavOutput {
             .collect())
     }
 
-    fn finish(mut self) -> Result<String, String> {
+    pub(crate) fn sample_count(&self) -> u64 {
+        self.samples
+    }
+
+    pub(crate) fn finish(mut self) -> Result<String, String> {
         self.file
             .seek(SeekFrom::Start(0))
             .map_err(|error| format!("WAV non finalisé : {error}"))?;
@@ -1021,11 +1212,13 @@ fn timestamp(samples: u64) -> String {
 mod tests {
     use super::{
         DirectLive, MAX_BUFFERED_SAMPLES, MAX_WINDOW_SAMPLES, MIN_WINDOW_SAMPLES, PathBuf,
-        Pcm16Converter, WavOutput, clear_gpu_proof_for_cpu, fill_pending_from_wav,
+        Pcm16Converter, WavOutput, clear_gpu_proof_for_cpu, export_parakeet_manifest,
+        export_parakeet_outputs, export_segments, fill_pending_from_wav,
         finalize_incomplete_outputs, gpu_ready_requires_attestation,
         should_retry_auto_gpu_before_ready, window_size, write_wav_header,
     };
     use std::collections::VecDeque;
+    use std::path::Path;
     use whisper_core::ports::WorkerSegment;
     use whisper_core::{ComputeChoice, JobConfig, LanguageChoice, SegmentId, SourceRange};
 
@@ -1038,6 +1231,21 @@ mod tests {
             "direct-live-{label}-{}-{nonce}",
             std::process::id()
         ))
+    }
+
+    #[test]
+    fn parakeet_live_automatic_final_paths_are_distinct_and_explicitly_unverified() {
+        let wav = Path::new(r"C:\captures\micro-123.wav");
+        let paths = super::automatic_final_output_paths(&wav.to_string_lossy()).unwrap();
+        assert_eq!(
+            paths.txt_path,
+            r"C:\captures\micro-123-auto-non-verifie.txt"
+        );
+        assert_eq!(
+            paths.srt_path,
+            r"C:\captures\micro-123-auto-non-verifie.srt"
+        );
+        assert_eq!(paths.companion_json_path, r"C:\captures\micro-123.json");
     }
 
     #[test]
@@ -1624,5 +1832,116 @@ fn main() {
             window_size(&VecDeque::from(vec![1_000; 32_000]), true),
             Some(32_000)
         );
+    }
+
+    #[test]
+    fn parakeet_exports_sort_time_and_write_versioned_companion_intervals() {
+        let directory = test_directory("parakeet-companion");
+        std::fs::create_dir_all(&directory).unwrap();
+        let request = startup_request(&directory, ComputeChoice::Cpu);
+        let wav_path = directory.join(format!("micro-{:032x}.wav", request.job_id.0));
+        std::fs::write(&wav_path, b"wav").unwrap();
+        let later = WorkerSegment {
+            job_id: request.job_id,
+            generation: request.generation,
+            instance_id: 7,
+            segment_id: SegmentId(1),
+            range: SourceRange::new(8_000, 12_000, 16_000).unwrap(),
+            text: "fonctionne".into(),
+        };
+        let earlier = WorkerSegment {
+            segment_id: SegmentId(2),
+            range: SourceRange::new(2_000, 6_000, 16_000).unwrap(),
+            text: "test".into(),
+            ..later.clone()
+        };
+        let segments = [later, earlier];
+        let unresolved = [SourceRange::new(0, 1_000, 16_000).unwrap()];
+        let (_, _) = export_segments(&request, &segments, true).unwrap();
+        let manifest = export_parakeet_manifest(
+            &request,
+            &wav_path.to_string_lossy(),
+            16_000,
+            &segments,
+            &unresolved,
+            false,
+        )
+        .unwrap();
+        let text_path = directory.join(format!("micro-{:032x}-incomplet.txt", request.job_id.0));
+        assert_eq!(
+            std::fs::read_to_string(text_path).unwrap(),
+            "test\nfonctionne"
+        );
+        let document: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+        assert_eq!(document["version"], 1);
+        assert_eq!(document["complete"], false);
+        assert_eq!(document["audio_samples"], 16_000);
+        assert_eq!(document["confirmed_intervals"][0]["segment_id"], 2);
+        assert_eq!(document["confirmed_intervals"][0]["text"], "test");
+        assert_eq!(document["unresolved_intervals"][0]["start_sample"], 0);
+        for path in [
+            wav_path,
+            directory.join(format!("micro-{:032x}-incomplet.txt", request.job_id.0)),
+            directory.join(format!("micro-{:032x}-incomplet.srt", request.job_id.0)),
+            directory.join(format!("micro-{:032x}.json", request.job_id.0)),
+        ] {
+            std::fs::remove_file(path).unwrap();
+        }
+    }
+
+    #[test]
+    fn parakeet_srt_failure_removes_created_txt_and_retries_coherent_incomplete_outputs() {
+        let directory = test_directory("parakeet-export-failure");
+        std::fs::create_dir_all(&directory).unwrap();
+        let request = startup_request(&directory, ComputeChoice::Cpu);
+        let stem = format!("micro-{:032x}", request.job_id.0);
+        let wav_path = directory.join(format!("{stem}.wav"));
+        std::fs::write(&wav_path, b"wav").unwrap();
+        let blocked_complete_srt = directory.join(format!("{stem}.srt"));
+        std::fs::create_dir(&blocked_complete_srt).unwrap();
+        let segment = WorkerSegment {
+            job_id: request.job_id,
+            generation: request.generation,
+            instance_id: 7,
+            segment_id: SegmentId(1),
+            range: SourceRange::new(1_000, 2_000, 16_000).unwrap(),
+            text: "confirmé".into(),
+        };
+
+        let outcome = export_parakeet_outputs(
+            &request,
+            &wav_path.to_string_lossy(),
+            16_000,
+            &[segment],
+            &[],
+            true,
+        );
+
+        assert!(!outcome.complete);
+        assert_eq!(outcome.diagnostics.len(), 1);
+        assert!(outcome.diagnostics[0].contains("SRT non enregistré"));
+        let txt_path = outcome.txt_path.unwrap();
+        let srt_path = outcome.srt_path.unwrap();
+        assert!(txt_path.ends_with("-incomplet.txt"));
+        assert!(srt_path.ends_with("-incomplet.srt"));
+        assert!(std::path::Path::new(&txt_path).is_file());
+        assert!(std::path::Path::new(&srt_path).is_file());
+        assert!(!directory.join(format!("{stem}.txt")).exists());
+        assert!(blocked_complete_srt.is_dir());
+        let manifest_path = directory.join(format!("{stem}.json"));
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
+        assert_eq!(manifest["complete"], false);
+
+        std::fs::remove_dir(blocked_complete_srt).unwrap();
+        for path in [
+            wav_path,
+            PathBuf::from(txt_path),
+            PathBuf::from(srt_path),
+            manifest_path,
+        ] {
+            std::fs::remove_file(path).unwrap();
+        }
     }
 }

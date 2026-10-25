@@ -12,13 +12,13 @@ use crate::{
 use serde::{Serialize, de::DeserializeOwned};
 use std::{
     cell::RefCell,
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     fs,
     io::{self, BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicU8, AtomicU64, Ordering},
         mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
     },
@@ -32,8 +32,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use whisper_core::{
-    ArchiveHistoryItem, DiagnosticNotice, Generation, ImportEffect, ImportEvent, ImportIoPort,
-    JobId,
+    ArchiveHistoryItem, ComputeChoice, DiagnosticNotice, Generation, ImportEffect, ImportEvent,
+    ImportIoPort, JobId,
     ipc::{BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerEvent},
     ports::{
         DecodeRequest, DecoderPort, DuplicateImportChoice, DuplicateImportPrompt, ImportRequest,
@@ -44,6 +44,42 @@ use whisper_core::{
 const MAX_FRAME_BYTES: usize = 1_048_576;
 const TDT_FRAME_OVERLAP_SAMPLES: u64 = 80 * 16;
 static NEXT_IMPORT_JOB_ID: AtomicU64 = AtomicU64::new(1);
+static NEXT_AUTO_EXPORT_STAGE: AtomicU64 = AtomicU64::new(1);
+
+fn next_automatic_final_job_id() -> JobId {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(1, |time| time.as_nanos().min(u64::MAX as u128) as u64);
+    let mut observed = NEXT_IMPORT_JOB_ID.load(Ordering::Relaxed);
+    let serial = loop {
+        let next = now.max(observed.saturating_add(1));
+        match NEXT_IMPORT_JOB_ID.compare_exchange_weak(
+            observed,
+            next,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => break next,
+            Err(actual) => observed = actual,
+        }
+    };
+    JobId(((std::process::id() as u128) << 64) | serial as u128)
+}
+
+fn inspect_automatic_final_queue(
+    destination: &Path,
+) -> Result<Vec<crate::queue_store::QueueEntry>, String> {
+    inspect_automatic_final_queue_with(destination, |path| {
+        crate::queue_store::QueueStore::inspect_read_only(path)
+    })
+}
+
+fn inspect_automatic_final_queue_with(
+    destination: &Path,
+    inspect: impl FnOnce(&Path) -> Result<Vec<crate::queue_store::QueueEntry>, String>,
+) -> Result<Vec<crate::queue_store::QueueEntry>, String> {
+    inspect(destination).map_err(|error| format!("AutomaticFinalQueueUnavailable: {error}"))
+}
 
 fn resolve_reprocessing_targets(
     destination: &Path,
@@ -1396,11 +1432,15 @@ struct ImportRuntime {
     active: Option<ImportRequestState>,
     transport: Option<ChildWorkerTransport>,
     publication_gate: Arc<PublicationGate>,
+    automatic_publication_gates: Option<Arc<Mutex<HashMap<(JobId, u64), Arc<PublicationGate>>>>>,
     resume_prefix: VecDeque<crate::journal::SegmentRecord>,
     pending_live: Option<PendingLiveState>,
     live: Option<LiveCaptureState>,
     live_archive: Option<LiveArchive>,
     direct_live: Option<crate::direct_live::DirectLive>,
+    parakeet_live: Option<crate::parakeet_live::ParakeetLive>,
+    automatic_final_outputs: HashMap<(JobId, u64), whisper_core::ports::AutomaticFinalImport>,
+    parakeet_pending_events: VecDeque<ImportEvent>,
     pending_attempt_reset: Option<ImportEvent>,
     pending_recovery_counters: Option<ImportEvent>,
     live_pending_persistence: usize,
@@ -1462,6 +1502,17 @@ fn parakeet_stopped_exit(status: Option<bool>) -> ParakeetStoppedExit {
 }
 
 impl RuntimeModelCatalog {
+    fn clone_for_worker(&self) -> Self {
+        Self {
+            catalog: crate::model_catalog::LocalModelCatalog::new(
+                self.catalog.root().to_path_buf(),
+            ),
+            known_historical_turbo_path: self.known_historical_turbo_path.clone(),
+            parakeet_paths: self.parakeet_paths.clone(),
+            gpu_parakeet_paths: self.gpu_parakeet_paths.clone(),
+        }
+    }
+
     fn snapshot(&self) -> crate::model_catalog::CatalogSnapshot {
         self.catalog.inspect(0)
     }
@@ -1573,6 +1624,87 @@ impl RuntimeModelCatalog {
     ) -> Result<whisper_core::ports::LiveRequest, String> {
         self.snapshot()
             .bind_turbo_live_request(request, &self.known_historical_turbo_path)
+    }
+
+    fn bind_parakeet_live(
+        &self,
+        request: &LiveRequest,
+        candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+    ) -> Result<
+        (
+            LiveRequest,
+            crate::parakeet_import::ParakeetWorkerPaths,
+            Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+        ),
+        String,
+    > {
+        use whisper_core::model_catalog::ModelId;
+        let snapshot = self.snapshot();
+        if snapshot
+            .resolve_model_identity(&request.model_path, &self.known_historical_turbo_path)?
+            != ModelId::ParakeetTdt06BV3
+        {
+            return Err("ModelUnknown: la voie microphone Parakeet exige Parakeet TDT v3".into());
+        }
+        let requested = request.config.compute;
+        let mut effective = match requested {
+            ComputeChoice::Cpu => ComputeChoice::Cpu,
+            ComputeChoice::Gpu => ComputeChoice::Gpu,
+            ComputeChoice::Auto if candidate.is_some() && self.gpu_parakeet_paths.is_some() => {
+                ComputeChoice::Gpu
+            }
+            ComputeChoice::Auto => ComputeChoice::Cpu,
+        };
+        let make_import = |compute| ImportRequest {
+            job_id: request.job_id,
+            generation: request.generation,
+            source_path: request.model_path.clone(),
+            source_sha256: None,
+            source_samples: Some(1),
+            model_path: request.model_path.clone(),
+            model_sha256: request.model_sha256,
+            destination: request.destination.clone(),
+            config: whisper_core::JobConfig {
+                compute,
+                ..request.config.clone()
+            },
+        };
+        let bound = match self.bind_import(&make_import(effective)) {
+            Ok(bound) => bound,
+            Err(error) if requested == ComputeChoice::Auto && effective == ComputeChoice::Gpu => {
+                effective = ComputeChoice::Cpu;
+                self.bind_import(&make_import(effective))
+                    .map_err(|cpu_error| {
+                        format!("Auto GPU indisponible ({error}) ; CPU indisponible ({cpu_error})")
+                    })?
+            }
+            Err(error) => return Err(error),
+        };
+        let paths =
+            match effective {
+                ComputeChoice::Cpu => self.parakeet_paths.clone().ok_or_else(|| {
+                    "ModelNotQualified: worker CPU Test Parakeet absent".to_owned()
+                })?,
+                ComputeChoice::Gpu => self.gpu_parakeet_paths.clone().ok_or_else(|| {
+                    "BackendUnavailable: worker GPU Test Parakeet absent".to_owned()
+                })?,
+                ComputeChoice::Auto => unreachable!(),
+            };
+        let mut bound_request = request.clone();
+        bound_request.model_path = bound.model_path;
+        bound_request.config.compute = effective;
+        let candidate = if effective == ComputeChoice::Gpu {
+            candidate
+        } else {
+            None
+        };
+        Ok((bound_request, paths, candidate))
+    }
+
+    fn is_parakeet_live_request(&self, request: &LiveRequest) -> Result<bool, String> {
+        self.snapshot()
+            .resolve_model_identity(&request.model_path, &self.known_historical_turbo_path)
+            .map(|id| id == whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
     }
 }
 
@@ -1806,7 +1938,7 @@ fn l3_gpu_candidate_allowed(key: &crate::archive::ArchiveQualificationKey) -> bo
         && key.inference_profile == registered.inference_profile
 }
 
-fn gpu_evidence_matches(
+pub(crate) fn gpu_evidence_matches(
     evidence: Option<&whisper_core::parakeet_ipc::GpuEvidence>,
     expected: Option<&whisper_core::parakeet_ipc::ExpectedGpu>,
     pid: u32,
@@ -1995,11 +2127,15 @@ impl ImportRuntime {
             active: None,
             transport: None,
             publication_gate,
+            automatic_publication_gates: None,
             resume_prefix: VecDeque::new(),
             pending_live: None,
             live: None,
             live_archive: None,
             direct_live: None,
+            parakeet_live: None,
+            automatic_final_outputs: HashMap::new(),
+            parakeet_pending_events: VecDeque::new(),
             pending_attempt_reset: None,
             pending_recovery_counters: None,
             live_pending_persistence: 0,
@@ -2287,14 +2423,9 @@ impl ImportRuntime {
             ImportEffect::StartDirectLive(request) => {
                 let id = (request.job_id, request.generation);
                 let candidate = self.gpu_candidates.remove(&(id.0, id.1.get())).flatten();
-                if self.publication_gate.is_cancelled() {
-                    Ok(())
-                } else if self.active.is_some() || self.live.is_some() || self.direct_live.is_some()
-                {
-                    Err((id.0, id.1, "Une transcription est déjà en cours".into()))
-                } else {
-                    let request = match self.bind_live_request(&request) {
-                        Ok(request) => request,
+                let parakeet = match self.model_catalog.as_ref() {
+                    Some(catalog) => match catalog.is_parakeet_live_request(&request) {
+                        Ok(is_parakeet) => is_parakeet,
                         Err(error) => {
                             events.push_back(ImportEvent::Failed {
                                 job_id: id.0,
@@ -2303,24 +2434,72 @@ impl ImportRuntime {
                             });
                             return;
                         }
-                    };
-                    let instance = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
-                    let reusable_worker = self.idle_worker.take().and_then(|mut idle| {
-                        idle.matches(&request, &self.workers)
-                            .then_some(idle.transport)
+                    },
+                    None => false,
+                };
+                let automatic_import_active = parakeet
+                    && self.active.as_ref().is_some_and(|active| {
+                        self.automatic_final_outputs
+                            .contains_key(&(active.job_id, active.generation.get()))
                     });
-                    match crate::direct_live::DirectLive::start(
-                        request,
-                        &self.workers,
-                        instance,
-                        reusable_worker,
-                        candidate,
-                    ) {
-                        Ok(session) => {
-                            self.direct_live = Some(session);
-                            Ok(())
+                if self.publication_gate.is_cancelled() {
+                    Ok(())
+                } else if (self.active.is_some() && !automatic_import_active)
+                    || self.live.is_some()
+                    || self.direct_live.is_some()
+                    || self.parakeet_live.is_some()
+                {
+                    Err((id.0, id.1, "Une transcription est déjà en cours".into()))
+                } else {
+                    if parakeet {
+                        let catalog = self.model_catalog.as_ref().expect("catalog checked above");
+                        match catalog.bind_parakeet_live(&request, candidate) {
+                            Ok((request, paths, candidate)) => {
+                                let session_id = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
+                                match crate::parakeet_live::ParakeetLive::start(
+                                    request, paths, candidate, session_id,
+                                ) {
+                                    Ok(session) => {
+                                        self.parakeet_live = Some(session);
+                                        Ok(())
+                                    }
+                                    Err(error) => Err((id.0, id.1, error)),
+                                }
+                            }
+                            Err(error) => {
+                                Err((id.0, id.1, format!("Modèle indisponible : {error}")))
+                            }
                         }
-                        Err(error) => Err((id.0, id.1, error)),
+                    } else {
+                        let request = match self.bind_live_request(&request) {
+                            Ok(request) => request,
+                            Err(error) => {
+                                events.push_back(ImportEvent::Failed {
+                                    job_id: id.0,
+                                    generation: id.1,
+                                    message: format!("Modèle indisponible : {error}"),
+                                });
+                                return;
+                            }
+                        };
+                        let instance = NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed);
+                        let reusable_worker = self.idle_worker.take().and_then(|mut idle| {
+                            idle.matches(&request, &self.workers)
+                                .then_some(idle.transport)
+                        });
+                        match crate::direct_live::DirectLive::start(
+                            request,
+                            &self.workers,
+                            instance,
+                            reusable_worker,
+                            candidate,
+                        ) {
+                            Ok(session) => {
+                                self.direct_live = Some(session);
+                                Ok(())
+                            }
+                            Err(error) => Err((id.0, id.1, error)),
+                        }
                     }
                 }
             }
@@ -3276,6 +3455,73 @@ impl ImportRuntime {
                     )),
                 }
             }
+            ImportEffect::StartAutomaticFinalTranscription(automatic) => {
+                let request = automatic.request.clone();
+                let identity = (request.job_id, request.generation);
+                let map_identity = (identity.0, identity.1.get());
+                if self.publication_gate.is_cancelled() {
+                    events.push_back(ImportEvent::Stopped {
+                        job_id: identity.0,
+                        generation: identity.1,
+                    });
+                    Ok(())
+                } else if self.automatic_final_outputs.contains_key(&map_identity)
+                    || Path::new(&automatic.outputs.txt_path).exists()
+                    || Path::new(&automatic.outputs.srt_path).exists()
+                {
+                    Err((
+                        request.job_id,
+                        request.generation,
+                        "AutomaticFinalExists: une sortie automatique existe déjà".into(),
+                    ))
+                } else {
+                    (|| {
+                        let destination = Path::new(&request.destination);
+                        let queue = inspect_automatic_final_queue(destination)
+                            .map_err(|error| (identity.0, identity.1, error))?;
+                        let identity_in_use = crate::archive::ArchiveStore::job_identity_exists(
+                            destination,
+                            request.job_id,
+                            request.generation,
+                        ) || queue.iter().any(|entry| {
+                            entry.request.job_id == request.job_id
+                                && entry.request.generation == request.generation
+                        });
+                        if identity_in_use {
+                            return Err((
+                                identity.0,
+                                identity.1,
+                                "AutomaticFinalIdentityExists: identifiant déjà utilisé".into(),
+                            ));
+                        }
+                        match set_automatic_final_manifest_status(&automatic, "pending", None, None)
+                        {
+                            Err(error) => Err((identity.0, identity.1, error)),
+                            Ok(()) => {
+                                self.automatic_final_outputs
+                                    .insert(map_identity, automatic.clone());
+                                self.gpu_candidates.insert(
+                                    (identity.0, identity.1.get()),
+                                    automatic.gpu_candidate,
+                                );
+                                match self.bind_import_request(&request) {
+                                    Ok(request) => {
+                                        let candidate = self
+                                            .gpu_candidates
+                                            .get(&(request.job_id, request.generation.get()))
+                                            .and_then(Clone::clone);
+                                        self.prepare(request, candidate, events)
+                                    }
+                                    Err(error) => {
+                                        self.gpu_candidates.remove(&(identity.0, identity.1.get()));
+                                        Err((identity.0, identity.1, error))
+                                    }
+                                }
+                            }
+                        }
+                    })()
+                }
+            }
             ImportEffect::ScanHistory { destination } => {
                 let root = PathBuf::from(destination);
                 let reconciliation = ArchiveStore::reconcile_publications(&root);
@@ -3394,97 +3640,116 @@ impl ImportRuntime {
                 }
             }
             ImportEffect::Stop { job_id, generation } => {
-                let active_request = self.active.as_ref().and_then(|active| {
-                    (active.job_id == job_id && active.generation == generation)
-                        .then(|| active.import_request.clone())
-                        .flatten()
-                });
-                if active_request.is_some()
-                    && let Some(mut worker) = self.parakeet.take()
-                {
-                    let termination = worker.terminate();
-                    // The child has been detached from this runtime. Settle its
-                    // in-memory identity before any fallible queue journal I/O.
-                    self.active = None;
-                    self.parakeet_events.clear();
-                    self.parakeet_end = None;
-                    self.parakeet_stopped_ack = false;
-                    if let Some(mut run) = self.parakeet_vad.take()
-                        && let Some(path) = run.current_path.take()
-                    {
-                        let _ = fs::remove_file(path);
+                if let Some(mut live) = self.parakeet_live.take() {
+                    if live.identity() != (job_id, generation) {
+                        self.parakeet_live = Some(live);
+                        Err((job_id, generation, "Arrêt Parakeet périmé".into()))
+                    } else {
+                        match live.stop() {
+                            Ok(event) => {
+                                events.push_back(attach_automatic_final_import(&live, event));
+                                Ok(())
+                            }
+                            Err(error) => Err((job_id, generation, error)),
+                        }
                     }
-                    self.progress = None;
-                    match termination {
-                        Ok(_status) => {
-                            let queue_update = if let Some(request) = active_request {
-                                let queue_journal = Path::new(&request.destination)
-                                    .join("transcriptions")
-                                    .join("queue.jsonl");
-                                if queue_journal.is_file() {
-                                    crate::queue_store::QueueStore::open(&request.destination)
-                                        .and_then(|mut queue| {
-                                            if queue.entries().iter().any(|entry| {
-                                                entry.request.job_id == job_id
-                                                    && entry.request.generation == generation
-                                            }) {
-                                                queue.set_status(
+                } else {
+                    let active_request = self.active.as_ref().and_then(|active| {
+                        (active.job_id == job_id && active.generation == generation)
+                            .then(|| active.import_request.clone())
+                            .flatten()
+                    });
+                    if active_request.is_some()
+                        && let Some(mut worker) = self.parakeet.take()
+                    {
+                        let termination = worker.terminate();
+                        // The child has been detached from this runtime. Settle its
+                        // in-memory identity before any fallible queue journal I/O.
+                        self.active = None;
+                        self.parakeet_events.clear();
+                        self.parakeet_end = None;
+                        self.parakeet_stopped_ack = false;
+                        if let Some(mut run) = self.parakeet_vad.take()
+                            && let Some(path) = run.current_path.take()
+                        {
+                            let _ = fs::remove_file(path);
+                        }
+                        self.progress = None;
+                        match termination {
+                            Ok(_status) => {
+                                let queue_update = if let Some(request) = active_request {
+                                    let queue_journal = Path::new(&request.destination)
+                                        .join("transcriptions")
+                                        .join("queue.jsonl");
+                                    if queue_journal.is_file() {
+                                        crate::queue_store::QueueStore::open(&request.destination)
+                                            .and_then(|mut queue| {
+                                                if queue.entries().iter().any(|entry| {
+                                                    entry.request.job_id == job_id
+                                                        && entry.request.generation == generation
+                                                }) {
+                                                    queue.set_status(
                                                     job_id,
                                                     generation,
                                                     crate::queue_store::QueueStatus::Interrupted,
                                                 )?;
-                                                Ok(Some(queue.entries()))
-                                            } else {
-                                                Ok(None)
-                                            }
-                                        })
-                                        .map_err(|error| (job_id, generation, error))
+                                                    Ok(Some(queue.entries()))
+                                                } else {
+                                                    Ok(None)
+                                                }
+                                            })
+                                            .map_err(|error| (job_id, generation, error))
+                                    } else {
+                                        Ok(None)
+                                    }
                                 } else {
                                     Ok(None)
-                                }
-                            } else {
-                                Ok(None)
-                            };
-                            match queue_update {
-                                Err(error) => Err(error),
-                                Ok(queue) => {
-                                    if let Some(entries) = queue {
-                                        events.push_back(ImportEvent::Queue(entries));
+                                };
+                                match queue_update {
+                                    Err(error) => Err(error),
+                                    Ok(queue) => {
+                                        if let Some(entries) = queue {
+                                            events.push_back(ImportEvent::Queue(entries));
+                                        }
+                                        events
+                                            .push_back(ImportEvent::Stopped { job_id, generation });
+                                        Ok(())
                                     }
-                                    events.push_back(ImportEvent::Stopped { job_id, generation });
-                                    Ok(())
                                 }
                             }
+                            Err(error) => Err((job_id, generation, error)),
                         }
-                        Err(error) => Err((job_id, generation, error)),
-                    }
-                } else if let Some(direct) = self.direct_live.as_mut() {
-                    if direct.identity() != (job_id, generation) {
-                        Err((job_id, generation, "Arrêt micro périmé".into()))
+                    } else if let Some(direct) = self.direct_live.as_mut() {
+                        if direct.identity() != (job_id, generation) {
+                            Err((job_id, generation, "Arrêt micro périmé".into()))
+                        } else {
+                            direct
+                                .stop()
+                                .map_err(|error| (job_id, generation, error))
+                                .map(|()| {
+                                    events.push_back(ImportEvent::LiveFinalizing {
+                                        job_id,
+                                        generation,
+                                    });
+                                })
+                        }
                     } else {
-                        direct
-                            .stop()
-                            .map_err(|error| (job_id, generation, error))
-                            .map(|()| {
+                        if let Some(progress) = self.progress.as_mut() {
+                            let now = std::time::Instant::now();
+                            progress.close(ProgressPhase::Capturing);
+                            progress.open(ProgressPhase::Draining, now);
+                            progress.open(ProgressPhase::Cancelling, now);
+                        }
+                        let live = self.live.as_ref().is_some_and(|live| {
+                            (live.request.job_id, live.request.generation) == (job_id, generation)
+                        });
+                        self.stop(job_id, generation, events).map(|()| {
+                            if live && self.live.is_some() {
                                 events
                                     .push_back(ImportEvent::LiveFinalizing { job_id, generation });
-                            })
+                            }
+                        })
                     }
-                } else {
-                    if let Some(progress) = self.progress.as_mut() {
-                        let now = std::time::Instant::now();
-                        progress.close(ProgressPhase::Capturing);
-                        progress.open(ProgressPhase::Draining, now);
-                        progress.open(ProgressPhase::Cancelling, now);
-                    }
-                    let live = self.live.as_ref().is_some_and(|live| {
-                        (live.request.job_id, live.request.generation) == (job_id, generation)
-                    });
-                    self.stop(job_id, generation, events).map(|()| {
-                        if live && self.live.is_some() {
-                            events.push_back(ImportEvent::LiveFinalizing { job_id, generation });
-                        }
-                    })
                 }
             }
         };
@@ -3499,7 +3764,22 @@ impl ImportRuntime {
                 }
             }
         }
-        if let Err((job, generation, message)) = result {
+        if let Err((job, generation, mut message)) = result {
+            if let Some(automatic) = self.automatic_final_outputs.get(&(job, generation.get()))
+                && let Err(status_error) = set_automatic_final_manifest_status(
+                    automatic,
+                    "failed_or_unavailable",
+                    None,
+                    Some(&message),
+                )
+            {
+                message.push_str(&format!(
+                    "; persistance du verdict d'échec dans le JSON compagnon impossible: {status_error}"
+                ));
+            }
+            self.automatic_final_outputs
+                .remove(&(job, generation.get()));
+            self.gpu_candidates.remove(&(job, generation.get()));
             let message = if let Some(direct) = self.direct_live.as_mut()
                 && direct.identity() == (job, generation)
             {
@@ -3796,6 +4076,14 @@ impl ImportRuntime {
         request: whisper_core::ports::ImportRequest,
         selection: Option<Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>>,
     ) -> Result<(), (JobId, Generation, String)> {
+        if let Some(automatic) = self
+            .automatic_final_outputs
+            .get(&(request.job_id, request.generation.get()))
+            && let Err(error) =
+                set_automatic_final_manifest_status(automatic, "running", None, None)
+        {
+            return Err((request.job_id, request.generation, error));
+        }
         let request = self
             .source_bindings
             .get(&(request.job_id, request.generation.get()))
@@ -4849,6 +5137,36 @@ impl ImportRuntime {
             }
             self.release_source_binding(job, generation, &root)
                 .map_err(|error| (job, generation, error))?;
+            if let Some(automatic) = self.automatic_final_outputs.get(&(job, generation.get())) {
+                let entry = first
+                    .iter()
+                    .find(|entry| {
+                        entry.job_id == job && entry.generation == generation && entry.complete
+                    })
+                    .ok_or_else(|| {
+                        (
+                            job,
+                            generation,
+                            "ArchiveEntryMissing: import final introuvable".into(),
+                        )
+                    })?;
+                let basename = entry.export_basename.as_deref().ok_or_else(|| {
+                    (
+                        job,
+                        generation,
+                        "ArchiveExportMissing: export final absent".into(),
+                    )
+                })?;
+                let archive_exports = root.join("exports");
+                publish_automatic_final_exports(
+                    &archive_exports.join(format!("{basename}.txt")),
+                    &archive_exports.join(format!("{basename}.srt")),
+                    automatic,
+                )
+                .map_err(|error| (job, generation, error))?;
+                self.automatic_final_outputs
+                    .remove(&(job, generation.get()));
+            }
             events.push_back(ImportEvent::Published {
                 job_id: job,
                 generation,
@@ -4883,6 +5201,17 @@ impl ImportRuntime {
                 // result must not leave a model resident or allow a second worker.
                 self.pending_idle_worker = None;
                 self.idle_worker = None;
+                if let Some(automatic) = self.automatic_final_outputs.get(&(job, generation.get()))
+                {
+                    let _ = set_automatic_final_manifest_status(
+                        automatic,
+                        "failed_or_unavailable",
+                        None,
+                        Some(&error.2),
+                    );
+                }
+                self.automatic_final_outputs
+                    .remove(&(job, generation.get()));
                 Err(error)
             }
         }
@@ -6092,6 +6421,9 @@ impl ImportRuntime {
     }
 
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+        if let Some(event) = self.parakeet_pending_events.pop_front() {
+            return Some(Ok(event));
+        }
         if self
             .idle_worker
             .as_ref()
@@ -6123,6 +6455,23 @@ impl ImportRuntime {
                 Ok(Some(event)) => return Some(Ok(event)),
                 Ok(None) => {}
                 Err(error) => return Some(Err((id.0, id.1, error))),
+            }
+        }
+        if let Some(live) = self.parakeet_live.as_mut() {
+            let id = live.identity();
+            match live.poll() {
+                Ok(Some(event)) => return Some(Ok(event)),
+                Ok(None) => {}
+                Err(error) => {
+                    let event = live.stop_after_capture_error(error);
+                    let event = attach_automatic_final_import(live, event);
+                    self.parakeet_pending_events.push_back(event);
+                    self.parakeet_live = None;
+                    if let Some(event) = self.parakeet_pending_events.pop_front() {
+                        return Some(Ok(event));
+                    }
+                    return Some(Err((id.0, id.1, "Capture Parakeet interrompue".into())));
+                }
             }
         }
         if let Some(event) = self.pending_recovery_counters.take() {
@@ -7113,6 +7462,15 @@ pub struct AsyncImportIo {
     events: Receiver<ImportEvent>,
     publication_gate: Arc<PublicationGate>,
     active_identity: Option<(JobId, Generation)>,
+    automatic_effects: SyncSender<ImportEffect>,
+    automatic_stops: SyncSender<ImportEffect>,
+    automatic_events: Receiver<ImportEvent>,
+    automatic_publication_gates: Arc<Mutex<HashMap<(JobId, u64), Arc<PublicationGate>>>>,
+    automatic_identities: HashSet<(JobId, u64)>,
+    automatic_active_identity: Option<(JobId, u64)>,
+    automatic_queue: VecDeque<whisper_core::ports::AutomaticFinalImport>,
+    pending_automatic_failures: VecDeque<ImportEvent>,
+    poll_automatic_first: bool,
 }
 
 impl AsyncImportIo {
@@ -7241,6 +7599,9 @@ impl AsyncImportIo {
         let (effect_tx, effect_rx) = mpsc::sync_channel(8);
         let (stop_tx, stop_rx) = mpsc::sync_channel(1);
         let (event_tx, event_rx) = mpsc::sync_channel(EVENTS_PER_STAGE);
+        let (automatic_effect_tx, automatic_effect_rx) = mpsc::sync_channel(8);
+        let (automatic_stop_tx, automatic_stop_rx) = mpsc::sync_channel(1);
+        let (automatic_event_tx, automatic_event_rx) = mpsc::sync_channel(EVENTS_PER_STAGE);
         #[cfg(feature = "l01-memory-qualification")]
         memory_trace(
             "adapter.channels.created",
@@ -7253,6 +7614,14 @@ impl AsyncImportIo {
             }),
         );
         let publication_gate = Arc::new(PublicationGate::default());
+        let automatic_publication_gates = Arc::new(Mutex::new(HashMap::new()));
+        let automatic_model_catalog = model_catalog
+            .as_ref()
+            .map(RuntimeModelCatalog::clone_for_worker);
+        let automatic_workers = workers.clone();
+        let automatic_parakeet_paths = parakeet_paths.clone();
+        let automatic_gpu_parakeet_paths = gpu_parakeet_paths.clone();
+        let automatic_snapshot_registry_root = snapshot_registry_root.clone();
         thread::spawn({
             let publication_gate = publication_gate.clone();
             move || {
@@ -7268,12 +7637,44 @@ impl AsyncImportIo {
                 service_loop(effect_rx, stop_rx, event_tx, runtime)
             }
         });
+        let _automatic_service = thread::Builder::new()
+            .name("parakeet-auto-final-import".into())
+            .spawn({
+                let automatic_publication_gates = automatic_publication_gates.clone();
+                move || {
+                    let mut runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
+                        automatic_workers,
+                        Arc::new(PublicationGate::default()),
+                        automatic_model_catalog,
+                        automatic_parakeet_paths,
+                        automatic_gpu_parakeet_paths,
+                        automatic_snapshot_registry_root,
+                        require_snapshot_registry,
+                    );
+                    runtime.automatic_publication_gates = Some(automatic_publication_gates);
+                    service_loop(
+                        automatic_effect_rx,
+                        automatic_stop_rx,
+                        automatic_event_tx,
+                        runtime,
+                    )
+                }
+            });
         Self {
             effects: effect_tx,
             stops: stop_tx,
             events: event_rx,
             publication_gate,
             active_identity: None,
+            automatic_effects: automatic_effect_tx,
+            automatic_stops: automatic_stop_tx,
+            automatic_events: automatic_event_rx,
+            automatic_publication_gates,
+            automatic_identities: HashSet::new(),
+            automatic_active_identity: None,
+            automatic_queue: VecDeque::new(),
+            pending_automatic_failures: VecDeque::new(),
+            poll_automatic_first: false,
         }
     }
 
@@ -7285,10 +7686,17 @@ impl AsyncImportIo {
         Receiver<ImportEffect>,
         Receiver<ImportEffect>,
         SyncSender<ImportEvent>,
+        Receiver<ImportEffect>,
+        Receiver<ImportEffect>,
+        SyncSender<ImportEvent>,
     ) {
         let (effect_tx, effect_rx) = mpsc::sync_channel(8);
         let (stop_tx, stop_rx) = mpsc::sync_channel(1);
         let (event_tx, event_rx) = mpsc::sync_channel(EVENTS_PER_STAGE);
+        let (automatic_effect_tx, automatic_effect_rx) = mpsc::sync_channel(8);
+        let (automatic_stop_tx, automatic_stop_rx) = mpsc::sync_channel(1);
+        let (automatic_event_tx, automatic_event_rx) = mpsc::sync_channel(EVENTS_PER_STAGE);
+        let automatic_publication_gates = Arc::new(Mutex::new(HashMap::new()));
         (
             Self {
                 effects: effect_tx,
@@ -7296,12 +7704,114 @@ impl AsyncImportIo {
                 events: event_rx,
                 publication_gate,
                 active_identity: None,
+                automatic_effects: automatic_effect_tx,
+                automatic_stops: automatic_stop_tx,
+                automatic_events: automatic_event_rx,
+                automatic_publication_gates,
+                automatic_identities: HashSet::new(),
+                automatic_active_identity: None,
+                automatic_queue: VecDeque::new(),
+                pending_automatic_failures: VecDeque::new(),
+                poll_automatic_first: false,
             },
             effect_rx,
             stop_rx,
             event_tx,
+            automatic_effect_rx,
+            automatic_stop_rx,
+            automatic_event_tx,
         )
     }
+
+    fn start_next_automatic(&mut self) {
+        if self.automatic_active_identity.is_some() {
+            return;
+        }
+        let Some(automatic) = self.automatic_queue.pop_front() else {
+            return;
+        };
+        let identity = (automatic.request.job_id, automatic.request.generation.get());
+        let generation = automatic.request.generation;
+        let effect = ImportEffect::StartAutomaticFinalTranscription(automatic);
+        match self.automatic_effects.try_send(effect) {
+            Ok(()) => self.automatic_active_identity = Some(identity),
+            Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_)) => {
+                self.automatic_publication_gates
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .remove(&identity);
+                self.automatic_identities.remove(&identity);
+                self.pending_automatic_failures
+                    .push_back(ImportEvent::Failed {
+                        job_id: identity.0,
+                        generation,
+                        message: "AutomaticFinalUnavailable: file worker is unavailable".into(),
+                    });
+            }
+        }
+    }
+}
+
+fn import_effect_identity(effect: &ImportEffect) -> Option<(JobId, u64)> {
+    let identity = match effect {
+        ImportEffect::SetGpuCandidate {
+            job_id, generation, ..
+        }
+        | ImportEffect::ReleaseSourceBinding {
+            job_id, generation, ..
+        }
+        | ImportEffect::RemoveQueued {
+            job_id, generation, ..
+        }
+        | ImportEffect::ResolveImportPublication {
+            job_id, generation, ..
+        }
+        | ImportEffect::PersistSegment(WorkerSegment {
+            job_id, generation, ..
+        })
+        | ImportEffect::Publish {
+            job_id, generation, ..
+        }
+        | ImportEffect::Stop { job_id, generation }
+        | ImportEffect::FinishLiveOnCpu { job_id, generation } => (*job_id, *generation),
+        ImportEffect::StartLive(request) | ImportEffect::StartDirectLive(request) => {
+            (request.job_id, request.generation)
+        }
+        ImportEffect::Enqueue(request)
+        | ImportEffect::ProcessQueued(request)
+        | ImportEffect::Prepare(request)
+        | ImportEffect::StartWorker(request) => (request.job_id, request.generation),
+        ImportEffect::ResolveLivePublication(request) => (request.job_id, request.generation),
+        ImportEffect::StartAutomaticFinalTranscription(automatic) => {
+            (automatic.request.job_id, automatic.request.generation)
+        }
+        ImportEffect::ResumeInterrupted { request, .. } => (request.job_id, request.generation),
+        ImportEffect::ConfirmDuplicateImport { prompt, .. } => {
+            (prompt.request.job_id, prompt.request.generation)
+        }
+        ImportEffect::InspectSourceSnapshotRecovery
+        | ImportEffect::ConfirmSourceSnapshotRecovery
+        | ImportEffect::ScanQueue { .. }
+        | ImportEffect::ScanHistory { .. }
+        | ImportEffect::ResumeReplacementCleanup { .. } => return None,
+    };
+    Some((identity.0, identity.1.get()))
+}
+
+fn terminal_import_event_identity(event: &ImportEvent) -> Option<(JobId, u64)> {
+    let (job_id, generation) = match event {
+        ImportEvent::Published {
+            job_id, generation, ..
+        }
+        | ImportEvent::Failed {
+            job_id, generation, ..
+        }
+        | ImportEvent::Stopped {
+            job_id, generation, ..
+        } => (*job_id, *generation),
+        _ => return None,
+    };
+    Some((job_id, generation.get()))
 }
 
 impl ImportIoPort for AsyncImportIo {
@@ -7321,6 +7831,36 @@ impl ImportIoPort for AsyncImportIo {
             }),
         );
         if let ImportEffect::Stop { job_id, generation } = &effect {
+            let identity = (*job_id, generation.get());
+            if self.automatic_identities.contains(&identity) {
+                crate::archive::l04_campaign_gate(
+                    "stop.before_admit",
+                    job_id.0,
+                    generation.get(),
+                    0,
+                )
+                .map_err(PortError::Failed)?;
+                let gate = self
+                    .automatic_publication_gates
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .get(&identity)
+                    .cloned()
+                    .ok_or(PortError::StaleResponse)?;
+                if !gate.request_stop()? {
+                    return Ok(());
+                }
+                if self.automatic_active_identity != Some(identity) {
+                    return Ok(());
+                }
+                return match self.automatic_stops.try_send(effect) {
+                    Ok(()) => Ok(()),
+                    Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_)) => {
+                        gate.rollback_stop();
+                        Err(PortError::Unavailable)
+                    }
+                };
+            }
             if self.active_identity != Some((*job_id, *generation)) {
                 return Err(PortError::StaleResponse);
             }
@@ -7337,6 +7877,66 @@ impl ImportIoPort for AsyncImportIo {
                 }
             }
         } else {
+            if matches!(&effect, ImportEffect::StartAutomaticFinalTranscription(_)) {
+                let identity = import_effect_identity(&effect).expect("automatic import identity");
+                let gate = Arc::new(PublicationGate::default());
+                gate.activate();
+                {
+                    let mut gates = self
+                        .automatic_publication_gates
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    if gates.contains_key(&identity) {
+                        return Err(PortError::StaleResponse);
+                    }
+                    gates.insert(identity, gate);
+                }
+                self.automatic_identities.insert(identity);
+                if self.automatic_active_identity.is_some() {
+                    if self.automatic_queue.len() >= 8 {
+                        self.automatic_publication_gates
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner)
+                            .remove(&identity);
+                        self.automatic_identities.remove(&identity);
+                        return Err(PortError::Unavailable);
+                    }
+                    let ImportEffect::StartAutomaticFinalTranscription(automatic) = effect else {
+                        unreachable!("automatic lane start effect checked above")
+                    };
+                    self.automatic_queue.push_back(automatic);
+                    return Ok(());
+                }
+                if let Err(error) = self.automatic_effects.try_send(effect) {
+                    self.automatic_publication_gates
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .remove(&identity);
+                    self.automatic_identities.remove(&identity);
+                    return Err(match error {
+                        TrySendError::Full(_) | TrySendError::Disconnected(_) => {
+                            PortError::Unavailable
+                        }
+                    });
+                }
+                self.automatic_active_identity = Some(identity);
+                return Ok(());
+            }
+            if let Some(identity) = import_effect_identity(&effect)
+                && self.automatic_identities.contains(&identity)
+            {
+                if self.automatic_active_identity == Some(identity) {
+                    return self
+                        .automatic_effects
+                        .try_send(effect)
+                        .map_err(|error| match error {
+                            TrySendError::Full(_) | TrySendError::Disconnected(_) => {
+                                PortError::Unavailable
+                            }
+                        });
+                }
+                return Err(PortError::Backpressure);
+            }
             if let ImportEffect::FinishLiveOnCpu { job_id, generation } = &effect
                 && self.active_identity != Some((*job_id, *generation))
             {
@@ -7345,6 +7945,9 @@ impl ImportIoPort for AsyncImportIo {
             let active_identity = match &effect {
                 ImportEffect::StartLive(request) | ImportEffect::StartDirectLive(request) => {
                     Some((request.job_id, request.generation))
+                }
+                ImportEffect::StartAutomaticFinalTranscription(automatic) => {
+                    Some((automatic.request.job_id, automatic.request.generation))
                 }
                 ImportEffect::Prepare(request) | ImportEffect::ProcessQueued(request) => {
                     Some((request.job_id, request.generation))
@@ -7370,11 +7973,46 @@ impl ImportIoPort for AsyncImportIo {
         }
     }
     fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
-        match self.events.try_recv() {
-            Ok(event) => Ok(Some(event)),
-            Err(TryRecvError::Empty) => Ok(None),
-            Err(TryRecvError::Disconnected) => Err(PortError::Unavailable),
+        if let Some(failure) = self.pending_automatic_failures.pop_front() {
+            return Ok(Some(failure));
         }
+        self.start_next_automatic();
+        let (first, second) = if self.poll_automatic_first {
+            (&self.automatic_events, &self.events)
+        } else {
+            (&self.events, &self.automatic_events)
+        };
+        let first_result = first.try_recv();
+        let first_disconnected = matches!(&first_result, Err(TryRecvError::Disconnected));
+        let (event, from_automatic) = match first_result {
+            Ok(event) => (Some(event), self.poll_automatic_first),
+            Err(TryRecvError::Empty | TryRecvError::Disconnected) => {
+                let second_result = second.try_recv();
+                match second_result {
+                    Ok(event) => (Some(event), !self.poll_automatic_first),
+                    Err(TryRecvError::Empty) => (None, false),
+                    Err(TryRecvError::Disconnected) if first_disconnected => {
+                        return Err(PortError::Unavailable);
+                    }
+                    Err(TryRecvError::Disconnected) => (None, false),
+                }
+            }
+        };
+        if let Some(event) = event.as_ref() {
+            if from_automatic && let Some(identity) = terminal_import_event_identity(event) {
+                self.automatic_identities.remove(&identity);
+                self.automatic_publication_gates
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .remove(&identity);
+                if self.automatic_active_identity == Some(identity) {
+                    self.automatic_active_identity = None;
+                    self.start_next_automatic();
+                }
+            }
+            self.poll_automatic_first = !from_automatic;
+        }
+        Ok(event)
     }
 }
 
@@ -7388,6 +8026,19 @@ trait ServiceRuntime {
 
 impl ServiceRuntime for ImportRuntime {
     fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+        if let (Some(identity), Some(gates)) = (
+            import_effect_identity(&effect),
+            self.automatic_publication_gates.as_ref(),
+        ) {
+            if let Some(gate) = gates
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .get(&identity)
+                .cloned()
+            {
+                self.publication_gate = gate;
+            }
+        }
         self.effect(effect, pending);
     }
 
@@ -7396,17 +8047,301 @@ impl ServiceRuntime for ImportRuntime {
     }
 
     fn pump_realtime(&mut self) -> Option<(JobId, Generation, String)> {
-        let direct = self.direct_live.as_mut()?;
-        let (job_id, generation) = direct.identity();
-        match direct.pump_capture() {
-            Ok(()) => None,
-            Err(error) => {
-                let error = direct.fail(error);
-                self.direct_live = None;
-                Some((job_id, generation, error))
+        if let Some(direct) = self.direct_live.as_mut() {
+            let (job_id, generation) = direct.identity();
+            return match direct.pump_capture() {
+                Ok(()) => None,
+                Err(error) => {
+                    let error = direct.fail(error);
+                    self.direct_live = None;
+                    Some((job_id, generation, error))
+                }
+            };
+        }
+        if let Some(live) = self.parakeet_live.as_mut() {
+            if let Err(error) = live.pump_capture() {
+                let event = live.stop_after_capture_error(error);
+                let event = attach_automatic_final_import(live, event);
+                self.parakeet_pending_events.push_back(event);
+                self.parakeet_live = None;
             }
         }
+        None
     }
+}
+
+fn attach_automatic_final_import(
+    live: &crate::parakeet_live::ParakeetLive,
+    event: ImportEvent,
+) -> ImportEvent {
+    let ImportEvent::ParakeetCaptureStopped {
+        job_id: capture_job,
+        generation,
+        wav_path,
+        automatic_final,
+        ..
+    } = &event
+    else {
+        return event;
+    };
+    if automatic_final.is_some() || wav_path.is_empty() || !Path::new(wav_path).is_file() {
+        return event;
+    }
+    // Queue/archive inspection can read an arbitrarily large durable journal.
+    // Keep it off the capture service: the automatic-import lane validates this
+    // candidate before writing status or starting any import work.
+    let import_job = next_automatic_final_job_id();
+    let Ok(automatic) = live.automatic_final_import(wav_path, import_job) else {
+        return event;
+    };
+    debug_assert_eq!(*capture_job, live.identity().0);
+    match event {
+        ImportEvent::ParakeetCaptureStopped {
+            job_id,
+            generation,
+            session_id,
+            wav_path,
+            txt_path,
+            srt_path,
+            complete,
+            final_segments,
+            unresolved,
+            diagnostic,
+            ..
+        } => ImportEvent::ParakeetCaptureStopped {
+            job_id,
+            generation,
+            session_id,
+            wav_path,
+            txt_path,
+            srt_path,
+            complete,
+            final_segments,
+            unresolved,
+            diagnostic,
+            automatic_final: Some(automatic),
+        },
+        other => other,
+    }
+}
+
+fn publish_automatic_final_exports(
+    source_txt: &Path,
+    source_srt: &Path,
+    automatic: &whisper_core::ports::AutomaticFinalImport,
+) -> Result<(), String> {
+    let outputs = &automatic.outputs;
+    let txt =
+        fs::read(source_txt).map_err(|error| format!("Export TXT automatique absent : {error}"))?;
+    let srt =
+        fs::read(source_srt).map_err(|error| format!("Export SRT automatique absent : {error}"))?;
+    let txt_path = Path::new(&outputs.txt_path);
+    let srt_path = Path::new(&outputs.srt_path);
+    if txt_path.parent() != srt_path.parent() {
+        return Err("Les exports automatiques doivent partager leur dossier de destination".into());
+    }
+    if txt_path.exists() || srt_path.exists() {
+        return Err("Une sortie automatique existe déjà; aucune sortie n'a été remplacée".into());
+    }
+    let (txt_stage, mut txt_file) = create_automatic_stage(txt_path)?;
+    if let Err(error) = txt_file.write_all(&txt).and_then(|()| txt_file.sync_all()) {
+        drop(txt_file);
+        return Err(with_cleanup_error(
+            format!("Écriture du TXT automatique impossible : {error}"),
+            remove_automatic_stage(&txt_stage),
+        ));
+    }
+    drop(txt_file);
+    let (srt_stage, mut srt_file) = match create_automatic_stage(srt_path) {
+        Ok(stage) => stage,
+        Err(error) => {
+            return Err(with_cleanup_error(
+                format!("Création du SRT automatique impossible : {error}"),
+                remove_automatic_stage(&txt_stage),
+            ));
+        }
+    };
+    if let Err(error) = srt_file.write_all(&srt).and_then(|()| srt_file.sync_all()) {
+        drop(srt_file);
+        let cleanup =
+            remove_automatic_stage(&srt_stage).and_then(|()| remove_automatic_stage(&txt_stage));
+        return Err(with_cleanup_error(
+            format!("Écriture du SRT automatique impossible : {error}"),
+            cleanup,
+        ));
+    }
+    drop(srt_file);
+    publish_automatic_staged_pair(&txt_stage, &srt_stage, txt_path, srt_path)?;
+    if let Err(error) =
+        set_automatic_final_manifest_status(automatic, "produced_unverified", None, None)
+    {
+        return Err(with_cleanup_error(
+            format!("Mise à jour du statut compagnon impossible : {error}"),
+            remove_automatic_paths(&[txt_path, srt_path]),
+        ));
+    }
+    Ok(())
+}
+
+fn set_automatic_final_manifest_status(
+    automatic: &whisper_core::ports::AutomaticFinalImport,
+    status: &str,
+    effective_backend: Option<&str>,
+    diagnostic: Option<&str>,
+) -> Result<(), String> {
+    let path = Path::new(&automatic.outputs.companion_json_path);
+    let bytes = fs::read(path)
+        .map_err(|error| format!("Lecture du JSON compagnon impossible : {error}"))?;
+    let mut document: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("JSON compagnon invalide : {error}"))?;
+    let object = document
+        .as_object_mut()
+        .ok_or_else(|| "La racine du JSON compagnon doit être un objet".to_owned())?;
+    if !object
+        .get("confirmed_intervals")
+        .is_some_and(serde_json::Value::is_array)
+        || !object
+            .get("unresolved_intervals")
+            .is_some_and(serde_json::Value::is_array)
+    {
+        return Err("Le JSON compagnon ne contient pas les intervalles directs attendus".into());
+    }
+    let model_sha256 = automatic
+        .request
+        .model_sha256
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    object.insert(
+        "automatic_final_transcription".into(),
+        serde_json::json!({
+            "status": status,
+            "txt_path": automatic.outputs.txt_path,
+            "srt_path": automatic.outputs.srt_path,
+            "model_sha256": model_sha256,
+            "requested_compute": format!("{:?}", automatic.request.config.compute).to_ascii_lowercase(),
+            "effective_backend": effective_backend,
+            "diagnostic": diagnostic,
+        }),
+    );
+    let replacement = serde_json::to_vec_pretty(&document)
+        .map_err(|error| format!("Sérialisation du JSON compagnon impossible : {error}"))?;
+    let (temporary, mut file) = create_automatic_stage(path)
+        .map_err(|error| format!("Réservation du JSON compagnon impossible : {error}"))?;
+    if let Err(error) = file
+        .write_all(&replacement)
+        .and_then(|()| file.write_all(b"\n"))
+        .and_then(|()| file.sync_all())
+    {
+        drop(file);
+        return Err(with_cleanup_error(
+            format!("Écriture du JSON compagnon impossible : {error}"),
+            remove_automatic_stage(&temporary),
+        ));
+    }
+    drop(file);
+    fs::rename(&temporary, path).map_err(|error| {
+        with_cleanup_error(
+            format!("Remplacement du JSON compagnon impossible : {error}"),
+            remove_automatic_stage(&temporary),
+        )
+    })
+}
+
+fn create_automatic_stage(final_path: &Path) -> Result<(PathBuf, fs::File), String> {
+    let parent = final_path
+        .parent()
+        .ok_or_else(|| "Sortie automatique sans dossier parent".to_owned())?;
+    let name = final_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "Nom de sortie automatique invalide".to_owned())?;
+    for _ in 0..8 {
+        let nonce = NEXT_AUTO_EXPORT_STAGE.fetch_add(1, Ordering::Relaxed);
+        let path = parent.join(format!(".{name}.{}.{}.stage", std::process::id(), nonce));
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(file) => return Ok((path, file)),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Err("Impossible de réserver un nom temporaire unique pour la sortie automatique".into())
+}
+
+fn remove_automatic_stage(path: &Path) -> Result<(), String> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!(
+            "suppression temporaire de {} impossible: {error}",
+            path.display()
+        )),
+    }
+}
+
+fn remove_automatic_paths(paths: &[&Path]) -> Result<(), String> {
+    let errors = paths
+        .iter()
+        .filter_map(|path| {
+            fs::remove_file(path)
+                .err()
+                .filter(|error| error.kind() != io::ErrorKind::NotFound)
+                .map(|error| format!("{}: {error}", path.display()))
+        })
+        .collect::<Vec<_>>();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
+}
+
+fn with_cleanup_error(primary: String, cleanup: Result<(), String>) -> String {
+    match cleanup {
+        Ok(()) => primary,
+        Err(cleanup) => format!("{primary}; nettoyage incomplet: {cleanup}"),
+    }
+}
+
+fn publish_automatic_staged_pair(
+    txt_stage: &Path,
+    srt_stage: &Path,
+    txt_path: &Path,
+    srt_path: &Path,
+) -> Result<(), String> {
+    if txt_path.exists() || srt_path.exists() {
+        return Err(with_cleanup_error(
+            "Une sortie automatique existe déjà; aucune sortie n'a été remplacée".into(),
+            remove_automatic_stage(txt_stage).and_then(|()| remove_automatic_stage(srt_stage)),
+        ));
+    }
+    fs::hard_link(txt_stage, txt_path).map_err(|error| {
+        with_cleanup_error(
+            format!("Publication du TXT automatique impossible : {error}"),
+            remove_automatic_stage(txt_stage).and_then(|()| remove_automatic_stage(srt_stage)),
+        )
+    })?;
+    if let Err(error) = fs::hard_link(srt_stage, srt_path) {
+        let cleanup = remove_automatic_paths(&[txt_path, txt_stage, srt_stage]);
+        return Err(with_cleanup_error(
+            format!("Publication du SRT automatique impossible : {error}"),
+            cleanup,
+        ));
+    }
+    if let Err(error) =
+        remove_automatic_stage(txt_stage).and_then(|()| remove_automatic_stage(srt_stage))
+    {
+        let rollback = remove_automatic_paths(&[txt_path, srt_path, txt_stage, srt_stage]);
+        return Err(with_cleanup_error(
+            format!("Nettoyage des exports temporaires impossible : {error}"),
+            rollback,
+        ));
+    }
+    Ok(())
 }
 
 fn recovery_stop_counters(events: VecDeque<ImportEvent>) -> Option<ImportEvent> {
@@ -7434,6 +8369,8 @@ fn service_loop<R: ServiceRuntime>(
     let mut deferred_effect = None;
     let mut deferred_stop = None;
     let mut deferred_realtime_failure = None;
+    let mut effect_channel_disconnected = false;
+    let mut stop_channel_disconnected = false;
     #[cfg(feature = "l01-memory-qualification")]
     memory_trace(
         "adapter.pending.created",
@@ -7446,11 +8383,36 @@ fn service_loop<R: ServiceRuntime>(
         }),
     );
     loop {
-        let mut stop = deferred_stop.take().or_else(|| stop_rx.try_recv().ok());
+        let mut stop = deferred_stop.take().or_else(|| match stop_rx.try_recv() {
+            Ok(stop) => Some(stop),
+            Err(TryRecvError::Disconnected) => {
+                stop_channel_disconnected = true;
+                None
+            }
+            Err(TryRecvError::Empty) => None,
+        });
         if stop.is_some() && pending.len() + 2 > EVENTS_PER_STAGE {
             deferred_stop = stop.take();
         }
-        let mut effect = deferred_effect.take().or_else(|| effect_rx.try_recv().ok());
+        let mut effect = deferred_effect
+            .take()
+            .or_else(|| match effect_rx.try_recv() {
+                Ok(effect) => Some(effect),
+                Err(TryRecvError::Disconnected) => {
+                    effect_channel_disconnected = true;
+                    None
+                }
+                Err(TryRecvError::Empty) => None,
+            });
+        if effect_channel_disconnected
+            && stop_channel_disconnected
+            && pending.is_empty()
+            && deferred_effect.is_none()
+            && deferred_stop.is_none()
+            && deferred_realtime_failure.is_none()
+        {
+            return;
+        }
         if deferred_stop.is_some()
             || effect.as_ref().is_some_and(|effect| {
                 pending.len()
@@ -7552,6 +8514,1363 @@ mod tests {
         AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
         JobConfig, JobId, JobState, LanguageChoice,
     };
+
+    fn automatic_final_test_root(label: &str) -> PathBuf {
+        PathBuf::from(std::env::var_os("CARGO_TARGET_DIR").expect("guarded target dir")).join(
+            format!(
+                "whisper-auto-final-{label}-{}-{}",
+                std::process::id(),
+                NEXT_AUTO_EXPORT_STAGE.fetch_add(1, Ordering::Relaxed)
+            ),
+        )
+    }
+
+    fn automatic_final_request(job_id: JobId) -> whisper_core::ports::AutomaticFinalImport {
+        let generation = Generation::first();
+        let mut request = test_request(job_id, generation);
+        request.source_path = format!("capture-{job_id:?}.wav");
+        whisper_core::ports::AutomaticFinalImport {
+            request,
+            outputs: whisper_core::ports::AutomaticFinalOutputPaths {
+                txt_path: format!("capture-{job_id:?}-auto.txt"),
+                srt_path: format!("capture-{job_id:?}-auto.srt"),
+                companion_json_path: format!("capture-{job_id:?}.json"),
+            },
+            gpu_candidate: None,
+        }
+    }
+
+    fn wait_for_event(
+        io: &mut AsyncImportIo,
+        phase: &str,
+        timeout: Duration,
+        predicate: impl Fn(&ImportEvent) -> bool,
+    ) -> ImportEvent {
+        let started = Instant::now();
+        let deadline = started + timeout;
+        loop {
+            assert!(
+                Instant::now() < deadline,
+                "expected runtime event timed out in phase `{phase}`; elapsed={:?}",
+                started.elapsed()
+            );
+            match io.poll().unwrap() {
+                Some(event) if predicate(&event) => return event,
+                Some(ImportEvent::Queue(_) | ImportEvent::ReplacementCleanups(_)) => {}
+                Some(event) => panic!("unexpected runtime event: {event:?}"),
+                None => thread::sleep(Duration::from_millis(5)),
+            }
+        }
+    }
+
+    fn direct_live_request(job_id: JobId) -> LiveRequest {
+        LiveRequest {
+            job_id,
+            generation: Generation::first(),
+            model_path: "model.nemo".into(),
+            model_sha256: [0; 32],
+            destination: "live-archive".into(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: Default::default(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Gpu,
+            },
+        }
+    }
+
+    fn write_test_wav_header(file: &mut fs::File, samples: u32) -> io::Result<()> {
+        use std::io::{Seek, SeekFrom};
+
+        let data_bytes = samples.saturating_mul(2);
+        file.seek(SeekFrom::Start(0))?;
+        file.write_all(b"RIFF")?;
+        file.write_all(&(36_u32.saturating_add(data_bytes)).to_le_bytes())?;
+        file.write_all(b"WAVEfmt ")?;
+        file.write_all(&16_u32.to_le_bytes())?;
+        file.write_all(&1_u16.to_le_bytes())?;
+        file.write_all(&1_u16.to_le_bytes())?;
+        file.write_all(&16_000_u32.to_le_bytes())?;
+        file.write_all(&32_000_u32.to_le_bytes())?;
+        file.write_all(&2_u16.to_le_bytes())?;
+        file.write_all(&16_u16.to_le_bytes())?;
+        file.write_all(b"data")?;
+        file.write_all(&data_bytes.to_le_bytes())?;
+        file.seek(SeekFrom::Start(u64::from(data_bytes) + 44))?;
+        file.flush()
+    }
+
+    struct IncrementalWavCapture {
+        path: PathBuf,
+        file: Option<fs::File>,
+        identity: Option<(JobId, Generation)>,
+        samples: u32,
+    }
+
+    impl ServiceRuntime for IncrementalWavCapture {
+        fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+            match effect {
+                ImportEffect::StartDirectLive(request) => {
+                    if let Some(parent) = self.path.parent() {
+                        fs::create_dir_all(parent).unwrap();
+                    }
+                    let mut file = fs::OpenOptions::new()
+                        .create_new(true)
+                        .write(true)
+                        .read(true)
+                        .open(&self.path)
+                        .unwrap();
+                    write_test_wav_header(&mut file, 0).unwrap();
+                    self.file = Some(file);
+                    self.identity = Some((request.job_id, request.generation));
+                }
+                ImportEffect::Stop { job_id, generation }
+                    if self.identity == Some((job_id, generation)) =>
+                {
+                    if let Some(mut file) = self.file.take() {
+                        write_test_wav_header(&mut file, self.samples).unwrap();
+                        file.sync_all().unwrap();
+                    }
+                    self.identity = None;
+                    pending.push_back(ImportEvent::Stopped { job_id, generation });
+                }
+                _ => {}
+            }
+        }
+
+        fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+            None
+        }
+
+        fn pump_realtime(&mut self) -> Option<(JobId, Generation, String)> {
+            let file = self.file.as_mut()?;
+            let mut block = [0_i16; 160];
+            for sample in &mut block {
+                *sample = (self.samples & 0x7fff) as i16;
+                self.samples = self.samples.saturating_add(1);
+            }
+            for sample in block {
+                if let Err(error) = file.write_all(&sample.to_le_bytes()) {
+                    let identity = self.identity.take();
+                    self.file = None;
+                    return identity.map(|(job_id, generation)| {
+                        (
+                            job_id,
+                            generation,
+                            format!("test WAV write failed: {error}"),
+                        )
+                    });
+                }
+            }
+            let _ = file.flush();
+            None
+        }
+    }
+
+    struct SampleDrivenWavCapture {
+        path: PathBuf,
+        file: Option<fs::File>,
+        identity: Option<(JobId, Generation)>,
+        samples_rx: Receiver<(Vec<i16>, SyncSender<Result<u64, String>>)>,
+        started_tx: SyncSender<(JobId, Generation)>,
+        samples: Vec<i16>,
+    }
+
+    impl ServiceRuntime for SampleDrivenWavCapture {
+        fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+            match effect {
+                ImportEffect::StartDirectLive(request) => {
+                    if let Some(parent) = self.path.parent() {
+                        fs::create_dir_all(parent).unwrap();
+                    }
+                    let mut file = fs::OpenOptions::new()
+                        .create_new(true)
+                        .write(true)
+                        .read(true)
+                        .open(&self.path)
+                        .unwrap();
+                    write_test_wav_header(&mut file, 0).unwrap();
+                    self.file = Some(file);
+                    self.identity = Some((request.job_id, request.generation));
+                    self.started_tx
+                        .send((request.job_id, request.generation))
+                        .unwrap();
+                }
+                ImportEffect::Stop { job_id, generation }
+                    if self.identity == Some((job_id, generation)) =>
+                {
+                    if let Some(mut file) = self.file.take() {
+                        write_test_wav_header(&mut file, self.samples.len() as u32).unwrap();
+                        file.sync_all().unwrap();
+                    }
+                    self.identity = None;
+                    pending.push_back(ImportEvent::Stopped { job_id, generation });
+                }
+                _ => {}
+            }
+        }
+
+        fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+            None
+        }
+
+        fn pump_realtime(&mut self) -> Option<(JobId, Generation, String)> {
+            let (block, acknowledgement) = match self.samples_rx.try_recv() {
+                Ok(block) => block,
+                Err(TryRecvError::Empty | TryRecvError::Disconnected) => return None,
+            };
+            let Some(file) = self.file.as_mut() else {
+                let _ = acknowledgement.send(Err("capture is not active".into()));
+                return None;
+            };
+            let write_result = block
+                .iter()
+                .try_for_each(|sample| file.write_all(&sample.to_le_bytes()))
+                .and_then(|()| file.flush());
+            if let Err(error) = write_result {
+                let identity = self.identity.take();
+                self.file = None;
+                let message = format!("test WAV write failed: {error}");
+                let _ = acknowledgement.send(Err(message.clone()));
+                return identity.map(|(job_id, generation)| (job_id, generation, message));
+            }
+            self.samples.extend_from_slice(&block);
+            let _ = acknowledgement.send(Ok(self.samples.len() as u64));
+            None
+        }
+    }
+
+    struct RuntimeAutomaticPublisher {
+        runtime: ImportRuntime,
+        gates: Arc<Mutex<HashMap<(JobId, u64), Arc<PublicationGate>>>>,
+        started_tx: SyncSender<(JobId, Generation)>,
+        publication_ready_tx: SyncSender<Result<(JobId, Generation), String>>,
+        release_rx: Receiver<()>,
+        model_path: PathBuf,
+        source_samples: Vec<i16>,
+    }
+
+    impl ServiceRuntime for RuntimeAutomaticPublisher {
+        fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+            let ImportEffect::StartAutomaticFinalTranscription(mut automatic) = effect else {
+                return;
+            };
+            let identity = (automatic.request.job_id, automatic.request.generation.get());
+            if let Some(gate) = self
+                .gates
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .get(&identity)
+                .cloned()
+            {
+                self.runtime.publication_gate = gate;
+            }
+            let mut publication_ready = false;
+            let publish_result = (|| {
+                self.started_tx
+                    .send((automatic.request.job_id, automatic.request.generation))
+                    .map_err(|_| "test runtime start acknowledgement disconnected".to_owned())?;
+                write_fixture_wav(
+                    Path::new(&automatic.request.source_path),
+                    &self.source_samples,
+                )
+                .map_err(|error| error.to_string())?;
+                automatic.request.model_path = self.model_path.to_string_lossy().into_owned();
+                automatic.request.destination = self
+                    .runtime
+                    .archive
+                    .root_path()
+                    .to_string_lossy()
+                    .into_owned();
+                automatic.request.model_sha256 =
+                    crate::model_catalog::cached_model_sha256(&self.model_path)
+                        .map_err(|error| error.to_string())?
+                        .1;
+                let prepared = self
+                    .runtime
+                    .archive
+                    .prepare(automatic.request.clone())
+                    .map_err(|error| error.to_string())?;
+                automatic.request = prepared;
+                let segment = whisper_core::ports::WorkerSegment {
+                    job_id: automatic.request.job_id,
+                    generation: automatic.request.generation,
+                    instance_id: 1,
+                    segment_id: whisper_core::SegmentId(1),
+                    range: whisper_core::SourceRange::new(
+                        0,
+                        self.source_samples.len() as u64,
+                        16_000,
+                    )
+                    .ok_or_else(|| "test source range is empty".to_owned())?,
+                    text: format!("runtime transcript {}", automatic.request.job_id.0),
+                };
+                self.runtime
+                    .archive
+                    .persist_segment(&segment)
+                    .map_err(|error| error.to_string())?;
+                fs::write(
+                    &automatic.outputs.companion_json_path,
+                    r#"{"confirmed_intervals":[],"unresolved_intervals":[]}"#,
+                )
+                .map_err(|error| error.to_string())?;
+                self.runtime
+                    .automatic_final_outputs
+                    .insert(identity, automatic.clone());
+                self.publication_ready_tx
+                    .send(Ok((automatic.request.job_id, automatic.request.generation)))
+                    .map_err(|_| {
+                        "test publication-ready acknowledgement disconnected".to_owned()
+                    })?;
+                publication_ready = true;
+                self.release_rx
+                    .recv_timeout(Duration::from_secs(120))
+                    .map_err(|_| {
+                        "test publication release timed out after preparation".to_owned()
+                    })?;
+                self.runtime
+                    .publish(
+                        automatic.request.job_id,
+                        automatic.request.generation,
+                        1,
+                        pending,
+                    )
+                    .map_err(|(_, _, error)| error)
+            })();
+
+            if let Err(message) = publish_result {
+                if !publication_ready {
+                    let _ = self.publication_ready_tx.send(Err(message.clone()));
+                }
+                pending.push_back(ImportEvent::Failed {
+                    job_id: identity.0,
+                    generation: automatic.request.generation,
+                    message,
+                });
+            }
+        }
+
+        fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+            None
+        }
+    }
+
+    fn write_fixture_wav(path: &Path, samples: &[i16]) -> io::Result<()> {
+        let mut file = fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .read(true)
+            .open(path)?;
+        write_test_wav_header(&mut file, u32::try_from(samples.len()).unwrap())?;
+        for sample in samples {
+            file.write_all(&sample.to_le_bytes())?;
+        }
+        file.sync_all()
+    }
+
+    struct SlowAutomaticFinal {
+        delay: Duration,
+    }
+
+    impl ServiceRuntime for SlowAutomaticFinal {
+        fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+            if let ImportEffect::StartAutomaticFinalTranscription(automatic) = effect {
+                // Models a slow source-copy/hash preparation on the final-import lane.
+                thread::sleep(self.delay);
+                pending.push_back(ImportEvent::Failed {
+                    job_id: automatic.request.job_id,
+                    generation: automatic.request.generation,
+                    message: "simulated final import failure after slow preparation".into(),
+                });
+            }
+        }
+
+        fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+            None
+        }
+    }
+
+    struct BlockedAutomaticQueueInspection {
+        inspection_started: mpsc::SyncSender<()>,
+        inspection_finished: mpsc::SyncSender<()>,
+        release_inspection: Receiver<()>,
+    }
+
+    impl ServiceRuntime for BlockedAutomaticQueueInspection {
+        fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+            let ImportEffect::StartAutomaticFinalTranscription(automatic) = effect else {
+                return;
+            };
+            let (job_id, generation) = (automatic.request.job_id, automatic.request.generation);
+            let inspection = inspect_automatic_final_queue_with(
+                Path::new(&automatic.request.destination),
+                |destination| {
+                    self.inspection_started.send(()).unwrap();
+                    self.release_inspection.recv().unwrap();
+                    crate::queue_store::QueueStore::inspect_read_only(destination)
+                },
+            );
+            self.inspection_finished.send(()).unwrap();
+            let message = match inspection {
+                Ok(_) => "simulated final import failure after queue inspection".to_owned(),
+                Err(error) => error,
+            };
+            pending.push_back(ImportEvent::Failed {
+                job_id,
+                generation,
+                message,
+            });
+        }
+
+        fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+            None
+        }
+    }
+
+    #[test]
+    fn live_slow_automatic_final_failure_does_not_block_another_capture_wav() {
+        let root = automatic_final_test_root("r5-slow-final");
+        fs::create_dir_all(&root).unwrap();
+        let wav_path = root.join("capture-b.wav");
+        let main_gate = Arc::new(PublicationGate::default());
+        let (
+            mut io,
+            effects,
+            stops,
+            app_events,
+            automatic_effects,
+            automatic_stops,
+            automatic_events,
+        ) = AsyncImportIo::for_test(main_gate.clone());
+        let main_thread = thread::spawn({
+            let wav_path = wav_path.clone();
+            move || {
+                service_loop(
+                    effects,
+                    stops,
+                    app_events,
+                    IncrementalWavCapture {
+                        path: wav_path,
+                        file: None,
+                        identity: None,
+                        samples: 0,
+                    },
+                )
+            }
+        });
+        let automatic_thread = thread::spawn(move || {
+            service_loop(
+                automatic_effects,
+                automatic_stops,
+                automatic_events,
+                SlowAutomaticFinal {
+                    delay: Duration::from_millis(2_150),
+                },
+            )
+        });
+
+        let import_a = automatic_final_request(JobId(0xA4));
+        io.submit(ImportEffect::StartAutomaticFinalTranscription(
+            import_a.clone(),
+        ))
+        .unwrap();
+        let started_at = Instant::now();
+        thread::sleep(Duration::from_millis(100));
+        let capture_b = JobId(0xB3);
+        io.submit(ImportEffect::StartDirectLive(direct_live_request(
+            capture_b,
+        )))
+        .unwrap();
+
+        let deadline = Instant::now() + Duration::from_millis(700);
+        while Instant::now() < deadline
+            && fs::metadata(&wav_path).map_or(true, |metadata| metadata.len() <= 44)
+        {
+            thread::sleep(Duration::from_millis(10));
+        }
+        let wav_size_during_import = fs::metadata(&wav_path).unwrap().len();
+        assert!(wav_size_during_import > 44, "capture B WAV did not advance");
+
+        let deadline = Instant::now() + Duration::from_secs(4);
+        let mut final_failure_at = None;
+        loop {
+            assert!(
+                Instant::now() < deadline,
+                "slow final import did not finish"
+            );
+            match io.poll().unwrap() {
+                Some(ImportEvent::Failed { job_id, .. }) if job_id == import_a.request.job_id => {
+                    final_failure_at = Some(Instant::now());
+                    break;
+                }
+                Some(other) => panic!("unexpected event during R5 simulation: {other:?}"),
+                None => thread::sleep(Duration::from_millis(5)),
+            }
+        }
+        let final_failure_at = final_failure_at.unwrap();
+        assert!(final_failure_at.duration_since(started_at) >= Duration::from_millis(2_000));
+        let wav_size_after_import = fs::metadata(&wav_path).unwrap().len();
+        assert!(
+            wav_size_after_import > wav_size_during_import,
+            "capture B WAV stopped advancing while final import A was active"
+        );
+        assert_eq!(io.active_identity, Some((capture_b, Generation::first())));
+        assert_eq!(main_gate.0.load(Ordering::Acquire), GATE_ACTIVE);
+
+        io.submit(ImportEffect::Stop {
+            job_id: capture_b,
+            generation: Generation::first(),
+        })
+        .unwrap();
+        let stop_deadline = Instant::now() + Duration::from_secs(1);
+        loop {
+            assert!(Instant::now() < stop_deadline, "capture B did not stop");
+            match io.poll().unwrap() {
+                Some(ImportEvent::Stopped { job_id, .. }) if job_id == capture_b => break,
+                Some(other) => panic!("unexpected event while stopping B: {other:?}"),
+                None => thread::sleep(Duration::from_millis(5)),
+            }
+        }
+
+        let bytes = fs::read(&wav_path).unwrap();
+        assert_eq!(&bytes[..4], b"RIFF");
+        assert_eq!(
+            u32::from_le_bytes(bytes[40..44].try_into().unwrap()) as usize,
+            bytes.len() - 44
+        );
+        assert!(
+            bytes.len() > 44,
+            "finalized WAV contains no captured samples"
+        );
+
+        drop(io);
+        main_thread.join().unwrap();
+        automatic_thread.join().unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav() {
+        let root = automatic_final_test_root("r5-blocked-queue");
+        fs::create_dir_all(&root).unwrap();
+        let wav_path = root.join("capture-b.wav");
+        let gate = Arc::new(PublicationGate::default());
+        let (
+            mut io,
+            effects,
+            stops,
+            app_events,
+            automatic_effects,
+            automatic_stops,
+            automatic_events,
+        ) = AsyncImportIo::for_test(gate.clone());
+        let (samples_tx, samples_rx) = mpsc::sync_channel(3);
+        let (capture_started_tx, capture_started_rx) = mpsc::sync_channel(1);
+        let main_thread = thread::spawn({
+            let wav_path = wav_path.clone();
+            move || {
+                service_loop(
+                    effects,
+                    stops,
+                    app_events,
+                    SampleDrivenWavCapture {
+                        path: wav_path,
+                        file: None,
+                        identity: None,
+                        samples_rx,
+                        started_tx: capture_started_tx,
+                        samples: Vec::new(),
+                    },
+                )
+            }
+        });
+        let capture_b = JobId(0xB5);
+        io.submit(ImportEffect::StartDirectLive(direct_live_request(
+            capture_b,
+        )))
+        .unwrap();
+        assert_eq!(
+            capture_started_rx
+                .recv_timeout(Duration::from_secs(1))
+                .unwrap(),
+            (capture_b, Generation::first())
+        );
+        let mut acknowledged_samples = 0_u64;
+        let mut inject = |samples: Vec<i16>| {
+            let block_samples = u64::try_from(samples.len()).unwrap();
+            let expected_cumulative = acknowledged_samples + block_samples;
+            let (ack_tx, ack_rx) = mpsc::sync_channel(1);
+            samples_tx.send((samples.clone(), ack_tx)).unwrap();
+            let actual_cumulative = ack_rx
+                .recv_timeout(Duration::from_secs(1))
+                .unwrap()
+                .unwrap();
+            assert_eq!(actual_cumulative, expected_cumulative);
+            assert!(actual_cumulative > acknowledged_samples);
+            acknowledged_samples = actual_cumulative;
+            actual_cumulative
+        };
+        let before_inspection = vec![101, 102, 103, 104];
+        let acknowledged_before = inject(before_inspection.clone());
+        assert_eq!(acknowledged_before, before_inspection.len() as u64);
+        assert_eq!(acknowledged_before, 4);
+
+        let (inspection_started_tx, inspection_started_rx) = mpsc::sync_channel(1);
+        let (inspection_finished_tx, inspection_finished_rx) = mpsc::sync_channel(1);
+        let (release_inspection_tx, release_inspection_rx) = mpsc::sync_channel(1);
+        let automatic_thread = thread::spawn(move || {
+            service_loop(
+                automatic_effects,
+                automatic_stops,
+                automatic_events,
+                BlockedAutomaticQueueInspection {
+                    inspection_started: inspection_started_tx,
+                    inspection_finished: inspection_finished_tx,
+                    release_inspection: release_inspection_rx,
+                },
+            )
+        });
+
+        let mut import_a = automatic_final_request(JobId(0xA5));
+        import_a.request.destination = root.to_string_lossy().into_owned();
+        io.submit(ImportEffect::StartAutomaticFinalTranscription(
+            import_a.clone(),
+        ))
+        .unwrap();
+        inspection_started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("automatic lane did not enter queue inspection");
+        let during_inspection = vec![-201, -202, -203];
+        let acknowledged_during = inject(during_inspection.clone());
+        assert_eq!(
+            acknowledged_during,
+            (before_inspection.len() + during_inspection.len()) as u64
+        );
+        assert_eq!(acknowledged_during, 7);
+        assert_eq!(
+            inspection_finished_rx.recv_timeout(Duration::from_millis(2_100)),
+            Err(mpsc::RecvTimeoutError::Timeout),
+            "queue inspection unexpectedly finished before the safety interval"
+        );
+        let mut samples_while_inspection_blocked = before_inspection.clone();
+        samples_while_inspection_blocked.extend(during_inspection.clone());
+        let expected_blocked_payload = samples_while_inspection_blocked
+            .iter()
+            .flat_map(|sample| sample.to_le_bytes())
+            .collect::<Vec<_>>();
+        let wav_during_block = fs::read(&wav_path).unwrap();
+        assert!(
+            wav_during_block.len() >= 44,
+            "B WAV header missing during A inspection"
+        );
+        assert_eq!(&wav_during_block[44..], expected_blocked_payload);
+        assert_eq!(
+            io.active_identity,
+            Some((capture_b, Generation::first())),
+            "B must remain active while A's queue inspection is blocked"
+        );
+
+        release_inspection_tx.send(()).unwrap();
+        inspection_finished_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("queue inspection did not finish after its explicit release");
+        let after_resume = vec![301, 302, 303, 304, 305];
+        let acknowledged_after = inject(after_resume.clone());
+        let expected_samples_total =
+            before_inspection.len() + during_inspection.len() + after_resume.len();
+        assert_eq!(acknowledged_after, expected_samples_total as u64);
+        assert_eq!(acknowledged_after, 12);
+        let mut expected_samples = before_inspection;
+        expected_samples.extend(during_inspection);
+        expected_samples.extend(after_resume);
+
+        let failure_deadline = Instant::now() + Duration::from_secs(1);
+        loop {
+            assert!(
+                Instant::now() < failure_deadline,
+                "A's terminal result was not routed"
+            );
+            match io.poll().unwrap() {
+                Some(ImportEvent::Failed {
+                    job_id,
+                    generation,
+                    message,
+                    ..
+                }) if job_id == import_a.request.job_id
+                    && generation == import_a.request.generation
+                    && message.contains("after queue inspection") =>
+                {
+                    break;
+                }
+                Some(other) => panic!("unexpected post-inspection event: {other:?}"),
+                None => thread::sleep(Duration::from_millis(5)),
+            }
+        }
+        assert_eq!(
+            io.active_identity,
+            Some((capture_b, Generation::first())),
+            "A's delayed queue error must remain associated with A while B is active"
+        );
+
+        let stop_started = Instant::now();
+        io.submit(ImportEffect::Stop {
+            job_id: capture_b,
+            generation: Generation::first(),
+        })
+        .unwrap();
+        let stopped_b = wait_for_event(
+            &mut io,
+            "R5 capture B stop after A inspection resumes",
+            Duration::from_millis(1_500),
+            |event| {
+                matches!(event, ImportEvent::Stopped { job_id, generation }
+                    if *job_id == capture_b && *generation == Generation::first())
+            },
+        );
+        assert!(matches!(
+            stopped_b,
+            ImportEvent::Stopped { job_id, generation }
+                if job_id == capture_b && generation == Generation::first()
+        ));
+        assert!(stop_started.elapsed() < Duration::from_secs(2));
+        assert_eq!(gate.0.load(Ordering::Acquire), GATE_CANCELLED);
+
+        let bytes = fs::read(&wav_path).unwrap();
+        assert!(bytes.len() >= 44, "finalized B WAV header is missing");
+        assert_eq!(&bytes[..4], b"RIFF");
+        assert_eq!(&bytes[8..12], b"WAVE");
+        assert_eq!(&bytes[36..40], b"data");
+        assert_eq!(
+            u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as usize,
+            bytes.len() - 8,
+            "finalized B RIFF size must match the complete file"
+        );
+        let data_size = u32::from_le_bytes(bytes[40..44].try_into().unwrap()) as usize;
+        assert_eq!(
+            data_size,
+            bytes.len() - 44,
+            "finalized B data size must match the complete PCM payload"
+        );
+        assert_eq!(
+            data_size % 2,
+            0,
+            "finalized B PCM16 payload must contain whole samples"
+        );
+        let actual_samples = bytes[44..]
+            .chunks_exact(2)
+            .map(|sample| i16::from_le_bytes([sample[0], sample[1]]))
+            .collect::<Vec<_>>();
+        assert_eq!(actual_samples.len(), expected_samples_total);
+        assert_eq!(
+            actual_samples, expected_samples,
+            "finalized B WAV must preserve exact PCM values and order before, during, and after A's inspection"
+        );
+
+        drop(io);
+        main_thread.join().unwrap();
+        automatic_thread.join().unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn live_automatic_final_queue_corruption_is_reported_explicitly() {
+        let root = automatic_final_test_root("r5-corrupt-queue");
+        let queue_dir = root.join("transcriptions");
+        fs::create_dir_all(&queue_dir).unwrap();
+        fs::write(queue_dir.join("queue.jsonl"), b"{ truncated\n").unwrap();
+
+        let error = inspect_automatic_final_queue(&root).unwrap_err();
+        assert!(error.starts_with("AutomaticFinalQueueUnavailable: StorageCorrupt:"));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish() {
+        let root = automatic_final_test_root("r4-real-publish-isolation");
+        fs::create_dir_all(&root).unwrap();
+        let archive_root = root.join("archive");
+        let capture_b_wav = root.join("capture-b.wav");
+        let capture_b_companion = root.join("capture-b.json");
+        fs::write(&capture_b_companion, "B companion unchanged").unwrap();
+        let capture_b_companion_before = fs::read(&capture_b_companion).unwrap();
+
+        let live_gate = Arc::new(PublicationGate::default());
+        let (mut io, effects, stops, app_events, auto_effects, auto_stops, auto_events) =
+            AsyncImportIo::for_test(live_gate.clone());
+        let (samples_tx, samples_rx) = mpsc::sync_channel(4);
+        let (capture_started_tx, capture_started_rx) = mpsc::sync_channel(1);
+        let capture_thread = thread::spawn({
+            let capture_b_wav = capture_b_wav.clone();
+            move || {
+                service_loop(
+                    effects,
+                    stops,
+                    app_events,
+                    SampleDrivenWavCapture {
+                        path: capture_b_wav,
+                        file: None,
+                        identity: None,
+                        samples_rx,
+                        started_tx: capture_started_tx,
+                        samples: Vec::new(),
+                    },
+                )
+            }
+        });
+
+        let capture_b = JobId(0xB1);
+        io.submit(ImportEffect::StartDirectLive(direct_live_request(
+            capture_b,
+        )))
+        .unwrap();
+        assert_eq!(
+            capture_started_rx
+                .recv_timeout(Duration::from_secs(1))
+                .unwrap(),
+            (capture_b, Generation::first())
+        );
+
+        let mut acknowledged_samples = 0_u64;
+        let mut inject = |samples: Vec<i16>| {
+            let block_samples = u64::try_from(samples.len()).unwrap();
+            let expected_cumulative = acknowledged_samples + block_samples;
+            let (ack_tx, ack_rx) = mpsc::sync_channel(1);
+            samples_tx.send((samples.clone(), ack_tx)).unwrap();
+            let actual_cumulative = ack_rx
+                .recv_timeout(Duration::from_secs(1))
+                .unwrap()
+                .unwrap();
+            assert_eq!(actual_cumulative, expected_cumulative);
+            assert!(actual_cumulative > acknowledged_samples);
+            acknowledged_samples = actual_cumulative;
+        };
+        let before_publish = vec![11, 12, 13];
+        inject(before_publish.clone());
+
+        let repository_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let model_path = repository_root.join("models/ggml-large-v3-turbo.bin");
+        assert!(model_path.is_file(), "registered Turbo fixture is required");
+        let gates = io.automatic_publication_gates.clone();
+        let workers = WorkerPaths {
+            cpu: root.join("unused-cpu.exe"),
+            gpu: root.join("unused-gpu.exe"),
+        };
+        let runtime_gates = gates.clone();
+        let runtime_archive_root = archive_root.clone();
+        let (publish_started_tx, publish_started_rx) = mpsc::sync_channel(2);
+        let (publication_ready_tx, publication_ready_rx) = mpsc::sync_channel(2);
+        let (release_publish_tx, release_publish_rx) = mpsc::sync_channel(2);
+        let auto_thread = thread::spawn(move || {
+            let mut runtime = ImportRuntime::new(workers, Arc::new(PublicationGate::default()));
+            runtime.archive = ArchiveStore::new(&runtime_archive_root);
+            runtime.automatic_publication_gates = Some(runtime_gates);
+            service_loop(
+                auto_effects,
+                auto_stops,
+                auto_events,
+                RuntimeAutomaticPublisher {
+                    runtime,
+                    gates,
+                    started_tx: publish_started_tx,
+                    publication_ready_tx,
+                    release_rx: release_publish_rx,
+                    model_path,
+                    source_samples: vec![7, 8, 9, 10],
+                },
+            )
+        });
+
+        let mut import_a = automatic_final_request(JobId(0xA1));
+        import_a.request.source_path = root.join("source-a.wav").to_string_lossy().into_owned();
+        import_a.request.destination = archive_root.to_string_lossy().into_owned();
+        import_a.outputs = whisper_core::ports::AutomaticFinalOutputPaths {
+            txt_path: root
+                .join("capture-a-auto.txt")
+                .to_string_lossy()
+                .into_owned(),
+            srt_path: root
+                .join("capture-a-auto.srt")
+                .to_string_lossy()
+                .into_owned(),
+            companion_json_path: root.join("capture-a.json").to_string_lossy().into_owned(),
+        };
+        let preparation_started = Instant::now();
+        io.submit(ImportEffect::StartAutomaticFinalTranscription(
+            import_a.clone(),
+        ))
+        .unwrap();
+        assert_eq!(
+            publish_started_rx
+                .recv_timeout(Duration::from_secs(30))
+                .unwrap(),
+            (import_a.request.job_id, import_a.request.generation)
+        );
+        assert_eq!(
+            io.active_identity,
+            Some((capture_b, Generation::first())),
+            "capture B must remain active while the real runtime publication is pending"
+        );
+        let while_publishing = vec![-21, -22, -23, -24];
+        inject(while_publishing.clone());
+        let prepared_identity = publication_ready_rx
+            .recv_timeout(Duration::from_secs(120))
+            .unwrap_or_else(|error| {
+                panic!(
+                    "R4 phase `A archive preparation`; elapsed={:?}; result={error}",
+                    preparation_started.elapsed()
+                )
+            })
+            .unwrap_or_else(|error| {
+                panic!(
+                    "R4 phase `A archive preparation`; elapsed={:?}; error={error}",
+                    preparation_started.elapsed()
+                )
+            });
+        assert_eq!(
+            prepared_identity,
+            (import_a.request.job_id, import_a.request.generation)
+        );
+        let publication_started = Instant::now();
+        release_publish_tx.send(()).unwrap();
+
+        let published_a = wait_for_event(
+            &mut io,
+            "A final publication",
+            Duration::from_secs(30),
+            |event| {
+                matches!(event, ImportEvent::Published { job_id, generation }
+                    if *job_id == import_a.request.job_id && *generation == import_a.request.generation)
+            },
+        );
+        assert!(
+            publication_started.elapsed() < Duration::from_secs(30),
+            "R4 phase `A final publication`; elapsed={:?}",
+            publication_started.elapsed()
+        );
+        assert!(
+            matches!(published_a, ImportEvent::Published { job_id, .. } if job_id == import_a.request.job_id)
+        );
+        let cleanup_wait_started = Instant::now();
+        let cleanup_deadline = cleanup_wait_started + Duration::from_secs(5);
+        let cleanup_event = loop {
+            assert!(
+                Instant::now() < cleanup_deadline,
+                "R4 phase `A replacement-cleanup event after Published`; elapsed={:?}; event absent",
+                cleanup_wait_started.elapsed()
+            );
+            match io.poll().unwrap() {
+                Some(ImportEvent::ReplacementCleanups(cleanups)) => break cleanups,
+                Some(ImportEvent::Queue(_)) => {}
+                Some(event) => panic!(
+                    "R4 phase `A replacement-cleanup event after Published`; elapsed={:?}; unexpected event: {event:?}",
+                    cleanup_wait_started.elapsed()
+                ),
+                None => thread::sleep(Duration::from_millis(5)),
+            }
+        };
+        let expected_cleanup_successor = whisper_core::ports::TreatmentIdentity {
+            destination: archive_root
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned(),
+            job_id: import_a.request.job_id,
+            generation: import_a.request.generation,
+        };
+        assert!(
+            cleanup_event
+                .iter()
+                .all(|cleanup| cleanup.successor == expected_cleanup_successor),
+            "R4 phase `A replacement-cleanup identity`; expected successor {expected_cleanup_successor:?}, got {cleanup_event:?}"
+        );
+        // `publish` queues Published immediately before ReplacementCleanups in the same
+        // runtime. The cleanups payload may be empty; this test has no other publisher.
+        let expected_a_text = format!("runtime transcript {}", import_a.request.job_id.0);
+        assert_eq!(
+            fs::read_to_string(&import_a.outputs.txt_path).unwrap(),
+            expected_a_text
+        );
+        assert!(
+            fs::read_to_string(&import_a.outputs.srt_path)
+                .unwrap()
+                .contains(&expected_a_text)
+        );
+        assert_eq!(
+            io.active_identity,
+            Some((capture_b, Generation::first())),
+            "publication A must leave capture B identity unchanged"
+        );
+        assert_eq!(
+            fs::read(&capture_b_companion).unwrap(),
+            capture_b_companion_before,
+            "publication A must leave B's companion untouched"
+        );
+        assert!(!root.join("capture-b-auto.txt").exists());
+        assert!(!root.join("capture-b-auto.srt").exists());
+
+        let mut failing_a = automatic_final_request(JobId(0xA2));
+        failing_a.request.source_path = root
+            .join("source-a-failing.wav")
+            .to_string_lossy()
+            .into_owned();
+        failing_a.request.destination = archive_root.to_string_lossy().into_owned();
+        failing_a.outputs = whisper_core::ports::AutomaticFinalOutputPaths {
+            txt_path: root
+                .join("capture-a-failing-auto.txt")
+                .to_string_lossy()
+                .into_owned(),
+            srt_path: root
+                .join("capture-a-failing-auto.srt")
+                .to_string_lossy()
+                .into_owned(),
+            companion_json_path: root
+                .join("capture-a-failing.json")
+                .to_string_lossy()
+                .into_owned(),
+        };
+        let sentinel = b"preserve A collision";
+        fs::write(&failing_a.outputs.txt_path, sentinel).unwrap();
+        let failure_preparation_started = Instant::now();
+        io.submit(ImportEffect::StartAutomaticFinalTranscription(
+            failing_a.clone(),
+        ))
+        .unwrap();
+        assert_eq!(
+            publish_started_rx
+                .recv_timeout(Duration::from_secs(30))
+                .unwrap(),
+            (failing_a.request.job_id, failing_a.request.generation)
+        );
+        assert_eq!(
+            io.active_identity,
+            Some((capture_b, Generation::first())),
+            "capture B remains active during A's failing publication"
+        );
+        let prepared_failure_identity = publication_ready_rx
+            .recv_timeout(Duration::from_secs(120))
+            .unwrap_or_else(|error| {
+                panic!(
+                    "R4 phase `A failing archive preparation`; elapsed={:?}; result={error}",
+                    failure_preparation_started.elapsed()
+                )
+            })
+            .unwrap_or_else(|error| {
+                panic!(
+                    "R4 phase `A failing archive preparation`; elapsed={:?}; error={error}",
+                    failure_preparation_started.elapsed()
+                )
+            });
+        assert_eq!(
+            prepared_failure_identity,
+            (failing_a.request.job_id, failing_a.request.generation)
+        );
+        let failure_publication_started = Instant::now();
+        release_publish_tx.send(()).unwrap();
+        let failed_a = wait_for_event(
+            &mut io,
+            "A failed final publication",
+            Duration::from_secs(30),
+            |event| {
+                matches!(event, ImportEvent::Failed { job_id, generation, .. }
+                    if *job_id == failing_a.request.job_id && *generation == failing_a.request.generation)
+            },
+        );
+        assert!(
+            failure_publication_started.elapsed() < Duration::from_secs(30),
+            "R4 phase `A failed final publication`; elapsed={:?}",
+            failure_publication_started.elapsed()
+        );
+        assert!(
+            matches!(failed_a, ImportEvent::Failed { job_id, message, .. }
+            if job_id == failing_a.request.job_id && message.contains("sortie automatique existe déjà"))
+        );
+        assert_eq!(fs::read(&failing_a.outputs.txt_path).unwrap(), sentinel);
+        assert!(!Path::new(&failing_a.outputs.srt_path).exists());
+        assert_eq!(
+            io.active_identity,
+            Some((capture_b, Generation::first())),
+            "failure A must not change capture B identity"
+        );
+        assert_eq!(
+            fs::read(&capture_b_companion).unwrap(),
+            capture_b_companion_before,
+            "failure A must not change B's files"
+        );
+
+        let after_publish = vec![31, 32, 33];
+        inject(after_publish.clone());
+        io.submit(ImportEffect::Stop {
+            job_id: capture_b,
+            generation: Generation::first(),
+        })
+        .unwrap();
+        let stop_started = Instant::now();
+        let stopped_b = wait_for_event(
+            &mut io,
+            "R4 capture B stop and WAV finalization",
+            Duration::from_secs(5),
+            |event| {
+                matches!(event, ImportEvent::Stopped { job_id, generation }
+                    if *job_id == capture_b && *generation == Generation::first())
+            },
+        );
+        assert!(
+            matches!(stopped_b, ImportEvent::Stopped { job_id, generation }
+                if job_id == capture_b && generation == Generation::first()),
+            "R4 expected Stopped for B generation 1; elapsed={:?}; event={stopped_b:?}",
+            stop_started.elapsed()
+        );
+        let capture_b_samples = [before_publish, while_publishing, after_publish].concat();
+        let wav = fs::read(&capture_b_wav).unwrap();
+        assert!(wav.len() >= 44, "capture B WAV is shorter than its header");
+        assert_eq!(&wav[..4], b"RIFF");
+        assert_eq!(&wav[8..12], b"WAVE");
+        assert_eq!(&wav[36..40], b"data");
+        assert_eq!(
+            u32::from_le_bytes(wav[4..8].try_into().unwrap()) as usize,
+            wav.len() - 8,
+            "capture B RIFF size must match the complete file"
+        );
+        let data_size = u32::from_le_bytes(wav[40..44].try_into().unwrap()) as usize;
+        assert_eq!(
+            data_size,
+            wav.len() - 44,
+            "capture B data size must match the complete PCM payload"
+        );
+        assert_eq!(data_size % 2, 0, "PCM16 payload must contain whole samples");
+        let actual_samples = wav[44..]
+            .chunks_exact(2)
+            .map(|bytes| i16::from_le_bytes([bytes[0], bytes[1]]))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            capture_b_samples.len(),
+            10,
+            "test fixture must contain 10 samples"
+        );
+        assert_eq!(
+            actual_samples, capture_b_samples,
+            "capture B WAV must preserve every injected sample exactly and in order"
+        );
+        assert_eq!(
+            live_gate.0.load(Ordering::Acquire),
+            GATE_CANCELLED,
+            "stopping B must cancel only B's capture publication gate"
+        );
+
+        drop(io);
+        capture_thread.join().unwrap();
+        auto_thread.join().unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn live_automatic_final_failure_is_routed_without_changing_active_capture() {
+        let root = automatic_final_test_root("r4-failed-publish-isolation");
+        fs::create_dir_all(&root).unwrap();
+        let source_txt = root.join("a-source.txt");
+        let missing_source_srt = root.join("missing-source.srt");
+        fs::write(&source_txt, "partial A input").unwrap();
+        let live_gate = Arc::new(PublicationGate::default());
+        let (mut io, live_effects, live_stops, _, auto_effects, _, auto_events) =
+            AsyncImportIo::for_test(live_gate.clone());
+        let mut import_a = automatic_final_request(JobId(0xA3));
+        import_a.outputs = whisper_core::ports::AutomaticFinalOutputPaths {
+            txt_path: root
+                .join("capture-a-auto.txt")
+                .to_string_lossy()
+                .into_owned(),
+            srt_path: root
+                .join("capture-a-auto.srt")
+                .to_string_lossy()
+                .into_owned(),
+            companion_json_path: root.join("capture-a.json").to_string_lossy().into_owned(),
+        };
+        fs::write(
+            &import_a.outputs.companion_json_path,
+            r#"{"confirmed_intervals":[],"unresolved_intervals":[]}"#,
+        )
+        .unwrap();
+        io.submit(ImportEffect::StartAutomaticFinalTranscription(
+            import_a.clone(),
+        ))
+        .unwrap();
+        let _ = auto_effects.try_recv().unwrap();
+        let capture_b = JobId(0xB2);
+        io.submit(ImportEffect::StartDirectLive(direct_live_request(
+            capture_b,
+        )))
+        .unwrap();
+        let _ = live_effects.try_recv().unwrap();
+
+        let publication_error =
+            publish_automatic_final_exports(&source_txt, &missing_source_srt, &import_a)
+                .unwrap_err();
+        assert!(publication_error.contains("Export SRT automatique absent"));
+        assert!(!Path::new(&import_a.outputs.txt_path).exists());
+        assert!(!Path::new(&import_a.outputs.srt_path).exists());
+
+        auto_events
+            .send(ImportEvent::Failed {
+                job_id: import_a.request.job_id,
+                generation: import_a.request.generation,
+                message: "simulated automatic-final publication failure".into(),
+            })
+            .unwrap();
+        assert!(matches!(
+            io.poll().unwrap(),
+            Some(ImportEvent::Failed { job_id, message, .. })
+                if job_id == import_a.request.job_id && message.contains("publication failure")
+        ));
+        assert_eq!(io.active_identity, Some((capture_b, Generation::first())));
+        assert_eq!(live_gate.0.load(Ordering::Acquire), GATE_ACTIVE);
+
+        io.submit(ImportEffect::Stop {
+            job_id: capture_b,
+            generation: Generation::first(),
+        })
+        .unwrap();
+        assert!(
+            matches!(live_stops.try_recv(), Ok(ImportEffect::Stop { job_id, .. }) if job_id == capture_b)
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn parakeet_live_automatic_final_exports_are_distinct_create_new_outputs() {
+        let root = automatic_final_test_root("exports");
+        fs::create_dir_all(&root).unwrap();
+        let source_txt = root.join("archive.txt");
+        let source_srt = root.join("archive.srt");
+        fs::write(&source_txt, "auto non vérifié").unwrap();
+        fs::write(&source_srt, "1\n00:00:00,000 --> 00:00:01,000\ntexte\n").unwrap();
+        let outputs = whisper_core::ports::AutomaticFinalOutputPaths {
+            txt_path: root
+                .join("capture-auto-non-verifie.txt")
+                .to_string_lossy()
+                .into_owned(),
+            srt_path: root
+                .join("capture-auto-non-verifie.srt")
+                .to_string_lossy()
+                .into_owned(),
+            companion_json_path: root.join("capture.json").to_string_lossy().into_owned(),
+        };
+        fs::write(
+            &outputs.companion_json_path,
+            r#"{"confirmed_intervals":[{"text":"direct"}],"unresolved_intervals":[{"status":"unresolved"}]}"#,
+        )
+        .unwrap();
+        let automatic = whisper_core::ports::AutomaticFinalImport {
+            request: ImportRequest {
+                job_id: JobId(42),
+                generation: Generation::first(),
+                source_path: root.join("capture.wav").to_string_lossy().into_owned(),
+                source_sha256: Some([1; 32]),
+                source_samples: Some(16_000),
+                model_path: "model.nemo".into(),
+                model_sha256: [2; 32],
+                destination: root.to_string_lossy().into_owned(),
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Gpu,
+                },
+            },
+            outputs: outputs.clone(),
+            gpu_candidate: None,
+        };
+        publish_automatic_final_exports(&source_txt, &source_srt, &automatic).unwrap();
+        assert_eq!(
+            fs::read_to_string(&outputs.txt_path).unwrap(),
+            "auto non vérifié"
+        );
+        assert!(
+            fs::read_to_string(&outputs.srt_path)
+                .unwrap()
+                .starts_with("1\n")
+        );
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&fs::read(&outputs.companion_json_path).unwrap()).unwrap();
+        assert_eq!(
+            manifest["automatic_final_transcription"]["status"],
+            "produced_unverified"
+        );
+        assert_eq!(
+            manifest["automatic_final_transcription"]["model_sha256"],
+            "02".repeat(32)
+        );
+        assert_eq!(manifest["confirmed_intervals"][0]["text"], "direct");
+        assert_eq!(manifest["unresolved_intervals"][0]["status"], "unresolved");
+        assert!(publish_automatic_final_exports(&source_txt, &source_srt, &automatic).is_err());
+        assert_eq!(
+            fs::read_to_string(&outputs.txt_path).unwrap(),
+            "auto non vérifié"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn automatic_final_publication_failure_leaves_no_partial_public_name() {
+        let root = automatic_final_test_root("rollback");
+        fs::create_dir_all(&root).unwrap();
+        let txt_stage = root.join("txt.stage");
+        let missing_srt_stage = root.join("missing-srt.stage");
+        let txt_path = root.join("capture-auto-non-verifie.txt");
+        let srt_path = root.join("capture-auto-non-verifie.srt");
+        fs::write(&txt_stage, "complete staged text").unwrap();
+        let error =
+            publish_automatic_staged_pair(&txt_stage, &missing_srt_stage, &txt_path, &srt_path)
+                .unwrap_err();
+        assert!(error.contains("Publication du SRT automatique impossible"));
+        assert!(!txt_path.exists(), "TXT partiel publié malgré échec SRT");
+        assert!(!srt_path.exists(), "SRT publié malgré échec de la paire");
+        assert!(
+            !txt_stage.exists(),
+            "fichier de staging restant après rollback"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn automatic_final_source_read_failure_publishes_neither_output() {
+        let root = automatic_final_test_root("read-failure");
+        fs::create_dir_all(&root).unwrap();
+        let source_txt = root.join("source.txt");
+        let source_srt = root.join("missing.srt");
+        let txt_path = root.join("capture-auto-non-verifie.txt");
+        let srt_path = root.join("capture-auto-non-verifie.srt");
+        fs::write(&source_txt, "source text").unwrap();
+        let automatic = whisper_core::ports::AutomaticFinalImport {
+            request: whisper_core::ports::ImportRequest {
+                job_id: JobId(501),
+                generation: Generation::first(),
+                source_path: "capture.wav".into(),
+                source_sha256: None,
+                source_samples: None,
+                model_path: "model.nemo".into(),
+                model_sha256: [5; 32],
+                destination: root.to_string_lossy().into_owned(),
+                config: whisper_core::domain::JobConfig {
+                    language: whisper_core::domain::LanguageChoice::Automatic,
+                    compute: whisper_core::domain::ComputeChoice::Gpu,
+                },
+            },
+            outputs: whisper_core::ports::AutomaticFinalOutputPaths {
+                txt_path: txt_path.to_string_lossy().into_owned(),
+                srt_path: srt_path.to_string_lossy().into_owned(),
+                companion_json_path: root.join("capture.json").to_string_lossy().into_owned(),
+            },
+            gpu_candidate: None,
+        };
+
+        let error =
+            publish_automatic_final_exports(&source_txt, &source_srt, &automatic).unwrap_err();
+
+        assert!(error.contains("Export SRT automatique absent"));
+        assert!(!txt_path.exists());
+        assert!(!srt_path.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
 
     fn reprocessing_candidate(
         job_id: u128,
@@ -9525,7 +11844,7 @@ fn main() {
     #[test]
     fn effect_queue_accepts_eight_and_rejects_the_ninth_without_blocking() {
         let gate = Arc::new(PublicationGate::default());
-        let (mut io, effects, _, _) = AsyncImportIo::for_test(gate);
+        let (mut io, effects, _, _, _, _, _) = AsyncImportIo::for_test(gate);
         for index in 0..8 {
             io.submit(ImportEffect::ScanHistory {
                 destination: format!("archive-{index}"),
@@ -9545,7 +11864,7 @@ fn main() {
     #[test]
     fn persist_segment_queue_full_is_distinct_from_disconnection() {
         let gate = Arc::new(PublicationGate::default());
-        let (mut io, effects, _, _) = AsyncImportIo::for_test(gate);
+        let (mut io, effects, _, _, _, _, _) = AsyncImportIo::for_test(gate);
         let segment = |sequence| WorkerSegment {
             job_id: JobId(904),
             generation: Generation::first(),
@@ -9577,7 +11896,7 @@ fn main() {
         );
 
         let gate = Arc::new(PublicationGate::default());
-        let (mut disconnected, effects, _, _) = AsyncImportIo::for_test(gate);
+        let (mut disconnected, effects, _, _, _, _, _) = AsyncImportIo::for_test(gate);
         drop(effects);
         assert_eq!(
             disconnected.submit(ImportEffect::PersistSegment(segment(1))),
@@ -9668,7 +11987,7 @@ fn main() {
         serde_json::to_writer(&mut wire, &failure).unwrap();
         wire.push(b'\n');
 
-        let (mut io, effect_rx, stop_rx, app_tx) =
+        let (mut io, effect_rx, stop_rx, app_tx, _, _, _) =
             AsyncImportIo::for_test(Arc::new(PublicationGate::default()));
         let app_capacity_probe = app_tx.clone();
         let (worker_tx, worker_rx) = mpsc::sync_channel(EVENTS_PER_STAGE);
@@ -9743,7 +12062,7 @@ fn main() {
     #[test]
     fn stop_control_is_admitted_when_effect_queue_is_full() {
         let gate = Arc::new(PublicationGate::default());
-        let (mut io, effects, stops, _) = AsyncImportIo::for_test(gate);
+        let (mut io, effects, stops, _, _, _, _) = AsyncImportIo::for_test(gate);
         let job_id = JobId(901);
         let generation = Generation::first();
         io.submit(ImportEffect::Prepare(test_request(job_id, generation)))
@@ -9763,7 +12082,7 @@ fn main() {
     #[test]
     fn frame_limit_counts_newline_and_rejects_oversize_before_write() {
         let gate = Arc::new(PublicationGate::default());
-        let (mut io, _effects, _, _) = AsyncImportIo::for_test(gate);
+        let (mut io, _effects, _, _, _, _, _) = AsyncImportIo::for_test(gate);
         let mut low = 0;
         let mut high = MAX_FRAME_BYTES;
         while low < high {
@@ -10746,7 +13065,7 @@ fn main() {
         };
 
         let gate = Arc::new(PublicationGate::default());
-        let (io, effects, stops, event_tx) = AsyncImportIo::for_test(gate.clone());
+        let (io, effects, stops, event_tx, _, _, _) = AsyncImportIo::for_test(gate.clone());
         let mut app = ImportApplication::new(io);
         let job_id = JobId(88);
         let generation = Generation::first();

@@ -319,12 +319,6 @@ fn qualified_parakeet_cpu_gpu_auto_and_invalid_language_selections_are_checked()
             InferencePath::Import,
             LanguageChoice::Manual(LanguageCode("en".into())),
         ),
-        (
-            ComputePreference::Cpu,
-            Backend::Cpu,
-            InferencePath::Live,
-            LanguageChoice::Automatic,
-        ),
     ] {
         let refused = app.admit(
             SelectionIntent {
@@ -343,6 +337,19 @@ fn qualified_parakeet_cpu_gpu_auto_and_invalid_language_selections_are_checked()
         );
     }
 
+    let live = app.admit(
+        SelectionIntent {
+            generation: 1,
+            model: ModelId::ParakeetTdt06BV3,
+            compute: ComputePreference::Cpu,
+            effective_backend: Backend::Cpu,
+            path: InferencePath::Live,
+            language: LanguageChoice::Automatic,
+        },
+        1,
+    );
+    assert!(live.is_ok(), "qualified Parakeet CPU live path: {live:?}");
+
     let invalid = app.admit(
         SelectionIntent {
             generation: 1,
@@ -355,6 +362,52 @@ fn qualified_parakeet_cpu_gpu_auto_and_invalid_language_selections_are_checked()
         1,
     );
     assert!(matches!(invalid, Err(SelectionRefusal::Capability(_))));
+}
+
+#[test]
+fn parakeet_live_is_admitted_only_through_the_live_guard() {
+    use whisper_core::{
+        domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice as RequestLanguage},
+        model_registry::model,
+        ports::{ImportRequest, LiveRequest},
+    };
+
+    let model = model(ModelId::ParakeetTdt06BV3);
+    let path = r"C:\models\parakeet-tdt-v3.gguf";
+    let guard = ModelCommandGuard::new_with_model_paths(
+        whisper_core::model_registry::engine_snapshot(1, |_| ModelAvailability::Ready, vec![]),
+        1,
+        [(ModelId::ParakeetTdt06BV3, path.to_owned())],
+    );
+    let config = JobConfig {
+        language: RequestLanguage::Automatic,
+        compute: ComputeChoice::Cpu,
+    };
+    let live = LiveRequest {
+        job_id: JobId(3),
+        generation: Generation::first(),
+        model_path: path.into(),
+        model_sha256: decode_sha256(model.artifact.sha256),
+        destination: "archive".into(),
+        group_offset_samples: 0,
+        auto_stop_after_speech_samples: None,
+        microphone: whisper_core::microphone::MicrophoneChoice::WindowsDefault,
+        config: config.clone(),
+    };
+    assert!(guard.admit_live(&live).is_ok());
+
+    let import = ImportRequest {
+        job_id: JobId(4),
+        generation: Generation::first(),
+        source_path: "source.wav".into(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: path.into(),
+        model_sha256: decode_sha256(model.artifact.sha256),
+        destination: "archive".into(),
+        config,
+    };
+    assert!(guard.admit_import(&import, InferencePath::Live).is_err());
 }
 
 #[test]

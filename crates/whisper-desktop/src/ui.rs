@@ -184,6 +184,17 @@ pub struct DesktopApp<A> {
     preference_load_notice: Option<String>,
     preference_notice: Option<String>,
     preference_revision: u64,
+    selected_parakeet_capture: Option<(JobId, Generation)>,
+    selected_capture_text: CaptureTextSelection,
+    automatic_draft_cache: Option<((JobId, Generation), String, String)>,
+    automatic_draft_error: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum CaptureTextSelection {
+    #[default]
+    Confirmed,
+    AutomaticDraft,
 }
 
 impl<A: Application> DesktopApp<A> {
@@ -317,6 +328,10 @@ impl<A: Application> DesktopApp<A> {
             preference_load_notice: None,
             preference_notice: None,
             preference_revision: 0,
+            selected_parakeet_capture: None,
+            selected_capture_text: CaptureTextSelection::Confirmed,
+            automatic_draft_cache: None,
+            automatic_draft_error: None,
         };
         #[cfg(test)]
         {
@@ -528,6 +543,324 @@ impl<A: Application> DesktopApp<A> {
         }
     }
 
+    fn render_parakeet_capture_ui(&mut self, ui: &mut egui::Ui) {
+        let captures = self.view.parakeet_captures.clone();
+        if captures.is_empty() {
+            return;
+        }
+        if self.selected_parakeet_capture.is_none() {
+            self.selected_parakeet_capture = self
+                .live_request
+                .as_ref()
+                .map(|request| (request.job_id, request.generation))
+                .filter(|identity| {
+                    captures.iter().any(|capture| {
+                        (capture.identity.job_id, capture.identity.generation) == *identity
+                    })
+                })
+                .or_else(|| {
+                    captures
+                        .last()
+                        .map(|capture| (capture.identity.job_id, capture.identity.generation))
+                });
+            self.selected_capture_text = CaptureTextSelection::Confirmed;
+            self.automatic_draft_cache = None;
+            self.automatic_draft_error = None;
+        }
+
+        ui.separator();
+        ui.label("Captures Parakeet — session actuelle");
+        for capture in captures.iter().rev() {
+            let identity = (capture.identity.job_id, capture.identity.generation);
+            let name = capture
+                .wav_path
+                .as_deref()
+                .and_then(|path| std::path::Path::new(path).file_name())
+                .and_then(|name| name.to_str())
+                .unwrap_or("Microphone en cours");
+            let label = format!("{name} — {}", capture_state_label(capture.capture_state));
+            if ui
+                .selectable_label(self.selected_parakeet_capture == Some(identity), label)
+                .clicked()
+            {
+                self.selected_parakeet_capture = Some(identity);
+                self.selected_capture_text = CaptureTextSelection::Confirmed;
+                self.automatic_draft_cache = None;
+                self.automatic_draft_error = None;
+            }
+        }
+
+        let Some(capture) = self.selected_parakeet_capture.and_then(|selected| {
+            captures
+                .iter()
+                .find(|capture| (capture.identity.job_id, capture.identity.generation) == selected)
+        }) else {
+            return;
+        };
+        ui.separator();
+        ui.strong(
+            capture
+                .wav_path
+                .as_deref()
+                .and_then(|path| {
+                    std::path::Path::new(path)
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                })
+                .unwrap_or("Capture Parakeet"),
+        );
+        ui.small(format!(
+            "{} — calcul demandé : {}; moteur effectif : {}",
+            capture_state_label(capture.capture_state),
+            capture
+                .requested_compute
+                .or_else(|| self
+                    .live_request
+                    .as_ref()
+                    .filter(|request| {
+                        request.job_id == capture.identity.job_id
+                            && request.generation == capture.identity.generation
+                    })
+                    .map(|request| request.config.compute))
+                .map_or("non renseigné", compute_choice_label),
+            capture
+                .effective_backend
+                .as_deref()
+                .unwrap_or("non renseigné")
+        ));
+
+        if let Some(wav) = capture
+            .wav_path
+            .as_deref()
+            .filter(|path| path_is_file(path))
+        {
+            ui.label("Audio enregistré : WAV finalisé");
+            copyable_path(ui, "WAV", wav);
+        } else if capture.capture_state == whisper_core::ports::ParakeetCaptureViewState::Finalizing
+        {
+            ui.label("Arrêt en cours — finalisation du WAV et des résultats directs");
+        } else if capture.capture_state == whisper_core::ports::ParakeetCaptureViewState::Failed {
+            ui.label("La capture s'est terminée sans confirmation d'un WAV finalisé.");
+        }
+        if let Some(diagnostic) = capture.capture_diagnostic.as_deref() {
+            ui.colored_label(egui::Color32::YELLOW, diagnostic);
+        }
+        if capture.capture_complete == Some(false) {
+            ui.label("Transcription directe incomplète.");
+        }
+
+        if !capture.unresolved.is_empty() {
+            egui::CollapsingHeader::new(format!(
+                "{} portions restent à confirmer",
+                capture.unresolved.len()
+            ))
+            .show(ui, |ui| {
+                for range in &capture.unresolved {
+                    ui.small(format!(
+                        "{:.2}–{:.2} s",
+                        range.start_sample as f64 / f64::from(range.sample_rate_hz),
+                        range.end_sample as f64 / f64::from(range.sample_rate_hz)
+                    ));
+                }
+            });
+        }
+
+        if let Some(path) = capture
+            .direct_txt_path
+            .as_deref()
+            .filter(|path| path_is_file(path))
+        {
+            copyable_path(ui, "TXT confirmé", path);
+        }
+        if let Some(path) = capture
+            .direct_srt_path
+            .as_deref()
+            .filter(|path| path_is_file(path))
+        {
+            copyable_path(ui, "SRT confirmé", path);
+        }
+        if let Some(path) = capture
+            .companion_json_path
+            .as_deref()
+            .filter(|path| path_is_file(path))
+        {
+            copyable_path(ui, "JSON des confirmations et lacunes", path);
+        }
+
+        let final_view = capture.automatic_final.as_ref();
+        if let Some(final_view) = final_view {
+            ui.label(match final_view.status {
+                whisper_core::ports::AutomaticFinalTranscriptionStatus::Pending => {
+                    "Brouillon final en attente"
+                }
+                whisper_core::ports::AutomaticFinalTranscriptionStatus::Running => {
+                    "Brouillon final en cours — non vérifié"
+                }
+                whisper_core::ports::AutomaticFinalTranscriptionStatus::ProducedUnverified => {
+                    "Brouillon final disponible — à relire"
+                }
+                whisper_core::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable => {
+                    "Brouillon final indisponible"
+                }
+            });
+            if final_view.status == whisper_core::ports::AutomaticFinalTranscriptionStatus::Running
+            {
+                ui.small("Texte automatique non vérifié.");
+            }
+            ui.small(format!(
+                "Calcul demandé : {} ; calcul effectif : {}",
+                capture.requested_compute.or_else(|| {
+                    (final_view.status
+                        != whisper_core::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable)
+                        .then_some(final_view.requested_compute)
+                }).map_or("non renseigné", compute_choice_label),
+                final_view
+                    .effective_backend
+                    .as_deref()
+                    .unwrap_or("non renseigné")
+            ));
+            let final_files_ready = final_view.status
+                == whisper_core::ports::AutomaticFinalTranscriptionStatus::ProducedUnverified
+                && path_is_file(&final_view.txt_path)
+                && path_is_file(&final_view.srt_path);
+            if final_files_ready && let Some(path) = path_if_file(&final_view.txt_path) {
+                copyable_path(ui, "TXT automatique — non vérifié", path);
+            }
+            if final_files_ready && let Some(path) = path_if_file(&final_view.srt_path) {
+                copyable_path(ui, "SRT automatique — non vérifié", path);
+            }
+            if final_files_ready && ui.button("Lire le brouillon final — à relire").clicked() {
+                match std::fs::read_to_string(&final_view.txt_path) {
+                    Ok(text) => {
+                        self.automatic_draft_cache = Some((
+                            (capture.identity.job_id, capture.identity.generation),
+                            final_view.txt_path.clone(),
+                            text,
+                        ));
+                        self.automatic_draft_error = None;
+                        self.selected_capture_text = CaptureTextSelection::AutomaticDraft;
+                    }
+                    Err(error) => {
+                        self.automatic_draft_error =
+                            Some(format!("Lecture du brouillon impossible : {error}"))
+                    }
+                }
+            }
+            if let Some(diagnostic) = final_view.diagnostic.as_deref() {
+                ui.colored_label(egui::Color32::YELLOW, diagnostic);
+            }
+            if final_view.status
+                == whisper_core::ports::AutomaticFinalTranscriptionStatus::ProducedUnverified
+                && !final_files_ready
+            {
+                ui.colored_label(egui::Color32::YELLOW, "Le statut de publication est terminé, mais les fichiers TXT/SRT attendus ne sont pas tous accessibles.");
+            }
+        }
+
+        ui.horizontal(|ui| {
+            if ui
+                .selectable_label(
+                    self.selected_capture_text == CaptureTextSelection::Confirmed,
+                    "Confirmé en direct",
+                )
+                .clicked()
+            {
+                self.selected_capture_text = CaptureTextSelection::Confirmed;
+            }
+            let final_available = final_view.is_some_and(|view| {
+                view.status
+                    == whisper_core::ports::AutomaticFinalTranscriptionStatus::ProducedUnverified
+                    && path_is_file(&view.txt_path)
+                    && path_is_file(&view.srt_path)
+            });
+            if final_available
+                && ui
+                    .selectable_label(
+                        self.selected_capture_text == CaptureTextSelection::AutomaticDraft,
+                        "Brouillon final — non vérifié",
+                    )
+                    .clicked()
+            {
+                self.selected_capture_text = CaptureTextSelection::AutomaticDraft;
+                if let Some(view) = final_view
+                    && path_is_file(&view.txt_path)
+                    && !self
+                        .automatic_draft_cache
+                        .as_ref()
+                        .is_some_and(|(identity, path, _)| {
+                            *identity == (capture.identity.job_id, capture.identity.generation)
+                                && path == &view.txt_path
+                        })
+                {
+                    match std::fs::read_to_string(&view.txt_path) {
+                        Ok(text) => {
+                            self.automatic_draft_cache = Some((
+                                (capture.identity.job_id, capture.identity.generation),
+                                view.txt_path.clone(),
+                                text,
+                            ))
+                        }
+                        Err(error) => {
+                            self.automatic_draft_error =
+                                Some(format!("Lecture du brouillon impossible : {error}"))
+                        }
+                    }
+                }
+            }
+        });
+        match self.selected_capture_text {
+            CaptureTextSelection::Confirmed => {
+                ui.label("Confirmé en direct — stable selon l'algorithme, non relu");
+                let text = capture
+                    .confirmed_segments
+                    .iter()
+                    .map(|segment| segment.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                egui::ScrollArea::vertical()
+                    .max_height(180.0)
+                    .show(ui, |ui| {
+                        ui.label(if text.is_empty() {
+                            "Aucun segment confirmé pour cette capture."
+                        } else {
+                            &text
+                        });
+                    });
+                if capture.capture_state == whisper_core::ports::ParakeetCaptureViewState::Capturing
+                {
+                    if let Some(text) = capture.provisional_text.as_deref() {
+                        let provisional = provisional_without_confirmed_prefix(capture, text);
+                        if let Some(provisional) = provisional {
+                            ui.label("Texte provisoire — peut changer");
+                            ui.label(provisional);
+                        } else {
+                            ui.small("Une hypothèse recouvre un bloc confirmé ; son contenu non séparable est masqué pour éviter les doublons.");
+                        }
+                    }
+                }
+            }
+            CaptureTextSelection::AutomaticDraft => {
+                ui.label("Brouillon final automatique — non vérifié, à relire");
+                let expected = final_view
+                    .map(|view| view.txt_path.as_str())
+                    .unwrap_or_default();
+                if let Some((identity, path, text)) = self.automatic_draft_cache.as_ref()
+                    && *identity == (capture.identity.job_id, capture.identity.generation)
+                    && path == expected
+                {
+                    egui::ScrollArea::vertical()
+                        .max_height(180.0)
+                        .show(ui, |ui| {
+                            ui.label(text.as_str());
+                        });
+                }
+            }
+        }
+        if let Some(error) = self.automatic_draft_error.as_deref() {
+            ui.colored_label(egui::Color32::YELLOW, error);
+        }
+    }
+
     fn published_result(&self) -> Option<&str> {
         self.view
             .active_job
@@ -652,6 +985,14 @@ impl<A: Application> DesktopApp<A> {
                 Some("Le modèle sélectionné est qualifié uniquement pour l'import.".into());
             return;
         }
+        if self.selection.model == Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+            && self.selection.manual_language.is_some()
+        {
+            self.view.message = Some(
+                "Le microphone Parakeet requiert la détection automatique de la langue.".into(),
+            );
+            return;
+        }
         let clicked_at = unix_time_ms();
         self.live_clicked_at_unix_ms = Some(clicked_at);
         self.live_attempt_counter = self.live_attempt_counter.saturating_add(1);
@@ -694,6 +1035,12 @@ impl<A: Application> DesktopApp<A> {
         self.active_identity = Some((job_id, generation));
         self.live_request = Some(request.clone());
         if self.dispatch(AppCommand::StartDirectLiveConfigured { request }) {
+            if self.selection.model == Some(ModelId::ParakeetTdt06BV3) {
+                self.selected_parakeet_capture = Some((job_id, generation));
+                self.selected_capture_text = CaptureTextSelection::Confirmed;
+                self.automatic_draft_cache = None;
+                self.automatic_draft_error = None;
+            }
             self.reactivity_log.record_once(
                 process_log_session(),
                 "first_command_accepted",
@@ -1089,6 +1436,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             {
                 let can_start_live = !busy
                     && model_supports_live(self.selection.model)
+                    && (self.selection.model
+                        != Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+                        || self.selection.manual_language.is_none())
                     && self.selected_model_artifact().is_some()
                     && !self.paths.destination.trim().is_empty()
                     && self.selection.manual_language.as_ref().is_none_or(|language| !language.is_empty());
@@ -1100,6 +1450,11 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 }
                 if !model_supports_live(self.selection.model) {
                     ui.label("Le microphone n'est pas qualifié pour ce modèle.");
+                } else if self.selection.model
+                    == Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+                    && self.selection.manual_language.is_some()
+                {
+                    ui.label("Le microphone Parakeet requiert la détection automatique de la langue.");
                 }
             }
         });
@@ -1235,7 +1590,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 "Import"
             };
             ui.label(format!("{source} {job_id:?} — {state:?}"));
-            if !IMPORT_CPU_MVP && self.live_request.is_some() {
+            if (!IMPORT_CPU_MVP || self.view.provisional_session_id.is_some())
+                && self.live_request.is_some()
+            {
                 ui.label(format!(
                     "Micro — capturés {} | admis {} | audio durable {} | fragment confirmé {} | parole {} échantillons",
                     self.view.captured_samples,
@@ -1244,7 +1601,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     self.view.confirmed_fragment_samples,
                     self.view.speech_samples,
                 ));
-                if let Some(text) = self.view.provisional_text.as_deref() {
+                if self.view.provisional_session_id.is_none()
+                    && let Some(text) = self.view.provisional_text.as_deref()
+                {
                     let render_identity = (
                         job_id,
                         self.live_request
@@ -1259,6 +1618,13 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         &mut self.provisional_render_identity,
                         &mut self.provisional_first_rendered_at_unix_ms,
                     );
+                    if let Some(range) = self.view.provisional_range {
+                        ui.small(format!(
+                            "Hypothèse remplaçable — {:.2} à {:.2} s ; non exportée comme transcription confirmée",
+                            range.start_sample as f64 / f64::from(range.sample_rate_hz),
+                            range.end_sample as f64 / f64::from(range.sample_rate_hz),
+                        ));
+                    }
                 }
             }
             if self
@@ -1275,7 +1641,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 ) {
                     ui.label("Transcription en cours…");
                 }
-                if let Some(text) = self.view.confirmed_text.as_deref() {
+                if self.view.provisional_session_id.is_none()
+                    && let Some(text) = self.view.confirmed_text.as_deref()
+                {
                     ui.label("Texte confirmé :");
                     let mut text_was_visible = false;
                     egui::ScrollArea::vertical()
@@ -1321,6 +1689,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 });
             }
         }
+        self.render_parakeet_capture_ui(ui);
         if let Some(message) = &self.view.message {
             let visible_message = if message.starts_with("ModelMissing:") {
                 "Modèle local introuvable. Vérifiez le chemin dans « Modèle local ». Pour cet import déjà en file, choisissez « Retirer », puis ajoutez de nouveau le fichier audio."
@@ -1927,6 +2296,86 @@ pub fn gpu_inventory_status_message(state: &GpuInventoryState) -> Option<String>
     }
 }
 
+fn path_is_file(path: &str) -> bool {
+    !path.is_empty() && std::path::Path::new(path).is_file()
+}
+
+fn capture_state_label(state: whisper_core::ports::ParakeetCaptureViewState) -> &'static str {
+    match state {
+        whisper_core::ports::ParakeetCaptureViewState::Starting => "Démarrage du microphone",
+        whisper_core::ports::ParakeetCaptureViewState::Capturing => "Capture en cours",
+        whisper_core::ports::ParakeetCaptureViewState::Finalizing => "Finalisation du WAV",
+        whisper_core::ports::ParakeetCaptureViewState::Finalized => "Capture terminée",
+        whisper_core::ports::ParakeetCaptureViewState::Failed => "Capture interrompue",
+    }
+}
+
+fn compute_choice_label(choice: ComputeChoice) -> &'static str {
+    match choice {
+        ComputeChoice::Cpu => "CPU",
+        ComputeChoice::Gpu => "GPU",
+        ComputeChoice::Auto => "Auto",
+    }
+}
+
+fn path_if_file(path: &str) -> Option<&str> {
+    path_is_file(path).then_some(path)
+}
+
+fn copyable_path(ui: &mut egui::Ui, label: &str, path: &str) {
+    ui.horizontal(|ui| {
+        ui.small(format!("{label} : {path}"));
+        if ui.small_button("Copier le chemin").clicked() {
+            ui.ctx().copy_text(path.to_owned());
+        }
+    });
+}
+
+fn provisional_without_confirmed_prefix(
+    capture: &whisper_core::ports::ParakeetCaptureView,
+    provisional: &str,
+) -> Option<String> {
+    let range = capture.provisional_range?;
+    let mut overlaps = capture
+        .confirmed_segments
+        .iter()
+        .filter(|segment| {
+            segment.range.start_sample < range.end_sample
+                && range.start_sample < segment.range.end_sample
+        })
+        .collect::<Vec<_>>();
+    if overlaps.is_empty() {
+        return Some(provisional.to_owned());
+    }
+    overlaps.sort_by_key(|segment| (segment.range.start_sample, segment.segment_id.0));
+    let confirmed_words = overlaps
+        .iter()
+        .flat_map(|segment| segment.text.split_whitespace())
+        .map(normalized_word)
+        .collect::<Vec<_>>();
+    let provisional_words = provisional.split_whitespace().collect::<Vec<_>>();
+    if confirmed_words.is_empty() || provisional_words.len() < confirmed_words.len() {
+        return None;
+    }
+    let prefix_matches = provisional_words
+        .iter()
+        .take(confirmed_words.len())
+        .map(|word| normalized_word(word))
+        .eq(confirmed_words.iter().cloned());
+    if !prefix_matches {
+        return None;
+    }
+    let suffix = provisional_words[confirmed_words.len()..].join(" ");
+    (!suffix.trim().is_empty()).then_some(suffix)
+}
+
+fn normalized_word(word: &str) -> String {
+    word.chars()
+        .filter(|character| character.is_alphanumeric() || *character == '\'')
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
 pub fn default_model_path() -> String {
     std::env::var("LOCALAPPDATA")
         .map(|path| format!(r"{path}\Programs\WhisperBuildDeps\models\ggml-large-v3-turbo.bin"))
@@ -2030,7 +2479,7 @@ fn gpu_selection_identity(command: &AppCommand) -> Option<(JobId, Generation)> {
 }
 
 pub fn model_supports_live(model: Option<whisper_core::model_catalog::ModelId>) -> bool {
-    model != Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+    true
 }
 
 pub fn model_selection_combo(
@@ -2402,8 +2851,8 @@ mod tests {
         CatalogSnapshot, DesktopApp, ModelId, ModelSelectionRuntime, command_compute_choice,
         compute_for_model, gpu_selection_identity, import_enqueue_enabled, manual_stop_available,
         microphone_device_label, model_preference_command_channel, parakeet_gpu_catalog_ready,
-        queued_request_for_compute, record_first_render, speech_limit_samples,
-        window_must_remain_open,
+        provisional_without_confirmed_prefix, queued_request_for_compute, record_first_render,
+        speech_limit_samples, window_must_remain_open,
     };
     use std::{cell::RefCell, collections::VecDeque, rc::Rc};
     use whisper_core::gpu_inventory::{GpuObservation, GpuPresence, GpuState};
@@ -3094,5 +3543,60 @@ mod tests {
         let mut missing = entry();
         missing.availability = whisper_core::model_catalog::ModelAvailability::Missing;
         assert!(!parakeet_gpu_catalog_ready(&catalog(missing)));
+    }
+
+    #[test]
+    fn provisional_display_removes_only_a_proven_confirmed_prefix() {
+        let mut capture = whisper_core::ports::ParakeetCaptureView {
+            identity: whisper_core::ports::ParakeetCaptureIdentity {
+                job_id: JobId(91),
+                generation: Generation::first(),
+                session_id: 7,
+            },
+            wav_path: None,
+            direct_txt_path: None,
+            direct_srt_path: None,
+            companion_json_path: None,
+            confirmed_segments: vec![whisper_core::ports::WorkerSegment {
+                job_id: JobId(91),
+                generation: Generation::first(),
+                instance_id: 7,
+                segment_id: whisper_core::domain::SegmentId(1),
+                range: whisper_core::domain::SourceRange::new(0, 1_000, 16_000).unwrap(),
+                text: "Bonjour".into(),
+            }],
+            provisional_text: None,
+            provisional_range: Some(
+                whisper_core::domain::SourceRange::new(500, 2_000, 16_000).unwrap(),
+            ),
+            provisional_sequence: Some(2),
+            unresolved: Vec::new(),
+            capture_state: whisper_core::ports::ParakeetCaptureViewState::Capturing,
+            capture_complete: None,
+            capture_diagnostic: None,
+            requested_compute: Some(ComputeChoice::Gpu),
+            effective_backend: Some("CUDA0".into()),
+            automatic_final: None,
+            automatic_final_identity: None,
+        };
+
+        assert_eq!(
+            provisional_without_confirmed_prefix(&capture, "bonjour, monde"),
+            Some("monde".into())
+        );
+        assert_eq!(
+            provisional_without_confirmed_prefix(&capture, "bonjour le monde"),
+            Some("le monde".into())
+        );
+        assert_eq!(
+            provisional_without_confirmed_prefix(&capture, "salut le monde"),
+            None
+        );
+        capture.provisional_range =
+            Some(whisper_core::domain::SourceRange::new(1_000, 2_000, 16_000).unwrap());
+        assert_eq!(
+            provisional_without_confirmed_prefix(&capture, "nouveau texte"),
+            Some("nouveau texte".into())
+        );
     }
 }

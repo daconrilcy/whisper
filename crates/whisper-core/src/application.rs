@@ -45,6 +45,36 @@ fn l3d_event_trace(event: &ImportEvent) {
         | ImportEvent::Diagnostic {
             job_id, generation, ..
         }
+        | ImportEvent::ParakeetLiveStarted {
+            job_id, generation, ..
+        }
+        | ImportEvent::ParakeetInferenceReady {
+            job_id, generation, ..
+        }
+        | ImportEvent::ParakeetHypothesis {
+            job_id, generation, ..
+        }
+        | ImportEvent::ParakeetConfirmed {
+            job_id, generation, ..
+        }
+        | ImportEvent::ParakeetUnresolved {
+            job_id, generation, ..
+        }
+        | ImportEvent::ParakeetResolved {
+            job_id, generation, ..
+        }
+        | ImportEvent::ParakeetCaptureProgress {
+            job_id, generation, ..
+        }
+        | ImportEvent::ParakeetAudioUnusable {
+            job_id, generation, ..
+        }
+        | ImportEvent::ParakeetInferenceUnavailable {
+            job_id, generation, ..
+        }
+        | ImportEvent::ParakeetCaptureStopped {
+            job_id, generation, ..
+        }
         | ImportEvent::LiveCounters {
             job_id, generation, ..
         }
@@ -128,6 +158,16 @@ impl ImportEvent {
             Self::DirectPublished { .. } => "direct_published",
             Self::Diagnostic { .. } => "diagnostic",
             Self::LiveProvisional { .. } => "live_provisional",
+            Self::ParakeetLiveStarted { .. } => "parakeet_live_started",
+            Self::ParakeetInferenceReady { .. } => "parakeet_inference_ready",
+            Self::ParakeetHypothesis { .. } => "parakeet_hypothesis",
+            Self::ParakeetConfirmed { .. } => "parakeet_confirmed",
+            Self::ParakeetUnresolved { .. } => "parakeet_unresolved",
+            Self::ParakeetResolved { .. } => "parakeet_resolved",
+            Self::ParakeetCaptureProgress { .. } => "parakeet_capture_progress",
+            Self::ParakeetAudioUnusable { .. } => "parakeet_audio_unusable",
+            Self::ParakeetInferenceUnavailable { .. } => "parakeet_inference_unavailable",
+            Self::ParakeetCaptureStopped { .. } => "parakeet_capture_stopped",
             Self::LiveCounters { .. } => "live_counters",
             Self::WindowFinished { .. } => "window_finished",
             Self::AwaitingCpuChoice { .. } => "awaiting_cpu_choice",
@@ -304,19 +344,25 @@ pub struct AppView {
     pub admitted_samples: u64,
     pub audio_durable_samples: u64,
     pub confirmed_fragment_samples: u64,
+    /// Highest end sample among published Parakeet intervals; this may include gaps.
     pub confirmed_samples: u64,
     pub speech_samples: u64,
     pub provisional_text: Option<String>,
     pub provisional_sequence: Option<u64>,
+    pub provisional_session_id: Option<u64>,
     pub provisional_range: Option<crate::domain::SourceRange>,
     pub provisional_captured_at_unix_ms: Option<u64>,
     pub provisional_available_at_unix_ms: Option<u64>,
     pub confirmed_text: Option<String>,
+    pub parakeet_unresolved: Vec<crate::domain::SourceRange>,
     pub direct_first_sample_at_unix_ms: Option<u64>,
     pub direct_first_admitted_at_unix_ms: Option<u64>,
     pub direct_ready_at_unix_ms: Option<u64>,
     pub direct_capture_phase: Option<DirectCapturePhase>,
     pub direct_engine_phase: Option<DirectEnginePhase>,
+    pub automatic_final_transcription: Option<crate::ports::AutomaticFinalTranscriptionView>,
+    /// Parakeet captures from this process only; a new process starts with an empty list.
+    pub parakeet_captures: Vec<crate::ports::ParakeetCaptureView>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -346,6 +392,7 @@ pub struct ImportApplication<P> {
     pending_persistence: usize,
     pending_segments: std::collections::VecDeque<crate::ports::WorkerSegment>,
     pending_live_segments: std::collections::BTreeMap<u64, crate::ports::WorkerSegment>,
+    parakeet_confirmed: Vec<crate::ports::WorkerSegment>,
     pending_enqueues: Vec<CommandIdentity>,
     auto_stop_after_speech_samples: Option<u64>,
     ended_at: Option<u64>,
@@ -353,7 +400,28 @@ pub struct ImportApplication<P> {
     max_segment_offset: u64,
     final_source_samples: Option<u64>,
     model_guard: Option<crate::model_selection_app::ModelCommandGuard>,
+    automatic_final_identity: Option<CommandIdentity>,
+    automatic_final_view_identity: Option<CommandIdentity>,
+    automatic_final_state: Option<AutomaticFinalJobState>,
+    automatic_final_queue: std::collections::VecDeque<crate::ports::AutomaticFinalImport>,
+    active_live_compute: Option<(CommandIdentity, crate::domain::ComputeChoice)>,
+    active_live_parakeet: Option<CommandIdentity>,
 }
+
+struct AutomaticFinalJobState {
+    request: ImportRequest,
+    next_sequence: u64,
+    pending_persistence: usize,
+    pending_segments: std::collections::VecDeque<crate::ports::WorkerSegment>,
+    pending_sequences: std::collections::BTreeSet<u64>,
+    ended_at: Option<u64>,
+    max_segment_offset: u64,
+    publish_submitted: bool,
+}
+
+const MAX_QUEUED_AUTOMATIC_FINAL_IMPORTS: usize = 1;
+const MAX_PENDING_AUTOMATIC_FINAL_SEGMENTS: usize = 16;
+const MAX_PARAKEET_CAPTURE_VIEWS: usize = 8;
 
 impl<P: ImportIoPort> ImportApplication<P> {
     pub fn new(io: P) -> Self {
@@ -367,6 +435,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
             pending_persistence: 0,
             pending_segments: std::collections::VecDeque::new(),
             pending_live_segments: std::collections::BTreeMap::new(),
+            parakeet_confirmed: Vec::new(),
             pending_enqueues: Vec::new(),
             auto_stop_after_speech_samples: None,
             ended_at: None,
@@ -374,6 +443,12 @@ impl<P: ImportIoPort> ImportApplication<P> {
             max_segment_offset: 0,
             final_source_samples: None,
             model_guard: None,
+            automatic_final_identity: None,
+            automatic_final_view_identity: None,
+            automatic_final_state: None,
+            automatic_final_queue: std::collections::VecDeque::new(),
+            active_live_compute: None,
+            active_live_parakeet: None,
         }
     }
 
@@ -400,6 +475,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         if !self.retry_pending_segment()? {
             return Ok(());
         }
+        let _ = self.retry_automatic_final_segment()?;
         for _ in 0..MAX_EVENTS_PER_REFRESH {
             let Some(event) = self.io.poll().map_err(|e| self.fail(e))? else {
                 return Ok(());
@@ -418,6 +494,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
     }
 
     fn handle_event(&mut self, event: ImportEvent) -> Result<(), ApplicationError> {
+        self.track_parakeet_capture_event(&event);
         match &event {
             ImportEvent::History(history) => {
                 self.view.history = history.clone();
@@ -498,6 +575,17 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 return Ok(());
             }
             ImportEvent::DuplicateImportFound(prompt) => {
+                if let Some(identity) = self.automatic_final_identity
+                    && identity.job_id == prompt.request.job_id
+                    && identity.generation == prompt.request.generation
+                {
+                    self.mark_automatic_final_failed(
+                        identity,
+                        "Import final automatique déjà présent ; aucune sortie n'a été écrasée"
+                            .into(),
+                    );
+                    return Ok(());
+                }
                 self.pending_enqueues.retain(|identity| {
                     *identity
                         != CommandIdentity {
@@ -528,6 +616,9 @@ impl<P: ImportIoPort> ImportApplication<P> {
         }
         let (job_id, generation) = event.identity();
         let identity = CommandIdentity { job_id, generation };
+        if self.automatic_final_identity == Some(identity) && self.active != Some(identity) {
+            return self.handle_automatic_final_event(event, identity);
+        }
         let enqueue_failed = matches!(
             &event,
             ImportEvent::Failed { .. } if self.pending_enqueues.contains(&identity)
@@ -621,6 +712,245 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 self.pending_live_segments.insert(sequence, segment.clone());
                 self.accept_segment(segment, job_id, generation)?;
             }
+            ImportEvent::ParakeetLiveStarted {
+                session_id,
+                backend,
+                ..
+            } => {
+                self.view.provisional_session_id = Some(session_id);
+                self.view.provisional_text = None;
+                self.view.provisional_sequence = None;
+                self.view.provisional_range = None;
+                self.view.provisional_captured_at_unix_ms = None;
+                self.view.provisional_available_at_unix_ms = None;
+                self.view.parakeet_unresolved.clear();
+                self.parakeet_confirmed.clear();
+                self.view.direct_capture_phase = Some(DirectCapturePhase::Active);
+                self.view.direct_engine_phase = Some(DirectEnginePhase::Preparing);
+                self.view.active_job = Some((job_id, JobState::Capturing));
+                self.view.message = Some(format!(
+                    "Capture micro active ; Parakeet {backend} en préparation"
+                ));
+            }
+            ImportEvent::ParakeetInferenceReady {
+                session_id,
+                backend,
+                ..
+            } => {
+                if self.view.provisional_session_id == Some(session_id) {
+                    self.view.direct_engine_phase = Some(DirectEnginePhase::Ready);
+                    self.view.message = Some(format!(
+                        "Capture active ; hypothèses Parakeet {backend} provisoires"
+                    ));
+                }
+            }
+            ImportEvent::ParakeetHypothesis {
+                session_id,
+                sequence,
+                range,
+                text,
+                captured_at_unix_ms,
+                available_at_unix_ms,
+                ..
+            } => {
+                if self.stopping == Some(identity)
+                    || self.view.provisional_session_id != Some(session_id)
+                    || sequence == 0
+                    || self
+                        .view
+                        .provisional_sequence
+                        .is_some_and(|previous| sequence <= previous)
+                    || range.sample_rate_hz != 16_000
+                    || range.start_sample >= range.end_sample
+                    || text.trim().is_empty()
+                {
+                    return Ok(());
+                }
+                self.view.provisional_text = Some(text);
+                self.view.provisional_sequence = Some(sequence);
+                self.view.provisional_range = Some(range);
+                self.view.provisional_captured_at_unix_ms = Some(captured_at_unix_ms);
+                self.view.provisional_available_at_unix_ms = Some(available_at_unix_ms);
+            }
+            ImportEvent::ParakeetConfirmed {
+                session_id,
+                segment,
+                ..
+            } => {
+                if self.view.provisional_session_id == Some(session_id) {
+                    self.append_parakeet_confirmed(session_id, segment)?;
+                }
+            }
+            ImportEvent::ParakeetUnresolved {
+                session_id, range, ..
+            } => {
+                if self.view.provisional_session_id == Some(session_id)
+                    && range.sample_rate_hz == 16_000
+                    && range.start_sample < range.end_sample
+                    && !self.view.parakeet_unresolved.contains(&range)
+                {
+                    self.view.parakeet_unresolved.push(range);
+                    self.view.message =
+                        Some("Audio conservé : une portion reste à confirmer".into());
+                }
+            }
+            ImportEvent::ParakeetResolved {
+                session_id, range, ..
+            } => {
+                if self.view.provisional_session_id == Some(session_id) {
+                    self.view
+                        .parakeet_unresolved
+                        .retain(|unresolved| *unresolved != range);
+                }
+            }
+            ImportEvent::ParakeetCaptureProgress {
+                session_id,
+                captured_samples,
+                audio_durable_samples,
+                ..
+            } => {
+                if self.view.provisional_session_id != Some(session_id)
+                    || audio_durable_samples > captured_samples
+                {
+                    return Ok(());
+                }
+                self.view.captured_samples = captured_samples;
+                self.view.admitted_samples = audio_durable_samples;
+                self.view.audio_durable_samples = audio_durable_samples;
+            }
+            ImportEvent::ParakeetInferenceUnavailable {
+                session_id,
+                message,
+                ..
+            } => {
+                if self.view.provisional_session_id == Some(session_id) {
+                    self.view.message = Some(format!(
+                        "Capture conservée ; hypothèses Parakeet indisponibles : {message}"
+                    ));
+                }
+            }
+            ImportEvent::ParakeetAudioUnusable {
+                session_id,
+                range,
+                message,
+                ..
+            } => {
+                if self.view.provisional_session_id == Some(session_id) {
+                    self.view.message = Some(format!(
+                        "Audio conservé, transcription provisoire indisponible pour {:.2}–{:.2} s : {message}",
+                        range.start_sample as f64 / range.sample_rate_hz as f64,
+                        range.end_sample as f64 / range.sample_rate_hz as f64,
+                    ));
+                }
+            }
+            ImportEvent::ParakeetCaptureStopped {
+                session_id,
+                wav_path,
+                txt_path,
+                srt_path,
+                complete,
+                final_segments,
+                unresolved,
+                diagnostic,
+                automatic_final,
+                ..
+            } => {
+                if self.view.provisional_session_id != Some(session_id) {
+                    return Ok(());
+                }
+                for segment in final_segments {
+                    if let Some(prior) = self
+                        .parakeet_confirmed
+                        .iter()
+                        .find(|prior| prior.segment_id == segment.segment_id)
+                    {
+                        if prior != &segment {
+                            return Err(ApplicationError::InvalidCommand);
+                        }
+                    } else {
+                        self.append_parakeet_confirmed(session_id, segment)?;
+                    }
+                }
+                self.view.parakeet_unresolved = unresolved;
+                let capture_failed = diagnostic.is_some() || !complete;
+                self.view.direct_capture_phase = Some(DirectCapturePhase::Stopped);
+                self.view.direct_engine_phase = Some(DirectEnginePhase::Released);
+                self.view.active_job = Some((
+                    job_id,
+                    if capture_failed {
+                        JobState::Recoverable
+                    } else {
+                        JobState::Complete
+                    },
+                ));
+                self.view.last_result =
+                    (!wav_path.is_empty()).then(|| match (txt_path, srt_path) {
+                        (Some(txt), Some(srt)) => format!(
+                            "Audio et texte confirmé enregistrés : {wav_path} | {txt} | {srt}"
+                        ),
+                        _ => format!("Audio microphone conservé : {wav_path}"),
+                    });
+                self.view.message = Some(diagnostic.map_or_else(
+                    || if complete { "Transcription confirmée enregistrée.".into() } else { "Transcription incomplète ; audio conservé, texte provisoire non exporté.".into() },
+                    |message| format!("Capture conservée ; session incomplète : {message}"),
+                ));
+                self.active = None;
+                self.stopping = None;
+                self.direct_live = false;
+                self.request = None;
+                if let Some(automatic_final) = automatic_final {
+                    let identity = CommandIdentity {
+                        job_id: automatic_final.request.job_id,
+                        generation: automatic_final.request.generation,
+                    };
+                    let final_view = crate::ports::AutomaticFinalTranscriptionView {
+                        status: crate::ports::AutomaticFinalTranscriptionStatus::Pending,
+                        txt_path: automatic_final.outputs.txt_path.clone(),
+                        srt_path: automatic_final.outputs.srt_path.clone(),
+                        model_sha256: automatic_final.request.model_sha256,
+                        requested_compute: automatic_final.request.config.compute,
+                        effective_backend: None,
+                        diagnostic: None,
+                    };
+                    self.automatic_final_view_identity = Some(identity);
+                    if self.automatic_final_identity.is_some()
+                        && self.automatic_final_queue.len() >= MAX_QUEUED_AUTOMATIC_FINAL_IMPORTS
+                    {
+                        self.set_capture_automatic_final_status(
+                            identity,
+                            crate::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable,
+                            Some("File d'import automatique saturée ; WAV et sorties directes conservés".into()),
+                            None,
+                        );
+                        self.view.automatic_final_transcription = Some(
+                            crate::ports::AutomaticFinalTranscriptionView {
+                                status: crate::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable,
+                                diagnostic: Some("File d'import automatique saturée ; WAV et sorties directes conservés".into()),
+                                ..final_view
+                            },
+                        );
+                    } else {
+                        self.view.automatic_final_transcription = Some(final_view);
+                        self.automatic_final_queue.push_back(automatic_final);
+                        self.start_next_automatic_final()?;
+                    }
+                } else {
+                    self.view.automatic_final_transcription = Some(
+                        crate::ports::AutomaticFinalTranscriptionView {
+                            status:
+                                crate::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable,
+                            txt_path: String::new(),
+                            srt_path: String::new(),
+                            model_sha256: [0; 32],
+                            requested_compute: crate::domain::ComputeChoice::Auto,
+                            effective_backend: None,
+                            diagnostic: Some(
+                                "Import automatique indisponible pour cette capture".into(),
+                            ),
+                        },
+                    );
+                }
+            }
             ImportEvent::LiveCounters {
                 captured_samples,
                 admitted_samples,
@@ -685,6 +1015,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 self.pending_live_segments.clear();
                 self.view.provisional_text = None;
                 self.view.provisional_sequence = None;
+                self.view.provisional_session_id = None;
                 self.view.provisional_range = None;
                 self.view.provisional_captured_at_unix_ms = None;
                 self.view.provisional_available_at_unix_ms = None;
@@ -755,6 +1086,18 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
             }
             ImportEvent::Ready { backend, .. } => {
+                if self.automatic_final_identity == Some(identity) {
+                    if let Some(final_view) = self.view.automatic_final_transcription.as_mut() {
+                        final_view.status =
+                            crate::ports::AutomaticFinalTranscriptionStatus::Running;
+                        final_view.effective_backend = Some(backend.clone());
+                    }
+                    self.view.active_job = Some((job_id, JobState::Running));
+                    self.view.message = Some(format!(
+                        "Transcription finale automatique en cours — non vérifiée ({backend})"
+                    ));
+                    return Ok(());
+                }
                 if self.direct_live {
                     self.view.direct_engine_phase = Some(DirectEnginePhase::Ready);
                     self.view.direct_ready_at_unix_ms = Some(
@@ -847,6 +1190,25 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 self.maybe_publish(job_id, generation)?;
             }
             ImportEvent::Published { .. } => {
+                if self.automatic_final_identity == Some(identity) {
+                    if let Some(final_view) = self.view.automatic_final_transcription.as_mut() {
+                        final_view.status =
+                            crate::ports::AutomaticFinalTranscriptionStatus::ProducedUnverified;
+                        final_view.diagnostic = None;
+                    }
+                    self.view.active_job = Some((job_id, JobState::Complete));
+                    self.view.last_result =
+                        Some("Transcription automatique finale produite — non vérifiée".into());
+                    self.view.message = Some(
+                        "Brouillon final automatique enregistré séparément ; texte non vérifié"
+                            .into(),
+                    );
+                    self.active = None;
+                    self.request = None;
+                    self.stopping = None;
+                    self.automatic_final_identity = None;
+                    return Ok(());
+                }
                 if self.stopping == Some(identity) && self.request.is_some() {
                     self.view.active_job = Some((job_id, JobState::Cancelling));
                 } else {
@@ -863,6 +1225,10 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
             }
             ImportEvent::Failed { message, .. } => {
+                if self.automatic_final_identity == Some(identity) {
+                    self.mark_automatic_final_failed(identity, message);
+                    return Ok(());
+                }
                 if self.direct_live {
                     self.view.direct_capture_phase = Some(DirectCapturePhase::Failed);
                     self.view.direct_engine_phase = Some(DirectEnginePhase::Failed);
@@ -888,6 +1254,13 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
             }
             ImportEvent::Stopped { .. } => {
+                if self.automatic_final_identity == Some(identity) {
+                    self.mark_automatic_final_failed(
+                        identity,
+                        "Import final automatique arrêté".into(),
+                    );
+                    return Ok(());
+                }
                 self.view.active_job = Some((job_id, JobState::Cancelled));
                 self.view.message =
                     Some("Arrêt confirmé ; la source et l’archive pending sont conservées.".into());
@@ -899,6 +1272,792 @@ impl<P: ImportIoPort> ImportApplication<P> {
             // Handled before the job-identity gate above; it is a background
             // archive-history update and does not belong to an active import.
             ImportEvent::ReplacementCleanups(_) => return Ok(()),
+        }
+        Ok(())
+    }
+
+    fn track_parakeet_capture_event(&mut self, event: &ImportEvent) {
+        use crate::ports::{
+            ParakeetCaptureIdentity, ParakeetCaptureView, ParakeetCaptureViewState,
+        };
+
+        let ensure_capture = |captures: &mut Vec<ParakeetCaptureView>, identity| {
+            if let Some(index) = captures
+                .iter()
+                .position(|capture| capture.identity == identity)
+            {
+                return index;
+            }
+            captures.push(ParakeetCaptureView {
+                identity,
+                wav_path: None,
+                direct_txt_path: None,
+                direct_srt_path: None,
+                companion_json_path: None,
+                confirmed_segments: Vec::new(),
+                provisional_text: None,
+                provisional_range: None,
+                provisional_sequence: None,
+                unresolved: Vec::new(),
+                capture_state: ParakeetCaptureViewState::Starting,
+                capture_complete: None,
+                capture_diagnostic: None,
+                requested_compute: None,
+                effective_backend: None,
+                automatic_final: None,
+                automatic_final_identity: None,
+            });
+            captures.len() - 1
+        };
+
+        match event {
+            ImportEvent::ParakeetLiveStarted {
+                job_id,
+                generation,
+                session_id,
+                ..
+            } => {
+                let index = ensure_capture(
+                    &mut self.view.parakeet_captures,
+                    ParakeetCaptureIdentity {
+                        job_id: *job_id,
+                        generation: *generation,
+                        session_id: *session_id,
+                    },
+                );
+                let capture = &mut self.view.parakeet_captures[index];
+                if matches!(
+                    capture.capture_state,
+                    ParakeetCaptureViewState::Finalized | ParakeetCaptureViewState::Failed
+                ) {
+                    return;
+                }
+                capture.capture_state = ParakeetCaptureViewState::Capturing;
+                if let Some((identity, requested)) = self.active_live_compute
+                    && identity
+                        == (CommandIdentity {
+                            job_id: *job_id,
+                            generation: *generation,
+                        })
+                {
+                    capture.requested_compute = Some(requested);
+                }
+                self.trim_parakeet_capture_views();
+            }
+            ImportEvent::ParakeetInferenceReady {
+                job_id,
+                generation,
+                session_id,
+                backend,
+            } => {
+                if let Some(capture) =
+                    self.find_parakeet_capture_mut(*job_id, *generation, *session_id)
+                    && matches!(
+                        capture.capture_state,
+                        ParakeetCaptureViewState::Capturing | ParakeetCaptureViewState::Finalizing
+                    )
+                {
+                    capture.effective_backend = Some(backend.clone());
+                }
+            }
+            ImportEvent::ParakeetHypothesis {
+                job_id,
+                generation,
+                session_id,
+                sequence,
+                range,
+                text,
+                ..
+            } => {
+                if *sequence > 0
+                    && range.sample_rate_hz == 16_000
+                    && range.start_sample < range.end_sample
+                    && !text.trim().is_empty()
+                    && let Some(capture) =
+                        self.find_parakeet_capture_mut(*job_id, *generation, *session_id)
+                    && capture.capture_state == ParakeetCaptureViewState::Capturing
+                    && capture
+                        .provisional_sequence
+                        .is_none_or(|prior| *sequence > prior)
+                {
+                    capture.provisional_text = Some(text.clone());
+                    capture.provisional_range = Some(*range);
+                    capture.provisional_sequence = Some(*sequence);
+                }
+            }
+            ImportEvent::ParakeetConfirmed {
+                job_id,
+                generation,
+                session_id,
+                segment,
+            } => {
+                if segment.job_id == *job_id
+                    && segment.generation == *generation
+                    && segment.instance_id == *session_id
+                    && segment.range.sample_rate_hz == 16_000
+                    && segment.range.start_sample < segment.range.end_sample
+                    && !segment.text.trim().is_empty()
+                    && let Some(capture) =
+                        self.find_parakeet_capture_mut(*job_id, *generation, *session_id)
+                    && matches!(
+                        capture.capture_state,
+                        ParakeetCaptureViewState::Capturing | ParakeetCaptureViewState::Finalizing
+                    )
+                {
+                    if let Some(prior) = capture
+                        .confirmed_segments
+                        .iter()
+                        .find(|prior| prior.segment_id == segment.segment_id)
+                    {
+                        if prior != segment {
+                            capture.capture_diagnostic = Some(
+                                "Événement confirmé incohérent ignoré pour cette capture".into(),
+                            );
+                        }
+                    } else {
+                        capture.confirmed_segments.push(segment.clone());
+                        capture.confirmed_segments.sort_by_key(|item| {
+                            (
+                                item.range.start_sample,
+                                item.range.end_sample,
+                                item.segment_id.0,
+                            )
+                        });
+                        if capture
+                            .provisional_range
+                            .is_some_and(|range| range.end_sample <= segment.range.end_sample)
+                        {
+                            capture.provisional_text = None;
+                            capture.provisional_range = None;
+                            capture.provisional_sequence = None;
+                        }
+                    }
+                }
+            }
+            ImportEvent::ParakeetUnresolved {
+                job_id,
+                generation,
+                session_id,
+                range,
+            } => {
+                if range.sample_rate_hz == 16_000
+                    && range.start_sample < range.end_sample
+                    && let Some(capture) =
+                        self.find_parakeet_capture_mut(*job_id, *generation, *session_id)
+                    && matches!(
+                        capture.capture_state,
+                        ParakeetCaptureViewState::Capturing | ParakeetCaptureViewState::Finalizing
+                    )
+                    && !capture.unresolved.contains(range)
+                {
+                    capture.unresolved.push(*range);
+                    capture
+                        .unresolved
+                        .sort_by_key(|item| (item.start_sample, item.end_sample));
+                }
+            }
+            ImportEvent::ParakeetResolved {
+                job_id,
+                generation,
+                session_id,
+                range,
+            } => {
+                if range.sample_rate_hz == 16_000
+                    && range.start_sample < range.end_sample
+                    && let Some(capture) =
+                        self.find_parakeet_capture_mut(*job_id, *generation, *session_id)
+                    && matches!(
+                        capture.capture_state,
+                        ParakeetCaptureViewState::Capturing | ParakeetCaptureViewState::Finalizing
+                    )
+                {
+                    capture.unresolved.retain(|item| item != range);
+                }
+            }
+            ImportEvent::ParakeetCaptureStopped {
+                job_id,
+                generation,
+                session_id,
+                wav_path,
+                txt_path,
+                srt_path,
+                complete,
+                final_segments,
+                unresolved,
+                diagnostic,
+                automatic_final,
+            } => {
+                let identity = ParakeetCaptureIdentity {
+                    job_id: *job_id,
+                    generation: *generation,
+                    session_id: *session_id,
+                };
+                let index = ensure_capture(&mut self.view.parakeet_captures, identity);
+                let capture = &mut self.view.parakeet_captures[index];
+                if matches!(
+                    capture.capture_state,
+                    ParakeetCaptureViewState::Finalized | ParakeetCaptureViewState::Failed
+                ) {
+                    return;
+                }
+                capture.capture_state = if wav_path.is_empty() {
+                    ParakeetCaptureViewState::Failed
+                } else {
+                    ParakeetCaptureViewState::Finalized
+                };
+                if let Some((active_identity, requested)) = self.active_live_compute
+                    && active_identity
+                        == (CommandIdentity {
+                            job_id: *job_id,
+                            generation: *generation,
+                        })
+                {
+                    capture.requested_compute = Some(requested);
+                    self.active_live_compute = None;
+                }
+                if self.active_live_parakeet
+                    == Some(CommandIdentity {
+                        job_id: *job_id,
+                        generation: *generation,
+                    })
+                {
+                    self.active_live_parakeet = None;
+                }
+                capture.wav_path = (!wav_path.is_empty()).then(|| wav_path.clone());
+                capture.direct_txt_path = txt_path.clone();
+                capture.direct_srt_path = srt_path.clone();
+                capture.companion_json_path = (!wav_path.is_empty()).then(|| {
+                    std::path::Path::new(wav_path)
+                        .with_extension("json")
+                        .to_string_lossy()
+                        .into_owned()
+                });
+                capture.capture_complete = Some(*complete);
+                capture.capture_diagnostic = diagnostic.clone();
+                capture.unresolved = unresolved.clone();
+                for segment in final_segments {
+                    if segment.job_id != *job_id
+                        || segment.generation != *generation
+                        || segment.instance_id != *session_id
+                        || segment.range.sample_rate_hz != 16_000
+                        || segment.range.start_sample >= segment.range.end_sample
+                        || segment.text.trim().is_empty()
+                    {
+                        capture.capture_diagnostic =
+                            Some("Segment final invalide ignoré dans la présentation".into());
+                        continue;
+                    }
+                    if let Some(prior) = capture
+                        .confirmed_segments
+                        .iter()
+                        .find(|prior| prior.segment_id == segment.segment_id)
+                    {
+                        if prior != segment {
+                            capture.capture_diagnostic =
+                                Some("Segment final incohérent ignoré dans la présentation".into());
+                        }
+                    } else {
+                        capture.confirmed_segments.push(segment.clone());
+                    }
+                }
+                capture.confirmed_segments.sort_by_key(|item| {
+                    (
+                        item.range.start_sample,
+                        item.range.end_sample,
+                        item.segment_id.0,
+                    )
+                });
+                capture.provisional_text = None;
+                capture.provisional_range = None;
+                capture.provisional_sequence = None;
+                if let Some(automatic) = automatic_final {
+                    let final_identity = (automatic.request.job_id, automatic.request.generation);
+                    capture.automatic_final_identity = Some(final_identity);
+                    capture.requested_compute = Some(automatic.request.config.compute);
+                    capture.companion_json_path =
+                        Some(automatic.outputs.companion_json_path.clone());
+                    capture.automatic_final = Some(crate::ports::AutomaticFinalTranscriptionView {
+                        status: crate::ports::AutomaticFinalTranscriptionStatus::Pending,
+                        txt_path: automatic.outputs.txt_path.clone(),
+                        srt_path: automatic.outputs.srt_path.clone(),
+                        model_sha256: automatic.request.model_sha256,
+                        requested_compute: automatic.request.config.compute,
+                        effective_backend: None,
+                        diagnostic: None,
+                    });
+                } else {
+                    capture.automatic_final = Some(crate::ports::AutomaticFinalTranscriptionView {
+                        status:
+                            crate::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable,
+                        txt_path: String::new(),
+                        srt_path: String::new(),
+                        model_sha256: [0; 32],
+                        requested_compute: crate::domain::ComputeChoice::Auto,
+                        effective_backend: None,
+                        diagnostic: Some(
+                            "Import automatique indisponible pour cette capture".into(),
+                        ),
+                    });
+                }
+                self.trim_parakeet_capture_views();
+            }
+            ImportEvent::Failed {
+                job_id,
+                generation,
+                message,
+            } => {
+                let identity = CommandIdentity {
+                    job_id: *job_id,
+                    generation: *generation,
+                };
+                let is_parakeet_attempt = self.active_live_parakeet == Some(identity);
+                let requested_compute = self.active_live_compute.and_then(|(identity, compute)| {
+                    (identity
+                        == CommandIdentity {
+                            job_id: *job_id,
+                            generation: *generation,
+                        })
+                    .then_some(compute)
+                });
+                if requested_compute.is_some() {
+                    self.active_live_compute = None;
+                }
+                if is_parakeet_attempt {
+                    self.active_live_parakeet = None;
+                }
+                let existing = self
+                    .view
+                    .parakeet_captures
+                    .iter_mut()
+                    .rev()
+                    .find(|capture| {
+                        capture.identity.job_id == *job_id
+                            && capture.identity.generation == *generation
+                    });
+                if let Some(capture) = existing {
+                    if capture.capture_state == ParakeetCaptureViewState::Starting {
+                        capture.capture_state = ParakeetCaptureViewState::Failed;
+                        capture.capture_diagnostic = Some(message.clone());
+                    }
+                } else if is_parakeet_attempt && let Some(requested_compute) = requested_compute {
+                    self.view.parakeet_captures.push(ParakeetCaptureView {
+                        identity: ParakeetCaptureIdentity {
+                            job_id: *job_id,
+                            generation: *generation,
+                            session_id: 0,
+                        },
+                        wav_path: None,
+                        direct_txt_path: None,
+                        direct_srt_path: None,
+                        companion_json_path: None,
+                        confirmed_segments: Vec::new(),
+                        provisional_text: None,
+                        provisional_range: None,
+                        provisional_sequence: None,
+                        unresolved: Vec::new(),
+                        capture_state: ParakeetCaptureViewState::Failed,
+                        capture_complete: None,
+                        capture_diagnostic: Some(message.clone()),
+                        requested_compute: Some(requested_compute),
+                        effective_backend: None,
+                        automatic_final: None,
+                        automatic_final_identity: None,
+                    });
+                    self.trim_parakeet_capture_views();
+                }
+            }
+            ImportEvent::Stopped { job_id, generation } => {
+                if self.active_live_compute.is_some_and(|(identity, _)| {
+                    identity
+                        == (CommandIdentity {
+                            job_id: *job_id,
+                            generation: *generation,
+                        })
+                }) {
+                    self.active_live_compute = None;
+                }
+                if self.active_live_parakeet
+                    == Some(CommandIdentity {
+                        job_id: *job_id,
+                        generation: *generation,
+                    })
+                {
+                    self.active_live_parakeet = None;
+                }
+                if let Some(capture) =
+                    self.view
+                        .parakeet_captures
+                        .iter_mut()
+                        .rev()
+                        .find(|capture| {
+                            capture.identity.job_id == *job_id
+                                && capture.identity.generation == *generation
+                                && capture.capture_state != ParakeetCaptureViewState::Finalized
+                        })
+                {
+                    capture.capture_state = ParakeetCaptureViewState::Failed;
+                    capture.capture_diagnostic =
+                        Some("Capture arrêtée avant confirmation de la finalisation WAV".into());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn find_parakeet_capture_mut(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        session_id: u64,
+    ) -> Option<&mut crate::ports::ParakeetCaptureView> {
+        self.view.parakeet_captures.iter_mut().find(|capture| {
+            capture.identity.job_id == job_id
+                && capture.identity.generation == generation
+                && capture.identity.session_id == session_id
+        })
+    }
+
+    fn trim_parakeet_capture_views(&mut self) {
+        while self.view.parakeet_captures.len() > MAX_PARAKEET_CAPTURE_VIEWS {
+            let removable = self.view.parakeet_captures.iter().position(|capture| {
+                capture.capture_state == crate::ports::ParakeetCaptureViewState::Finalized
+                    && capture.automatic_final.as_ref().is_none_or(|final_view| {
+                        matches!(
+                        final_view.status,
+                        crate::ports::AutomaticFinalTranscriptionStatus::ProducedUnverified
+                            | crate::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable
+                    )
+                    })
+            });
+            let Some(index) = removable else { break };
+            self.view.parakeet_captures.remove(index);
+        }
+    }
+
+    fn track_automatic_final_event(&mut self, event: &ImportEvent, identity: CommandIdentity) {
+        let target = self.view.parakeet_captures.iter_mut().find(|capture| {
+            capture.automatic_final_identity == Some((identity.job_id, identity.generation))
+        });
+        let Some(capture) = target else { return };
+        let Some(final_view) = capture.automatic_final.as_mut() else {
+            return;
+        };
+        match event {
+            ImportEvent::Ready { backend, .. } => {
+                final_view.status = crate::ports::AutomaticFinalTranscriptionStatus::Running;
+                final_view.effective_backend = Some(backend.clone());
+            }
+            ImportEvent::Published { .. } => {
+                final_view.status =
+                    crate::ports::AutomaticFinalTranscriptionStatus::ProducedUnverified;
+                final_view.diagnostic = None;
+            }
+            ImportEvent::Failed { message, .. } => {
+                final_view.status =
+                    crate::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable;
+                final_view.diagnostic = Some(message.clone());
+            }
+            ImportEvent::Stopped { .. } => {
+                final_view.status =
+                    crate::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable;
+                final_view.diagnostic = Some("Import final automatique arrêté".into());
+            }
+            _ => {}
+        }
+    }
+
+    fn set_capture_automatic_final_status(
+        &mut self,
+        identity: CommandIdentity,
+        status: crate::ports::AutomaticFinalTranscriptionStatus,
+        diagnostic: Option<String>,
+        backend: Option<String>,
+    ) {
+        if let Some(capture) = self.view.parakeet_captures.iter_mut().find(|capture| {
+            capture.automatic_final_identity == Some((identity.job_id, identity.generation))
+        }) && let Some(final_view) = capture.automatic_final.as_mut()
+        {
+            final_view.status = status;
+            final_view.diagnostic = diagnostic;
+            if backend.is_some() {
+                final_view.effective_backend = backend;
+            }
+        }
+    }
+
+    fn mark_automatic_final_failed(&mut self, identity: CommandIdentity, message: String) {
+        self.set_capture_automatic_final_status(
+            identity,
+            crate::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable,
+            Some(message.clone()),
+            None,
+        );
+        if self.automatic_final_identity == Some(identity) {
+            self.automatic_final_identity = None;
+            self.automatic_final_state = None;
+            let _ = self.start_next_automatic_final();
+        }
+    }
+
+    fn start_next_automatic_final(&mut self) -> Result<(), ApplicationError> {
+        if self.automatic_final_identity.is_some() {
+            return Ok(());
+        }
+        let Some(automatic) = self.automatic_final_queue.pop_front() else {
+            return Ok(());
+        };
+        let identity = CommandIdentity {
+            job_id: automatic.request.job_id,
+            generation: automatic.request.generation,
+        };
+        self.automatic_final_identity = Some(identity);
+        self.automatic_final_state = Some(AutomaticFinalJobState {
+            request: automatic.request.clone(),
+            next_sequence: 1,
+            pending_persistence: 0,
+            pending_segments: std::collections::VecDeque::new(),
+            pending_sequences: std::collections::BTreeSet::new(),
+            ended_at: None,
+            max_segment_offset: 0,
+            publish_submitted: false,
+        });
+        if let Err(error) = self
+            .io
+            .submit(ImportEffect::StartAutomaticFinalTranscription(automatic))
+        {
+            self.mark_automatic_final_failed(identity, format!("{error:?}"));
+        }
+        Ok(())
+    }
+
+    fn retry_automatic_final_segment(&mut self) -> Result<bool, ApplicationError> {
+        let Some(segment) = self
+            .automatic_final_state
+            .as_ref()
+            .and_then(|state| state.pending_segments.front().cloned())
+        else {
+            return Ok(true);
+        };
+        match self
+            .io
+            .submit(ImportEffect::PersistSegment(segment.clone()))
+        {
+            Ok(()) => {}
+            Err(PortError::Backpressure) => return Ok(false),
+            Err(error) => {
+                let identity = self
+                    .automatic_final_identity
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                self.mark_automatic_final_failed(identity, format!("{error:?}"));
+                return Ok(true);
+            }
+        }
+        let state = self
+            .automatic_final_state
+            .as_mut()
+            .ok_or(ApplicationError::InvalidCommand)?;
+        let queued = state
+            .pending_segments
+            .pop_front()
+            .ok_or(ApplicationError::InvalidCommand)?;
+        let sequence = queued.segment_id.0;
+        if queued != segment || !state.pending_sequences.insert(sequence) {
+            return Err(ApplicationError::InvalidCommand);
+        }
+        state.next_sequence = state
+            .next_sequence
+            .checked_add(1)
+            .ok_or(ApplicationError::InvalidCommand)?;
+        state.max_segment_offset = state.max_segment_offset.max(segment.range.end_sample);
+        state.pending_persistence += 1;
+        Ok(true)
+    }
+
+    fn handle_automatic_final_event(
+        &mut self,
+        event: ImportEvent,
+        identity: CommandIdentity,
+    ) -> Result<(), ApplicationError> {
+        self.track_automatic_final_event(&event, identity);
+        let is_current_view = self.automatic_final_view_identity == Some(identity)
+            && self.active.is_none_or(|active| active == identity);
+        match event {
+            ImportEvent::Prepared(request) => {
+                let state = self
+                    .automatic_final_state
+                    .as_mut()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                let mut expected = state.request.clone();
+                expected.source_sha256 = request.source_sha256;
+                expected.source_samples = request.source_samples;
+                if request.source_sha256.is_none()
+                    || request.source_samples.is_none_or(|samples| samples == 0)
+                    || expected != request
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                state.request = request.clone();
+                self.io
+                    .submit(ImportEffect::StartWorker(request))
+                    .map_err(|error| self.fail(error))?;
+            }
+            ImportEvent::Ready { backend, .. } => {
+                if is_current_view
+                    && let Some(view) = self.view.automatic_final_transcription.as_mut()
+                {
+                    view.status = crate::ports::AutomaticFinalTranscriptionStatus::Running;
+                    view.effective_backend = Some(backend);
+                }
+            }
+            ImportEvent::Progress {
+                completed_samples,
+                total_samples,
+                ..
+            } => {
+                let state = self
+                    .automatic_final_state
+                    .as_ref()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                let expected = state.request.source_samples;
+                if expected.is_none_or(|limit| completed_samples > limit)
+                    || (total_samples > 0
+                        && (completed_samples != total_samples || Some(total_samples) != expected))
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+            }
+            ImportEvent::Segment(segment) => {
+                let state = self
+                    .automatic_final_state
+                    .as_mut()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                let expected_sequence = state
+                    .next_sequence
+                    .checked_add(state.pending_segments.len() as u64)
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                if segment.job_id != identity.job_id
+                    || segment.generation != identity.generation
+                    || segment.segment_id.0 != expected_sequence
+                    || segment.range.sample_rate_hz != 16_000
+                    || segment.range.start_sample >= segment.range.end_sample
+                    || state
+                        .request
+                        .source_samples
+                        .is_some_and(|limit| segment.range.end_sample > limit)
+                    || segment.text.trim().is_empty()
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                if state.pending_segments.len() >= MAX_PENDING_AUTOMATIC_FINAL_SEGMENTS {
+                    let _ = self.io.submit(ImportEffect::Stop {
+                        job_id: identity.job_id,
+                        generation: identity.generation,
+                    });
+                    self.mark_automatic_final_failed(
+                        identity,
+                        "Trop de segments de transcription finale en attente ; capture et WAV conservés".into(),
+                    );
+                    return Ok(());
+                }
+                state.pending_segments.push_back(segment);
+                self.retry_automatic_final_segment()?;
+            }
+            ImportEvent::Persisted { sequence, .. } => {
+                let state = self
+                    .automatic_final_state
+                    .as_mut()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                if !state.pending_sequences.remove(&sequence) {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                state.pending_persistence = state
+                    .pending_persistence
+                    .checked_sub(1)
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                self.maybe_publish_automatic_final()?;
+            }
+            ImportEvent::End {
+                last_sequence,
+                last_offset,
+                ..
+            } => {
+                let state = self
+                    .automatic_final_state
+                    .as_mut()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                let expected_last_sequence = state
+                    .next_sequence
+                    .checked_add(state.pending_segments.len() as u64)
+                    .and_then(|next| next.checked_sub(1))
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                if last_sequence != expected_last_sequence
+                    || last_offset == 0
+                    || state.request.source_samples != Some(last_offset)
+                    || state.max_segment_offset > last_offset
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                state.ended_at = Some(last_sequence);
+                self.maybe_publish_automatic_final()?;
+            }
+            ImportEvent::Published { .. } => {
+                if !self
+                    .automatic_final_state
+                    .as_ref()
+                    .is_some_and(|state| state.publish_submitted)
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                if is_current_view
+                    && let Some(view) = self.view.automatic_final_transcription.as_mut()
+                {
+                    view.status =
+                        crate::ports::AutomaticFinalTranscriptionStatus::ProducedUnverified;
+                    view.diagnostic = None;
+                }
+                self.automatic_final_identity = None;
+                self.automatic_final_state = None;
+                self.start_next_automatic_final()?;
+            }
+            ImportEvent::Failed { message, .. } => {
+                self.mark_automatic_final_failed(identity, message);
+            }
+            ImportEvent::Stopped { .. } => {
+                self.mark_automatic_final_failed(identity, "Import final automatique arrêté".into())
+            }
+            _ => return Err(ApplicationError::InvalidCommand),
+        }
+        Ok(())
+    }
+
+    fn maybe_publish_automatic_final(&mut self) -> Result<(), ApplicationError> {
+        let publish = self.automatic_final_state.as_mut().and_then(|state| {
+            (state.pending_persistence == 0 && state.pending_segments.is_empty())
+                .then(|| state.ended_at.take())
+                .flatten()
+                .map(|last_sequence| {
+                    (
+                        CommandIdentity {
+                            job_id: state.request.job_id,
+                            generation: state.request.generation,
+                        },
+                        last_sequence,
+                    )
+                })
+        });
+        if let Some((identity, last_sequence)) = publish {
+            match self.io.submit(ImportEffect::Publish {
+                job_id: identity.job_id,
+                generation: identity.generation,
+                last_sequence,
+            }) {
+                Ok(()) => {
+                    if let Some(state) = self.automatic_final_state.as_mut() {
+                        state.publish_submitted = true;
+                    }
+                }
+                Err(error) => self.mark_automatic_final_failed(identity, format!("{error:?}")),
+            }
         }
         Ok(())
     }
@@ -921,6 +2080,62 @@ impl<P: ImportIoPort> ImportApplication<P> {
             self.ended_at = None;
             self.view.active_job = Some((job_id, JobState::Finalizing));
         }
+        Ok(())
+    }
+
+    fn append_parakeet_confirmed(
+        &mut self,
+        session_id: u64,
+        segment: crate::ports::WorkerSegment,
+    ) -> Result<(), ApplicationError> {
+        if segment.instance_id != session_id
+            || segment.segment_id.0 == 0
+            || segment.range.sample_rate_hz != 16_000
+            || segment.range.start_sample >= segment.range.end_sample
+            || segment.text.trim().is_empty()
+            || self.parakeet_confirmed.iter().any(|existing| {
+                existing.range.start_sample < segment.range.end_sample
+                    && segment.range.start_sample < existing.range.end_sample
+                    && existing.segment_id != segment.segment_id
+            })
+        {
+            return Err(ApplicationError::InvalidCommand);
+        }
+        if self
+            .parakeet_confirmed
+            .iter()
+            .any(|existing| existing.segment_id == segment.segment_id)
+        {
+            return Err(ApplicationError::InvalidCommand);
+        }
+        self.next_sequence = self.next_sequence.max(
+            segment
+                .segment_id
+                .0
+                .checked_add(1)
+                .ok_or(ApplicationError::InvalidCommand)?,
+        );
+        self.parakeet_confirmed.push(segment);
+        self.parakeet_confirmed.sort_by_key(|item| {
+            (
+                item.range.start_sample,
+                item.range.end_sample,
+                item.segment_id.0,
+            )
+        });
+        self.view.confirmed_text = Some(
+            self.parakeet_confirmed
+                .iter()
+                .map(|item| item.text.as_str())
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        self.view.confirmed_samples = self
+            .parakeet_confirmed
+            .iter()
+            .map(|item| item.range.end_sample)
+            .max()
+            .unwrap_or(0);
         Ok(())
     }
 
@@ -1007,6 +2222,10 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
             | AppCommand::StartDirectLiveConfigured { request } => Some(guard.admit_live(request)),
             _ => None,
         });
+        let admitted_model = admission
+            .as_ref()
+            .and_then(|result| result.as_ref().ok())
+            .map(|selection| selection.admission.model);
         if let Some(Err(error)) = admission {
             let reason = match error {
                 crate::model_selection_app::SelectionRefusal::UnknownHistoricalModelPath => {
@@ -1107,13 +2326,22 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     | AppCommand::StartDirectLiveConfigured { request } => request,
                     _ => unreachable!(),
                 };
-                if self.active.is_some() {
+                let automatic_final_pending = self.automatic_final_identity.is_some()
+                    || !self.automatic_final_queue.is_empty();
+                if self.active.is_some()
+                    || (automatic_final_pending && !direct)
+                    || (automatic_final_pending
+                        && self.automatic_final_state.as_ref().is_some_and(|state| {
+                            state.request.model_sha256 != request.model_sha256
+                        }))
+                {
                     return Err(ApplicationError::InvalidCommand);
                 }
                 let identity = CommandIdentity {
                     job_id: request.job_id,
                     generation: request.generation,
                 };
+                let requested_compute = request.config.compute;
                 self.auto_stop_after_speech_samples = request
                     .auto_stop_after_speech_samples
                     .filter(|limit| *limit > 0);
@@ -1125,6 +2353,10 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.io.submit(effect).map_err(|e| self.fail(e))?;
                 self.request = None;
                 self.direct_live = direct;
+                self.active_live_compute = direct.then_some((identity, requested_compute));
+                self.active_live_parakeet = (direct
+                    && admitted_model == Some(crate::model_catalog::ModelId::ParakeetTdt06BV3))
+                .then_some(identity);
                 self.active = Some(identity);
                 self.stopping = None;
                 self.next_sequence = 1;
@@ -1145,10 +2377,13 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.speech_samples = 0;
                 self.view.provisional_text = None;
                 self.view.provisional_sequence = None;
+                self.view.provisional_session_id = None;
                 self.view.provisional_range = None;
                 self.view.provisional_captured_at_unix_ms = None;
                 self.view.provisional_available_at_unix_ms = None;
                 self.view.confirmed_text = None;
+                self.parakeet_confirmed.clear();
+                self.view.parakeet_unresolved.clear();
                 self.view.direct_first_sample_at_unix_ms = None;
                 self.view.direct_first_admitted_at_unix_ms = None;
                 self.view.direct_ready_at_unix_ms = None;
@@ -1387,6 +2622,15 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     }
                     Err(error) => return Err(self.fail(error)),
                 }
+                for capture in &mut self.view.parakeet_captures {
+                    if capture.identity.job_id == job_id
+                        && capture.identity.generation == generation
+                        && capture.capture_state
+                            == crate::ports::ParakeetCaptureViewState::Capturing
+                    {
+                        capture.capture_state = crate::ports::ParakeetCaptureViewState::Finalizing;
+                    }
+                }
                 self.view.active_job = Some((
                     job_id,
                     if self.request.is_none() {
@@ -1420,6 +2664,36 @@ impl ImportEvent {
                 job_id, generation, ..
             } => (*job_id, *generation),
             Self::LiveProvisional { segment, .. } => (segment.job_id, segment.generation),
+            Self::ParakeetLiveStarted {
+                job_id, generation, ..
+            }
+            | Self::ParakeetInferenceReady {
+                job_id, generation, ..
+            }
+            | Self::ParakeetHypothesis {
+                job_id, generation, ..
+            }
+            | Self::ParakeetConfirmed {
+                job_id, generation, ..
+            }
+            | Self::ParakeetUnresolved {
+                job_id, generation, ..
+            }
+            | Self::ParakeetResolved {
+                job_id, generation, ..
+            }
+            | Self::ParakeetCaptureProgress {
+                job_id, generation, ..
+            }
+            | Self::ParakeetAudioUnusable {
+                job_id, generation, ..
+            }
+            | Self::ParakeetInferenceUnavailable {
+                job_id, generation, ..
+            }
+            | Self::ParakeetCaptureStopped {
+                job_id, generation, ..
+            } => (*job_id, *generation),
             Self::LiveCounters {
                 job_id, generation, ..
             } => (*job_id, *generation),
@@ -2586,5 +3860,748 @@ mod tests {
         assert_eq!(view.message.as_deref(), Some(diagnostic));
         assert_eq!(view.confirmed_text.as_deref(), Some("confirmé"));
         assert_eq!(view.confirmed_fragment_samples, 320);
+    }
+
+    #[test]
+    fn parakeet_provisional_never_becomes_confirmed_without_a_confirmed_event() {
+        let job_id = JobId(71);
+        let generation = Generation::first();
+        let session_id = 9;
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.active = Some(CommandIdentity { job_id, generation });
+        app.next_sequence = 1;
+        app.io.events.push_back(ImportEvent::ParakeetLiveStarted {
+            job_id,
+            generation,
+            session_id,
+            backend: "CPU".into(),
+        });
+        app.io.events.push_back(ImportEvent::ParakeetHypothesis {
+            job_id,
+            generation,
+            session_id,
+            sequence: 1,
+            range: crate::domain::SourceRange::new(0, 32_000, 16_000).unwrap(),
+            text: "texte provisoire".into(),
+            captured_at_unix_ms: 1,
+            available_at_unix_ms: 2,
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.provisional_text.as_deref(), Some("texte provisoire"));
+        assert_eq!(view.confirmed_text, None);
+        let block = crate::ports::WorkerSegment {
+            job_id,
+            generation,
+            instance_id: session_id,
+            segment_id: crate::domain::SegmentId(1),
+            range: crate::domain::SourceRange::new(1_000, 8_000, 16_000).unwrap(),
+            text: "texte sûr".into(),
+        };
+        app.io.events.push_back(ImportEvent::ParakeetConfirmed {
+            job_id,
+            generation,
+            session_id: session_id + 1,
+            segment: block.clone(),
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.confirmed_text, None);
+        app.io.events.push_back(ImportEvent::ParakeetConfirmed {
+            job_id,
+            generation,
+            session_id,
+            segment: block.clone(),
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.confirmed_text.as_deref(), Some("texte sûr"));
+        let stopping = app
+            .dispatch(AppCommand::Stop { job_id, generation })
+            .unwrap();
+        assert_eq!(
+            stopping.parakeet_captures[0].capture_state,
+            crate::ports::ParakeetCaptureViewState::Finalizing
+        );
+        app.io
+            .events
+            .push_back(ImportEvent::ParakeetCaptureStopped {
+                job_id,
+                generation,
+                session_id,
+                wav_path: "micro.wav".into(),
+                txt_path: Some("micro-incomplet.txt".into()),
+                srt_path: Some("micro-incomplet.srt".into()),
+                complete: false,
+                final_segments: vec![block],
+                unresolved: vec![crate::domain::SourceRange::new(8_000, 16_000, 16_000).unwrap()],
+                diagnostic: Some("une portion audio demeure non confirmée".into()),
+                automatic_final: None,
+            });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(view.confirmed_text.as_deref(), Some("texte sûr"));
+        assert_eq!(view.active_job, Some((job_id, JobState::Recoverable)));
+        assert_eq!(view.parakeet_unresolved.len(), 1);
+    }
+
+    #[test]
+    fn parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text() {
+        let capture_job = JobId(701);
+        let import_job = JobId(702);
+        let generation = Generation::first();
+        let session_id = 33;
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.active = Some(CommandIdentity {
+            job_id: capture_job,
+            generation,
+        });
+        let automatic = crate::ports::AutomaticFinalImport {
+            request: ImportRequest {
+                job_id: import_job,
+                generation,
+                source_path: "capture.wav".into(),
+                source_sha256: None,
+                source_samples: None,
+                model_path: "parakeet.model".into(),
+                model_sha256: [4; 32],
+                destination: "destination".into(),
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Gpu,
+                },
+            },
+            outputs: crate::ports::AutomaticFinalOutputPaths {
+                txt_path: "capture-auto-non-verifie.txt".into(),
+                srt_path: "capture-auto-non-verifie.srt".into(),
+                companion_json_path: "capture.json".into(),
+            },
+            gpu_candidate: None,
+        };
+        let confirmed_a = crate::ports::WorkerSegment {
+            job_id: capture_job,
+            generation,
+            instance_id: session_id,
+            segment_id: crate::domain::SegmentId(1),
+            range: crate::domain::SourceRange::new(0, 400, 16_000).unwrap(),
+            text: "bloc live confirmé".into(),
+        };
+        app.io.events.push_back(ImportEvent::ParakeetLiveStarted {
+            job_id: capture_job,
+            generation,
+            session_id,
+            backend: "GPU".into(),
+        });
+        app.io.events.push_back(ImportEvent::ParakeetConfirmed {
+            job_id: capture_job,
+            generation,
+            session_id,
+            segment: confirmed_a.clone(),
+        });
+        app.io
+            .events
+            .push_back(ImportEvent::ParakeetCaptureStopped {
+                job_id: capture_job,
+                generation,
+                session_id,
+                wav_path: "capture.wav".into(),
+                txt_path: Some("capture-incomplet.txt".into()),
+                srt_path: Some("capture-incomplet.srt".into()),
+                complete: false,
+                final_segments: vec![confirmed_a.clone()],
+                unresolved: vec![crate::domain::SourceRange::new(0, 800, 16_000).unwrap()],
+                diagnostic: None,
+                automatic_final: Some(automatic.clone()),
+            });
+        let pending = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(
+            pending.confirmed_text.as_deref(),
+            Some("bloc live confirmé")
+        );
+        assert_eq!(pending.parakeet_unresolved.len(), 1);
+        let capture_a = pending
+            .parakeet_captures
+            .iter()
+            .find(|capture| {
+                capture.identity.job_id == capture_job && capture.identity.session_id == session_id
+            })
+            .unwrap();
+        assert_eq!(
+            capture_a.capture_state,
+            crate::ports::ParakeetCaptureViewState::Finalized
+        );
+        assert_eq!(capture_a.wav_path.as_deref(), Some("capture.wav"));
+        assert_eq!(capture_a.confirmed_segments, vec![confirmed_a]);
+        assert_eq!(
+            capture_a.automatic_final.as_ref().unwrap().status,
+            crate::ports::AutomaticFinalTranscriptionStatus::Pending
+        );
+        assert_eq!(
+            pending
+                .automatic_final_transcription
+                .as_ref()
+                .unwrap()
+                .status,
+            crate::ports::AutomaticFinalTranscriptionStatus::Pending
+        );
+        assert!(matches!(
+            app.io.effects.as_slice(),
+            [ImportEffect::StartAutomaticFinalTranscription(_)]
+        ));
+
+        let next_capture = JobId(703);
+        app.dispatch(AppCommand::StartDirectLiveConfigured {
+            request: LiveRequest {
+                job_id: next_capture,
+                generation,
+                model_path: automatic.request.model_path.clone(),
+                model_sha256: automatic.request.model_sha256,
+                destination: automatic.request.destination.clone(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
+                config: automatic.request.config.clone(),
+            },
+        })
+        .unwrap();
+        app.io.events.push_back(ImportEvent::ParakeetLiveStarted {
+            job_id: next_capture,
+            generation,
+            session_id: session_id + 1,
+            backend: "CUDA0".into(),
+        });
+        app.io.events.push_back(ImportEvent::ParakeetHypothesis {
+            job_id: next_capture,
+            generation,
+            session_id: session_id + 1,
+            sequence: 1,
+            range: crate::domain::SourceRange::new(0, 800, 16_000).unwrap(),
+            text: "hypothèse nouvelle session".into(),
+            captured_at_unix_ms: 2,
+            available_at_unix_ms: 3,
+        });
+        let next_capture_view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(
+            next_capture_view.provisional_text.as_deref(),
+            Some("hypothèse nouvelle session")
+        );
+        assert!(next_capture_view.confirmed_text.is_none());
+        assert!(next_capture_view.parakeet_unresolved.is_empty());
+        let capture_b = next_capture_view
+            .parakeet_captures
+            .iter()
+            .find(|capture| {
+                capture.identity.job_id == next_capture
+                    && capture.identity.session_id == session_id + 1
+            })
+            .unwrap();
+        assert_eq!(
+            capture_b.capture_state,
+            crate::ports::ParakeetCaptureViewState::Capturing
+        );
+        assert_eq!(capture_b.requested_compute, Some(ComputeChoice::Gpu));
+        assert_eq!(capture_b.effective_backend, None);
+        assert_eq!(
+            capture_b.provisional_text.as_deref(),
+            Some("hypothèse nouvelle session")
+        );
+        assert_eq!(
+            app.active,
+            Some(CommandIdentity {
+                job_id: next_capture,
+                generation
+            })
+        );
+        assert_eq!(
+            next_capture_view.active_job,
+            Some((next_capture, JobState::Capturing))
+        );
+        assert_eq!(
+            app.automatic_final_identity,
+            Some(CommandIdentity {
+                job_id: import_job,
+                generation
+            })
+        );
+        assert_eq!(
+            app.automatic_final_state.as_ref().unwrap().request.job_id,
+            import_job
+        );
+
+        let mut prepared = automatic.request.clone();
+        prepared.source_sha256 = Some([7; 32]);
+        prepared.source_samples = Some(16_000);
+        app.io.events.push_back(ImportEvent::Prepared(prepared));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.io.events.push_back(ImportEvent::Ready {
+            job_id: import_job,
+            generation,
+            backend: "CUDA0".into(),
+        });
+        let running = app.dispatch(AppCommand::Refresh).unwrap();
+        let running_capture_a = running
+            .parakeet_captures
+            .iter()
+            .find(|capture| capture.identity.job_id == capture_job)
+            .unwrap();
+        let running_final_a = running_capture_a.automatic_final.as_ref().unwrap();
+        assert_eq!(
+            running_final_a.status,
+            crate::ports::AutomaticFinalTranscriptionStatus::Running
+        );
+        assert_eq!(running_final_a.effective_backend.as_deref(), Some("CUDA0"));
+        let running_capture_b = running
+            .parakeet_captures
+            .iter()
+            .find(|capture| capture.identity.job_id == next_capture)
+            .unwrap();
+        assert_eq!(
+            running_capture_b.capture_state,
+            crate::ports::ParakeetCaptureViewState::Capturing
+        );
+        assert_eq!(
+            running_capture_b.provisional_text.as_deref(),
+            Some("hypothèse nouvelle session")
+        );
+        assert_eq!(
+            running
+                .parakeet_captures
+                .iter()
+                .find(|capture| { capture.identity.job_id == next_capture })
+                .unwrap()
+                .provisional_text
+                .as_deref(),
+            Some("hypothèse nouvelle session")
+        );
+        assert_eq!(
+            running.provisional_text.as_deref(),
+            Some("hypothèse nouvelle session")
+        );
+        assert_eq!(
+            app.active,
+            Some(CommandIdentity {
+                job_id: next_capture,
+                generation
+            })
+        );
+
+        app.io.events.push_back(ImportEvent::End {
+            job_id: import_job,
+            generation,
+            last_sequence: 0,
+            last_offset: 16_000,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(app.io.effects.iter().any(|effect| matches!(
+            effect,
+            ImportEffect::Publish { job_id, generation: event_generation, last_sequence: 0 }
+                if *job_id == import_job && *event_generation == generation
+        )));
+
+        app.io.events.push_back(ImportEvent::Published {
+            job_id: import_job,
+            generation,
+        });
+        let produced = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(
+            produced.provisional_text.as_deref(),
+            Some("hypothèse nouvelle session")
+        );
+        assert!(produced.parakeet_unresolved.is_empty());
+        assert_eq!(
+            app.active,
+            Some(CommandIdentity {
+                job_id: next_capture,
+                generation
+            })
+        );
+        let capture_a = produced
+            .parakeet_captures
+            .iter()
+            .find(|capture| capture.identity.job_id == capture_job)
+            .unwrap();
+        assert_eq!(
+            capture_a.automatic_final.as_ref().unwrap().status,
+            crate::ports::AutomaticFinalTranscriptionStatus::ProducedUnverified
+        );
+        assert_eq!(
+            capture_a
+                .automatic_final
+                .as_ref()
+                .unwrap()
+                .effective_backend
+                .as_deref(),
+            Some("CUDA0")
+        );
+        let capture_b = produced
+            .parakeet_captures
+            .iter()
+            .find(|capture| capture.identity.job_id == next_capture)
+            .unwrap();
+        assert_eq!(
+            capture_b.capture_state,
+            crate::ports::ParakeetCaptureViewState::Capturing
+        );
+        assert_eq!(
+            capture_b.provisional_text.as_deref(),
+            Some("hypothèse nouvelle session")
+        );
+    }
+
+    #[test]
+    fn late_automatic_import_failure_updates_only_its_capture_row() {
+        let capture_a = JobId(711);
+        let import_a = JobId(712);
+        let capture_b = JobId(713);
+        let generation = Generation::first();
+        let session_a = 41;
+        let session_b = 42;
+        let automatic = crate::ports::AutomaticFinalImport {
+            request: ImportRequest {
+                job_id: import_a,
+                generation,
+                source_path: "a.wav".into(),
+                source_sha256: None,
+                source_samples: None,
+                model_path: "parakeet.model".into(),
+                model_sha256: [4; 32],
+                destination: "destination".into(),
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Gpu,
+                },
+            },
+            outputs: crate::ports::AutomaticFinalOutputPaths {
+                txt_path: "a-auto-non-verifie.txt".into(),
+                srt_path: "a-auto-non-verifie.srt".into(),
+                companion_json_path: "a.json".into(),
+            },
+            gpu_candidate: None,
+        };
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.active = Some(CommandIdentity {
+            job_id: capture_a,
+            generation,
+        });
+        app.io.events.push_back(ImportEvent::ParakeetLiveStarted {
+            job_id: capture_a,
+            generation,
+            session_id: session_a,
+            backend: "CUDA0".into(),
+        });
+        app.io
+            .events
+            .push_back(ImportEvent::ParakeetCaptureStopped {
+                job_id: capture_a,
+                generation,
+                session_id: session_a,
+                wav_path: "a.wav".into(),
+                txt_path: Some("a-incomplet.txt".into()),
+                srt_path: Some("a-incomplet.srt".into()),
+                complete: false,
+                final_segments: Vec::new(),
+                unresolved: Vec::new(),
+                diagnostic: None,
+                automatic_final: Some(automatic),
+            });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.dispatch(AppCommand::StartDirectLiveConfigured {
+            request: LiveRequest {
+                job_id: capture_b,
+                generation,
+                model_path: "parakeet.model".into(),
+                model_sha256: [4; 32],
+                destination: "destination".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Gpu,
+                },
+            },
+        })
+        .unwrap();
+        app.io.events.push_back(ImportEvent::ParakeetLiveStarted {
+            job_id: capture_b,
+            generation,
+            session_id: session_b,
+            backend: "CUDA0".into(),
+        });
+        app.io.events.push_back(ImportEvent::ParakeetHypothesis {
+            job_id: capture_b,
+            generation,
+            session_id: session_b,
+            sequence: 1,
+            range: crate::domain::SourceRange::new(0, 800, 16_000).unwrap(),
+            text: "B provisoire".into(),
+            captured_at_unix_ms: 2,
+            available_at_unix_ms: 3,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.io
+            .events
+            .push_back(ImportEvent::ParakeetCaptureStopped {
+                job_id: capture_b,
+                generation,
+                session_id: session_b,
+                wav_path: "b.wav".into(),
+                txt_path: Some("b.txt".into()),
+                srt_path: Some("b.srt".into()),
+                complete: true,
+                final_segments: Vec::new(),
+                unresolved: Vec::new(),
+                diagnostic: None,
+                automatic_final: None,
+            });
+        let before_late_failure = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(
+            before_late_failure.active_job,
+            Some((capture_b, JobState::Complete))
+        );
+        let prior_global_message = before_late_failure.message.clone();
+        let row_b_before = before_late_failure
+            .parakeet_captures
+            .iter()
+            .find(|capture| capture.identity.job_id == capture_b)
+            .unwrap()
+            .clone();
+        assert_eq!(row_b_before.provisional_text, None);
+        assert_eq!(
+            row_b_before.automatic_final.as_ref().unwrap().status,
+            crate::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable
+        );
+        let failure = "publication A impossible";
+        app.io.events.push_back(ImportEvent::Failed {
+            job_id: import_a,
+            generation,
+            message: failure.into(),
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        let row_a = view
+            .parakeet_captures
+            .iter()
+            .find(|capture| capture.identity.job_id == capture_a)
+            .unwrap();
+        assert_eq!(
+            row_a.automatic_final.as_ref().unwrap().status,
+            crate::ports::AutomaticFinalTranscriptionStatus::FailedOrUnavailable
+        );
+        assert_eq!(
+            row_a
+                .automatic_final
+                .as_ref()
+                .unwrap()
+                .diagnostic
+                .as_deref(),
+            Some(failure)
+        );
+        let row_b = view
+            .parakeet_captures
+            .iter()
+            .find(|capture| capture.identity.job_id == capture_b)
+            .unwrap();
+        assert_eq!(
+            row_b.capture_state,
+            crate::ports::ParakeetCaptureViewState::Finalized
+        );
+        assert_eq!(row_b, &row_b_before);
+        assert_eq!(row_b.wav_path.as_deref(), Some("b.wav"));
+        assert_eq!(row_b.direct_txt_path.as_deref(), Some("b.txt"));
+        assert_eq!(app.active, None);
+        assert_eq!(view.active_job, Some((capture_b, JobState::Complete)));
+        assert_eq!(view.message, prior_global_message);
+    }
+
+    #[test]
+    fn direct_start_failure_before_live_started_keeps_a_capture_row_without_wav() {
+        let capture_a = JobId(721);
+        let capture_b = JobId(722);
+        let generation = Generation::first();
+        let session_a = 51;
+        let model_path = "C:/known/parakeet.bin";
+        let mut model_sha256 = [0; 32];
+        let digest = crate::model_registry::model(crate::model_catalog::ModelId::ParakeetTdt06BV3)
+            .artifact
+            .sha256;
+        for (index, byte) in model_sha256.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(&digest[index * 2..index * 2 + 2], 16).unwrap();
+        }
+        let guard = crate::model_selection_app::ModelCommandGuard::new_with_model_paths(
+            crate::model_registry::engine_snapshot(
+                1,
+                |_| crate::model_catalog::ModelAvailability::Ready,
+                Vec::new(),
+            ),
+            1,
+            [(
+                crate::model_catalog::ModelId::ParakeetTdt06BV3,
+                model_path.into(),
+            )],
+        );
+        let mut app = ImportApplication::new(ScanTestIo::default()).with_model_guard(guard);
+        app.active = Some(CommandIdentity {
+            job_id: capture_a,
+            generation,
+        });
+        app.io.events.push_back(ImportEvent::ParakeetLiveStarted {
+            job_id: capture_a,
+            generation,
+            session_id: session_a,
+            backend: "CUDA0".into(),
+        });
+        app.io
+            .events
+            .push_back(ImportEvent::ParakeetCaptureStopped {
+                job_id: capture_a,
+                generation,
+                session_id: session_a,
+                wav_path: "a.wav".into(),
+                txt_path: Some("a.txt".into()),
+                srt_path: Some("a.srt".into()),
+                complete: true,
+                final_segments: Vec::new(),
+                unresolved: Vec::new(),
+                diagnostic: None,
+                automatic_final: None,
+            });
+        app.dispatch(AppCommand::Refresh).unwrap();
+
+        app.dispatch(AppCommand::StartDirectLiveConfigured {
+            request: LiveRequest {
+                job_id: capture_b,
+                generation,
+                model_path: model_path.into(),
+                model_sha256,
+                destination: "destination".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Gpu,
+                },
+            },
+        })
+        .unwrap();
+        let diagnostic = "WorkerExited avant ParakeetLiveStarted";
+        app.io.events.push_back(ImportEvent::Failed {
+            job_id: capture_b,
+            generation,
+            message: diagnostic.into(),
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+
+        let row_a = view
+            .parakeet_captures
+            .iter()
+            .find(|capture| capture.identity.job_id == capture_a)
+            .unwrap();
+        assert_eq!(
+            row_a.capture_state,
+            crate::ports::ParakeetCaptureViewState::Finalized
+        );
+        assert_eq!(row_a.wav_path.as_deref(), Some("a.wav"));
+        let row_b = view
+            .parakeet_captures
+            .iter()
+            .find(|capture| capture.identity.job_id == capture_b)
+            .unwrap();
+        assert_eq!(row_b.identity.session_id, 0);
+        assert_eq!(
+            row_b.capture_state,
+            crate::ports::ParakeetCaptureViewState::Failed
+        );
+        assert_eq!(row_b.capture_diagnostic.as_deref(), Some(diagnostic));
+        assert_eq!(row_b.wav_path, None);
+        assert_eq!(row_b.direct_txt_path, None);
+        assert_eq!(row_b.direct_srt_path, None);
+        assert_eq!(view.active_job, Some((capture_b, JobState::Recoverable)));
+    }
+
+    #[test]
+    fn turbo_start_failure_before_live_started_does_not_create_parakeet_capture() {
+        let job_id = JobId(723);
+        let generation = Generation::first();
+        let model_path = "C:/known/turbo.bin";
+        let mut model_sha256 = [0; 32];
+        let digest =
+            crate::model_registry::model(crate::model_catalog::ModelId::WhisperLargeV3Turbo)
+                .artifact
+                .sha256;
+        for (index, byte) in model_sha256.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(&digest[index * 2..index * 2 + 2], 16).unwrap();
+        }
+        let guard = crate::model_selection_app::ModelCommandGuard::new_with_model_paths(
+            crate::model_registry::engine_snapshot(
+                1,
+                |_| crate::model_catalog::ModelAvailability::Ready,
+                Vec::new(),
+            ),
+            1,
+            [(
+                crate::model_catalog::ModelId::WhisperLargeV3Turbo,
+                model_path.into(),
+            )],
+        );
+        let mut app = ImportApplication::new(ScanTestIo::default()).with_model_guard(guard);
+        app.dispatch(AppCommand::StartDirectLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation,
+                model_path: model_path.into(),
+                model_sha256,
+                destination: "destination".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                microphone: Default::default(),
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+        app.io.events.push_back(ImportEvent::Failed {
+            job_id,
+            generation,
+            message: "échec du worker Turbo".into(),
+        });
+
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(view.parakeet_captures.is_empty());
+        assert_eq!(view.active_job, Some((job_id, JobState::Recoverable)));
+    }
+
+    #[test]
+    fn parakeet_late_confirmation_keeps_identity_and_reorders_display_chronologically() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.view.provisional_session_id = Some(9);
+        let job_id = JobId(72);
+        let generation = Generation::first();
+        app.append_parakeet_confirmed(
+            9,
+            crate::ports::WorkerSegment {
+                job_id,
+                generation,
+                instance_id: 9,
+                segment_id: crate::domain::SegmentId(1),
+                range: crate::domain::SourceRange::new(8_000, 12_000, 16_000).unwrap(),
+                text: "fonctionne".into(),
+            },
+        )
+        .unwrap();
+        app.append_parakeet_confirmed(
+            9,
+            crate::ports::WorkerSegment {
+                job_id,
+                generation,
+                instance_id: 9,
+                segment_id: crate::domain::SegmentId(2),
+                range: crate::domain::SourceRange::new(2_000, 6_000, 16_000).unwrap(),
+                text: "test".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(app.view.confirmed_text.as_deref(), Some("test\nfonctionne"));
+        assert_eq!(app.parakeet_confirmed[0].segment_id.0, 2);
+        assert_eq!(app.parakeet_confirmed[1].segment_id.0, 1);
+        assert_eq!(app.view.confirmed_samples, 12_000);
     }
 }
