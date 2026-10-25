@@ -1,6 +1,6 @@
-Avancée : lot 1 validé fonctionnellement ; la trace du lot 2 montre des mots ultérieurs confirmables malgré un préfixe bloqué.
-Blocage : le lot 2 reste non validé fonctionnellement ; le bruit parasite à la coupure reste une réserve du lot 1.
-Décision : confirmation par segments indépendants et lacunes explicites autorisée pour le lot 2, sans commencer le lot 3.
+Avancée : lots 1 et 2 acceptés sur leur parcours nominal dans la fenêtre Windows.
+Blocage : la conservation de chaque échantillon physique sous contention GPU et l'échec réel de l'import final ne sont pas démontrés par la recette.
+Décision : lot 2 clos avec réserves ; le lot 3 reste soumis à un GO distinct.
 
 # Parakeet au microphone : texte provisoire et blocs confirmés
 
@@ -38,6 +38,23 @@ L'utilisateur valide la recette manuelle du nouvel EXE Test (`SHA-256 F44FD01A5F
 
 Lot 1 **clos avec réserves** : la revue indépendante n'a pas pu être effectuée ; un bruit parasite à la coupure a été observé par l'utilisateur, sans cause établie dans cette recette. Aucune nouvelle campagne n'est demandée pour cette clôture.
 
+### Clôture du lot 2 — 25 octobre 2026
+
+**Accepté sur le parcours nominal, avec réserves.** La recette Windows utilise l'EXE Test `recette-windows-20261025-lot2-concurrence-ab/whisper-desktop.exe` (SHA-256 `5DE02661BFA57ED113ECDBEC5766966C34DC48C989CCCDCA55AE24A010D0D5F6`), identique au binaire du build desktop `cargo build --offline --locked -p whisper-desktop` terminé par `VALIDATION_PASS` dans `target/parakeet-tests/parakeet-micro-lot1/runs/7e439c29f0e0409e915b685e5df07c5a/validation.jsonl`. Les tests déterministes et la revue indépendante ont fermé R4 et R5 ; cette fermeture technique est distincte de la preuve apportée par la fenêtre Windows.
+
+Preuves de recette : `target/parakeet-tests/parakeet-micro-lot1/recette-windows-20261025-lot2-concurrence-ab/sorties/`, captures A `micro-000000000000311c0000000000000003` et B `micro-000000000000311c0000000000000004`, journal d'import `sorties/.whisper-diagnostics/worker-0.jsonl`, index `sorties/.whisper-publications/index.json` et journaux natifs `target/parakeet-tests/l3/l3b/logs/parakeet-asr-1792935394642-12572-5.log`, `parakeet-asr-1792935396059-12572-6.log` et `parakeet-asr-1792935423725-12572-7.log`. La trace `diagnostics/confirmation-trace.jsonl` de ce dossier date de l'essai précédent et ne démontre pas la continuité de la nouvelle capture B.
+
+L'import final de A a commencé vers 13:36:34,642 UTC ; le WAV de B a été créé à 13:36:35,868 UTC, avant la progression de l'import A à 13:36:36,595 UTC et la publication de ses fichiers automatiques à 13:36:36,766 UTC. Le chevauchement est donc observé. A et B ont chacune un WAV RIFF/PCM mono 16 kHz, 16 bits, avec tailles d'en-tête cohérentes avec le fichier et avec `audio_samples` dans leur JSON : 652 160 échantillons (40,76 s) pour A, 426 880 (26,68 s) pour B. Les deux imports finaux portent le statut `produced_unverified`. Chaque capture possède ses propres TXT/SRT directs, TXT/SRT automatiques et fichier JSON ; les empreintes des WAV correspondent à celles de l'index de publication et aucun mélange de fichiers ou incident de concurrence n'a été observé.
+
+Les fichiers `-incomplet.txt` et `-incomplet.srt` contiennent exclusivement les segments confirmés en direct ; le JSON compagnon conserve les intervalles confirmés et les lacunes non résolues. Les fichiers `-auto-non-verifie.txt` et `-auto-non-verifie.srt` proviennent de l'import du WAV finalisé : ils sont distincts et ne constituent pas du texte confirmé ni une vérification lexicale. Leurs sorties nominales ne ferment pas les réserves suivantes :
+
+- **R-AUDIO — ouverte :** les journaux de cette recette ne prouvent pas, échantillon par échantillon, la conservation depuis le périphérique physique pendant la contention GPU. Les WAV sont structurellement cohérents et aucun défaut n'a été observé ; cela ne vaut pas garantie exhaustive d'absence de perte.
+- **R-IMPORT — ouverte :** un échec réel de la transcription finale n'a pas été exercé dans la fenêtre Windows. La conservation du WAV et des exports directs en cas d'échec repose sur le code, les tests et la revue, sans preuve de recette correspondante.
+- **Arrêt brutal — ouverte :** des fichiers peuvent rester orphelins si l'application s'interrompt brutalement ; la recette nominale ne couvre pas ce cas.
+- **Backend effectif — ouverte :** le JSON compagnon indique le calcul demandé `gpu`, mais laisse `effective_backend` nul ; les journaux natifs indiquent `CUDA0` pour cette recette. La traçabilité dans les métadonnées de sortie reste incomplète.
+
+Restent à développer dans le lot 3, après autorisation distincte : la présentation finale dans l'interface des états provisoire, confirmé, lacune et transcription automatique non vérifiée, ainsi que du calcul effectivement utilisé. Aucun nouvel essai A/B n'est prévu pour cette clôture ; un défaut reproductible ou une nouvelle exigence produit justifierait un arbitrage spécifique.
+
 Le protocole de mots, les profils de worker et les contraintes de durée du worker restent inchangés tant que le contrat fichier suffit. Si le réemploi du worker impose une extension IPC, la limiter au transport des fenêtres, sans modifier l'appel natif ni considérer le profil import comme une preuve de qualité micro. Le plan détaillé de ce point et les chemins exacts seront soumis avec le premier lot.
 
 ## Acceptation dans l'application Windows
@@ -49,4 +66,4 @@ Le protocole de mots, les profils de worker et les contraintes de durée du work
 5. Le calcul demandé et le moteur effectif CPU/GPU/Auto, la source micro choisie et les règles de repli existantes restent respectés. Les imports Parakeet et la dictée Turbo ne régressent pas.
 6. Dans la fenêtre réelle, relever séparément le délai du provisoire et celui du premier bloc confirmé, notamment par rapport à l'exigence GPU de 15 s, ainsi que le retard de traitement. Un échec de cette cible est rapporté ; il n'est pas masqué par un provisoire rapide.
 
-**Gate :** demander un GO écrit précisant le lot 2, les chemins autorisés et les vérifications. Ce document n'autorise ni modification du produit, ni compilation, ni campagne FEAS-PM-01.
+**Gate historique :** le GO du lot 2 a été donné séparément de ce cadrage. La clôture ci-dessus n'autorise ni le lot 3, ni une nouvelle compilation, ni une campagne FEAS-PM-01.
