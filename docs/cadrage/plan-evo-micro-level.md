@@ -1,4 +1,4 @@
-Avancée : extension SPECTRE en préparation documentaire autorisée ; conception versionnée, revue et plan dédiés à l'affichage du test microphone.
+Avancée : extension SPECTRE v1 et plan relus indépendamment, DESIGN CLEAN sur 1587696a et PLANS CLEAN sur c168006d.
 Blocage : extension à accepter avant tout code ou campagne ; réserves Windows et Parakeet CPU antérieures inchangées.
 Décision : proposer un lot borné pour afficher les spectres avant/après gain ; aucun nouvel EXE produit dans cette mission.
 
@@ -505,4 +505,4 @@ Clôture : petites preuves archivées sous micro-level en préservant leur arbor
 
 ### Readiness documentaire SPECTRE
 
-DESIGN : CLEAN sur `1587696ada1d871e1aa33aaa10a00b329a882b52`. PLANS : proposition à relire indépendamment dans Git. Acceptation produit, DEC-CAMP-S01 et autorisation de réaliser : **NON REÇUES**. Tests, compilation et recette de SPECTRE : **NOT RUN**. Les résultats et hashes de l'EXE historique ci-dessus restent ceux du candidat précédent.
+DESIGN : CLEAN sur `1587696ada1d871e1aa33aaa10a00b329a882b52`. **PLANS CLEAN sur `c168006db7784da53b64b320c98d0eece808fe6e`**, verdict de `rust_design_reviewer` (`spectre_design_review`), même reviewer indépendant que DESIGN, après lecture directe du plan Git. Aucun constat REQUIRED ouvert ; couverture bidirectionnelle, chemins, dépendances, commandes/filtres, oracles, arrêts et remise contrôlés. Acceptation produit, DEC-CAMP-S01 et autorisation de réaliser : **NON REÇUES**. Tests, compilation et recette de SPECTRE : **NOT RUN**. Les résultats et hashes de l'EXE historique ci-dessus restent ceux du candidat précédent. Cet ajout enregistre le verdict et ne modifie aucun contrat/tâche relu.
