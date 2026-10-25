@@ -1,6 +1,6 @@
-Avancée : lots 1 et 2 acceptés sur leur parcours nominal dans la fenêtre Windows.
-Blocage : la conservation de chaque échantillon physique sous contention GPU et l'échec réel de l'import final ne sont pas démontrés par la recette.
-Décision : lot 2 clos avec réserves ; le lot 3 reste soumis à un GO distinct.
+Avancée : les lots 1, 2 et 3 sont acceptés sur leur parcours nominal dans la fenêtre Windows.
+Blocage : la fin tardive de l'import A pendant B n'a pas été observée au lot 3 ; les quatre réserves du lot 2 restent ouvertes.
+Décision : lot 3 clos sur le parcours nominal avec réserve A/B ; bilan dans `evo-parakeet-micro-progressif-lot3.md`.
 
 # Parakeet au microphone : texte provisoire et blocs confirmés
 
@@ -53,7 +53,7 @@ Les fichiers `-incomplet.txt` et `-incomplet.srt` contiennent exclusivement les 
 - **Arrêt brutal — ouverte :** des fichiers peuvent rester orphelins si l'application s'interrompt brutalement ; la recette nominale ne couvre pas ce cas.
 - **Backend effectif — ouverte :** le JSON compagnon indique le calcul demandé `gpu`, mais laisse `effective_backend` nul ; les journaux natifs indiquent `CUDA0` pour cette recette. La traçabilité dans les métadonnées de sortie reste incomplète.
 
-Restent à développer dans le lot 3, après autorisation distincte : la présentation finale dans l'interface des états provisoire, confirmé, lacune et transcription automatique non vérifiée, ainsi que du calcul effectivement utilisé. Aucun nouvel essai A/B n'est prévu pour cette clôture ; un défaut reproductible ou une nouvelle exigence produit justifierait un arbitrage spécifique.
+Le lot 3 a ensuite été autorisé et sa présentation des états provisoire, confirmé, lacune et brouillon final automatique non vérifié a été acceptée dans la fenêtre Windows sur le parcours nominal. La fin tardive de l'import A pendant B n'a pas été observée dans cette recette ; le bilan et cette réserve sont consignés dans `evo-parakeet-micro-progressif-lot3.md`. Les quatre réserves du lot 2 ci-dessus restent ouvertes.
 
 Le protocole de mots, les profils de worker et les contraintes de durée du worker restent inchangés tant que le contrat fichier suffit. Si le réemploi du worker impose une extension IPC, la limiter au transport des fenêtres, sans modifier l'appel natif ni considérer le profil import comme une preuve de qualité micro. Le plan détaillé de ce point et les chemins exacts seront soumis avec le premier lot.
 
@@ -66,4 +66,4 @@ Le protocole de mots, les profils de worker et les contraintes de durée du work
 5. Le calcul demandé et le moteur effectif CPU/GPU/Auto, la source micro choisie et les règles de repli existantes restent respectés. Les imports Parakeet et la dictée Turbo ne régressent pas.
 6. Dans la fenêtre réelle, relever séparément le délai du provisoire et celui du premier bloc confirmé, notamment par rapport à l'exigence GPU de 15 s, ainsi que le retard de traitement. Un échec de cette cible est rapporté ; il n'est pas masqué par un provisoire rapide.
 
-**Gate historique :** le GO du lot 2 a été donné séparément de ce cadrage. La clôture ci-dessus n'autorise ni le lot 3, ni une nouvelle compilation, ni une campagne FEAS-PM-01.
+**Gate historique :** le GO du lot 2 a été donné séparément de ce cadrage. Sa clôture n'autorisait pas le lot 3 ; celui-ci a reçu un GO distinct avant son implémentation. La présente clôture documentaire n'autorise ni nouvelle compilation ni campagne FEAS-PM-01.

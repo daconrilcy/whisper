@@ -1,6 +1,6 @@
-Avancée : le lot 2 est accepté sur le parcours nominal avec réserves (commit local `5c8d6d9f`) ; les états du direct et de l'import final existent dans le cœur.
-Blocage : l'interface n'expose pas encore clairement ces états et la vue actuelle ne conserve qu'un statut d'import final à la fois.
-Décision : lot 3 — cadrage proposé, en attente de validation ; aucune implémentation autorisée par ce document.
+Avancée : le lot 3 présente les états du direct et du brouillon final par capture ; la recette Windows nominale est acceptée.
+Blocage : la fin tardive de l'import A pendant une capture B active n'a pas été observée dans cette recette.
+Décision : lot 3 accepté sur le parcours nominal, avec réserve A/B ; les quatre réserves du lot 2 restent ouvertes.
 
 # Lot 3 — Présentation de la transcription progressive Parakeet
 
@@ -77,4 +77,25 @@ Utiliser les intitulés et le statut textuel, pas la couleur seule. Garder les d
 3. **Historique visible :** suivre A et B dans la session courante, puis retrouver les anciens fichiers par leur dossier et nom de capture (recommandé pour ce lot), ou ajouter une liste durable après redémarrage. La seconde option demanderait un périmètre de lecture et de synchronisation supplémentaire.
 4. **Accès aux fichiers :** afficher les chemins avec une action « Copier le chemin » (recommandé), ou ajouter « Ouvrir le dossier » via Windows. Le premier reste dans le périmètre de la fenêtre actuelle ; l'autre suppose une intégration système à autoriser.
 
-**Statut : LOT 3 — CADRAGE PROPOSÉ, EN ATTENTE DE VALIDATION.** Aucun GO d'implémentation ni réouverture automatique des quatre réserves du lot 2.
+## Bilan de clôture — 25 octobre 2026
+
+Le cadrage ci-dessus est conservé comme référence des décisions ergonomiques. L'implémentation ciblée concerne `crates/whisper-core/src/ports.rs`, `application.rs` et `crates/whisper-desktop/src/ui.rs`. La validation automatisée sous garde a réussi : 41/41 tests du cœur (`runs/0f0b404db3d04fdc9c6046edf4ac0b3b`), 30/30 tests UI (`runs/ebef4de00eea4eed8a969521e834bdf2`), 59/59 tests live et 4/4 tests d'import avec vérification de compilation adapters/desktop (`runs/a6f9df9c96944ce4876e38c717d53cbd`) ; ces journaux se trouvent sous `target/parakeet-tests/parakeet-micro-lot1/`. La revue indépendante est CLEAN après fermeture des constats R1 et R2. Ces résultats vérifient le candidat technique, sans remplacer la recette dans la fenêtre Windows.
+
+La recette utilise `target/parakeet-tests/parakeet-micro-lot1/recette-windows-20261025-lot3-ergonomie/whisper-desktop.exe` (SHA-256 `49CC80208CBDC626156FDA4A719206B2337BC11291398C6EB709DDD6E4E92F90`). Le build Test `cargo build --offline --locked -p whisper-desktop` a terminé avec code 0 et `VALIDATION_PASS` dans `target/parakeet-tests/parakeet-micro-lot1/runs/4f171636aa184ab7b095c925bc8cacb2/validation.jsonl` ; l'EXE est daté du 25 octobre à 16:06:45, après les derniers changements du lot.
+
+| Preuve Windows sur les captures A et B | Résultat |
+| --- | --- |
+| Provisoire et confirmé distincts ; confirmé visible par défaut | PASS selon la recette utilisateur |
+| Brouillon final accessible par sélection explicite et libellé « non vérifié » | PASS selon la recette utilisateur |
+| Compteur et détails des lacunes consultables | PASS selon la recette utilisateur |
+| Sélection A/B, chemins propres à chaque capture et action « Copier le chemin » | PASS selon la recette utilisateur |
+| WAV, TXT/SRT directs, TXT/SRT automatiques et JSON compagnons distincts | PASS : fichiers présents pour A et B ; les deux WAV ont des en-têtes RIFF/PCM cohérents avec leurs données |
+| Fin tardive de l'import A pendant une capture B active | **NON OBSERVÉE** dans cette recette ; aucun PASS Windows déduit |
+
+A comprend 690 080 échantillons à 16 kHz (43,13 s) et B 606 080 (37,88 s). Leurs JSON conservent respectivement 15 et 12 intervalles confirmés, ainsi que 136 et 55 intervalles non résolus. Les deux imports finaux indiquent `produced_unverified`. Les textes directs restent incomplets ; les brouillons automatiques sont des sorties distinctes à relire, sans statut de confirmation. Ces comptes n'établissent ni l'exactitude lexicale ni la continuité de chaque échantillon depuis le périphérique physique.
+
+La création du TXT automatique de A à 16:40:15 précède la création du WAV de B à 16:40:17. La recette montre deux captures successives et leur sélection, mais ne démontre pas le chevauchement entre l'import A et la capture B. Les tests déterministes d'isolation des sessions et la revue restent des preuves techniques distinctes.
+
+Les réserves du lot 2 demeurent **ouvertes** : R-AUDIO (continuité physique sous contention), R-IMPORT (échec réel de l'import final non exercé dans Windows), fichiers potentiellement orphelins après arrêt brutal et traçabilité incomplète du backend effectif dans les métadonnées. La présente clôture ne les requalifie pas.
+
+**Statut : LOT 3 ACCEPTÉ SUR LE PARCOURS NOMINAL, AVEC RÉSERVE A/B.** Aucun nouveau lot ni contrôle complémentaire n'est lancé par cette clôture.
