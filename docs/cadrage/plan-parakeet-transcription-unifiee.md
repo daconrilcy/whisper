@@ -524,3 +524,28 @@ Préflight et essais de refus analogues au §18, variables/caches/temporaires/ap
 ### 19.4 Décision utilisateur avant PU-L3 — Q-RQ-01
 
 Le 26 octobre 2026, pendant l'implémentation de PU-L2, l'utilisateur répond **« État et temps écoulé, sans seuil (recommandé) »** à la proposition d'information pendant une attente du moteur sans progrès visible. Pour T8, afficher l'état et le temps écoulé dès le début de cette attente, sans seuil d'alerte ni arrêt automatique. **Q-RQ-01 est résolue sur le comportement produit.** La mesure détaillée et sa présentation seront réalisées et relues dans les chemins de T8 ; cette consignation n'anticipe pas son code ni la validation PU-L2. Cette décision ne fixe aucun délai maximal acceptable : Q-PU-03 reste ouverte avant les verdicts de délai T9/T10.
+
+### 19.5 Préparation des mesures Q-PU-03 avant T9
+
+Contribution proposée `ARCH-Q-PU-03 v1`, auteur `/root/pu_l1_plan_change`, rôle `rust_architect`, base documentaire `45aec7595936a303b9fbf67b6ef97aba8a28a2b9`. Sources : design §4.4/6.4, plan §18/19.1/19.4, objets Git uniquement. Aucun diff mutable, fichier écrit, Cargo, test, binaire ou UI exécuté. Cette instruction prépare le lot prévu ; elle reste à relire avant consommation et n'autorise aucune campagne native anticipée. **Q-PU-03 reste ouverte, aucun seuil chiffré recommandé depuis les seules preuves contrôlées PU-L1.**
+
+Mesures par horloge monotone, liées à session/génération, stratégie, backend effectif, candidat GPU, incarnation et requête. Un événement moteur ne prouve pas son affichage.
+
+| Mesure | Définition pour la caractérisation future |
+| --- | --- |
+| Premier texte micro | Premier échantillon admis → premier texte non vide présenté pour cette session. Relever séparément commande, ouverture capture, premier échantillon reçu et READY. |
+| Premier texte import | Admission de l'import → premier texte non vide présenté ; relever préparation/snapshot, décodage et premier appel. |
+| Utilité du premier texte | Vérification humaine de sa correspondance au passage attendu ; non vide ne prouve pas l'utilité lexicale. Avec un début de parole annoté, relever aussi son délai sans remplacer la mesure principale. |
+| Retard final | `(frontière admise − couverture finale contiguë) / 16 000`, en secondes d'audio logique ; jamais calculé depuis le dernier mot horodaté. |
+| Retard décomposé | Admission→écriture : `(admis − écrit) / 16 000` ; écriture→traitement : `(écrit − couverture finale contiguë) / 16 000`. Un ordre invalide est un incident d'invariant, sans écrêtage artificiel. |
+| Fraîcheur d'aperçu | Distance entre frontière admise et fin de plage source du dernier aperçu affiché, puis temps depuis cet affichage. L'aperçu n'avance pas la couverture finale. |
+| Arrêt→drain | Clic → admission fermée, convertisseur drainé et frontière finale écrite acquittée ; distinguer écriture, flush et synchronisation effectivement réalisées. |
+| Arrêt→document | Clic → couverture complète et version finale validée. |
+| Arrêt→sorties | Clic → engagement réel des sorties attendues et de leur référence ; erreur TXT/SRT exclut une disponibilité complète. |
+| Arrêt→visibilité | Clic → présentation de l'issue réelle dans la fenêtre, distincte du document et des sorties. |
+
+En cas d'incident, conserver frontières et temps jusqu'à l'incident, sans inventer un temps de résultat complet. Relever les intervalles observables : appel résiduel non préemptible, réservation/préparation, arrêt et sortie réelle, création/READY/attestation, inférence, persistance/publication et présentation. Des intervalles peuvent se recouvrir ; ne pas additionner arbitrairement leurs durées. La borne conditionnelle de quatre appels reste une propriété d'équité, sans borne de délai.
+
+**Méthode proposée T9/T10.** Caractériser seulement sous l'autorisation propre de T9, données/ressources/budget arrêtés. Distinguer CPU, GPU attesté et Auto stratifié par backend effectif/repli préaudio ; démarrage froid, moteur prêt et recyclage ; session seule et charge A/B, dont B démarrant après un appel final A engagé. Conserver matériel, modèle/runtime/candidat, corpus FR/EN courts/longs et annotations, pauses/parole continue et reliquat après arrêt. Rapporter observations et contexte, statistiques proportionnées au nombre réel de passages ; un maximum observé n'est pas une garantie et quelques passages ne fondent pas un percentile robuste.
+
+Soumettre ensuite à l'utilisateur, par scénario, mesures, seuil proposé et compromis ; obtenir son acceptation avant le verdict de délai. Si le seuil impose une autre granularité/préemption/politique de partage, reclasser Q-PU-03 STRUCTURING et revenir au design/revue. Budgets d'essai et seuils produit restent distincts ; un essai interrompu est incomplet. Aucune ancienne cible du texte confirmé n'est transposée au texte révisable. Q-RQ-01 reste résolue au §19.4.
