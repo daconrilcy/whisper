@@ -1,12 +1,12 @@
-Avancée : cadrage de la transcription Parakeet unifiée ouvert ; qualification du besoin validée dans cette session.
-Blocage : aucun pour instruire le cadrage ; décisions structurantes et revue DESIGN en attente.
+Avancée : cadrage complet intégré ; correction de l'équité d'ordonnancement soumise à re-revue.
+Blocage : DESIGN-PU-R1 reste ouvert jusqu'à vérification par le reviewer indépendant.
 Décision : texte unique révisable pendant la capture, puis résultat final automatique ; aucune implémentation autorisée.
 
 # Parakeet — transcription unifiée au micro et à l'import
 
 ## 1. Identité, autorisation et sources
 
-- ID : D-PARA-UNIFIED-01 ; version de travail : v0.1 ; statut : DRAFT.
+- ID : D-PARA-UNIFIED-01 ; version de travail : v0.2 ; statut : DRAFT — re-revue en attente.
 - Date : 26 octobre 2026. Dépôt : `C:\dev\whisper` ; branche : `evo-startup-perf`.
 - Base produit inspectée : `a483e176759fcd2f2340f221470fe09f20ec8545`.
 - Auteur documentaire autorisé : session Codex principale ; spécialistes en lecture seule, contributions attribuées ci-dessous.
@@ -86,10 +86,10 @@ Question : un seul fichier `.wav` passant à RF64 si nécessaire, avec compatibi
 | 3 — Brief, capacités et décisions produit | rust_product_framer | PRODUCT-PU v1 intégré |
 | 4 — Exigences, cas d'usage, acceptation et risques fonctionnels | rust_requirements_analyst | REQUIREMENTS-PU v2 intégré |
 | 5 — Domaine, états et invariants | rust_domain_architect | DOMAIN-PU v2 intégré |
-| 6 — Architecture, contrats, dépendances et preuves | rust_architect | ARCH-PU v1 intégré |
+| 6 — Architecture, contrats, dépendances et preuves | rust_architect | ARCH-PU v2 intégré |
 | 7 — Questions et traçabilité transversale | sources utilisateur et contributions attribuées | Décisions versionnées, couverture sections 4–6 |
 | 8 — Readiness et suite | session principale, sur verdict du reviewer | PENDING REVIEW |
-| Compte rendu de revue séparé | rust_design_reviewer | NOT RUN |
+| Compte rendu de revue séparé | rust_design_reviewer | FINDINGS initial ; re-revue en attente |
 
 ## 3. Brief produit
 
@@ -305,7 +305,7 @@ Les seuils de délai restent Q-PU-03 ; aucun seuil n'est ajouté. Après arrêt 
 
 ## 6. Architecture et preuves
 
-Contribution `ARCH-PU v1`, auteur `/root/parakeet_architect` (`rust_architect`). Domaine DOMAIN-PU v2 relu au Git `133f45f6`, registre `89467aa3`, produit `a483e176` ; S-USER-01 à 06 et REQUIREMENTS-PU v2. Sources : fichiers cités, Cargo.toml/Cargo.lock, source locale Symphonia 0.5.5, règles et contrats centraux. Terminé : inventaire, décisions techniques proposées, contrats, ressources, couverture et classification des preuves. Restant : revue et acceptation du design ; plan/code non commandés. Aucun fichier modifié ni commande Cargo/exécution produit par le spécialiste.
+Contribution `ARCH-PU v2`, auteur `/root/parakeet_architect` (`rust_architect`). v1 : domaine DOMAIN-PU v2 relu au Git `133f45f6`, registre `89467aa3`, produit `a483e176` ; S-USER-01 à 06 et REQUIREMENTS-PU v2. v2 : amendement ciblé sur base `bb308b58`, traite DESIGN-PU-R1 et A1 sans revendiquer leur fermeture. Sources : fichiers cités, Cargo.toml/Cargo.lock, source locale Symphonia 0.5.5, règles et contrats centraux. Terminé : inventaire, décisions techniques proposées, contrats, ressources, couverture et classification des preuves. Restant : re-revue et acceptation du design ; plan/code non commandés. Aucun fichier modifié ni commande Cargo/exécution produit par le spécialiste.
 
 ### 6.1 Contraintes constatées et portée du changement
 
@@ -368,11 +368,42 @@ Les ports sont possédés par l'application ; leurs adaptateurs exécutent les e
 | PORT-PU-04 — Document | Révision ou lecture page avec version attendue ; retourne nouvelle référence ou page bornée. | Révision périmée ignorée ; conflit réel signalé. Disque proportionnel au contenu ; cache UI de pages fixe, événements limités, pas de chaîne complète. |
 | PORT-PU-05 — Publication | Document final, couverture, sorties attendues, autorisation précise de remplacement. | Écriture streaming TXT/SRT vers génération préparée ; contrôles puis engagement de référence. Chaque fichier a son résultat réel. Échec conserve ancienne référence et fichiers récupérables. Pas de transaction atomique présumée entre WAV/TXT/SRT. |
 
-**DEC-T-PU-05 — proposé :** un ordonnanceur applicatif possède les demandes, avec une seule inférence en vol par backend et aucune concurrence GPU libre entre captures. Aux frontières d'appels, l'aperçu actif a priorité ; les travaux finaux progressent selon l'ordre des captures. Le callback et l'écriture audio ne dépendent jamais d'une réponse d'inférence. Un aperçu peut être remplacé dans sa file de capacité un ; le travail final reste référencé sur disque et ne disparaît pas.
+**DEC-T-PU-05 — proposé, version 2 :** un ordonnanceur applicatif possède les demandes, avec une seule inférence en vol par backend et aucune concurrence GPU libre entre captures. L'arbitrage combine deux catégories : aperçu de la capture active et finalisation des sessions admises. Il applique le quota technique **P = 1 aperçu au maximum entre deux appels finaux lorsque du travail final est éligible**.
+
+À chaque frontière d'appel :
+
+1. Si des finalisations sont éligibles et qu'un aperçu a été exécuté depuis le dernier appel final, sélectionner obligatoirement une finalisation.
+2. Sinon, sélectionner le dernier aperçu disponible ; s'il n'y en a pas, sélectionner immédiatement une finalisation.
+3. Les tours finaux sont distribués **à tour de rôle entre les sessions éligibles du même backend**, initialement par ordre d'admission. Après un appel final, une session qui a encore du travail revient derrière les autres sessions éligibles.
+4. Une catégorie vide n'impose aucune attente : sans aperçu, les appels finaux s'enchaînent ; sans finalisation éligible, les aperçus peuvent s'enchaîner. L'arrivée de nouveaux aperçus ne remet jamais à zéro le quota accumulé ni l'ordre des sessions finales.
+
+Une plage finale devient éligible lorsque sa source écrite, sa configuration et son backend permettent de préparer son prochain clip borné. La préparation du clip fait partie du tour réservé : elle ne peut être indéfiniment repoussée au profit d'aperçus. Une erreur de préparation produit son issue explicite ; elle ne transforme pas la plage en travail oublié.
+
+Avec au plus **deux sessions non terminales**, chaque session disposant de travail final obtient donc un tour après **au plus quatre sélections donnant lieu à un appel natif**, à compter d'une frontière où elle est éligible : au plus trois autres appels peuvent la précéder. Entre deux de ses tours finaux, au plus un autre tour final et deux aperçus peuvent intervenir. Cette propriété suppose que les appels engagés terminent et que les effets nécessaires de préparation aboutissent ou signalent leur échec. Elle borne un **nombre d'appels**, pas leur durée.
+
+Le quota P = 1 est un choix technique de partage : conserver des mises à jour d'aperçu tout en réservant au moins un appel sur deux au travail final lorsqu'il existe. Le tour de rôle empêche également qu'une très longue finalisation A monopolise tous les tours finaux au détriment de B. Ce quota n'est ni un seuil de performance accepté par l'utilisateur ni une limite de durée de session.
+
+Le callback et l'écriture audio restent indépendants des réponses d'inférence. Un aperçu peut être remplacé dans sa file de capacité un ; les plages finales restent référencées sur disque. La limite de deux sessions, le refus avant ouverture du micro en cas de saturation et les huit fiches récentes restent inchangés.
+
+**Limite de préemption — DESIGN-PU-A1 :** un aperçu nouvellement disponible peut attendre la fin d'un appel final déjà engagé. La borne de 120 secondes concerne l'audio du clip central, avec son contexte ; elle ne borne pas le temps d'exécution natif. L'appel engagé n'est pas interrompu pour satisfaire le quota. Une fermeture normale supprime les futurs aperçus de la capture arrêtée, conserve les obligations finales et attend leurs issues réelles.
 
 Limiter les opérations acceptées à **deux sessions non terminales** : A peut se finaliser pendant la capture B ; après arrêt B, ses plages attendent sans nouvelle liste de tâches RAM. Une nouvelle opération qui dépasserait cette capacité est refusée **avant ouverture du micro**, avec attente expliquée. C'est une limite de concurrence, pas de durée. Garder au plus huit fiches récentes, conformément à la borne actuelle. Résultats/commandes IPC conservent la limite existante de 1 Mio. Les tables worker de tentatives doivent rester limitées aux sessions actives, plutôt que croître à chaque session.
 
 Une annulation avant engagement invalide la génération, attend la fin réelle de l'appel engagé ou son issue de processus, et rejette les retours obsolètes. Après engagement, rendre l'issue réelle. La fermeture normale bloque de nouvelles admissions, arrête la capture, puis attend toutes les obligations A/B. Aucun arrêt sur l'âge seul ni repli CPU après début audio n'est introduit. Les délais de cette attente restent Q-PU-03.
+
+**V-PU-EQUITY-01 — PRODUCT_VALIDATION, NOT RUN ; REQ/AC-PU-02, 07 et 10.** Scénario déterministe futur sur un même backend :
+
+- A est arrêtée et possède plusieurs plages finales ; B capture et régénère systématiquement un aperçu avant chaque décision de l'ordonnanceur.
+- Ajouter aussi des plages finales de B pour exercer le partage entre sessions.
+- Un worker contrôlé termine chaque appel uniquement sur commande du test. Sources et préparation répondent de manière contrôlée ; aucune mesure de performance native n'est nécessaire.
+- Vérifier qu'après chaque frontière pertinente, au plus un aperçu précède un tour final ; que A et B alternent leurs tours finaux lorsqu'elles restent toutes deux éligibles ; et que chacune obtient son appel au plus tard à la quatrième sélection.
+- Trace attendue possible : `aperçu B → final A1 → aperçu B → final B1 → aperçu B → final A2`. Exercer aussi l'arrivée de A lorsque le prochain tour final revient d'abord à B.
+- Vérifier identités session/génération, avancement réel de couverture, puis libération du créneau lorsque A devient terminale.
+- Demander la fermeture : arrêter B, ne plus produire d'aperçu, terminer les plages finales restantes et constater l'attente de leur issue.
+- **Témoin négatif :** une variante donnant toujours priorité à l'aperçu doit violer l'assertion de tour final borné. Ne pas vérifier seulement une trace nominale favorable.
+- **Attente non préemptible :** retenir un appel final engagé, produire un aperçu B et constater qu'aucun deuxième appel n'est lancé. Après libération, vérifier la reprise conforme. Cela démontre l'attente possible, pas un délai utilisateur.
+
+**Précision Q-PU-03, architecte :** la question reste ouverte. Les mesures de premier texte, retard et attente après arrêt intègrent la durée résiduelle d'un appel final non préemptible et les tours imposés par DEC-T-PU-05 v2. L'équité garantit une occasion de progresser sous les hypothèses indiquées ; elle ne garantit pas le délai d'apparition d'un aperçu. Analyste/architecte instruisent, utilisateur accepte les seuils avant validation dépendante. Si un seuil impose une autre granularité ou politique, la question devient STRUCTURING et les parties affectées sont revues.
 
 ### 6.5 Publication, compatibilité et preuves
 
@@ -386,7 +417,7 @@ Le store de publication actuel fournit réservations et engagement de référenc
 | Rotation RIFF, lecture par plages, agrégation et export streaming | **DESIGN_FEASIBILITY — PASS documentaire sur le mécanisme**, appuyé sur IO/Ranges déjà employés et choix S-USER-06. Nouveau code non exécuté. |
 | RISK-T-PU-01 — trous/doublons/temps aux raccords | **PRODUCT_VALIDATION — NOT RUN**, AC-02/04/05 : parole continue et pauses FR/EN, fins de capture et rotations. |
 | RISK-T-PU-02 — PCM, index, UI ou résultats encore cumulatifs | **PRODUCT_VALIDATION — NOT RUN**, AC-04 : inspection de tous chemins et mesures sur durées croissantes ; mémoire de travail, temporaires et données disque distingués. |
-| RISK-T-PU-03 — contention/saturation/fermeture A/B | **PRODUCT_VALIDATION — NOT RUN**, AC-06/07/10 : issues réelles et chevauchement observé. |
+| RISK-T-PU-03 — famine de finalisation, contention, saturation ou fermeture A/B | **PRODUCT_VALIDATION — NOT RUN**, AC-02/06/07/10 : quota P = 1, tours finaux alternés entre au plus deux sessions ; V-PU-EQUITY-01 contrôle la borne de quatre appels, le témoin négatif, les identités et les issues réelles. Compléter par une recette Windows avec chevauchement réellement observé ; la borne d'appels ne prouve aucun délai natif. |
 | RISK-T-PU-04 — erreurs disque, rotation ou publication | **PRODUCT_VALIDATION — NOT RUN**, AC-04/05/06/09 : injections séparées, audio et ancienne référence préservés. |
 | Runtimes personnels/Test, workers, modèles, DLL et backend réel | **DELIVERY_QUALIFICATION — NOT RUN**, avant remise Windows selon AGENTS. |
 
@@ -422,7 +453,7 @@ CAP-PU-01 à 10 → REQ-PU/UC-PU/AC-PU-01 à 10 : couverture bijective en §4 ; 
 
 ## 8. Readiness
 
-DESIGN DRAFT — contributions PRODUCT-PU v1, REQUIREMENTS-PU v2, DOMAIN-PU v2 et ARCH-PU v1 intégrées ; revue indépendante en attente. Aucun BLOQUANT déclaré par les auteurs ; seul le reviewer juge les constats du candidat Git. Acceptation utilisateur du design, planification et implémentation restent distinctes.
+DESIGN DRAFT — contributions PRODUCT-PU v1, REQUIREMENTS-PU v2, DOMAIN-PU v2 et ARCH-PU v2 intégrées. Revue initiale FINDINGS sur `bb308b58` : DESIGN-PU-R1 ouvert, amendement soumis au même reviewer ; la session principale ne ferme aucun constat. Acceptation utilisateur du design, planification et implémentation restent distinctes.
 
 | Rubrique de readiness | Applicabilité et éléments soumis à la revue |
 | --- | --- |
