@@ -9396,6 +9396,148 @@ mod tests {
     }
 
     #[test]
+    fn import_application_decodes_real_mp3_and_publishes_full_unified_coverage() {
+        let fixture = std::env::var_os("WHISPER_PU_L1_MP3_FIXTURE")
+            .map(PathBuf::from)
+            .expect("WHISPER_PU_L1_MP3_FIXTURE must name the guarded MP3 fixture");
+        let fixture = fixture.canonicalize().expect("guarded MP3 fixture must exist");
+        let source_before = std::fs::read(&fixture).expect("read guarded MP3 fixture");
+        assert_eq!(source_before.len(), 22_822);
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&source_before)),
+            "eebce5a2af18d4f929af5c243c50a6bc31b0910a583577cb940e0e4895e7cd80"
+        );
+
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-mp3-application-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let job_id = JobId(794);
+        let request = unified_import_request(&root.join("archive"), &fixture, job_id.0);
+        assert_real_unified_model(&request);
+        let runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+        let port = RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+        };
+        let mut app = ImportApplication::new(port);
+        app.dispatch(AppCommand::StartImport {
+            request: request.clone(),
+        })
+        .unwrap();
+
+        let mut completed = false;
+        let mut last_state = None;
+        let mut last_message = None;
+        for _ in 0..64 {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            last_state = view.active_job;
+            last_message = view.message.clone();
+            if last_state == Some((job_id, JobState::Complete)) {
+                completed = true;
+                break;
+            }
+            if last_state.is_none() {
+                break;
+            }
+        }
+        assert!(
+            completed,
+            "controlled MP3 import did not publish: state={last_state:?}, message={last_message:?}"
+        );
+
+        let destination = root.join("archive");
+        let entries = ArchiveStore::scan(&destination).unwrap();
+        let entry = entries
+            .iter()
+            .find(|entry| entry.job_id == job_id && entry.generation == request.generation)
+            .unwrap_or_else(|| panic!("MP3 import has no archive entry: {entries:?}"));
+        assert!(entry.complete, "MP3 archive entry is incomplete: {entry:?}");
+        assert_eq!(
+            entry.strategy,
+            whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        );
+        assert_eq!(
+            ArchiveStore::published_imports_for_strategy(
+                &destination,
+                &entry.source_sha256,
+                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            )
+            .unwrap()
+            .len(),
+            1
+        );
+        assert!(ArchiveStore::published_imports_for_strategy(
+            &destination,
+            &entry.source_sha256,
+            whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        )
+        .unwrap()
+        .is_empty());
+
+        let generation = destination
+            .join("transcriptions")
+            .join(format!("{:032x}", job_id.0))
+            .join(request.generation.get().to_string());
+        assert!(generation.join("CURRENT").is_file());
+        let decoded_samples = crate::parakeet_audio::PcmPartStore::open(
+            generation.join("parakeet-unified/source.wav"),
+        )
+        .total_samples()
+        .unwrap();
+        let pending: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(generation.join("pending.json")).unwrap())
+                .unwrap();
+        assert_eq!(pending["source_samples"].as_u64(), Some(decoded_samples));
+
+        let coverage: Vec<whisper_core::ports::ParakeetWindowCoverage> = std::fs::read_to_string(
+            generation.join("parakeet-unified/document/coverage.jsonl"),
+        )
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+        assert!(!coverage.is_empty(), "MP3 coverage must include decoded audio");
+        assert_eq!(coverage[0].range.start_sample, 0);
+        assert!(coverage.windows(2).all(|pair| {
+            pair[0].range.end_sample == pair[1].range.start_sample
+        }));
+        assert_eq!(coverage.last().unwrap().range.end_sample, decoded_samples);
+
+        let internal_txt = std::fs::read(generation.join("transcript.txt")).unwrap();
+        let internal_srt = std::fs::read(generation.join("transcript.srt")).unwrap();
+        assert!(!internal_txt.is_empty());
+        assert!(!internal_srt.is_empty());
+        let export_basename = entry.export_basename.as_ref().unwrap();
+        assert_eq!(
+            std::fs::read(destination.join("exports").join(format!("{export_basename}.txt")))
+                .unwrap(),
+            internal_txt
+        );
+        assert_eq!(
+            std::fs::read(destination.join("exports").join(format!("{export_basename}.srt")))
+                .unwrap(),
+            internal_srt
+        );
+
+        let source_after = std::fs::read(&fixture).expect("re-read guarded MP3 fixture");
+        assert_eq!(
+            Sha256::digest(&source_after),
+            Sha256::digest(&source_before),
+            "the original MP3 source must remain unchanged"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification() {
         let root = std::env::temp_dir().join(format!(
             "parakeet-unified-gpu-prepare-{}",
