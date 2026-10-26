@@ -9134,6 +9134,18 @@ mod tests {
 
     impl ImportIoPort for RuntimeImportPort {
         fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
+            let starts_generation = matches!(
+                &effect,
+                ImportEffect::StartMicrophoneTest { .. }
+                    | ImportEffect::StartLive(_)
+                    | ImportEffect::StartDirectLive(_)
+                    | ImportEffect::Prepare(_)
+                    | ImportEffect::ProcessQueued(_)
+                    | ImportEffect::ResumeInterrupted { .. }
+            );
+            if starts_generation {
+                self.runtime.publication_gate.activate();
+            }
             self.runtime.effect(effect, &mut self.events);
             Ok(())
         }
