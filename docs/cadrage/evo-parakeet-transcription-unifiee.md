@@ -309,7 +309,27 @@ Contribution attendue.
 
 ## 7. Questions, décisions et couverture
 
-Les choix produit encore structurants sont instruits puis soumis à l'utilisateur ; aucune hypothèse de durée, délai ou reprise après panne n'est acceptée par silence.
+Registre établi par la session principale à partir des réponses utilisateur et des contributions attribuées. Aucun silence ne vaut acceptation de durée, délai ou reprise après panne.
+
+### 7.1 Décisions et questions
+
+| ID | Nature / statut / source | Owner et échéance | Conséquence |
+| --- | --- | --- | --- |
+| DEC-PU-01 | Produit ACCEPTED, S-USER-01/02 | Utilisateur, acquise | Un seul texte révisable pendant capture, puis résultat final automatique ; pas de confirmation de mots à gérer. |
+| DEC-PU-02 | Produit ACCEPTED, S-USER-04/05 ; Q-PU-01/02 CLOSED sur le besoin | Utilisateur, acquise | Inclure >30 min sans plafond applicatif de durée ; limites physiques et erreurs explicites, ressources de travail à borner. |
+| DEC-PU-03 | Produit ACCEPTED, S-USER-06 ; Q-DOM-01 CLOSED sur le choix produit | Utilisateur, acquise | Plusieurs WAV classiques numérotés pour les longues captures Parakeet ; une session, un document et un couple TXT/SRT logiques. Pas de RF64. |
+| Q-PU-03 | DETAIL OPEN ; devient STRUCTURING si seuil conditionnant architecture | Analyste/architecte pour métriques et compromis, utilisateur pour seuils ; avant validation/lot dépendant | Aucun nouveau délai maximum accepté. Conserver la distinction premier texte utile, retard, capture drainée, résultat et sorties disponibles. Ne pas requalifier l'ancienne cible GPU par simple changement de nom. |
+| Q-RQ-01 | DETAIL OPEN | Analyste/UI ; avant lot UI | Information sur absence de progrès sans arrêt automatique par l'âge seul. Seuil d'alerte éventuel à préciser ; aucun seuil inventé. |
+
+### 7.2 Changement de contrats et portée
+
+**CHANGE-PU-01 — DESIGN_CHANGE proposé, autorité S-USER-01/02/03 :** le nouveau parcours Parakeet remplace la référence visible « confirmé immuable » et le brouillon final secondaire par le document principal révisable puis final. Les règles actuelles ne deviennent pas des garanties de reconnaissance lexicale. Impacts : direct, application, interface, import final et exports Parakeet. Les fichiers/captures déjà produits ne sont pas réécrits ; les anciens cadrages progressifs restent l'historique de la version existante. Les lots d'implémentation antérieurs ne sont pas réactivés par ce cadrage.
+
+**CHANGE-PU-02 — DESIGN_CHANGE proposé, autorité S-USER-04/05/06 :** retirer le plafond applicatif de durée du parcours Parakeet et autoriser une famille de WAV numérotés pour les longues captures. Cette autorité précise remplace l'objectif d'un WAV physique unique uniquement sur ce nouveau parcours ; TXT/SRT restent uniques par session. Turbo, modèles, calcul manuel/Auto, règles de repli et paramètres micro existants ne changent pas de portée. Compatibilité des anciennes sources et publications à traiter par l'architecte, sans migration destructive implicite.
+
+### 7.3 Couverture transversale
+
+CAP-PU-01 à 10 → REQ-PU/UC-PU/AC-PU-01 à 10 : couverture bijective en §4 ; domaine et invariants en §5.5. La correspondance architecture, risques et preuves est attendue en §6 avant revue. Les exigences et décisions techniques restent proposées jusqu'à acceptation du design ; les décisions utilisateur DEC-PU-01 à 03 sont déjà acquises et ne sont pas rouvertes.
 
 ## 8. Readiness
 
