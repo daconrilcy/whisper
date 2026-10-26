@@ -1485,6 +1485,7 @@ struct ControlledDocumentDrain {
     total_samples: u64,
     next_sequence: u64,
     ready_pending: bool,
+    progress_pending: bool,
 }
 
 struct MicrophoneTestCapture {
@@ -2415,6 +2416,7 @@ impl ImportRuntime {
             total_samples: result.total_samples,
             next_sequence: 1,
             ready_pending: true,
+            progress_pending: true,
         });
         Ok(())
     }
@@ -2461,6 +2463,19 @@ impl ImportRuntime {
                     format!("Document: {error:?}"),
                 )),
             });
+        }
+        if drain.progress_pending {
+            drain.progress_pending = false;
+            let job_id = drain.job_id;
+            let generation = drain.generation;
+            let total_samples = drain.total_samples;
+            self.controlled_document_drain = Some(drain);
+            return Some(Ok(ImportEvent::Progress {
+                job_id,
+                generation,
+                completed_samples: total_samples,
+                total_samples,
+            }));
         }
         Some(Ok(ImportEvent::End {
             job_id: drain.job_id,
@@ -9443,6 +9458,14 @@ mod tests {
                 expected + 1
             );
         }
+        assert!(matches!(
+            runtime.poll_controlled_document(),
+            Some(Ok(ImportEvent::Progress {
+                completed_samples: 121 * 16_000,
+                total_samples: 121 * 16_000,
+                ..
+            }))
+        ));
         assert!(
             matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::End { last_sequence: 2, last_offset, .. })) if last_offset == 121 * 16_000)
         );
