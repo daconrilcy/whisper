@@ -1452,6 +1452,8 @@ struct ImportRuntime {
     transport: Option<ChildWorkerTransport>,
     publication_gate: Arc<PublicationGate>,
     automatic_publication_gates: Option<Arc<Mutex<HashMap<(JobId, u64), Arc<PublicationGate>>>>>,
+    unified_publication_gates:
+        HashMap<whisper_core::parakeet_scheduler::SchedulerSession, Arc<PublicationGate>>,
     resume_prefix: VecDeque<crate::journal::SegmentRecord>,
     pending_live: Option<PendingLiveState>,
     live: Option<LiveCaptureState>,
@@ -2825,6 +2827,7 @@ impl ImportRuntime {
         self.document_drains
             .retain(|drain| (drain.job_id, drain.generation) != (job_id, generation));
         self.unified_archives.remove(&session);
+        self.unified_publication_gates.remove(&session);
         self.gpu_candidates.remove(&(job_id, generation.get()));
         self.parakeet_pending_events
             .retain(|event| pending_unified_event_identity(event) != Some((job_id, generation)));
@@ -2834,6 +2837,7 @@ impl ImportRuntime {
         let mut parent_sessions = std::collections::HashSet::new();
         parent_sessions.extend(self.unified_sessions.keys().copied());
         parent_sessions.extend(self.unified_archives.keys().copied());
+        parent_sessions.extend(self.unified_publication_gates.keys().copied());
         parent_sessions.extend(self.document_drains.iter().map(|drain| {
             whisper_core::parakeet_scheduler::SchedulerSession {
                 job_id: drain.job_id,
@@ -2927,6 +2931,7 @@ impl ImportRuntime {
             transport: None,
             publication_gate,
             automatic_publication_gates: None,
+            unified_publication_gates: HashMap::new(),
             resume_prefix: VecDeque::new(),
             pending_live: None,
             live: None,
@@ -3099,6 +3104,10 @@ impl ImportRuntime {
         self.parakeet_scheduler
             .admit(session)
             .map_err(|error| format!("SchedulerAdmission: {error:?}"))?;
+        let publication_gate = Arc::new(PublicationGate::default());
+        publication_gate.activate();
+        self.unified_publication_gates
+            .insert(session, Arc::clone(&publication_gate));
         self.unified_sessions.insert(
             session,
             UnifiedSessionState {
@@ -3190,6 +3199,10 @@ impl ImportRuntime {
         self.parakeet_scheduler
             .admit(session)
             .map_err(|error| format!("SchedulerAdmission: {error:?}"))?;
+        let publication_gate = Arc::new(PublicationGate::default());
+        publication_gate.activate();
+        self.unified_publication_gates
+            .insert(session, Arc::clone(&publication_gate));
         self.unified_sessions.insert(
             session,
             UnifiedSessionState {
@@ -4626,9 +4639,7 @@ impl ImportRuntime {
                 let controlled_capture: Option<CaptureStream> = None;
                 #[cfg(not(test))]
                 let controlled_part_limit: Option<u64> = None;
-                if self.publication_gate.is_cancelled() {
-                    Ok(())
-                } else if let Some(capture) = controlled_capture {
+                if let Some(capture) = controlled_capture {
                     match self.bind_live_request(&request) {
                         Ok(bound) => self
                             .start_controlled_unified_capture(
@@ -5875,9 +5886,25 @@ impl ImportRuntime {
                     Err(error) => Err(error),
                 }
             }
-            ImportEffect::StopUnifiedLive { job_id, generation } => self
-                .stop_controlled_unified_capture(job_id, generation, events)
-                .map_err(|error| (job_id, generation, error)),
+            ImportEffect::StopUnifiedLive { job_id, generation } => {
+                let session =
+                    whisper_core::parakeet_scheduler::SchedulerSession { job_id, generation };
+                let publication_gate = self.unified_publication_gates.get(&session).cloned();
+                let stopped = if let Some(publication_gate) = publication_gate {
+                    match publication_gate.request_stop() {
+                        Ok(_) => {
+                            let stopped =
+                                self.stop_controlled_unified_capture(job_id, generation, events);
+                            publication_gate.rollback_stop();
+                            stopped
+                        }
+                        Err(error) => Err(format!("Publication: {error:?}")),
+                    }
+                } else {
+                    self.stop_controlled_unified_capture(job_id, generation, events)
+                };
+                stopped.map_err(|error| (job_id, generation, error))
+            }
             ImportEffect::Stop { job_id, generation } => {
                 if let Some(mut live) = self.parakeet_live.take() {
                     if live.identity() != (job_id, generation) {
@@ -7425,16 +7452,27 @@ impl ImportRuntime {
             job_id: job,
             generation,
         };
+        let publication_gate = self
+            .unified_publication_gates
+            .get(&session)
+            .cloned()
+            .unwrap_or_else(|| Arc::clone(&self.publication_gate));
         if let Some(archive) = self.unified_archives.remove(&session) {
             let previous_archive = std::mem::replace(&mut self.archive, archive);
-            let result = self.publish_inner(job, generation, count, events);
+            let result = self.publish_inner(job, generation, count, events, &publication_gate);
             let session_archive = std::mem::replace(&mut self.archive, previous_archive);
             if result.is_err() {
                 self.unified_archives.insert(session, session_archive);
+            } else {
+                self.unified_publication_gates.remove(&session);
             }
             return result;
         }
-        self.publish_inner(job, generation, count, events)
+        let result = self.publish_inner(job, generation, count, events, &publication_gate);
+        if result.is_ok() {
+            self.unified_publication_gates.remove(&session);
+        }
+        result
     }
 
     fn publish_inner(
@@ -7443,6 +7481,7 @@ impl ImportRuntime {
         generation: Generation,
         count: u64,
         events: &mut VecDeque<ImportEvent>,
+        publication_gate: &PublicationGate,
     ) -> Result<(), (JobId, Generation, String)> {
         let destination = self.archive.root_path();
         let _timing_context = R7TimingContextGuard::enter(
@@ -7460,7 +7499,7 @@ impl ImportRuntime {
                 .map_err(|e| (job, generation, e))?;
             l2a2_acceptance_barrier("publish-before-commit", self.archive.root_path().as_path())
                 .map_err(|error| (job, generation, error))?;
-            self.publication_gate
+            publication_gate
                 .commit(|| {
                     self.archive.commit_publish(job, generation)?;
                     l2a2_acceptance_barrier(
