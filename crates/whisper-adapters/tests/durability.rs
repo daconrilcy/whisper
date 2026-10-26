@@ -10,7 +10,7 @@ use whisper_core::{
 
 fn request(job: u128, source: &str) -> ImportRequest {
     ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(job),
         generation: Generation::first(),
         source_path: source.into(),

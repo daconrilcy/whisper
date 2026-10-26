@@ -117,7 +117,12 @@ pub trait ParakeetDocumentPort {
         first_sequence: u64,
         limit: usize,
     ) -> Result<ParakeetDocumentPage, PortError>;
-    fn finalize(&mut self, job_id: JobId, generation: Generation, total_samples: u64) -> Result<u64, PortError>;
+    fn finalize(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        total_samples: u64,
+    ) -> Result<u64, PortError>;
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]

@@ -14,7 +14,9 @@ const QUEUE_UNIFIED_SCHEMA: u32 = 2;
 fn queue_schema(request: &ImportRequest) -> u32 {
     match request.strategy {
         whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1 => QUEUE_LEGACY_SCHEMA,
-        whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1 => QUEUE_UNIFIED_SCHEMA,
+        whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1 => {
+            QUEUE_UNIFIED_SCHEMA
+        }
     }
 }
 
@@ -144,18 +146,17 @@ impl QueueStore {
                 )
             })?;
             match record {
-                QueueRecord::Upsert { version, entry }
-                    if valid_queue_upsert(version, &entry) =>
-                {
+                QueueRecord::Upsert { version, entry } if valid_queue_upsert(version, &entry) => {
                     entries.insert(entry.sequence, *entry);
                 }
                 QueueRecord::Remove {
                     version,
                     job_id,
                     generation,
-                } if version == QUEUE_LEGACY_SCHEMA || version == QUEUE_UNIFIED_SCHEMA => entries.retain(|_, entry| {
-                    entry.request.job_id != job_id || entry.request.generation != generation
-                }),
+                } if version == QUEUE_LEGACY_SCHEMA || version == QUEUE_UNIFIED_SCHEMA => entries
+                    .retain(|_, entry| {
+                        entry.request.job_id != job_id || entry.request.generation != generation
+                    }),
                 _ => {
                     return Err(format!(
                         "StorageCorrupt: unsupported queue record at line {}",
@@ -449,10 +450,12 @@ impl QueueStore {
     }
 
     pub fn remove(&mut self, job_id: JobId, generation: Generation) -> Result<(), String> {
-        let Some((sequence, status, strategy)) = self.entries.iter().find_map(|(sequence, entry)| {
-            (entry.request.job_id == job_id && entry.request.generation == generation)
-                .then_some((*sequence, entry.status, entry.request.strategy))
-        }) else {
+        let Some((sequence, status, strategy)) =
+            self.entries.iter().find_map(|(sequence, entry)| {
+                (entry.request.job_id == job_id && entry.request.generation == generation)
+                    .then_some((*sequence, entry.status, entry.request.strategy))
+            })
+        else {
             return Err("InvalidInput: queued job was not found".into());
         };
         if status == QueueStatus::Running {
@@ -475,8 +478,12 @@ impl QueueStore {
         }
         self.append(QueueRecord::Remove {
             version: match strategy {
-                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1 => QUEUE_LEGACY_SCHEMA,
-                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1 => QUEUE_UNIFIED_SCHEMA,
+                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1 => {
+                    QUEUE_LEGACY_SCHEMA
+                }
+                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1 => {
+                    QUEUE_UNIFIED_SCHEMA
+                }
             },
             job_id,
             generation,
@@ -526,9 +533,7 @@ impl QueueStore {
             let record: QueueRecord = serde_json::from_str(&line)
                 .map_err(|e| format!("StorageCorrupt: queue line {}: {e}", line_no + 1))?;
             match record {
-                QueueRecord::Upsert { version, entry }
-                    if valid_queue_upsert(version, &entry) =>
-                {
+                QueueRecord::Upsert { version, entry } if valid_queue_upsert(version, &entry) => {
                     self.next_sequence = self.next_sequence.max(entry.sequence.saturating_add(1));
                     self.entries.insert(entry.sequence, *entry);
                 }
@@ -695,22 +700,38 @@ mod tests {
         let mut request = request(88, &destination);
         request.strategy = whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
         queue.enqueue(request.clone()).unwrap();
-        let journal = std::fs::read_to_string(destination.join("transcriptions/queue.jsonl")).unwrap();
-        let record: serde_json::Value = serde_json::from_str(journal.lines().next().unwrap()).unwrap();
+        let journal =
+            std::fs::read_to_string(destination.join("transcriptions/queue.jsonl")).unwrap();
+        let record: serde_json::Value =
+            serde_json::from_str(journal.lines().next().unwrap()).unwrap();
         assert_eq!(record["version"], 2);
         let mut reopened = QueueStore::open(&destination).unwrap();
         assert_eq!(reopened.entries()[0].request.strategy, request.strategy);
-        reopened.set_status(request.job_id, request.generation, QueueStatus::Interrupted).unwrap();
+        reopened
+            .set_status(request.job_id, request.generation, QueueStatus::Interrupted)
+            .unwrap();
         let mut substituted = request.clone();
         substituted.generation = request.generation.next().unwrap();
         substituted.strategy = whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1;
-        assert!(reopened.validate_resume(request.job_id, request.generation, &substituted).is_err());
+        assert!(
+            reopened
+                .validate_resume(request.job_id, request.generation, &substituted)
+                .is_err()
+        );
 
         let mut invalid = record;
         invalid["version"] = serde_json::Value::from(1);
-        std::fs::write(destination.join("transcriptions/queue.jsonl"),
-            format!("{}\n", serde_json::to_string(&invalid).unwrap())).unwrap();
-        assert!(QueueStore::open(&destination).err().unwrap().contains("unsupported queue record"));
+        std::fs::write(
+            destination.join("transcriptions/queue.jsonl"),
+            format!("{}\n", serde_json::to_string(&invalid).unwrap()),
+        )
+        .unwrap();
+        assert!(
+            QueueStore::open(&destination)
+                .err()
+                .unwrap()
+                .contains("unsupported queue record")
+        );
         std::fs::remove_dir_all(destination).unwrap();
     }
 
@@ -726,14 +747,20 @@ mod tests {
                 request: request(89, &destination),
                 status: QueueStatus::Queued,
             }),
-        }).unwrap();
-        legacy["entry"]["request"].as_object_mut().unwrap().remove("strategy");
+        })
+        .unwrap();
+        legacy["entry"]["request"]
+            .as_object_mut()
+            .unwrap()
+            .remove("strategy");
         let bytes = format!("{}\n", serde_json::to_string(&legacy).unwrap());
         std::fs::write(&path, &bytes).unwrap();
 
         let entries = QueueStore::inspect_read_only(&destination).unwrap();
-        assert_eq!(entries[0].request.strategy,
-            whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1);
+        assert_eq!(
+            entries[0].request.strategy,
+            whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
+        );
         assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
         std::fs::remove_dir_all(destination).unwrap();
     }

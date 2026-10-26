@@ -1565,13 +1565,16 @@ mod tests {
         request.microphone = whisper_core::MicrophoneChoice::Device("test:mic".into());
         let capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
         let worker = startup_worker(&directory, "cpu-poll-spectrum");
-        let mut live = DirectLive::from_test_capture_with_cpu_worker(request, capture, worker, 91)
-            .unwrap();
+        let mut live =
+            DirectLive::from_test_capture_with_cpu_worker(request, capture, worker, 91).unwrap();
 
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
         let mut saw_ready = false;
         while !saw_ready && std::time::Instant::now() < deadline {
-            if matches!(live.poll().unwrap(), Some(whisper_core::ImportEvent::Ready { .. })) {
+            if matches!(
+                live.poll().unwrap(),
+                Some(whisper_core::ImportEvent::Ready { .. })
+            ) {
                 saw_ready = true;
             }
             std::thread::sleep(std::time::Duration::from_millis(5));
@@ -1585,14 +1588,9 @@ mod tests {
         for block_index in 0..100 {
             let first_frame = block_index * 960;
             let audio = (first_frame..first_frame + 960)
-                .map(|frame| {
-                    0.5 * (std::f32::consts::TAU * 64.0 * frame as f32 / 2048.0).sin()
-                })
+                .map(|frame| 0.5 * (std::f32::consts::TAU * 64.0 * frame as f32 / 2048.0).sin())
                 .collect::<Vec<_>>();
-            live.capture
-                .as_mut()
-                .unwrap()
-                .enqueue_test_block(audio);
+            live.capture.as_mut().unwrap().enqueue_test_block(audio);
             let mut events_in_refresh = 0;
             for _ in 0..4 {
                 events_in_refresh += 1;
@@ -1641,8 +1639,14 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
 
-        assert!(saw_spectrum, "poll() did not publish spectrum during capture");
-        assert!(spectrum_updates > 1, "spectrum did not refresh during the stream");
+        assert!(
+            saw_spectrum,
+            "poll() did not publish spectrum during capture"
+        );
+        assert!(
+            spectrum_updates > 1,
+            "spectrum did not refresh during the stream"
+        );
         assert!(saw_confirmed_text, "poll() starved confirmed worker text");
         assert!(saw_terminal, "poll() starved the worker terminal event");
         assert!(live.done());

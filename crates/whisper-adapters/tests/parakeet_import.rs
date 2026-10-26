@@ -464,7 +464,7 @@ fn run_personal_application_route(
     }
     let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
     let request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation,
         source_path: source.to_string_lossy().into_owned(),
@@ -1185,7 +1185,7 @@ fn run_gpu_application_import_with_native(
     }
     let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
     let request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation,
         source_path: source.to_string_lossy().into_owned(),
@@ -1468,7 +1468,7 @@ fn r6_application_single_pass_recipe() {
     );
     let mut app = ImportApplication::new(io).with_model_guard(guard);
     let request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(job_id),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -1610,7 +1610,7 @@ fn r7_application_timing() {
     );
     let mut app = ImportApplication::new(io).with_model_guard(guard);
     let request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(job_id),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -1845,7 +1845,7 @@ fn r9_application_recipe() {
     );
     let mut app = ImportApplication::new(io).with_model_guard(guard);
     let request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -2270,7 +2270,7 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
     app.set_gpu_candidate(job_id, generation, Some(qualified_gpu_candidate()))
         .unwrap();
     let request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation,
         source_path: source.to_string_lossy().into_owned(),
@@ -2937,7 +2937,7 @@ fn run_product_transport_failure(
             .unwrap();
     }
     let request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation,
         source_path: source.to_string_lossy().into_owned(),

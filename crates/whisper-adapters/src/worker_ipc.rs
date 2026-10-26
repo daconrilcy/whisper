@@ -2375,29 +2375,37 @@ impl ImportRuntime {
     }
 
     #[cfg(test)]
-    fn run_controlled_unified_import(
-        &mut self,
-        request: &ImportRequest,
-    ) -> Result<(), String> {
-        let mut transcriber = self.controlled_transcriber.take()
-            .ok_or_else(|| "ModelNotQualified: controlled worker injection is required".to_owned())?;
+    fn run_controlled_unified_import(&mut self, request: &ImportRequest) -> Result<(), String> {
+        let mut transcriber = self.controlled_transcriber.take().ok_or_else(|| {
+            "ModelNotQualified: controlled worker injection is required".to_owned()
+        })?;
         let work = PathBuf::from(&request.destination)
             .join("transcriptions")
             .join(format!("{:032x}", request.job_id.0))
             .join(request.generation.get().to_string())
             .join("parakeet-unified");
-        fs::create_dir_all(&work).map_err(|error| format!("StorageUnavailable: unified workspace: {error}"))?;
+        fs::create_dir_all(&work)
+            .map_err(|error| format!("StorageUnavailable: unified workspace: {error}"))?;
         let source_path = work.join("source.wav");
         let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path)
             .map_err(|error| format!("AudioSource: {error}"))?;
         crate::parakeet_audio::decode_file_to_parts(&request.source_path, &mut writer)?;
-        writer.finish().map_err(|error| format!("AudioSource: {error}"))?;
+        writer
+            .finish()
+            .map_err(|error| format!("AudioSource: {error}"))?;
         let source = crate::parakeet_audio::PcmPartStore::open(&source_path);
         let mut document = crate::parakeet_document::ParakeetDocumentStore::create(
-            work.join("document"), request.job_id, request.generation,
-        ).map_err(|error| format!("Document: {error:?}"))?;
+            work.join("document"),
+            request.job_id,
+            request.generation,
+        )
+        .map_err(|error| format!("Document: {error:?}"))?;
         let result = crate::parakeet_pipeline::finalize_source(
-            &source, &mut document, transcriber.as_mut(), request.job_id, request.generation,
+            &source,
+            &mut document,
+            transcriber.as_mut(),
+            request.job_id,
+            request.generation,
         )?;
         self.controlled_document_drain = Some(ControlledDocumentDrain {
             document,
@@ -2412,7 +2420,9 @@ impl ImportRuntime {
     }
 
     #[cfg(test)]
-    fn poll_controlled_document(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+    fn poll_controlled_document(
+        &mut self,
+    ) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
         use whisper_core::ports::ParakeetDocumentPort;
         let mut drain = self.controlled_document_drain.take()?;
         if drain.ready_pending {
@@ -2440,10 +2450,16 @@ impl ImportRuntime {
                     self.controlled_document_drain = Some(drain);
                     Ok(ImportEvent::Segment(page.entries.remove(0).segment))
                 }
-                Ok(_) => Err((drain.job_id, drain.generation,
-                    "StorageCorrupt: controlled page did not contain exactly one segment".into())),
-                Err(error) => Err((drain.job_id, drain.generation,
-                    format!("Document: {error:?}"))),
+                Ok(_) => Err((
+                    drain.job_id,
+                    drain.generation,
+                    "StorageCorrupt: controlled page did not contain exactly one segment".into(),
+                )),
+                Err(error) => Err((
+                    drain.job_id,
+                    drain.generation,
+                    format!("Document: {error:?}"),
+                )),
             });
         }
         Some(Ok(ImportEvent::End {
@@ -3847,7 +3863,8 @@ impl ImportRuntime {
                                 "ModelNotQualified: unified strategy requires the injected controlled worker".into()))
                         } else {
                             match self.bind_import_request(&request) {
-                                Ok(bound) => self.run_controlled_unified_import(&bound)
+                                Ok(bound) => self
+                                    .run_controlled_unified_import(&bound)
                                     .map_err(|error| (identity.0, identity.1, error)),
                                 Err(error) => Err((identity.0, identity.1, error)),
                             }
@@ -4431,8 +4448,12 @@ impl ImportRuntime {
         {
             #[cfg(test)]
             if self.controlled_transcriber.is_none() {
-                return Err((id.0, id.1,
-                    "ModelNotQualified: unified strategy requires the injected controlled worker".into()));
+                return Err((
+                    id.0,
+                    id.1,
+                    "ModelNotQualified: unified strategy requires the injected controlled worker"
+                        .into(),
+                ));
             }
             #[cfg(not(test))]
             return Err((id.0, id.1,
@@ -4543,8 +4564,12 @@ impl ImportRuntime {
         {
             return Err((request.job_id, request.generation, error));
         }
-        let request = match self.source_bindings.get(&(request.job_id, request.generation.get())) {
-            Some(binding) => binding.apply_to_request(&request)
+        let request = match self
+            .source_bindings
+            .get(&(request.job_id, request.generation.get()))
+        {
+            Some(binding) => binding
+                .apply_to_request(&request)
                 .map_err(|error| (request.job_id, request.generation, error))?,
             None => request,
         };
@@ -9113,7 +9138,9 @@ mod tests {
     struct ControlledUnifiedWorker;
 
     impl crate::parakeet_pipeline::WindowTranscriber for ControlledUnifiedWorker {
-        fn instance_id(&self) -> u64 { 9001 }
+        fn instance_id(&self) -> u64 {
+            9001
+        }
 
         fn transcribe(
             &mut self,
@@ -9132,14 +9159,18 @@ mod tests {
     struct InvalidTimeUnifiedWorker;
 
     impl crate::parakeet_pipeline::WindowTranscriber for InvalidTimeUnifiedWorker {
-        fn instance_id(&self) -> u64 { 9002 }
+        fn instance_id(&self) -> u64 {
+            9002
+        }
         fn transcribe(
             &mut self,
             _: whisper_core::parakeet_session::AudioWindow,
             _: &[i16],
         ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
             Ok(vec![whisper_core::parakeet_ipc::Word {
-                text: "invalid".into(), start_ms: 50, end_ms: 20,
+                text: "invalid".into(),
+                start_ms: 50,
+                end_ms: 20,
             }])
         }
     }
@@ -9147,7 +9178,9 @@ mod tests {
     struct FailedUnifiedWorker;
 
     impl crate::parakeet_pipeline::WindowTranscriber for FailedUnifiedWorker {
-        fn instance_id(&self) -> u64 { 9003 }
+        fn instance_id(&self) -> u64 {
+            9003
+        }
         fn transcribe(
             &mut self,
             _: whisper_core::parakeet_session::AudioWindow,
@@ -9157,10 +9190,14 @@ mod tests {
         }
     }
 
-    struct ExportCollisionWorker { path: PathBuf }
+    struct ExportCollisionWorker {
+        path: PathBuf,
+    }
 
     impl crate::parakeet_pipeline::WindowTranscriber for ExportCollisionWorker {
-        fn instance_id(&self) -> u64 { 9004 }
+        fn instance_id(&self) -> u64 {
+            9004
+        }
         fn transcribe(
             &mut self,
             window: whisper_core::parakeet_session::AudioWindow,
@@ -9171,20 +9208,30 @@ mod tests {
             }
             std::fs::write(&self.path, b"preexisting export").map_err(|error| error.to_string())?;
             let start_ms = ((window.central_start_sample - window.native_start_sample) / 16) as u32;
-            Ok(vec![whisper_core::parakeet_ipc::Word { text: "export collision".into(), start_ms, end_ms: start_ms + 100 }])
+            Ok(vec![whisper_core::parakeet_ipc::Word {
+                text: "export collision".into(),
+                start_ms,
+                end_ms: start_ms + 100,
+            }])
         }
     }
 
     fn unified_import_request(root: &Path, source: &Path, id: u128) -> ImportRequest {
-        let model = whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3);
+        let model = whisper_core::model_registry::model(
+            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+        );
         let model_path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")
             .join("models")
             .join(model.artifact.file_name);
-        let model_sha256 = (0..32).map(|index| {
-            u8::from_str_radix(&model.artifact.sha256[index * 2..index * 2 + 2], 16).unwrap()
-        }).collect::<Vec<_>>().try_into().unwrap();
+        let model_sha256 = (0..32)
+            .map(|index| {
+                u8::from_str_radix(&model.artifact.sha256[index * 2..index * 2 + 2], 16).unwrap()
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
         ImportRequest {
             strategy: whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
             job_id: JobId(id),
@@ -9195,13 +9242,19 @@ mod tests {
             model_path: model_path.to_string_lossy().into_owned(),
             model_sha256,
             destination: root.to_string_lossy().into_owned(),
-            config: JobConfig { language: LanguageChoice::Automatic, compute: ComputeChoice::Cpu },
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
         }
     }
 
     fn assert_real_unified_model(request: &ImportRequest) {
-        assert!(Path::new(&request.model_path).is_file(),
-            "required real Parakeet test model is missing: {}", request.model_path);
+        assert!(
+            Path::new(&request.model_path).is_file(),
+            "required real Parakeet test model is missing: {}",
+            request.model_path
+        );
     }
 
     #[test]
@@ -9211,57 +9264,106 @@ mod tests {
             (3_u64, ComputeChoice::Gpu),
             (121_u64, ComputeChoice::Cpu),
             (121_u64, ComputeChoice::Gpu),
-        ].into_iter().enumerate() {
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let root = std::env::temp_dir().join(format!(
-                "parakeet-unified-application-{}-{}", std::process::id(), index
+                "parakeet-unified-application-{}-{}",
+                std::process::id(),
+                index
             ));
             std::fs::create_dir_all(&root).unwrap();
             let source_path = root.join("source.wav");
             let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
-            writer.append(&vec![0_i16; (seconds * 16_000) as usize]).unwrap();
+            writer
+                .append(&vec![0_i16; (seconds * 16_000) as usize])
+                .unwrap();
             writer.finish().unwrap();
-            let mut request = unified_import_request(&root.join("archive"), &source_path, 700 + index as u128);
+            let mut request =
+                unified_import_request(&root.join("archive"), &source_path, 700 + index as u128);
             request.config.compute = compute;
             assert_real_unified_model(&request);
             let mut runtime = ImportRuntime::new(
-                WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+                WorkerPaths {
+                    cpu: PathBuf::from("unused-cpu"),
+                    gpu: PathBuf::from("unused-gpu"),
+                },
                 Arc::new(PublicationGate::default()),
-            ).with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+            )
+            .with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
             if compute == ComputeChoice::Gpu {
                 let mut candidate = fake_gpu_candidate();
                 candidate.generation = request.generation.get();
-                runtime.gpu_candidates.insert(
-                    (request.job_id, request.generation.get()),
-                    Some(candidate),
-                );
+                runtime
+                    .gpu_candidates
+                    .insert((request.job_id, request.generation.get()), Some(candidate));
             }
-            let port = RuntimeImportPort { runtime, events: VecDeque::new() };
+            let port = RuntimeImportPort {
+                runtime,
+                events: VecDeque::new(),
+            };
             let mut app = ImportApplication::new(port);
             app.dispatch(AppCommand::StartImport { request }).unwrap();
             for _ in 0..32 {
                 let view = app.dispatch(AppCommand::Refresh).unwrap();
-                if view.active_job.is_none() { break; }
+                if view.active_job.is_none() {
+                    break;
+                }
             }
             let entries = ArchiveStore::scan(&root.join("archive")).unwrap();
-            let entry = entries.iter().find(|entry| entry.complete && entry.strategy
-                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1).unwrap();
-            assert_eq!(ArchiveStore::published_imports_for_strategy(
-                &root.join("archive"), &entry.source_sha256,
-                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
-            ).unwrap().len(), 1);
-            assert!(ArchiveStore::published_imports_for_strategy(
-                &root.join("archive"), &entry.source_sha256,
-                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-            ).unwrap().is_empty());
-            let archive = root.join(format!("archive/transcriptions/{:032x}/1", 700 + index as u128));
+            let entry = entries
+                .iter()
+                .find(|entry| {
+                    entry.complete && entry.strategy
+                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                })
+                .unwrap();
+            assert_eq!(
+                ArchiveStore::published_imports_for_strategy(
+                    &root.join("archive"),
+                    &entry.source_sha256,
+                    whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+                )
+                .unwrap()
+                .len(),
+                1
+            );
+            assert!(
+                ArchiveStore::published_imports_for_strategy(
+                    &root.join("archive"),
+                    &entry.source_sha256,
+                    whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+                )
+                .unwrap()
+                .is_empty()
+            );
+            let archive = root.join(format!(
+                "archive/transcriptions/{:032x}/1",
+                700 + index as u128
+            ));
             assert!(archive.join("transcript.txt").is_file());
             assert!(archive.join("transcript.srt").is_file());
-            assert!(std::fs::read_to_string(archive.join("transcript.txt")).unwrap().contains("controlled."));
-            let coverage = std::fs::read_to_string(archive.join("parakeet-unified/document/coverage.jsonl")).unwrap();
+            assert!(
+                std::fs::read_to_string(archive.join("transcript.txt"))
+                    .unwrap()
+                    .contains("controlled.")
+            );
+            let coverage =
+                std::fs::read_to_string(archive.join("parakeet-unified/document/coverage.jsonl"))
+                    .unwrap();
             assert_eq!(coverage.lines().count(), if seconds > 120 { 2 } else { 1 });
             let basename = entry.export_basename.as_ref().unwrap();
-            assert!(root.join("archive/exports").join(format!("{basename}.txt")).is_file());
-            assert!(root.join("archive/exports").join(format!("{basename}.srt")).is_file());
+            assert!(
+                root.join("archive/exports")
+                    .join(format!("{basename}.txt"))
+                    .is_file()
+            );
+            assert!(
+                root.join("archive/exports")
+                    .join(format!("{basename}.srt"))
+                    .is_file()
+            );
             std::fs::remove_dir_all(&root).unwrap();
         }
     }
@@ -9269,7 +9371,8 @@ mod tests {
     #[test]
     fn controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification() {
         let root = std::env::temp_dir().join(format!(
-            "parakeet-unified-gpu-prepare-{}", std::process::id()
+            "parakeet-unified-gpu-prepare-{}",
+            std::process::id()
         ));
         std::fs::create_dir_all(&root).unwrap();
         let source_path = root.join("source.wav");
@@ -9282,12 +9385,18 @@ mod tests {
         let mut candidate = fake_gpu_candidate();
         candidate.generation = request.generation.get();
         let mut runtime = ImportRuntime::new(
-            WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
             Arc::new(PublicationGate::default()),
-        ).with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+        )
+        .with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
         let mut events = VecDeque::new();
 
-        runtime.prepare(request, Some(candidate), &mut events).unwrap();
+        runtime
+            .prepare(request, Some(candidate), &mut events)
+            .unwrap();
 
         assert!(matches!(events.pop_front(), Some(ImportEvent::Prepared(_))));
         std::fs::remove_dir_all(root).unwrap();
@@ -9295,7 +9404,10 @@ mod tests {
 
     #[test]
     fn controlled_document_drain_reads_one_segment_per_poll_and_preserves_all_pages() {
-        let root = std::env::temp_dir().join(format!("parakeet-unified-page-drain-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-page-drain-{}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&root).unwrap();
         let source_path = root.join("source.wav");
         let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
@@ -9303,19 +9415,37 @@ mod tests {
         writer.finish().unwrap();
         let request = unified_import_request(&root.join("archive"), &source_path, 791);
         let mut runtime = ImportRuntime::new(
-            WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
             Arc::new(PublicationGate::default()),
-        ).with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+        )
+        .with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
         runtime.run_controlled_unified_import(&request).unwrap();
         let drain = runtime.controlled_document_drain.as_ref().unwrap();
         assert_eq!(drain.revision, 2);
         assert_eq!(drain.next_sequence, 1);
-        assert!(matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::Ready { .. }))));
+        assert!(matches!(
+            runtime.poll_controlled_document(),
+            Some(Ok(ImportEvent::Ready { .. }))
+        ));
         for expected in 1..=2 {
-            assert!(matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::Segment(segment))) if segment.segment_id.0 == expected));
-            assert_eq!(runtime.controlled_document_drain.as_ref().unwrap().next_sequence, expected + 1);
+            assert!(
+                matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::Segment(segment))) if segment.segment_id.0 == expected)
+            );
+            assert_eq!(
+                runtime
+                    .controlled_document_drain
+                    .as_ref()
+                    .unwrap()
+                    .next_sequence,
+                expected + 1
+            );
         }
-        assert!(matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::End { last_sequence: 2, last_offset, .. })) if last_offset == 121 * 16_000));
+        assert!(
+            matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::End { last_sequence: 2, last_offset, .. })) if last_offset == 121 * 16_000)
+        );
         assert!(runtime.controlled_document_drain.is_none());
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -9323,7 +9453,8 @@ mod tests {
     #[test]
     fn controlled_document_drain_terminates_after_page_read_error() {
         let root = std::env::temp_dir().join(format!(
-            "parakeet-unified-page-drain-error-{}", std::process::id()
+            "parakeet-unified-page-drain-error-{}",
+            std::process::id()
         ));
         std::fs::create_dir_all(&root).unwrap();
         let source_path = root.join("source.wav");
@@ -9332,65 +9463,112 @@ mod tests {
         writer.finish().unwrap();
         let request = unified_import_request(&root.join("archive"), &source_path, 792);
         let mut runtime = ImportRuntime::new(
-            WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
             Arc::new(PublicationGate::default()),
-        ).with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+        )
+        .with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
         runtime.run_controlled_unified_import(&request).unwrap();
         let document_path = root.join(format!(
-            "archive/transcriptions/{:032x}/1/parakeet-unified/document", request.job_id.0
+            "archive/transcriptions/{:032x}/1/parakeet-unified/document",
+            request.job_id.0
         ));
-        let mut port = RuntimeImportPort { runtime, events: VecDeque::new() };
+        let mut port = RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+        };
 
         assert!(matches!(port.poll(), Ok(Some(ImportEvent::Ready { .. }))));
         std::fs::remove_dir_all(document_path).unwrap();
-        assert!(matches!(port.poll(), Err(PortError::Failed(message)) if message.starts_with("Document:")));
+        assert!(
+            matches!(port.poll(), Err(PortError::Failed(message)) if message.starts_with("Document:"))
+        );
         assert!(port.runtime.controlled_document_drain.is_none());
-        assert!(matches!(port.poll(), Ok(None)), "a terminal page error must be emitted only once");
+        assert!(
+            matches!(port.poll(), Ok(None)),
+            "a terminal page error must be emitted only once"
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn unified_request_without_controlled_injection_is_refused_before_worker_start() {
-        let root = std::env::temp_dir().join(format!("parakeet-unified-native-refusal-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-native-refusal-{}",
+            std::process::id()
+        ));
         let request = unified_import_request(&root, Path::new("missing.wav"), 777);
         let mut runtime = ImportRuntime::new(
-            WorkerPaths { cpu: PathBuf::from("missing-cpu-worker"), gpu: PathBuf::from("missing-gpu-worker") },
+            WorkerPaths {
+                cpu: PathBuf::from("missing-cpu-worker"),
+                gpu: PathBuf::from("missing-gpu-worker"),
+            },
             Arc::new(PublicationGate::default()),
         );
         let mut events = VecDeque::new();
         runtime.effect(ImportEffect::Prepare(request.clone()), &mut events);
-        assert!(matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
-            if message.contains("ModelNotQualified") && message.contains("controlled worker")));
-        assert!(!root.exists(), "native refusal must precede archive preparation");
+        assert!(
+            matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
+            if message.contains("ModelNotQualified") && message.contains("controlled worker"))
+        );
+        assert!(
+            !root.exists(),
+            "native refusal must precede archive preparation"
+        );
         runtime.effect(ImportEffect::StartWorker(request), &mut events);
-        assert!(matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
-            if message.contains("ModelNotQualified") && message.contains("controlled worker")));
+        assert!(
+            matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
+            if message.contains("ModelNotQualified") && message.contains("controlled worker"))
+        );
     }
 
     #[test]
     fn controlled_worker_and_invalid_times_leave_no_complete_archive() {
         for (index, worker) in [
             Box::new(FailedUnifiedWorker) as Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
-            Box::new(InvalidTimeUnifiedWorker) as Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
-        ].into_iter().enumerate() {
+            Box::new(InvalidTimeUnifiedWorker)
+                as Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let root = std::env::temp_dir().join(format!(
-                "parakeet-unified-failure-{}-{}", std::process::id(), index
+                "parakeet-unified-failure-{}-{}",
+                std::process::id(),
+                index
             ));
             std::fs::create_dir_all(&root).unwrap();
             let source_path = root.join("source.wav");
             let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
             writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
             writer.finish().unwrap();
-            let request = unified_import_request(&root.join("archive"), &source_path, 780 + index as u128);
+            let request =
+                unified_import_request(&root.join("archive"), &source_path, 780 + index as u128);
             assert_real_unified_model(&request);
             let runtime = ImportRuntime::new(
-                WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+                WorkerPaths {
+                    cpu: PathBuf::from("unused-cpu"),
+                    gpu: PathBuf::from("unused-gpu"),
+                },
                 Arc::new(PublicationGate::default()),
-            ).with_controlled_transcriber(worker);
-            let mut app = ImportApplication::new(RuntimeImportPort { runtime, events: VecDeque::new() });
+            )
+            .with_controlled_transcriber(worker);
+            let mut app = ImportApplication::new(RuntimeImportPort {
+                runtime,
+                events: VecDeque::new(),
+            });
             app.dispatch(AppCommand::StartImport { request }).unwrap();
             for _ in 0..24 {
-                if app.dispatch(AppCommand::Refresh).unwrap().active_job.is_none() { break; }
+                if app
+                    .dispatch(AppCommand::Refresh)
+                    .unwrap()
+                    .active_job
+                    .is_none()
+                {
+                    break;
+                }
             }
             let entries = ArchiveStore::scan(&root.join("archive")).unwrap();
             assert!(!entries.iter().any(|entry| entry.complete));
@@ -9400,7 +9578,10 @@ mod tests {
 
     #[test]
     fn export_collision_keeps_existing_file_and_does_not_publish_unified_archive() {
-        let root = std::env::temp_dir().join(format!("parakeet-unified-export-collision-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-export-collision-{}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&root).unwrap();
         let source_path = root.join("source.wav");
         let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
@@ -9411,16 +9592,37 @@ mod tests {
         assert_real_unified_model(&request);
         let collision = destination.join("exports/source.txt");
         let runtime = ImportRuntime::new(
-            WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
             Arc::new(PublicationGate::default()),
-        ).with_controlled_transcriber(Box::new(ExportCollisionWorker { path: collision.clone() }));
-        let mut app = ImportApplication::new(RuntimeImportPort { runtime, events: VecDeque::new() });
+        )
+        .with_controlled_transcriber(Box::new(ExportCollisionWorker {
+            path: collision.clone(),
+        }));
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+        });
         app.dispatch(AppCommand::StartImport { request }).unwrap();
         for _ in 0..24 {
-            if app.dispatch(AppCommand::Refresh).unwrap().active_job.is_none() { break; }
+            if app
+                .dispatch(AppCommand::Refresh)
+                .unwrap()
+                .active_job
+                .is_none()
+            {
+                break;
+            }
         }
         assert_eq!(std::fs::read(&collision).unwrap(), b"preexisting export");
-        assert!(!ArchiveStore::scan(&destination).unwrap().iter().any(|entry| entry.complete));
+        assert!(
+            !ArchiveStore::scan(&destination)
+                .unwrap()
+                .iter()
+                .any(|entry| entry.complete)
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
 
@@ -11224,7 +11426,7 @@ mod tests {
         .unwrap();
         let automatic = whisper_core::ports::AutomaticFinalImport {
             request: ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+                strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id: JobId(42),
                 generation: Generation::first(),
                 source_path: root.join("capture.wav").to_string_lossy().into_owned(),
@@ -11304,7 +11506,7 @@ mod tests {
         fs::write(&source_txt, "source text").unwrap();
         let automatic = whisper_core::ports::AutomaticFinalImport {
             request: whisper_core::ports::ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+                strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id: JobId(501),
                 generation: Generation::first(),
                 source_path: "capture.wav".into(),
@@ -14545,7 +14747,7 @@ fn main() {
         let generation = Generation::first();
         app.dispatch(AppCommand::StartImport {
             request: ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+                strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id,
                 generation,
                 source_path: "fixture.wav".into(),

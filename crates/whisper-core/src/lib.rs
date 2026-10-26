@@ -40,6 +40,5 @@ pub use ports::{
     ArchiveHistoryItem, Clock, DecodeRequest, DecodedPcmBlock, DecoderPort, DiagnosticNotice,
     DiagnosticPhase, ImportEffect, ImportEvent, ImportIoPort, ImportRequest, JobRepository,
     LiveRecoveryInfo, LiveRequest, ParakeetDocumentEntry, ParakeetDocumentPage,
-    ParakeetWindowCoverage,
-    ParakeetDocumentPort, SourceIdentity, WorkerPort,
+    ParakeetDocumentPort, ParakeetWindowCoverage, SourceIdentity, WorkerPort,
 };

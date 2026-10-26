@@ -381,7 +381,7 @@ fn import_through_product_route(
     let record = model_registry::model(ModelId::ParakeetTdt06BV3);
     let job_id = JobId(0x4c32_0000_0000_0000_u128 + u128::from(job_nonce));
     let mut request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),

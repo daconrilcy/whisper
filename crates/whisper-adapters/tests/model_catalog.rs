@@ -46,7 +46,7 @@ fn turbo_request(model_path: String) -> ImportRequest {
         *byte = u8::from_str_radix(&turbo.sha256[index * 2..index * 2 + 2], 16).unwrap();
     }
     ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(7),
         generation: Generation::first(),
         source_path: "fixture.wav".into(),

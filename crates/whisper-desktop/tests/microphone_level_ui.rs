@@ -156,12 +156,8 @@ fn microphone_labels_changed_default_notice_uses_names_and_keeps_identity_compar
             unavailable_reason: None,
         },
     ];
-    let invalid_id_change = microphone_source_change_notice(
-        Some(""),
-        Some("   "),
-        &invalid_id_devices,
-    )
-    .unwrap();
+    let invalid_id_change =
+        microphone_source_change_notice(Some(""), Some("   "), &invalid_id_devices).unwrap();
     assert!(invalid_id_change.contains("prévu a changé (Microphone indisponible)"));
     assert!(invalid_id_change.contains("reste sur Microphone indisponible"));
     assert!(!invalid_id_change.contains("Nom à ne pas afficher"));

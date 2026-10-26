@@ -53,7 +53,7 @@ fn wav(path: &Path) {
 
 fn request(destination: &Path, source: &Path, id: u128) -> ImportRequest {
     ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(id),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),

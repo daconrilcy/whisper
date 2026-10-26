@@ -54,7 +54,7 @@ fn qualified_guard() -> ModelCommandGuard {
 
 fn import(config: JobConfig, model_path: &str) -> ImportRequest {
     ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(1),
         generation: Generation::first(),
         source_path: "source.wav".into(),

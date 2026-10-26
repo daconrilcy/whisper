@@ -1,6 +1,6 @@
-Avancée : dérogation acceptée, garde et 26 essais de refus réussis ; première commande de campagne exécutée.
-Blocage : cargo fmt --check échoue sur syntaxe et formatage ; compilation et tests NOT RUN.
-Décision : correction de syntaxe, formatage Rust du workspace et reprise de campagne autorisés après le premier arrêt.
+Avancée : syntaxe corrigée, formatage sous garde réussi, revue ciblée CLEAN.
+Blocage : compilation et tests non encore exécutés sur le candidat corrigé.
+Décision : reprise de la campagne autorisée, avec arrêt maintenu au premier échec.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -374,3 +374,7 @@ Le même `rust_implementer` possède les corrections sources : retrait manuel de
 La reprise exige un paramètre explicite `ResumeAuthorized` si un marqueur d'arrêt existe et déplace ce marqueur, sans écrasement ni suppression, vers un chemin conservé sous lot-01. Le SHA du candidat est passé explicitement au lanceur au lieu de conserver l'ancien identifiant. Les essais de refus et de surveillance précèdent tout Cargo dans chaque mode. Le temps des exécutions antérieures est compté contre les 90 minutes ; le stockage déjà présent dans le lot, notamment les 0,731 Gio de cache et les petites preuves, reste compté contre les 16 Gio. Le target partagé est mesuré avant la première compilation puis sa croissance est réutilisée entre les reprises ; aucune compilation n'a encore eu lieu.
 
 Après le formatage, le candidat sera figé et le delta syntaxe/formatage transmis à la coordination de revue Rust prévue par AGENTS, sans nouvelle campagne documentaire. La campagne reprendra ensuite sur le candidat identifié ; elle s'arrêtera au premier échec conformément au §11. Le contrôle de formatage, la compilation et les tests restent à exécuter sur ce candidat. Aucun téléchargement, installation, worker natif, validation Windows ou push n'est inclus.
+
+**Réalisation de la correction.** Le même `/root/pu_l1_implementer` a retiré uniquement la ligne parasite de `wait_for_queued_request`, puis exécuté le lanceur autorisé en `FormatOnly`, avec reprise explicite et candidat `decb117165c1318d615b1f8455d222789ea67877`. Run `7158dcdd454a4db394d9366b0ff877f1` : 26 essais de refus PASS, commande `cargo fmt --all` PASS, code 0. La permission transitoire couvrait 115 chemins Rust suivis ; 34 fichiers ont été modifiés. L'ancien marqueur est conservé dans `retained-stops/STOP-before-7158dcdd454a4db394d9366b0ff877f1.json`. Soixante événements Temp `UNATTRIBUTED` consignés, aucun événement `FAIL` ou `WATCH_ERROR`. Durée de cette exécution : 91,67 secondes ; 263 secondes des passages antérieurs étaient déjà comptées. Baseline partagée avant compilation : 15 669 963 879 octets, journalisée pour conserver le même budget de croissance aux reprises.
+
+**Revue du delta figé.** Coordination `/root/pu_l1_review`, reviewer historique indépendant, baseline `decb1171`, candidat de travail après formatage. Verdict **CLEAN limité à V-PU-L1-01 et au delta syntaxe/formatage des 34 fichiers Rust**. Le reviewer ferme statiquement V-PU-L1-01 : la ligne hors expression est supprimée ; autres différences limitées à whitespace, virgules finales, accolades d'expressions équivalentes et réordonnements d'import/module sans dépendance de macro constatée. Aucun autre changement logique détecté ni finding. `git diff --check` PASS. Ce verdict ciblé ne qualifie ni la compilation ni le fonctionnement de T4. Le worker et les reviewers n'ont exécuté aucune compilation ni aucun test.

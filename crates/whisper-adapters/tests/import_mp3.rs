@@ -124,7 +124,7 @@ fn r11_mp3_request(
     model: &std::path::Path,
 ) -> ImportRequest {
     ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(((std::process::id() as u128) << 64) | serial),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -185,7 +185,7 @@ fn source_changed_after_queue_admission_is_refused_without_worker_launch() {
     std::fs::copy(fixture, &source).unwrap();
     let destination = root.join("out");
     let request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(((std::process::id() as u128) << 64) | 3),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -293,7 +293,7 @@ fn failed_preparation_keeps_durable_row_actionable() {
     std::fs::write(&source, wav).unwrap();
     let destination = root.join("out");
     let request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(((std::process::id() as u128) << 64) | 4),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -400,7 +400,7 @@ fn real_mp3_runs_through_durable_choice_cpu_worker_and_txt_srt_archive() {
     let mut app = ImportApplication::new(AsyncImportIo::start(worker));
     let job_id = JobId(((std::process::id() as u128) << 64) | 2);
     let request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),

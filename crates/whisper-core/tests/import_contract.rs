@@ -29,7 +29,7 @@ impl ImportIoPort for FakeIo {
 
 fn request(job_id: JobId) -> ImportRequest {
     ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation: Generation::first(),
         source_path: "sample.wav".into(),
@@ -51,7 +51,10 @@ fn import_strategy_defaults_to_legacy_and_round_trips_explicit_versions() {
     let mut historical = legacy.clone();
     historical.as_object_mut().unwrap().remove("strategy");
     let decoded: ImportRequest = serde_json::from_value(historical).unwrap();
-    assert_eq!(decoded.strategy, whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1);
+    assert_eq!(
+        decoded.strategy,
+        whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
+    );
 
     let mut unified = request(JobId(100));
     unified.strategy = whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
@@ -70,15 +73,24 @@ fn application_keeps_bounded_strategy_in_prepare_and_start_effects() {
     let mut app = ImportApplication::new(io.clone());
     let mut request = request(JobId(101));
     request.strategy = whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
-    app.dispatch(AppCommand::StartImport { request: request.clone() }).unwrap();
-    assert!(matches!(io.0.borrow().effects.last(), Some(ImportEffect::Prepare(prepared)) if prepared.strategy == request.strategy));
+    app.dispatch(AppCommand::StartImport {
+        request: request.clone(),
+    })
+    .unwrap();
+    assert!(
+        matches!(io.0.borrow().effects.last(), Some(ImportEffect::Prepare(prepared)) if prepared.strategy == request.strategy)
+    );
 
     let mut prepared = request.clone();
     prepared.source_sha256 = Some([3; 32]);
     prepared.source_samples = Some(80);
-    io.0.borrow_mut().events.push_back(ImportEvent::Prepared(prepared));
+    io.0.borrow_mut()
+        .events
+        .push_back(ImportEvent::Prepared(prepared));
     app.dispatch(AppCommand::Refresh).unwrap();
-    assert!(matches!(io.0.borrow().effects.last(), Some(ImportEffect::StartWorker(started)) if started.strategy == request.strategy));
+    assert!(
+        matches!(io.0.borrow().effects.last(), Some(ImportEffect::StartWorker(started)) if started.strategy == request.strategy)
+    );
 }
 
 #[test]

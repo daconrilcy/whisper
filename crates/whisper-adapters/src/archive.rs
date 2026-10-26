@@ -1741,10 +1741,9 @@ impl ArchiveStore {
         }
         let mut found = Vec::new();
         let index = load_or_migrate_publication_index(root)?;
-        for entry in entries
-            .into_iter()
-            .filter(|entry| entry.complete && entry.source_sha256 == source_sha256 && entry.strategy == strategy)
-        {
+        for entry in entries.into_iter().filter(|entry| {
+            entry.complete && entry.source_sha256 == source_sha256 && entry.strategy == strategy
+        }) {
             if entry.publication_recovery {
                 continue;
             }
@@ -2643,9 +2642,15 @@ impl ArchiveStore {
         let unified = request.strategy
             == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
         if unified && (!is_parakeet_model || qualification.is_some()) {
-            return Err("ModelNotQualified: unified windows require the controlled Parakeet path".into());
+            return Err(
+                "ModelNotQualified: unified windows require the controlled Parakeet path".into(),
+            );
         }
-        if !unified && is_parakeet_model && !vad_qualification && source_samples > single_pass_limit_samples {
+        if !unified
+            && is_parakeet_model
+            && !vad_qualification
+            && source_samples > single_pass_limit_samples
+        {
             return Err(
                 "DurationUnsupported: Fichier trop long pour Parakeet, utilisez Turbo".into(),
             );
@@ -2661,7 +2666,8 @@ impl ArchiveStore {
         let single_pass_qualification = qualification.as_ref().is_some_and(|key| {
             key.is_parakeet_import_test() && key.inference_profile == "import-single-pass"
         });
-        if !unified && is_parakeet_model
+        if !unified
+            && is_parakeet_model
             && ((source_samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
                 && !vad_qualification)
                 || (source_samples
@@ -2716,18 +2722,20 @@ impl ArchiveStore {
                 &hex(&source_sha),
                 request.strategy,
             )?
-                .into_iter()
-                .map(|item| PublicationIdentity {
-                    job_id: item.job_id,
-                    generation: item.generation,
-                })
-                .collect();
+            .into_iter()
+            .map(|item| PublicationIdentity {
+                job_id: item.job_id,
+                generation: item.generation,
+            })
+            .collect();
             let export_basename = reserve_export_basename(&destination, &request.source_path)?;
             PublicationIntent {
                 version: 1,
                 operation_id: format!(
                     "{}-{:032x}-{}",
-                    if request.strategy == whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1 {
+                    if request.strategy
+                        == whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
+                    {
                         "legacy"
                     } else {
                         request.strategy.stable_id()
@@ -2855,11 +2863,11 @@ impl ArchiveStore {
         }
         if pending.strategy == whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
             && pending.model_sha256
-            == whisper_core::model_registry::model(
-                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
-            )
-            .artifact
-            .sha256
+                == whisper_core::model_registry::model(
+                    whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+                )
+                .artifact
+                .sha256
             && pending.source_samples
                 > whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS
                     .saturating_mul(16)
@@ -2942,7 +2950,12 @@ impl ArchiveStore {
             {
                 format!("{:032x}-{}", request.job_id.0, request.generation.get())
             } else {
-                format!("{}-{:032x}-{}", request.strategy.stable_id(), request.job_id.0, request.generation.get())
+                format!(
+                    "{}-{:032x}-{}",
+                    request.strategy.stable_id(),
+                    request.job_id.0,
+                    request.generation.get()
+                )
             };
             let next_reservation =
                 publication_reservation_path(&destination, request.job_id, request.generation);
@@ -3070,16 +3083,27 @@ impl ArchiveStore {
         let srt_path = active.directory.join("transcript.srt");
         write_replace_streamed(&text_path, |writer| {
             visit_segments(&journal_path, |index, record| {
-                if index > 0 { writer.write_all(b"\n").map_err(|error| error.to_string())?; }
-                writer.write_all(record.text.as_bytes()).map_err(|error| error.to_string())
+                if index > 0 {
+                    writer.write_all(b"\n").map_err(|error| error.to_string())?;
+                }
+                writer
+                    .write_all(record.text.as_bytes())
+                    .map_err(|error| error.to_string())
             })
         })?;
         write_replace_streamed(&srt_path, |writer| {
             visit_segments(&journal_path, |index, record| {
                 let start = timestamp_checked(record.range.start_sample)?;
                 let end = timestamp_checked(record.range.end_sample)?;
-                writeln!(writer, "{}\n{} --> {}\n{}", index + 1, start, end, record.text)
-                    .map_err(|error| error.to_string())
+                writeln!(
+                    writer,
+                    "{}\n{} --> {}\n{}",
+                    index + 1,
+                    start,
+                    end,
+                    record.text
+                )
+                .map_err(|error| error.to_string())
             })
         })?;
         let text_artifact = verified_artifact(&active.directory, &text_path)?;
@@ -6255,7 +6279,8 @@ fn validate_pending(pending: &PendingRecord, job_id: JobId, generation: u64) -> 
             .artifact
             .sha256;
     let unified = pending.version == 4
-        && pending.strategy == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        && pending.strategy
+            == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
         && pending.qualification.is_none()
         && pending.model_sha256 == parakeet_sha;
     let qualification_valid = if unified {
@@ -6441,11 +6466,17 @@ fn visit_segments(
     path: &Path,
     mut visit: impl FnMut(usize, SegmentRecord) -> Result<(), String>,
 ) -> Result<(), String> {
-    if !path.exists() { return Ok(()); }
-    let mut file = OpenOptions::new().read(true).write(true).open(path)
+    if !path.exists() {
+        return Ok(());
+    }
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
         .map_err(|error| format!("StorageCorrupt: segment journal: {error}"))?;
     repair_uncommitted_segment_tail(&mut file)?;
-    file.seek(SeekFrom::Start(0)).map_err(|error| format!("StorageCorrupt: segment seek: {error}"))?;
+    file.seek(SeekFrom::Start(0))
+        .map_err(|error| format!("StorageCorrupt: segment seek: {error}"))?;
     for (index, line) in BufReader::new(file).lines().enumerate() {
         let line = line.map_err(|error| format!("StorageCorrupt: segment: {error}"))?;
         let record: SegmentRecord = serde_json::from_str(&line)
@@ -6458,12 +6489,16 @@ fn visit_segments(
 fn timestamp_checked(sample: u64) -> Result<String, String> {
     let seconds = sample / 16_000;
     let remainder = sample % 16_000;
-    let milliseconds = seconds.checked_mul(1_000)
+    let milliseconds = seconds
+        .checked_mul(1_000)
         .and_then(|whole| whole.checked_add(remainder * 1_000 / 16_000))
         .ok_or_else(|| "InvalidTimestamp: global sample time exceeds SRT range".to_owned())?;
     Ok(format!(
-        "{:02}:{:02}:{:02},{:03}", milliseconds / 3_600_000,
-        (milliseconds / 60_000) % 60, (milliseconds / 1_000) % 60, milliseconds % 1_000
+        "{:02}:{:02}:{:02},{:03}",
+        milliseconds / 3_600_000,
+        (milliseconds / 60_000) % 60,
+        (milliseconds / 1_000) % 60,
+        milliseconds % 1_000
     ))
 }
 
@@ -6472,15 +6507,27 @@ fn write_replace_streamed(
     write_content: impl FnOnce(&mut std::io::BufWriter<File>) -> Result<(), String>,
 ) -> Result<(), String> {
     let temporary = path.with_extension(format!(
-        "{}.tmp", path.extension().and_then(|extension| extension.to_str()).unwrap_or("data")
+        "{}.tmp",
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or("data")
     ));
-    let file = OpenOptions::new().write(true).create(true).truncate(true).open(&temporary)
+    let file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&temporary)
         .map_err(|error| format!("StorageUnavailable: {error}"))?;
     let mut writer = std::io::BufWriter::new(file);
     write_content(&mut writer)?;
-    writer.flush().map_err(|error| format!("StorageUnavailable: {error}"))?;
-    let file = writer.into_inner().map_err(|error| format!("StorageUnavailable: {}", error.error()))?;
-    file.sync_all().map_err(|error| format!("StorageUnavailable: {error}"))?;
+    writer
+        .flush()
+        .map_err(|error| format!("StorageUnavailable: {error}"))?;
+    let file = writer
+        .into_inner()
+        .map_err(|error| format!("StorageUnavailable: {}", error.error()))?;
+    file.sync_all()
+        .map_err(|error| format!("StorageUnavailable: {error}"))?;
     drop(file);
     fs::rename(temporary, path).map_err(|error| format!("StorageUnavailable: {error}"))
 }
@@ -6808,7 +6855,9 @@ mod tests {
         legacy.strategy = whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
         assert!(validate_pending(&legacy, job_id, generation.get()).is_err());
 
-        let parakeet = whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3);
+        let parakeet = whisper_core::model_registry::model(
+            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+        );
         let unified = PendingRecord {
             version: 4,
             strategy: whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
@@ -6949,7 +6998,7 @@ mod tests {
         fs::write(
             previous_directory.join("pending.json"),
             serde_json::to_vec(&PendingRecord {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+                strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 version: 1,
                 job_id: previous_job_id,
                 generation: previous_generation,
@@ -6992,7 +7041,7 @@ mod tests {
         fs::write(
             directory.join("pending.json"),
             serde_json::to_vec(&PendingRecord {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+                strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 version: 1,
                 job_id,
                 generation,
@@ -8053,7 +8102,7 @@ mod tests {
             let directory = generation_path(&root, job_id, generation);
             fs::create_dir_all(&directory).unwrap();
             let pending = PendingRecord {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+                strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 version: 1,
                 job_id,
                 generation,

@@ -1159,7 +1159,7 @@ impl<A: Application> DesktopApp<A> {
         };
         if self.dispatch(AppCommand::EnqueueImport {
             request: ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+                strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id,
                 generation,
                 source_path: self.paths.audio.trim().to_owned(),
@@ -3419,10 +3419,9 @@ mod tests {
         command_compute_choice, compute_for_model, gpu_selection_identity, import_enqueue_enabled,
         manual_stop_available, microphone_device_label, microphone_meter_presentation,
         microphone_saturation_is_current, microphone_test_start_enabled,
-        model_preference_command_channel,
-        parakeet_gpu_catalog_ready, provisional_without_confirmed_prefix,
-        queued_request_for_compute, record_first_render, speech_limit_samples,
-        window_must_remain_open,
+        model_preference_command_channel, parakeet_gpu_catalog_ready,
+        provisional_without_confirmed_prefix, queued_request_for_compute, record_first_render,
+        speech_limit_samples, window_must_remain_open,
     };
     use eframe::egui;
     use std::{
@@ -4591,8 +4590,14 @@ mod tests {
             microphone_device_label(&devices[3], &devices),
             "Microphone indisponible"
         );
-        assert_eq!(labels.planned_line(""), "Microphone prévu : Microphone indisponible");
-        assert_eq!(labels.actual_line("   "), "Microphone utilisé : Microphone indisponible");
+        assert_eq!(
+            labels.planned_line(""),
+            "Microphone prévu : Microphone indisponible"
+        );
+        assert_eq!(
+            labels.actual_line("   "),
+            "Microphone utilisé : Microphone indisponible"
+        );
         assert!(!labels.device_label("wasapi:missing").contains("wasapi:"));
     }
 

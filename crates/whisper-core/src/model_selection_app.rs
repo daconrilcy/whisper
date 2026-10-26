@@ -144,10 +144,7 @@ impl ModelCommandGuard {
             return Err(SelectionRefusal::UnknownHistoricalModelPath);
         }
         if model_id == ModelId::ParakeetTdt06BV3
-            && !matches!(
-                &config.language,
-                crate::domain::LanguageChoice::Automatic
-            )
+            && !matches!(&config.language, crate::domain::LanguageChoice::Automatic)
         {
             return Err(SelectionRefusal::Capability(Refusal {
                 cause: crate::engine_capabilities::RefusalCause::CapabilityNotQualified(

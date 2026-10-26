@@ -1188,7 +1188,7 @@ fn r11_request(
     model: &std::path::Path,
 ) -> ImportRequest {
     ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),

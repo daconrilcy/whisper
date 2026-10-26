@@ -436,7 +436,9 @@ impl SourceBinding {
 
     pub fn apply_to_request(&self, request: &ImportRequest) -> Result<ImportRequest, String> {
         if request.strategy != self.record.strategy {
-            return Err("SourceSnapshotMismatch: transcription strategy differs from binding".into());
+            return Err(
+                "SourceSnapshotMismatch: transcription strategy differs from binding".into(),
+            );
         }
         let mut execution = request.clone();
         execution.source_path = self.snapshot_path.to_string_lossy().into_owned();
@@ -1596,14 +1598,23 @@ mod recovery_tests {
         let mut request = request(&destination, &source, 2001);
         request.strategy = whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
         let binding = SourceBinding::acquire(&request, &registry_root).unwrap();
-        let stored: serde_json::Value = serde_json::from_slice(&std::fs::read(&binding.record_path).unwrap()).unwrap();
+        let stored: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&binding.record_path).unwrap()).unwrap();
         assert_eq!(stored["version"], 2);
         assert_eq!(stored["strategy"], "bounded_windows_v1");
-        assert_eq!(binding.apply_to_request(&request).unwrap().strategy, request.strategy);
+        assert_eq!(
+            binding.apply_to_request(&request).unwrap().strategy,
+            request.strategy
+        );
 
         let mut mismatch = request.clone();
         mismatch.strategy = whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1;
-        assert!(binding.apply_to_request(&mismatch).unwrap_err().contains("strategy differs"));
+        assert!(
+            binding
+                .apply_to_request(&mismatch)
+                .unwrap_err()
+                .contains("strategy differs")
+        );
         drop(binding);
         std::fs::remove_dir_all(root).unwrap();
     }
