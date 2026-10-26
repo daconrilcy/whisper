@@ -489,7 +489,7 @@ pub struct ImportApplication<P> {
     automatic_final_queue: std::collections::VecDeque<crate::ports::AutomaticFinalImport>,
     active_live_compute: Option<(CommandIdentity, crate::domain::ComputeChoice)>,
     active_live_parakeet: Option<CommandIdentity>,
-    unified_capture: Option<UnifiedCaptureAdmission>,
+    unified_captures: std::collections::HashMap<(JobId, Generation), UnifiedCaptureAdmission>,
 }
 
 struct UnifiedCaptureAdmission {
@@ -546,7 +546,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
             automatic_final_queue: std::collections::VecDeque::new(),
             active_live_compute: None,
             active_live_parakeet: None,
-            unified_capture: None,
+            unified_captures: std::collections::HashMap::new(),
         }
     }
 
@@ -570,9 +570,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
     }
 
     fn poll_once(&mut self) -> Result<(), ApplicationError> {
-        if self.unified_capture.is_some() {
-            self.retry_unified_capture_segment()?;
-        }
+        self.retry_pending_unified_capture_segments()?;
         if !self.retry_pending_segment()? {
             return Ok(());
         }
@@ -590,9 +588,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 return Ok(());
             };
             let became_ready = matches!(&event, ImportEvent::Ready { .. });
-            let unified_capture_event = self.unified_capture.as_ref().is_some_and(|capture| {
-                (capture.identity.job_id, capture.identity.generation) == event.identity()
-            });
+            let unified_capture_event = self.unified_captures.contains_key(&event.identity());
             l3d_event_trace(&event);
             self.handle_event(event)?;
             if !self.pending_segments.is_empty() && !unified_capture_event {
@@ -607,9 +603,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
 
     fn handle_event(&mut self, event: ImportEvent) -> Result<(), ApplicationError> {
         let event_identity = event.identity();
-        if self.unified_capture.as_ref().is_some_and(|capture| {
-            (capture.identity.job_id, capture.identity.generation) == event_identity
-        }) {
+        if self.unified_captures.contains_key(&event_identity) {
             return self.handle_unified_capture_event(event);
         }
         self.track_parakeet_capture_event(&event);
@@ -1558,11 +1552,12 @@ impl<P: ImportIoPort> ImportApplication<P> {
     }
 
     fn handle_unified_capture_event(&mut self, event: ImportEvent) -> Result<(), ApplicationError> {
+        let key = event.identity();
         match event {
             ImportEvent::Prepared(request) => {
                 let capture = self
-                    .unified_capture
-                    .as_mut()
+                    .unified_captures
+                    .get_mut(&key)
                     .ok_or(ApplicationError::InvalidCommand)?;
                 if !capture.stop_submitted
                     || (request.job_id, request.generation)
@@ -1583,8 +1578,8 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 total_samples,
             } => {
                 let capture = self
-                    .unified_capture
-                    .as_ref()
+                    .unified_captures
+                    .get(&key)
                     .ok_or(ApplicationError::InvalidCommand)?;
                 if (job_id, generation) != (capture.identity.job_id, capture.identity.generation)
                     || capture.total_samples != Some(total_samples)
@@ -1595,11 +1590,10 @@ impl<P: ImportIoPort> ImportApplication<P> {
             }
             ImportEvent::Segment(segment) => {
                 let capture = self
-                    .unified_capture
-                    .as_mut()
+                    .unified_captures
+                    .get_mut(&key)
                     .ok_or(ApplicationError::InvalidCommand)?;
-                if capture.stop_submitted
-                    || segment.segment_id.0 != capture.next_sequence
+                if segment.segment_id.0 != capture.next_sequence
                     || (segment.job_id, segment.generation)
                         != (capture.identity.job_id, capture.identity.generation)
                 {
@@ -1610,18 +1604,18 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     .checked_add(1)
                     .ok_or(ApplicationError::InvalidCommand)?;
                 capture.pending_segments.push_back(segment);
-                self.retry_unified_capture_segment()?;
+                self.retry_unified_capture_segment(key)?;
             }
             ImportEvent::Persisted { sequence, .. } => {
                 let capture = self
-                    .unified_capture
-                    .as_mut()
+                    .unified_captures
+                    .get_mut(&key)
                     .ok_or(ApplicationError::InvalidCommand)?;
                 if !capture.pending_sequences.remove(&sequence) {
                     return Err(ApplicationError::InvalidCommand);
                 }
                 capture.pending_persistence = capture.pending_sequences.len();
-                self.maybe_publish_unified_capture()?;
+                self.maybe_publish_unified_capture(key)?;
             }
             ImportEvent::End {
                 job_id,
@@ -1630,8 +1624,8 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 last_offset,
             } => {
                 let capture = self
-                    .unified_capture
-                    .as_mut()
+                    .unified_captures
+                    .get_mut(&key)
                     .ok_or(ApplicationError::InvalidCommand)?;
                 if !capture.stop_submitted
                     || (capture.identity.job_id, capture.identity.generation)
@@ -1644,10 +1638,10 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
                 capture.last_sequence = Some(last_sequence);
                 capture.total_samples = Some(last_offset);
-                self.maybe_publish_unified_capture()?;
+                self.maybe_publish_unified_capture(key)?;
             }
             ImportEvent::Published { job_id, generation } => {
-                if let Some(capture) = self.unified_capture.as_ref() {
+                if let Some(capture) = self.unified_captures.get(&key) {
                     self.io
                         .submit(ImportEffect::ScanHistory {
                             destination: capture.destination.clone(),
@@ -1659,25 +1653,36 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     job_id.0,
                     generation.get()
                 ));
-                self.unified_capture = None;
+                self.unified_captures.remove(&key);
             }
             ImportEvent::Failed { message, .. } => {
                 self.view.message = Some(format!("Échec de la transcription micro : {message}"));
-                self.unified_capture = None;
+                self.unified_captures.remove(&key);
             }
             ImportEvent::Stopped { .. } => {
-                self.unified_capture = None;
+                self.unified_captures.remove(&key);
             }
             _ => {}
         }
         Ok(())
     }
 
-    fn retry_unified_capture_segment(&mut self) -> Result<(), ApplicationError> {
+    fn retry_pending_unified_capture_segments(&mut self) -> Result<(), ApplicationError> {
+        let keys = self.unified_captures.keys().copied().collect::<Vec<_>>();
+        for key in keys {
+            self.retry_unified_capture_segment(key)?;
+        }
+        Ok(())
+    }
+
+    fn retry_unified_capture_segment(
+        &mut self,
+        key: (JobId, Generation),
+    ) -> Result<(), ApplicationError> {
         loop {
             let Some(segment) = self
-                .unified_capture
-                .as_ref()
+                .unified_captures
+                .get(&key)
                 .and_then(|capture| capture.pending_segments.front().cloned())
             else {
                 return Ok(());
@@ -1688,8 +1693,8 @@ impl<P: ImportIoPort> ImportApplication<P> {
             {
                 Ok(()) => {
                     let capture = self
-                        .unified_capture
-                        .as_mut()
+                        .unified_captures
+                        .get_mut(&key)
                         .ok_or(ApplicationError::InvalidCommand)?;
                     capture.pending_segments.pop_front();
                     capture.pending_sequences.insert(segment.segment_id.0);
@@ -1701,9 +1706,12 @@ impl<P: ImportIoPort> ImportApplication<P> {
         }
     }
 
-    fn maybe_publish_unified_capture(&mut self) -> Result<(), ApplicationError> {
-        self.retry_unified_capture_segment()?;
-        let Some(capture) = self.unified_capture.as_ref() else {
+    fn maybe_publish_unified_capture(
+        &mut self,
+        key: (JobId, Generation),
+    ) -> Result<(), ApplicationError> {
+        self.retry_unified_capture_segment(key)?;
+        let Some(capture) = self.unified_captures.get(&key) else {
             return Ok(());
         };
         let ready = capture.stop_submitted
@@ -1714,7 +1722,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 .last_sequence
                 .is_some_and(|last| last.saturating_add(1) == capture.next_sequence);
         if ready {
-            let capture = self.unified_capture.as_ref().unwrap();
+            let capture = self.unified_captures.get(&key).unwrap();
             self.io
                 .submit(ImportEffect::Publish {
                     job_id: capture.identity.job_id,
@@ -1722,7 +1730,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     last_sequence: capture.last_sequence.unwrap(),
                 })
                 .map_err(|error| self.fail(error))?;
-            if let Some(capture) = self.unified_capture.as_mut() {
+            if let Some(capture) = self.unified_captures.get_mut(&key) {
                 capture.publish_submitted = true;
             }
         }
@@ -2837,7 +2845,28 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                             && active.model_sha256 == request.model_sha256
                             && active.config.compute == request.config.compute
                     });
-                if self.unified_capture.is_some() || (self.active.is_some() && !import_can_share) {
+                let open_capture_exists = self
+                    .unified_captures
+                    .values()
+                    .any(|capture| !capture.stop_submitted);
+                let admitted_sessions = self.unified_captures.len()
+                    + if import_can_share && self.active.is_some() {
+                        1
+                    } else {
+                        0
+                    };
+                if open_capture_exists
+                    || admitted_sessions >= 2
+                    || (self.active.is_some() && !import_can_share)
+                    || self
+                        .unified_captures
+                        .contains_key(&(request.job_id, request.generation))
+                    || self.active
+                        == Some(CommandIdentity {
+                            job_id: request.job_id,
+                            generation: request.generation,
+                        })
+                {
                     return Err(ApplicationError::InvalidCommand);
                 }
                 let identity = CommandIdentity {
@@ -2848,18 +2877,21 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.io
                     .submit(ImportEffect::StartUnifiedLive(request))
                     .map_err(|error| self.fail(error))?;
-                self.unified_capture = Some(UnifiedCaptureAdmission {
-                    identity,
-                    destination,
-                    stop_submitted: false,
-                    publish_submitted: false,
-                    next_sequence: 1,
-                    pending_persistence: 0,
-                    pending_segments: std::collections::VecDeque::new(),
-                    pending_sequences: std::collections::BTreeSet::new(),
-                    last_sequence: None,
-                    total_samples: None,
-                });
+                self.unified_captures.insert(
+                    (identity.job_id, identity.generation),
+                    UnifiedCaptureAdmission {
+                        identity,
+                        destination,
+                        stop_submitted: false,
+                        publish_submitted: false,
+                        next_sequence: 1,
+                        pending_persistence: 0,
+                        pending_segments: std::collections::VecDeque::new(),
+                        pending_sequences: std::collections::BTreeSet::new(),
+                        last_sequence: None,
+                        total_samples: None,
+                    },
+                );
                 return Ok(self.view.clone());
             }
             command @ (AppCommand::StartLiveConfigured { .. }
@@ -3203,39 +3235,34 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 );
             }
             AppCommand::StopUnifiedLive { job_id, generation } => {
-                let matches = self.unified_capture.as_ref().is_some_and(|capture| {
-                    capture.identity == (CommandIdentity { job_id, generation })
-                });
-                if !matches {
-                    return Err(ApplicationError::InvalidCommand);
-                }
+                let key = (job_id, generation);
                 let stop_submitted = self
-                    .unified_capture
-                    .as_ref()
-                    .is_some_and(|capture| capture.stop_submitted);
+                    .unified_captures
+                    .get(&key)
+                    .ok_or(ApplicationError::InvalidCommand)?
+                    .stop_submitted;
                 if !stop_submitted {
                     self.io
                         .submit(ImportEffect::StopUnifiedLive { job_id, generation })
                         .map_err(|error| self.fail(error))?;
-                    if let Some(capture) = self.unified_capture.as_mut() {
+                    if let Some(capture) = self.unified_captures.get_mut(&key) {
                         capture.stop_submitted = true;
                     }
                 }
                 return Ok(self.view.clone());
             }
             AppCommand::Stop { job_id, generation } | AppCommand::Quit { job_id, generation } => {
-                if self.unified_capture.as_ref().is_some_and(|capture| {
-                    capture.identity == (CommandIdentity { job_id, generation })
-                }) {
+                let key = (job_id, generation);
+                if self.unified_captures.contains_key(&key) {
                     let stop_submitted = self
-                        .unified_capture
-                        .as_ref()
+                        .unified_captures
+                        .get(&key)
                         .is_some_and(|capture| capture.stop_submitted);
                     if !stop_submitted {
                         self.io
-                            .submit(ImportEffect::Stop { job_id, generation })
+                            .submit(ImportEffect::StopUnifiedLive { job_id, generation })
                             .map_err(|error| self.fail(error))?;
-                        if let Some(capture) = self.unified_capture.as_mut() {
+                        if let Some(capture) = self.unified_captures.get_mut(&key) {
                             capture.stop_submitted = true;
                         }
                     }
@@ -5803,7 +5830,8 @@ mod tests {
         let job_id = JobId(0xC1);
         let generation = Generation::first();
         let mut app = ImportApplication::new(ScanTestIo::default());
-        app.unified_capture = Some(unified_capture_state(job_id));
+        app.unified_captures
+            .insert((job_id, generation), unified_capture_state(job_id));
 
         app.handle_unified_capture_event(ImportEvent::Prepared(prepared_unified_capture(
             job_id, 32_000,
@@ -5836,7 +5864,8 @@ mod tests {
         let job_id = JobId(0xC2);
         let generation = Generation::first();
         let mut app = ImportApplication::new(ScanTestIo::default());
-        app.unified_capture = Some(unified_capture_state(job_id));
+        app.unified_captures
+            .insert((job_id, generation), unified_capture_state(job_id));
         app.handle_unified_capture_event(ImportEvent::Prepared(prepared_unified_capture(
             job_id, 32_000,
         )))
@@ -5859,7 +5888,8 @@ mod tests {
         let job_id = JobId(0xC3);
         let generation = Generation::first();
         let mut app = ImportApplication::new(ScanTestIo::default());
-        app.unified_capture = Some(unified_capture_state(job_id));
+        app.unified_captures
+            .insert((job_id, generation), unified_capture_state(job_id));
 
         assert_eq!(
             app.handle_unified_capture_event(ImportEvent::End {

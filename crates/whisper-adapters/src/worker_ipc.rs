@@ -1478,9 +1478,9 @@ struct ImportRuntime {
     #[cfg(test)]
     controlled_transcriber: Option<Box<dyn crate::parakeet_pipeline::WindowTranscriber>>,
     #[cfg(test)]
-    controlled_capture: Option<CaptureStream>,
+    controlled_captures: VecDeque<CaptureStream>,
     #[cfg(test)]
-    controlled_part_limit: Option<u64>,
+    controlled_part_limits: VecDeque<Option<u64>>,
     document_drains: VecDeque<UnifiedDocumentDrain>,
 }
 
@@ -2584,9 +2584,9 @@ impl ImportRuntime {
             #[cfg(test)]
             controlled_transcriber: None,
             #[cfg(test)]
-            controlled_capture: None,
+            controlled_captures: VecDeque::new(),
             #[cfg(test)]
-            controlled_part_limit: None,
+            controlled_part_limits: VecDeque::new(),
             document_drains: VecDeque::new(),
         }
     }
@@ -2606,8 +2606,12 @@ impl ImportRuntime {
         capture: CaptureStream,
         part_limit_bytes: Option<u64>,
     ) -> Self {
-        self.controlled_capture = Some(capture);
-        self.controlled_part_limit = part_limit_bytes;
+        if self.controlled_captures.len() < 3 {
+            self.controlled_captures.push_back(capture);
+        }
+        if self.controlled_part_limits.len() < 3 {
+            self.controlled_part_limits.push_back(part_limit_bytes);
+        }
         self
     }
 
@@ -2686,6 +2690,13 @@ impl ImportRuntime {
     ) -> Result<(), String> {
         if self.unified_sessions.len() >= 2 {
             return Err("SchedulerCapacity: two unified sessions are already admitted".into());
+        }
+        if self
+            .unified_sessions
+            .values()
+            .any(|state| state.source.is_capture() && !state.source_closed)
+        {
+            return Err("SchedulerCapacity: an open unified capture is already admitted".into());
         }
         let executor_available = self.unified_executor.is_some();
         #[cfg(test)]
@@ -3070,6 +3081,16 @@ impl ImportRuntime {
                 "ModelNotQualified: unified inference executor is unavailable".into(),
             )));
         };
+        if executor.thread.is_none()
+            && let Err(error) = executor.restart()
+        {
+            let session = self.unified_sessions.keys().next().copied()?;
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                format!("InferenceRestart: {error}"),
+            )));
+        }
         let mut pump_error = None;
         let mut preview_updates = Vec::new();
         for (session, state) in &mut self.unified_sessions {
@@ -3928,9 +3949,9 @@ impl ImportRuntime {
             ImportEffect::StartUnifiedLive(request) => {
                 let id = (request.job_id, request.generation);
                 #[cfg(test)]
-                let controlled_capture = self.controlled_capture.take();
+                let controlled_capture = self.controlled_captures.pop_front();
                 #[cfg(test)]
-                let controlled_part_limit = self.controlled_part_limit.take();
+                let controlled_part_limit = self.controlled_part_limits.pop_front().flatten();
                 #[cfg(not(test))]
                 let controlled_capture: Option<CaptureStream> = None;
                 #[cfg(not(test))]
@@ -10283,10 +10304,18 @@ mod tests {
     struct RuntimeImportPort {
         runtime: ImportRuntime,
         events: VecDeque<ImportEvent>,
+        capture_progress: Option<(JobId, Arc<AtomicU64>)>,
+        document_revision: Option<(JobId, Arc<AtomicU64>)>,
+        unified_stop_submissions: Option<Arc<AtomicU64>>,
     }
 
     impl ImportIoPort for RuntimeImportPort {
         fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
+            if matches!(&effect, ImportEffect::StopUnifiedLive { .. })
+                && let Some(submissions) = &self.unified_stop_submissions
+            {
+                submissions.fetch_add(1, Ordering::Relaxed);
+            }
             let starts_generation = matches!(
                 &effect,
                 ImportEffect::StartMicrophoneTest { .. }
@@ -10307,6 +10336,31 @@ mod tests {
         fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
             if let Some(event) = self.events.pop_front() {
                 return Ok(Some(event));
+            }
+            if let Some((job_id, progress)) = &self.capture_progress {
+                if let Some(samples) =
+                    self.runtime
+                        .unified_sessions
+                        .iter()
+                        .find_map(|(session, state)| {
+                            (session.job_id == *job_id && state.source.is_capture())
+                                .then_some(state.available_samples)
+                        })
+                {
+                    progress.fetch_max(samples, Ordering::Relaxed);
+                }
+            }
+            if let Some((job_id, revision)) = &self.document_revision {
+                if let Some(current) =
+                    self.runtime
+                        .unified_sessions
+                        .iter()
+                        .find_map(|(session, state)| {
+                            (session.job_id == *job_id).then_some(state.document.revision())
+                        })
+                {
+                    revision.fetch_max(current, Ordering::Relaxed);
+                }
             }
             match self.runtime.poll() {
                 Some(Ok(event)) => Ok(Some(event)),
@@ -10353,6 +10407,149 @@ mod tests {
             }),
             calls,
         )
+    }
+
+    struct HeldUnifiedWorker {
+        calls: Arc<AtomicU64>,
+        active: Arc<AtomicU64>,
+        maximum_active: Arc<AtomicU64>,
+        call_sources: Arc<std::sync::Mutex<Vec<String>>>,
+        hold_call: u64,
+        hold_first_final_a: bool,
+        held: std::sync::mpsc::SyncSender<String>,
+        release: std::sync::mpsc::Receiver<()>,
+    }
+
+    impl crate::parakeet_pipeline::WindowTranscriber for HeldUnifiedWorker {
+        fn instance_id(&self) -> u64 {
+            9010
+        }
+
+        fn transcribe(
+            &mut self,
+            window: whisper_core::parakeet_session::AudioWindow,
+            pcm: &[i16],
+        ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+            let call = self.calls.fetch_add(1, Ordering::Relaxed) + 1;
+            let active = self.active.fetch_add(1, Ordering::Relaxed) + 1;
+            self.maximum_active.fetch_max(active, Ordering::Relaxed);
+            let source_name = if pcm.first().is_some_and(|sample| sample.abs() < 6_500) {
+                "B"
+            } else {
+                "A"
+            };
+            let is_final_window =
+                window.central_end_sample - window.central_start_sample > 4 * 16_000;
+            self.call_sources
+                .lock()
+                .expect("call-source log mutex")
+                .push(format!(
+                    "{source_name}:{}",
+                    if is_final_window { "final" } else { "preview" }
+                ));
+            if (self.hold_first_final_a && source_name == "A" && is_final_window)
+                || (!self.hold_first_final_a && call == self.hold_call)
+            {
+                let _ = self.held.send(source_name.to_owned());
+                self.release
+                    .recv()
+                    .map_err(|error| format!("controlled release channel: {error}"))?;
+            }
+            self.active.fetch_sub(1, Ordering::Relaxed);
+            let start_ms = ((window.central_start_sample - window.native_start_sample) / 16) as u32;
+            Ok(vec![whisper_core::parakeet_ipc::Word {
+                text: format!("{source_name}-final-{call}."),
+                start_ms,
+                end_ms: start_ms + 100,
+            }])
+        }
+    }
+
+    fn held_worker(
+        hold_call: u64,
+    ) -> (
+        Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+        Arc<AtomicU64>,
+        Arc<AtomicU64>,
+        Arc<std::sync::Mutex<Vec<String>>>,
+        std::sync::mpsc::Receiver<String>,
+        std::sync::mpsc::SyncSender<()>,
+    ) {
+        held_worker_with_mode(hold_call, false)
+    }
+
+    fn held_final_a_worker() -> (
+        Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+        Arc<AtomicU64>,
+        Arc<AtomicU64>,
+        Arc<std::sync::Mutex<Vec<String>>>,
+        std::sync::mpsc::Receiver<String>,
+        std::sync::mpsc::SyncSender<()>,
+    ) {
+        held_worker_with_mode(0, true)
+    }
+
+    fn held_worker_with_mode(
+        hold_call: u64,
+        hold_first_final_a: bool,
+    ) -> (
+        Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+        Arc<AtomicU64>,
+        Arc<AtomicU64>,
+        Arc<std::sync::Mutex<Vec<String>>>,
+        std::sync::mpsc::Receiver<String>,
+        std::sync::mpsc::SyncSender<()>,
+    ) {
+        let calls = Arc::new(AtomicU64::new(0));
+        let active = Arc::new(AtomicU64::new(0));
+        let maximum_active = Arc::new(AtomicU64::new(0));
+        let call_sources = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (held, held_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release) = std::sync::mpsc::sync_channel(1);
+        (
+            Box::new(HeldUnifiedWorker {
+                calls: Arc::clone(&calls),
+                active: Arc::clone(&active),
+                maximum_active: Arc::clone(&maximum_active),
+                call_sources: Arc::clone(&call_sources),
+                hold_call,
+                hold_first_final_a,
+                held,
+                release,
+            }),
+            calls,
+            maximum_active,
+            call_sources,
+            held_rx,
+            release_tx,
+        )
+    }
+
+    struct TailAwareUnifiedWorker;
+
+    impl crate::parakeet_pipeline::WindowTranscriber for TailAwareUnifiedWorker {
+        fn instance_id(&self) -> u64 {
+            9011
+        }
+
+        fn transcribe(
+            &mut self,
+            window: whisper_core::parakeet_session::AudioWindow,
+            _: &[i16],
+        ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+            let terminal = window.central_end_sample > 120 * 16_000;
+            let start_ms = ((window.central_start_sample - window.native_start_sample) / 16) as u32;
+            Ok(vec![whisper_core::parakeet_ipc::Word {
+                text: if terminal {
+                    "terminal-phrase."
+                } else {
+                    "intermediate-phrase."
+                }
+                .into(),
+                start_ms,
+                end_ms: start_ms + 100,
+            }])
+        }
     }
 
     struct InvalidTimeUnifiedWorker;
@@ -10448,6 +10645,39 @@ mod tests {
         }
     }
 
+    fn unified_live_request(root: &Path, id: u128) -> whisper_core::ports::LiveRequest {
+        let model = whisper_core::model_registry::model(
+            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+        );
+        let model_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("models")
+            .join(model.artifact.file_name);
+        let model_sha256 = (0..32)
+            .map(|index| {
+                u8::from_str_radix(&model.artifact.sha256[index * 2..index * 2 + 2], 16).unwrap()
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+        whisper_core::ports::LiveRequest {
+            job_id: JobId(id),
+            generation: Generation::first(),
+            model_path: model_path.to_string_lossy().into_owned(),
+            model_sha256,
+            destination: root.to_string_lossy().into_owned(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: whisper_core::MicrophoneChoice::Device(format!("test:unified-{id}")),
+            microphone_gain_db: 0,
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        }
+    }
+
     fn assert_real_unified_model(request: &ImportRequest) {
         assert!(
             Path::new(&request.model_path).is_file(),
@@ -10502,6 +10732,9 @@ mod tests {
             let port = RuntimeImportPort {
                 runtime,
                 events: VecDeque::new(),
+                capture_progress: None,
+                document_revision: None,
+                unified_stop_submissions: None,
             };
             let mut app = ImportApplication::new(port);
             app.dispatch(AppCommand::StartImport { request }).unwrap();
@@ -10574,6 +10807,636 @@ mod tests {
     }
 
     #[test]
+    fn import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio()
+     {
+        const A_ID: u128 = 9_301;
+        const B_ID: u128 = 9_302;
+        const THIRD_ID: u128 = 9_303;
+        const A_SAMPLES: usize = 121 * 16_000;
+        const B_SAMPLES: usize = 35 * 16_000;
+        const PART_LIMIT_BYTES: u64 = 32_000;
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-capture-ab-{}",
+            std::process::id()
+        ));
+        let archive_root = root.join("archive");
+        std::fs::create_dir_all(&archive_root).unwrap();
+
+        let request_a = unified_live_request(&archive_root, A_ID);
+        let request_b = unified_live_request(&archive_root, B_ID);
+        let request_third = unified_live_request(&archive_root, THIRD_ID);
+        assert!(Path::new(&request_a.model_path).is_file());
+
+        let mut capture_a =
+            crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:capture-a");
+        for _ in 0..25 {
+            capture_a.enqueue_test_block(vec![0.25; 77_440]);
+        }
+        let mut capture_b =
+            crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:capture-b");
+        for _ in 0..7 {
+            capture_b.enqueue_test_block(vec![0.15; 5 * 16_000]);
+        }
+        let mut capture_third = crate::capture::CaptureStream::empty_test_capture(
+            16_000,
+            1,
+            "test:capture-third-after-reap",
+        );
+        capture_third.enqueue_test_block(vec![0.1; 3 * 16_000]);
+
+        let (worker, calls, maximum_active, call_sources, held_rx, release_tx) =
+            held_final_a_worker();
+        let b_progress = Arc::new(AtomicU64::new(0));
+        let stop_submissions = Arc::new(AtomicU64::new(0));
+        let runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(worker)
+        .with_controlled_capture(capture_a, Some(PART_LIMIT_BYTES))
+        .with_controlled_capture(capture_b, Some(PART_LIMIT_BYTES))
+        .with_controlled_capture(capture_third, Some(PART_LIMIT_BYTES));
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: Some((JobId(B_ID), Arc::clone(&b_progress))),
+            document_revision: None,
+            unified_stop_submissions: Some(Arc::clone(&stop_submissions)),
+        });
+
+        app.dispatch(AppCommand::StartUnifiedLiveConfigured {
+            request: request_a.clone(),
+        })
+        .unwrap();
+        for _ in 0..100 {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            if calls.load(Ordering::Relaxed) >= 1 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            calls.load(Ordering::Relaxed) >= 1,
+            "capture A preview was not scheduled"
+        );
+        assert!(matches!(
+            app.dispatch(AppCommand::StartUnifiedLiveConfigured {
+                request: request_b.clone(),
+            }),
+            Err(whisper_core::application::ApplicationError::InvalidCommand)
+        ));
+        assert!(
+            !archive_root
+                .join("transcriptions")
+                .join(format!("{:032x}", B_ID))
+                .exists()
+        );
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: request_a.job_id,
+            generation: request_a.generation,
+        })
+        .unwrap();
+
+        let held_deadline = Instant::now() + Duration::from_secs(5);
+        let mut held_source = None;
+        while Instant::now() < held_deadline {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            match held_rx.try_recv() {
+                Ok(source) => {
+                    held_source = Some(source);
+                    break;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    thread::sleep(Duration::from_millis(2));
+                }
+                Err(error) => panic!("capture A final worker exited before holding: {error}"),
+            }
+        }
+        assert_eq!(
+            held_source.as_deref(),
+            Some("A"),
+            "capture A final inference was not held"
+        );
+        let held_call_count = calls.load(Ordering::Relaxed);
+        assert!(held_call_count >= 2);
+        assert_eq!(maximum_active.load(Ordering::Relaxed), 1);
+
+        app.dispatch(AppCommand::StartUnifiedLiveConfigured {
+            request: request_b.clone(),
+        })
+        .unwrap();
+        assert!(
+            matches!(
+                app.dispatch(AppCommand::StartUnifiedLiveConfigured {
+                    request: request_third.clone(),
+                }),
+                Err(whisper_core::application::ApplicationError::InvalidCommand)
+            ),
+            "third session must be refused before the runtime opens its capture"
+        );
+        assert!(
+            !root
+                .join("archive/transcriptions")
+                .join(format!("{:032x}", THIRD_ID))
+                .exists()
+        );
+
+        let b_pump_deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < b_pump_deadline
+            && b_progress.load(Ordering::Relaxed) < B_SAMPLES as u64
+        {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(b_progress.load(Ordering::Relaxed), B_SAMPLES as u64);
+        assert_eq!(
+            calls.load(Ordering::Relaxed),
+            held_call_count,
+            "B must pump without a second backend call"
+        );
+        assert_eq!(maximum_active.load(Ordering::Relaxed), 1);
+
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: request_b.job_id,
+            generation: request_b.generation,
+        })
+        .unwrap();
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: request_b.job_id,
+            generation: request_b.generation,
+        })
+        .unwrap();
+        assert_eq!(stop_submissions.load(Ordering::Relaxed), 2);
+        release_tx.send(()).unwrap();
+
+        let publication_deadline = Instant::now() + Duration::from_secs(20);
+        while Instant::now() < publication_deadline {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            let entries = ArchiveStore::scan(&archive_root).unwrap();
+            let published = [JobId(A_ID), JobId(B_ID)].into_iter().all(|job_id| {
+                entries
+                    .iter()
+                    .any(|entry| entry.job_id == job_id && entry.complete)
+            });
+            if published {
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+
+        let entries = ArchiveStore::scan(&archive_root).unwrap();
+        let final_call_count = calls.load(Ordering::Relaxed);
+        for (job_id, expected_samples, label) in [
+            (JobId(A_ID), A_SAMPLES as u64, "A"),
+            (JobId(B_ID), B_SAMPLES as u64, "B"),
+        ] {
+            let entry = entries
+                .iter()
+                .find(|entry| entry.job_id == job_id && entry.complete)
+                .unwrap_or_else(|| panic!("capture {label} was not fully published"));
+            let generation = archive_root
+                .join("transcriptions")
+                .join(format!("{:032x}", job_id.0))
+                .join("1");
+            assert!(generation.join("transcript.txt").is_file());
+            assert!(generation.join("transcript.srt").is_file());
+            let transcript = std::fs::read_to_string(generation.join("transcript.txt")).unwrap();
+            if label == "A" {
+                assert!(transcript.contains(&format!("A-final-{final_call_count}.")));
+            } else {
+                assert!(transcript.contains(&format!("B-final-{}.", final_call_count - 1)));
+            }
+            let basename = entry.export_basename.as_ref().unwrap();
+            assert!(
+                archive_root
+                    .join("exports")
+                    .join(format!("{basename}.txt"))
+                    .is_file()
+            );
+            assert!(
+                archive_root
+                    .join("exports")
+                    .join(format!("{basename}.srt"))
+                    .is_file()
+            );
+
+            let manifest_path = generation.join("captured-source-parts.json");
+            let manifest: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(manifest_path).unwrap()).unwrap();
+            assert_eq!(manifest["source_samples"].as_u64(), Some(expected_samples));
+            let parts = manifest["parts"].as_array().unwrap();
+            assert!(
+                parts.len() > 1,
+                "capture {label} did not rotate into multiple parts"
+            );
+            let mut cursor = 0_u64;
+            for part in parts {
+                assert_eq!(part["start_sample"].as_u64(), Some(cursor));
+                cursor = part["end_sample"].as_u64().unwrap();
+                assert!(Path::new(part["path"].as_str().unwrap()).is_file());
+            }
+            assert_eq!(cursor, expected_samples);
+
+            let source_path = generation.join("parakeet-unified/source.wav");
+            let source = crate::parakeet_audio::PcmPartStore::open(source_path);
+            let expected_pcm = if label == "B" {
+                (0.15_f32 * 32_767.0).round() as i16
+            } else {
+                (0.25_f32 * 32_767.0).round() as i16
+            };
+            let mut start = 0_u64;
+            while start < expected_samples {
+                let end = start.saturating_add(80_000).min(expected_samples);
+                let samples = source.read_window(start..end).unwrap();
+                assert_eq!(samples.len() as u64, end - start);
+                assert!(
+                    samples
+                        .iter()
+                        .all(|sample| sample.abs_diff(expected_pcm) <= 2)
+                );
+                start = end;
+            }
+
+            let coverage = std::fs::read_to_string(
+                generation.join("parakeet-unified/document/coverage.jsonl"),
+            )
+            .unwrap();
+            let windows = coverage
+                .lines()
+                .map(|line| {
+                    serde_json::from_str::<whisper_core::ports::ParakeetWindowCoverage>(line)
+                        .unwrap()
+                })
+                .collect::<Vec<_>>();
+            assert!(!windows.is_empty());
+            assert_eq!(windows.first().unwrap().range.start_sample, 0);
+            assert_eq!(windows.last().unwrap().range.end_sample, expected_samples);
+            assert!(
+                windows
+                    .windows(2)
+                    .all(|pair| { pair[0].range.end_sample == pair[1].range.start_sample })
+            );
+        }
+        assert_eq!(maximum_active.load(Ordering::Relaxed), 1);
+        let call_sources = call_sources.lock().unwrap();
+        let final_order = call_sources
+            .iter()
+            .rev()
+            .take(3)
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            final_order.into_iter().rev().collect::<Vec<_>>(),
+            ["A:final", "B:final", "A:final"],
+            "final windows must alternate after A's held window and preserve its tail"
+        );
+
+        app.dispatch(AppCommand::StartUnifiedLiveConfigured {
+            request: request_third.clone(),
+        })
+        .unwrap();
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: request_third.job_id,
+            generation: request_third.generation,
+        })
+        .unwrap();
+        let third_publication_deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < third_publication_deadline {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            if ArchiveStore::scan(&archive_root)
+                .unwrap()
+                .iter()
+                .any(|entry| entry.job_id == request_third.job_id && entry.complete)
+            {
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            ArchiveStore::scan(&archive_root)
+                .unwrap()
+                .iter()
+                .any(|entry| entry.job_id == request_third.job_id && entry.complete)
+        );
+        assert_eq!(stop_submissions.load(Ordering::Relaxed), 3);
+    }
+
+    #[test]
+    fn import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published() {
+        const A_ID: u128 = 9_311;
+        const B_ID: u128 = 9_312;
+        const B_SAMPLES: usize = 35 * 16_000;
+        const PART_LIMIT_BYTES: u64 = 32_000;
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-import-capture-ab-{}",
+            std::process::id()
+        ));
+        let archive_root = root.join("archive");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        let source_path = root.join("import-a.wav");
+        let mut source_writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        source_writer.append(&vec![0_i16; 4 * 16_000]).unwrap();
+        source_writer.finish().unwrap();
+        let import_request = unified_import_request(&archive_root, &source_path, A_ID);
+        let capture_request = unified_live_request(&archive_root, B_ID);
+        assert_real_unified_model(&import_request);
+
+        let mut capture_b =
+            crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:import-capture-b");
+        for _ in 0..7 {
+            capture_b.enqueue_test_block(vec![0.15; 5 * 16_000]);
+        }
+        let (worker, calls, maximum_active, _call_sources, held_rx, release_tx) = held_worker(1);
+        let b_progress = Arc::new(AtomicU64::new(0));
+        let stop_submissions = Arc::new(AtomicU64::new(0));
+        let runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(worker)
+        .with_controlled_capture(capture_b, Some(PART_LIMIT_BYTES));
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: Some((JobId(B_ID), Arc::clone(&b_progress))),
+            document_revision: None,
+            unified_stop_submissions: Some(Arc::clone(&stop_submissions)),
+        });
+
+        app.dispatch(AppCommand::StartImport {
+            request: import_request.clone(),
+        })
+        .unwrap();
+        let held_deadline = Instant::now() + Duration::from_secs(5);
+        let mut held_source = None;
+        while Instant::now() < held_deadline {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            match held_rx.try_recv() {
+                Ok(source) => {
+                    held_source = Some(source);
+                    break;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    thread::sleep(Duration::from_millis(2));
+                }
+                Err(error) => panic!("import A worker exited before holding: {error}"),
+            }
+        }
+        assert!(
+            held_source.is_some(),
+            "import A final inference was not held"
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+
+        app.dispatch(AppCommand::StartUnifiedLiveConfigured {
+            request: capture_request.clone(),
+        })
+        .unwrap();
+        let b_pump_deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < b_pump_deadline
+            && b_progress.load(Ordering::Relaxed) < B_SAMPLES as u64
+        {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(b_progress.load(Ordering::Relaxed), B_SAMPLES as u64);
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert_eq!(maximum_active.load(Ordering::Relaxed), 1);
+
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: capture_request.job_id,
+            generation: capture_request.generation,
+        })
+        .unwrap();
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: capture_request.job_id,
+            generation: capture_request.generation,
+        })
+        .unwrap();
+        assert_eq!(stop_submissions.load(Ordering::Relaxed), 1);
+        release_tx.send(()).unwrap();
+
+        let publication_deadline = Instant::now() + Duration::from_secs(20);
+        while Instant::now() < publication_deadline {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            let entries = ArchiveStore::scan(&archive_root).unwrap();
+            if [JobId(A_ID), JobId(B_ID)].into_iter().all(|job_id| {
+                entries
+                    .iter()
+                    .any(|entry| entry.job_id == job_id && entry.complete)
+            }) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        let entries = ArchiveStore::scan(&archive_root).unwrap();
+        for job_id in [JobId(A_ID), JobId(B_ID)] {
+            let entry = entries
+                .iter()
+                .find(|entry| entry.job_id == job_id && entry.complete)
+                .expect("both the file import and capture must reach publication");
+            let generation = archive_root
+                .join("transcriptions")
+                .join(format!("{:032x}", job_id.0))
+                .join("1");
+            assert!(generation.join("transcript.txt").is_file());
+            assert!(generation.join("transcript.srt").is_file());
+            let basename = entry.export_basename.as_ref().unwrap();
+            assert!(
+                archive_root
+                    .join("exports")
+                    .join(format!("{basename}.txt"))
+                    .is_file()
+            );
+            assert!(
+                archive_root
+                    .join("exports")
+                    .join(format!("{basename}.srt"))
+                    .is_file()
+            );
+        }
+        assert_eq!(maximum_active.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail() {
+        const JOB_ID: u128 = 9_321;
+        const TOTAL_SAMPLES: u64 = 132 * 16_000;
+        const PART_LIMIT_BYTES: u64 = 64_000;
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-live-document-{}",
+            std::process::id()
+        ));
+        let archive_root = root.join("archive");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        let request = unified_live_request(&archive_root, JOB_ID);
+        assert!(Path::new(&request.model_path).is_file());
+
+        let mut capture = crate::capture::CaptureStream::empty_test_capture(
+            16_000,
+            1,
+            "test:unified-document-progress",
+        );
+        for _ in 0..33 {
+            capture.enqueue_test_block(vec![0.2; 4 * 16_000]);
+        }
+        let document_revision = Arc::new(AtomicU64::new(0));
+        let stop_submissions = Arc::new(AtomicU64::new(0));
+        let runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker))
+        .with_controlled_capture(capture, Some(PART_LIMIT_BYTES));
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: Some((JobId(JOB_ID), Arc::clone(&document_revision))),
+            unified_stop_submissions: Some(Arc::clone(&stop_submissions)),
+        });
+        app.dispatch(AppCommand::StartUnifiedLiveConfigured {
+            request: request.clone(),
+        })
+        .unwrap();
+
+        let document_directory = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", JOB_ID))
+            .join("1/parakeet-unified/document");
+        let live_progress_deadline = Instant::now() + Duration::from_secs(30);
+        let mut preview_revision = 0_u64;
+        let mut preview_range = None;
+        while Instant::now() < live_progress_deadline
+            && (document_revision.load(Ordering::Relaxed) == 0 || preview_revision < 2)
+        {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            if let Ok(bytes) = std::fs::read(document_directory.join("document.preview.json")) {
+                if let Ok(preview) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                    preview_revision = preview["revision"].as_u64().unwrap_or(0);
+                    preview_range = Some((
+                        preview["segment"]["range"]["start_sample"]
+                            .as_u64()
+                            .unwrap_or(0),
+                        preview["segment"]["range"]["end_sample"]
+                            .as_u64()
+                            .unwrap_or(0),
+                    ));
+                }
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            document_revision.load(Ordering::Relaxed) > 0,
+            "a final page must be committed while capture is still open"
+        );
+        assert!(
+            preview_revision >= 2,
+            "the 4-second preview must be replaced in place"
+        );
+        let (preview_start, preview_end) = preview_range.unwrap();
+        assert_eq!(preview_end - preview_start, 4 * 16_000);
+        assert_eq!(stop_submissions.load(Ordering::Relaxed), 0);
+
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: request.job_id,
+            generation: request.generation,
+        })
+        .unwrap();
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: request.job_id,
+            generation: request.generation,
+        })
+        .unwrap();
+        assert_eq!(stop_submissions.load(Ordering::Relaxed), 1);
+
+        let publication_deadline = Instant::now() + Duration::from_secs(30);
+        while Instant::now() < publication_deadline {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            if ArchiveStore::scan(&archive_root)
+                .unwrap()
+                .iter()
+                .any(|entry| entry.job_id == request.job_id && entry.complete)
+            {
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        let entry = ArchiveStore::scan(&archive_root)
+            .unwrap()
+            .into_iter()
+            .find(|entry| entry.job_id == request.job_id && entry.complete)
+            .expect("stopped capture must publish the final tail");
+        let generation_directory = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", JOB_ID))
+            .join("1");
+        let transcript =
+            std::fs::read_to_string(generation_directory.join("transcript.txt")).unwrap();
+        assert!(transcript.contains("terminal-phrase."));
+        assert!(generation_directory.join("transcript.srt").is_file());
+        let basename = entry.export_basename.unwrap();
+        assert!(
+            archive_root
+                .join("exports")
+                .join(format!("{basename}.txt"))
+                .is_file()
+        );
+        assert!(
+            archive_root
+                .join("exports")
+                .join(format!("{basename}.srt"))
+                .is_file()
+        );
+
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(generation_directory.join("captured-source-parts.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(manifest["source_samples"].as_u64(), Some(TOTAL_SAMPLES));
+        let parts = manifest["parts"].as_array().unwrap();
+        assert!(parts.len() > 1);
+        let mut cursor = 0_u64;
+        for part in parts {
+            assert_eq!(part["start_sample"].as_u64(), Some(cursor));
+            cursor = part["end_sample"].as_u64().unwrap();
+            assert!(Path::new(part["path"].as_str().unwrap()).is_file());
+        }
+        assert_eq!(cursor, TOTAL_SAMPLES);
+
+        let coverage = std::fs::read_to_string(
+            generation_directory.join("parakeet-unified/document/coverage.jsonl"),
+        )
+        .unwrap();
+        let windows = coverage
+            .lines()
+            .map(|line| {
+                serde_json::from_str::<whisper_core::ports::ParakeetWindowCoverage>(line).unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            windows.len() >= 2,
+            "the source tail after 120 seconds must be finalized"
+        );
+        assert_eq!(windows.first().unwrap().range.start_sample, 0);
+        assert_eq!(windows.last().unwrap().range.end_sample, TOTAL_SAMPLES);
+        assert!(
+            windows
+                .windows(2)
+                .all(|pair| { pair[0].range.end_sample == pair[1].range.start_sample })
+        );
+    }
+
+    #[test]
     fn controlled_runtime_recycles_scheduler_slots_across_many_unified_imports() {
         let root = std::env::temp_dir().join(format!(
             "parakeet-unified-scheduler-lifecycle-{}",
@@ -10636,6 +11499,9 @@ mod tests {
         let port = RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
         };
         let mut app = ImportApplication::new(port);
         app.dispatch(AppCommand::StartImport {
@@ -10874,6 +11740,9 @@ mod tests {
         let mut port = RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
         };
 
         assert!(matches!(port.poll(), Ok(Some(ImportEvent::Ready { .. }))));
@@ -10890,7 +11759,7 @@ mod tests {
     }
 
     #[test]
-    fn unified_request_without_controlled_injection_is_refused_before_worker_start() {
+    fn unified_import_and_capture_without_controlled_injection_are_refused_before_hardware_start() {
         let root = std::env::temp_dir().join(format!(
             "parakeet-unified-native-refusal-{}",
             std::process::id()
@@ -10917,6 +11786,36 @@ mod tests {
         assert!(
             matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
             if message.contains("ModelNotQualified") && message.contains("controlled worker"))
+        );
+
+        let live_request = unified_live_request(&root, 778);
+        runtime.effect(ImportEffect::StartUnifiedLive(live_request), &mut events);
+        assert!(
+            matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
+            if message.contains("ModelNotQualified") && message.contains("not enabled")),
+            "native capture must be refused before opening a microphone"
+        );
+        assert!(
+            !root.exists(),
+            "native capture refusal must precede storage/open side effects"
+        );
+
+        let live_request = unified_live_request(&root, 779);
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+        });
+        app.dispatch(AppCommand::StartUnifiedLiveConfigured {
+            request: live_request,
+        })
+        .unwrap();
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(
+            !root.exists(),
+            "the real application route must refuse before opening capture"
         );
     }
 
@@ -10954,6 +11853,9 @@ mod tests {
             let mut app = ImportApplication::new(RuntimeImportPort {
                 runtime,
                 events: VecDeque::new(),
+                capture_progress: None,
+                document_revision: None,
+                unified_stop_submissions: None,
             });
             app.dispatch(AppCommand::StartImport { request }).unwrap();
             for _ in 0..24 {
@@ -11000,6 +11902,9 @@ mod tests {
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
         });
         app.dispatch(AppCommand::StartImport { request }).unwrap();
         for _ in 0..24 {
