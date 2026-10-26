@@ -11194,6 +11194,7 @@ mod tests {
             if (self.hold_first_final_a && source_name == "A" && is_final_window)
                 || (!self.hold_first_final_a && call == self.hold_call)
             {
+                self.hold_first_final_a = false;
                 let _ = self.held.send(source_name.to_owned());
                 self.release
                     .recv()
