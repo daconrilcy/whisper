@@ -1472,6 +1472,19 @@ struct ImportRuntime {
     >,
     #[cfg(test)]
     controlled_transcriber: Option<Box<dyn crate::parakeet_pipeline::WindowTranscriber>>,
+    #[cfg(test)]
+    controlled_document_drain: Option<ControlledDocumentDrain>,
+}
+
+#[cfg(test)]
+struct ControlledDocumentDrain {
+    document: crate::parakeet_document::ParakeetDocumentStore,
+    job_id: JobId,
+    generation: Generation,
+    revision: u64,
+    total_samples: u64,
+    next_sequence: u64,
+    ready_pending: bool,
 }
 
 struct MicrophoneTestCapture {
@@ -2245,6 +2258,22 @@ struct ImportRequestState {
 }
 
 impl ImportRuntime {
+    fn is_controlled_bounded_test(&self, request: &ImportRequest) -> bool {
+        if request.strategy
+            != whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        {
+            return false;
+        }
+        #[cfg(test)]
+        {
+            self.controlled_transcriber.is_some()
+        }
+        #[cfg(not(test))]
+        {
+            false
+        }
+    }
+
     #[cfg(test)]
     fn new(workers: WorkerPaths, publication_gate: Arc<PublicationGate>) -> Self {
         Self::new_with_catalog(workers, publication_gate, None)
@@ -2331,6 +2360,8 @@ impl ImportRuntime {
             gpu_candidates: std::collections::HashMap::new(),
             #[cfg(test)]
             controlled_transcriber: None,
+            #[cfg(test)]
+            controlled_document_drain: None,
         }
     }
 
@@ -2347,9 +2378,7 @@ impl ImportRuntime {
     fn run_controlled_unified_import(
         &mut self,
         request: &ImportRequest,
-        events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), String> {
-        use whisper_core::ports::ParakeetDocumentPort;
         let mut transcriber = self.controlled_transcriber.take()
             .ok_or_else(|| "ModelNotQualified: controlled worker injection is required".to_owned())?;
         let work = PathBuf::from(&request.destination)
@@ -2370,28 +2399,55 @@ impl ImportRuntime {
         let result = crate::parakeet_pipeline::finalize_source(
             &source, &mut document, transcriber.as_mut(), request.job_id, request.generation,
         )?;
-        events.push_back(ImportEvent::Ready {
+        self.controlled_document_drain = Some(ControlledDocumentDrain {
+            document,
             job_id: request.job_id,
             generation: request.generation,
-            backend: "controlled-test-worker".into(),
-        });
-        let mut sequence = 1_u64;
-        while sequence <= result.document_revision {
-            let page = document.read_page(
-                request.job_id, request.generation, result.document_revision, sequence, 128,
-            ).map_err(|error| format!("Document: {error:?}"))?;
-            for entry in page.entries {
-                events.push_back(ImportEvent::Segment(entry.segment));
-                sequence += 1;
-            }
-        }
-        events.push_back(ImportEvent::End {
-            job_id: request.job_id,
-            generation: request.generation,
-            last_sequence: result.document_revision,
-            last_offset: result.total_samples,
+            revision: result.document_revision,
+            total_samples: result.total_samples,
+            next_sequence: 1,
+            ready_pending: true,
         });
         Ok(())
+    }
+
+    #[cfg(test)]
+    fn poll_controlled_document(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+        use whisper_core::ports::ParakeetDocumentPort;
+        let drain = self.controlled_document_drain.as_mut()?;
+        if drain.ready_pending {
+            drain.ready_pending = false;
+            return Some(Ok(ImportEvent::Ready {
+                job_id: drain.job_id,
+                generation: drain.generation,
+                backend: "controlled-test-worker".into(),
+            }));
+        }
+        if drain.next_sequence <= drain.revision {
+            return Some(match drain.document.read_page(
+                drain.job_id,
+                drain.generation,
+                drain.revision,
+                drain.next_sequence,
+                1,
+            ) {
+                Ok(mut page) if page.entries.len() == 1 => {
+                    drain.next_sequence += 1;
+                    Ok(ImportEvent::Segment(page.entries.remove(0).segment))
+                }
+                Ok(_) => Err((drain.job_id, drain.generation,
+                    "StorageCorrupt: controlled page did not contain exactly one segment".into())),
+                Err(error) => Err((drain.job_id, drain.generation,
+                    format!("Document: {error:?}"))),
+            });
+        }
+        let drain = self.controlled_document_drain.take().expect("drain was present");
+        Some(Ok(ImportEvent::End {
+            job_id: drain.job_id,
+            generation: drain.generation,
+            last_sequence: drain.revision,
+            last_offset: drain.total_samples,
+        }))
     }
 
     fn start_diagnostics(&mut self, destination: &Path) {
@@ -3414,17 +3470,19 @@ impl ImportRuntime {
                                     && request.config.compute == whisper_core::ComputeChoice::Gpu
                                 {
                                     let executable = self.bind_import_request(&request)?;
-                                    let qualification = archive_qualification_for_request(
-                                        &request,
-                                        self.parakeet_paths.as_ref(),
-                                        self.gpu_parakeet_paths.as_ref(),
-                                        gpu_candidate,
-                                    );
-                                    validate_queued_gpu_preflight(
-                                        &request,
-                                        gpu_candidate,
-                                        qualification.as_ref(),
-                                    )?;
+                                    if !self.is_controlled_bounded_test(&request) {
+                                        let qualification = archive_qualification_for_request(
+                                            &request,
+                                            self.parakeet_paths.as_ref(),
+                                            self.gpu_parakeet_paths.as_ref(),
+                                            gpu_candidate,
+                                        );
+                                        validate_queued_gpu_preflight(
+                                            &request,
+                                            gpu_candidate,
+                                            qualification.as_ref(),
+                                        )?;
+                                    }
                                     crate::parakeet_import::expected_gpu_for_candidate(
                                 gpu_candidate.expect("current manual GPU proof was checked"),
                             )
@@ -3785,7 +3843,7 @@ impl ImportRuntime {
                                 "ModelNotQualified: unified strategy requires the injected controlled worker".into()))
                         } else {
                             match self.bind_import_request(&request) {
-                                Ok(bound) => self.run_controlled_unified_import(&bound, events)
+                                Ok(bound) => self.run_controlled_unified_import(&bound)
                                     .map_err(|error| (identity.0, identity.1, error)),
                                 Err(error) => Err((identity.0, identity.1, error)),
                             }
@@ -4395,21 +4453,23 @@ impl ImportRuntime {
                     "BackendMismatch: selected GPU identity belongs to a stale generation".into(),
                 ));
             }
-            let paths = self.gpu_parakeet_paths.as_ref().ok_or((
-                id.0,
-                id.1,
-                "BackendUnavailable: worker GPU Test Parakeet non configuré".into(),
-            ))?;
-            let profile = whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
-            let key = paths
-                .gpu_qualification_key(profile)
-                .map_err(|error| (id.0, id.1, error))?;
-            if !l3_gpu_candidate_allowed(&key) {
-                return Err((
+            if !self.is_controlled_bounded_test(&request) {
+                let paths = self.gpu_parakeet_paths.as_ref().ok_or((
                     id.0,
                     id.1,
-                    "ModelNotQualified: GPU Test key is not admitted".into(),
-                ));
+                    "BackendUnavailable: worker GPU Test Parakeet non configuré".into(),
+                ))?;
+                let profile = whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
+                let key = paths
+                    .gpu_qualification_key(profile)
+                    .map_err(|error| (id.0, id.1, error))?;
+                if !l3_gpu_candidate_allowed(&key) {
+                    return Err((
+                        id.0,
+                        id.1,
+                        "ModelNotQualified: GPU Test key is not admitted".into(),
+                    ));
+                }
             }
             crate::parakeet_import::expected_gpu_for_candidate(candidate).map_err(|error| {
                 (
@@ -6830,6 +6890,10 @@ impl ImportRuntime {
     }
 
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+        #[cfg(test)]
+        if let Some(event) = self.poll_controlled_document() {
+            return Some(event);
+        }
         if let Some(event) = self.parakeet_pending_events.pop_front() {
             return Some(Ok(event));
         }
@@ -9031,7 +9095,14 @@ mod tests {
         }
 
         fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
-            Ok(self.events.pop_front())
+            if let Some(event) = self.events.pop_front() {
+                return Ok(Some(event));
+            }
+            match self.runtime.poll() {
+                Some(Ok(event)) => Ok(Some(event)),
+                Some(Err((_, _, message))) => Err(PortError::Failed(message)),
+                None => Ok(None),
+            }
         }
     }
 
@@ -9131,7 +9202,12 @@ mod tests {
 
     #[test]
     fn import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports() {
-        for (index, seconds) in [3_u64, 121].into_iter().enumerate() {
+        for (index, (seconds, compute)) in [
+            (3_u64, ComputeChoice::Cpu),
+            (3_u64, ComputeChoice::Gpu),
+            (121_u64, ComputeChoice::Cpu),
+            (121_u64, ComputeChoice::Gpu),
+        ].into_iter().enumerate() {
             let root = std::env::temp_dir().join(format!(
                 "parakeet-unified-application-{}-{}", std::process::id(), index
             ));
@@ -9140,12 +9216,21 @@ mod tests {
             let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
             writer.append(&vec![0_i16; (seconds * 16_000) as usize]).unwrap();
             writer.finish().unwrap();
-            let request = unified_import_request(&root.join("archive"), &source_path, 700 + index as u128);
+            let mut request = unified_import_request(&root.join("archive"), &source_path, 700 + index as u128);
+            request.config.compute = compute;
             assert_real_unified_model(&request);
-            let runtime = ImportRuntime::new(
+            let mut runtime = ImportRuntime::new(
                 WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
                 Arc::new(PublicationGate::default()),
             ).with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+            if compute == ComputeChoice::Gpu {
+                let mut candidate = fake_gpu_candidate();
+                candidate.generation = request.generation.get();
+                runtime.gpu_candidates.insert(
+                    (request.job_id, request.generation.get()),
+                    Some(candidate),
+                );
+            }
             let port = RuntimeImportPort { runtime, events: VecDeque::new() };
             let mut app = ImportApplication::new(port);
             app.dispatch(AppCommand::StartImport { request }).unwrap();
@@ -9175,6 +9260,60 @@ mod tests {
             assert!(root.join("archive/exports").join(format!("{basename}.srt")).is_file());
             std::fs::remove_dir_all(&root).unwrap();
         }
+    }
+
+    #[test]
+    fn controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification() {
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-gpu-prepare-{}", std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let source_path = root.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let mut request = unified_import_request(&root.join("archive"), &source_path, 799);
+        request.config.compute = ComputeChoice::Gpu;
+        assert_real_unified_model(&request);
+        let mut candidate = fake_gpu_candidate();
+        candidate.generation = request.generation.get();
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+            Arc::new(PublicationGate::default()),
+        ).with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+        let mut events = VecDeque::new();
+
+        runtime.prepare(request, Some(candidate), &mut events).unwrap();
+
+        assert!(matches!(events.pop_front(), Some(ImportEvent::Prepared(_))));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn controlled_document_drain_reads_one_segment_per_poll_and_preserves_all_pages() {
+        let root = std::env::temp_dir().join(format!("parakeet-unified-page-drain-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let source_path = root.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 121 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let request = unified_import_request(&root.join("archive"), &source_path, 791);
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+            Arc::new(PublicationGate::default()),
+        ).with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+        runtime.run_controlled_unified_import(&request).unwrap();
+        let drain = runtime.controlled_document_drain.as_ref().unwrap();
+        assert_eq!(drain.revision, 2);
+        assert_eq!(drain.next_sequence, 1);
+        assert!(matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::Ready { .. }))));
+        for expected in 1..=2 {
+            assert!(matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::Segment(segment))) if segment.segment_id.0 == expected));
+            assert_eq!(runtime.controlled_document_drain.as_ref().unwrap().next_sequence, expected + 1);
+        }
+        assert!(matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::End { last_sequence: 2, last_offset, .. })) if last_offset == 121 * 16_000));
+        assert!(runtime.controlled_document_drain.is_none());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -13852,7 +13991,6 @@ fn main() {
     }
 
     impl NextGeneration for ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         fn clone_with_next_generation(&self) -> Self {
             let mut resumed = self.clone();
             resumed.generation = self.generation.next().unwrap();

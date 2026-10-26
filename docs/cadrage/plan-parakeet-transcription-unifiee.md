@@ -1,6 +1,6 @@
-Avancée : ajustement du plan CLEAN et raccord T4 écrit ; candidat relu après deux corrections.
-Blocage : R1, R5 et R6 ouverts ; compilation et tests non exécutés sous E-GUARD.
-Décision : reprise ciblée R1/R5/R6 puis deux revues indépendantes autorisées par l'utilisateur.
+Avancée : reprise ciblée effectuée et deux avis indépendants reçus ; R5/R6 corrigés statiquement.
+Blocage : R1 reste ouvert sur la fixture GPU ; S2-1 ouvert sur l'erreur de lecture de page ; exécution NOT RUN.
+Décision : LIVRÉ AVEC RÉSERVES après la reprise autorisée ; arbitrage sur les deux constats restants.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -269,3 +269,23 @@ La correction revient au même `rust_implementer`, sur les chemins déjà autori
 Le candidat sera figé puis lu par deux `rust_reviewer` indépendants de l'implémentation : le reviewer historique et un second reviewer qui ne participe ni au code ni à sa correction. Chacun rendra son propre packet avant toute synthèse ; les deux examineront R1/R5/R6 et les régressions du delta corrigé. La coordination reste sans écriture du code. Cette double revue explicitement demandée remplace, pour cette reprise uniquement, la revue unique du parcours habituel. Aucune correction postérieure à ces deux avis n'est présumée autorisée si elle exige de dépasser le mandat ciblé ou un nouvel arbitrage après épuisement de cette reprise.
 
 E-GUARD est inchangé : aucun Cargo, rustc, rustfmt, compilation, test, binaire, campagne, adaptation de garde ou qualification native n'est autorisé par cette reprise. Les contrôles statiques et `git diff --check` sont possibles. Les résultats des revues ne seront pas présentés comme une preuve d'exécution. Aucune écriture hors dépôt, installation, dépendance, modification de worker natif ou push.
+
+## 9. Résultat de la reprise ciblée et des deux avis
+
+**Réalisation.** Même `/root/pu_l1_implementer`, mode CORRECT, après la consignation de l'autorisation au Git `8af5a34c` ; baseline code `1d8309d9984b2c284b982db196f21954aa901900`. Seul `crates/whisper-adapters/src/worker_ipc.rs` est modifié par le worker. La correction retire la ligne errante `strategy:`, distingue le préflight GPU contrôlé de la qualification de session legacy et remplace le `VecDeque` cumulatif par un drainage du document à curseur, avec une page d'une entrée par interrogation. Tests écrits pour le parcours CPU/GPU contrôlé court/long et pour la borne, l'ordre et l'offset final des segments. Les tests d'import requièrent le vrai modèle Parakeet conforme au registre, avec échec explicite si le prérequis manque. Aucun test exécuté. Candidat figé avant les deux lectures ; aucune édition entre les avis.
+
+**Indépendance et comptage.** La coordination `/root/pu_l1_review` a réutilisé le reviewer historique et confié une seconde lecture à un autre `rust_reviewer` indépendant. Les deux reçoivent le même périmètre, les critères R1/R5/R6 et le même candidat figé ; leurs conclusions ne sont pas partagées avant réception de leurs packets séparés. Aucun reviewer n'a participé à l'implémentation ou à sa correction. Cette reprise constitue la troisième correction cumulée du livrable, exceptionnellement autorisée au §8 après les deux corrections historiques ; les deux lectures indépendantes s'ajoutent aux trois passes antérieures. Aucun compteur historique n'est réinitialisé et aucune correction supplémentaire n'est lancée après ces avis.
+
+| Avis | Résultat propre, sans fusion des conclusions |
+| --- | --- |
+| A — reviewer historique `/root/pu_l1_review/pu_l1_reviewer` | **FINDINGS**. Ferme statiquement R5 et R6 ; R2–R4 restent clos. La dépendance du chemin contrôlé au profil de session `import-single-pass` a été retirée, mais R1 reste ouvert : le test GPU utilise `fake_gpu_candidate()` avec une identité PNP abrégée alors que `expected_gpu_for_candidate` exige l'identité complète du registre. Le scénario aboutirait à `GpuIdentityMismatch` avant le worker et ne démontre donc pas l'import GPU contrôlé. |
+| B — `/root/pu_l1_review/pu_l1_second_review`, second reviewer indépendant | **FINDINGS**. Confirme statiquement les corrections du préflight GPU contrôlé, le refus de l'activation native avant T9, la suppression de la ligne errante et le drainage d'un segment par interrogation. Ne relève pas l'incohérence PNP de l'avis A. Émet S2-1 sur le traitement d'une erreur de lecture de page. |
+
+**Constats ouverts après les deux avis :**
+
+- **R1 — T4 / AC-PU-08, encore ouvert selon A, `worker_ipc.rs:9219` et `:12033` :** aligner la fixture GPU sur l'identité effectivement validée par le registre, sans affaiblir les contrôles de candidat/génération. Les scénarios court/long doivent atteindre le worker contrôlé par le vrai parcours GPU, puis la publication réelle. La correction de la qualification en production et la preuve contrôlée de ce parcours restent deux sous-conditions distinctes.
+- **S2-1 — IMPORTANT/MEDIUM selon B, `worker_ipc.rs:2427` :** en cas d'échec de `read_page()`, `poll_controlled_document()` renvoie une erreur sans retirer `controlled_document_drain`. Les interrogations suivantes peuvent donc réémettre `Failed`, y compris après l'échec terminal de la demande. Correction attendue : terminaliser/libérer le drainage lors de cette erreur et émettre l'échec une seule fois. Preuve minimale : une erreur de page produit un seul `Failed`, puis aucun nouvel événement de ce drainage.
+
+**État de livraison.** Verdict de coordination : **LIVRÉ AVEC RÉSERVES** ; aucun des deux avis n'est CLEAN. R5 et la borne mémoire R6 ont une fermeture statique du reviewer historique, mais cela ne ferme ni R1 ni S2-1 et ne prouve pas la compilation. Les descriptions du §8 sont le mandat ; le présent résultat est l'état réellement obtenu. T4 n'est pas déclarée terminée.
+
+`git diff --check` réussi par le worker et confirmé par la session principale. Compilation, formatage, tests, exécution audio/native et recette Windows **NOT RUN**, E-GUARD inchangé. Espace libre à la clôture : 113,18 Gio. Aucun fichier personnel touché, campagne, nettoyage, installation, nouvelle dépendance, worker natif ou push. La décision restante est une correction ciblée des deux constats suivie de leur relecture, ou le maintien du candidat avec ces réserves ; elle n'est pas déduite implicitement de la reprise déjà réalisée.
