@@ -1,6 +1,6 @@
-Avancée : deux corrections de compilation relues ; formatage PASS sur le candidat du cycle 2.
-Blocage : compilation FAIL E0609 dans le test source_binding ; aucun test exécuté.
-Décision : utilisateur autorise les cycles nécessaires à la clôture de PU-L1, dans le périmètre et les budgets existants.
+Avancée : PU-L1 T1–T4 relu globalement CLEAN ; 21 commandes réussies, 105 tests ciblés PASS, aucun ignoré.
+Blocage : aucun constat requis ouvert dans PU-L1 ; qualifications natives et Windows restent différées.
+Décision : PU-L1 clos dans son périmètre contrôlé ; PU-L2 non démarré, T9/T10 non exécutés.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -438,3 +438,43 @@ La version exacte du lanceur de cette interruption est conservée dans `retained
 Base de reprise `52bb8684af6b030fcfe8772dcfd5282e65225289`, suivi propre, `models/` et `sound example/` préservés ; 108,88 Gio libres. Le même implémenteur et la même coordination de revue indépendante poursuivent à partir de V-PU-L1-05. Après chaque modification pertinente, relecture puis validation du candidat figé ; les commandes en échec restent arrêtées et conservées, et une nouvelle reprise après correction est désormais couverte sans redemander l'accord à chaque cycle. Aucun rerun inchangé pour obtenir un succès. Les budgets cumulés de 90 minutes/16 Gio, la garde et la dérogation Temp sont maintenus et ne sont pas réinitialisés. Une fuite attribuée, une décision de périmètre/architecture nécessaire ou un dépassement de budget impose toujours l'arrêt et l'arbitrage correspondant.
 
 La cible de clôture est un candidat PU-L1 sans constat requis ouvert du reviewer indépendant et avec des résultats réellement exécutés pour les contrôles applicables du §11, en distinguant les scénarios contrôlés de la qualification native T9 et de la recette Windows T10. Un CLEAN limité à un petit correctif ne sera pas présenté comme un CLEAN global du lot. Les preuves encore manquantes sont centralisées dans ce plan, sans nouveau rapport ni gate ajouté.
+
+## 18. Clôture globale PU-L1 — CLEAN
+
+**Périmètre et candidat exact.** T1–T4 et CHANGE-PU-L1-01 du §6, code au Git `667da0a17a561cc44a44392b0690c3ff59d5f7f2`, branche `evo-startup-perf`. Le besoin, le design accepté et les chemins autorisés sont conservés. La session principale a suivi l'autorisation du §17 jusqu'à fermeture des défauts du lot, sans démarrer T5–T10 ni étendre la stack, les dépendances ou les frontières natives. Les anciens états BLOCKED/LIVRÉ AVEC RÉSERVES des sections précédentes restent l'historique des candidats concernés ; cette section est le bilan courant.
+
+**Corrections après V-PU-L1-05.** Même `/root/pu_l1_implementer` pour le code, même coordination `/root/pu_l1_review` et reviewer historique indépendant pour les fermetures. Chaque modification a été figée, relue et commitée localement avant reprise sous garde ; aucun verdict CLEAN n'est attribué à l'implémenteur ou à la session principale.
+
+| Constat / correction | Git et vérification |
+| --- | --- |
+| V-PU-L1-05 : extraire le `Result` du binding avant les assertions du test, sans retirer celles-ci | `326d2247`, revue ciblée CLEAN ; compilation complète et test de contrat ensuite exécutés PASS. |
+| V-PU-L1-06 : le drainage contrôlé omettait le Progress final, nécessaire au contrat applicatif avant End | `9aba5574`, Progress au total réellement traité avant End, garde applicatif intact ; revue ciblée CLEAN puis ordre et parcours réel vérifiés à l'exécution. |
+| V-PU-L1-07 : une expression arithmétique était utilisée en position de motif dans l'assertion ajoutée | `3f6abe7b`, champs liés puis comparés dans une garde ; revue ciblée CLEAN et compilation PASS. |
+| V-PU-L1-08 : le port de fixture n'activait pas PublicationGate comme AsyncImportIo, donc préparation sans engagement CURRENT | `0e9f4868`, activation sur les mêmes effets d'admission, publication réelle et assertions inchangées ; revue ciblée CLEAN, quatre cas applicatifs WAV CPU/GPU courts/longs PASS. |
+
+Une sélection de test pointait initialement vers `source_binding::tests` au lieu de `source_binding::recovery_tests`. La garde a correctement refusé un succès de commande avec zéro test. Le filtre a été corrigé et `PARAKEET_L2_ARCHIVE_ROOT` routé et contrôlé sous lot-01. Les dix résultats antérieurs valides du même candidat ont été réutilisés une seule fois après vérification du SHA, des sources propres, des arguments et des sorties effectives ; aucun test nul n'a été réutilisé comme PASS. Le passage final ci-dessous réexécute tous les contrôles sans réutilisation de résultats.
+
+**Prérequis MP3 de la revue globale.** Après les premiers 104 tests réussis, la revue globale a demandé V-PU-L1-MP3 : aucun test ne prouvait encore un MP3 dans la nouvelle stratégie. Le worker a ajouté le cas `worker_ipc::tests::import_application_decodes_real_mp3_and_publishes_full_unified_coverage` dans le chemin déjà autorisé, puis fait appliquer son formatage sous garde (`d7d40b94`, `667da0a1`), avec relectures ciblées CLEAN. Le test exige réellement une fixture et le modèle, et échoue explicitement s'ils sont absents ; il ne retourne pas silencieusement.
+
+Fixture réelle : copie indépendante de `sound example/sps-corpus-5.0-2026-09-11-en/audios/spontaneous-speech-en-115.mp3` vers `target/parakeet-tests/parakeet-unified/lot-01/fixtures/pu-l1-input.mp3`, 22 822 octets, SHA-256 `eebce5a2af18d4f929af5c243c50a6bc31b0910a583577cb940e0e4895e7cd80`. Original et copie revérifiés identiques après campagne. Le test exerce `BoundedWindowsV1` via la vraie application, le vrai décodage et ArchiveStore, seul le transcripteur étant contrôlé. Il vérifie Complete/CURRENT, identité distincte de legacy, métadonnée de longueur égale à la source réellement décodée, couverture contiguë de zéro à cette fin et égalité des exports TXT/SRT avec les artefacts engagés. La source reste intacte. Ce test et ces assertions ont réellement été exécutés.
+
+**Passage de clôture.** Run `target/parakeet-tests/parakeet-unified/lot-01/runs/f22b4d4839004942bde647ceac1d677e`, sur le candidat exact ci-dessus : **VALIDATION_PASS, 21 commandes Cargo code 0, 105 tests passés, zéro ignoré**, sans résultats réutilisés. Cwd `C:\dev\whisper`, Rust 1.98.1 installé, hors ligne/locked pour compilation/tests, `CARGO_INCREMENTAL=0`, `CARGO_PROFILE_DEV_DEBUG=line-tables-only`, destinations maîtrisées sous les deux racines autorisées.
+
+| Groupe exécuté | Résultat |
+| --- | --- |
+| Formatage check-only et compilation `--no-run` de tous les tests core/adapters/desktop | PASS / PASS |
+| Core lib et quatre cibles de contrats | 55 + 29 tests PASS |
+| Compatibilité JSON déplacée | 1 test PASS |
+| Audio segmenté/conversion, document paginé, pipeline | 4 + 1 + 2 tests PASS |
+| File v1/v2, binding v2 et archive par version/stratégie | 4 tests PASS |
+| Parcours applicatif unifié WAV court/long CPU/GPU et MP3 réel | 2 tests PASS, dont quatre cas internes WAV (3 s / 121 s × CPU / GPU) |
+| Préparation GPU contrôlée, drainage normal/erreur unique, refus natif, worker/temps invalides, collision d'export | 6 tests PASS |
+| Contrat du binding adapté au Result | 1 test PASS |
+
+**Verdict global indépendant.** `/root/pu_l1_review/pu_l1_reviewer`, via la coordination, a repris sa revue globale T1–T4/§6 sur `667da0a1`, vérifié le journal identifiant ce SHA et la fixture, les sorties et la sémantique du test MP3 réellement passé. Verdict **CLEAN global PU-L1**, fermeture de V-PU-L1-MP3 ; aucun finding, request ou gap matériel requis ne reste ouvert dans ce périmètre. Les fermetures précédentes sont conservées. Ce verdict est distinct des seuls CLEAN ciblés historiques.
+
+**Garde, conservation et budgets.** Préflight final : 32 refus de variables/chemins, 6 cas de renommage simulés et témoin de surveillance PASS. Aucun événement `FAIL` ou `WATCH_ERROR` dans ce passage ; 90 événements Temp `UNATTRIBUTED` consignés avec chemin/heure, sans attribution et sans prétention de détection exhaustive. L'ancienne erreur de classement de renommage reste dans ses journaux d'origine, pas réécrite. Cumul enregistré des exécutions : environ **1 359,64 secondes (22 min 40 s)**, sous 90 minutes ; croissance logique des deux racines environ **1,761 Gio**, sous 16 Gio. Espace libre final : **108,23 Gio**. Le modèle Parakeet a été revérifié au SHA attendu `e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e`.
+
+Petites preuves finales (lanceur, journaux de tous les passages, marqueurs conservés, versions de lanceur retenues et fixture MP3) archivées en conservant l'arborescence : `target/parakeet-tests/parakeet-unified/lot-01/archives/pu-l1-final-f22b4d4839004942bde647ceac1d677e.zip`. **201 fichiers**, 308 052 octets ; nombre et SHA-256 de chaque entrée vérifiés contre les originaux, SHA-256 de l'archive `35d6edab8a99195ac17e5b9533916fc11a709f3c2c28d589f0c2bf2b338b022d`. Aucun manifeste supplémentaire. Archives précédentes, cache local et target partagé préservés ; aucun nettoyage global. Les fixtures autonomes de tests peuvent avoir été retirées par leur propre teardown après assertions ; les preuves et la fixture MP3 identifiée restent disponibles. Aucun marqueur STOP courant après la réussite finale. Sources suivies propres avant cette consignation ; `models/` et `sound example/` non suivis préservés, aucun push.
+
+**Limites et suite.** La clôture prouve l'import unifié dans le périmètre contrôlé PU-L1. Elle ne qualifie pas une inférence native réelle, sa qualité/vitesse CPU/GPU/Auto, une séance de plus de 30 minutes, la rotation physique au-delà de 1 Gio ou la fenêtre Windows : ces vérifications restent T9/T10. Les parcours micro, l'ordonnanceur et l'interface des lots PU-L2/PU-L3 ne sont pas implémentés par cette mission. L'activation native unifiée et l'UI restent selon le plan ; aucun paquet de remise ni validation utilisateur Windows annoncé. Les prérequis d'exécution PU-L1 sont désormais fournis pour préparer le lot suivant dans ses propres autorités.
