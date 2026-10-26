@@ -1,6 +1,6 @@
 Avancée : ajustement du plan CLEAN et raccord T4 écrit ; candidat relu après deux corrections.
 Blocage : R1, R5 et R6 ouverts ; compilation et tests non exécutés sous E-GUARD.
-Décision : LIVRÉ AVEC RÉSERVES ; arbitrage utilisateur requis après épuisement des deux cycles.
+Décision : reprise ciblée R1/R5/R6 puis deux revues indépendantes autorisées par l'utilisateur.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -259,3 +259,13 @@ Tests écrits : absence/inconnue de stratégie, versions persistées et incohér
 R2, R3 et R4 restent clos par le reviewer. Aucune correction R1/R5/R6 n'a été lancée après ce résultat, la limite de deux cycles étant atteinte. Aucun constat n'est fermé par l'implémenteur ou par la session principale.
 
 **Vérifications et décision restante.** `git diff --check` réussi sur le candidat. Cargo, rustc, rustfmt, compilation, tests, audio/GPU et recette Windows **NOT RUN**, E-GUARD toujours non satisfait. Une erreur de syntaxe observée suffit à exclure toute affirmation de compilabilité, même sans commande exécutée. Aucun binaire de remise construit, aucune activation native unifiée ni push. Le candidat reste un travail en cours à conserver dans Git ; l'utilisateur doit arbitrer une correction supplémentaire ciblée des trois constats ou le maintien de ces réserves. Une autorisation de correction supplémentaire ne résoudrait pas E-GUARD et n'autoriserait pas une campagne implicitement.
+
+## 8. Reprise ciblée autorisée — R1, R5 et R6
+
+**Source d'autorité, 26 octobre 2026.** Après le résultat du §7, l'utilisateur répond : « je t'autorise une reprise ciblée pour corriger R1, R5 et R6, suivie de 2 revues indépendantes ». Cette décision autorise une correction supplémentaire bornée de ces trois constats après les deux cycles historiques ; elle ne réinitialise pas leur historique et ne donne aucune autorisation générale de poursuivre les autres lots. Base de reprise : `1d8309d9984b2c284b982db196f21954aa901900`, branche `evo-startup-perf`, suivi propre, `models/` et `sound example/` préservés. Espace libre avant reprise : 113,21 Gio.
+
+La correction revient au même `rust_implementer`, sur les chemins déjà autorisés par T1–T4 et CHANGE-PU-L1-01. Les conditions de fermeture sont celles du tableau §7 : découpler le GPU unifié contrôlé du profil de session legacy tout en maintenant l'interdiction native avant T9 ; corriger la construction de demande mal placée ; consommer les pages de segments avec une borne de mémoire jusqu'à la publication, sans copie cumulative. Les tests utiles à ces corrections peuvent être écrits dans les chemins déjà autorisés, sans ajouter de tâche ni rapport.
+
+Le candidat sera figé puis lu par deux `rust_reviewer` indépendants de l'implémentation : le reviewer historique et un second reviewer qui ne participe ni au code ni à sa correction. Chacun rendra son propre packet avant toute synthèse ; les deux examineront R1/R5/R6 et les régressions du delta corrigé. La coordination reste sans écriture du code. Cette double revue explicitement demandée remplace, pour cette reprise uniquement, la revue unique du parcours habituel. Aucune correction postérieure à ces deux avis n'est présumée autorisée si elle exige de dépasser le mandat ciblé ou un nouvel arbitrage après épuisement de cette reprise.
+
+E-GUARD est inchangé : aucun Cargo, rustc, rustfmt, compilation, test, binaire, campagne, adaptation de garde ou qualification native n'est autorisé par cette reprise. Les contrôles statiques et `git diff --check` sont possibles. Les résultats des revues ne seront pas présentés comme une preuve d'exécution. Aucune écriture hors dépôt, installation, dépendance, modification de worker natif ou push.
