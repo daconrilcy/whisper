@@ -80,7 +80,7 @@ fn captures_once_reuses_snapshot_and_retire_releases_capacity() {
         fs::read(&first).unwrap()
     );
     assert_eq!(first_binding.source_samples(), 16_000);
-    let execution = first_binding.apply_to_request(&first_request);
+    let execution = first_binding.apply_to_request(&first_request).unwrap();
     assert_eq!(
         execution.source_path,
         first_binding.snapshot_path().to_string_lossy().into_owned()
