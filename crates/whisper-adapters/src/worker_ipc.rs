@@ -1470,14 +1470,21 @@ struct ImportRuntime {
         (JobId, u64),
         Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     >,
+    parakeet_scheduler: whisper_core::parakeet_scheduler::ParakeetScheduler,
+    unified_sessions:
+        HashMap<whisper_core::parakeet_scheduler::SchedulerSession, UnifiedSessionState>,
+    unified_executor: Option<UnifiedInferenceExecutor>,
+    unified_archives: HashMap<whisper_core::parakeet_scheduler::SchedulerSession, ArchiveStore>,
     #[cfg(test)]
     controlled_transcriber: Option<Box<dyn crate::parakeet_pipeline::WindowTranscriber>>,
     #[cfg(test)]
-    controlled_document_drain: Option<ControlledDocumentDrain>,
+    controlled_capture: Option<CaptureStream>,
+    #[cfg(test)]
+    controlled_part_limit: Option<u64>,
+    document_drains: VecDeque<UnifiedDocumentDrain>,
 }
 
-#[cfg(test)]
-struct ControlledDocumentDrain {
+struct UnifiedDocumentDrain {
     document: crate::parakeet_document::ParakeetDocumentStore,
     job_id: JobId,
     generation: Generation,
@@ -1486,6 +1493,217 @@ struct ControlledDocumentDrain {
     next_sequence: u64,
     ready_pending: bool,
     progress_pending: bool,
+}
+
+enum UnifiedSessionSource {
+    Closed(crate::parakeet_audio::PcmPartStore),
+    Capture(crate::parakeet_live::UnifiedCapturePump),
+}
+
+impl crate::parakeet_pipeline::ReadablePcmSource for UnifiedSessionSource {
+    fn read_window(&mut self, range: std::ops::Range<u64>) -> Result<Vec<i16>, String> {
+        match self {
+            Self::Closed(source) => source.read_window(range),
+            Self::Capture(source) => source.read_window(range),
+        }
+    }
+}
+
+impl UnifiedSessionSource {
+    fn is_capture(&self) -> bool {
+        matches!(self, Self::Capture(_))
+    }
+
+    fn pump_capture(&mut self) -> Result<Vec<crate::parakeet_audio::CaptureWriteAck>, String> {
+        match self {
+            Self::Closed(_) => Ok(Vec::new()),
+            Self::Capture(capture) => capture.pump(),
+        }
+    }
+
+    fn stop_capture(&mut self) -> Result<Option<u64>, String> {
+        match self {
+            Self::Closed(_) => Ok(None),
+            Self::Capture(capture) => capture.stop().map(|(total, _)| Some(total)),
+        }
+    }
+
+    fn pump(&mut self) -> Result<Vec<crate::parakeet_audio::CaptureWriteAck>, String> {
+        self.pump_capture()
+    }
+}
+
+struct UnifiedSessionState {
+    request: ImportRequest,
+    source: UnifiedSessionSource,
+    available_samples: u64,
+    source_closed: bool,
+    document: crate::parakeet_document::ParakeetDocumentStore,
+    finalizer: crate::parakeet_pipeline::ParakeetFinalizer,
+    pending_call: Option<whisper_core::parakeet_scheduler::ScheduledCall>,
+    preview_sequence: u64,
+    pending_window: Option<whisper_core::parakeet_session::AudioWindow>,
+    pending_available_samples: Option<u64>,
+    failure: Option<String>,
+}
+
+struct UnifiedInferenceCommand {
+    call: whisper_core::parakeet_scheduler::ScheduledCall,
+    window: whisper_core::parakeet_session::AudioWindow,
+    pcm: Vec<i16>,
+}
+
+struct UnifiedInferenceResult {
+    call: whisper_core::parakeet_scheduler::ScheduledCall,
+    instance_id: u64,
+    words: Result<Vec<whisper_core::parakeet_ipc::Word>, String>,
+}
+
+enum UnifiedExecutorCommand {
+    Infer(UnifiedInferenceCommand),
+    Stop,
+}
+
+struct UnifiedInferenceExecutor {
+    commands: SyncSender<UnifiedExecutorCommand>,
+    results: Receiver<UnifiedInferenceResult>,
+    thread: Option<thread::JoinHandle<Box<dyn crate::parakeet_pipeline::WindowTranscriber>>>,
+    worker: Option<Box<dyn crate::parakeet_pipeline::WindowTranscriber>>,
+    in_flight: bool,
+}
+
+impl UnifiedInferenceExecutor {
+    fn start(worker: Box<dyn crate::parakeet_pipeline::WindowTranscriber>) -> Result<Self, String> {
+        let (commands, command_rx) = mpsc::sync_channel(1);
+        let (result_tx, results) = mpsc::sync_channel(1);
+        drop(command_rx);
+        drop(result_tx);
+        let mut executor = Self {
+            commands,
+            results,
+            thread: None,
+            worker: Some(worker),
+            in_flight: false,
+        };
+        executor.start_instance()?;
+        Ok(executor)
+    }
+
+    fn start_instance(&mut self) -> Result<(), String> {
+        let worker = self
+            .worker
+            .take()
+            .ok_or_else(|| "InferenceStart: worker is missing".to_owned())?;
+        let (commands, command_rx) = mpsc::sync_channel(1);
+        let (result_tx, results) = mpsc::sync_channel(1);
+        self.thread = Some(
+            thread::Builder::new()
+                .name("parakeet-unified-inference".into())
+                .spawn(move || {
+                    let mut worker = worker;
+                    while let Ok(command) = command_rx.recv() {
+                        match command {
+                            UnifiedExecutorCommand::Infer(command) => {
+                                let instance_id = worker.instance_id();
+                                let words = worker.transcribe(command.window, &command.pcm);
+                                if result_tx
+                                    .send(UnifiedInferenceResult {
+                                        call: command.call,
+                                        instance_id,
+                                        words,
+                                    })
+                                    .is_err()
+                                {
+                                    break;
+                                }
+                            }
+                            UnifiedExecutorCommand::Stop => break,
+                        }
+                    }
+                    worker
+                })
+                .map_err(|error| format!("InferenceStart: {error}"))?,
+        );
+        self.commands = commands;
+        self.results = results;
+        Ok(())
+    }
+
+    fn dispatch(&mut self, command: UnifiedInferenceCommand) -> Result<(), String> {
+        if self.in_flight {
+            return Err("Scheduler: inference executor already has an active call".into());
+        }
+        self.commands
+            .try_send(UnifiedExecutorCommand::Infer(command))
+            .map_err(|error| format!("InferenceDispatch: {error}"))?;
+        self.in_flight = true;
+        Ok(())
+    }
+
+    fn try_result(&mut self) -> Result<Option<UnifiedInferenceResult>, String> {
+        match self.results.try_recv() {
+            Ok(result) => {
+                self.in_flight = false;
+                Ok(Some(result))
+            }
+            Err(mpsc::TryRecvError::Empty) => Ok(None),
+            Err(mpsc::TryRecvError::Disconnected) if !self.in_flight => Ok(None),
+            Err(mpsc::TryRecvError::Disconnected) => {
+                Err("InferenceWorkerExited: result channel disconnected".into())
+            }
+        }
+    }
+
+    fn stop_and_reap(&mut self) -> Result<(), String> {
+        if self.in_flight {
+            return Err("InferenceReap: call is still in flight".into());
+        }
+        self.commands
+            .send(UnifiedExecutorCommand::Stop)
+            .map_err(|error| format!("InferenceStop: {error}"))?;
+        let thread = self
+            .thread
+            .take()
+            .ok_or_else(|| "InferenceReap: worker instance is missing".to_owned())?;
+        self.worker = Some(
+            thread
+                .join()
+                .map_err(|_| "InferenceReap: worker thread panicked".to_owned())?,
+        );
+        Ok(())
+    }
+
+    fn restart(&mut self) -> Result<(), String> {
+        if self.in_flight || self.thread.is_some() {
+            return Err("InferenceRestart: previous instance has not exited".into());
+        }
+        self.start_instance()
+    }
+}
+
+#[cfg(test)]
+struct ScheduledWindowTranscriber<'a> {
+    scheduler: &'a mut whisper_core::parakeet_scheduler::ParakeetScheduler,
+    call: whisper_core::parakeet_scheduler::ScheduledCall,
+    transcriber: &'a mut dyn crate::parakeet_pipeline::WindowTranscriber,
+}
+
+#[cfg(test)]
+impl crate::parakeet_pipeline::WindowTranscriber for ScheduledWindowTranscriber<'_> {
+    fn instance_id(&self) -> u64 {
+        self.transcriber.instance_id()
+    }
+
+    fn transcribe(
+        &mut self,
+        window: whisper_core::parakeet_session::AudioWindow,
+        pcm: &[i16],
+    ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+        self.scheduler
+            .begin_call(self.call)
+            .map_err(|error| format!("SchedulerInvoke: {error:?}"))?;
+        self.transcriber.transcribe(window, pcm)
+    }
 }
 
 struct MicrophoneTestCapture {
@@ -2359,10 +2577,17 @@ impl ImportRuntime {
             deferred_live_stopped: None,
             deferred_live_window_finished: None,
             gpu_candidates: std::collections::HashMap::new(),
+            parakeet_scheduler: whisper_core::parakeet_scheduler::ParakeetScheduler::default(),
+            unified_sessions: HashMap::new(),
+            unified_executor: None,
+            unified_archives: HashMap::new(),
             #[cfg(test)]
             controlled_transcriber: None,
             #[cfg(test)]
-            controlled_document_drain: None,
+            controlled_capture: None,
+            #[cfg(test)]
+            controlled_part_limit: None,
+            document_drains: VecDeque::new(),
         }
     }
 
@@ -2373,6 +2598,203 @@ impl ImportRuntime {
     ) -> Self {
         self.controlled_transcriber = Some(transcriber);
         self
+    }
+
+    #[cfg(test)]
+    fn with_controlled_capture(
+        mut self,
+        capture: CaptureStream,
+        part_limit_bytes: Option<u64>,
+    ) -> Self {
+        self.controlled_capture = Some(capture);
+        self.controlled_part_limit = part_limit_bytes;
+        self
+    }
+
+    fn start_controlled_unified_import(&mut self, request: &ImportRequest) -> Result<(), String> {
+        if self.unified_sessions.len() >= 2 {
+            return Err("SchedulerCapacity: two unified sessions are already admitted".into());
+        }
+        if self.controlled_transcriber.is_none() && self.unified_executor.is_none() {
+            return Err("ModelNotQualified: controlled worker injection is required".into());
+        }
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request.job_id,
+            generation: request.generation,
+        };
+        let work = PathBuf::from(&request.destination)
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string())
+            .join("parakeet-unified");
+        fs::create_dir_all(&work)
+            .map_err(|error| format!("StorageUnavailable: unified workspace: {error}"))?;
+        let source_path = work.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path)
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        crate::parakeet_audio::decode_file_to_parts(&request.source_path, &mut writer)?;
+        writer
+            .finish()
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        let source = crate::parakeet_audio::PcmPartStore::open(&source_path);
+        let available_samples = source
+            .total_samples()
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        let document = crate::parakeet_document::ParakeetDocumentStore::create(
+            work.join("document"),
+            request.job_id,
+            request.generation,
+        )
+        .map_err(|error| format!("Document: {error:?}"))?;
+        self.parakeet_scheduler
+            .admit(session)
+            .map_err(|error| format!("SchedulerAdmission: {error:?}"))?;
+        self.unified_sessions.insert(
+            session,
+            UnifiedSessionState {
+                request: request.clone(),
+                source: UnifiedSessionSource::Closed(source),
+                available_samples,
+                source_closed: true,
+                document,
+                finalizer: crate::parakeet_pipeline::ParakeetFinalizer::new(
+                    request.job_id,
+                    request.generation,
+                ),
+                pending_call: None,
+                preview_sequence: 0,
+                pending_window: None,
+                pending_available_samples: None,
+                failure: None,
+            },
+        );
+        let archive = std::mem::replace(&mut self.archive, ArchiveStore::new(&request.destination));
+        self.unified_archives.insert(session, archive);
+        Ok(())
+    }
+
+    fn start_controlled_unified_capture(
+        &mut self,
+        request: &whisper_core::ports::LiveRequest,
+        capture: CaptureStream,
+        test_part_limit: Option<u64>,
+    ) -> Result<(), String> {
+        if self.unified_sessions.len() >= 2 {
+            return Err("SchedulerCapacity: two unified sessions are already admitted".into());
+        }
+        if self.controlled_transcriber.is_none() && self.unified_executor.is_none() {
+            return Err("ModelNotQualified: controlled worker injection is required".into());
+        }
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request.job_id,
+            generation: request.generation,
+        };
+        let work = PathBuf::from(&request.destination)
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string())
+            .join("parakeet-unified");
+        fs::create_dir_all(&work)
+            .map_err(|error| format!("StorageUnavailable: unified workspace: {error}"))?;
+        let source_path = work.join("source.wav");
+        let capture = if let Some(limit) = test_part_limit {
+            #[cfg(test)]
+            {
+                crate::parakeet_live::UnifiedCapturePump::from_capture_with_test_part_limit(
+                    capture,
+                    source_path,
+                    limit,
+                )
+            }
+            #[cfg(not(test))]
+            {
+                let _ = (capture, source_path, limit);
+                return Err("TestOnlyRotationUnavailable".into());
+            }
+        } else {
+            crate::parakeet_live::UnifiedCapturePump::from_capture(capture, source_path)
+        }
+        .map_err(|error| format!("CaptureStart: {error}"))?;
+        let document = crate::parakeet_document::ParakeetDocumentStore::create(
+            work.join("document"),
+            request.job_id,
+            request.generation,
+        )
+        .map_err(|error| format!("Document: {error:?}"))?;
+        self.parakeet_scheduler
+            .admit(session)
+            .map_err(|error| format!("SchedulerAdmission: {error:?}"))?;
+        self.unified_sessions.insert(
+            session,
+            UnifiedSessionState {
+                request: ImportRequest {
+                    strategy:
+                        whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+                    job_id: request.job_id,
+                    generation: request.generation,
+                    source_path: source_path.to_string_lossy().into_owned(),
+                    source_sha256: None,
+                    source_samples: None,
+                    model_path: request.model_path.clone(),
+                    model_sha256: request.model_sha256,
+                    destination: request.destination.clone(),
+                    config: request.config.clone(),
+                },
+                source: UnifiedSessionSource::Capture(capture),
+                available_samples: 0,
+                source_closed: false,
+                document,
+                finalizer: crate::parakeet_pipeline::ParakeetFinalizer::new(
+                    request.job_id,
+                    request.generation,
+                ),
+                pending_call: None,
+                preview_sequence: 0,
+                pending_window: None,
+                pending_available_samples: None,
+                failure: None,
+            },
+        );
+        self.unified_archives
+            .insert(session, ArchiveStore::new(&request.destination));
+        Ok(())
+    }
+
+    fn stop_controlled_unified_capture(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        events: &mut VecDeque<ImportEvent>,
+    ) -> Result<(), String> {
+        let session = whisper_core::parakeet_scheduler::SchedulerSession { job_id, generation };
+        let Some(state) = self.unified_sessions.get_mut(&session) else {
+            return Err("UnifiedCaptureMissing".into());
+        };
+        if !state.source.is_capture() {
+            return Err("UnifiedCaptureSourceMismatch".into());
+        }
+        if state.source_closed {
+            return Ok(());
+        }
+        let total_samples = state
+            .source
+            .stop_capture()
+            .map_err(|error| format!("CaptureStop: {error}"))?
+            .ok_or_else(|| "UnifiedCaptureMissing".to_owned())?;
+        state.available_samples = total_samples;
+        state.source_closed = true;
+        let source = crate::parakeet_audio::PcmPartStore::open(&state.request.source_path);
+        let request = self
+            .unified_archives
+            .get_mut(&session)
+            .ok_or_else(|| "ArchiveSessionMissing".to_owned())?
+            .prepare_segmented_capture(state.request.clone(), &source, None, None)?;
+        state.request = request.clone();
+        self.parakeet_scheduler
+            .clear_preview(session)
+            .map_err(|error| format!("SchedulerPreview: {error:?}"))?;
+        events.push_back(ImportEvent::Prepared(request));
+        Ok(())
     }
 
     #[cfg(test)]
@@ -2401,14 +2823,141 @@ impl ImportRuntime {
             request.generation,
         )
         .map_err(|error| format!("Document: {error:?}"))?;
-        let result = crate::parakeet_pipeline::finalize_source(
-            &source,
-            &mut document,
-            transcriber.as_mut(),
-            request.job_id,
-            request.generation,
-        )?;
-        self.controlled_document_drain = Some(ControlledDocumentDrain {
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request.job_id,
+            generation: request.generation,
+        };
+        self.parakeet_scheduler
+            .admit(session)
+            .map_err(|error| format!("SchedulerAdmission: {error:?}"))?;
+        let total_samples = source
+            .total_samples()
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        let mut finalizer =
+            crate::parakeet_pipeline::ParakeetFinalizer::new(request.job_id, request.generation);
+        let result = loop {
+            if finalizer.processed_samples() < total_samples {
+                if let Err(error) = self
+                    .parakeet_scheduler
+                    .queue_final(session, finalizer.next_window_sequence())
+                {
+                    self.parakeet_scheduler
+                        .abort_session(session)
+                        .map_err(|cleanup| format!("SchedulerQueue: {error:?}; {cleanup:?}"))?;
+                    self.parakeet_scheduler
+                        .confirm_child_exited()
+                        .map_err(|cleanup| format!("SchedulerQueue: {error:?}; {cleanup:?}"))?;
+                    return Err(format!("SchedulerQueue: {error:?}"));
+                }
+                let call = match self.parakeet_scheduler.next_call() {
+                    Ok(Some(call)) => call,
+                    Ok(None) => {
+                        self.parakeet_scheduler
+                            .abort_session(session)
+                            .map_err(|error| format!("SchedulerReady: {error:?}"))?;
+                        self.parakeet_scheduler
+                            .confirm_child_exited()
+                            .map_err(|error| format!("SchedulerReap: {error:?}"))?;
+                        return Err("SchedulerReady: final range was not selected".into());
+                    }
+                    Err(error) => {
+                        self.parakeet_scheduler
+                            .abort_session(session)
+                            .map_err(|cleanup| {
+                                format!("SchedulerSelect: {error:?}; {cleanup:?}")
+                            })?;
+                        self.parakeet_scheduler
+                            .confirm_child_exited()
+                            .map_err(|cleanup| {
+                                format!("SchedulerSelect: {error:?}; {cleanup:?}")
+                            })?;
+                        return Err(format!("SchedulerSelect: {error:?}"));
+                    }
+                };
+                let step = {
+                    let mut scheduled = ScheduledWindowTranscriber {
+                        scheduler: &mut self.parakeet_scheduler,
+                        call,
+                        transcriber: transcriber.as_mut(),
+                    };
+                    finalizer.step(
+                        &mut &source,
+                        &mut document,
+                        &mut scheduled,
+                        total_samples,
+                        true,
+                    )
+                };
+                match step {
+                    Ok(crate::parakeet_pipeline::FinalizationStep::WindowProcessed { .. }) => {
+                        self.parakeet_scheduler
+                            .complete(call)
+                            .map_err(|error| format!("SchedulerComplete: {error:?}"))?;
+                    }
+                    Ok(crate::parakeet_pipeline::FinalizationStep::Complete(result)) => {
+                        self.parakeet_scheduler
+                            .fail_call(call)
+                            .map_err(|error| format!("SchedulerComplete: {error:?}"))?;
+                        self.parakeet_scheduler
+                            .abort_session(session)
+                            .map_err(|error| format!("SchedulerTerminal: {error:?}"))?;
+                        self.parakeet_scheduler
+                            .confirm_child_exited()
+                            .map_err(|error| format!("SchedulerReap: {error:?}"))?;
+                        return Err(format!(
+                            "SchedulerSource: completed without a final call ({})",
+                            result.windows_completed
+                        ));
+                    }
+                    Ok(crate::parakeet_pipeline::FinalizationStep::WaitingForAudio { .. }) => {
+                        self.parakeet_scheduler
+                            .fail_call(call)
+                            .map_err(|error| format!("SchedulerComplete: {error:?}"))?;
+                        self.parakeet_scheduler
+                            .abort_session(session)
+                            .map_err(|error| format!("SchedulerTerminal: {error:?}"))?;
+                        self.parakeet_scheduler
+                            .confirm_child_exited()
+                            .map_err(|error| format!("SchedulerReap: {error:?}"))?;
+                        return Err(
+                            "SchedulerSource: closed unified audio unexpectedly waits".into()
+                        );
+                    }
+                    Err(error) => {
+                        self.parakeet_scheduler
+                            .fail_call(call)
+                            .map_err(|scheduler_error| {
+                                format!("{error}; SchedulerFailure: {scheduler_error:?}")
+                            })?;
+                        self.parakeet_scheduler.mark_terminal(session).map_err(
+                            |scheduler_error| {
+                                format!("{error}; SchedulerTerminal: {scheduler_error:?}")
+                            },
+                        )?;
+                        let _ = self.parakeet_scheduler.confirm_child_exited();
+                        return Err(error);
+                    }
+                }
+            } else {
+                match finalizer.step(
+                    &mut &source,
+                    &mut document,
+                    transcriber.as_mut(),
+                    total_samples,
+                    true,
+                )? {
+                    crate::parakeet_pipeline::FinalizationStep::Complete(result) => break result,
+                    _ => return Err("SchedulerSource: final document did not complete".into()),
+                }
+            }
+        };
+        self.parakeet_scheduler
+            .mark_terminal(session)
+            .map_err(|error| format!("SchedulerTerminal: {error:?}"))?;
+        self.parakeet_scheduler
+            .confirm_child_exited()
+            .map_err(|error| format!("SchedulerReap: {error:?}"))?;
+        self.document_drains.push_back(UnifiedDocumentDrain {
             document,
             job_id: request.job_id,
             generation: request.generation,
@@ -2421,17 +2970,16 @@ impl ImportRuntime {
         Ok(())
     }
 
-    #[cfg(test)]
-    fn poll_controlled_document(
+    fn poll_unified_document(
         &mut self,
     ) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
         use whisper_core::ports::ParakeetDocumentPort;
-        let mut drain = self.controlled_document_drain.take()?;
+        let mut drain = self.document_drains.pop_front()?;
         if drain.ready_pending {
             drain.ready_pending = false;
             let job_id = drain.job_id;
             let generation = drain.generation;
-            self.controlled_document_drain = Some(drain);
+            self.document_drains.push_front(drain);
             return Some(Ok(ImportEvent::Ready {
                 job_id,
                 generation,
@@ -2449,7 +2997,7 @@ impl ImportRuntime {
             return Some(match page_result {
                 Ok(mut page) if page.entries.len() == 1 => {
                     drain.next_sequence += 1;
-                    self.controlled_document_drain = Some(drain);
+                    self.document_drains.push_front(drain);
                     Ok(ImportEvent::Segment(page.entries.remove(0).segment))
                 }
                 Ok(_) => Err((
@@ -2469,7 +3017,7 @@ impl ImportRuntime {
             let job_id = drain.job_id;
             let generation = drain.generation;
             let total_samples = drain.total_samples;
-            self.controlled_document_drain = Some(drain);
+            self.document_drains.push_front(drain);
             return Some(Ok(ImportEvent::Progress {
                 job_id,
                 generation,
@@ -2483,6 +3031,493 @@ impl ImportRuntime {
             last_sequence: drain.revision,
             last_offset: drain.total_samples,
         }))
+    }
+
+    fn poll_unified_sessions(
+        &mut self,
+    ) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+        if self.unified_sessions.is_empty() {
+            return None;
+        }
+        #[cfg(test)]
+        if self.unified_executor.is_none()
+            && let Some(worker) = self.controlled_transcriber.take()
+        {
+            match UnifiedInferenceExecutor::start(worker) {
+                Ok(executor) => self.unified_executor = Some(executor),
+                Err(error) => return Some(Err((JobId(0), Generation::first(), error))),
+            }
+        }
+        let Some(executor) = self.unified_executor.as_mut() else {
+            let identity = self
+                .unified_sessions
+                .keys()
+                .next()
+                .map(|session| (session.job_id, session.generation))?;
+            return Some(Err((
+                identity.0,
+                identity.1,
+                "ModelNotQualified: unified inference executor is unavailable".into(),
+            )));
+        };
+        let mut pump_error = None;
+        let mut preview_updates = Vec::new();
+        for (session, state) in &mut self.unified_sessions {
+            if !state.source.is_capture() || state.source_closed {
+                continue;
+            }
+            match state.source.pump() {
+                Ok(acknowledgements) => {
+                    if let Some(boundary) =
+                        acknowledgements.iter().map(|ack| ack.written_samples).max()
+                    {
+                        state.available_samples = state.available_samples.max(boundary);
+                        if boundary >= 4 * 16_000 && boundary > state.preview_sequence {
+                            state.preview_sequence = boundary;
+                            preview_updates.push((*session, boundary));
+                        }
+                    }
+                }
+                Err(error) => {
+                    state.failure = Some(error.clone());
+                    let _ = self.parakeet_scheduler.abort_session(*session);
+                    pump_error = Some((*session, error));
+                }
+            }
+        }
+        let _ = pump_error;
+        for (session, boundary) in preview_updates {
+            if let Err(error) = self.parakeet_scheduler.queue_preview(session, boundary) {
+                return Some(Err((
+                    session.job_id,
+                    session.generation,
+                    format!("SchedulerPreview: {error:?}"),
+                )));
+            }
+        }
+        match executor.try_result() {
+            Ok(Some(result)) => {
+                let session = result.call.session;
+                let Some(mut state) = self.unified_sessions.remove(&session) else {
+                    return Some(Err((
+                        session.job_id,
+                        session.generation,
+                        "SchedulerResponse: result belongs to an unknown session".into(),
+                    )));
+                };
+                if state.pending_call != Some(result.call)
+                    || self.parakeet_scheduler.in_flight() != Some(result.call)
+                {
+                    self.unified_sessions.insert(session, state);
+                    return Some(Err((
+                        session.job_id,
+                        session.generation,
+                        "SchedulerResponse: stale inference result".into(),
+                    )));
+                }
+                state.pending_call = None;
+                if let Some(error) = state.failure.take() {
+                    let _ = self.parakeet_scheduler.fail_call(result.call);
+                    if let Err(reap_error) = executor.stop_and_reap() {
+                        state.failure = Some(error.clone());
+                        self.unified_sessions.insert(session, state);
+                        return Some(Err((
+                            session.job_id,
+                            session.generation,
+                            format!("{error}; InferenceReap: {reap_error}"),
+                        )));
+                    }
+                    if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
+                        state.failure = Some(error.clone());
+                        self.unified_sessions.insert(session, state);
+                        return Some(Err((
+                            session.job_id,
+                            session.generation,
+                            format!("{error}; SchedulerReap: {reap_error:?}"),
+                        )));
+                    }
+                    if self.parakeet_scheduler.active_sessions() > 0
+                        && let Err(restart_error) = executor.restart()
+                    {
+                        state.failure = Some(error.clone());
+                        self.unified_sessions.insert(session, state);
+                        return Some(Err((
+                            session.job_id,
+                            session.generation,
+                            format!("{error}; InferenceRestart: {restart_error}"),
+                        )));
+                    }
+                    return Some(Err((session.job_id, session.generation, error)));
+                }
+                let words = match result.words {
+                    Ok(words) => words,
+                    Err(error) => {
+                        let _ = self.parakeet_scheduler.fail_call(result.call);
+                        let _ = self.parakeet_scheduler.mark_terminal(session);
+                        if let Err(reap_error) = executor.stop_and_reap() {
+                            self.unified_sessions.insert(session, state);
+                            return Some(Err((
+                                session.job_id,
+                                session.generation,
+                                format!("{error}; InferenceReap: {reap_error}"),
+                            )));
+                        }
+                        if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
+                            self.unified_sessions.insert(session, state);
+                            return Some(Err((
+                                session.job_id,
+                                session.generation,
+                                format!("{error}; SchedulerReap: {reap_error:?}"),
+                            )));
+                        }
+                        if self.parakeet_scheduler.active_sessions() > 0
+                            && let Err(restart_error) = executor.restart()
+                        {
+                            self.unified_sessions.insert(session, state);
+                            return Some(Err((
+                                session.job_id,
+                                session.generation,
+                                format!("{error}; InferenceRestart: {restart_error}"),
+                            )));
+                        }
+                        return Some(Err((session.job_id, session.generation, error)));
+                    }
+                };
+                let applied = match result.call.work {
+                    whisper_core::parakeet_scheduler::ScheduledWork::Final { .. } => state
+                        .finalizer
+                        .commit_prepared(&mut state.document, result.instance_id, &words),
+                    whisper_core::parakeet_scheduler::ScheduledWork::Preview { .. } => {
+                        match (
+                            state.pending_window.take(),
+                            state.pending_available_samples.take(),
+                        ) {
+                            (Some(window), Some(boundary)) => {
+                                crate::parakeet_pipeline::commit_preview(
+                                    &mut state.document,
+                                    window,
+                                    boundary,
+                                    result.instance_id,
+                                    session.job_id,
+                                    session.generation,
+                                    &words,
+                                )
+                                .map(|_| {
+                                    crate::parakeet_pipeline::FinalizationStep::WaitingForAudio {
+                                        processed_samples: state.finalizer.processed_samples(),
+                                    }
+                                })
+                            }
+                            _ => {
+                                Err("Pipeline: preview result has no matching prepared window"
+                                    .into())
+                            }
+                        }
+                    }
+                };
+                let valid_step = matches!(
+                    result.call.work,
+                    whisper_core::parakeet_scheduler::ScheduledWork::Preview { .. }
+                ) || matches!(
+                    &applied,
+                    Ok(crate::parakeet_pipeline::FinalizationStep::WindowProcessed { .. })
+                );
+                match applied {
+                    Ok(_) if valid_step => {
+                        if let Err(error) = self.parakeet_scheduler.complete(result.call) {
+                            self.unified_sessions.insert(session, state);
+                            return Some(Err((
+                                session.job_id,
+                                session.generation,
+                                format!("SchedulerComplete: {error:?}"),
+                            )));
+                        }
+                        self.unified_sessions.insert(session, state);
+                        return None;
+                    }
+                    Ok(_) => {
+                        self.unified_sessions.insert(session, state);
+                        return Some(Err((
+                            session.job_id,
+                            session.generation,
+                            "Pipeline: inference response did not commit a final window".into(),
+                        )));
+                    }
+                    Err(error) => {
+                        let _ = self.parakeet_scheduler.fail_call(result.call);
+                        let _ = self.parakeet_scheduler.mark_terminal(session);
+                        if let Err(reap_error) = executor.stop_and_reap() {
+                            self.unified_sessions.insert(session, state);
+                            return Some(Err((
+                                session.job_id,
+                                session.generation,
+                                format!("{error}; InferenceReap: {reap_error}"),
+                            )));
+                        }
+                        if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
+                            self.unified_sessions.insert(session, state);
+                            return Some(Err((
+                                session.job_id,
+                                session.generation,
+                                format!("{error}; SchedulerReap: {reap_error:?}"),
+                            )));
+                        }
+                        if self.parakeet_scheduler.active_sessions() > 0
+                            && let Err(restart_error) = executor.restart()
+                        {
+                            self.unified_sessions.insert(session, state);
+                            return Some(Err((
+                                session.job_id,
+                                session.generation,
+                                format!("{error}; InferenceRestart: {restart_error}"),
+                            )));
+                        }
+                        return Some(Err((session.job_id, session.generation, error)));
+                    }
+                }
+            }
+            Ok(None) => {}
+            Err(error) => {
+                let identity = self.unified_sessions.keys().next().copied()?;
+                return Some(Err((identity.job_id, identity.generation, error)));
+            }
+        }
+        if executor.in_flight {
+            return None;
+        }
+        if let Some(session) = self
+            .unified_sessions
+            .iter()
+            .find_map(|(session, state)| state.failure.as_ref().map(|_| *session))
+        {
+            let mut state = self.unified_sessions.remove(&session)?;
+            let error = state.failure.take().unwrap_or_else(|| "CaptureLost".into());
+            if let Err(reap_error) = executor.stop_and_reap() {
+                state.failure = Some(error.clone());
+                self.unified_sessions.insert(session, state);
+                return Some(Err((
+                    session.job_id,
+                    session.generation,
+                    format!("{error}; InferenceReap: {reap_error}"),
+                )));
+            }
+            if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
+                state.failure = Some(error.clone());
+                self.unified_sessions.insert(session, state);
+                return Some(Err((
+                    session.job_id,
+                    session.generation,
+                    format!("{error}; SchedulerReap: {reap_error:?}"),
+                )));
+            }
+            if self.parakeet_scheduler.active_sessions() > 0
+                && let Err(restart_error) = executor.restart()
+            {
+                state.failure = Some(error.clone());
+                self.unified_sessions.insert(session, state);
+                return Some(Err((
+                    session.job_id,
+                    session.generation,
+                    format!("{error}; InferenceRestart: {restart_error}"),
+                )));
+            }
+            return Some(Err((session.job_id, session.generation, error)));
+        }
+        let finished_session = self.unified_sessions.iter().find_map(|(session, state)| {
+            (state.source_closed
+                && state.pending_call.is_none()
+                && state.finalizer.processed_samples() == state.available_samples)
+                .then_some(*session)
+        });
+        if let Some(session) = finished_session {
+            let mut state = self.unified_sessions.remove(&session)?;
+            let result = match state.finalizer.finish_document(
+                &mut state.document,
+                state.available_samples,
+                state.source_closed,
+            ) {
+                Ok(crate::parakeet_pipeline::FinalizationStep::Complete(result)) => result,
+                Ok(_) => {
+                    self.unified_sessions.insert(session, state);
+                    return Some(Err((
+                        session.job_id,
+                        session.generation,
+                        "Pipeline: closed document did not finalize".into(),
+                    )));
+                }
+                Err(error) => {
+                    self.unified_sessions.insert(session, state);
+                    return Some(Err((session.job_id, session.generation, error)));
+                }
+            };
+            if let Err(error) = self.parakeet_scheduler.mark_terminal(session) {
+                self.unified_sessions.insert(session, state);
+                return Some(Err((
+                    session.job_id,
+                    session.generation,
+                    format!("SchedulerTerminal: {error:?}"),
+                )));
+            }
+            if let Err(error) = executor.stop_and_reap() {
+                self.unified_sessions.insert(session, state);
+                return Some(Err((
+                    session.job_id,
+                    session.generation,
+                    format!("InferenceReap: {error}"),
+                )));
+            }
+            if let Err(error) = self.parakeet_scheduler.confirm_child_exited() {
+                self.unified_sessions.insert(session, state);
+                return Some(Err((
+                    session.job_id,
+                    session.generation,
+                    format!("SchedulerReap: {error:?}"),
+                )));
+            }
+            if self.parakeet_scheduler.active_sessions() > 0
+                && let Err(error) = executor.restart()
+            {
+                self.unified_sessions.insert(session, state);
+                return Some(Err((
+                    session.job_id,
+                    session.generation,
+                    format!("InferenceRestart: {error}"),
+                )));
+            }
+            self.document_drains.push_back(UnifiedDocumentDrain {
+                document: state.document,
+                job_id: session.job_id,
+                generation: session.generation,
+                revision: result.document_revision,
+                total_samples: result.total_samples,
+                next_sequence: 1,
+                ready_pending: true,
+                progress_pending: true,
+            });
+            return None;
+        }
+        for (session, state) in &self.unified_sessions {
+            let remaining = state
+                .available_samples
+                .saturating_sub(state.finalizer.processed_samples());
+            if state.finalizer.processed_samples() < state.available_samples
+                && (state.source_closed || remaining >= 120 * 16_000 + 2 * 200 * 16)
+            {
+                let _ = self
+                    .parakeet_scheduler
+                    .queue_final(*session, state.finalizer.next_window_sequence());
+            }
+        }
+        let call = match self.parakeet_scheduler.next_call() {
+            Ok(Some(call)) => call,
+            Ok(None) => return None,
+            Err(error) => {
+                let identity = self.unified_sessions.keys().next().copied()?;
+                return Some(Err((
+                    identity.job_id,
+                    identity.generation,
+                    format!("SchedulerSelect: {error:?}"),
+                )));
+            }
+        };
+        let Some(mut state) = self.unified_sessions.remove(&call.session) else {
+            let _ = self.parakeet_scheduler.cancel_reservation(call);
+            return Some(Err((
+                call.session.job_id,
+                call.session.generation,
+                "SchedulerSelection: selected session is missing".into(),
+            )));
+        };
+        let prepared = match call.work {
+            whisper_core::parakeet_scheduler::ScheduledWork::Final { .. } => state
+                .finalizer
+                .prepare_next(
+                    &mut state.source,
+                    state.available_samples,
+                    state.source_closed,
+                )
+                .map(|prepared| match prepared {
+                    crate::parakeet_pipeline::PreparedFinalWindow::Ready { window, pcm } => {
+                        Some((window, pcm, true))
+                    }
+                    crate::parakeet_pipeline::PreparedFinalWindow::WaitingForAudio { .. }
+                    | crate::parakeet_pipeline::PreparedFinalWindow::Complete => None,
+                }),
+            whisper_core::parakeet_scheduler::ScheduledWork::Preview { sequence } => {
+                crate::parakeet_pipeline::prepare_preview(&mut state.source, sequence, sequence)
+                    .map(|prepared| Some((prepared.window, prepared.pcm, false)))
+            }
+        };
+        match prepared {
+            Ok(Some((window, pcm, true))) => {
+                if let Err(error) = self.parakeet_scheduler.begin_call(call) {
+                    let _ = self.parakeet_scheduler.cancel_reservation(call);
+                    state.failure = Some(format!("SchedulerBegin: {error:?}"));
+                    let _ = self.parakeet_scheduler.abort_session(call.session);
+                    self.unified_sessions.insert(call.session, state);
+                    return Some(Err((
+                        call.session.job_id,
+                        call.session.generation,
+                        format!("SchedulerBegin: {error:?}"),
+                    )));
+                }
+                match executor.dispatch(UnifiedInferenceCommand { call, window, pcm }) {
+                    Ok(()) => {
+                        state.pending_call = Some(call);
+                        self.unified_sessions.insert(call.session, state);
+                        None
+                    }
+                    Err(error) => {
+                        let _ = self.parakeet_scheduler.fail_call(call);
+                        let _ = self.parakeet_scheduler.mark_terminal(call.session);
+                        state.failure = Some(error.clone());
+                        self.unified_sessions.insert(call.session, state);
+                        Some(Err((call.session.job_id, call.session.generation, error)))
+                    }
+                }
+            }
+            Ok(Some((window, pcm, false))) => {
+                state.pending_window = Some(window);
+                state.pending_available_samples = Some(window.central_end_sample);
+                if let Err(error) = self.parakeet_scheduler.begin_call(call) {
+                    let _ = self.parakeet_scheduler.cancel_reservation(call);
+                    state.failure = Some(format!("SchedulerBegin: {error:?}"));
+                    let _ = self.parakeet_scheduler.abort_session(call.session);
+                    self.unified_sessions.insert(call.session, state);
+                    return Some(Err((
+                        call.session.job_id,
+                        call.session.generation,
+                        format!("SchedulerBegin: {error:?}"),
+                    )));
+                }
+                match executor.dispatch(UnifiedInferenceCommand { call, window, pcm }) {
+                    Ok(()) => {
+                        state.pending_call = Some(call);
+                        self.unified_sessions.insert(call.session, state);
+                        None
+                    }
+                    Err(error) => {
+                        let _ = self.parakeet_scheduler.fail_call(call);
+                        let _ = self.parakeet_scheduler.mark_terminal(call.session);
+                        state.failure = Some(error.clone());
+                        self.unified_sessions.insert(call.session, state);
+                        Some(Err((call.session.job_id, call.session.generation, error)))
+                    }
+                }
+            }
+            Ok(None) => {
+                let _ = self.parakeet_scheduler.cancel_reservation(call);
+                self.unified_sessions.insert(call.session, state);
+                None
+            }
+            Err(error) => {
+                let _ = self.parakeet_scheduler.cancel_reservation(call);
+                state.failure = Some(error.clone());
+                let _ = self.parakeet_scheduler.abort_session(call.session);
+                self.unified_sessions.insert(call.session, state);
+                Some(Err((call.session.job_id, call.session.generation, error)))
+            }
+        }
     }
 
     fn start_diagnostics(&mut self, destination: &Path) {
@@ -2737,7 +3772,10 @@ impl ImportRuntime {
     }
 
     fn effect(&mut self, effect: ImportEffect, events: &mut VecDeque<ImportEvent>) {
-        if matches!(&effect, ImportEffect::StartLive(_)) {
+        if matches!(
+            &effect,
+            ImportEffect::StartLive(_) | ImportEffect::StartUnifiedLive(_)
+        ) {
             self.idle_worker = None;
         }
         let persisted_live_segment = match &effect {
@@ -2875,6 +3913,34 @@ impl ImportRuntime {
                             Err(error) => Err((id.0, id.1, error)),
                         }
                     }
+                }
+            }
+            ImportEffect::StartUnifiedLive(request) => {
+                let id = (request.job_id, request.generation);
+                #[cfg(test)]
+                let controlled_capture = self.controlled_capture.take();
+                #[cfg(test)]
+                let controlled_part_limit = self.controlled_part_limit.take();
+                #[cfg(not(test))]
+                let controlled_capture: Option<CaptureStream> = None;
+                #[cfg(not(test))]
+                let controlled_part_limit: Option<u64> = None;
+                if self.publication_gate.is_cancelled() {
+                    Ok(())
+                } else if let Some(capture) = controlled_capture {
+                    match self.bind_live_request(&request) {
+                        Ok(bound) => self
+                            .start_controlled_unified_capture(
+                                &bound,
+                                capture,
+                                controlled_part_limit,
+                            )
+                            .map_err(|error| (id.0, id.1, error)),
+                        Err(error) => Err((id.0, id.1, format!("Modèle indisponible : {error}"))),
+                    }
+                } else {
+                    Err((id.0, id.1,
+                        "ModelNotQualified: unified capture is not enabled in the native composition".into()))
                 }
             }
             ImportEffect::StartLive(request) => {
@@ -3873,13 +4939,14 @@ impl ImportRuntime {
                     #[cfg(test)]
                     {
                         let identity = (request.job_id, request.generation);
-                        if self.controlled_transcriber.is_none() {
+                        if self.controlled_transcriber.is_none() && self.unified_executor.is_none()
+                        {
                             Err((identity.0, identity.1,
                                 "ModelNotQualified: unified strategy requires the injected controlled worker".into()))
                         } else {
                             match self.bind_import_request(&request) {
                                 Ok(bound) => self
-                                    .run_controlled_unified_import(&bound)
+                                    .start_controlled_unified_import(&bound)
                                     .map_err(|error| (identity.0, identity.1, error)),
                                 Err(error) => Err((identity.0, identity.1, error)),
                             }
@@ -4088,6 +5155,9 @@ impl ImportRuntime {
                     Err(error) => Err(error),
                 }
             }
+            ImportEffect::StopUnifiedLive { job_id, generation } => self
+                .stop_controlled_unified_capture(job_id, generation, events)
+                .map_err(|error| (job_id, generation, error)),
             ImportEffect::Stop { job_id, generation } => {
                 if let Some(mut live) = self.parakeet_live.take() {
                     if live.identity() != (job_id, generation) {
@@ -4462,7 +5532,7 @@ impl ImportRuntime {
             == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
         {
             #[cfg(test)]
-            if self.controlled_transcriber.is_none() {
+            if self.controlled_transcriber.is_none() && self.unified_executor.is_none() {
                 return Err((
                     id.0,
                     id.1,
@@ -5497,6 +6567,21 @@ impl ImportRuntime {
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (segment.job_id, segment.generation);
+        let unified = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: id.0,
+            generation: id.1,
+        };
+        if let Some(mut archive) = self.unified_archives.remove(&unified) {
+            let result = archive.persist_segment(&segment);
+            self.unified_archives.insert(unified, archive);
+            let sequence = result.map_err(|error| (id.0, id.1, error))?;
+            events.push_back(ImportEvent::Persisted {
+                job_id: id.0,
+                generation: id.1,
+                sequence,
+            });
+            return Ok(());
+        }
         if self.live.is_some() {
             let durable = self
                 .live
@@ -5596,6 +6681,29 @@ impl ImportRuntime {
     }
 
     fn publish(
+        &mut self,
+        job: JobId,
+        generation: Generation,
+        count: u64,
+        events: &mut VecDeque<ImportEvent>,
+    ) -> Result<(), (JobId, Generation, String)> {
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: job,
+            generation,
+        };
+        if let Some(archive) = self.unified_archives.remove(&session) {
+            let previous_archive = std::mem::replace(&mut self.archive, archive);
+            let result = self.publish_inner(job, generation, count, events);
+            let session_archive = std::mem::replace(&mut self.archive, previous_archive);
+            if result.is_err() {
+                self.unified_archives.insert(session, session_archive);
+            }
+            return result;
+        }
+        self.publish_inner(job, generation, count, events)
+    }
+
+    fn publish_inner(
         &mut self,
         job: JobId,
         generation: Generation,
@@ -6934,8 +8042,10 @@ impl ImportRuntime {
     }
 
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
-        #[cfg(test)]
-        if let Some(event) = self.poll_controlled_document() {
+        if let Some(event) = self.poll_unified_sessions() {
+            return Some(event);
+        }
+        if let Some(event) = self.poll_unified_document() {
             return Some(event);
         }
         if let Some(event) = self.parakeet_pending_events.pop_front() {
@@ -8050,6 +9160,7 @@ pub struct AsyncImportIo {
     events: Receiver<ImportEvent>,
     publication_gate: Arc<PublicationGate>,
     active_identity: Option<(JobId, Generation)>,
+    unified_identities: HashSet<(JobId, u64)>,
     automatic_effects: SyncSender<ImportEffect>,
     automatic_stops: SyncSender<ImportEffect>,
     automatic_events: Receiver<ImportEvent>,
@@ -8254,6 +9365,7 @@ impl AsyncImportIo {
             events: event_rx,
             publication_gate,
             active_identity: None,
+            unified_identities: HashSet::new(),
             automatic_effects: automatic_effect_tx,
             automatic_stops: automatic_stop_tx,
             automatic_events: automatic_event_rx,
@@ -8292,6 +9404,7 @@ impl AsyncImportIo {
                 events: event_rx,
                 publication_gate,
                 active_identity: None,
+                unified_identities: HashSet::new(),
                 automatic_effects: automatic_effect_tx,
                 automatic_stops: automatic_stop_tx,
                 automatic_events: automatic_event_rx,
@@ -8367,11 +9480,12 @@ fn import_effect_identity(effect: &ImportEffect) -> Option<(JobId, u64)> {
         | ImportEffect::Publish {
             job_id, generation, ..
         }
+        | ImportEffect::StopUnifiedLive { job_id, generation }
         | ImportEffect::Stop { job_id, generation }
         | ImportEffect::FinishLiveOnCpu { job_id, generation } => (*job_id, *generation),
-        ImportEffect::StartLive(request) | ImportEffect::StartDirectLive(request) => {
-            (request.job_id, request.generation)
-        }
+        ImportEffect::StartLive(request)
+        | ImportEffect::StartDirectLive(request)
+        | ImportEffect::StartUnifiedLive(request) => (request.job_id, request.generation),
         ImportEffect::Enqueue(request)
         | ImportEffect::ProcessQueued(request)
         | ImportEffect::Prepare(request)
@@ -8428,6 +9542,28 @@ impl ImportIoPort for AsyncImportIo {
         );
         if let ImportEffect::StopMicrophoneTest { job_id, generation } = &effect {
             if self.active_identity != Some((*job_id, *generation)) {
+                return Err(PortError::StaleResponse);
+            }
+            return self.stops.try_send(effect).map_err(|error| match error {
+                TrySendError::Full(_) | TrySendError::Disconnected(_) => PortError::Unavailable,
+            });
+        }
+        if let ImportEffect::StartUnifiedLive(request) = &effect {
+            let identity = (request.job_id, request.generation.get());
+            if !self.unified_identities.insert(identity) {
+                return Err(PortError::StaleResponse);
+            }
+            return match self.effects.try_send(effect) {
+                Ok(()) => Ok(()),
+                Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) => {
+                    self.unified_identities.remove(&identity);
+                    Err(PortError::Unavailable)
+                }
+            };
+        }
+        if let ImportEffect::StopUnifiedLive { job_id, generation } = &effect {
+            let identity = (*job_id, generation.get());
+            if !self.unified_identities.contains(&identity) {
                 return Err(PortError::StaleResponse);
             }
             return self.stops.try_send(effect).map_err(|error| match error {
@@ -8553,6 +9689,7 @@ impl ImportIoPort for AsyncImportIo {
                 ImportEffect::StartLive(request) | ImportEffect::StartDirectLive(request) => {
                     Some((request.job_id, request.generation))
                 }
+                ImportEffect::StartUnifiedLive(_) => None,
                 ImportEffect::StartAutomaticFinalTranscription(automatic) => {
                     Some((automatic.request.job_id, automatic.request.generation))
                 }
@@ -8606,6 +9743,11 @@ impl ImportIoPort for AsyncImportIo {
             }
         };
         if let Some(event) = event.as_ref() {
+            if let Some(identity) = terminal_import_event_identity(event)
+                && self.unified_identities.remove(&identity)
+            {
+                // The unified session has reached a terminal publication/failure event.
+            }
             if from_automatic && let Some(identity) = terminal_import_event_identity(event) {
                 self.automatic_identities.remove(&identity);
                 self.automatic_publication_gates
@@ -8961,7 +10103,7 @@ fn effect_event_reservation(effect: &ImportEffect) -> usize {
     match effect {
         ImportEffect::ResumeInterrupted { .. } => 3,
         ImportEffect::ProcessQueued(_) | ImportEffect::Publish { .. } => 2,
-        ImportEffect::Stop { .. } => 2,
+        ImportEffect::Stop { .. } | ImportEffect::StopUnifiedLive { .. } => 2,
         _ => 1,
     }
 }
@@ -9034,6 +10176,7 @@ fn service_loop<R: ServiceRuntime>(
             (
                 Some(
                     effect @ (ImportEffect::StartLive(_)
+                    | ImportEffect::StartUnifiedLive(_)
                     | ImportEffect::StartDirectLive(_)
                     | ImportEffect::StartMicrophoneTest { .. }),
                 ),
@@ -9138,6 +10281,7 @@ mod tests {
                 &effect,
                 ImportEffect::StartMicrophoneTest { .. }
                     | ImportEffect::StartLive(_)
+                    | ImportEffect::StartUnifiedLive(_)
                     | ImportEffect::StartDirectLive(_)
                     | ImportEffect::Prepare(_)
                     | ImportEffect::ProcessQueued(_)
@@ -9162,7 +10306,9 @@ mod tests {
         }
     }
 
-    struct ControlledUnifiedWorker;
+    struct ControlledUnifiedWorker {
+        calls: Option<Arc<AtomicU64>>,
+    }
 
     impl crate::parakeet_pipeline::WindowTranscriber for ControlledUnifiedWorker {
         fn instance_id(&self) -> u64 {
@@ -9174,6 +10320,9 @@ mod tests {
             window: whisper_core::parakeet_session::AudioWindow,
             _: &[i16],
         ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+            if let Some(calls) = &self.calls {
+                calls.fetch_add(1, Ordering::Relaxed);
+            }
             let start_ms = ((window.central_start_sample - window.native_start_sample) / 16) as u32;
             Ok(vec![whisper_core::parakeet_ipc::Word {
                 text: "controlled.".into(),
@@ -9181,6 +10330,19 @@ mod tests {
                 end_ms: start_ms + 100,
             }])
         }
+    }
+
+    fn controlled_worker() -> (
+        Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+        Arc<AtomicU64>,
+    ) {
+        let calls = Arc::new(AtomicU64::new(0));
+        (
+            Box::new(ControlledUnifiedWorker {
+                calls: Some(Arc::clone(&calls)),
+            }),
+            calls,
+        )
     }
 
     struct InvalidTimeUnifiedWorker;
@@ -9311,6 +10473,7 @@ mod tests {
                 unified_import_request(&root.join("archive"), &source_path, 700 + index as u128);
             request.config.compute = compute;
             assert_real_unified_model(&request);
+            let (worker, calls) = controlled_worker();
             let mut runtime = ImportRuntime::new(
                 WorkerPaths {
                     cpu: PathBuf::from("unused-cpu"),
@@ -9318,7 +10481,7 @@ mod tests {
                 },
                 Arc::new(PublicationGate::default()),
             )
-            .with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+            .with_controlled_transcriber(worker);
             if compute == ComputeChoice::Gpu {
                 let mut candidate = fake_gpu_candidate();
                 candidate.generation = request.generation.get();
@@ -9380,6 +10543,11 @@ mod tests {
                 std::fs::read_to_string(archive.join("parakeet-unified/document/coverage.jsonl"))
                     .unwrap();
             assert_eq!(coverage.lines().count(), if seconds > 120 { 2 } else { 1 });
+            assert_eq!(
+                calls.load(Ordering::Relaxed),
+                coverage.lines().count() as u64,
+                "each final window must be invoked through the scheduler"
+            );
             let basename = entry.export_basename.as_ref().unwrap();
             assert!(
                 root.join("archive/exports")
@@ -9393,6 +10561,35 @@ mod tests {
             );
             std::fs::remove_dir_all(&root).unwrap();
         }
+    }
+
+    #[test]
+    fn controlled_runtime_recycles_scheduler_slots_across_many_unified_imports() {
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-scheduler-lifecycle-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        );
+        for sequence in 1..=32_u128 {
+            let source_path = root.join(format!("source-{sequence}.wav"));
+            let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+            writer.append(&vec![0_i16; 48_000]).unwrap();
+            writer.finish().unwrap();
+            let request = unified_import_request(&root, &source_path, 800 + sequence);
+            assert_real_unified_model(&request);
+            runtime = runtime.with_controlled_transcriber(controlled_worker().0);
+            runtime.run_controlled_unified_import(&request).unwrap();
+            assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
+            assert!(runtime.parakeet_scheduler.in_flight().is_none());
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -9425,7 +10622,7 @@ mod tests {
             },
             Arc::new(PublicationGate::default()),
         )
-        .with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+        .with_controlled_transcriber(controlled_worker().0);
         let port = RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
@@ -9576,7 +10773,7 @@ mod tests {
             },
             Arc::new(PublicationGate::default()),
         )
-        .with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+        .with_controlled_transcriber(controlled_worker().0);
         let mut events = VecDeque::new();
 
         runtime
@@ -9606,30 +10803,26 @@ mod tests {
             },
             Arc::new(PublicationGate::default()),
         )
-        .with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+        .with_controlled_transcriber(controlled_worker().0);
         runtime.run_controlled_unified_import(&request).unwrap();
-        let drain = runtime.controlled_document_drain.as_ref().unwrap();
+        let drain = runtime.document_drains.front().unwrap();
         assert_eq!(drain.revision, 2);
         assert_eq!(drain.next_sequence, 1);
         assert!(matches!(
-            runtime.poll_controlled_document(),
+            runtime.poll_unified_document(),
             Some(Ok(ImportEvent::Ready { .. }))
         ));
         for expected in 1..=2 {
             assert!(
-                matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::Segment(segment))) if segment.segment_id.0 == expected)
+                matches!(runtime.poll_unified_document(), Some(Ok(ImportEvent::Segment(segment))) if segment.segment_id.0 == expected)
             );
             assert_eq!(
-                runtime
-                    .controlled_document_drain
-                    .as_ref()
-                    .unwrap()
-                    .next_sequence,
+                runtime.document_drains.front().unwrap().next_sequence,
                 expected + 1
             );
         }
         assert!(matches!(
-            runtime.poll_controlled_document(),
+            runtime.poll_unified_document(),
             Some(Ok(ImportEvent::Progress {
                 completed_samples,
                 total_samples,
@@ -9637,9 +10830,9 @@ mod tests {
             })) if completed_samples == 121 * 16_000 && total_samples == 121 * 16_000
         ));
         assert!(
-            matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::End { last_sequence: 2, last_offset, .. })) if last_offset == 121 * 16_000)
+            matches!(runtime.poll_unified_document(), Some(Ok(ImportEvent::End { last_sequence: 2, last_offset, .. })) if last_offset == 121 * 16_000)
         );
-        assert!(runtime.controlled_document_drain.is_none());
+        assert!(runtime.document_drains.is_empty());
         std::fs::remove_dir_all(root).unwrap();
     }
 
@@ -9662,7 +10855,7 @@ mod tests {
             },
             Arc::new(PublicationGate::default()),
         )
-        .with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+        .with_controlled_transcriber(controlled_worker().0);
         runtime.run_controlled_unified_import(&request).unwrap();
         let document_path = root.join(format!(
             "archive/transcriptions/{:032x}/1/parakeet-unified/document",
@@ -9678,7 +10871,7 @@ mod tests {
         assert!(
             matches!(port.poll(), Err(PortError::Failed(message)) if message.starts_with("Document:"))
         );
-        assert!(port.runtime.controlled_document_drain.is_none());
+        assert!(port.runtime.document_drains.is_empty());
         assert!(
             matches!(port.poll(), Ok(None)),
             "a terminal page error must be emitted only once"

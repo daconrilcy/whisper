@@ -99,6 +99,13 @@ pub struct ParakeetDocumentPage {
     pub next_sequence: Option<u64>,
 }
 
+/// Replaceable, non-final recognition shown beside final document pages.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ParakeetPreview {
+    pub segment: WorkerSegment,
+    pub revision: u64,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ParakeetWindowCoverage {
     pub sequence: u64,
@@ -123,6 +130,23 @@ pub trait ParakeetDocumentPort {
         generation: Generation,
         total_samples: u64,
     ) -> Result<u64, PortError>;
+
+    fn replace_preview(
+        &mut self,
+        _job_id: JobId,
+        _generation: Generation,
+        _segment: Option<WorkerSegment>,
+    ) -> Result<u64, PortError> {
+        Err(PortError::Unavailable)
+    }
+
+    fn read_preview(
+        &mut self,
+        _job_id: JobId,
+        _generation: Generation,
+    ) -> Result<Option<ParakeetPreview>, PortError> {
+        Err(PortError::Unavailable)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -404,6 +428,7 @@ pub enum ImportEffect {
     },
     StartLive(LiveRequest),
     StartDirectLive(LiveRequest),
+    StartUnifiedLive(LiveRequest),
     SetMicrophoneGain {
         job_id: JobId,
         generation: Generation,
@@ -469,6 +494,10 @@ pub enum ImportEffect {
         last_sequence: u64,
     },
     Stop {
+        job_id: JobId,
+        generation: Generation,
+    },
+    StopUnifiedLive {
         job_id: JobId,
         generation: Generation,
     },

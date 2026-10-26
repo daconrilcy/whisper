@@ -15,6 +15,7 @@ pub mod model_catalog;
 pub mod model_registry;
 pub mod model_selection_app;
 pub mod parakeet_ipc;
+pub mod parakeet_scheduler;
 pub mod parakeet_session;
 pub mod parakeet_windows;
 pub mod path_settings;
@@ -40,5 +41,5 @@ pub use ports::{
     ArchiveHistoryItem, Clock, DecodeRequest, DecodedPcmBlock, DecoderPort, DiagnosticNotice,
     DiagnosticPhase, ImportEffect, ImportEvent, ImportIoPort, ImportRequest, JobRepository,
     LiveRecoveryInfo, LiveRequest, ParakeetDocumentEntry, ParakeetDocumentPage,
-    ParakeetDocumentPort, ParakeetWindowCoverage, SourceIdentity, WorkerPort,
+    ParakeetDocumentPort, ParakeetPreview, ParakeetWindowCoverage, SourceIdentity, WorkerPort,
 };

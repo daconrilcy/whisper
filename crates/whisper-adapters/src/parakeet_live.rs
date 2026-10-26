@@ -12,6 +12,7 @@ use crate::microphone_probe::{MicrophoneProbe, MicrophoneSpectrumReader};
 use crate::{
     capture::{CaptureStream, Pcm16Converter},
     direct_live::WavOutput,
+    parakeet_audio::{CapturePcmWriter, CaptureWriteAck},
     parakeet_import::{ParakeetProcess, ParakeetWorkerPaths},
 };
 use std::{
@@ -52,6 +53,213 @@ const TRACE_MAX_WORD_TEXT_BYTES: usize = 128;
 const TRACE_TERMINAL_RESERVE: u64 = 1024;
 const MAX_RECOVERY_ATTEMPTS: usize = 4;
 const RECOVERY_MIN_CONTEXT_SAMPLES: u64 = SAMPLE_RATE / 2;
+
+/// Capture-to-source bridge used by the unified path. It drains the existing
+/// nonblocking device ring and sends converted PCM to an independent bounded
+/// writer; inference never owns or blocks this writer thread.
+pub(crate) struct UnifiedCapturePump {
+    capture: Option<CaptureStream>,
+    converter: Option<Pcm16Converter>,
+    writer: Option<CapturePcmWriter>,
+    acknowledgements_received: u64,
+    closed: Option<Result<(u64, Vec<CaptureWriteAck>), String>>,
+}
+
+impl UnifiedCapturePump {
+    pub(crate) fn from_capture(
+        capture: CaptureStream,
+        source_path: PathBuf,
+    ) -> Result<Self, String> {
+        Self::from_capture_inner(capture, source_path, None)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_capture_with_test_part_limit(
+        capture: CaptureStream,
+        source_path: PathBuf,
+        part_limit_bytes: u64,
+    ) -> Result<Self, String> {
+        Self::from_capture_inner(capture, source_path, Some(part_limit_bytes))
+    }
+
+    fn from_capture_inner(
+        capture: CaptureStream,
+        source_path: PathBuf,
+        test_part_limit: Option<u64>,
+    ) -> Result<Self, String> {
+        let converter = Pcm16Converter::new(capture.sample_rate_hz(), capture.channels())?;
+        let writer = if let Some(part_limit) = test_part_limit {
+            #[cfg(test)]
+            {
+                CapturePcmWriter::start_with_test_part_limit(
+                    source_path,
+                    crate::capture::CAPTURE_SLOTS,
+                    part_limit,
+                )
+            }
+            #[cfg(not(test))]
+            {
+                let _ = part_limit;
+                Err(crate::parakeet_audio::AudioStoreError::InvalidRange)
+            }
+        } else {
+            CapturePcmWriter::start(source_path, crate::capture::CAPTURE_SLOTS)
+        }
+        .map_err(|error| format!("StorageUnavailable: {error}"))?;
+        Ok(Self {
+            capture: Some(capture),
+            converter: Some(converter),
+            writer: Some(writer),
+            acknowledgements_received: 0,
+            closed: None,
+        })
+    }
+
+    pub(crate) fn pump(&mut self) -> Result<Vec<CaptureWriteAck>, String> {
+        if self.closed.is_some() {
+            return Err("Capture Parakeet arrêtée".into());
+        }
+        let capture = self.capture.as_mut().ok_or("Capture Parakeet arrêtée")?;
+        if capture.is_saturated() {
+            return Err("CaptureLost: microphone ring saturated".into());
+        }
+        if capture.failure() {
+            return Err("CaptureLost: microphone stream failed".into());
+        }
+        for _ in 0..MAX_CAPTURE_BLOCKS_PER_PUMP {
+            let Some(block) = capture.try_next_block() else {
+                break;
+            };
+            let samples = self
+                .converter
+                .as_mut()
+                .ok_or("Capture converter already drained")?
+                .push(&block)?;
+            if !samples.is_empty() {
+                self.writer
+                    .as_mut()
+                    .ok_or("Capture writer already closed")?
+                    .try_append(&samples)
+                    .map_err(|error| format!("CaptureLost: audio writer: {error:?}"))?;
+            }
+        }
+        Ok(self.collect_available_acknowledgements()?)
+    }
+
+    pub(crate) fn stop(&mut self) -> Result<(u64, Vec<CaptureWriteAck>), String> {
+        if let Some(result) = &self.closed {
+            return result.clone();
+        }
+        let result = self.stop_inner();
+        self.closed = Some(result.clone());
+        result
+    }
+
+    fn stop_inner(&mut self) -> Result<(u64, Vec<CaptureWriteAck>), String> {
+        if let Some(mut capture) = self.capture.take() {
+            if capture.is_saturated() || capture.failure() {
+                return Err("CaptureLost: microphone ring overflow or stream failure".into());
+            }
+            capture.stop();
+            while let Some(block) = capture.try_next_block() {
+                let samples = self
+                    .converter
+                    .as_mut()
+                    .ok_or("Capture converter already drained")?
+                    .push(&block)?;
+                if !samples.is_empty() {
+                    self.append_during_stop(&samples)?;
+                }
+            }
+        }
+        let tail = self
+            .converter
+            .take()
+            .ok_or("Capture converter already drained")?
+            .finish()?;
+        if !tail.is_empty() {
+            self.append_during_stop(&tail)?;
+        }
+        let expected_acknowledgements = self
+            .writer
+            .as_ref()
+            .ok_or("Capture writer already closed")?
+            .submitted_blocks();
+        let acknowledgements = self.collect_acknowledgements_until(expected_acknowledgements)?;
+        let total = self
+            .writer
+            .as_mut()
+            .ok_or("Capture writer already closed")?
+            .close()
+            .map_err(|error| format!("StorageUnavailable: final source close: {error:?}"))?;
+        Ok((total, acknowledgements))
+    }
+
+    fn collect_available_acknowledgements(&mut self) -> Result<Vec<CaptureWriteAck>, String> {
+        let mut acknowledgements = Vec::new();
+        while let Some(ack) = self
+            .writer
+            .as_ref()
+            .ok_or("Capture writer already closed")?
+            .try_acknowledgement()
+            .map_err(|error| format!("StorageUnavailable: writer acknowledgement: {error:?}"))?
+        {
+            self.acknowledgements_received = self.acknowledgements_received.saturating_add(1);
+            acknowledgements.push(ack);
+        }
+        Ok(acknowledgements)
+    }
+
+    fn collect_acknowledgements_until(
+        &mut self,
+        expected: u64,
+    ) -> Result<Vec<CaptureWriteAck>, String> {
+        let mut acknowledgements = Vec::new();
+        while self.acknowledgements_received < expected {
+            if let Some(ack) = self
+                .writer
+                .as_ref()
+                .ok_or("Capture writer already closed")?
+                .try_acknowledgement()
+                .map_err(|error| format!("StorageUnavailable: writer acknowledgement: {error:?}"))?
+            {
+                self.acknowledgements_received = self.acknowledgements_received.saturating_add(1);
+                acknowledgements.push(ack);
+            } else {
+                thread::yield_now();
+            }
+        }
+        Ok(acknowledgements)
+    }
+
+    fn append_during_stop(&mut self, samples: &[i16]) -> Result<(), String> {
+        loop {
+            match self
+                .writer
+                .as_mut()
+                .ok_or("Capture writer already closed")?
+                .try_append(samples)
+            {
+                Ok(_) => return Ok(()),
+                Err(crate::parakeet_audio::CaptureWriterError::Saturated) => {
+                    self.collect_available_acknowledgements()?;
+                    thread::yield_now();
+                }
+                Err(error) => return Err(format!("CaptureLost: final audio write: {error:?}")),
+            }
+        }
+    }
+}
+
+impl crate::parakeet_pipeline::ReadablePcmSource for UnifiedCapturePump {
+    fn read_window(&mut self, range: std::ops::Range<u64>) -> Result<Vec<i16>, String> {
+        self.writer
+            .as_ref()
+            .ok_or("Capture writer already closed")?
+            .read_written_window(range)
+            .map_err(|error| format!("AudioSource: {error:?}"))
+    }
+}
 
 #[derive(Debug)]
 enum InferenceRequest {
@@ -2472,6 +2680,37 @@ fn write_pcm16_wav(path: &Path, samples: &[i16]) -> Result<(), String> {
 #[cfg(test)]
 mod recovery_tests {
     use super::*;
+
+    #[test]
+    fn unified_capture_pump_converts_synthetic_input_and_closes_the_complete_source() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = env::temp_dir().join(format!("whisper-unified-capture-{stamp}"));
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("capture.wav");
+        let mut capture =
+            crate::capture::CaptureStream::empty_test_capture(48_000, 1, "test:synthetic");
+        capture.enqueue_test_block(vec![0.25; 48_000]);
+        let mut pump = UnifiedCapturePump::from_capture(capture, path.clone()).unwrap();
+        let _ = pump.pump().unwrap();
+        let (total_samples, acknowledgements) = pump.stop().unwrap();
+        assert_eq!(pump.stop().unwrap().0, total_samples, "stop is idempotent");
+        assert_eq!(total_samples, 16_000);
+        assert!(!acknowledgements.is_empty());
+        assert!(acknowledgements.iter().all(|ack| {
+            ack.range.end <= total_samples
+                && ack.written_samples == ack.flushed_samples
+                && ack.synchronized_samples == 0
+        }));
+        let stored = crate::parakeet_audio::PcmPartStore::open(path)
+            .read_range(0..total_samples)
+            .unwrap();
+        assert_eq!(stored.len(), total_samples as usize);
+        assert!(stored.iter().any(|sample| *sample != 0));
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn stop_recovery_skips_a_portion_already_attempted_during_capture() {

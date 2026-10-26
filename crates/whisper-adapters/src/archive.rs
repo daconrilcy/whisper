@@ -1677,6 +1677,27 @@ struct ActiveArchive {
     strategy: whisper_core::parakeet_session::TranscriptionStrategy,
     expected_sequence: u64,
     publication: PublicationIntent,
+    segmented_source_manifest: Option<(PathBuf, [u8; 32])>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CapturedSourceManifest {
+    version: u32,
+    source_sha256: String,
+    source_samples: u64,
+    index_path: String,
+    index_sha256: String,
+    parts: Vec<CapturedPartReference>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CapturedPartReference {
+    number: u64,
+    start_sample: u64,
+    end_sample: u64,
+    path: String,
+    sha256: String,
+    bytes: u64,
 }
 
 impl ArchiveStore {
@@ -2535,6 +2556,50 @@ impl ArchiveStore {
         self.prepare_inner(request, executable_model_path, qualification)
     }
 
+    /// Prepares a bounded-window capture whose logical source consists of every
+    /// acknowledged PCM part plus its contiguous part index.
+    pub fn prepare_segmented_capture(
+        &mut self,
+        request: ImportRequest,
+        source: &crate::parakeet_audio::PcmPartStore,
+        executable_model_path: Option<&str>,
+        qualification: Option<ArchiveQualificationKey>,
+    ) -> Result<ImportRequest, String> {
+        if request.strategy
+            != whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+            || Path::new(&request.source_path) != source.base_path()
+        {
+            return Err(
+                "InvalidInput: segmented capture request does not name its PCM source".into(),
+            );
+        }
+        let (source_sha, source_samples, manifest) = segmented_pcm_manifest(source)?;
+        let mut prepared = self.prepare_inner_impl(
+            request,
+            executable_model_path,
+            qualification,
+            None,
+            Some((source_sha, source_samples)),
+        )?;
+        let directory = self
+            .current
+            .as_ref()
+            .ok_or_else(|| {
+                "StorageUnavailable: segmented capture archive was not prepared".to_owned()
+            })?
+            .directory
+            .clone();
+        let manifest_path = directory.join("captured-source-parts.json");
+        let bytes = serde_json::to_vec(&manifest).map_err(|error| error.to_string())?;
+        write_replace_synced(&manifest_path, &bytes)
+            .map_err(|error| format!("StorageUnavailable: capture source manifest: {error}"))?;
+        let active = self.current.as_mut().unwrap();
+        active.segmented_source_manifest = Some((manifest_path, Sha256::digest(&bytes).into()));
+        prepared.source_sha256 = Some(hex(&source_sha));
+        prepared.source_samples = Some(source_samples);
+        Ok(prepared)
+    }
+
     pub fn prepare_with_source_binding(
         &mut self,
         request: ImportRequest,
@@ -2543,8 +2608,13 @@ impl ArchiveStore {
         binding: &crate::source_binding::SourceBinding,
     ) -> Result<ImportRequest, String> {
         let started = Instant::now();
-        let result =
-            self.prepare_inner_impl(request, executable_model_path, qualification, Some(binding));
+        let result = self.prepare_inner_impl(
+            request,
+            executable_model_path,
+            qualification,
+            Some(binding),
+            None,
+        );
         crate::worker_ipc::record_r7_timing(
             "archive_prepare_pending",
             started.elapsed(),
@@ -2560,7 +2630,8 @@ impl ArchiveStore {
         qualification: Option<ArchiveQualificationKey>,
     ) -> Result<ImportRequest, String> {
         let started = Instant::now();
-        let result = self.prepare_inner_impl(request, executable_model_path, qualification, None);
+        let result =
+            self.prepare_inner_impl(request, executable_model_path, qualification, None, None);
         crate::worker_ipc::record_r7_timing(
             "archive_prepare_pending",
             started.elapsed(),
@@ -2575,12 +2646,28 @@ impl ArchiveStore {
         executable_model_path: Option<&str>,
         qualification: Option<ArchiveQualificationKey>,
         source_binding: Option<&crate::source_binding::SourceBinding>,
+        segmented_source_identity: Option<([u8; 32], u64)>,
     ) -> Result<ImportRequest, String> {
         l04_campaign_assert_archive(&self.root)?;
         if self.current.is_some() {
             return Err("Busy: an import is already active".into());
         }
-        let (source_sha, source_samples) = if let Some(binding) = source_binding {
+        let (source_sha, source_samples) = if let Some((sha, samples)) = segmented_source_identity {
+            if source_binding.is_some()
+                || request
+                    .source_sha256
+                    .is_some_and(|expected| expected != sha)
+                || request
+                    .source_samples
+                    .is_some_and(|expected| expected != samples)
+            {
+                return Err(
+                    "SourceChanged: segmented source identity differs from the accepted request"
+                        .into(),
+                );
+            }
+            (hex(&sha), samples)
+        } else if let Some(binding) = source_binding {
             if binding.original_path() != request.source_path
                 || binding.strategy() != request.strategy
                 || request
@@ -2792,6 +2879,7 @@ impl ArchiveStore {
             strategy: request.strategy,
             expected_sequence,
             publication,
+            segmented_source_manifest: None,
         });
         if let Some(executable_model_path) = executable_model_path {
             request.model_path = executable_model_path.to_owned();
@@ -3075,6 +3163,13 @@ impl ArchiveStore {
         {
             return Err(
                 "StorageCorrupt: End does not match the durably persisted segment sequence".into(),
+            );
+        }
+        if let Some((path, expected_sha)) = &active.segmented_source_manifest
+            && (!path.is_file() || sha256_file(path)? != *expected_sha)
+        {
+            return Err(
+                "StorageCorrupt: captured PCM part manifest changed before publication".into(),
             );
         }
         let journal_path = active.directory.join("segments.jsonl");
@@ -6612,6 +6707,91 @@ fn write_replace_synced(path: &Path, bytes: &[u8]) -> Result<(), String> {
     );
     Ok(())
 }
+fn segmented_pcm_manifest(
+    source: &crate::parakeet_audio::PcmPartStore,
+) -> Result<([u8; 32], u64, CapturedSourceManifest), String> {
+    let total_samples = source
+        .total_samples()
+        .map_err(|error| format!("AudioSource: {error}"))?;
+    if total_samples == 0 {
+        return Err("InvalidInput: captured PCM source is empty".into());
+    }
+    let index_path = source.base_path().with_extension("parts.idx");
+    let index_before = fs::read(&index_path)
+        .map_err(|error| format!("AudioSource: part index unavailable: {error}"))?;
+    let mut digest = Sha256::new();
+    digest.update(b"whisper-parakeet-pcm-parts-v1\0");
+    digest.update(total_samples.to_le_bytes());
+    digest.update((index_before.len() as u64).to_le_bytes());
+    digest.update(&index_before);
+    let mut parts = Vec::new();
+    let mut offset = 0_u64;
+    let mut covered = 0_u64;
+    loop {
+        let page = source
+            .read_page(offset, 512)
+            .map_err(|error| format!("AudioSource: part index: {error}"))?;
+        if page.is_empty() {
+            break;
+        }
+        for part in &page {
+            if part.start_sample != covered || part.end_sample < part.start_sample {
+                return Err("AudioSource: captured part index is not contiguous".into());
+            }
+            let expected_bytes = part
+                .end_sample
+                .saturating_sub(part.start_sample)
+                .checked_mul(2)
+                .and_then(|bytes| bytes.checked_add(44))
+                .ok_or_else(|| "AudioSource: part byte count overflow".to_owned())?;
+            let metadata = fs::metadata(&part.path).map_err(|error| {
+                format!("AudioSource: part {} unavailable: {error}", part.number)
+            })?;
+            if metadata.len() != expected_bytes {
+                return Err(format!(
+                    "AudioSource: captured part {} has an invalid length",
+                    part.number
+                ));
+            }
+            digest.update(part.number.to_le_bytes());
+            digest.update(part.start_sample.to_le_bytes());
+            digest.update(part.end_sample.to_le_bytes());
+            digest.update(metadata.len().to_le_bytes());
+            let part_sha = sha256_file(&part.path)?;
+            digest.update(part_sha);
+            parts.push(CapturedPartReference {
+                number: part.number,
+                start_sample: part.start_sample,
+                end_sample: part.end_sample,
+                path: part.path.to_string_lossy().into_owned(),
+                sha256: hex(&part_sha),
+                bytes: metadata.len(),
+            });
+            covered = part.end_sample;
+        }
+        offset = offset
+            .checked_add(page.len() as u64)
+            .ok_or_else(|| "AudioSource: part index page overflow".to_owned())?;
+    }
+    if covered != total_samples
+        || fs::read(&index_path).ok().as_deref() != Some(index_before.as_slice())
+    {
+        return Err(
+            "SourceChanged: captured PCM parts changed while their identity was computed".into(),
+        );
+    }
+    let identity = digest.finalize().into();
+    let manifest = CapturedSourceManifest {
+        version: 1,
+        source_sha256: hex(&identity),
+        source_samples: total_samples,
+        index_path: index_path.to_string_lossy().into_owned(),
+        index_sha256: hex(&Sha256::digest(&index_before)),
+        parts,
+    };
+    Ok((identity, total_samples, manifest))
+}
+
 fn verified_artifact(directory: &Path, path: &Path) -> Result<ArtifactRecord, String> {
     let metadata = fs::metadata(path).map_err(|e| e.to_string())?;
     Ok(ArtifactRecord {
@@ -7538,6 +7718,7 @@ mod tests {
             strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             expected_sequence: 1,
             publication: PublicationIntent::default(),
+            segmented_source_manifest: None,
         });
         archive
             .persist_segment(&WorkerSegment {
@@ -7647,6 +7828,7 @@ mod tests {
             strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             expected_sequence: 1,
             publication: PublicationIntent::default(),
+            segmented_source_manifest: None,
         });
         interrupted_archive
             .persist_segment(&WorkerSegment {
@@ -7674,6 +7856,7 @@ mod tests {
             strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             expected_sequence,
             publication: PublicationIntent::default(),
+            segmented_source_manifest: None,
         });
         retried_archive
             .copy_resume_prefix(&request, &prefix)
@@ -7693,6 +7876,7 @@ mod tests {
             strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             expected_sequence,
             publication: PublicationIntent::default(),
+            segmented_source_manifest: None,
         });
         second_retry.copy_resume_prefix(&request, &prefix).unwrap();
         assert_eq!(

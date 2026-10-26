@@ -274,6 +274,9 @@ pub enum AppCommand {
     StartLiveConfigured {
         request: LiveRequest,
     },
+    StartUnifiedLiveConfigured {
+        request: LiveRequest,
+    },
     StartDirectLiveConfigured {
         request: LiveRequest,
     },
@@ -299,6 +302,10 @@ pub enum AppCommand {
         generation: Generation,
     },
     Stop {
+        job_id: JobId,
+        generation: Generation,
+    },
+    StopUnifiedLive {
         job_id: JobId,
         generation: Generation,
     },
@@ -331,6 +338,7 @@ impl AppCommand {
                 job_id, generation, ..
             }
             | Self::Stop { job_id, generation }
+            | Self::StopUnifiedLive { job_id, generation }
             | Self::Quit { job_id, generation }
             | Self::FinishLiveOnCpu { job_id, generation }
             | Self::StartMicrophoneTest {
@@ -363,6 +371,7 @@ impl AppCommand {
                 generation: *generation,
             }),
             Self::StartLiveConfigured { request }
+            | Self::StartUnifiedLiveConfigured { request }
             | Self::StartDirectLiveConfigured { request }
             | Self::ResolveLivePublication { request } => Some(CommandIdentity {
                 job_id: request.job_id,
@@ -480,6 +489,20 @@ pub struct ImportApplication<P> {
     automatic_final_queue: std::collections::VecDeque<crate::ports::AutomaticFinalImport>,
     active_live_compute: Option<(CommandIdentity, crate::domain::ComputeChoice)>,
     active_live_parakeet: Option<CommandIdentity>,
+    unified_capture: Option<UnifiedCaptureAdmission>,
+}
+
+struct UnifiedCaptureAdmission {
+    identity: CommandIdentity,
+    destination: String,
+    stop_submitted: bool,
+    publish_submitted: bool,
+    next_sequence: u64,
+    pending_persistence: usize,
+    pending_segments: std::collections::VecDeque<crate::ports::WorkerSegment>,
+    pending_sequences: std::collections::BTreeSet<u64>,
+    last_sequence: Option<u64>,
+    total_samples: Option<u64>,
 }
 
 struct AutomaticFinalJobState {
@@ -523,6 +546,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
             automatic_final_queue: std::collections::VecDeque::new(),
             active_live_compute: None,
             active_live_parakeet: None,
+            unified_capture: None,
         }
     }
 
@@ -546,6 +570,9 @@ impl<P: ImportIoPort> ImportApplication<P> {
     }
 
     fn poll_once(&mut self) -> Result<(), ApplicationError> {
+        if self.unified_capture.is_some() {
+            self.retry_unified_capture_segment()?;
+        }
         if !self.retry_pending_segment()? {
             return Ok(());
         }
@@ -563,9 +590,12 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 return Ok(());
             };
             let became_ready = matches!(&event, ImportEvent::Ready { .. });
+            let unified_capture_event = self.unified_capture.as_ref().is_some_and(|capture| {
+                (capture.identity.job_id, capture.identity.generation) == event.identity()
+            });
             l3d_event_trace(&event);
             self.handle_event(event)?;
-            if !self.pending_segments.is_empty() {
+            if !self.pending_segments.is_empty() && !unified_capture_event {
                 return Ok(());
             }
             if became_ready {
@@ -576,6 +606,12 @@ impl<P: ImportIoPort> ImportApplication<P> {
     }
 
     fn handle_event(&mut self, event: ImportEvent) -> Result<(), ApplicationError> {
+        let event_identity = event.identity();
+        if self.unified_capture.as_ref().is_some_and(|capture| {
+            (capture.identity.job_id, capture.identity.generation) == event_identity
+        }) {
+            return self.handle_unified_capture_event(event);
+        }
         self.track_parakeet_capture_event(&event);
         match &event {
             ImportEvent::History(history) => {
@@ -738,6 +774,38 @@ impl<P: ImportIoPort> ImportApplication<P> {
             return Ok(());
         }
         match event {
+            ImportEvent::Prepared(request) => {
+                let capture = self
+                    .unified_capture
+                    .as_mut()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                if !capture.stop_submitted
+                    || (request.job_id, request.generation)
+                        != (capture.identity.job_id, capture.identity.generation)
+                    || request.strategy
+                        != crate::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                    || request.source_sha256.is_none()
+                    || request.source_samples.is_none_or(|samples| samples == 0)
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                capture.total_samples = request.source_samples;
+            }
+            ImportEvent::Progress {
+                completed_samples,
+                total_samples,
+                ..
+            } => {
+                let capture = self
+                    .unified_capture
+                    .as_ref()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                if capture.total_samples != Some(total_samples)
+                    || completed_samples != total_samples
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+            }
             ImportEvent::MicrophoneGainApplied {
                 target_identity,
                 gain_db,
@@ -1517,6 +1585,145 @@ impl<P: ImportIoPort> ImportApplication<P> {
             // Handled before the job-identity gate above; it is a background
             // archive-history update and does not belong to an active import.
             ImportEvent::ReplacementCleanups(_) => return Ok(()),
+        }
+        Ok(())
+    }
+
+    fn handle_unified_capture_event(&mut self, event: ImportEvent) -> Result<(), ApplicationError> {
+        match event {
+            ImportEvent::Segment(segment) => {
+                let capture = self
+                    .unified_capture
+                    .as_mut()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                if capture.stop_submitted
+                    || segment.segment_id.0 != capture.next_sequence
+                    || (segment.job_id, segment.generation)
+                        != (capture.identity.job_id, capture.identity.generation)
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                capture.next_sequence = capture
+                    .next_sequence
+                    .checked_add(1)
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                capture.pending_segments.push_back(segment);
+                self.retry_unified_capture_segment()?;
+            }
+            ImportEvent::Persisted { sequence, .. } => {
+                let capture = self
+                    .unified_capture
+                    .as_mut()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                if !capture.pending_sequences.remove(&sequence) {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                capture.pending_persistence = capture.pending_sequences.len();
+                self.maybe_publish_unified_capture()?;
+            }
+            ImportEvent::End {
+                job_id,
+                generation,
+                last_sequence,
+                last_offset,
+            } => {
+                let capture = self
+                    .unified_capture
+                    .as_mut()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                if !capture.stop_submitted
+                    || (capture.identity.job_id, capture.identity.generation)
+                        != (job_id, generation)
+                    || last_sequence != capture.next_sequence.saturating_sub(1)
+                    || last_offset == 0
+                    || capture
+                        .total_samples
+                        .is_some_and(|samples| samples != last_offset)
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                capture.last_sequence = Some(last_sequence);
+                capture.total_samples = Some(last_offset);
+                self.maybe_publish_unified_capture()?;
+            }
+            ImportEvent::Published { job_id, generation } => {
+                if let Some(capture) = self.unified_capture.as_ref() {
+                    self.io
+                        .submit(ImportEffect::ScanHistory {
+                            destination: capture.destination.clone(),
+                        })
+                        .map_err(|error| self.fail(error))?;
+                }
+                self.view.message = Some(format!(
+                    "Transcription micro publiée ({job_id}:{})",
+                    generation.get()
+                ));
+                self.unified_capture = None;
+            }
+            ImportEvent::Failed { message, .. } => {
+                self.view.message = Some(format!("Échec de la transcription micro : {message}"));
+                self.unified_capture = None;
+            }
+            ImportEvent::Stopped { .. } => {
+                self.unified_capture = None;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn retry_unified_capture_segment(&mut self) -> Result<(), ApplicationError> {
+        loop {
+            let Some(segment) = self
+                .unified_capture
+                .as_ref()
+                .and_then(|capture| capture.pending_segments.front().cloned())
+            else {
+                return Ok(());
+            };
+            match self
+                .io
+                .submit(ImportEffect::PersistSegment(segment.clone()))
+            {
+                Ok(()) => {
+                    let capture = self
+                        .unified_capture
+                        .as_mut()
+                        .ok_or(ApplicationError::InvalidCommand)?;
+                    capture.pending_segments.pop_front();
+                    capture.pending_sequences.insert(segment.segment_id.0);
+                    capture.pending_persistence = capture.pending_sequences.len();
+                }
+                Err(PortError::Backpressure) => return Ok(()),
+                Err(error) => return Err(self.fail(error)),
+            }
+        }
+    }
+
+    fn maybe_publish_unified_capture(&mut self) -> Result<(), ApplicationError> {
+        self.retry_unified_capture_segment()?;
+        let Some(capture) = self.unified_capture.as_ref() else {
+            return Ok(());
+        };
+        let ready = capture.stop_submitted
+            && !capture.publish_submitted
+            && capture.pending_segments.is_empty()
+            && capture.pending_sequences.is_empty()
+            && capture
+                .last_sequence
+                .is_some_and(|last| last.saturating_add(1) == capture.next_sequence);
+        if ready {
+            let capture = self.unified_capture.as_ref().unwrap();
+            self.io
+                .submit(ImportEffect::Publish {
+                    job_id: capture.identity.job_id,
+                    generation: capture.identity.generation,
+                    last_sequence: capture.last_sequence.unwrap(),
+                })
+                .map_err(|error| self.fail(error))?;
+            if let Some(capture) = self.unified_capture.as_mut() {
+                capture.publish_submitted = true;
+            }
         }
         Ok(())
     }
@@ -2466,6 +2673,7 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 Some(guard.admit_import(request, crate::model_selection_app::InferencePath::Import))
             }
             AppCommand::StartLiveConfigured { request }
+            | AppCommand::StartUnifiedLiveConfigured { request }
             | AppCommand::StartDirectLiveConfigured { request } => Some(guard.admit_live(request)),
             _ => None,
         });
@@ -2618,6 +2826,40 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                             .ok_or(ApplicationError::InvalidCommand)?,
                     })
                     .map_err(|e| self.fail(e))?;
+            }
+            AppCommand::StartUnifiedLiveConfigured { request } => {
+                let import_can_share = self.active.is_some()
+                    && self.request.as_ref().is_some_and(|active| {
+                        active.strategy
+                            == crate::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                            && active.model_path == request.model_path
+                            && active.model_sha256 == request.model_sha256
+                            && active.config.compute == request.config.compute
+                    });
+                if self.unified_capture.is_some() || (self.active.is_some() && !import_can_share) {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let identity = CommandIdentity {
+                    job_id: request.job_id,
+                    generation: request.generation,
+                };
+                let destination = request.destination.clone();
+                self.io
+                    .submit(ImportEffect::StartUnifiedLive(request))
+                    .map_err(|error| self.fail(error))?;
+                self.unified_capture = Some(UnifiedCaptureAdmission {
+                    identity,
+                    destination,
+                    stop_submitted: false,
+                    publish_submitted: false,
+                    next_sequence: 1,
+                    pending_persistence: 0,
+                    pending_segments: std::collections::VecDeque::new(),
+                    pending_sequences: std::collections::BTreeSet::new(),
+                    last_sequence: None,
+                    total_samples: None,
+                });
+                return Ok(self.view.clone());
             }
             command @ (AppCommand::StartLiveConfigured { .. }
             | AppCommand::StartDirectLiveConfigured { .. }) => {
@@ -2959,7 +3201,45 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     "Reprise confirmée : vérification du préfixe durable avant recalcul…".into(),
                 );
             }
+            AppCommand::StopUnifiedLive { job_id, generation } => {
+                let matches = self.unified_capture.as_ref().is_some_and(|capture| {
+                    capture.identity == (CommandIdentity { job_id, generation })
+                });
+                if !matches {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let stop_submitted = self
+                    .unified_capture
+                    .as_ref()
+                    .is_some_and(|capture| capture.stop_submitted);
+                if !stop_submitted {
+                    self.io
+                        .submit(ImportEffect::StopUnifiedLive { job_id, generation })
+                        .map_err(|error| self.fail(error))?;
+                    if let Some(capture) = self.unified_capture.as_mut() {
+                        capture.stop_submitted = true;
+                    }
+                }
+                return Ok(self.view.clone());
+            }
             AppCommand::Stop { job_id, generation } | AppCommand::Quit { job_id, generation } => {
+                if self.unified_capture.as_ref().is_some_and(|capture| {
+                    capture.identity == (CommandIdentity { job_id, generation })
+                }) {
+                    let stop_submitted = self
+                        .unified_capture
+                        .as_ref()
+                        .is_some_and(|capture| capture.stop_submitted);
+                    if !stop_submitted {
+                        self.io
+                            .submit(ImportEffect::Stop { job_id, generation })
+                            .map_err(|error| self.fail(error))?;
+                        if let Some(capture) = self.unified_capture.as_mut() {
+                            capture.stop_submitted = true;
+                        }
+                    }
+                    return Ok(self.view.clone());
+                }
                 if self.active != Some(CommandIdentity { job_id, generation }) {
                     return Err(ApplicationError::InvalidCommand);
                 }

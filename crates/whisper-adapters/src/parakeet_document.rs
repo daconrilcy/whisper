@@ -8,8 +8,8 @@ use std::{
 use whisper_core::{
     Generation, JobId,
     ports::{
-        ParakeetDocumentEntry, ParakeetDocumentPage, ParakeetDocumentPort, ParakeetWindowCoverage,
-        PortError, WorkerSegment,
+        ParakeetDocumentEntry, ParakeetDocumentPage, ParakeetDocumentPort, ParakeetPreview,
+        ParakeetWindowCoverage, PortError, WorkerSegment,
     },
 };
 
@@ -22,6 +22,7 @@ pub struct ParakeetDocumentStore {
     job_id: JobId,
     generation: Generation,
     revision: u64,
+    preview_revision: u64,
     next_sequence: u64,
     next_window: u64,
     covered_samples: u64,
@@ -58,6 +59,7 @@ impl ParakeetDocumentStore {
             job_id,
             generation,
             revision: 0,
+            preview_revision: 0,
             next_sequence: 1,
             next_window: 1,
             covered_samples: 0,
@@ -301,6 +303,80 @@ impl ParakeetDocumentPort for ParakeetDocumentStore {
         self.finalized = true;
         Ok(self.revision)
     }
+
+    fn replace_preview(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        segment: Option<WorkerSegment>,
+    ) -> Result<u64, PortError> {
+        self.check_identity(job_id, generation)?;
+        if self.finalized {
+            return Err(PortError::Committing);
+        }
+        let next_revision = self
+            .preview_revision
+            .checked_add(1)
+            .ok_or(PortError::Unavailable)?;
+        let path = self.directory.join("document.preview.json");
+        match segment {
+            Some(segment) => {
+                if segment.job_id != job_id
+                    || segment.generation != generation
+                    || segment.range.start_sample >= segment.range.end_sample
+                    || segment.range.sample_rate_hz != 16_000
+                    || segment.text.trim().is_empty()
+                {
+                    return Err(PortError::InvalidInput);
+                }
+                let preview = ParakeetPreview {
+                    segment,
+                    revision: next_revision,
+                };
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(path)
+                    .map_err(storage_error)?;
+                serde_json::to_writer(&mut file, &preview)
+                    .map_err(|error| PortError::Failed(error.to_string()))?;
+                file.sync_all().map_err(storage_error)?;
+            }
+            None => match fs::remove_file(path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(storage_error(error)),
+            },
+        }
+        self.preview_revision = next_revision;
+        Ok(next_revision)
+    }
+
+    fn read_preview(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+    ) -> Result<Option<ParakeetPreview>, PortError> {
+        self.check_identity(job_id, generation)?;
+        let path = self.directory.join("document.preview.json");
+        let mut file = match File::open(path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(storage_error(error)),
+        };
+        let mut json = String::new();
+        file.read_to_string(&mut json).map_err(storage_error)?;
+        let preview: ParakeetPreview = serde_json::from_str(&json)
+            .map_err(|error| PortError::Failed(format!("StorageCorrupt: preview: {error}")))?;
+        if preview.segment.job_id != job_id
+            || preview.segment.generation != generation
+            || preview.revision != self.preview_revision
+        {
+            return Err(PortError::StaleResponse);
+        }
+        Ok(Some(preview))
+    }
 }
 
 fn read_u64(reader: &mut impl std::io::Read) -> Result<u64, PortError> {
@@ -367,6 +443,44 @@ mod tests {
             document.append_final(segment(id, generation, 4)),
             Err(PortError::Committing)
         );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn document_preview_is_a_single_revisable_record_separate_from_final_pages() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!("whisper-parakeet-preview-{stamp}"));
+        let id = JobId(24);
+        let generation = Generation::first();
+        let mut document = ParakeetDocumentStore::create(&directory, id, generation).unwrap();
+        let first = segment(id, generation, 1);
+        let mut second = segment(id, generation, 2);
+        second.text = "replacement".into();
+        assert_eq!(
+            document
+                .replace_preview(id, generation, Some(first))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            document
+                .replace_preview(id, generation, Some(second))
+                .unwrap(),
+            2
+        );
+        let preview = document.read_preview(id, generation).unwrap().unwrap();
+        assert_eq!(preview.revision, 2);
+        assert_eq!(preview.segment.text, "replacement");
+        assert_eq!(
+            document.revision(),
+            0,
+            "preview must not enter the final page index"
+        );
+        assert_eq!(document.replace_preview(id, generation, None), Ok(3));
+        assert_eq!(document.read_preview(id, generation), Ok(None));
         fs::remove_dir_all(directory).unwrap();
     }
 }

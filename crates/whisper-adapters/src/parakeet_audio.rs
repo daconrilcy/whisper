@@ -7,6 +7,8 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
+    sync::mpsc::{self, Receiver, SyncSender, TrySendError},
+    thread::{self, JoinHandle},
 };
 use symphonia::core::{
     audio::SampleBuffer,
@@ -42,6 +44,289 @@ pub enum AudioStoreError {
     CorruptIndex,
     PartNumberExhausted,
     SampleOffsetOverflow,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CaptureWriteAck {
+    pub sequence: u64,
+    pub range: std::ops::Range<u64>,
+    pub written_samples: u64,
+    pub flushed_samples: u64,
+    pub synchronized_samples: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CaptureWriterError {
+    Saturated,
+    Closed,
+    OutOfOrder,
+    InvalidRange,
+    Audio(AudioStoreError),
+}
+
+enum CaptureWriterCommand {
+    Append {
+        sequence: u64,
+        samples: Vec<i16>,
+    },
+    ReadWindow {
+        range: std::ops::Range<u64>,
+        reply: mpsc::SyncSender<Result<Vec<i16>, CaptureWriterError>>,
+    },
+    SnapshotEnd(mpsc::SyncSender<Result<u64, CaptureWriterError>>),
+    Close(mpsc::SyncSender<Result<u64, CaptureWriterError>>),
+    Shutdown,
+}
+
+/// A bounded callback-to-disk queue. The callback only calls `try_append`;
+/// indexing, file IO and reads are serialized on the independent writer thread.
+pub struct CapturePcmWriter {
+    commands: SyncSender<CaptureWriterCommand>,
+    acknowledgements: Receiver<Result<CaptureWriteAck, CaptureWriterError>>,
+    thread: Option<JoinHandle<()>>,
+    next_sequence: u64,
+    closed_result: Option<Result<u64, CaptureWriterError>>,
+}
+
+impl CapturePcmWriter {
+    pub fn start(base_path: impl AsRef<Path>, capacity: usize) -> Result<Self, AudioStoreError> {
+        Self::start_with_limit(base_path, capacity, PART_LIMIT_BYTES)
+    }
+
+    fn start_with_limit(
+        base_path: impl AsRef<Path>,
+        capacity: usize,
+        part_limit_bytes: u64,
+    ) -> Result<Self, AudioStoreError> {
+        if capacity == 0 {
+            return Err(AudioStoreError::InvalidRange);
+        }
+        let base_path = base_path.as_ref().to_path_buf();
+        let writer = PcmPartWriter::create_with_limit(&base_path, part_limit_bytes)?;
+        let (commands, command_rx) = mpsc::sync_channel(capacity);
+        let (ack_tx, acknowledgements) = mpsc::sync_channel(capacity);
+        let thread = thread::Builder::new()
+            .name("parakeet-pcm-writer".into())
+            .spawn(move || {
+                let mut writer = Some(writer);
+                let mut next_sequence = 1_u64;
+                let mut written_samples = 0_u64;
+                let mut closed_samples = None;
+                while let Ok(command) = command_rx.recv() {
+                    match command {
+                        CaptureWriterCommand::Append { sequence, samples } => {
+                            let result = if sequence != next_sequence {
+                                Err(CaptureWriterError::OutOfOrder)
+                            } else {
+                                writer
+                                    .as_mut()
+                                    .ok_or(AudioStoreError::InvalidRange)
+                                    .and_then(|writer| writer.append(&samples))
+                                    .map(|range| {
+                                        next_sequence = next_sequence.saturating_add(1);
+                                        written_samples = range.end;
+                                        CaptureWriteAck {
+                                            sequence,
+                                            range,
+                                            written_samples,
+                                            flushed_samples: written_samples,
+                                            synchronized_samples: 0,
+                                        }
+                                    })
+                                    .map_err(CaptureWriterError::Audio)
+                            };
+                            if ack_tx.send(result).is_err() {
+                                break;
+                            }
+                        }
+                        CaptureWriterCommand::ReadWindow { range, reply } => {
+                            let result = if range.end > written_samples {
+                                Err(CaptureWriterError::InvalidRange)
+                            } else {
+                                PcmPartStore::open(&base_path)
+                                    .read_window(range)
+                                    .map_err(CaptureWriterError::Audio)
+                            };
+                            let _ = reply.send(result);
+                        }
+                        CaptureWriterCommand::SnapshotEnd(reply) => {
+                            let _ = reply.send(Ok(written_samples));
+                        }
+                        CaptureWriterCommand::Close(reply) => {
+                            let result = if let Some(writer) = writer.take() {
+                                writer.finish().map_err(CaptureWriterError::Audio)
+                            } else {
+                                closed_samples.ok_or(CaptureWriterError::Closed)
+                            };
+                            if let Ok(total) = &result {
+                                closed_samples = Some(*total);
+                            }
+                            let _ = reply.send(result);
+                        }
+                        CaptureWriterCommand::Shutdown => {
+                            if let Some(writer) = writer.take() {
+                                let _ = writer.finish();
+                            }
+                            break;
+                        }
+                    }
+                }
+            })?;
+        Ok(Self {
+            commands,
+            acknowledgements,
+            thread: Some(thread),
+            next_sequence: 1,
+            closed_result: None,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn start_with_test_part_limit(
+        base_path: impl AsRef<Path>,
+        capacity: usize,
+        part_limit_bytes: u64,
+    ) -> Result<Self, AudioStoreError> {
+        Self::start_with_limit(base_path, capacity, part_limit_bytes)
+    }
+
+    /// Nonblocking admission from the capture pump. Saturation is surfaced to
+    /// the caller as an explicit loss incident; blocks are never silently dropped.
+    pub fn try_append(&mut self, samples: &[i16]) -> Result<u64, CaptureWriterError> {
+        if self.closed_result.is_some() {
+            return Err(CaptureWriterError::Closed);
+        }
+        if samples.is_empty() || samples.len() > MAX_DECODE_BLOCK_SAMPLES {
+            return Err(CaptureWriterError::InvalidRange);
+        }
+        let sequence = self.next_sequence;
+        let command = CaptureWriterCommand::Append {
+            sequence,
+            samples: samples.to_vec(),
+        };
+        match self.commands.try_send(command) {
+            Ok(()) => {
+                self.next_sequence = sequence
+                    .checked_add(1)
+                    .ok_or(CaptureWriterError::OutOfOrder)?;
+                Ok(sequence)
+            }
+            Err(TrySendError::Full(_)) => Err(CaptureWriterError::Saturated),
+            Err(TrySendError::Disconnected(_)) => Err(CaptureWriterError::Closed),
+        }
+    }
+
+    pub fn try_acknowledgement(&self) -> Result<Option<CaptureWriteAck>, CaptureWriterError> {
+        match self.acknowledgements.try_recv() {
+            Ok(result) => result.map(Some),
+            Err(mpsc::TryRecvError::Empty) => Ok(None),
+            Err(mpsc::TryRecvError::Disconnected) => Err(CaptureWriterError::Closed),
+        }
+    }
+
+    pub fn submitted_blocks(&self) -> u64 {
+        self.next_sequence.saturating_sub(1)
+    }
+
+    pub fn written_samples(&self) -> Result<u64, CaptureWriterError> {
+        let (reply, result) = mpsc::sync_channel(1);
+        self.commands
+            .send(CaptureWriterCommand::SnapshotEnd(reply))
+            .map_err(|_| CaptureWriterError::Closed)?;
+        result.recv().map_err(|_| CaptureWriterError::Closed)?
+    }
+
+    /// Reads only acknowledged samples, with the writer thread serializing the
+    /// index snapshot and file read against later appends and rotations.
+    pub fn read_written_window(
+        &self,
+        range: std::ops::Range<u64>,
+    ) -> Result<Vec<i16>, CaptureWriterError> {
+        let (reply, result) = mpsc::sync_channel(1);
+        self.commands
+            .send(CaptureWriterCommand::ReadWindow { range, reply })
+            .map_err(|_| CaptureWriterError::Closed)?;
+        result.recv().map_err(|_| CaptureWriterError::Closed)?
+    }
+
+    pub fn close(&mut self) -> Result<u64, CaptureWriterError> {
+        if let Some(result) = &self.closed_result {
+            return result.clone();
+        }
+        let (reply, result) = mpsc::sync_channel(1);
+        let mut write_error = None;
+        loop {
+            match self
+                .commands
+                .try_send(CaptureWriterCommand::Close(reply.clone()))
+            {
+                Ok(()) => break,
+                Err(TrySendError::Full(_)) => {
+                    self.drain_acknowledgements_for_close(&mut write_error);
+                    thread::yield_now();
+                }
+                Err(TrySendError::Disconnected(_)) => return Err(CaptureWriterError::Closed),
+            }
+        }
+        let total = loop {
+            match result.try_recv() {
+                Ok(total) => break total,
+                Err(mpsc::TryRecvError::Empty) => {
+                    self.drain_acknowledgements_for_close(&mut write_error);
+                    thread::yield_now();
+                }
+                Err(mpsc::TryRecvError::Disconnected) => return Err(CaptureWriterError::Closed),
+            }
+        };
+        let total = match total {
+            Ok(total) => total,
+            Err(error) => {
+                self.closed_result = Some(Err(error.clone()));
+                return Err(error);
+            }
+        };
+        if let Some(error) = write_error {
+            self.closed_result = Some(Err(error.clone()));
+            return Err(error);
+        }
+        self.closed_result = Some(Ok(total));
+        Ok(total)
+    }
+
+    fn drain_acknowledgements_for_close(&self, write_error: &mut Option<CaptureWriterError>) {
+        loop {
+            match self.acknowledgements.try_recv() {
+                Ok(Err(error)) => {
+                    write_error.get_or_insert(error);
+                }
+                Ok(Ok(_)) => {}
+                Err(mpsc::TryRecvError::Empty | mpsc::TryRecvError::Disconnected) => break,
+            }
+        }
+    }
+}
+
+impl Drop for CapturePcmWriter {
+    fn drop(&mut self) {
+        let mut ignored_error = None;
+        loop {
+            match self.commands.try_send(CaptureWriterCommand::Shutdown) {
+                Ok(()) => break,
+                Err(TrySendError::Full(_)) => {
+                    self.drain_acknowledgements_for_close(&mut ignored_error);
+                    thread::yield_now();
+                }
+                Err(TrySendError::Disconnected(_)) => break,
+            }
+        }
+        if let Some(thread) = self.thread.take() {
+            while !thread.is_finished() {
+                self.drain_acknowledgements_for_close(&mut ignored_error);
+                thread::yield_now();
+            }
+            let _ = thread.join();
+        }
+    }
 }
 
 impl std::fmt::Display for AudioStoreError {
@@ -334,6 +619,10 @@ impl PcmPartStore {
         }
     }
 
+    pub fn base_path(&self) -> &Path {
+        &self.base_path
+    }
+
     pub fn read_page(&self, offset: u64, limit: usize) -> Result<Vec<AudioPart>, AudioStoreError> {
         let mut index = File::open(&self.index_path)?;
         let mut header = [0_u8; 8];
@@ -601,6 +890,40 @@ mod tests {
     }
 
     #[test]
+    fn capture_writer_acknowledges_written_blocks_and_reads_a_serialized_snapshot() {
+        let root = temp_dir();
+        let path = root.join("capture.wav");
+        let mut writer = CapturePcmWriter::start(&path, 2).unwrap();
+        assert_eq!(writer.try_append(&[10, 11, 12]).unwrap(), 1);
+        assert_eq!(writer.try_append(&[13, 14, 15]).unwrap(), 2);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let mut acknowledgements = Vec::new();
+        while acknowledgements.len() < 2 && std::time::Instant::now() < deadline {
+            if let Some(ack) = writer.try_acknowledgement().unwrap() {
+                acknowledgements.push(ack);
+            } else {
+                std::thread::yield_now();
+            }
+        }
+        assert_eq!(
+            acknowledgements.len(),
+            2,
+            "writer must acknowledge every block"
+        );
+        assert_eq!(acknowledgements[0].range, 0..3);
+        assert_eq!(acknowledgements[1].range, 3..6);
+        assert_eq!(acknowledgements[1].written_samples, 6);
+        assert_eq!(acknowledgements[1].flushed_samples, 6);
+        assert_eq!(acknowledgements[1].synchronized_samples, 0);
+        assert_eq!(
+            writer.read_written_window(0..6).unwrap(),
+            vec![10, 11, 12, 13, 14, 15]
+        );
+        assert_eq!(writer.close().unwrap(), 6);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn stored_audio_is_contiguous_and_range_reads_are_bounded() {
         let root = temp_dir();
         let path = root.join("capture.wav");
@@ -666,6 +989,39 @@ mod tests {
         assert_eq!((parts[0].start_sample, parts[0].end_sample), (0, 4));
         assert_eq!((parts[1].start_sample, parts[1].end_sample), (4, 6));
         assert_eq!(store.read_range(2..6).unwrap(), vec![12, 13, 14, 15]);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn capture_writer_reads_every_acknowledged_sample_across_test_rotation() {
+        let root = temp_dir();
+        let path = root.join("capture.wav");
+        let mut writer = CapturePcmWriter::start_with_limit(&path, 2, 8).unwrap();
+        let first = writer.try_append(&[10, 11, 12]).unwrap();
+        let second = writer.try_append(&[13, 14, 15]).unwrap();
+        assert_eq!(first, 1);
+        assert_eq!(second, 2);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let mut acknowledgements = Vec::new();
+        while acknowledgements.len() < 2 {
+            if let Some(ack) = writer.try_acknowledgement().unwrap() {
+                acknowledgements.push(ack);
+            } else {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "writer acknowledgement timed out"
+                );
+                thread::yield_now();
+            }
+        }
+        assert_eq!(acknowledgements[0].range, 0..4);
+        assert_eq!(acknowledgements[1].range, 4..6);
+        assert_eq!(acknowledgements[1].written_samples, 6);
+        assert_eq!(
+            writer.read_written_window(0..6).unwrap(),
+            vec![10, 11, 12, 13, 14, 15]
+        );
+        assert_eq!(writer.close().unwrap(), 6);
         fs::remove_dir_all(root).unwrap();
     }
 
