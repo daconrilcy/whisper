@@ -13033,12 +13033,11 @@ mod tests {
             job_id: replacement.job_id,
             generation: replacement.generation,
         };
+        let mut replacement_capture =
+            CaptureStream::empty_test_capture(16_000, 1, "test:finalization-replacement");
+        replacement_capture.enqueue_test_block(vec![0.1; 4 * 16_000]);
         runtime
-            .start_controlled_unified_capture(
-                &replacement,
-                CaptureStream::empty_test_capture(16_000, 1, "test:finalization-replacement"),
-                None,
-            )
+            .start_controlled_unified_capture(&replacement, replacement_capture, None)
             .unwrap();
         assert!(runtime.unified_sessions.contains_key(&replacement_session));
         assert_eq!(runtime.unified_sessions.len(), 1);
@@ -13050,7 +13049,28 @@ mod tests {
                 &mut VecDeque::new(),
             )
             .unwrap();
-        let _ = runtime.poll();
+        let replacement_deadline = Instant::now() + Duration::from_secs(10);
+        let mut replacement_ended = false;
+        while Instant::now() < replacement_deadline {
+            match runtime.poll() {
+                Some(Ok(ImportEvent::End {
+                    job_id, generation, ..
+                })) if (job_id, generation) == (replacement.job_id, replacement.generation) => {
+                    replacement_ended = true;
+                    break;
+                }
+                Some(Err((job_id, generation, message)))
+                    if (job_id, generation) == (replacement.job_id, replacement.generation) =>
+                {
+                    panic!("replacement capture failed before terminal End: {message}");
+                }
+                Some(_) => {}
+                None => thread::sleep(Duration::from_millis(2)),
+            }
+        }
+        assert!(replacement_ended, "replacement capture did not reach End");
+        assert!(!runtime.unified_sessions.contains_key(&replacement_session));
+        assert!(runtime.document_drains.is_empty());
         std::fs::remove_dir_all(&root).unwrap();
     }
 
