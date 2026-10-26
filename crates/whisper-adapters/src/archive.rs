@@ -3010,37 +3010,24 @@ impl ArchiveStore {
                 "StorageCorrupt: End does not match the durably persisted segment sequence".into(),
             );
         }
-        let records = read_segments(&active.directory.join("segments.jsonl"))?;
-        if records.len() as u64 != expected_count
-            || records
-                .iter()
-                .enumerate()
-                .any(|(i, item)| item.sequence != i as u64 + 1)
-        {
-            return Err("StorageCorrupt: segment journal is incomplete".into());
-        }
-        let text = records
-            .iter()
-            .map(|r| r.text.as_str())
-            .collect::<Vec<_>>()
-            .join("\n");
-        let srt = records
-            .iter()
-            .enumerate()
-            .map(|(index, item)| {
-                format!(
-                    "{}\n{} --> {}\n{}\n",
-                    index + 1,
-                    timestamp(item.range.start_sample),
-                    timestamp(item.range.end_sample),
-                    item.text
-                )
-            })
-            .collect::<String>();
+        let journal_path = active.directory.join("segments.jsonl");
+        validate_segment_journal(&journal_path, expected_count)?;
         let text_path = active.directory.join("transcript.txt");
         let srt_path = active.directory.join("transcript.srt");
-        write_replace_synced(&text_path, text.as_bytes())?;
-        write_replace_synced(&srt_path, srt.as_bytes())?;
+        write_replace_streamed(&text_path, |writer| {
+            visit_segments(&journal_path, |index, record| {
+                if index > 0 { writer.write_all(b"\n").map_err(|error| error.to_string())?; }
+                writer.write_all(record.text.as_bytes()).map_err(|error| error.to_string())
+            })
+        })?;
+        write_replace_streamed(&srt_path, |writer| {
+            visit_segments(&journal_path, |index, record| {
+                let start = timestamp_checked(record.range.start_sample)?;
+                let end = timestamp_checked(record.range.end_sample)?;
+                writeln!(writer, "{}\n{} --> {}\n{}", index + 1, start, end, record.text)
+                    .map_err(|error| error.to_string())
+            })
+        })?;
         let text_artifact = verified_artifact(&active.directory, &text_path)?;
         let srt_artifact = verified_artifact(&active.directory, &srt_path)?;
         let manifest = CompleteRecord {
@@ -3080,10 +3067,7 @@ impl ArchiveStore {
             for (extension, artifact) in [("txt", &verified.text), ("srt", &verified.srt)] {
                 let staged = active.directory.join(format!("export.{extension}.pending"));
                 let source = active.directory.join(&artifact.path);
-                write_replace_synced(
-                    &staged,
-                    &fs::read(source).map_err(|error| error.to_string())?,
-                )?;
+                copy_replace_streamed(&source, &staged)?;
                 if hex(&sha256_file(&staged)?) != artifact.sha256 {
                     return Err(format!(
                         "StorageCorrupt: staged export {extension} does not match the manifest"
@@ -3094,7 +3078,7 @@ impl ArchiveStore {
         crate::worker_ipc::record_r7_timing(
             "archive_prepare_publish",
             started.elapsed(),
-            serde_json::json!({ "segments": expected_count, "text_bytes": text.len(), "srt_bytes": srt.len() }),
+            serde_json::json!({ "segments": expected_count, "text_bytes": fs::metadata(&text_path).map(|meta| meta.len()).unwrap_or(0), "srt_bytes": fs::metadata(&srt_path).map(|meta| meta.len()).unwrap_or(0) }),
         );
         Ok(())
     }
@@ -6366,6 +6350,78 @@ fn read_segments(path: &Path) -> Result<Vec<SegmentRecord>, String> {
             serde_json::from_str(&line).map_err(|e| format!("StorageCorrupt: segment: {e}"))
         })
         .collect()
+}
+
+fn validate_segment_journal(path: &Path, expected_count: u64) -> Result<(), String> {
+    let mut observed = 0_u64;
+    visit_segments(path, |index, record| {
+        let expected = index as u64 + 1;
+        if record.sequence != expected {
+            return Err("StorageCorrupt: segment journal sequence is not contiguous".into());
+        }
+        observed = expected;
+        Ok(())
+    })?;
+    if observed != expected_count {
+        return Err("StorageCorrupt: segment journal is incomplete".into());
+    }
+    Ok(())
+}
+
+fn visit_segments(
+    path: &Path,
+    mut visit: impl FnMut(usize, SegmentRecord) -> Result<(), String>,
+) -> Result<(), String> {
+    if !path.exists() { return Ok(()); }
+    let mut file = OpenOptions::new().read(true).write(true).open(path)
+        .map_err(|error| format!("StorageCorrupt: segment journal: {error}"))?;
+    repair_uncommitted_segment_tail(&mut file)?;
+    file.seek(SeekFrom::Start(0)).map_err(|error| format!("StorageCorrupt: segment seek: {error}"))?;
+    for (index, line) in BufReader::new(file).lines().enumerate() {
+        let line = line.map_err(|error| format!("StorageCorrupt: segment: {error}"))?;
+        let record: SegmentRecord = serde_json::from_str(&line)
+            .map_err(|error| format!("StorageCorrupt: segment: {error}"))?;
+        visit(index, record)?;
+    }
+    Ok(())
+}
+
+fn timestamp_checked(sample: u64) -> Result<String, String> {
+    let seconds = sample / 16_000;
+    let remainder = sample % 16_000;
+    let milliseconds = seconds.checked_mul(1_000)
+        .and_then(|whole| whole.checked_add(remainder * 1_000 / 16_000))
+        .ok_or_else(|| "InvalidTimestamp: global sample time exceeds SRT range".to_owned())?;
+    Ok(format!(
+        "{:02}:{:02}:{:02},{:03}", milliseconds / 3_600_000,
+        (milliseconds / 60_000) % 60, (milliseconds / 1_000) % 60, milliseconds % 1_000
+    ))
+}
+
+fn write_replace_streamed(
+    path: &Path,
+    write_content: impl FnOnce(&mut std::io::BufWriter<File>) -> Result<(), String>,
+) -> Result<(), String> {
+    let temporary = path.with_extension(format!(
+        "{}.tmp", path.extension().and_then(|extension| extension.to_str()).unwrap_or("data")
+    ));
+    let file = OpenOptions::new().write(true).create(true).truncate(true).open(&temporary)
+        .map_err(|error| format!("StorageUnavailable: {error}"))?;
+    let mut writer = std::io::BufWriter::new(file);
+    write_content(&mut writer)?;
+    writer.flush().map_err(|error| format!("StorageUnavailable: {error}"))?;
+    let file = writer.into_inner().map_err(|error| format!("StorageUnavailable: {}", error.error()))?;
+    file.sync_all().map_err(|error| format!("StorageUnavailable: {error}"))?;
+    drop(file);
+    fs::rename(temporary, path).map_err(|error| format!("StorageUnavailable: {error}"))
+}
+
+fn copy_replace_streamed(source: &Path, destination: &Path) -> Result<(), String> {
+    write_replace_streamed(destination, |writer| {
+        let mut source = File::open(source).map_err(|error| error.to_string())?;
+        io::copy(&mut source, writer).map_err(|error| error.to_string())?;
+        Ok(())
+    })
 }
 
 fn repair_uncommitted_segment_tail(file: &mut File) -> Result<(), String> {

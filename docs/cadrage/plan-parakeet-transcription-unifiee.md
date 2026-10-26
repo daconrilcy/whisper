@@ -1,6 +1,6 @@
-Avancée : plan en dix tâches et quatre lots versionné ; revue indépendante CLEAN.
-Blocage : aucun constat REQUIRED ; prérequis d'exécution des campagnes non satisfaits.
-Décision : PLANS READY pour acceptation utilisateur ; aucun code autorisé.
+Avancée : plan accepté ; candidat PU-L1 écrit partiellement et relu, trois constats corrigés et clos.
+Blocage : T4 non raccordée au vrai import (R1) ; E-GUARD non satisfait, compilation et tests non exécutés.
+Décision : autorisation de code limitée à PU-L1 acquise ; extension de périmètre à arbitrer avant de terminer T4.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -149,3 +149,33 @@ La future revue PLANS vérifie ce document contre le design accepté. Les états
 Le conseil PLAN-PU-A1 est conservé pour précision avant T5 : il ne bloque pas le plan et ne change aucun chemin ni contrat dans cette clôture. E-GUARD et E-AUTH ne sont pas satisfaits ; PLANS READY ne signifie pas campagne ou code autorisé. Les seuils et autres détails gardent leurs échéances du §3.7. Tous les tests produit, passages natifs et essais Windows restent NOT RUN.
 
 La clôture ne modifie que les métadonnées de readiness et consigne le verdict, conformément à la permission explicite du reviewer. Aucun changement technique après revue. Acceptation du plan, autorisation de lot, revue de code, validation produit et publication restent distinctes.
+
+## 5. Réalisation PU-L1 — 26 octobre 2026
+
+Cette section décrit la réalisation postérieure à la clôture documentaire ci-dessus ; elle ne modifie pas rétroactivement l'autorité de la mission de planification.
+
+**Autorisation de session.** Après présentation du périmètre PU-L1, T1–T4, chemins du plan, délégation, revue et commits locaux, l'utilisateur confirme : « oui je te confirme l'acceptation du plan et l'autorisation de coder ». E-AUTH est acquis pour ce code et ces commits locaux uniquement. Les campagnes restent suspendues à E-GUARD ; aucun lot suivant, push, téléchargement, installation ou écriture hors dépôt n'est autorisé par cette confirmation.
+
+**Base et préflight.** Branche `evo-startup-perf`, HEAD initial `1b245596f897cbdbc03de8554dd53f7762bcb650`. Aucun changement suivi préexistant ; `models/` et `sound example/` non suivis préservés. Espace libre avant réalisation : 113,65 Gio. Aucune commande Cargo, rustc, rustfmt, test, audio ou GPU exécutée.
+
+**Candidat.** Auteur du code : `/root/pu_l1_implementer`, rôle `rust_implementer`, mode IMPLEMENT puis CORRECT. Huit chemins sources : `crates/whisper-core/src/{parakeet_session.rs,ports.rs,lib.rs}` et `crates/whisper-adapters/src/{parakeet_audio.rs,parakeet_document.rs,parakeet_pipeline.rs,lib.rs,archive.rs}`. Aucun fichier Cargo ou worker natif modifié.
+
+| Tâche | État réel du candidat |
+| --- | --- |
+| T1 | Contrats de session, frontières, révisions et curseur de fenêtres écrits ; tests unitaires écrits, NOT RUN. |
+| T2 | Décodage séquentiel, conversion avec drainage final, source WAV segmentée et index paginé écrits ; tests de conversion, rotation à seuil réduit et erreurs écrits, NOT RUN. La rotation réelle >1 Gio reste T9. |
+| T3 | Port/store paginé et couverture écrits ; génération TXT/SRT et copie des exports de l'archive converties en flux. Cohérence bout en bout non démontrée, faute de raccord et d'exécution. |
+| T4 | Pipeline avec worker contrôlé et test écrits, NOT RUN. Aucun raccord au vrai `ImportApplication`/`worker_ipc`/composition ; aucune publication unifiée depuis ce parcours. T4 n'est pas terminée. |
+
+**Revue indépendante.** Coordination `/root/pu_l1_review` (`rust_review_coordinator`), reviewer `/root/pu_l1_review/pu_l1_reviewer` (`rust_reviewer`), même reviewer sur deux passes et une correction. Le worker a été repris après une interruption par limite de réponse, sans ajouter de cycle de correction. Résultat final : **BLOCKED**, aucun CLEAN du code.
+
+- **R1 — BLOQUANT, ouvert, T4 / AC-PU-03/05 :** vrai import non raccordé et identité de stratégie absente des demandes persistées. L'ancien parcours et ses refus de durée restent en place. Ne pas sélectionner la stratégie d'après la durée ni réutiliser une qualification legacy pour la stratégie unifiée. L'activation native reste dépendante de T9.
+- **R2 — clos après correction statique :** drainage de conversion à EOF, longueur explicite et tests de fin/frontière de paquet.
+- **R3 — clos après correction statique :** tolérance terminale bornée à 80 ms uniquement pour le dernier mot de la fenêtre finale, avec cas positifs et négatifs écrits.
+- **R4 — clos après correction statique :** tests de continuité autour d'une rotation à seuil réduit et de conservation lors d'erreurs.
+
+`git diff --check` réussi. Compilation, formatage, tests et exécution native **NOT RUN** : les tests écrits ne sont pas des preuves exécutées et la revue statique ne prouve pas la compilabilité ni la qualité fonctionnelle. Aucun essai dans la fenêtre Windows.
+
+**Arbitrage de périmètre proposé, non accepté.** Étendre T4 à `crates/whisper-adapters/src/queue_store.rs` et `crates/whisper-adapters/src/source_binding.rs`, actuellement hors chemins d'écriture, afin de porter une identité explicite et versionnée de stratégie dans les demandes persistées. Préserver le sens des demandes anciennes et distinguer les nouvelles demandes unifiées sans emprunter les qualifications single-pass/VAD existantes. La représentation et la compatibilité doivent être précisées dans le PLAN_CHANGE et revues de façon ciblée avant ces modifications. Les chemins de tests supplémentaires éventuellement nécessaires devront être explicités dans cet ajustement ; aucune extension implicite n'est autorisée. Ce changement de périmètre n'est pas adopté par le présent bilan.
+
+E-GUARD demeure une décision d'exécution distincte : aucune garde n'a été adaptée, aucune ancienne dérogation transférée et aucune campagne lancée. Aucun temporaire de campagne créé ou nettoyé par cette réalisation. Espace libre relevé à la clôture de ce candidat partiel : 113,65 Gio.

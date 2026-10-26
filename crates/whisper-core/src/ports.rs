@@ -83,6 +83,43 @@ pub trait WorkerPort {
     fn request_stop(&mut self, job_id: JobId, generation: Generation) -> Result<(), PortError>;
 }
 
+/// One durable final result in the shared Parakeet transcript document.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ParakeetDocumentEntry {
+    pub segment: WorkerSegment,
+    pub revision: u64,
+}
+
+/// A bounded read of the session document. `next_sequence` is the continuation
+/// token; callers must pass the same expected revision when reading another page.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ParakeetDocumentPage {
+    pub revision: u64,
+    pub entries: Vec<ParakeetDocumentEntry>,
+    pub next_sequence: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ParakeetWindowCoverage {
+    pub sequence: u64,
+    pub range: SourceRange,
+    pub last_segment_sequence: u64,
+}
+
+pub trait ParakeetDocumentPort {
+    fn append_final(&mut self, segment: WorkerSegment) -> Result<u64, PortError>;
+    fn record_coverage(&mut self, coverage: ParakeetWindowCoverage) -> Result<(), PortError>;
+    fn read_page(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        expected_revision: u64,
+        first_sequence: u64,
+        limit: usize,
+    ) -> Result<ParakeetDocumentPage, PortError>;
+    fn finalize(&mut self, job_id: JobId, generation: Generation, total_samples: u64) -> Result<u64, PortError>;
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImportRequest {
     pub job_id: JobId,
