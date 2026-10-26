@@ -1,6 +1,6 @@
 Avancée : deux corrections de compilation relues ; formatage PASS sur le candidat du cycle 2.
 Blocage : compilation FAIL E0609 dans le test source_binding ; aucun test exécuté.
-Décision : LIVRÉ AVEC RÉSERVES, deux cycles du mandat consommés ; correction supplémentaire à arbitrer.
+Décision : utilisateur autorise les cycles nécessaires à la clôture de PU-L1, dans le périmètre et les budgets existants.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -430,3 +430,11 @@ La version exacte du lanceur de cette interruption est conservée dans `retained
 **Conservation.** Archive `target/parakeet-tests/parakeet-unified/lot-01/archives/pu-l1-compile-cycles-6f813383568442429c41107507118f9c.zip` : **34 fichiers**, 79 273 octets, arborescence et SHA-256 de chaque entrée vérifiés contre les originaux ; SHA-256 de l'archive `893d415eca3f60582ed566315f63de7399786aaa780dc9ec5717c9d5f26a8c10`. Les archives précédentes restent préservées ; aucun manifeste supplémentaire créé. Sources suivies propres après campagne, `models/` et `sound example/` non suivis préservés, `git diff --check` PASS.
 
 **Clôture du mandat.** Deux cycles correction/revue accomplis (trait Hash, couverture JSON), chacun relu CLEAN sur son delta, puis repris sous la garde et les budgets autorisés. Verdict de clôture : **LIVRÉ AVEC RÉSERVES**, compilation non acquise et T4 non qualifiée par exécution. La règle des deux cycles interdit une troisième correction implicite ; le constat V-PU-L1-05 est remis à l'utilisateur pour arbitrage. Les étapes suivantes du plan restent suspendues à la validation réelle de PU-L1.
+
+## 17. Autorisation des cycles nécessaires à la clôture de PU-L1
+
+**Source explicite du 26 octobre 2026.** Après le bilan du §16, l'utilisateur écrit : « Je t'autorise a faire autant de cycles de reviews + corrections necessaires pour que tout soit clean ». Dans le contexte de la reprise PU-L1, cette décision remplace pour cette mission la limite de deux cycles et permet de poursuivre les corrections/revues et validations nécessaires à la clôture des constats de compilation et de fonctionnement des tâches T1–T4. Elle ne crée aucune autorisation pour PU-L2 à PU-L4, pour des chemins supplémentaires, une technologie/dépendance, une frontière native/unsafe nouvelle, une installation ou une publication. L'historique des cycles et les preuves d'échec restent conservés.
+
+Base de reprise `52bb8684af6b030fcfe8772dcfd5282e65225289`, suivi propre, `models/` et `sound example/` préservés ; 108,88 Gio libres. Le même implémenteur et la même coordination de revue indépendante poursuivent à partir de V-PU-L1-05. Après chaque modification pertinente, relecture puis validation du candidat figé ; les commandes en échec restent arrêtées et conservées, et une nouvelle reprise après correction est désormais couverte sans redemander l'accord à chaque cycle. Aucun rerun inchangé pour obtenir un succès. Les budgets cumulés de 90 minutes/16 Gio, la garde et la dérogation Temp sont maintenus et ne sont pas réinitialisés. Une fuite attribuée, une décision de périmètre/architecture nécessaire ou un dépassement de budget impose toujours l'arrêt et l'arbitrage correspondant.
+
+La cible de clôture est un candidat PU-L1 sans constat requis ouvert du reviewer indépendant et avec des résultats réellement exécutés pour les contrôles applicables du §11, en distinguant les scénarios contrôlés de la qualification native T9 et de la recette Windows T10. Un CLEAN limité à un petit correctif ne sera pas présenté comme un CLEAN global du lot. Les preuves encore manquantes sont centralisées dans ce plan, sans nouveau rapport ni gate ajouté.
