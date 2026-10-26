@@ -1,6 +1,6 @@
 Avancée : plan accepté ; candidat PU-L1 écrit partiellement et relu, trois constats corrigés et clos.
 Blocage : T4 non raccordée au vrai import (R1) ; E-GUARD non satisfait, compilation et tests non exécutés.
-Décision : ajustement du plan et fin de T4 autorisés ; CHANGE-PU-L1-01 en revue ciblée avant reprise du code.
+Décision : ajustement du plan revu CLEAN ; fin de T4 autorisée dans le périmètre CHANGE-PU-L1-01.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -184,7 +184,7 @@ E-GUARD demeure une décision d'exécution distincte : aucune garde n'a été ad
 
 **Autorité et état.** Le 26 octobre 2026, après présentation de R1 et des deux chemins de persistance manquants, l'utilisateur répond : « je t'autorise l'ajustement du plan puis terminer T4 ». Cette autorisation lève l'arbitrage de périmètre proposé au §5 ; elle couvre l'ajustement puis le code T4 et ses adaptations nécessaires, sans campagne, activation native unifiée, lot suivant ni push. Version du plan avec cet ajustement : v0.2 ; le §1 et le §4 conservent l'historique de la version v0.1.
 
-Contribution technique `ARCH-PU-L1-01 v1`, auteur `/root/pu_l1_plan_change`, rôle `rust_architect`, lecture seule sur la base `29b924303afb89608d8841e676187bcb8505f709`. Sources : plan §3/§5, design DEC-T-PU-01/06 et PORT-PU-01 à 05 ; `ImportRequest`, dispatch `ImportApplication`, `QueueStore`, `SourceBinding`, `ArchiveStore`, `WorkerSupervisor` et composition desktop. Aucun fichier écrit ni commande Rust/campagne exécutée par l'architecte. Auteur du présent ajustement : session principale. Statut : candidat pour revue ciblée, avant code.
+Contribution technique `ARCH-PU-L1-01 v1`, auteur `/root/pu_l1_plan_change`, rôle `rust_architect`, lecture seule sur la base `29b924303afb89608d8841e676187bcb8505f709`. Sources : plan §3/§5, design DEC-T-PU-01/06 et PORT-PU-01 à 05 ; `ImportRequest`, dispatch `ImportApplication`, `QueueStore`, `SourceBinding`, `ArchiveStore`, `WorkerSupervisor` et composition desktop. Aucun fichier écrit ni commande Rust/campagne exécutée par l'architecte. Auteur du présent ajustement : session principale. Statut : revue ciblée CLEAN, ajustement prêt pour le code T4 autorisé.
 
 **Nature et impact.** PLAN_CHANGE à la suite de la découverte technique R1 ; aucun changement de besoin ou de critère d'acceptation. Étend T4 et précise l'identité/cache déjà exigée par DEC-T-PU-06 ; ne crée aucune onzième tâche ni nouveau rapport. Objectif inchangé : vraie application → import unifié à worker contrôlé → publication cohérente, avec identité distincte des stratégies historiques. L'activation native unifiée reste T9. Les contrats ci-dessous complètent T4 et priment sur l'ancien inventaire de chemins pour les usages expressément listés.
 
@@ -237,3 +237,5 @@ Vérifications à écrire dans les chemins de tests ci-dessus ou GT, liées à T
 Les futures commandes C1/C2 restent soumises à la même enveloppe ; les tests ciblés de persistance/binding/import seront inclus dans C2 ou dans la régression workspace prévue. Aucune commande nouvelle autorisée par cet ajustement. Récupération : préserver anciennes entrées et publications ; aucun nettoyage, migration destructive ou relance de campagne.
 
 **Restant.** Revue ciblée de cet ajustement versionné ; implémentation T4 par le worker original ; fermeture de R1 par le reviewer indépendant. La revue du plan ne ferme pas R1 et ne vaut pas compilation. La limite de deux cycles revue/correction du code PU-L1 est conservée, avec une correction déjà accomplie. E-GUARD et validations natives/utilisateur restent distincts.
+
+**Résultat de la revue ciblée.** `/root/pu_l1_change_review`, rôle `rust_design_reviewer`, indépendant de la rédaction et de la contribution architecte, a examiné le §6 au Git `c0b9ebc5556d268599c0ebf4f613225dd54d039c` et les sources applicables. Verdict **CLEAN**, aucun REQUIRED ni ADVISORY, aucune correction. Le reviewer confirme les constructions couvertes, les schémas existants queue v1/snapshot v1/pending archive v1–3, le refus des versions inconnues, les liens design/T4/tests et l'absence de comportement T5–T10 ajouté. Aucun fichier modifié ni commande Rust exécutée par le reviewer ; plan inchangé avant/après. Il autorise la présente consignation et l'actualisation des métadonnées sans changement technique. La revue documentaire est terminée ; restent implémentation et relecture du code R1, puis preuves d'exécution sous E-GUARD.
