@@ -69,7 +69,7 @@ Question : faut-il inclure les durées supérieures à 30 minutes, ou garder la 
 
 | Section | Propriétaire du contenu | État |
 | --- | --- | --- |
-| 3 — Brief, capacités et décisions produit | rust_product_framer | PENDING |
+| 3 — Brief, capacités et décisions produit | rust_product_framer | PRODUCT-PU v1 intégré |
 | 4 — Exigences, cas d'usage, acceptation et risques fonctionnels | rust_requirements_analyst | PENDING |
 | 5 — Domaine, états et invariants | rust_domain_architect | PENDING |
 | 6 — Architecture, contrats, dépendances et preuves | rust_architect | PENDING |
@@ -79,7 +79,58 @@ Question : faut-il inclure les durées supérieures à 30 minutes, ou garder la 
 
 ## 3. Brief produit
 
-Contribution attendue.
+Contribution `PRODUCT-PU v1`, auteur `/root/parakeet_framer` (`rust_product_framer`). Base déclarée : document `c6fc20c6`, produit `a483e176`, complétée par S-USER-04 transmise par le coordinateur puis versionnée en `25e9be57`. Sources : document courant, AGENTS, règles métier centrales, cadrages micro/Parakeet et annulation applicative. Proposition DRAFT ; aucun spécialiste n'a écrit de fichier. Terminé : objectif, périmètre, parcours et questions. Restant : exigences, domaine, architecture, revue et acceptation du design.
+
+### 3.1 Objectif et utilisateurs
+
+Dans l'application Windows Whisper existante, l'utilisateur transcrit avec Parakeet un fichier WAV/MP3 ou une prise microphone, puis récupère le résultat sans gérer les étapes internes de reconnaissance.
+
+La version cadrée remplace le parcours Parakeet qui expose séparément provisoire, fragments confirmés, lacunes et brouillon final. Elle présente **une transcription principale unique**. Pendant la capture, ce texte peut être automatiquement corrigé ; après l'arrêt, le résultat final prend sa place sans sélection de catégorie ni confirmation de mots. L'import suit les mêmes notions de traitement en cours, résultat disponible et incident.
+
+L'utilisateur a explicitement inclus les **fichiers et enregistrements dépassant 30 minutes**, avec découpage et finalisation automatiques. Ce choix élargit le cadrage ; il ne qualifie pas le traitement long, ne fixe pas de durée maximale et n'autorise aucun essai.
+
+Le résultat reste automatique. « Terminé » signifie que le traitement et les sorties prévus ont abouti ; ce libellé ne certifie ni exactitude lexicale ni vérification humaine.
+
+### 3.2 Inventaire des capacités
+
+Les statuts distinguent **objectif accepté**, **non-régression à conserver** et **proposition à instruire**.
+
+| ID | Capacité / parcours | Source et statut | Périmètre / critères |
+| --- | --- | --- | --- |
+| CAP-PU-01 | Démarrer le micro, lire un texte unique révisable, arrêter | S-USER-01/02 ; objectif accepté | Inclus ; CA-01/08 |
+| CAP-PU-02 | Finaliser automatiquement toute la prise admise et présenter le résultat principal | S-USER-01/02 ; objectif accepté | Inclus ; CA-01/02/04 |
+| CAP-PU-03 | Importer WAV/MP3 et récupérer transcription et sorties sans confirmation de mots | S-USER-01 ; objectif accepté | Inclus ; CA-03/04 |
+| CAP-PU-04 | Traiter les fichiers et captures >30 min, découpage et raccords automatiques | S-USER-04 ; périmètre accepté, faisabilité ouverte | Inclus ; CA-02/03/07/08 |
+| CAP-PU-05 | Associer texte affiché, TXT/SRT et audio à la même capture et au même résultat | Qualification ; résultat attendu à spécifier | Inclus ; CA-04/06 |
+| CAP-PU-06 | Préserver l'audio récupérable et distinguer défaut de capture, échec de transcription et export partiel | Qualification et réserves existantes ; garanties à spécifier | Inclus ; CA-02/05 |
+| CAP-PU-07 | Suivre A pendant l'enregistrement de B sans attribution croisée | Qualification, lot 3 ; non-régression à vérifier | Inclus ; CA-06 |
+| CAP-PU-08 | Préserver CPU/GPU/Auto, micro sélectionné, gain et parcours Turbo | AGENTS et qualification ; non-régression | Inclus ; CA-08 |
+| CAP-PU-09 | Conserver les protections des transcriptions existantes lors d'un remplacement | Parcours actuel ; non-régression | Inclus ; CA-03/04/05 |
+| CAP-PU-10 | Gérer attente, annulation et fermeture sans annoncer une réussite fictive | Contrats existants ; non-régression à vérifier | Inclus ; CA-05/08 |
+
+Les réglages existants restent utilisables ; **de nouveaux réglages** n'entrent pas dans ce périmètre. Installation, mise à jour, démarrage avec Windows, raccourcis, tray, bibliothèque durable de sessions, nouveaux moteurs/modèles et sortie MP3 restent différés ou hors évolution selon `AGENTS.md`. Leur reprise exige une mission distincte. La reprise automatique après panne reste différée ; conserver une ressource récupérable après erreur normale ne l'autorise pas.
+
+### 3.3 Parcours cibles
+
+**Micro nominal.** L'utilisateur conserve ses choix de moteur, calcul et source, puis démarre. L'application annonce la capture selon son état réel et affiche une transcription unique évolutive. « Arrêter » termine la capture puis déclenche la finalisation automatique. Le résultat final et ses sorties deviennent accessibles dans le même parcours. Aucune réimportation manuelle du WAV n'est requise.
+
+**Import nominal.** L'utilisateur choisit le fichier et lance. L'application vérifie son admission, traite l'audio, réalise automatiquement le découpage nécessaire dans les limites établies et présente le résultat. Les protections de remplacement concernent les fichiers existants, jamais la validation des mots.
+
+**Séance longue.** L'utilisateur n'a ni extraits à préparer ni raccords à effectuer. Le cadrage doit établir les limites et comportements d'admission, de découpage, de conservation et de finalisation. Aucune durée illimitée n'est promise.
+
+**Incident.** L'application explique ce qui a échoué, ce qui est conservé et l'action possible. Un texte partiel ne devient pas silencieusement un résultat complet. Une erreur lexicale dans de l'audio traité reste distincte d'une portion jamais traitée.
+
+**Attente et concurrence.** L'avancement reste compréhensible et la capture suivante, lorsqu'elle est admise, garde son identité. Un résultat tardif de A met à jour A seulement. Ne pas inventer de pourcentage ou de temps restant.
+
+**Annulation et fermeture.** Conserver comme références de non-régression les contrats existants : fermeture normale du micro équivalente à arrêt/finalisation ; annulation d'import avant engagement, résultat réel attendu après engagement ; rejet des résultats périmés. Leur application au nouveau traitement final reste à expliciter, sans promettre de fermeture instantanée. Sources : `evo-micro-direct.md:21/47`, `evo-parakeet.md:325/328` ; le comportement produit reste à vérifier.
+
+### 3.4 Questions et décisions
+
+- **Q-PU-01 — STRUCTURING, CLOSED :** durée >30 min incluse par S-USER-04. Propriétaire : utilisateur ; impacts CAP-04 et CA-02/03/07/08. Ne pas rouvrir ce choix.
+- **Q-PU-02 — STRUCTURING, OPEN :** quelles limites maximales d'audio et de ressources peuvent être proposées pour les séances longues ? L'architecte instruit la faisabilité puis propose des limites ; l'utilisateur tranche les conséquences produit avant acceptation du design. Aucune limite arbitraire ni promesse « illimitée ».
+- **Q-PU-03 — DETAIL, OPEN :** seuils acceptables de premier texte, retard et attente après arrêt. Analyste et architecte définissent les métriques et proposent la méthode ; l'utilisateur accepte les seuils avant la validation qui en dépend. Si un seuil conditionne l'architecture, reclasser STRUCTURING. Les anciennes cibles ne doivent pas être transposées silencieusement du « confirmé » au nouveau texte révisable.
+
+**Orientation proposée :** réutiliser l'existant lorsque compatible, privilégier la conservation de l'audio et une finalisation explicite, et garder toutes les confirmations algorithmiques éventuelles hors des gestes demandés à l'utilisateur. Ce sont des objectifs de cadrage ; le choix des mécanismes appartient aux spécialistes suivants.
 
 ## 4. Exigences et acceptation
 
