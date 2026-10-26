@@ -48,6 +48,12 @@ Question : « Quelle durée doit impérativement être prise en charge pour un f
 
 Interprétation annoncée dans cette session : absence de plafond de durée imposé par l'application. Les limites physiques de disque, ressources et formats subsistent ; le cadrage doit définir leur détection et une fin propre préservant l'audio. Aucun essai fini ne prouve une durée infinie. Ne pas remplacer ce choix par un plafond arbitraire.
 
+**S-USER-06 — Fichiers audio des très longues captures :**
+
+> Plusieurs fichiers WAV classiques numérotés automatiquement, plus largement compatibles avec les lecteurs existants.
+
+Question : un seul fichier `.wav` passant à RF64 si nécessaire, avec compatibilité externe dépendant du lecteur, ou plusieurs WAV classiques numérotés automatiquement ? Dans les deux cas, transcription unique et découpage automatique. L'utilisateur choisit plusieurs WAV classiques. Cette décision remplace, pour le nouveau parcours Parakeet long uniquement, le contrat d'un WAV physique unique ; la session logique et sa transcription TXT/SRT restent uniques, les fichiers audio forment une même famille de nom. Turbo et les captures existantes ne sont pas modifiés par cette décision de cadrage. Aucun RF64 ajouté à cette évolution.
+
 **S-QUAL-01 — Qualification dans cette conversation :** revue indépendante `revue_qualification`, verdict PASS, aucun P0/P1. Le résultat final reste automatique et ne vaut pas vérification humaine. Aucun fichier ni code créé sous cette mission de qualification.
 
 ### Besoin et critères issus de la qualification
