@@ -11332,6 +11332,7 @@ mod tests {
 
     struct ExportCollisionWorker {
         path: PathBuf,
+        transcribe_completed: Arc<AtomicU64>,
     }
 
     impl crate::parakeet_pipeline::WindowTranscriber for ExportCollisionWorker {
@@ -11347,6 +11348,7 @@ mod tests {
                 std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
             }
             std::fs::write(&self.path, b"preexisting export").map_err(|error| error.to_string())?;
+            self.transcribe_completed.store(1, Ordering::Release);
             let start_ms = ((window.central_start_sample - window.native_start_sample) / 16) as u32;
             Ok(vec![whisper_core::parakeet_ipc::Word {
                 text: "export collision".into(),
@@ -13681,6 +13683,7 @@ mod tests {
         let request = unified_import_request(&destination, &source_path, 790);
         assert_real_unified_model(&request);
         let collision = destination.join("exports/source.txt");
+        let transcribe_completed = Arc::new(AtomicU64::new(0));
         let runtime = ImportRuntime::new(
             WorkerPaths {
                 cpu: PathBuf::from("unused-cpu"),
@@ -13690,6 +13693,7 @@ mod tests {
         )
         .with_controlled_transcriber(Box::new(ExportCollisionWorker {
             path: collision.clone(),
+            transcribe_completed: Arc::clone(&transcribe_completed),
         }));
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
@@ -13699,23 +13703,51 @@ mod tests {
             unified_stop_submissions: None,
             controlled_capture_blocks: None,
         });
-        app.dispatch(AppCommand::StartImport { request }).unwrap();
-        for _ in 0..24 {
-            if app
-                .dispatch(AppCommand::Refresh)
-                .unwrap()
-                .active_job
-                .is_none()
-            {
+        app.dispatch(AppCommand::StartImport {
+            request: request.clone(),
+        })
+        .unwrap();
+        let write_deadline = Instant::now() + Duration::from_secs(5);
+        while transcribe_completed.load(Ordering::Acquire) == 0 && Instant::now() < write_deadline {
+            let _ = app.dispatch(AppCommand::Refresh).unwrap();
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(
+            transcribe_completed.load(Ordering::Acquire),
+            1,
+            "worker must create the collision after transcription starts"
+        );
+        let terminal_deadline = Instant::now() + Duration::from_secs(5);
+        let mut terminal_view = None;
+        while Instant::now() < terminal_deadline {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            if view.active_job == Some((request.job_id, JobState::Recoverable)) {
+                terminal_view = Some(view);
                 break;
             }
+            thread::sleep(Duration::from_millis(2));
         }
+        let terminal_view = terminal_view.expect("export collision must be terminal");
+        assert!(
+            terminal_view
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("export name collision"))
+        );
         assert_eq!(std::fs::read(&collision).unwrap(), b"preexisting export");
         assert!(
             !ArchiveStore::scan(&destination)
                 .unwrap()
                 .iter()
                 .any(|entry| entry.complete)
+        );
+        let generation = destination
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string());
+        assert!(
+            !generation.join("CURRENT").exists(),
+            "failed export collision must not commit CURRENT"
         );
         std::fs::remove_dir_all(root).unwrap();
     }
