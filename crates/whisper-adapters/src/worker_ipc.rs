@@ -13153,8 +13153,33 @@ mod tests {
         let (ready_released, ready_changed) = &*ready_gate;
         *ready_released.lock().unwrap() = true;
         ready_changed.notify_all();
-        assert!(runtime.poll_unified_sessions().is_none());
-        assert_eq!(held_rx.recv_timeout(Duration::from_secs(5)).unwrap(), "A");
+        let ready_deadline = Instant::now() + Duration::from_secs(5);
+        let mut ready_seen = false;
+        let mut held_source = None;
+        while Instant::now() < ready_deadline && held_source.is_none() {
+            if let Some(Err((job_id, generation, message))) = runtime.poll_unified_sessions() {
+                panic!(
+                    "reserved turn failed after READY release for {job_id:?}/{generation:?}: {message}"
+                );
+            }
+            ready_seen |= child_observations
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|item| item.event == "Ready");
+            match held_rx.try_recv() {
+                Ok(source) => held_source = Some(source),
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    thread::sleep(Duration::from_millis(2));
+                }
+                Err(error) => panic!("held worker exited after READY release: {error}"),
+            }
+        }
+        assert!(
+            ready_seen,
+            "controlled child READY was not observed after release"
+        );
+        assert_eq!(held_source.as_deref(), Some("A"));
         assert_eq!(calls.load(Ordering::Relaxed), 1);
         assert!(runtime.poll_unified_sessions().is_none());
         assert_eq!(runtime.parakeet_scheduler.in_flight(), Some(reserved));
