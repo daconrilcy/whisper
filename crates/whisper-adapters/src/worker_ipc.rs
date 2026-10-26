@@ -11957,6 +11957,7 @@ mod tests {
             ["A:final", "B:final", "A:final"],
             "final windows must alternate after A's held window and preserve its tail"
         );
+        drop(call_sources);
 
         app.dispatch(AppCommand::StartUnifiedLiveConfigured {
             request: request_third.clone(),
