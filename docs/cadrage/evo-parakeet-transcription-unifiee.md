@@ -85,7 +85,7 @@ Question : un seul fichier `.wav` passant à RF64 si nécessaire, avec compatibi
 | --- | --- | --- |
 | 3 — Brief, capacités et décisions produit | rust_product_framer | PRODUCT-PU v1 intégré |
 | 4 — Exigences, cas d'usage, acceptation et risques fonctionnels | rust_requirements_analyst | REQUIREMENTS-PU v2 intégré |
-| 5 — Domaine, états et invariants | rust_domain_architect | PENDING |
+| 5 — Domaine, états et invariants | rust_domain_architect | DOMAIN-PU v2 intégré |
 | 6 — Architecture, contrats, dépendances et preuves | rust_architect | PENDING |
 | 7 — Questions et traçabilité transversale | sources utilisateur et contributions attribuées | PENDING |
 | 8 — Readiness et suite | session principale, sur verdict du reviewer | PENDING REVIEW |
@@ -224,7 +224,84 @@ Aucun GAP CAP-PU-01 à 10. Différés de §3.2 inchangés : nouvelles fonctions 
 
 ## 5. Domaine
 
-Contribution attendue.
+Contribution `DOMAIN-PU v2`, auteur `/root/parakeet_domain` (`rust_domain_architect`). v1 base `3848e128`, amendement v2 base `7108019b` ; produit `a483e176` ; PRODUCT-PU v1, REQUIREMENTS-PU v2, S-USER-01 à 06. Sources code : `domain.rs:1–113`, `ports.rs:229–300`, `application.rs:475–501` et `:2280–2310`. Proposition DRAFT ; aucune implémentation ni exécution. Terminé : concepts, états, transitions, invariants et couverture. Restant : choix techniques, contraintes de formats/ressources, contrats d'effets, revue et acceptation. v2 conserve v1 sauf DOM-PU-02, ajout de portée audio, INV-PU-05/08 et Q-DOM-01 remplacés par leur auteur après S-USER-06.
+
+### 5.1 Concepts et responsabilités
+
+| ID | Concept / propriétaire métier | Entrées, sorties et limites |
+| --- | --- | --- |
+| DOM-PU-01 | **Session audio** : identité stable, origine micro/import, configuration retenue et état de capture. | Relie l'opération à sa source ; reçoit arrêt/incidents ; produit une source close ou un diagnostic de capture. Aucun changement implicite de micro, modèle ou calcul. |
+| DOM-PU-02 | **Source audio logique** : chronologie normalisée et références ordonnées aux données conservées. | Plages demi-ouvertes `[début, fin)` en échantillons, fréquence explicite et arithmétique contrôlée. Pour les longues captures Parakeet, plusieurs WAV classiques numérotés appartiennent à une même famille de nom ; chaque partie conserve son intervalle global et la correspondance avec ses positions locales. Réception, admission et écriture restent distinctes. La rotation ne crée ni nouvelle session ni nouvelle transcription. La taille des parties et leur stockage relèvent de l'architecture. L'import conserve sa source originale. |
+| DOM-PU-03 | **Traitement** : tentative identifiée par session et génération. | Consomme des plages de la source ; produit couverture, résultats et erreurs. Une nouvelle tentative ne réutilise pas l'identité d'une tentative périmée. |
+| DOM-PU-04 | **Couverture** : sort de chaque plage de traitement. | Distingue résultat accepté, absence de texte issue d'une analyse réussie, échec et non-traitement. Une absence de texte n'est pas une preuve de silence acoustique. |
+| DOM-PU-05 | **Document de transcription** : révisions puis version finale. | Chaque révision désigne la session, la tentative et les portions remplacées. La vue principale présente une seule version courante. Le document final peut différer du texte vu pendant la capture. |
+| DOM-PU-06 | **Publication** : version de résultat et sorties associées. | Relie document, audio et TXT/SRT attendus. Les sorties ont chacune un état valide, absent ou défectueux ; les temps invalides ne sont jamais fabriqués. |
+| DOM-PU-07 | **Autorisation de remplacement** : résultat existant précisément désigné. | Le refus préserve la publication existante ; une autorisation ne s'étend pas à une autre session/version. |
+| DOM-PU-08 | **Obligation de clôture** : opérations acceptées restant à terminer. | Inclut la finalisation découlant d'une capture, même lorsque cette capture n'est plus au premier plan. Sert à fermer normalement sans abandon silencieux. |
+
+S-USER-06 remplace le contrat d'un WAV physique unique pour le nouveau parcours Parakeet long uniquement. Le document de transcription et ses exports TXT/SRT restent uniques à l'échelle de la session ; leurs temps sont globaux, sans remise à zéro aux changements de WAV. Aucun raccord manuel n'est demandé. Turbo et les captures existantes conservent leurs contrats.
+
+Le domaine porte règles et transitions pures ; l'application possède leur orchestration et demande les effets. Les adaptateurs réalisent capture, stockage et reconnaissance ; l'interface projette les états. Le domaine ne dépend ni des chemins Windows ni d'un worker concret.
+
+Les références aux plages, révisions et résultats cumulés doivent rester consultables sans imposer leur chargement intégral en mémoire. Le stockage peut croître avec l'audio et le texte ; les ressources de travail doivent être bornées par l'architecture.
+
+### 5.2 Trois axes d'état distincts
+
+**Métier :**
+
+- Source : `Ouverte → Drainage → Close`, ou `Interrompue`.
+- Traitement : `Attente → EnCours → Finalisation → Terminé`, ou `AnnulationDemandée → Annulé`, ou `Échec`.
+- Publication : `NonEngagée → Préparation → Engagement → Disponible`, ou `Défectueuse`.
+
+Ces axes appartiennent à la session/tentative, jamais au seul panneau actuellement sélectionné. Une source close peut encore avoir un traitement actif.
+
+**Opérationnel durable :** audio réellement écrit, résultats intermédiaires conservés, version des sorties et issue d'engagement constatée. Ces faits proviennent des adaptateurs ; une demande d'écriture ne prouve pas son accomplissement. Leur conservation ne crée aucune garantie de reprise après panne.
+
+**Présentation :** capture, transcription, finalisation, résultat disponible, incident ou fermeture en attente. Le texte révisable et final utilise la même référence de document. Les anciens statuts confirmé/brouillon ne constituent plus des choix utilisateur.
+
+### 5.3 Transitions et effets
+
+| ID / événement | Précondition et transition | Effets demandés / erreur |
+| --- | --- | --- |
+| TR-PU-01 — Démarrer | Admission et configuration établies ; création d'une session et d'une tentative. | Ouvrir source/traitement. Échec d'ouverture : incident motivé, sans prétendre capturer. |
+| TR-PU-02 — Bloc reçu | Source ouverte, identité valide. | Distinguer reçu, admis, puis écrit sur accusé réel ; saturation ou écriture impossible interdit toute continuité fictive. |
+| TR-PU-03 — Résultat reçu | Session, génération, plage et révision courantes. | Mettre à jour couverture et document ; résultat périmé ignoré. Duplicata identique sans nouvel effet ; même identité avec contenu contradictoire : incohérence explicite. |
+| TR-PU-04 — Arrêter | Source ouverte. | Passer au drainage une seule fois ; fermer la frontière finale après réception/écriture des blocs encore admis. Répéter Arrêter est sans effet supplémentaire. |
+| TR-PU-05 — Source close | Frontière finale connue et données écrites identifiées. | Finaliser automatiquement le traitement des plages restantes ; aucun passage oublié parce qu'il n'a pas été stabilisé en direct. |
+| TR-PU-06 — Fin de traitement | Couverture finale vérifiée, résultats persistés. | Produire la version finale ; préparer les exports. Lacune, temps invalide ou export défectueux conserve les éléments utilisables et produit un diagnostic. |
+| TR-PU-07 — Publier | Sorties attendues valides, identité cohérente, remplacement autorisé si requis. | Demander l'engagement puis attendre son issue réelle. La référence principale devient finale après confirmation de disponibilité ; aucune atomicité multi-fichiers présumée. |
+| TR-PU-08 — Annuler | Avant engagement de publication. | Demander l'arrêt du traitement ; rester `AnnulationDemandée` jusqu'à confirmation réelle. Après engagement, conserver l'issue réelle plutôt que déclarer fictivement « annulé ». |
+| TR-PU-09 — Fermer | Application accepte la demande de fermeture normale. | Refuser de nouvelles opérations, arrêter une capture ouverte, attendre les obligations de finalisation acceptées et l'issue des engagements. A puis B restent suivies séparément. |
+| TR-PU-10 — Réessayer après erreur normale | Source conservée accessible et action explicite admise. | Nouvelle génération liée à la même source ; ancien résultat isolé. Aucun redémarrage automatique après panne générale. |
+
+Sont interdits : `capture ouverte → succès final`, publication complète avec couverture lacunaire, résultat de A appliqué à B, écrasement sans autorisation et annonce d'annulation avant son issue. Une limite physique, un dépassement de représentation ou un calcul d'indice impossible devient un incident ; ce n'est pas un plafond de durée arbitraire.
+
+### 5.4 Invariants
+
+| ID | Invariant et traçabilité |
+| --- | --- |
+| INV-PU-01 | Toute commande, plage, révision et sortie porte session et génération ; aucune attribution fondée seulement sur le job visible. REQ/AC-01, 05, 07, 10. |
+| INV-PU-02 | Les frontières reçu/admis/écrit/traité ne sont pas interchangeables ; la fin maximale d'une plage ne prouve pas la couverture de ce qui la précède. REQ/AC-02, 04, 06. |
+| INV-PU-03 | Le succès de traitement exige que chaque portion de la source admise ait une issue finale acceptée ; aucun échec/non-traitement résiduel. Cela ne garantit pas l'exactitude lexicale. REQ/AC-02 à 06. |
+| INV-PU-04 | Une perte de capture connue reste un incident même si tout l'audio effectivement conservé a été transcrit. L'absence de perte signalée ne prouve pas, seule, une continuité physique parfaite. REQ/AC-06, 08. |
+| INV-PU-05 | Les parties WAV d'une capture continue forment une partition ordonnée de l'audio écrit : fin de la partie précédente égale début de la suivante, sans perte ni duplication de rotation. Toute discontinuité constatée reste un incident explicite. Le numéro de partie ne remplace pas l'identité de session ni les bornes globales. Les recouvrements de reconnaissance ne créent pas de doublons dans le document final ; chaque résultat conserve son origine globale. REQ/AC-02, 04, 05 ; S-USER-06. |
+| INV-PU-06 | Un texte final utilisable peut subsister lors d'un défaut SRT ; le paquet demeure incomplet et l'interface l'indique. Aucun temps ou mot n'est inventé. REQ/AC-05, 06. |
+| INV-PU-07 | Une publication existante reste la référence jusqu'à l'issue réelle d'un remplacement autorisé ; les fichiers partiels ne deviennent pas une nouvelle publication complète. REQ/AC-05, 09. |
+| INV-PU-08 | Ni durée écoulée ni capacité atteinte d'un WAV ne justifient l'arrêt normal d'une longue capture : celle-ci poursuit sa source logique dans la partie suivante. Si les ressources ou une erreur empêchent cette poursuite, terminer proprement, préserver les parties déjà conservées et annoncer la frontière connue et l'incident. Aucune suppression silencieuse d'audio. REQ/AC-04, 06, 10 ; S-USER-05/06. |
+
+### 5.5 Couverture et points à transmettre
+
+| REQ/UC/AC | Concepts / invariants principaux |
+| --- | --- |
+| 01–02 | DOM-01 à 05 ; INV-01 à 05 |
+| 03–04 | DOM-02 à 06 ; INV-02, 03, 05, 08 |
+| 05–06 | DOM-02, 04, 06 ; INV-02 à 04, 06–08 |
+| 07–08 | DOM-01, 03, 08 ; INV-01, 04 |
+| 09–10 | DOM-06 à 08 ; INV-01, 07–08 |
+
+**Q-DOM-01 — CLOSED sur le choix produit :** S-USER-06 retient plusieurs WAV classiques numérotés pour les longues captures Parakeet, associés à une transcription logique TXT/SRT unique. RF64 est écarté de cette évolution. Restent à l'architecte, avant readiness : taille et rotation des parties, correspondance des positions locales/globales, stockage consultable sans chargement intégral et comportement en échec de rotation. Aucun nouveau plafond de durée ni choix de taille n'est introduit par le domaine.
+
+Les seuils de délai restent Q-PU-03 ; aucun seuil n'est ajouté. Après arrêt brutal, seules les ressources effectivement conservées peuvent subsister, avec cohérence non garantie ; aucune récupération automatique ni bibliothèque durable n'est introduite.
 
 ## 6. Architecture et preuves
 
