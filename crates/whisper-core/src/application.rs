@@ -774,38 +774,6 @@ impl<P: ImportIoPort> ImportApplication<P> {
             return Ok(());
         }
         match event {
-            ImportEvent::Prepared(request) => {
-                let capture = self
-                    .unified_capture
-                    .as_mut()
-                    .ok_or(ApplicationError::InvalidCommand)?;
-                if !capture.stop_submitted
-                    || (request.job_id, request.generation)
-                        != (capture.identity.job_id, capture.identity.generation)
-                    || request.strategy
-                        != crate::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
-                    || request.source_sha256.is_none()
-                    || request.source_samples.is_none_or(|samples| samples == 0)
-                {
-                    return Err(ApplicationError::InvalidCommand);
-                }
-                capture.total_samples = request.source_samples;
-            }
-            ImportEvent::Progress {
-                completed_samples,
-                total_samples,
-                ..
-            } => {
-                let capture = self
-                    .unified_capture
-                    .as_ref()
-                    .ok_or(ApplicationError::InvalidCommand)?;
-                if capture.total_samples != Some(total_samples)
-                    || completed_samples != total_samples
-                {
-                    return Err(ApplicationError::InvalidCommand);
-                }
-            }
             ImportEvent::MicrophoneGainApplied {
                 target_identity,
                 gain_db,
@@ -1591,6 +1559,40 @@ impl<P: ImportIoPort> ImportApplication<P> {
 
     fn handle_unified_capture_event(&mut self, event: ImportEvent) -> Result<(), ApplicationError> {
         match event {
+            ImportEvent::Prepared(request) => {
+                let capture = self
+                    .unified_capture
+                    .as_mut()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                if !capture.stop_submitted
+                    || (request.job_id, request.generation)
+                        != (capture.identity.job_id, capture.identity.generation)
+                    || request.strategy
+                        != crate::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                    || request.source_sha256.is_none()
+                    || request.source_samples.is_none_or(|samples| samples == 0)
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                capture.total_samples = request.source_samples;
+            }
+            ImportEvent::Progress {
+                job_id,
+                generation,
+                completed_samples,
+                total_samples,
+            } => {
+                let capture = self
+                    .unified_capture
+                    .as_ref()
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                if (job_id, generation) != (capture.identity.job_id, capture.identity.generation)
+                    || capture.total_samples != Some(total_samples)
+                    || completed_samples != total_samples
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+            }
             ImportEvent::Segment(segment) => {
                 let capture = self
                     .unified_capture
@@ -1636,9 +1638,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
                         != (job_id, generation)
                     || last_sequence != capture.next_sequence.saturating_sub(1)
                     || last_offset == 0
-                    || capture
-                        .total_samples
-                        .is_some_and(|samples| samples != last_offset)
+                    || capture.total_samples != Some(last_offset)
                 {
                     return Err(ApplicationError::InvalidCommand);
                 }
@@ -1655,7 +1655,8 @@ impl<P: ImportIoPort> ImportApplication<P> {
                         .map_err(|error| self.fail(error))?;
                 }
                 self.view.message = Some(format!(
-                    "Transcription micro publiée ({job_id}:{})",
+                    "Transcription micro publiée ({}:{})",
+                    job_id.0,
                     generation.get()
                 ));
                 self.unified_capture = None;
@@ -5759,5 +5760,116 @@ mod tests {
         assert_eq!(app.parakeet_confirmed[0].segment_id.0, 2);
         assert_eq!(app.parakeet_confirmed[1].segment_id.0, 1);
         assert_eq!(app.view.confirmed_samples, 12_000);
+    }
+
+    fn unified_capture_state(job_id: JobId) -> UnifiedCaptureAdmission {
+        UnifiedCaptureAdmission {
+            identity: CommandIdentity {
+                job_id,
+                generation: Generation::first(),
+            },
+            destination: "archive".into(),
+            stop_submitted: true,
+            publish_submitted: false,
+            next_sequence: 1,
+            pending_persistence: 0,
+            pending_segments: std::collections::VecDeque::new(),
+            pending_sequences: std::collections::BTreeSet::new(),
+            last_sequence: None,
+            total_samples: None,
+        }
+    }
+
+    fn prepared_unified_capture(job_id: JobId, source_samples: u64) -> ImportRequest {
+        ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            job_id,
+            generation: Generation::first(),
+            source_path: "capture.wav".into(),
+            source_sha256: Some([7; 32]),
+            source_samples: Some(source_samples),
+            model_path: "model.nmodel".into(),
+            model_sha256: [8; 32],
+            destination: "archive".into(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        }
+    }
+
+    #[test]
+    fn unified_capture_prepared_progress_end_publishes_only_after_total_is_known() {
+        let job_id = JobId(0xC1);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.unified_capture = Some(unified_capture_state(job_id));
+
+        app.handle_unified_capture_event(ImportEvent::Prepared(prepared_unified_capture(
+            job_id, 32_000,
+        )))
+        .unwrap();
+        app.handle_unified_capture_event(ImportEvent::Progress {
+            job_id,
+            generation,
+            completed_samples: 32_000,
+            total_samples: 32_000,
+        })
+        .unwrap();
+        app.handle_unified_capture_event(ImportEvent::End {
+            job_id,
+            generation,
+            last_sequence: 0,
+            last_offset: 32_000,
+        })
+        .unwrap();
+
+        assert!(matches!(
+            app.io.effects.last(),
+            Some(ImportEffect::Publish { job_id: actual, generation: actual_generation, last_sequence: 0 })
+                if *actual == job_id && *actual_generation == generation
+        ));
+    }
+
+    #[test]
+    fn unified_capture_rejects_progress_with_a_total_different_from_prepared_source() {
+        let job_id = JobId(0xC2);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.unified_capture = Some(unified_capture_state(job_id));
+        app.handle_unified_capture_event(ImportEvent::Prepared(prepared_unified_capture(
+            job_id, 32_000,
+        )))
+        .unwrap();
+
+        assert_eq!(
+            app.handle_unified_capture_event(ImportEvent::Progress {
+                job_id,
+                generation,
+                completed_samples: 31_999,
+                total_samples: 31_999,
+            }),
+            Err(ApplicationError::InvalidCommand)
+        );
+        assert!(app.io.effects.is_empty());
+    }
+
+    #[test]
+    fn unified_capture_rejects_end_until_prepared_total_arrives() {
+        let job_id = JobId(0xC3);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.unified_capture = Some(unified_capture_state(job_id));
+
+        assert_eq!(
+            app.handle_unified_capture_event(ImportEvent::End {
+                job_id,
+                generation,
+                last_sequence: 0,
+                last_offset: 32_000,
+            }),
+            Err(ApplicationError::InvalidCommand)
+        );
+        assert!(app.io.effects.is_empty());
     }
 }
