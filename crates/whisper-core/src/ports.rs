@@ -122,6 +122,8 @@ pub trait ParakeetDocumentPort {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImportRequest {
+    #[serde(default = "legacy_transcription_strategy")]
+    pub strategy: crate::parakeet_session::TranscriptionStrategy,
     pub job_id: JobId,
     pub generation: Generation,
     pub source_path: String,
@@ -131,6 +133,10 @@ pub struct ImportRequest {
     pub model_sha256: [u8; 32],
     pub destination: String,
     pub config: JobConfig,
+}
+
+fn legacy_transcription_strategy() -> crate::parakeet_session::TranscriptionStrategy {
+    crate::parakeet_session::TranscriptionStrategy::LegacyV1
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]

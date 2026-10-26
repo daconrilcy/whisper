@@ -3717,6 +3717,7 @@ mod tests {
         let destination = "archive".to_owned();
         app.view.duplicate_import_prompt = Some(DuplicateImportPrompt {
             request: ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id,
                 generation,
                 source_path: "source.wav".into(),
@@ -3761,6 +3762,7 @@ mod tests {
         let mut app = ImportApplication::new(ScanTestIo::default());
         let current = DuplicateImportPrompt {
             request: ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id: JobId(201),
                 generation: Generation::first(),
                 source_path: "source.wav".into(),
@@ -3812,6 +3814,7 @@ mod tests {
             compute: ComputeChoice::Cpu,
         };
         let import = ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(70),
             generation,
             source_path: "source.wav".into(),
@@ -3915,6 +3918,7 @@ mod tests {
                         InferencePath::Import => {
                             app.dispatch(AppCommand::StartImport {
                                 request: ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
                                     job_id,
                                     generation,
                                     source_path: "source.wav".into(),
@@ -3997,6 +4001,7 @@ mod tests {
         let commands = [
             AppCommand::StartImport {
                 request: ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
                     job_id,
                     generation,
                     source_path: "source.wav".into(),
@@ -4010,6 +4015,7 @@ mod tests {
             },
             AppCommand::ProcessQueued {
                 request: ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
                     job_id,
                     generation,
                     source_path: "source.wav".into(),
@@ -4023,6 +4029,7 @@ mod tests {
             },
             AppCommand::EnqueueImport {
                 request: ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
                     job_id,
                     generation,
                     source_path: "source.wav".into(),
@@ -4419,6 +4426,7 @@ mod tests {
         })
         .unwrap();
         let import = ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(14),
             generation,
             source_path: "later.wav".into(),
@@ -4464,6 +4472,7 @@ mod tests {
         })
         .unwrap();
         let queued = ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(17),
             generation,
             source_path: "later.wav".into(),
@@ -4521,6 +4530,7 @@ mod tests {
         let mut app = ImportApplication::new(ScanTestIo::default());
         app.dispatch(AppCommand::StartImport {
             request: ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id,
                 generation,
                 source_path: "source.wav".into(),
@@ -4813,6 +4823,7 @@ mod tests {
         });
         let automatic = crate::ports::AutomaticFinalImport {
             request: ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id: import_job,
                 generation,
                 source_path: "capture.wav".into(),
@@ -5114,6 +5125,7 @@ mod tests {
         let session_b = 42;
         let automatic = crate::ports::AutomaticFinalImport {
             request: ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id: import_a,
                 generation,
                 source_path: "a.wav".into(),

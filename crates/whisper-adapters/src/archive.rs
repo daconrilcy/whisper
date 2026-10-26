@@ -550,8 +550,14 @@ struct PendingRecord {
     model_path: String,
     model_sha256: String,
     model_size: u64,
+    #[serde(default = "legacy_transcription_strategy")]
+    strategy: whisper_core::parakeet_session::TranscriptionStrategy,
     #[serde(default)]
     qualification: Option<ArchiveQualificationKey>,
+}
+
+fn legacy_transcription_strategy() -> whisper_core::parakeet_session::TranscriptionStrategy {
+    whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -825,6 +831,7 @@ pub struct ArchiveEntry {
     pub diagnostic: Option<String>,
     pub export_basename: Option<String>,
     pub publication_recovery: bool,
+    pub strategy: whisper_core::parakeet_session::TranscriptionStrategy,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1667,6 +1674,7 @@ struct ActiveArchive {
     directory: PathBuf,
     source_sha256: [u8; 32],
     source_samples: u64,
+    strategy: whisper_core::parakeet_session::TranscriptionStrategy,
     expected_sequence: u64,
     publication: PublicationIntent,
 }
@@ -1710,6 +1718,18 @@ impl ArchiveStore {
         root: &Path,
         source_sha256: &str,
     ) -> Result<Vec<PublishedImport>, String> {
+        Self::published_imports_for_strategy(
+            root,
+            source_sha256,
+            whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        )
+    }
+
+    pub fn published_imports_for_strategy(
+        root: &Path,
+        source_sha256: &str,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy,
+    ) -> Result<Vec<PublishedImport>, String> {
         let entries = Self::scan(root)?;
         if let Some(diagnostic) = entries.iter().find_map(|entry| {
             entry
@@ -1723,7 +1743,7 @@ impl ArchiveStore {
         let index = load_or_migrate_publication_index(root)?;
         for entry in entries
             .into_iter()
-            .filter(|entry| entry.complete && entry.source_sha256 == source_sha256)
+            .filter(|entry| entry.complete && entry.source_sha256 == source_sha256 && entry.strategy == strategy)
         {
             if entry.publication_recovery {
                 continue;
@@ -2563,6 +2583,7 @@ impl ArchiveStore {
         }
         let (source_sha, source_samples) = if let Some(binding) = source_binding {
             if binding.original_path() != request.source_path
+                || binding.strategy() != request.strategy
                 || request
                     .source_sha256
                     .is_some_and(|sha| sha != binding.source_sha256())
@@ -2619,7 +2640,12 @@ impl ArchiveStore {
             .is_some_and(ArchiveQualificationKey::is_parakeet_vad_test);
         let single_pass_limit_samples =
             whisper_core::model_registry::PARAKEET_MAX_SINGLE_PASS_DURATION_MS.saturating_mul(16);
-        if is_parakeet_model && !vad_qualification && source_samples > single_pass_limit_samples {
+        let unified = request.strategy
+            == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
+        if unified && (!is_parakeet_model || qualification.is_some()) {
+            return Err("ModelNotQualified: unified windows require the controlled Parakeet path".into());
+        }
+        if !unified && is_parakeet_model && !vad_qualification && source_samples > single_pass_limit_samples {
             return Err(
                 "DurationUnsupported: Fichier trop long pour Parakeet, utilisez Turbo".into(),
             );
@@ -2635,7 +2661,7 @@ impl ArchiveStore {
         let single_pass_qualification = qualification.as_ref().is_some_and(|key| {
             key.is_parakeet_import_test() && key.inference_profile == "import-single-pass"
         });
-        if is_parakeet_model
+        if !unified && is_parakeet_model
             && ((source_samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
                 && !vad_qualification)
                 || (source_samples
@@ -2657,7 +2683,7 @@ impl ArchiveStore {
             )
             .artifact
             .sha256;
-        if (is_parakeet && !single_pass_qualification && !vad_qualification)
+        if (!unified && is_parakeet && !single_pass_qualification && !vad_qualification)
             || (!is_parakeet && qualification.is_some())
         {
             return Err("ModelNotQualified: exact Test worker/runtime key is required".into());
@@ -2685,7 +2711,11 @@ impl ArchiveStore {
             serde_json::from_slice(&fs::read(reservation).map_err(|error| error.to_string())?)
                 .map_err(|error| format!("StorageCorrupt: publication reservation: {error}"))?
         } else {
-            let expected_active = Self::published_imports(&destination, &hex(&source_sha))?
+            let expected_active = Self::published_imports_for_strategy(
+                &destination,
+                &hex(&source_sha),
+                request.strategy,
+            )?
                 .into_iter()
                 .map(|item| PublicationIdentity {
                     job_id: item.job_id,
@@ -2696,7 +2726,12 @@ impl ArchiveStore {
             PublicationIntent {
                 version: 1,
                 operation_id: format!(
-                    "legacy-{:032x}-{}",
+                    "{}-{:032x}-{}",
+                    if request.strategy == whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1 {
+                        "legacy"
+                    } else {
+                        request.strategy.stable_id()
+                    },
                     request.job_id.0,
                     request.generation.get()
                 ),
@@ -2717,7 +2752,10 @@ impl ArchiveStore {
         }
         fs::create_dir_all(&directory).map_err(|e| format!("StorageUnavailable: {e}"))?;
         let pending = PendingRecord {
-            version: if vad_qualification {
+            strategy: request.strategy,
+            version: if unified {
+                4
+            } else if vad_qualification {
                 3
             } else if qualification.is_some() {
                 2
@@ -2743,6 +2781,7 @@ impl ArchiveStore {
             directory,
             source_sha256: source_sha,
             source_samples,
+            strategy: request.strategy,
             expected_sequence,
             publication,
         });
@@ -2793,6 +2832,9 @@ impl ArchiveStore {
         )
         .map_err(|e| format!("StorageCorrupt: resume checkpoint: {e}"))?;
         validate_pending(&pending, previous.job_id, previous.generation.get())?;
+        if pending.strategy != previous.strategy || pending.strategy != request.strategy {
+            return Err("StrategyMismatch: resume checkpoint and request strategies differ".into());
+        }
         if pending
             .qualification
             .as_ref()
@@ -2811,7 +2853,8 @@ impl ArchiveStore {
                 "ModelNotQualified: l'ancienne clé R5-2 Parakeet est retirée pour toute reprise; le pending est conservé".into(),
             );
         }
-        if pending.model_sha256
+        if pending.strategy == whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
+            && pending.model_sha256
             == whisper_core::model_registry::model(
                 whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
             )
@@ -2829,6 +2872,7 @@ impl ArchiveStore {
             || Some(pending.source_samples) != previous.source_samples
             || pending.model_path != previous.model_path
             || pending.model_sha256 != hex(&previous.model_sha256)
+            || pending.strategy != previous.strategy
             || pending.qualification != qualification
         {
             return Err(
@@ -2878,7 +2922,11 @@ impl ArchiveStore {
             {
                 return Err("SourceChanged: resume reservation does not match checkpoint".into());
             }
-            let current = Self::published_imports(&destination, &intent.source_sha256)?;
+            let current = Self::published_imports_for_strategy(
+                &destination,
+                &intent.source_sha256,
+                pending.strategy,
+            )?;
             let current_ids: Vec<_> = current
                 .iter()
                 .map(|item| PublicationIdentity {
@@ -2889,7 +2937,13 @@ impl ArchiveStore {
             if current_ids != intent.expected_active {
                 return Err("DuplicateStateChanged: publications changed before resume".into());
             }
-            intent.operation_id = format!("{:032x}-{}", request.job_id.0, request.generation.get());
+            intent.operation_id = if request.strategy
+                == whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
+            {
+                format!("{:032x}-{}", request.job_id.0, request.generation.get())
+            } else {
+                format!("{}-{:032x}-{}", request.strategy.stable_id(), request.job_id.0, request.generation.get())
+            };
             let next_reservation =
                 publication_reservation_path(&destination, request.job_id, request.generation);
             write_publication_intent(&destination, &request, &intent)?;
@@ -3095,7 +3149,11 @@ impl ArchiveStore {
         let root = self.root.clone();
         let _lock = Self::lock_publications(&root)?;
         if !active.publication.internal_only {
-            let current = Self::published_imports(&root, &active.publication.source_sha256)?;
+            let current = Self::published_imports_for_strategy(
+                &root,
+                &active.publication.source_sha256,
+                active.strategy,
+            )?;
             let expected: Vec<_> = active
                 .publication
                 .expected_active
@@ -5728,6 +5786,7 @@ fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, Strin
                 }),
                 export_basename: None,
                 publication_recovery: false,
+                strategy: legacy_transcription_strategy(),
             });
         }
     }
@@ -5767,7 +5826,7 @@ fn scan_live(dir: &Path, expected_job: JobId) -> Result<Vec<ArchiveEntry>, Strin
             }
             if !entries.iter().any(|entry| entry.generation == generation) {
                 entries.push(ArchiveEntry { job_id: expected_job, generation, complete: false,
-                    source_sha256: String::new(), diagnostic: Some("Recoverable: live passage was not atomically published; explicit resume or discard required".into()), export_basename: None, publication_recovery: false });
+                    source_sha256: String::new(), diagnostic: Some("Recoverable: live passage was not atomically published; explicit resume or discard required".into()), export_basename: None, publication_recovery: false, strategy: legacy_transcription_strategy() });
             }
         }
     }
@@ -6164,6 +6223,7 @@ fn scan_generation(
             diagnostic: None,
             export_basename: None,
             publication_recovery: false,
+            strategy: pending.strategy,
         }));
     }
     if dir.join("pending.json").is_file() {
@@ -6180,6 +6240,7 @@ fn scan_generation(
             diagnostic: None,
             export_basename: None,
             publication_recovery: false,
+            strategy: pending.strategy,
         }));
     }
     if dir.join("manifest.json").exists() || dir.join("segments.jsonl").exists() {
@@ -6193,7 +6254,13 @@ fn validate_pending(pending: &PendingRecord, job_id: JobId, generation: u64) -> 
         whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
             .artifact
             .sha256;
-    let qualification_valid = if pending.model_sha256 == parakeet_sha {
+    let unified = pending.version == 4
+        && pending.strategy == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        && pending.qualification.is_none()
+        && pending.model_sha256 == parakeet_sha;
+    let qualification_valid = if unified {
+        true
+    } else if pending.model_sha256 == parakeet_sha {
         (pending.version == 2
             && pending.qualification.as_ref().is_some_and(|key| {
                 key == &ArchiveQualificationKey::parakeet_cpu_test()
@@ -6211,7 +6278,8 @@ fn validate_pending(pending: &PendingRecord, job_id: JobId, generation: u64) -> 
     } else {
         pending.version == 1 && pending.qualification.is_none()
     };
-    if !matches!(pending.version, 1 | 2 | 3)
+    if (!matches!(pending.version, 1 | 2 | 3) && !unified)
+        || (pending.version < 4 && pending.strategy != legacy_transcription_strategy())
         || pending.job_id != job_id
         || pending.generation.get() != generation
         || !is_sha256(&pending.source_sha256)
@@ -6328,6 +6396,7 @@ fn corrupt_entry(job_id: JobId, location: &str, error: String) -> ArchiveEntry {
         diagnostic: Some(format!("StorageCorrupt: {location}: {error}")),
         export_basename: None,
         publication_recovery: false,
+        strategy: legacy_transcription_strategy(),
     }
 }
 
@@ -6724,6 +6793,46 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
+    fn pending_archive_versions_bind_strategy_and_keep_legacy_default() {
+        let job_id = JobId(901);
+        let generation = Generation::first();
+        let mut legacy: PendingRecord = serde_json::from_value(serde_json::json!({
+            "version": 1, "job_id": job_id, "generation": generation,
+            "source_path": "source.wav", "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_samples": 16000, "model_path": "turbo.bin",
+            "model_sha256": APPROVED_MODEL_SHA256, "model_size": APPROVED_MODEL_SIZE,
+            "qualification": null
+        })).unwrap();
+        assert_eq!(legacy.strategy, legacy_transcription_strategy());
+        assert!(validate_pending(&legacy, job_id, generation.get()).is_ok());
+        legacy.strategy = whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
+        assert!(validate_pending(&legacy, job_id, generation.get()).is_err());
+
+        let parakeet = whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3);
+        let unified = PendingRecord {
+            version: 4,
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            job_id,
+            generation,
+            source_path: "source.wav".into(),
+            source_sha256: "a".repeat(64),
+            source_samples: 121 * 16_000,
+            model_path: parakeet.artifact.file_name.into(),
+            model_sha256: parakeet.artifact.sha256.into(),
+            model_size: parakeet.artifact.size_bytes,
+            qualification: None,
+        };
+        assert!(validate_pending(&unified, job_id, generation.get()).is_ok());
+        let mut missing = serde_json::to_value(&unified).unwrap();
+        missing.as_object_mut().unwrap().remove("strategy");
+        let missing: PendingRecord = serde_json::from_value(missing).unwrap();
+        assert!(validate_pending(&missing, job_id, generation.get()).is_err());
+        let mut mismatched = unified;
+        mismatched.strategy = whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1;
+        assert!(validate_pending(&mismatched, job_id, generation.get()).is_err());
+    }
+
+    #[test]
     fn legacy_cleanup_target_without_container_proof_deserializes_without_parent_authority() {
         let legacy = serde_json::json!({
             "treatment": {
@@ -6840,6 +6949,7 @@ mod tests {
         fs::write(
             previous_directory.join("pending.json"),
             serde_json::to_vec(&PendingRecord {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 version: 1,
                 job_id: previous_job_id,
                 generation: previous_generation,
@@ -6882,6 +6992,7 @@ mod tests {
         fs::write(
             directory.join("pending.json"),
             serde_json::to_vec(&PendingRecord {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 version: 1,
                 job_id,
                 generation,
@@ -6915,6 +7026,7 @@ mod tests {
             cleanup_targets: Vec::new(),
         };
         let previous = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id,
             generation,
             source_path: "r7-audio.wav".into(),
@@ -7144,6 +7256,7 @@ mod tests {
         let text = verified_artifact(&healthy, &healthy.join("transcript.txt")).unwrap();
         let srt = verified_artifact(&healthy, &healthy.join("transcript.srt")).unwrap();
         let pending = PendingRecord {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             version: 1,
             job_id: JobId(7),
             generation: Generation::first(),
@@ -7320,6 +7433,7 @@ mod tests {
                 .as_nanos()
         ));
         let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(71),
             generation: Generation::first(),
             source_path: "source.wav".into(),
@@ -7348,6 +7462,7 @@ mod tests {
             .join(request.generation.get().to_string());
         fs::create_dir_all(&directory).unwrap();
         let pending = PendingRecord {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             version: 1,
             job_id: request.job_id,
             generation: request.generation,
@@ -7371,6 +7486,7 @@ mod tests {
             directory,
             source_sha256: [0; 32],
             source_samples: 160,
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             expected_sequence: 1,
             publication: PublicationIntent::default(),
         });
@@ -7427,6 +7543,7 @@ mod tests {
                 .as_nanos()
         ));
         let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(81),
             generation: Generation::first().next().unwrap(),
             source_path: "source.wav".into(),
@@ -7446,6 +7563,7 @@ mod tests {
             .join(request.generation.get().to_string());
         fs::create_dir_all(&target).unwrap();
         let pending = PendingRecord {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             version: 1,
             job_id: request.job_id,
             generation: request.generation,
@@ -7477,6 +7595,7 @@ mod tests {
             directory: target.clone(),
             source_sha256: [0; 32],
             source_samples: 320,
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             expected_sequence: 1,
             publication: PublicationIntent::default(),
         });
@@ -7503,6 +7622,7 @@ mod tests {
             directory: target.clone(),
             source_sha256: [0; 32],
             source_samples: 320,
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             expected_sequence,
             publication: PublicationIntent::default(),
         });
@@ -7521,6 +7641,7 @@ mod tests {
             directory: target.clone(),
             source_sha256: [0; 32],
             source_samples: 320,
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             expected_sequence,
             publication: PublicationIntent::default(),
         });
@@ -7932,6 +8053,7 @@ mod tests {
             let directory = generation_path(&root, job_id, generation);
             fs::create_dir_all(&directory).unwrap();
             let pending = PendingRecord {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 version: 1,
                 job_id,
                 generation,

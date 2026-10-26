@@ -920,6 +920,7 @@ mod tests {
 
     fn request(model_path: String, model_sha256: [u8; 32], destination: String) -> ImportRequest {
         ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(901),
             generation: Generation::first(),
             source_path: "unused.wav".into(),

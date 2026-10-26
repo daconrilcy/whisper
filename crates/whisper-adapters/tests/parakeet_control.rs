@@ -99,6 +99,7 @@ fn stop_during_parakeet_inference_waits_for_exit_and_preserves_pending_without_p
     let job_id = JobId(0x1a5);
     let generation = Generation::first();
     let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation,
         source_path: source.to_string_lossy().into_owned(),
@@ -236,6 +237,7 @@ fn stop_queue_journal_failure_settles_runtime_and_allows_next_import() {
     fs::create_dir_all(&destination).unwrap();
     let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
     let mut request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(0x2a8),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -349,6 +351,7 @@ fn stop_queue_journal_failure_settles_runtime_and_allows_next_import() {
     fs::create_dir_all(&barrier).unwrap();
     fs::write(barrier.join("prepare.enabled"), b"enabled").unwrap();
     let next_request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(0x2a9),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -456,6 +459,7 @@ fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
     let job_id = JobId(0x2ac);
     let first_generation = Generation::first();
     let mut request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation: first_generation,
         source_path: source.to_string_lossy().into_owned(),
@@ -612,6 +616,7 @@ fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once() {
     let job_id = JobId(0x2a3);
     let first_generation = Generation::first();
     let mut request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation: first_generation,
         source_path: source.to_string_lossy().into_owned(),
@@ -827,6 +832,7 @@ fn run_barrier_case(
     };
     let generation = Generation::first();
     let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation,
         source_path: source.to_string_lossy().into_owned(),

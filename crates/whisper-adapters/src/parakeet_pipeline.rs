@@ -9,7 +9,7 @@ use whisper_core::{
 
 use crate::parakeet_audio::{AudioStoreError, PcmPartStore};
 
-pub trait WindowTranscriber {
+pub trait WindowTranscriber: Send {
     fn instance_id(&self) -> u64;
     fn transcribe(&mut self, window: AudioWindow, pcm: &[i16]) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String>;
 }
@@ -22,7 +22,7 @@ pub struct PipelineResult {
     pub document_revision: u64,
 }
 
-pub fn finalize_source<T: WindowTranscriber, D: ParakeetDocumentPort>(
+pub fn finalize_source<T: WindowTranscriber + ?Sized, D: ParakeetDocumentPort>(
     source: &PcmPartStore,
     document: &mut D,
     transcriber: &mut T,

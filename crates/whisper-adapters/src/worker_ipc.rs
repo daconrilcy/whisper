@@ -1470,6 +1470,8 @@ struct ImportRuntime {
         (JobId, u64),
         Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     >,
+    #[cfg(test)]
+    controlled_transcriber: Option<Box<dyn crate::parakeet_pipeline::WindowTranscriber>>,
 }
 
 struct MicrophoneTestCapture {
@@ -1694,6 +1696,11 @@ impl RuntimeModelCatalog {
         if id != ModelId::ParakeetTdt06BV3 {
             return Err("ModelUnknown: modèle non reconnu".into());
         }
+        if request.strategy
+            == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        {
+            return Ok(request.clone());
+        }
         let record = whisper_core::model_registry::model(id);
         let source_samples = request.source_samples.or_else(|| {
             crate::archive::source_output_samples(Path::new(&request.source_path)).ok()
@@ -1819,6 +1826,7 @@ impl RuntimeModelCatalog {
             ComputeChoice::Auto => ComputeChoice::Cpu,
         };
         let make_import = |compute| ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: request.job_id,
             generation: request.generation,
             source_path: request.model_path.clone(),
@@ -2043,7 +2051,10 @@ fn archive_qualification_for_request(
     gpu_parakeet_paths: Option<&crate::parakeet_import::ParakeetWorkerPaths>,
     gpu_candidate: Option<&whisper_core::gpu_inventory::GpuRuntimeIdentity>,
 ) -> Option<crate::archive::ArchiveQualificationKey> {
-    if !request_is_parakeet(request) {
+    if !request_is_parakeet(request)
+        || request.strategy
+            == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+    {
         return None;
     }
     let samples = request
@@ -2318,7 +2329,69 @@ impl ImportRuntime {
             deferred_live_stopped: None,
             deferred_live_window_finished: None,
             gpu_candidates: std::collections::HashMap::new(),
+            #[cfg(test)]
+            controlled_transcriber: None,
         }
+    }
+
+    #[cfg(test)]
+    fn with_controlled_transcriber(
+        mut self,
+        transcriber: Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+    ) -> Self {
+        self.controlled_transcriber = Some(transcriber);
+        self
+    }
+
+    #[cfg(test)]
+    fn run_controlled_unified_import(
+        &mut self,
+        request: &ImportRequest,
+        events: &mut VecDeque<ImportEvent>,
+    ) -> Result<(), String> {
+        use whisper_core::ports::ParakeetDocumentPort;
+        let mut transcriber = self.controlled_transcriber.take()
+            .ok_or_else(|| "ModelNotQualified: controlled worker injection is required".to_owned())?;
+        let work = PathBuf::from(&request.destination)
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string())
+            .join("parakeet-unified");
+        fs::create_dir_all(&work).map_err(|error| format!("StorageUnavailable: unified workspace: {error}"))?;
+        let source_path = work.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path)
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        crate::parakeet_audio::decode_file_to_parts(&request.source_path, &mut writer)?;
+        writer.finish().map_err(|error| format!("AudioSource: {error}"))?;
+        let source = crate::parakeet_audio::PcmPartStore::open(&source_path);
+        let mut document = crate::parakeet_document::ParakeetDocumentStore::create(
+            work.join("document"), request.job_id, request.generation,
+        ).map_err(|error| format!("Document: {error:?}"))?;
+        let result = crate::parakeet_pipeline::finalize_source(
+            &source, &mut document, transcriber.as_mut(), request.job_id, request.generation,
+        )?;
+        events.push_back(ImportEvent::Ready {
+            job_id: request.job_id,
+            generation: request.generation,
+            backend: "controlled-test-worker".into(),
+        });
+        let mut sequence = 1_u64;
+        while sequence <= result.document_revision {
+            let page = document.read_page(
+                request.job_id, request.generation, result.document_revision, sequence, 128,
+            ).map_err(|error| format!("Document: {error:?}"))?;
+            for entry in page.entries {
+                events.push_back(ImportEvent::Segment(entry.segment));
+                sequence += 1;
+            }
+        }
+        events.push_back(ImportEvent::End {
+            job_id: request.job_id,
+            generation: request.generation,
+            last_sequence: result.document_revision,
+            last_offset: result.total_samples,
+        });
+        Ok(())
     }
 
     fn start_diagnostics(&mut self, destination: &Path) {
@@ -2361,6 +2434,7 @@ impl ImportRuntime {
             .get(&key)
             .expect("binding inserted or already present");
         if binding.original_path() != request.source_path
+            || binding.strategy() != request.strategy
             || request
                 .source_sha256
                 .is_some_and(|sha| sha != binding.source_sha256())
@@ -3700,16 +3774,40 @@ impl ImportRuntime {
                 )),
             },
             ImportEffect::StartWorker(request) => {
-                let candidate = self
-                    .gpu_candidates
-                    .remove(&(request.job_id, request.generation.get()));
-                match self.bind_import_request(&request) {
-                    Ok(request) => self.start_worker_with_selection(request, candidate),
-                    Err(error) => Err((
-                        request.job_id,
-                        request.generation,
-                        format!("Modèle indisponible : {error}"),
-                    )),
+                if request.strategy
+                    == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                {
+                    #[cfg(test)]
+                    {
+                        let identity = (request.job_id, request.generation);
+                        if self.controlled_transcriber.is_none() {
+                            Err((identity.0, identity.1,
+                                "ModelNotQualified: unified strategy requires the injected controlled worker".into()))
+                        } else {
+                            match self.bind_import_request(&request) {
+                                Ok(bound) => self.run_controlled_unified_import(&bound, events)
+                                    .map_err(|error| (identity.0, identity.1, error)),
+                                Err(error) => Err((identity.0, identity.1, error)),
+                            }
+                        }
+                    }
+                    #[cfg(not(test))]
+                    {
+                        Err((request.job_id, request.generation,
+                            "ModelNotQualified: unified Parakeet strategy is not enabled in the native composition".into()))
+                    }
+                } else {
+                    let candidate = self
+                        .gpu_candidates
+                        .remove(&(request.job_id, request.generation.get()));
+                    match self.bind_import_request(&request) {
+                        Ok(request) => self.start_worker_with_selection(request, candidate),
+                        Err(error) => Err((
+                            request.job_id,
+                            request.generation,
+                            format!("Modèle indisponible : {error}"),
+                        )),
+                    }
                 }
             }
             ImportEffect::StartAutomaticFinalTranscription(automatic) => {
@@ -4266,6 +4364,18 @@ impl ImportRuntime {
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
+        if request.strategy
+            == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        {
+            #[cfg(test)]
+            if self.controlled_transcriber.is_none() {
+                return Err((id.0, id.1,
+                    "ModelNotQualified: unified strategy requires the injected controlled worker".into()));
+            }
+            #[cfg(not(test))]
+            return Err((id.0, id.1,
+                "ModelNotQualified: unified Parakeet strategy is not enabled in the native composition".into()));
+        }
         self.ensure_source_binding(&mut request)
             .map_err(|error| (id.0, id.1, error))?;
         crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
@@ -4369,12 +4479,11 @@ impl ImportRuntime {
         {
             return Err((request.job_id, request.generation, error));
         }
-        let request = self
-            .source_bindings
-            .get(&(request.job_id, request.generation.get()))
-            .map_or(request.clone(), |binding| {
-                binding.apply_to_request(&request)
-            });
+        let request = match self.source_bindings.get(&(request.job_id, request.generation.get())) {
+            Some(binding) => binding.apply_to_request(&request)
+                .map_err(|error| (request.job_id, request.generation, error))?,
+            None => request,
+        };
         match selection {
             Some(None) if request.config.compute == whisper_core::ComputeChoice::Gpu => Err((
                 request.job_id,
@@ -8910,6 +9019,239 @@ mod tests {
         JobConfig, JobId, JobState, LanguageChoice,
     };
 
+    struct RuntimeImportPort {
+        runtime: ImportRuntime,
+        events: VecDeque<ImportEvent>,
+    }
+
+    impl ImportIoPort for RuntimeImportPort {
+        fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
+            self.runtime.effect(effect, &mut self.events);
+            Ok(())
+        }
+
+        fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
+            Ok(self.events.pop_front())
+        }
+    }
+
+    struct ControlledUnifiedWorker;
+
+    impl crate::parakeet_pipeline::WindowTranscriber for ControlledUnifiedWorker {
+        fn instance_id(&self) -> u64 { 9001 }
+
+        fn transcribe(
+            &mut self,
+            window: whisper_core::parakeet_session::AudioWindow,
+            _: &[i16],
+        ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+            let start_ms = ((window.central_start_sample - window.native_start_sample) / 16) as u32;
+            Ok(vec![whisper_core::parakeet_ipc::Word {
+                text: "controlled.".into(),
+                start_ms,
+                end_ms: start_ms + 100,
+            }])
+        }
+    }
+
+    struct InvalidTimeUnifiedWorker;
+
+    impl crate::parakeet_pipeline::WindowTranscriber for InvalidTimeUnifiedWorker {
+        fn instance_id(&self) -> u64 { 9002 }
+        fn transcribe(
+            &mut self,
+            _: whisper_core::parakeet_session::AudioWindow,
+            _: &[i16],
+        ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+            Ok(vec![whisper_core::parakeet_ipc::Word {
+                text: "invalid".into(), start_ms: 50, end_ms: 20,
+            }])
+        }
+    }
+
+    struct FailedUnifiedWorker;
+
+    impl crate::parakeet_pipeline::WindowTranscriber for FailedUnifiedWorker {
+        fn instance_id(&self) -> u64 { 9003 }
+        fn transcribe(
+            &mut self,
+            _: whisper_core::parakeet_session::AudioWindow,
+            _: &[i16],
+        ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+            Err("controlled worker failure".into())
+        }
+    }
+
+    struct ExportCollisionWorker { path: PathBuf }
+
+    impl crate::parakeet_pipeline::WindowTranscriber for ExportCollisionWorker {
+        fn instance_id(&self) -> u64 { 9004 }
+        fn transcribe(
+            &mut self,
+            window: whisper_core::parakeet_session::AudioWindow,
+            _: &[i16],
+        ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+            if let Some(parent) = self.path.parent() {
+                std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            }
+            std::fs::write(&self.path, b"preexisting export").map_err(|error| error.to_string())?;
+            let start_ms = ((window.central_start_sample - window.native_start_sample) / 16) as u32;
+            Ok(vec![whisper_core::parakeet_ipc::Word { text: "export collision".into(), start_ms, end_ms: start_ms + 100 }])
+        }
+    }
+
+    fn unified_import_request(root: &Path, source: &Path, id: u128) -> ImportRequest {
+        let model = whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3);
+        let model_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("models")
+            .join(model.artifact.file_name);
+        let model_sha256 = (0..32).map(|index| {
+            u8::from_str_radix(&model.artifact.sha256[index * 2..index * 2 + 2], 16).unwrap()
+        }).collect::<Vec<_>>().try_into().unwrap();
+        ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            job_id: JobId(id),
+            generation: Generation::first(),
+            source_path: source.to_string_lossy().into_owned(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: model_path.to_string_lossy().into_owned(),
+            model_sha256,
+            destination: root.to_string_lossy().into_owned(),
+            config: JobConfig { language: LanguageChoice::Automatic, compute: ComputeChoice::Cpu },
+        }
+    }
+
+    fn assert_real_unified_model(request: &ImportRequest) {
+        assert!(Path::new(&request.model_path).is_file(),
+            "required real Parakeet test model is missing: {}", request.model_path);
+    }
+
+    #[test]
+    fn import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports() {
+        for (index, seconds) in [3_u64, 121].into_iter().enumerate() {
+            let root = std::env::temp_dir().join(format!(
+                "parakeet-unified-application-{}-{}", std::process::id(), index
+            ));
+            std::fs::create_dir_all(&root).unwrap();
+            let source_path = root.join("source.wav");
+            let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+            writer.append(&vec![0_i16; (seconds * 16_000) as usize]).unwrap();
+            writer.finish().unwrap();
+            let request = unified_import_request(&root.join("archive"), &source_path, 700 + index as u128);
+            assert_real_unified_model(&request);
+            let runtime = ImportRuntime::new(
+                WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+                Arc::new(PublicationGate::default()),
+            ).with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+            let port = RuntimeImportPort { runtime, events: VecDeque::new() };
+            let mut app = ImportApplication::new(port);
+            app.dispatch(AppCommand::StartImport { request }).unwrap();
+            for _ in 0..32 {
+                let view = app.dispatch(AppCommand::Refresh).unwrap();
+                if view.active_job.is_none() { break; }
+            }
+            let entries = ArchiveStore::scan(&root.join("archive")).unwrap();
+            let entry = entries.iter().find(|entry| entry.complete && entry.strategy
+                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1).unwrap();
+            assert_eq!(ArchiveStore::published_imports_for_strategy(
+                &root.join("archive"), &entry.source_sha256,
+                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            ).unwrap().len(), 1);
+            assert!(ArchiveStore::published_imports_for_strategy(
+                &root.join("archive"), &entry.source_sha256,
+                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+            ).unwrap().is_empty());
+            let archive = root.join(format!("archive/transcriptions/{:032x}/1", 700 + index as u128));
+            assert!(archive.join("transcript.txt").is_file());
+            assert!(archive.join("transcript.srt").is_file());
+            assert!(std::fs::read_to_string(archive.join("transcript.txt")).unwrap().contains("controlled."));
+            let coverage = std::fs::read_to_string(archive.join("parakeet-unified/document/coverage.jsonl")).unwrap();
+            assert_eq!(coverage.lines().count(), if seconds > 120 { 2 } else { 1 });
+            let basename = entry.export_basename.as_ref().unwrap();
+            assert!(root.join("archive/exports").join(format!("{basename}.txt")).is_file());
+            assert!(root.join("archive/exports").join(format!("{basename}.srt")).is_file());
+            std::fs::remove_dir_all(&root).unwrap();
+        }
+    }
+
+    #[test]
+    fn unified_request_without_controlled_injection_is_refused_before_worker_start() {
+        let root = std::env::temp_dir().join(format!("parakeet-unified-native-refusal-{}", std::process::id()));
+        let request = unified_import_request(&root, Path::new("missing.wav"), 777);
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths { cpu: PathBuf::from("missing-cpu-worker"), gpu: PathBuf::from("missing-gpu-worker") },
+            Arc::new(PublicationGate::default()),
+        );
+        let mut events = VecDeque::new();
+        runtime.effect(ImportEffect::Prepare(request.clone()), &mut events);
+        assert!(matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
+            if message.contains("ModelNotQualified") && message.contains("controlled worker")));
+        assert!(!root.exists(), "native refusal must precede archive preparation");
+        runtime.effect(ImportEffect::StartWorker(request), &mut events);
+        assert!(matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
+            if message.contains("ModelNotQualified") && message.contains("controlled worker")));
+    }
+
+    #[test]
+    fn controlled_worker_and_invalid_times_leave_no_complete_archive() {
+        for (index, worker) in [
+            Box::new(FailedUnifiedWorker) as Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+            Box::new(InvalidTimeUnifiedWorker) as Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+        ].into_iter().enumerate() {
+            let root = std::env::temp_dir().join(format!(
+                "parakeet-unified-failure-{}-{}", std::process::id(), index
+            ));
+            std::fs::create_dir_all(&root).unwrap();
+            let source_path = root.join("source.wav");
+            let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+            writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+            writer.finish().unwrap();
+            let request = unified_import_request(&root.join("archive"), &source_path, 780 + index as u128);
+            assert_real_unified_model(&request);
+            let runtime = ImportRuntime::new(
+                WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+                Arc::new(PublicationGate::default()),
+            ).with_controlled_transcriber(worker);
+            let mut app = ImportApplication::new(RuntimeImportPort { runtime, events: VecDeque::new() });
+            app.dispatch(AppCommand::StartImport { request }).unwrap();
+            for _ in 0..24 {
+                if app.dispatch(AppCommand::Refresh).unwrap().active_job.is_none() { break; }
+            }
+            let entries = ArchiveStore::scan(&root.join("archive")).unwrap();
+            assert!(!entries.iter().any(|entry| entry.complete));
+            std::fs::remove_dir_all(&root).unwrap();
+        }
+    }
+
+    #[test]
+    fn export_collision_keeps_existing_file_and_does_not_publish_unified_archive() {
+        let root = std::env::temp_dir().join(format!("parakeet-unified-export-collision-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let source_path = root.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let destination = root.join("archive");
+        let request = unified_import_request(&destination, &source_path, 790);
+        assert_real_unified_model(&request);
+        let collision = destination.join("exports/source.txt");
+        let runtime = ImportRuntime::new(
+            WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+            Arc::new(PublicationGate::default()),
+        ).with_controlled_transcriber(Box::new(ExportCollisionWorker { path: collision.clone() }));
+        let mut app = ImportApplication::new(RuntimeImportPort { runtime, events: VecDeque::new() });
+        app.dispatch(AppCommand::StartImport { request }).unwrap();
+        for _ in 0..24 {
+            if app.dispatch(AppCommand::Refresh).unwrap().active_job.is_none() { break; }
+        }
+        assert_eq!(std::fs::read(&collision).unwrap(), b"preexisting export");
+        assert!(!ArchiveStore::scan(&destination).unwrap().iter().any(|entry| entry.complete));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn microphone_legacy_capture_budget_forces_worker_poll_within_four_ui_events() {
         let mut capture_events_since_worker = 0;
@@ -10710,6 +11052,7 @@ mod tests {
         .unwrap();
         let automatic = whisper_core::ports::AutomaticFinalImport {
             request: ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id: JobId(42),
                 generation: Generation::first(),
                 source_path: root.join("capture.wav").to_string_lossy().into_owned(),
@@ -10789,6 +11132,7 @@ mod tests {
         fs::write(&source_txt, "source text").unwrap();
         let automatic = whisper_core::ports::AutomaticFinalImport {
             request: whisper_core::ports::ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id: JobId(501),
                 generation: Generation::first(),
                 source_path: "capture.wav".into(),
@@ -12071,6 +12415,7 @@ fn main() {
     #[test]
     fn queued_import_record_accepts_legacy_live_offset_field() {
         let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(1),
             generation: Generation::first(),
             source_path: "queued.wav".into(),
@@ -13097,6 +13442,7 @@ fn main() {
 
     fn test_request(job_id: JobId, generation: Generation) -> ImportRequest {
         ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id,
             generation,
             source_path: "source.wav".into(),
@@ -13189,6 +13535,7 @@ fn main() {
         model_sha256: [u8; 32],
     ) -> ImportRequest {
         ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id,
             generation: Generation::first(),
             source_path: source.to_string_lossy().into_owned(),
@@ -13505,6 +13852,7 @@ fn main() {
     }
 
     impl NextGeneration for ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         fn clone_with_next_generation(&self) -> Self {
             let mut resumed = self.clone();
             resumed.generation = self.generation.next().unwrap();
@@ -14026,6 +14374,7 @@ fn main() {
         let generation = Generation::first();
         app.dispatch(AppCommand::StartImport {
             request: ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id,
                 generation,
                 source_path: "fixture.wav".into(),

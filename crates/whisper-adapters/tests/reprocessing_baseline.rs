@@ -198,6 +198,7 @@ fn request(
     job_id: u128,
 ) -> ImportRequest {
     ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(job_id),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -335,6 +336,7 @@ fn wait_for_queued_request(
     destination: &str,
     deadline: &Instant,
 ) -> ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
     loop {
         let view = app
             .dispatch(AppCommand::Refresh)

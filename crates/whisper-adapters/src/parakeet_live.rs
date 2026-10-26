@@ -655,6 +655,7 @@ impl ParakeetLive {
         }
         Ok(whisper_core::ports::AutomaticFinalImport {
             request: whisper_core::ports::ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id,
                 generation: self.request.generation,
                 source_path: wav_path.to_owned(),

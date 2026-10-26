@@ -8,7 +8,19 @@ use std::{
 };
 use whisper_core::{ComputeChoice, Generation, JobId, ports::ImportRequest};
 
-const QUEUE_SCHEMA: u32 = 1;
+const QUEUE_LEGACY_SCHEMA: u32 = 1;
+const QUEUE_UNIFIED_SCHEMA: u32 = 2;
+
+fn queue_schema(request: &ImportRequest) -> u32 {
+    match request.strategy {
+        whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1 => QUEUE_LEGACY_SCHEMA,
+        whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1 => QUEUE_UNIFIED_SCHEMA,
+    }
+}
+
+fn valid_queue_upsert(version: u32, entry: &QueueEntry) -> bool {
+    version == queue_schema(&entry.request) && entry.sequence > 0
+}
 
 pub use whisper_core::ports::{ImportQueueEntry as QueueEntry, ImportQueueStatus as QueueStatus};
 
@@ -133,7 +145,7 @@ impl QueueStore {
             })?;
             match record {
                 QueueRecord::Upsert { version, entry }
-                    if version == QUEUE_SCHEMA && entry.sequence > 0 =>
+                    if valid_queue_upsert(version, &entry) =>
                 {
                     entries.insert(entry.sequence, *entry);
                 }
@@ -141,7 +153,7 @@ impl QueueStore {
                     version,
                     job_id,
                     generation,
-                } if version == QUEUE_SCHEMA => entries.retain(|_, entry| {
+                } if version == QUEUE_LEGACY_SCHEMA || version == QUEUE_UNIFIED_SCHEMA => entries.retain(|_, entry| {
                     entry.request.job_id != job_id || entry.request.generation != generation
                 }),
                 _ => {
@@ -224,7 +236,7 @@ impl QueueStore {
             status: QueueStatus::Queued,
         };
         self.append(QueueRecord::Upsert {
-            version: QUEUE_SCHEMA,
+            version: queue_schema(&entry.request),
             entry: Box::new(entry.clone()),
         })?;
         self.next_sequence = next_sequence;
@@ -246,7 +258,7 @@ impl QueueStore {
             .ok_or_else(|| "InvalidInput: queued job was not found".to_owned())?;
         entry.status = status;
         self.append(QueueRecord::Upsert {
-            version: QUEUE_SCHEMA,
+            version: queue_schema(&entry.request),
             entry: Box::new(entry.clone()),
         })?;
         self.entries.insert(entry.sequence, entry.clone());
@@ -293,7 +305,7 @@ impl QueueStore {
 
         entry.request.config.compute = compute;
         self.append(QueueRecord::Upsert {
-            version: QUEUE_SCHEMA,
+            version: queue_schema(&entry.request),
             entry: Box::new(entry.clone()),
         })?;
         self.entries.insert(entry.sequence, entry.clone());
@@ -319,7 +331,7 @@ impl QueueStore {
         entry.request = request;
         entry.status = QueueStatus::Running;
         self.append(QueueRecord::Upsert {
-            version: QUEUE_SCHEMA,
+            version: queue_schema(&entry.request),
             entry: Box::new(entry.clone()),
         })?;
         self.entries.insert(entry.sequence, entry.clone());
@@ -437,9 +449,9 @@ impl QueueStore {
     }
 
     pub fn remove(&mut self, job_id: JobId, generation: Generation) -> Result<(), String> {
-        let Some((sequence, status)) = self.entries.iter().find_map(|(sequence, entry)| {
+        let Some((sequence, status, strategy)) = self.entries.iter().find_map(|(sequence, entry)| {
             (entry.request.job_id == job_id && entry.request.generation == generation)
-                .then_some((*sequence, entry.status))
+                .then_some((*sequence, entry.status, entry.request.strategy))
         }) else {
             return Err("InvalidInput: queued job was not found".into());
         };
@@ -462,7 +474,10 @@ impl QueueStore {
             }
         }
         self.append(QueueRecord::Remove {
-            version: QUEUE_SCHEMA,
+            version: match strategy {
+                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1 => QUEUE_LEGACY_SCHEMA,
+                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1 => QUEUE_UNIFIED_SCHEMA,
+            },
             job_id,
             generation,
         })?;
@@ -512,7 +527,7 @@ impl QueueStore {
                 .map_err(|e| format!("StorageCorrupt: queue line {}: {e}", line_no + 1))?;
             match record {
                 QueueRecord::Upsert { version, entry }
-                    if version == QUEUE_SCHEMA && entry.sequence > 0 =>
+                    if valid_queue_upsert(version, &entry) =>
                 {
                     self.next_sequence = self.next_sequence.max(entry.sequence.saturating_add(1));
                     self.entries.insert(entry.sequence, *entry);
@@ -521,7 +536,7 @@ impl QueueStore {
                     version,
                     job_id,
                     generation,
-                } if version == QUEUE_SCHEMA => {
+                } if version == QUEUE_LEGACY_SCHEMA || version == QUEUE_UNIFIED_SCHEMA => {
                     self.entries.retain(|_, entry| {
                         entry.request.job_id != job_id || entry.request.generation != generation
                     });
@@ -555,6 +570,7 @@ mod tests {
 
     fn request(job_id: u128, destination: &Path) -> ImportRequest {
         ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(job_id),
             generation: Generation::first(),
             source_path: format!("source-{job_id}.wav"),
@@ -669,6 +685,56 @@ mod tests {
             std::fs::metadata(&queue_path).unwrap().modified().unwrap(),
             before
         );
+        std::fs::remove_dir_all(destination).unwrap();
+    }
+
+    #[test]
+    fn unified_queue_schema_round_trips_strategy_and_rejects_legacy_schema_mismatch() {
+        let destination = root();
+        let mut queue = QueueStore::open(&destination).unwrap();
+        let mut request = request(88, &destination);
+        request.strategy = whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
+        queue.enqueue(request.clone()).unwrap();
+        let journal = std::fs::read_to_string(destination.join("transcriptions/queue.jsonl")).unwrap();
+        let record: serde_json::Value = serde_json::from_str(journal.lines().next().unwrap()).unwrap();
+        assert_eq!(record["version"], 2);
+        let mut reopened = QueueStore::open(&destination).unwrap();
+        assert_eq!(reopened.entries()[0].request.strategy, request.strategy);
+        reopened.set_status(request.job_id, request.generation, QueueStatus::Interrupted).unwrap();
+        let mut substituted = request.clone();
+        substituted.generation = request.generation.next().unwrap();
+        substituted.strategy = whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1;
+        assert!(reopened.validate_resume(request.job_id, request.generation, &substituted).is_err());
+
+        let mut invalid = record;
+        invalid["version"] = serde_json::Value::from(1);
+        std::fs::write(destination.join("transcriptions/queue.jsonl"),
+            format!("{}\n", serde_json::to_string(&invalid).unwrap())).unwrap();
+        assert!(QueueStore::open(&destination).err().unwrap().contains("unsupported queue record"));
+        std::fs::remove_dir_all(destination).unwrap();
+    }
+
+    #[test]
+    fn historical_queue_json_without_strategy_reads_as_legacy_without_rewriting() {
+        let destination = root();
+        let path = destination.join("transcriptions/queue.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let mut legacy = serde_json::to_value(QueueRecord::Upsert {
+            version: QUEUE_LEGACY_SCHEMA,
+            entry: Box::new(QueueEntry {
+                sequence: 1,
+                request: request(89, &destination),
+                status: QueueStatus::Queued,
+            }),
+        }).unwrap();
+        legacy["entry"]["request"].as_object_mut().unwrap().remove("strategy");
+        let bytes = format!("{}\n", serde_json::to_string(&legacy).unwrap());
+        std::fs::write(&path, &bytes).unwrap();
+
+        let entries = QueueStore::inspect_read_only(&destination).unwrap();
+        assert_eq!(entries[0].request.strategy,
+            whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
         std::fs::remove_dir_all(destination).unwrap();
     }
 }

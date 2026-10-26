@@ -1159,6 +1159,7 @@ impl<A: Application> DesktopApp<A> {
         };
         if self.dispatch(AppCommand::EnqueueImport {
             request: ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                 job_id,
                 generation,
                 source_path: self.paths.audio.trim().to_owned(),
@@ -3458,6 +3459,7 @@ mod tests {
     #[test]
     fn queued_import_uses_current_compute_and_preserves_the_durable_request() {
         let original = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(74),
             generation: Generation::first(),
             source_path: "queued.wav".into(),
@@ -3490,6 +3492,7 @@ mod tests {
     #[test]
     fn resumed_import_uses_its_durable_compute_instead_of_the_global_selector() {
         let mut request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(75),
             generation: Generation::first(),
             source_path: "queued.wav".into(),
@@ -4462,6 +4465,7 @@ mod tests {
         );
         let mut app = DesktopApp::with_paths(application, ComputeChoice::Cpu, None, paths);
         let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(73),
             generation: Generation::first(),
             source_path: "input.wav".into(),

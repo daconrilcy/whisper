@@ -18,6 +18,10 @@ const OPERATION_LOCK_FILE: &str = "source-snapshot-operation.lock";
 const MAX_RETAINED_SNAPSHOTS: usize = 2;
 const COPY_BUFFER_SIZE: usize = 1024 * 1024;
 
+fn legacy_strategy() -> whisper_core::parakeet_session::TranscriptionStrategy {
+    whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct SnapshotRecord {
     version: u8,
@@ -29,6 +33,8 @@ struct SnapshotRecord {
     source_len: u64,
     source_sha256: [u8; 32],
     source_samples: u64,
+    #[serde(default = "legacy_strategy")]
+    strategy: whisper_core::parakeet_session::TranscriptionStrategy,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -299,7 +305,7 @@ impl SourceBinding {
         }
 
         let record = SnapshotRecord {
-            version: 1,
+            version: snapshot_schema(request.strategy),
             job_id: request.job_id,
             generation: request.generation,
             destination: destination.to_string_lossy().into_owned(),
@@ -308,6 +314,7 @@ impl SourceBinding {
             source_len: copied,
             source_sha256,
             source_samples,
+            strategy: request.strategy,
         };
         if let Err(error) = write_record_new(&record_path, &record) {
             return Err(cleanup_failed_capture(
@@ -384,6 +391,7 @@ impl SourceBinding {
             request.generation,
         )?;
         if record.original_path != request.source_path
+            || record.strategy != request.strategy
             || request
                 .source_sha256
                 .is_some_and(|expected| expected != record.source_sha256)
@@ -422,12 +430,19 @@ impl SourceBinding {
         self.record.source_samples
     }
 
-    pub fn apply_to_request(&self, request: &ImportRequest) -> ImportRequest {
+    pub fn strategy(&self) -> whisper_core::parakeet_session::TranscriptionStrategy {
+        self.record.strategy
+    }
+
+    pub fn apply_to_request(&self, request: &ImportRequest) -> Result<ImportRequest, String> {
+        if request.strategy != self.record.strategy {
+            return Err("SourceSnapshotMismatch: transcription strategy differs from binding".into());
+        }
         let mut execution = request.clone();
         execution.source_path = self.snapshot_path.to_string_lossy().into_owned();
         execution.source_sha256 = Some(self.record.source_sha256);
         execution.source_samples = Some(self.record.source_samples);
-        execution
+        Ok(execution)
     }
 
     pub fn rebind(mut self, job_id: JobId, generation: Generation) -> Result<Self, String> {
@@ -882,6 +897,7 @@ fn resume_retirement(registry: &SnapshotRegistry, entry: &RegistryEntry) -> Resu
         source_len: 0,
         source_sha256: [0; 32],
         source_samples: 0,
+        strategy: legacy_strategy(),
     };
     registry.finish_retirement(&record)
 }
@@ -1407,7 +1423,11 @@ fn validate_record(
         .map_err(|error| format!("SourceSnapshotUnavailable: snapshot bytes: {error}"))?;
     let metadata = fs::metadata(&expected_snapshot)
         .map_err(|error| format!("SourceSnapshotUnavailable: snapshot bytes: {error}"))?;
-    if record.version != 1
+    if (record.version == 1 && record.strategy != legacy_strategy())
+        || (record.version == 2
+            && record.strategy
+                != whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1)
+        || !matches!(record.version, 1 | 2)
         || record.job_id != job_id
         || record.generation != generation
         || record.destination != destination.to_string_lossy()
@@ -1418,6 +1438,13 @@ fn validate_record(
         return Err("SourceSnapshotCorrupt: durable binding does not match its operation".into());
     }
     Ok(())
+}
+
+fn snapshot_schema(strategy: whisper_core::parakeet_session::TranscriptionStrategy) -> u8 {
+    match strategy {
+        whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1 => 1,
+        whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1 => 2,
+    }
 }
 
 fn open_read_exclusive(path: &Path) -> io::Result<File> {
@@ -1542,6 +1569,7 @@ mod recovery_tests {
 
     fn request(destination: &Path, source: &Path, id: u128) -> ImportRequest {
         ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(id),
             generation: Generation::first(),
             source_path: source.to_string_lossy().into_owned(),
@@ -1555,6 +1583,29 @@ mod recovery_tests {
                 compute: whisper_core::ComputeChoice::Cpu,
             },
         }
+    }
+
+    #[test]
+    fn snapshot_v2_preserves_strategy_and_rejects_request_mismatch() {
+        let root = root();
+        let destination = root.join("destination");
+        std::fs::create_dir_all(&destination).unwrap();
+        let source = root.join("source.wav");
+        write_wav(&source);
+        let registry_root = root.join("settings/reprocessing-snapshots");
+        let mut request = request(&destination, &source, 2001);
+        request.strategy = whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
+        let binding = SourceBinding::acquire(&request, &registry_root).unwrap();
+        let stored: serde_json::Value = serde_json::from_slice(&std::fs::read(&binding.record_path).unwrap()).unwrap();
+        assert_eq!(stored["version"], 2);
+        assert_eq!(stored["strategy"], "bounded_windows_v1");
+        assert_eq!(binding.apply_to_request(&request).unwrap().strategy, request.strategy);
+
+        let mut mismatch = request.clone();
+        mismatch.strategy = whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1;
+        assert!(binding.apply_to_request(&mismatch).unwrap_err().contains("strategy differs"));
+        drop(binding);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

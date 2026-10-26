@@ -1,6 +1,6 @@
-Avancée : plan accepté ; candidat PU-L1 écrit partiellement et relu, trois constats corrigés et clos.
-Blocage : T4 non raccordée au vrai import (R1) ; E-GUARD non satisfait, compilation et tests non exécutés.
-Décision : ajustement du plan revu CLEAN ; fin de T4 autorisée dans le périmètre CHANGE-PU-L1-01.
+Avancée : ajustement du plan CLEAN et raccord T4 écrit ; candidat relu après deux corrections.
+Blocage : R1, R5 et R6 ouverts ; compilation et tests non exécutés sous E-GUARD.
+Décision : LIVRÉ AVEC RÉSERVES ; arbitrage utilisateur requis après épuisement des deux cycles.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -239,3 +239,23 @@ Les futures commandes C1/C2 restent soumises à la même enveloppe ; les tests c
 **Restant.** Revue ciblée de cet ajustement versionné ; implémentation T4 par le worker original ; fermeture de R1 par le reviewer indépendant. La revue du plan ne ferme pas R1 et ne vaut pas compilation. La limite de deux cycles revue/correction du code PU-L1 est conservée, avec une correction déjà accomplie. E-GUARD et validations natives/utilisateur restent distincts.
 
 **Résultat de la revue ciblée.** `/root/pu_l1_change_review`, rôle `rust_design_reviewer`, indépendant de la rédaction et de la contribution architecte, a examiné le §6 au Git `c0b9ebc5556d268599c0ebf4f613225dd54d039c` et les sources applicables. Verdict **CLEAN**, aucun REQUIRED ni ADVISORY, aucune correction. Le reviewer confirme les constructions couvertes, les schémas existants queue v1/snapshot v1/pending archive v1–3, le refus des versions inconnues, les liens design/T4/tests et l'absence de comportement T5–T10 ajouté. Aucun fichier modifié ni commande Rust exécutée par le reviewer ; plan inchangé avant/après. Il autorise la présente consignation et l'actualisation des métadonnées sans changement technique. La revue documentaire est terminée ; restent implémentation et relecture du code R1, puis preuves d'exécution sous E-GUARD.
+
+## 7. Résultat après reprise de T4 — 26 octobre 2026
+
+**Base et réalisation.** Après revue de CHANGE-PU-L1-01, métadonnées versionnées au Git `694fae08e609ebda7b33b885df2cfb51e3af8767`, le même `/root/pu_l1_implementer` a repris T4 en mode IMPLEMENT. Cette reprise traite le constat R1 et compte comme la seconde correction du même livrable PU-L1, sans remise à zéro du budget. Espace libre au préflight : environ 113,4 Gio ; à la clôture : 113,38 Gio. Les fichiers non suivis `models/` et `sound example/` sont préservés.
+
+**Changements écrits, non qualifiés.** La stratégie `LegacyV1`/`BoundedWindowsV1` traverse les demandes, l'application, la file, le binding et l'archive. Les formats queue v2, snapshot v2 et pending archive v4 sont introduits pour les demandes unifiées, avec compatibilité des formats historiques et contrôles de concordance. Une branche contrôlée raccorde `ImportApplication` à `ImportRuntime`, au pipeline et à `ArchiveStore`. La composition native et les constructions UI/micro restent legacy, avec un refus unifié natif avant préparation lorsqu'aucun worker contrôlé n'est injecté. Ces descriptions du candidat ne constituent pas une fermeture de R1 ni une validation fonctionnelle.
+
+Tests écrits : absence/inconnue de stratégie, versions persistées et incohérences, reprise/binding/archive, parcours court et 121 s via vraie application et archive avec worker contrôlé, exports TXT/SRT et erreurs worker/temps/export. Les scénarios d'archive contrôlés requièrent `models/parakeet-tdt-0.6b-v3.q8_0.gguf` conforme à la taille/SHA du registre ; le prérequis manquant doit provoquer un échec explicite. Aucune exécution de ces tests. Les 28 chemins sources/tests modifiés appartiennent à l'union du périmètre initial et du §6.3 ; les adaptations UI/micro et les constructions historiques restent mécaniques. Aucun Cargo manifest, dépendance, worker natif ou fichier hors dépôt modifié.
+
+**Résultat de la relecture du code.** Même coordination `/root/pu_l1_review` et même reviewer indépendant `/root/pu_l1_review/pu_l1_reviewer`. Candidat : arbre de travail après CHANGE-PU-L1-01, baseline logique `1b245596f897cbdbc03de8554dd53f7762bcb650`, epoch 2. Bilan cumulé PU-L1 : trois passes de revue, deux corrections, zéro passe de vérification exécutable. Une précision de protocole sur le packet final n'ajoute aucun cycle technique. Verdict final du coordinateur : **LIVRÉ AVEC RÉSERVES**. Le code n'est pas CLEAN et T4 n'est pas déclarée terminée.
+
+| Constat ouvert | Preuve du reviewer sur le candidat | Correction et condition de fermeture |
+| --- | --- | --- |
+| R1 — T4 / §6.2 | `worker_ipc.rs:4383` : l'import unifié GPU dépend encore du profil historique `import-single-pass` avant le pipeline contrôlé. | Séparer réellement la stratégie de session de la qualification historique, préserver les bornes natives et la fermeture d'activation T9 ; vérifier le parcours contrôlé CPU/GPU par l'application sans emprunter une qualification de session legacy. |
+| R5 — compilabilité du module concerné | `worker_ipc.rs:13854` : ligne `strategy:` errante dans `impl NextGeneration for ImportRequest`. | Corriger l'emplacement du champ dans la construction de demande ; faire confirmer le diff par le reviewer. La compilation reste à exécuter sous enveloppe conforme. |
+| R6 — T3 / REQ-PU-04 | `worker_ipc.rs:2378` : tous les segments paginés sont recopiés dans un `VecDeque` cumulatif non borné. | Conserver une consommation bornée des pages jusqu'à l'archivage/publication, sans reconstituer l'ensemble des segments ; test ciblé de la borne et de l'intégrité des exports. |
+
+R2, R3 et R4 restent clos par le reviewer. Aucune correction R1/R5/R6 n'a été lancée après ce résultat, la limite de deux cycles étant atteinte. Aucun constat n'est fermé par l'implémenteur ou par la session principale.
+
+**Vérifications et décision restante.** `git diff --check` réussi sur le candidat. Cargo, rustc, rustfmt, compilation, tests, audio/GPU et recette Windows **NOT RUN**, E-GUARD toujours non satisfait. Une erreur de syntaxe observée suffit à exclure toute affirmation de compilabilité, même sans commande exécutée. Aucun binaire de remise construit, aucune activation native unifiée ni push. Le candidat reste un travail en cours à conserver dans Git ; l'utilisateur doit arbitrer une correction supplémentaire ciblée des trois constats ou le maintien de ces réserves. Une autorisation de correction supplémentaire ne résoudrait pas E-GUARD et n'autoriserait pas une campagne implicitement.

@@ -44,6 +44,7 @@ fn request(model_path: String, generation: Generation) -> ImportRequest {
         *byte = u8::from_str_radix(&sha[index * 2..index * 2 + 2], 16).unwrap();
     }
     ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(77),
         generation,
         source_path: "source.wav".into(),

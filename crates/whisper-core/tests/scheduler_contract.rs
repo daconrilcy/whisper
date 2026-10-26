@@ -23,6 +23,7 @@ impl ImportIoPort for Fake {
 }
 fn request() -> ImportRequest {
     ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(4),
         generation: Generation::first(),
         source_path: "input.mp3".into(),

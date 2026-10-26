@@ -15,12 +15,13 @@ pub struct SessionIdentity {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TranscriptionStrategy {
+    LegacyV1,
     BoundedWindowsV1,
 }
 
 impl TranscriptionStrategy {
     pub const fn stable_id(self) -> &'static str {
-        match self { Self::BoundedWindowsV1 => "bounded-windows-v1" }
+        match self { Self::LegacyV1 => "legacy-v1", Self::BoundedWindowsV1 => "bounded-windows-v1" }
     }
 }
 

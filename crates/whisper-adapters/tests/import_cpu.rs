@@ -1188,6 +1188,7 @@ fn r11_request(
     model: &std::path::Path,
 ) -> ImportRequest {
     ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id,
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -1332,6 +1333,7 @@ fn real_wav_runs_through_cpu_worker_and_verified_archive() {
     let job_id = JobId(((std::process::id() as u128) << 64) | 1);
     app.dispatch(AppCommand::StartImport {
         request: ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id,
             generation: Generation::first(),
             source_path: source.to_string_lossy().into_owned(),
@@ -1456,6 +1458,7 @@ fn generated_long_wav_runs_eight_full_native_windows_with_stage_memory_samples()
     let job_id = JobId(((std::process::id() as u128) << 64) | 2);
     app.dispatch(AppCommand::StartImport {
         request: ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id,
             generation: Generation::first(),
             source_path: source.to_string_lossy().into_owned(),
@@ -1566,6 +1569,7 @@ fn stop_during_native_inference_is_prompt_and_never_publishes_complete() {
     let generation = Generation::first();
     app.dispatch(AppCommand::StartImport {
         request: ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id,
             generation,
             source_path: source.to_string_lossy().into_owned(),

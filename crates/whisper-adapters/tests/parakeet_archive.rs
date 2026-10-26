@@ -236,6 +236,7 @@ fn parakeet_model_identity_prepares_persists_and_publishes_txt_srt() {
     let model_path = required_path("PARAKEET_L2_MODEL");
     let record = model(ModelId::ParakeetTdt06BV3);
     let mut request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(0x1a2),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -336,6 +337,7 @@ fn modified_parakeet_model_is_refused_before_pending_after_cache_revalidation() 
     let source = required_path("PARAKEET_L2_EN_WAV");
     let output = fixture_root.join("refused-import");
     let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(0x9a901),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -373,6 +375,7 @@ fn parakeet_archive_refuses_model_sha_divergence_before_pending_creation() {
     let source = required_path("PARAKEET_L2_EN_WAV");
     let model_path = required_path("PARAKEET_L2_MODEL");
     let mut request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(0x1a3),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -411,6 +414,7 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
     let model_path = required_path("PARAKEET_L2_MODEL");
     let record = model(ModelId::ParakeetTdt06BV3);
     let make_request = |destination: &PathBuf, job| ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(job),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -581,6 +585,7 @@ fn registered_personal_pending_cpu_and_gpu_scan_and_resume_without_qualification
         let root = archive_root().join(format!("personal-registered-{backend:?}"));
         let _ = fs::remove_dir_all(&root);
         let mut request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(job),
             generation: Generation::first(),
             source_path: source.to_string_lossy().into_owned(),
@@ -716,6 +721,7 @@ fn r5_2_vad_recipe_is_scoped_and_desktop_test_import_is_rejected_before_pending(
     let model_path = required_path("PARAKEET_L2_MODEL");
     let record = model(ModelId::ParakeetTdt06BV3);
     let make_request = |destination: &std::path::Path, job| ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(job),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -769,6 +775,7 @@ fn retired_l2a_pending_remains_visible_but_cannot_be_resumed() {
     let model_path = required_path("PARAKEET_L2_MODEL");
     let record = model(ModelId::ParakeetTdt06BV3);
     let mut request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(0x1ac),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -834,6 +841,7 @@ fn retired_r5_2_pending_is_rejected_with_retirement_cause_and_preserved() {
     let model_path = required_path("PARAKEET_L2_MODEL");
     let record = model(ModelId::ParakeetTdt06BV3);
     let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(0x1b0),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -895,6 +903,7 @@ fn gpu_pending_is_bound_to_the_qualified_physical_identity() {
     let mut qualified_gpu = ArchiveQualificationKey::parakeet_gpu_test();
     assert!(qualified_gpu.is_parakeet_import_test());
     let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(0x1b1),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -954,6 +963,7 @@ fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix() {
     let model_path_text = model_path.to_string_lossy().into_owned();
     let record = model(ModelId::ParakeetTdt06BV3);
     let initial = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(0x1a6),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -1070,6 +1080,7 @@ fn archive_admission_accepts_exactly_qualified_limit_and_refuses_one_extra_sampl
     let record = model(ModelId::ParakeetTdt06BV3);
     for (job, source, expected) in [(0x1a7, exact, Ok(())), (0x1a8, over, Err(()))] {
         let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id: JobId(job),
             generation: Generation::first(),
             source_path: source.to_string_lossy().into_owned(),
@@ -1109,6 +1120,7 @@ fn resume_refuses_over_limit_pending_and_preserves_its_bytes() {
     let model_path = required_path("PARAKEET_L2_MODEL");
     let record = model(ModelId::ParakeetTdt06BV3);
     let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(0x1a9),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
@@ -1303,6 +1315,7 @@ fn r5_2_a4_product_route_publishes_french_and_english_txt_srt() {
         );
         let mut app = ImportApplication::new(io).with_model_guard(guard);
         let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id,
             generation: Generation::first(),
             source_path: source.to_string_lossy().into_owned(),
@@ -1782,6 +1795,7 @@ mod r5_2_long_tests {
         let record = model_registry::model(ModelId::ParakeetTdt06BV3);
         let job_id = JobId(0x4c32_0000_0000_0000_u128 + u128::from(job_nonce));
         let mut request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
             job_id,
             generation: Generation::first(),
             source_path: source.to_string_lossy().into_owned(),

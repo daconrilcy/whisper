@@ -103,6 +103,7 @@ fn turbo_existing_matrix_admits_and_submits_all_1206_guard_requests() {
                     match path_kind {
                         InferencePath::Import => {
                             let request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
                                 job_id,
                                 generation,
                                 source_path: "source.wav".into(),
@@ -399,6 +400,7 @@ fn parakeet_live_is_admitted_only_through_the_live_guard() {
     assert!(guard.admit_live(&live).is_ok());
 
     let import = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(4),
         generation: Generation::first(),
         source_path: "source.wav".into(),
