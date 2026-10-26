@@ -12065,13 +12065,13 @@ mod tests {
         })
         .unwrap();
         let b_pump_deadline = Instant::now() + Duration::from_secs(5);
-        while Instant::now() < b_pump_deadline
-            && b_progress.load(Ordering::Relaxed) < B_SAMPLES as u64
-        {
+        while Instant::now() < b_pump_deadline && b_progress.load(Ordering::Relaxed) == 0 {
             app.dispatch(AppCommand::Refresh).unwrap();
             thread::sleep(Duration::from_millis(2));
         }
-        assert_eq!(b_progress.load(Ordering::Relaxed), B_SAMPLES as u64);
+        let b_written_before_stop = b_progress.load(Ordering::Relaxed);
+        assert!(b_written_before_stop > 0);
+        assert!(b_written_before_stop < B_SAMPLES as u64);
         assert_eq!(calls.load(Ordering::Relaxed), 1);
         assert_eq!(maximum_active.load(Ordering::Relaxed), 1);
 
@@ -12127,6 +12127,75 @@ mod tests {
                     .is_file()
             );
         }
+        let capture_generation = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", B_ID))
+            .join("1");
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(capture_generation.join("captured-source-parts.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(manifest["source_samples"].as_u64(), Some(B_SAMPLES as u64));
+        let parts = manifest["parts"].as_array().unwrap();
+        assert!(parts.len() > 1);
+        let mut part_cursor = 0_u64;
+        for part in parts {
+            assert_eq!(part["start_sample"].as_u64(), Some(part_cursor));
+            part_cursor = part["end_sample"].as_u64().unwrap();
+            assert!(Path::new(part["path"].as_str().unwrap()).is_file());
+        }
+        assert_eq!(part_cursor, B_SAMPLES as u64);
+
+        let mut reference_capture = crate::capture::CaptureStream::empty_test_capture(
+            16_000,
+            1,
+            "test:import-capture-reference",
+        );
+        for _ in 0..7 {
+            reference_capture.enqueue_test_block(vec![0.15; 5 * 16_000]);
+        }
+        let mut reference_converter = crate::capture::Pcm16Converter::new(16_000, 1).unwrap();
+        let mut expected_pcm = Vec::with_capacity(B_SAMPLES);
+        while let Some(block) = reference_capture.try_next_block() {
+            expected_pcm.extend(reference_converter.push(&block).unwrap());
+            reference_capture.recycle_block(block).unwrap();
+        }
+        expected_pcm.extend(reference_converter.finish().unwrap());
+        assert_eq!(expected_pcm.len(), B_SAMPLES);
+        let capture_source = crate::parakeet_audio::PcmPartStore::open(
+            capture_generation.join("parakeet-unified/source.wav"),
+        );
+        let mut sample_cursor = 0_u64;
+        while sample_cursor < B_SAMPLES as u64 {
+            let end = sample_cursor.saturating_add(80_000).min(B_SAMPLES as u64);
+            let samples = capture_source.read_window(sample_cursor..end).unwrap();
+            assert_eq!(samples.len() as u64, end - sample_cursor);
+            assert!(
+                samples
+                    .iter()
+                    .zip(&expected_pcm[sample_cursor as usize..end as usize])
+                    .all(|(actual, expected)| actual.abs_diff(*expected) <= 2)
+            );
+            sample_cursor = end;
+        }
+        let coverage = std::fs::read_to_string(
+            capture_generation.join("parakeet-unified/document/coverage.jsonl"),
+        )
+        .unwrap();
+        let windows = coverage
+            .lines()
+            .map(|line| {
+                serde_json::from_str::<whisper_core::ports::ParakeetWindowCoverage>(line).unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert!(!windows.is_empty());
+        assert_eq!(windows.first().unwrap().range.start_sample, 0);
+        assert_eq!(windows.last().unwrap().range.end_sample, B_SAMPLES as u64);
+        assert!(
+            windows
+                .windows(2)
+                .all(|pair| pair[0].range.end_sample == pair[1].range.start_sample)
+        );
         assert_eq!(maximum_active.load(Ordering::Relaxed), 1);
     }
 
