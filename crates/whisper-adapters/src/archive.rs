@@ -2574,7 +2574,7 @@ impl ArchiveStore {
             );
         }
         let (source_sha, source_samples, manifest) = segmented_pcm_manifest(source)?;
-        let mut prepared = self.prepare_inner_impl(
+        let prepared = self.prepare_inner_impl(
             request,
             executable_model_path,
             qualification,
@@ -2595,8 +2595,6 @@ impl ArchiveStore {
             .map_err(|error| format!("StorageUnavailable: capture source manifest: {error}"))?;
         let active = self.current.as_mut().unwrap();
         active.segmented_source_manifest = Some((manifest_path, Sha256::digest(&bytes).into()));
-        prepared.source_sha256 = Some(hex(&source_sha));
-        prepared.source_samples = Some(source_samples);
         Ok(prepared)
     }
 
@@ -2666,7 +2664,7 @@ impl ArchiveStore {
                         .into(),
                 );
             }
-            (hex(&sha), samples)
+            (sha, samples)
         } else if let Some(binding) = source_binding {
             if binding.original_path() != request.source_path
                 || binding.strategy() != request.strategy
@@ -6780,7 +6778,7 @@ fn segmented_pcm_manifest(
             "SourceChanged: captured PCM parts changed while their identity was computed".into(),
         );
     }
-    let identity = digest.finalize().into();
+    let identity: [u8; 32] = digest.finalize().into();
     let manifest = CapturedSourceManifest {
         version: 1,
         source_sha256: hex(&identity),
@@ -8402,6 +8400,47 @@ mod tests {
             vec![r11_job],
             "explicit activation applies Replace after revalidating the visible legacy set"
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn segmented_capture_identity_references_every_rotated_pcm_part() {
+        let root = std::env::temp_dir().join(format!(
+            "whisper-segmented-capture-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let source_path = root.join("capture.wav");
+        let mut writer =
+            crate::parakeet_audio::CapturePcmWriter::start_with_test_part_limit(&source_path, 4, 4)
+                .unwrap();
+        writer.try_append(&[11, 22, 33, 44, 55]).unwrap();
+        assert_eq!(writer.close().unwrap(), 5);
+
+        let source = crate::parakeet_audio::PcmPartStore::open(&source_path);
+        let (identity, samples, manifest) = segmented_pcm_manifest(&source).unwrap();
+        assert_eq!(samples, 5);
+        assert_eq!(manifest.source_samples, samples);
+        assert_eq!(manifest.source_sha256, hex(&identity));
+        assert_eq!(manifest.parts.len(), 3);
+        assert_eq!(
+            manifest
+                .parts
+                .iter()
+                .map(|part| (part.start_sample, part.end_sample))
+                .collect::<Vec<_>>(),
+            vec![(0, 2), (2, 4), (4, 5)]
+        );
+        assert!(manifest.parts.iter().all(|part| {
+            let path = Path::new(&part.path);
+            path.is_file()
+                && hex(&sha256_file(path).unwrap()) == part.sha256
+                && fs::metadata(path).unwrap().len() == part.bytes
+        }));
         fs::remove_dir_all(root).unwrap();
     }
 }

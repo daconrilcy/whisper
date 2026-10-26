@@ -2615,7 +2615,12 @@ impl ImportRuntime {
         if self.unified_sessions.len() >= 2 {
             return Err("SchedulerCapacity: two unified sessions are already admitted".into());
         }
-        if self.controlled_transcriber.is_none() && self.unified_executor.is_none() {
+        let executor_available = self.unified_executor.is_some();
+        #[cfg(test)]
+        let controlled_worker_available = self.controlled_transcriber.is_some();
+        #[cfg(not(test))]
+        let controlled_worker_available = false;
+        if !controlled_worker_available && !executor_available {
             return Err("ModelNotQualified: controlled worker injection is required".into());
         }
         let session = whisper_core::parakeet_scheduler::SchedulerSession {
@@ -2682,7 +2687,12 @@ impl ImportRuntime {
         if self.unified_sessions.len() >= 2 {
             return Err("SchedulerCapacity: two unified sessions are already admitted".into());
         }
-        if self.controlled_transcriber.is_none() && self.unified_executor.is_none() {
+        let executor_available = self.unified_executor.is_some();
+        #[cfg(test)]
+        let controlled_worker_available = self.controlled_transcriber.is_some();
+        #[cfg(not(test))]
+        let controlled_worker_available = false;
+        if !controlled_worker_available && !executor_available {
             return Err("ModelNotQualified: controlled worker injection is required".into());
         }
         let session = whisper_core::parakeet_scheduler::SchedulerSession {
@@ -2702,7 +2712,7 @@ impl ImportRuntime {
             {
                 crate::parakeet_live::UnifiedCapturePump::from_capture_with_test_part_limit(
                     capture,
-                    source_path,
+                    source_path.clone(),
                     limit,
                 )
             }
@@ -2712,7 +2722,7 @@ impl ImportRuntime {
                 return Err("TestOnlyRotationUnavailable".into());
             }
         } else {
-            crate::parakeet_live::UnifiedCapturePump::from_capture(capture, source_path)
+            crate::parakeet_live::UnifiedCapturePump::from_capture(capture, source_path.clone())
         }
         .map_err(|error| format!("CaptureStart: {error}"))?;
         let document = crate::parakeet_document::ParakeetDocumentStore::create(

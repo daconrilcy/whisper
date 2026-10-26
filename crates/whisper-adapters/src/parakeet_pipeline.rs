@@ -362,7 +362,7 @@ where
         transcriber.instance_id(),
         job_id,
         generation,
-        words,
+        &words,
     )
 }
 
@@ -628,6 +628,7 @@ mod tests {
         let total = 121 * 16_000_u64;
         writer.append(&vec![0_i16; total as usize]).unwrap();
         writer.finish().unwrap();
+        let source = PcmPartStore::open(&audio_path);
         let mut document =
             ParakeetDocumentStore::create(root.join("document"), JobId(33), Generation::first())
                 .unwrap();
