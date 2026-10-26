@@ -34,6 +34,12 @@ Question posée : « Pendant l'enregistrement micro, quel affichage souhaitez-vo
 
 > ok fais le cadrage avec les agents dediés
 
+**S-USER-04 — Durées longues incluses, réponse à Q-PU-01 pendant le cadrage :**
+
+> Inclure les audios et enregistrements de plus de 30 minutes ; cadrer aussi leur découpage et leur finalisation automatique.
+
+Question : faut-il inclure les durées supérieures à 30 minutes, ou garder la limite actuelle avec annonce et arrêt micro propre ? L'utilisateur retient l'inclusion des durées longues. Cela autorise leur conception, pas une campagne, une implémentation ni une durée illimitée garantie. Les limites techniques justifiées restent à établir par le cadrage.
+
 **S-QUAL-01 — Qualification dans cette conversation :** revue indépendante `revue_qualification`, verdict PASS, aucun P0/P1. Le résultat final reste automatique et ne vaut pas vérification humaine. Aucun fichier ni code créé sous cette mission de qualification.
 
 ### Besoin et critères issus de la qualification
