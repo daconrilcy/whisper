@@ -9461,10 +9461,10 @@ mod tests {
         assert!(matches!(
             runtime.poll_controlled_document(),
             Some(Ok(ImportEvent::Progress {
-                completed_samples: 121 * 16_000,
-                total_samples: 121 * 16_000,
+                completed_samples,
+                total_samples,
                 ..
-            }))
+            })) if completed_samples == 121 * 16_000 && total_samples == 121 * 16_000
         ));
         assert!(
             matches!(runtime.poll_controlled_document(), Some(Ok(ImportEvent::End { last_sequence: 2, last_offset, .. })) if last_offset == 121 * 16_000)
