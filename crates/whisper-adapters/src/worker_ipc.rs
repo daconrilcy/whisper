@@ -9400,7 +9400,9 @@ mod tests {
         let fixture = std::env::var_os("WHISPER_PU_L1_MP3_FIXTURE")
             .map(PathBuf::from)
             .expect("WHISPER_PU_L1_MP3_FIXTURE must name the guarded MP3 fixture");
-        let fixture = fixture.canonicalize().expect("guarded MP3 fixture must exist");
+        let fixture = fixture
+            .canonicalize()
+            .expect("guarded MP3 fixture must exist");
         let source_before = std::fs::read(&fixture).expect("read guarded MP3 fixture");
         assert_eq!(source_before.len(), 22_822);
         assert_eq!(
@@ -9475,13 +9477,15 @@ mod tests {
             .len(),
             1
         );
-        assert!(ArchiveStore::published_imports_for_strategy(
-            &destination,
-            &entry.source_sha256,
-            whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-        )
-        .unwrap()
-        .is_empty());
+        assert!(
+            ArchiveStore::published_imports_for_strategy(
+                &destination,
+                &entry.source_sha256,
+                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+            )
+            .unwrap()
+            .is_empty()
+        );
 
         let generation = destination
             .join("transcriptions")
@@ -9498,18 +9502,22 @@ mod tests {
                 .unwrap();
         assert_eq!(pending["source_samples"].as_u64(), Some(decoded_samples));
 
-        let coverage: Vec<whisper_core::ports::ParakeetWindowCoverage> = std::fs::read_to_string(
-            generation.join("parakeet-unified/document/coverage.jsonl"),
-        )
-        .unwrap()
-        .lines()
-        .map(|line| serde_json::from_str(line).unwrap())
-        .collect();
-        assert!(!coverage.is_empty(), "MP3 coverage must include decoded audio");
+        let coverage: Vec<whisper_core::ports::ParakeetWindowCoverage> =
+            std::fs::read_to_string(generation.join("parakeet-unified/document/coverage.jsonl"))
+                .unwrap()
+                .lines()
+                .map(|line| serde_json::from_str(line).unwrap())
+                .collect();
+        assert!(
+            !coverage.is_empty(),
+            "MP3 coverage must include decoded audio"
+        );
         assert_eq!(coverage[0].range.start_sample, 0);
-        assert!(coverage.windows(2).all(|pair| {
-            pair[0].range.end_sample == pair[1].range.start_sample
-        }));
+        assert!(
+            coverage
+                .windows(2)
+                .all(|pair| { pair[0].range.end_sample == pair[1].range.start_sample })
+        );
         assert_eq!(coverage.last().unwrap().range.end_sample, decoded_samples);
 
         let internal_txt = std::fs::read(generation.join("transcript.txt")).unwrap();
@@ -9518,13 +9526,21 @@ mod tests {
         assert!(!internal_srt.is_empty());
         let export_basename = entry.export_basename.as_ref().unwrap();
         assert_eq!(
-            std::fs::read(destination.join("exports").join(format!("{export_basename}.txt")))
-                .unwrap(),
+            std::fs::read(
+                destination
+                    .join("exports")
+                    .join(format!("{export_basename}.txt"))
+            )
+            .unwrap(),
             internal_txt
         );
         assert_eq!(
-            std::fs::read(destination.join("exports").join(format!("{export_basename}.srt")))
-                .unwrap(),
+            std::fs::read(
+                destination
+                    .join("exports")
+                    .join(format!("{export_basename}.srt"))
+            )
+            .unwrap(),
             internal_srt
         );
 
