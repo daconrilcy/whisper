@@ -3971,6 +3971,11 @@ impl ImportRuntime {
         let finished_session = self.unified_sessions.iter().find_map(|(session, state)| {
             (state.source_closed
                 && state.pending_call.is_none()
+                && state.pending_prepared.is_none()
+                && self
+                    .parakeet_scheduler
+                    .in_flight()
+                    .is_none_or(|call| call.session != *session)
                 && state.finalizer.processed_samples() == state.available_samples)
                 .then_some(*session)
         });
