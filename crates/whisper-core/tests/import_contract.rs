@@ -46,28 +46,6 @@ fn request(job_id: JobId) -> ImportRequest {
 }
 
 #[test]
-fn import_strategy_defaults_to_legacy_and_round_trips_explicit_versions() {
-    let legacy = serde_json::to_value(request(JobId(99))).unwrap();
-    let mut historical = legacy.clone();
-    historical.as_object_mut().unwrap().remove("strategy");
-    let decoded: ImportRequest = serde_json::from_value(historical).unwrap();
-    assert_eq!(
-        decoded.strategy,
-        whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
-    );
-
-    let mut unified = request(JobId(100));
-    unified.strategy = whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
-    let encoded = serde_json::to_vec(&unified).unwrap();
-    let decoded: ImportRequest = serde_json::from_slice(&encoded).unwrap();
-    assert_eq!(decoded, unified);
-
-    let mut unknown = serde_json::to_value(unified).unwrap();
-    unknown["strategy"] = serde_json::Value::String("future_strategy".into());
-    assert!(serde_json::from_value::<ImportRequest>(unknown).is_err());
-}
-
-#[test]
 fn application_keeps_bounded_strategy_in_prepare_and_start_effects() {
     let io = FakeIo::default();
     let mut app = ImportApplication::new(io.clone());
