@@ -2786,6 +2786,7 @@ impl ArchiveStore {
         }
         let destination = PathBuf::from(&request.destination);
         fs::create_dir_all(&destination).map_err(|e| format!("StorageUnavailable: {e}"))?;
+        let _publication_lock = Self::lock_publications(&destination)?;
         let directory = destination
             .join("transcriptions")
             .join(format!("{:032x}", request.job_id.0))
@@ -2842,6 +2843,9 @@ impl ArchiveStore {
             || publication.source_samples != source_samples
         {
             return Err("SourceChanged: publication reservation does not match source".into());
+        }
+        if !reservation.is_file() {
+            write_publication_intent(&destination, &request, &publication)?;
         }
         fs::create_dir_all(&directory).map_err(|e| format!("StorageUnavailable: {e}"))?;
         let pending = PendingRecord {

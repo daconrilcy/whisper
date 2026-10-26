@@ -11744,6 +11744,32 @@ mod tests {
 
         let entries = ArchiveStore::scan(&archive_root).unwrap();
         let final_call_count = calls.load(Ordering::Relaxed);
+        let entry_for = |job_id| entries.iter().find(|entry| entry.job_id == job_id);
+        for (job_id, label) in [(JobId(A_ID), "A"), (JobId(B_ID), "B")] {
+            let entry = entry_for(job_id).unwrap_or_else(|| {
+                panic!(
+                    "capture {label} has no archive entry; A={:?}, B={:?}, app_view={:?}",
+                    entry_for(JobId(A_ID)),
+                    entry_for(JobId(B_ID)),
+                    app.view()
+                )
+            });
+            assert!(
+                entry.complete,
+                "capture {label} was not published; A={:?}, B={:?}, app_view={:?}",
+                entry_for(JobId(A_ID)),
+                entry_for(JobId(B_ID)),
+                app.view()
+            );
+        }
+        let a_entry = entry_for(JobId(A_ID)).unwrap();
+        let b_entry = entry_for(JobId(B_ID)).unwrap();
+        let a_basename = a_entry.export_basename.as_deref().unwrap();
+        let b_basename = b_entry.export_basename.as_deref().unwrap();
+        assert_ne!(
+            a_basename, b_basename,
+            "simultaneous unpublished generations must hold distinct export reservations"
+        );
         for (job_id, expected_samples, label) in [
             (JobId(A_ID), A_SAMPLES as u64, "A"),
             (JobId(B_ID), B_SAMPLES as u64, "B"),
@@ -11751,11 +11777,23 @@ mod tests {
             let entry = entries
                 .iter()
                 .find(|entry| entry.job_id == job_id && entry.complete)
-                .unwrap_or_else(|| panic!("capture {label} was not fully published"));
+                .unwrap_or_else(|| {
+                    panic!(
+                        "capture {label} was not fully published; A={:?}, B={:?}, app_view={:?}",
+                        entry_for(JobId(A_ID)),
+                        entry_for(JobId(B_ID)),
+                        app.view()
+                    )
+                });
             let generation = archive_root
                 .join("transcriptions")
                 .join(format!("{:032x}", job_id.0))
                 .join("1");
+            assert!(generation.join("CURRENT").is_file());
+            assert_eq!(
+                std::fs::read_to_string(generation.join("CURRENT")).unwrap(),
+                "manifest.json\n"
+            );
             assert!(generation.join("transcript.txt").is_file());
             assert!(generation.join("transcript.srt").is_file());
             let transcript = std::fs::read_to_string(generation.join("transcript.txt")).unwrap();
@@ -11765,17 +11803,17 @@ mod tests {
                 assert!(transcript.contains(&format!("B-final-{}.", final_call_count - 1)));
             }
             let basename = entry.export_basename.as_ref().unwrap();
-            assert!(
-                archive_root
-                    .join("exports")
-                    .join(format!("{basename}.txt"))
-                    .is_file()
+            assert_eq!(
+                std::fs::read(archive_root.join("exports").join(format!("{basename}.txt")))
+                    .unwrap(),
+                std::fs::read(generation.join("transcript.txt")).unwrap(),
+                "capture {label} TXT export must belong to its published generation"
             );
-            assert!(
-                archive_root
-                    .join("exports")
-                    .join(format!("{basename}.srt"))
-                    .is_file()
+            assert_eq!(
+                std::fs::read(archive_root.join("exports").join(format!("{basename}.srt")))
+                    .unwrap(),
+                std::fs::read(generation.join("transcript.srt")).unwrap(),
+                "capture {label} SRT export must belong to its published generation"
             );
 
             let manifest_path = generation.join("captured-source-parts.json");
