@@ -1,12 +1,12 @@
 Avancée : cadrage complet versionné ; revue indépendante CLEAN après un cycle de correction.
 Blocage : aucun constat REQUIRED ouvert ; mesures produit et seuils de délai restent à établir.
-Décision : DESIGN READY pour acceptation utilisateur ; planification et implémentation restent distinctes.
+Décision : design accepté pour planification par l'utilisateur ; implémentation distincte non autorisée.
 
 # Parakeet — transcription unifiée au micro et à l'import
 
 ## 1. Identité, autorisation et sources
 
-- ID : D-PARA-UNIFIED-01 ; version : v0.2 ; statut : DESIGN READY pour acceptation utilisateur.
+- ID : D-PARA-UNIFIED-01 ; version : v0.2 ; statut : DESIGN READY, accepté pour planification.
 - Date : 26 octobre 2026. Dépôt : `C:\dev\whisper` ; branche : `evo-startup-perf`.
 - Base produit inspectée : `a483e176759fcd2f2340f221470fe09f20ec8545`.
 - Auteur documentaire autorisé : session Codex principale ; spécialistes en lecture seule, contributions attribuées ci-dessous.
@@ -56,6 +56,12 @@ Question : un seul fichier `.wav` passant à RF64 si nécessaire, avec compatibi
 
 **S-QUAL-01 — Qualification dans cette conversation :** revue indépendante `revue_qualification`, verdict PASS, aucun P0/P1. Le résultat final reste automatique et ne vaut pas vérification humaine. Aucun fichier ni code créé sous cette mission de qualification.
 
+**S-USER-07 — Acceptation du cadrage pour planification, même session :**
+
+> ok tu peux maintenant rediger le plan d'implementation à partir de ces données de cadrage.
+
+Cette réponse accepte le design présenté et autorise sa planification documentaire, avec revue indépendante et commits locaux des livrables dans `docs/cadrage/`. Elle n'autorise ni code produit, ni campagne, ni compilation, ni push. Les seuils Q-PU-03 et le détail Q-RQ-01 gardent leur échéance avant les travaux/validations concernés. Livrables de cette nouvelle mission : `plan-parakeet-transcription-unifiee.md` et `revue-plan-parakeet-transcription-unifiee.md`.
+
 ### Besoin et critères issus de la qualification
 
 | ID | Résultat attendu |
@@ -88,7 +94,7 @@ Question : un seul fichier `.wav` passant à RF64 si nécessaire, avec compatibi
 | 5 — Domaine, états et invariants | rust_domain_architect | DOMAIN-PU v2 intégré |
 | 6 — Architecture, contrats, dépendances et preuves | rust_architect | ARCH-PU v2 intégré |
 | 7 — Questions et traçabilité transversale | sources utilisateur et contributions attribuées | Décisions versionnées, couverture sections 4–6 |
-| 8 — Readiness et suite | session principale, sur verdict du reviewer | DESIGN READY pour acceptation utilisateur |
+| 8 — Readiness et suite | session principale, sur verdict du reviewer | DESIGN READY, accepté pour planification par S-USER-07 |
 | Compte rendu de revue séparé | rust_design_reviewer | CLEAN sur 42c8c16d ; R1 et A1 CLOSED |
 
 ## 3. Brief produit
@@ -453,7 +459,7 @@ CAP-PU-01 à 10 → REQ-PU/UC-PU/AC-PU-01 à 10 : couverture bijective en §4 ; 
 
 ## 8. Readiness
 
-**DESIGN READY pour acceptation utilisateur** — contributions PRODUCT-PU v1, REQUIREMENTS-PU v2, DOMAIN-PU v2 et ARCH-PU v2 intégrées. Revue initiale FINDINGS sur `bb308b58`, puis re-revue **CLEAN** par le même reviewer indépendant sur le candidat `42c8c16d379a0acb9ea91416fbd0eb5a587a0270`. Le reviewer a fermé DESIGN-PU-R1 et DESIGN-PU-A1 après un cycle de correction ; aucun REQUIRED ouvert. Voir `revue-parakeet-transcription-unifiee.md`.
+**DESIGN READY, accepté pour planification par S-USER-07** — contributions PRODUCT-PU v1, REQUIREMENTS-PU v2, DOMAIN-PU v2 et ARCH-PU v2 intégrées. Revue initiale FINDINGS sur `bb308b58`, puis re-revue **CLEAN** par le même reviewer indépendant sur le candidat `42c8c16d379a0acb9ea91416fbd0eb5a587a0270`. Le reviewer a fermé DESIGN-PU-R1 et DESIGN-PU-A1 après un cycle de correction ; aucun REQUIRED ouvert. Voir `revue-parakeet-transcription-unifiee.md`. L'ajout de S-USER-07 et des métadonnées d'acceptation ne change aucun contrat technique revu.
 
 La clôture documentaire ne modifie que les métadonnées et consigne ce verdict, comme expressément permis par le reviewer. Aucun changement technique après la re-revue. Q-PU-03 et Q-RQ-01 restent ouverts avant les lots/validations concernés ; performances, raccords, ressources et recette Windows restent NOT RUN. Acceptation utilisateur du design, planification et implémentation restent distinctes.
 
@@ -470,4 +476,4 @@ La clôture documentaire ne modifie que les métadonnées et consigne ce verdict
 | Risks | §6.5 faisabilité documentaire distinguée de validation produit et livraison, réserves anciennes non fermées. |
 | Railguard | N/A : aucun nouveau railguard exigé ou activé ; règles AGENTS et frontières centrales analysées. |
 
-Suite autorisable après ce cadrage : acceptation du design, puis mission distincte de planification avec un plan futur de dix tâches maximum lié aux REQ/AC. Aucun plan exécutable ni lot de code n'est produit par cette mission.
+Suite autorisée par S-USER-07 : planification documentaire, plan futur de dix tâches maximum lié aux REQ/AC, revue indépendante. Aucun lot de code ni campagne n'est autorisé par cette mission.
