@@ -1,7 +1,8 @@
 use crate::domain::{Generation, JobConfig, JobId, JobState};
 use crate::ports::{
     ArchiveHistoryItem, DiagnosticNotice, DuplicateImportChoice, DuplicateImportPrompt,
-    ImportEffect, ImportEvent, ImportIoPort, ImportQueueEntry, ImportRequest, LiveRequest,
+    ImportEffect, ImportEvent, ImportIoPort, ImportQueueEntry, ImportQueueStatus, ImportRequest,
+    LiveRequest,
     PortError, ReplacementCleanupInfo, SourceSnapshotRecoveryCandidate,
 };
 
@@ -135,6 +136,9 @@ fn l3d_event_trace(event: &ImportEvent) {
             job_id, generation, ..
         }
         | ImportEvent::Published { job_id, generation }
+        | ImportEvent::UnifiedDocumentPage { job_id, generation, .. }
+        | ImportEvent::UnifiedAudioPartsPage { job_id, generation, .. }
+        | ImportEvent::UnifiedPublicationArtifacts { job_id, generation, .. }
         | ImportEvent::Failed {
             job_id, generation, ..
         }
@@ -227,6 +231,9 @@ impl ImportEvent {
             Self::Persisted { .. } => "persisted",
             Self::End { .. } => "end",
             Self::Published { .. } => "published",
+            Self::UnifiedDocumentPage { .. } => "unified_document_page",
+            Self::UnifiedAudioPartsPage { .. } => "unified_audio_parts_page",
+            Self::UnifiedPublicationArtifacts { .. } => "unified_publication_artifacts",
             Self::Failed { .. } => "failed",
             Self::Stopped { .. } => "stopped",
         }
@@ -277,6 +284,23 @@ pub enum AppCommand {
     StartUnifiedLiveConfigured {
         request: LiveRequest,
     },
+    ReadUnifiedDocumentPage {
+        job_id: JobId,
+        generation: Generation,
+        expected_revision: u64,
+        first_sequence: u64,
+    },
+    ReadUnifiedAudioPartsPage {
+        job_id: JobId,
+        generation: Generation,
+        expected_revision: u64,
+        offset: u64,
+    },
+    SelectUnifiedSession {
+        job_id: JobId,
+        generation: Generation,
+    },
+    RequestClose,
     StartDirectLiveConfigured {
         request: LiveRequest,
     },
@@ -378,6 +402,13 @@ impl AppCommand {
                 generation: request.generation,
             }),
             Self::ScanHistory { .. } => None,
+            Self::RequestClose => None,
+            Self::ReadUnifiedDocumentPage { job_id, generation, .. }
+            | Self::ReadUnifiedAudioPartsPage { job_id, generation, .. }
+            | Self::SelectUnifiedSession { job_id, generation } => Some(CommandIdentity {
+                job_id: *job_id,
+                generation: *generation,
+            }),
             Self::ResolveDuplicateImport { prompt, .. } => Some(CommandIdentity {
                 job_id: prompt.request.job_id,
                 generation: prompt.request.generation,
@@ -436,6 +467,10 @@ pub struct AppView {
     pub automatic_final_transcription: Option<crate::ports::AutomaticFinalTranscriptionView>,
     /// Parakeet captures from this process only; a new process starts with an empty list.
     pub parakeet_captures: Vec<crate::ports::ParakeetCaptureView>,
+    pub unified_parakeet_sessions: Vec<crate::ports::UnifiedParakeetSessionView>,
+    pub selected_unified_session: Option<crate::ports::UnifiedParakeetSelectionView>,
+    pub close_requested: bool,
+    pub close_ready: bool,
     pub microphone_test_active: bool,
     pub microphone_acquisition: Option<crate::microphone_level::MicrophoneAcquisitionContext>,
     pub microphone_source_identity: Option<String>,
@@ -491,6 +526,11 @@ pub struct ImportApplication<P> {
     active_live_parakeet: Option<CommandIdentity>,
     unified_captures: std::collections::HashMap<(JobId, Generation), UnifiedCaptureAdmission>,
     microphone_gain_view_owner: Option<CommandIdentity>,
+    next_unified_page_request_id: u64,
+    current_unified_document_request: Option<((JobId, Generation), u64)>,
+    current_unified_audio_request: Option<((JobId, Generation), u64)>,
+    close_queue_removals: Vec<CommandIdentity>,
+    close_active_stop_submitted: bool,
 }
 
 struct UnifiedCaptureAdmission {
@@ -551,6 +591,11 @@ impl<P: ImportIoPort> ImportApplication<P> {
             active_live_parakeet: None,
             unified_captures: std::collections::HashMap::new(),
             microphone_gain_view_owner: None,
+            next_unified_page_request_id: 0,
+            current_unified_document_request: None,
+            current_unified_audio_request: None,
+            close_queue_removals: Vec::new(),
+            close_active_stop_submitted: false,
         }
     }
 
@@ -576,6 +621,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
     fn poll_once(&mut self) -> Result<(), ApplicationError> {
         self.retry_pending_unified_capture_segments()?;
         if !self.retry_pending_segment()? {
+            self.update_close_ready();
             return Ok(());
         }
         let _ = self.retry_automatic_final_segment()?;
@@ -589,24 +635,159 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
             };
             let Some(event) = polled else {
+                self.update_close_ready();
                 return Ok(());
             };
             let became_ready = matches!(&event, ImportEvent::Ready { .. });
-            let unified_capture_event = self.unified_captures.contains_key(&event.identity());
+            let event_identity = event.identity();
+            let unified_capture_event = self.unified_captures.contains_key(&event_identity)
+                || self.view.unified_parakeet_sessions.iter().any(|session| {
+                    (session.job_id, session.generation) == event_identity
+                });
             l3d_event_trace(&event);
             self.handle_event(event)?;
             if !self.pending_segments.is_empty() && !unified_capture_event {
+                self.update_close_ready();
                 return Ok(());
             }
             if became_ready {
+                self.update_close_ready();
                 return Ok(());
             }
+        }
+        self.update_close_ready();
+        Ok(())
+    }
+
+    fn update_close_ready(&mut self) {
+        self.view.close_ready = self.view.close_requested
+            && self.active.is_none()
+            && self.unified_captures.is_empty()
+            && !self.view.microphone_test_active
+            && self.automatic_final_identity.is_none()
+            && self.automatic_final_queue.is_empty()
+            && self.view.queue.is_empty()
+            && self.pending_enqueues.is_empty()
+            && self.pending_segments.is_empty()
+            && self.pending_live_segments.is_empty()
+            && self.pending_persistence == 0
+            && self.close_queue_removals.is_empty()
+            && self.view.duplicate_import_prompt.is_none()
+            && !self.view.queue_scan_pending;
+    }
+
+    fn drive_close_queue_removals(&mut self) -> Result<(), ApplicationError> {
+        if !self.view.close_requested {
+            return Ok(());
+        }
+        let removals = self
+            .view
+            .queue
+            .iter()
+            .filter(|entry| entry.status != ImportQueueStatus::Running)
+            .filter_map(|entry| {
+                let identity = CommandIdentity {
+                    job_id: entry.request.job_id,
+                    generation: entry.request.generation,
+                };
+                (!self.close_queue_removals.contains(&identity)).then_some((
+                    identity,
+                    entry.request.destination.clone(),
+                ))
+            })
+            .collect::<Vec<_>>();
+        for (identity, destination) in removals {
+            self.io
+                .submit(ImportEffect::RemoveQueued {
+                    job_id: identity.job_id,
+                    generation: identity.generation,
+                    destination,
+                })
+                .map_err(|error| self.fail(error))?;
+            self.close_queue_removals.push(identity);
         }
         Ok(())
     }
 
+    fn add_unified_session_card(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        destination: String,
+        source_path: String,
+        microphone_capture: bool,
+    ) {
+        if self.view.unified_parakeet_sessions.iter().any(|session| {
+            (session.job_id, session.generation) == (job_id, generation)
+        }) {
+            return;
+        }
+        if self.view.unified_parakeet_sessions.len() >= MAX_PARAKEET_CAPTURE_VIEWS {
+            let Some(index) = self
+                .view
+                .unified_parakeet_sessions
+                .iter()
+                .position(|session| {
+                    matches!(
+                        session.phase,
+                        crate::ports::UnifiedSessionPhase::Complete
+                            | crate::ports::UnifiedSessionPhase::Recoverable
+                    )
+                })
+            else {
+                return;
+            };
+            let removed = self.view.unified_parakeet_sessions.remove(index);
+            if self.view.selected_unified_session.as_ref().is_some_and(|selected| {
+                (selected.job_id, selected.generation) == (removed.job_id, removed.generation)
+            }) {
+                self.view.selected_unified_session = None;
+            }
+        }
+        self.view.unified_parakeet_sessions.push(
+            crate::ports::UnifiedParakeetSessionView {
+                job_id,
+                generation,
+                microphone_capture,
+                destination,
+                source_path,
+                phase: crate::ports::UnifiedSessionPhase::Starting,
+                captured_samples: 0,
+                durable_samples: 0,
+                total_samples: None,
+                document_revision: 0,
+                audio_parts_revision: 0,
+                wav_path: None,
+                txt_path: None,
+                srt_path: None,
+                message: None,
+            },
+        );
+        self.view.selected_unified_session = Some(
+            crate::ports::UnifiedParakeetSelectionView {
+                job_id,
+                generation,
+                document_page: None,
+                preview: None,
+                audio_parts_page: None,
+                document_error: None,
+                audio_parts_error: None,
+            },
+        );
+        self.current_unified_document_request = None;
+        self.current_unified_audio_request = None;
+    }
+
     fn handle_event(&mut self, event: ImportEvent) -> Result<(), ApplicationError> {
         let event_identity = event.identity();
+        if matches!(
+            &event,
+            ImportEvent::UnifiedDocumentPage { .. }
+                | ImportEvent::UnifiedAudioPartsPage { .. }
+                | ImportEvent::UnifiedPublicationArtifacts { .. }
+        ) {
+            return self.handle_unified_capture_event(event);
+        }
         if self.unified_captures.contains_key(&event_identity) {
             return self.handle_unified_capture_event(event);
         }
@@ -666,6 +847,13 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
                 self.view.queued_jobs = queue.len();
                 self.view.queue = queue.clone();
+                self.close_queue_removals.retain(|identity| {
+                    queue.iter().any(|entry| {
+                        (entry.request.job_id, entry.request.generation)
+                            == (identity.job_id, identity.generation)
+                    })
+                });
+                self.drive_close_queue_removals()?;
                 return Ok(());
             }
             ImportEvent::QueueAdmission {
@@ -688,6 +876,13 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
                 self.view.queued_jobs = queue.len();
                 self.view.queue = queue.clone();
+                self.close_queue_removals.retain(|identity| {
+                    queue.iter().any(|entry| {
+                        (entry.request.job_id, entry.request.generation)
+                            == (identity.job_id, identity.generation)
+                    })
+                });
+                self.drive_close_queue_removals()?;
                 return Ok(());
             }
             ImportEvent::DuplicateImportFound(prompt) => {
@@ -728,6 +923,25 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 self.view.message = Some(format!("File durable indisponible : {message}"));
                 return Ok(());
             }
+            ImportEvent::Failed {
+                job_id,
+                generation,
+                message,
+            } => {
+                let identity = CommandIdentity {
+                    job_id: *job_id,
+                    generation: *generation,
+                };
+                if self.close_queue_removals.contains(&identity) {
+                    self.close_queue_removals.retain(|pending| *pending != identity);
+                    self.view.message = Some(format!(
+                        "Retrait de l’import {} impossible : {message}. La file est conservée.",
+                        job_id.0
+                    ));
+                    self.update_close_ready();
+                    return Ok(());
+                }
+            }
             _ => {}
         }
         let (job_id, generation) = event.identity();
@@ -764,6 +978,80 @@ impl<P: ImportIoPort> ImportApplication<P> {
             && !enqueue_failed
         {
             return Ok(());
+        }
+        if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|session| {
+            (session.job_id, session.generation) == (job_id, generation)
+        }) {
+            match &event {
+                ImportEvent::Prepared(request) => {
+                    session.total_samples = request.source_samples;
+                    session.source_path = request.source_path.clone();
+                    session.audio_parts_revision = 0;
+                    session.wav_path = Some(
+                        std::path::PathBuf::from(&request.destination)
+                            .join("transcriptions")
+                            .join(format!("{:032x}", request.job_id.0))
+                            .join(request.generation.get().to_string())
+                            .join("parakeet-unified/source.wav")
+                            .to_string_lossy()
+                            .into_owned(),
+                    );
+                    session.phase = crate::ports::UnifiedSessionPhase::Starting;
+                }
+                ImportEvent::Ready { .. } => {
+                    session.phase = crate::ports::UnifiedSessionPhase::Capturing;
+                }
+                ImportEvent::Progress {
+                    completed_samples,
+                    total_samples,
+                    ..
+                } => {
+                    session.durable_samples = *completed_samples;
+                    session.captured_samples = *completed_samples;
+                    session.total_samples = (*total_samples > 0).then_some(*total_samples);
+                    session.phase = crate::ports::UnifiedSessionPhase::Capturing;
+                }
+                ImportEvent::Segment(segment) => {
+                    session.document_revision = session
+                        .document_revision
+                        .max(segment.segment_id.0.saturating_sub(1));
+                }
+                ImportEvent::Persisted { sequence, .. } => {
+                    session.document_revision = session.document_revision.max(*sequence);
+                }
+                ImportEvent::End { last_offset, .. } => {
+                    session.total_samples = Some(*last_offset);
+                    session.phase = crate::ports::UnifiedSessionPhase::Publishing;
+                }
+                ImportEvent::Published { .. } => {
+                    session.phase = crate::ports::UnifiedSessionPhase::Complete;
+                }
+                ImportEvent::Failed { message, .. } => {
+                    session.phase = crate::ports::UnifiedSessionPhase::Recoverable;
+                    session.message = Some(message.clone());
+                }
+                ImportEvent::Stopped { .. } => {
+                    session.phase = crate::ports::UnifiedSessionPhase::Recoverable;
+                    session.message = Some("Session arrêtée avant publication".into());
+                }
+                _ => {}
+            }
+        }
+        if matches!(&event, ImportEvent::Prepared(_)) {
+            self.current_unified_audio_request = None;
+            if let Some(selected) = self.view.selected_unified_session.as_mut()
+                && (selected.job_id, selected.generation) == (job_id, generation)
+            {
+                selected.audio_parts_error = None;
+            }
+        }
+        if matches!(&event, ImportEvent::Persisted { .. }) {
+            self.current_unified_document_request = None;
+            if let Some(selected) = self.view.selected_unified_session.as_mut()
+                && (selected.job_id, selected.generation) == (job_id, generation)
+            {
+                selected.document_error = None;
+            }
         }
         if self.stopping == Some(identity)
             && self.request.is_some()
@@ -1558,6 +1846,90 @@ impl<P: ImportIoPort> ImportApplication<P> {
     fn handle_unified_capture_event(&mut self, event: ImportEvent) -> Result<(), ApplicationError> {
         let key = event.identity();
         match event {
+            ImportEvent::ParakeetLiveStarted { .. }
+            | ImportEvent::ParakeetInferenceReady { .. } => {
+                if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                    (s.job_id, s.generation) == key
+                }) {
+                    session.phase = crate::ports::UnifiedSessionPhase::Capturing;
+                }
+            }
+            ImportEvent::ParakeetCaptureProgress {
+                captured_samples,
+                audio_durable_samples,
+                ..
+            } => {
+                self.current_unified_audio_request = None;
+                if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                    (s.job_id, s.generation) == key
+                }) {
+                    session.captured_samples = captured_samples;
+                    session.durable_samples = audio_durable_samples;
+                    session.audio_parts_revision = 0;
+                    session.phase = crate::ports::UnifiedSessionPhase::Capturing;
+                }
+                if let Some(selected) = self.view.selected_unified_session.as_mut()
+                    && (selected.job_id, selected.generation) == key
+                {
+                    selected.audio_parts_error = None;
+                }
+            }
+            ImportEvent::ParakeetHypothesis {
+                sequence,
+                range,
+                text,
+                ..
+            } => {
+                if let Some(selected) = self.view.selected_unified_session.as_mut()
+                    && (selected.job_id, selected.generation) == key
+                {
+                    let revision = self
+                        .view
+                        .unified_parakeet_sessions
+                        .iter()
+                        .find(|s| (s.job_id, s.generation) == key)
+                        .map_or(0, |s| s.document_revision);
+                    selected.preview = Some(crate::ports::ParakeetPreview {
+                        segment: crate::ports::WorkerSegment {
+                            job_id: key.0,
+                            generation: key.1,
+                            instance_id: 0,
+                            segment_id: crate::domain::SegmentId(sequence),
+                            range,
+                            text,
+                        },
+                        revision,
+                    });
+                }
+            }
+            ImportEvent::ParakeetConfirmed { segment, .. } => {
+                self.current_unified_document_request = None;
+                if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                    (s.job_id, s.generation) == key
+                }) {
+                    session.document_revision = session
+                        .document_revision
+                        .max(segment.segment_id.0);
+                }
+                if let Some(selected) = self.view.selected_unified_session.as_mut()
+                    && (selected.job_id, selected.generation) == key
+                {
+                    selected.document_error = None;
+                    if selected.preview.as_ref().is_some_and(|preview| {
+                        preview.segment.segment_id.0 <= segment.segment_id.0
+                    }) {
+                        selected.preview = None;
+                    }
+                }
+            }
+            ImportEvent::ParakeetCaptureStopped { wav_path, .. } => {
+                if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                    (s.job_id, s.generation) == key
+                }) {
+                    session.wav_path = Some(wav_path);
+                    session.phase = crate::ports::UnifiedSessionPhase::Finalizing;
+                }
+            }
             ImportEvent::MicrophoneGainApplied {
                 target_identity,
                 gain_db,
@@ -1637,6 +2009,20 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     return Err(ApplicationError::InvalidCommand);
                 }
                 capture.total_samples = request.source_samples;
+                if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                    (s.job_id, s.generation) == key
+                }) {
+                    session.total_samples = request.source_samples;
+                    session.wav_path = Some(request.source_path);
+                    session.phase = crate::ports::UnifiedSessionPhase::Finalizing;
+                    session.audio_parts_revision = 0;
+                }
+                self.current_unified_audio_request = None;
+                if let Some(selected) = self.view.selected_unified_session.as_mut()
+                    && (selected.job_id, selected.generation) == key
+                {
+                    selected.audio_parts_error = None;
+                }
             }
             ImportEvent::Progress {
                 job_id,
@@ -1682,6 +2068,18 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     return Err(ApplicationError::InvalidCommand);
                 }
                 capture.pending_persistence = capture.pending_sequences.len();
+                if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                    (s.job_id, s.generation) == key
+                }) {
+                    session.document_revision = session.document_revision.max(sequence);
+                    session.phase = crate::ports::UnifiedSessionPhase::Capturing;
+                }
+                self.current_unified_document_request = None;
+                if let Some(selected) = self.view.selected_unified_session.as_mut()
+                    && (selected.job_id, selected.generation) == key
+                {
+                    selected.document_error = None;
+                }
                 self.maybe_publish_unified_capture(key)?;
             }
             ImportEvent::End {
@@ -1705,7 +2103,112 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
                 capture.last_sequence = Some(last_sequence);
                 capture.total_samples = Some(last_offset);
+                if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                    (s.job_id, s.generation) == key
+                }) {
+                    session.total_samples = Some(last_offset);
+                    session.phase = crate::ports::UnifiedSessionPhase::Publishing;
+                }
                 self.maybe_publish_unified_capture(key)?;
+            }
+            ImportEvent::UnifiedDocumentPage {
+                request_id, result, ..
+            } => {
+                if self.current_unified_document_request != Some((key, *request_id))
+                    || !self.view.selected_unified_session.as_ref().is_some_and(|selected| {
+                        (selected.job_id, selected.generation) == key
+                    })
+                {
+                    return Ok(());
+                }
+                self.current_unified_document_request = None;
+                match result {
+                    Ok(page) => {
+                        let current_revision = self
+                            .view
+                            .unified_parakeet_sessions
+                            .iter()
+                            .find(|s| (s.job_id, s.generation) == key)
+                            .map(|s| s.document_revision);
+                        if current_revision == Some(page.revision)
+                            && self.view.selected_unified_session.as_ref().is_some_and(|selected| {
+                                (selected.job_id, selected.generation) == key
+                            })
+                        {
+                            self.view.selected_unified_session.as_mut().unwrap().document_page =
+                                Some(page);
+                            self.view.selected_unified_session.as_mut().unwrap().document_error =
+                                None;
+                        }
+                    }
+                    Err(message) => {
+                        if let Some(selected) = self.view.selected_unified_session.as_mut()
+                            && (selected.job_id, selected.generation) == key
+                        {
+                            selected.document_error = Some(message);
+                        }
+                    }
+                }
+            }
+            ImportEvent::UnifiedAudioPartsPage {
+                request_id, result, ..
+            } => {
+                if self.current_unified_audio_request != Some((key, *request_id))
+                    || !self.view.selected_unified_session.as_ref().is_some_and(|selected| {
+                        (selected.job_id, selected.generation) == key
+                    })
+                {
+                    return Ok(());
+                }
+                self.current_unified_audio_request = None;
+                match result {
+                    Ok(page) => {
+                        let current_revision = self
+                            .view
+                            .unified_parakeet_sessions
+                            .iter_mut()
+                            .find(|s| (s.job_id, s.generation) == key);
+                        if current_revision.is_some_and(|session| {
+                            session.audio_parts_revision == 0
+                                || session.audio_parts_revision == page.revision
+                        }) && self.view.selected_unified_session.as_ref().is_some_and(|selected| {
+                            (selected.job_id, selected.generation) == key
+                        }) {
+                            let session = self.view.unified_parakeet_sessions.iter_mut()
+                                .find(|s| (s.job_id, s.generation) == key).unwrap();
+                            session.audio_parts_revision = page.revision;
+                            self.view.selected_unified_session.as_mut().unwrap().audio_parts_page =
+                                Some(page);
+                            self.view.selected_unified_session.as_mut().unwrap().audio_parts_error =
+                                None;
+                        }
+                    }
+                    Err(message) => {
+                        if let Some(selected) = self.view.selected_unified_session.as_mut()
+                            && (selected.job_id, selected.generation) == key
+                        {
+                            selected.audio_parts_error = Some(message);
+                        }
+                    }
+                }
+            }
+            ImportEvent::UnifiedPublicationArtifacts {
+                result,
+                ..
+            } => {
+                if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                    (s.job_id, s.generation) == key
+                }) {
+                    match result {
+                        Ok(files) => {
+                            session.wav_path = Some(files.wav_path);
+                            session.txt_path = Some(files.txt_path);
+                            session.srt_path = Some(files.srt_path);
+                            session.message = None;
+                        }
+                        Err(message) => session.message = Some(message),
+                    }
+                }
             }
             ImportEvent::Published { job_id, generation } => {
                 if let Some(capture) = self.unified_captures.get(&key) {
@@ -1720,13 +2223,30 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     job_id.0,
                     generation.get()
                 ));
+                if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                    (s.job_id, s.generation) == key
+                }) {
+                    session.phase = crate::ports::UnifiedSessionPhase::Complete;
+                }
                 self.unified_captures.remove(&key);
             }
             ImportEvent::Failed { message, .. } => {
                 self.view.message = Some(format!("Échec de la transcription micro : {message}"));
+                if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                    (s.job_id, s.generation) == key
+                }) {
+                    session.phase = crate::ports::UnifiedSessionPhase::Recoverable;
+                    session.message = Some(message);
+                }
                 self.unified_captures.remove(&key);
             }
             ImportEvent::Stopped { .. } => {
+                if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                    (s.job_id, s.generation) == key
+                }) {
+                    session.phase = crate::ports::UnifiedSessionPhase::Recoverable;
+                    session.message = Some("Session arrêtée avant publication".into());
+                }
                 self.unified_captures.remove(&key);
             }
             _ => {}
@@ -2741,6 +3261,24 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
     }
 
     fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
+        let allowed_while_closing = matches!(
+            &command,
+            AppCommand::Refresh
+                | AppCommand::RequestClose
+                | AppCommand::SelectUnifiedSession { .. }
+                | AppCommand::ReadUnifiedDocumentPage { .. }
+                | AppCommand::ReadUnifiedAudioPartsPage { .. }
+                | AppCommand::Stop { .. }
+                | AppCommand::StopUnifiedLive { .. }
+                | AppCommand::StopMicrophoneTest { .. }
+                | AppCommand::Quit { .. }
+                | AppCommand::RemoveQueued { .. }
+                | AppCommand::CancelDuplicateImport
+                | AppCommand::CancelSourceSnapshotRecovery
+        );
+        if self.view.close_requested && !allowed_while_closing {
+            return Err(ApplicationError::InvalidCommand);
+        }
         let admission = self.model_guard.as_ref().and_then(|guard| match &command {
             AppCommand::StartImport { request }
             | AppCommand::EnqueueImport { request }
@@ -2779,6 +3317,156 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     None,
                 );
                 self.poll_once()?;
+            }
+            AppCommand::SelectUnifiedSession { job_id, generation } => {
+                if !self.view.unified_parakeet_sessions.iter().any(|session| {
+                    (session.job_id, session.generation) == (job_id, generation)
+                }) {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.current_unified_document_request = None;
+                self.current_unified_audio_request = None;
+                self.view.selected_unified_session =
+                    Some(crate::ports::UnifiedParakeetSelectionView {
+                        job_id,
+                        generation,
+                        document_page: None,
+                        preview: None,
+                        audio_parts_page: None,
+                        document_error: None,
+                        audio_parts_error: None,
+                    });
+            }
+            AppCommand::ReadUnifiedDocumentPage {
+                job_id,
+                generation,
+                expected_revision,
+                first_sequence,
+            } => {
+                let session_destination = self
+                    .view
+                    .unified_parakeet_sessions
+                    .iter()
+                    .find(|session| {
+                        (session.job_id, session.generation) == (job_id, generation)
+                    });
+                if first_sequence == 0
+                    || !self.view.selected_unified_session.as_ref().is_some_and(|selected| {
+                        (selected.job_id, selected.generation) == (job_id, generation)
+                    })
+                    || session_destination.is_none_or(|session| {
+                        session.document_revision != expected_revision
+                    })
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let request_id = self
+                    .next_unified_page_request_id
+                    .checked_add(1)
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                self.io
+                    .submit(ImportEffect::ReadUnifiedDocumentPage {
+                        job_id,
+                        generation,
+                        request_id,
+                        destination: session_destination.unwrap().destination.clone(),
+                        expected_revision,
+                        first_sequence,
+                        limit: 128,
+                    })
+                    .map_err(|error| self.fail(error))?;
+                self.next_unified_page_request_id = request_id;
+                self.current_unified_document_request = Some(((job_id, generation), request_id));
+            }
+            AppCommand::ReadUnifiedAudioPartsPage {
+                job_id,
+                generation,
+                expected_revision,
+                offset,
+            } => {
+                let session_destination = self
+                    .view
+                    .unified_parakeet_sessions
+                    .iter()
+                    .find(|session| {
+                        (session.job_id, session.generation) == (job_id, generation)
+                    });
+                if !self.view.selected_unified_session.as_ref().is_some_and(|selected| {
+                    (selected.job_id, selected.generation) == (job_id, generation)
+                }) || session_destination.is_none_or(|session| {
+                    expected_revision != 0 && session.audio_parts_revision != expected_revision
+                }) {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let request_id = self
+                    .next_unified_page_request_id
+                    .checked_add(1)
+                    .ok_or(ApplicationError::InvalidCommand)?;
+                self.io
+                    .submit(ImportEffect::ReadUnifiedAudioPartsPage {
+                        job_id,
+                        generation,
+                        request_id,
+                        destination: session_destination.unwrap().destination.clone(),
+                        expected_revision,
+                        offset,
+                        limit: 128,
+                    })
+                    .map_err(|error| self.fail(error))?;
+                self.next_unified_page_request_id = request_id;
+                self.current_unified_audio_request = Some(((job_id, generation), request_id));
+            }
+            AppCommand::RequestClose => {
+                self.view.close_requested = true;
+                if self.view.duplicate_import_prompt.is_some() {
+                    self.dispatch(AppCommand::CancelDuplicateImport)?;
+                }
+                let sessions = self
+                    .unified_captures
+                    .iter()
+                    .filter_map(|(key, capture)| (!capture.stop_submitted).then_some(*key))
+                    .collect::<Vec<_>>();
+                for (job_id, generation) in sessions {
+                    self.io
+                        .submit(ImportEffect::StopUnifiedLive {
+                            job_id,
+                            generation,
+                        })
+                        .map_err(|error| self.fail(error))?;
+                    if let Some(capture) = self.unified_captures.get_mut(&(job_id, generation)) {
+                        capture.stop_submitted = true;
+                    }
+                    if let Some(session) = self.view.unified_parakeet_sessions.iter_mut().find(|s| {
+                        (s.job_id, s.generation) == (job_id, generation)
+                    }) {
+                        session.phase = crate::ports::UnifiedSessionPhase::Finalizing;
+                    }
+                }
+                if self.view.microphone_test_active && !self.close_active_stop_submitted {
+                    if let Some(identity) = self.active {
+                        self.io
+                            .submit(ImportEffect::StopMicrophoneTest {
+                                job_id: identity.job_id,
+                                generation: identity.generation,
+                            })
+                            .map_err(|error| self.fail(error))?;
+                        self.close_active_stop_submitted = true;
+                    }
+                } else if let Some(identity) = self.active
+                    && !self.close_active_stop_submitted
+                    && !self
+                        .unified_captures
+                        .contains_key(&(identity.job_id, identity.generation))
+                {
+                    self.dispatch(AppCommand::Stop {
+                        job_id: identity.job_id,
+                        generation: identity.generation,
+                    })?;
+                    self.close_active_stop_submitted = true;
+                }
+                self.drive_close_queue_removals()?;
+                self.update_close_ready();
+                return Ok(self.view.clone());
             }
             AppCommand::StartMicrophoneTest {
                 job_id,
@@ -2902,6 +3590,12 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                             .ok_or(ApplicationError::InvalidCommand)?,
                     })
                     .map_err(|e| self.fail(e))?;
+                if self.view.close_requested {
+                    let identity = CommandIdentity { job_id, generation };
+                    if !self.close_queue_removals.contains(&identity) {
+                        self.close_queue_removals.push(identity);
+                    }
+                }
             }
             AppCommand::StartUnifiedLiveConfigured { request } => {
                 let import_can_share = self.active.is_some()
@@ -2922,8 +3616,21 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     } else {
                         0
                     };
+                let no_terminal_card_to_evict = !self
+                    .view
+                    .unified_parakeet_sessions
+                    .iter()
+                    .any(|session| {
+                        matches!(
+                            session.phase,
+                            crate::ports::UnifiedSessionPhase::Complete
+                                | crate::ports::UnifiedSessionPhase::Recoverable
+                        )
+                    });
                 if open_capture_exists
                     || admitted_sessions >= 2
+                    || (self.view.unified_parakeet_sessions.len() >= MAX_PARAKEET_CAPTURE_VIEWS
+                        && no_terminal_card_to_evict)
                     || (self.active.is_some() && !import_can_share)
                     || self
                         .unified_captures
@@ -2941,6 +3648,13 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     generation: request.generation,
                 };
                 let destination = request.destination.clone();
+                let source_path = std::path::PathBuf::from(&request.destination)
+                    .join("transcriptions")
+                    .join(format!("{:032x}", request.job_id.0))
+                    .join(request.generation.get().to_string())
+                    .join("parakeet-unified/source.wav")
+                    .to_string_lossy()
+                    .into_owned();
                 let microphone = request.microphone.clone();
                 let microphone_gain_db = request.microphone_gain_db;
                 self.io
@@ -2960,7 +3674,7 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     (identity.job_id, identity.generation),
                     UnifiedCaptureAdmission {
                         identity,
-                        destination,
+                        destination: destination.clone(),
                         stop_submitted: false,
                         publish_submitted: false,
                         microphone_gain_requested_revision: 0,
@@ -2972,6 +3686,13 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                         last_sequence: None,
                         total_samples: None,
                     },
+                );
+                self.add_unified_session_card(
+                    identity.job_id,
+                    identity.generation,
+                    destination,
+                    source_path,
+                    true,
                 );
                 return Ok(self.view.clone());
             }
@@ -3156,6 +3877,17 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.io
                     .submit(ImportEffect::Prepare(request.clone()))
                     .map_err(|e| self.fail(e))?;
+                if request.strategy
+                    == crate::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                {
+                    self.add_unified_session_card(
+                        request.job_id,
+                        request.generation,
+                        request.destination.clone(),
+                        request.source_path.clone(),
+                        false,
+                    );
+                }
                 l3d_timing_line(
                     "start_import",
                     Some(request.job_id),
@@ -3231,14 +3963,15 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 });
             }
             AppCommand::CancelDuplicateImport => {
-                if let Some(prompt) = self.view.duplicate_import_prompt.take() {
+                if let Some(prompt) = self.view.duplicate_import_prompt.clone() {
                     self.io
                         .submit(ImportEffect::ReleaseSourceBinding {
                             job_id: prompt.request.job_id,
                             generation: prompt.request.generation,
-                            destination: prompt.request.destination,
+                            destination: prompt.request.destination.clone(),
                         })
                         .map_err(|error| self.fail(error))?;
+                    self.view.duplicate_import_prompt = None;
                 }
                 self.view.message = Some("Nouvelle transcription annulée.".into());
             }
@@ -3288,6 +4021,17 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.io
                     .submit(ImportEffect::ProcessQueued(request.clone()))
                     .map_err(|e| self.fail(e))?;
+                if request.strategy
+                    == crate::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                {
+                    self.add_unified_session_card(
+                        request.job_id,
+                        request.generation,
+                        request.destination.clone(),
+                        request.source_path.clone(),
+                        false,
+                    );
+                }
                 self.request = Some(request);
                 self.active = Some(identity);
                 self.stopping = None;
@@ -3322,6 +4066,17 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                         request: resumed.clone(),
                     })
                     .map_err(|e| self.fail(e))?;
+                if resumed.strategy
+                    == crate::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                {
+                    self.add_unified_session_card(
+                        resumed.job_id,
+                        resumed.generation,
+                        resumed.destination.clone(),
+                        resumed.source_path.clone(),
+                        false,
+                    );
+                }
                 self.request = Some(resumed);
                 self.active = Some(identity);
                 self.stopping = None;
@@ -3526,6 +4281,9 @@ impl ImportEvent {
                 job_id, generation, ..
             }
             | Self::Published { job_id, generation }
+            | Self::UnifiedDocumentPage { job_id, generation, .. }
+            | Self::UnifiedAudioPartsPage { job_id, generation, .. }
+            | Self::UnifiedPublicationArtifacts { job_id, generation, .. }
             | Self::Failed {
                 job_id, generation, ..
             }
@@ -3622,6 +4380,450 @@ mod tests {
         fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
             Ok(self.events.pop_front())
         }
+    }
+
+    #[test]
+    fn close_blocks_direct_and_indirect_admissions_without_submitting_effects() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.dispatch(AppCommand::RequestClose).unwrap();
+        assert!(app.view.close_requested);
+        assert!(app.view.close_ready);
+
+        let job_id = JobId(991);
+        let generation = Generation::first();
+        let request = ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            job_id,
+            generation,
+            source_path: "source.wav".into(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: "model.nmodel".into(),
+            model_sha256: [1; 32],
+            destination: "archive".into(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        let prompt = DuplicateImportPrompt {
+            request: request.clone(),
+            source_sha256: "00".repeat(32),
+            source_samples: 16_000,
+            publications: Vec::new(),
+            export_basename: "source".into(),
+            revalidation_notice: None,
+            resume_from: None,
+            reserved_export_basename: None,
+        };
+        let live = LiveRequest {
+            job_id,
+            generation,
+            model_path: "model.nmodel".into(),
+            model_sha256: [1; 32],
+            destination: "archive".into(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: crate::microphone::MicrophoneChoice::WindowsDefault,
+            microphone_gain_db: 0,
+            config: request.config.clone(),
+        };
+        let commands = vec![
+            AppCommand::StartImport {
+                request: request.clone(),
+            },
+            AppCommand::EnqueueImport {
+                request: request.clone(),
+            },
+            AppCommand::ProcessQueued {
+                request: request.clone(),
+            },
+            AppCommand::ResumeInterrupted {
+                request: ImportRequest {
+                    generation: generation.next().unwrap(),
+                    ..request.clone()
+                },
+            },
+            AppCommand::StartLive {
+                job_id,
+                generation,
+                config: request.config.clone(),
+            },
+            AppCommand::StartLiveConfigured {
+                request: live.clone(),
+            },
+            AppCommand::StartUnifiedLiveConfigured {
+                request: live.clone(),
+            },
+            AppCommand::StartDirectLiveConfigured { request: live },
+            AppCommand::StartMicrophoneTest {
+                job_id,
+                generation,
+                microphone: crate::microphone::MicrophoneChoice::WindowsDefault,
+                gain_db: 0,
+            },
+            AppCommand::ResolveDuplicateImport {
+                prompt,
+                choice: DuplicateImportChoice::CreateNew,
+            },
+        ];
+        for command in commands {
+            assert_eq!(
+                app.dispatch(command),
+                Err(ApplicationError::InvalidCommand)
+            );
+        }
+        assert!(app.io.effects.is_empty());
+        assert!(app.view.close_ready);
+    }
+
+    #[test]
+    fn close_removes_durable_queued_work_before_reporting_ready() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let request = ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            job_id: JobId(992),
+            generation: Generation::first(),
+            source_path: "source.wav".into(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: "model.nmodel".into(),
+            model_sha256: [2; 32],
+            destination: "archive".into(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        app.view.queue.push(ImportQueueEntry {
+            sequence: 1,
+            request: request.clone(),
+            status: ImportQueueStatus::Queued,
+        });
+        app.view.queued_jobs = 1;
+
+        app.dispatch(AppCommand::RequestClose).unwrap();
+
+        assert!(!app.view.close_ready);
+        assert!(matches!(
+            app.io.effects.as_slice(),
+            [ImportEffect::RemoveQueued { job_id, generation, destination }]
+                if *job_id == request.job_id
+                    && *generation == request.generation
+                    && destination == "archive"
+        ));
+        app.io.events.push_back(ImportEvent::Queue(Vec::new()));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(app.view.close_ready);
+    }
+
+    #[test]
+    fn close_keeps_failed_queue_removal_recoverable_and_retries_it() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let request = ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            job_id: JobId(996),
+            generation: Generation::first(),
+            source_path: "source.wav".into(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: "model.nmodel".into(),
+            model_sha256: [8; 32],
+            destination: "archive".into(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        app.view.queue.push(ImportQueueEntry {
+            sequence: 1,
+            request: request.clone(),
+            status: ImportQueueStatus::Queued,
+        });
+        app.view.queued_jobs = 1;
+
+        app.dispatch(AppCommand::RequestClose).unwrap();
+        app.io.events.push_back(ImportEvent::Failed {
+            job_id: request.job_id,
+            generation: request.generation,
+            message: "source binding still in use".into(),
+        });
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+
+        assert!(!view.close_ready);
+        assert_eq!(view.queue.len(), 1, "failed removal keeps queued work visible");
+        assert!(app.close_queue_removals.is_empty());
+        assert!(view.message.as_deref().is_some_and(|message| {
+            message.contains("source binding still in use")
+                && message.contains("La file est conservée")
+        }));
+
+        app.dispatch(AppCommand::RequestClose).unwrap();
+        assert!(matches!(
+            app.io.effects.last(),
+            Some(ImportEffect::RemoveQueued { job_id, generation, .. })
+                if *job_id == request.job_id && *generation == request.generation
+        ));
+        app.io.events.push_back(ImportEvent::Queue(Vec::new()));
+        assert!(app.dispatch(AppCommand::Refresh).unwrap().close_ready);
+    }
+
+    #[test]
+    fn request_close_waits_for_an_already_committing_import_result() {
+        let mut io = ScanTestIo::default();
+        io.stop_committing = true;
+        let mut app = ImportApplication::new(io);
+        let job_id = JobId(995);
+        let generation = Generation::first();
+        let request = ImportRequest {
+            strategy: crate::parakeet_session::TranscriptionStrategy::LegacyV1,
+            job_id,
+            generation,
+            source_path: "source.wav".into(),
+            source_sha256: Some([3; 32]),
+            source_samples: Some(16_000),
+            model_path: "model.bin".into(),
+            model_sha256: [4; 32],
+            destination: "archive".into(),
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        app.dispatch(AppCommand::StartImport { request }).unwrap();
+
+        app.dispatch(AppCommand::RequestClose).unwrap();
+        assert!(!app.view.close_ready);
+        assert_eq!(app.active, Some(CommandIdentity { job_id, generation }));
+        assert_eq!(app.view.active_job, Some((job_id, JobState::Finalizing)));
+
+        app.io
+            .events
+            .push_back(ImportEvent::Published { job_id, generation });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(app.view.close_ready);
+        assert_eq!(app.view.active_job, Some((job_id, JobState::Complete)));
+    }
+
+    #[test]
+    fn unified_page_responses_and_errors_follow_latest_selection_request() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let a = (JobId(993), Generation::first());
+        let b = (JobId(994), Generation::first());
+        app.add_unified_session_card(a.0, a.1, "archive".into(), "a.wav".into(), false);
+        app.add_unified_session_card(b.0, b.1, "archive".into(), "b.wav".into(), false);
+
+        app.dispatch(AppCommand::SelectUnifiedSession {
+            job_id: a.0,
+            generation: a.1,
+        })
+        .unwrap();
+        app.dispatch(AppCommand::ReadUnifiedDocumentPage {
+            job_id: a.0,
+            generation: a.1,
+            expected_revision: 0,
+            first_sequence: 1,
+        })
+        .unwrap();
+        let a_doc_old = match app.io.effects.last().unwrap() {
+            ImportEffect::ReadUnifiedDocumentPage {
+                request_id, limit, ..
+            } => {
+                assert_eq!(*limit, 128);
+                *request_id
+            }
+            other => panic!("unexpected effect: {other:?}"),
+        };
+        app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+            job_id: a.0,
+            generation: a.1,
+            expected_revision: 0,
+            offset: 0,
+        })
+        .unwrap();
+        let a_audio_old = match app.io.effects.last().unwrap() {
+            ImportEffect::ReadUnifiedAudioPartsPage {
+                request_id, limit, ..
+            } => {
+                assert_eq!(*limit, 128);
+                *request_id
+            }
+            other => panic!("unexpected effect: {other:?}"),
+        };
+
+        app.dispatch(AppCommand::SelectUnifiedSession {
+            job_id: b.0,
+            generation: b.1,
+        })
+        .unwrap();
+        app.dispatch(AppCommand::ReadUnifiedDocumentPage {
+            job_id: b.0,
+            generation: b.1,
+            expected_revision: 0,
+            first_sequence: 1,
+        })
+        .unwrap();
+        let b_doc = match app.io.effects.last().unwrap() {
+            ImportEffect::ReadUnifiedDocumentPage { request_id, .. } => *request_id,
+            other => panic!("unexpected effect: {other:?}"),
+        };
+        app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+            job_id: b.0,
+            generation: b.1,
+            expected_revision: 0,
+            offset: 0,
+        })
+        .unwrap();
+        let b_audio = match app.io.effects.last().unwrap() {
+            ImportEffect::ReadUnifiedAudioPartsPage { request_id, .. } => *request_id,
+            other => panic!("unexpected effect: {other:?}"),
+        };
+
+        app.dispatch(AppCommand::SelectUnifiedSession {
+            job_id: a.0,
+            generation: a.1,
+        })
+        .unwrap();
+        app.dispatch(AppCommand::ReadUnifiedDocumentPage {
+            job_id: a.0,
+            generation: a.1,
+            expected_revision: 0,
+            first_sequence: 1,
+        })
+        .unwrap();
+        let a_doc_new = match app.io.effects.last().unwrap() {
+            ImportEffect::ReadUnifiedDocumentPage { request_id, .. } => *request_id,
+            other => panic!("unexpected effect: {other:?}"),
+        };
+        app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+            job_id: a.0,
+            generation: a.1,
+            expected_revision: 0,
+            offset: 0,
+        })
+        .unwrap();
+        let a_audio_new = match app.io.effects.last().unwrap() {
+            ImportEffect::ReadUnifiedAudioPartsPage { request_id, .. } => *request_id,
+            other => panic!("unexpected effect: {other:?}"),
+        };
+
+        let page = |text: &str| crate::ports::ParakeetDocumentPage {
+            revision: 0,
+            entries: vec![crate::ports::ParakeetDocumentEntry {
+                segment: crate::ports::WorkerSegment {
+                    job_id: a.0,
+                    generation: a.1,
+                    instance_id: 1,
+                    segment_id: crate::domain::SegmentId(1),
+                    range: crate::domain::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                    text: text.into(),
+                },
+                revision: 0,
+            }],
+            next_sequence: None,
+        };
+        let audio_page = |path: &str| crate::ports::UnifiedAudioPartPage {
+            revision: 7,
+            offset: 0,
+            entries: vec![crate::ports::UnifiedAudioPart {
+                number: 1,
+                start_sample: 0,
+                end_sample: 16_000,
+                path: path.into(),
+            }],
+            next_offset: None,
+        };
+        app.io.events.extend([
+            ImportEvent::UnifiedDocumentPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_doc_old,
+                result: Err("stale A document error".into()),
+            },
+            ImportEvent::UnifiedDocumentPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_doc_old,
+                result: Ok(page("stale A document success")),
+            },
+            ImportEvent::UnifiedAudioPartsPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_audio_old,
+                result: Err("stale A audio error".into()),
+            },
+            ImportEvent::UnifiedAudioPartsPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_audio_old,
+                result: Ok(audio_page("stale-a.wav")),
+            },
+            ImportEvent::UnifiedDocumentPage {
+                job_id: b.0,
+                generation: b.1,
+                request_id: b_doc,
+                result: Ok(page("stale B")),
+            },
+            ImportEvent::UnifiedDocumentPage {
+                job_id: b.0,
+                generation: b.1,
+                request_id: b_doc,
+                result: Err("stale B document error".into()),
+            },
+            ImportEvent::UnifiedAudioPartsPage {
+                job_id: b.0,
+                generation: b.1,
+                request_id: b_audio,
+                result: Ok(audio_page("stale-b.wav")),
+            },
+            ImportEvent::UnifiedAudioPartsPage {
+                job_id: b.0,
+                generation: b.1,
+                request_id: b_audio,
+                result: Err("stale B audio error".into()),
+            },
+            ImportEvent::UnifiedDocumentPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_doc_new,
+                result: Ok(page("current A")),
+            },
+            ImportEvent::UnifiedAudioPartsPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_audio_new,
+                result: Ok(audio_page("current-a.wav")),
+            },
+        ]);
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.dispatch(AppCommand::Refresh).unwrap();
+
+        let selected = app.view.selected_unified_session.as_ref().unwrap();
+        assert_eq!(selected.document_page.as_ref().unwrap().entries[0].segment.text, "current A");
+        assert_eq!(selected.audio_parts_page.as_ref().unwrap().entries[0].path, "current-a.wav");
+        assert_eq!(selected.document_error, None);
+        assert_eq!(selected.audio_parts_error, None);
+    }
+
+    #[test]
+    fn unified_session_card_cache_stays_bounded_at_eight() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        for raw_id in 1_000..=1_009 {
+            app.add_unified_session_card(
+                JobId(raw_id),
+                Generation::first(),
+                "archive".into(),
+                format!("source-{raw_id}.wav"),
+                false,
+            );
+        }
+        assert_eq!(app.view.unified_parakeet_sessions.len(), MAX_PARAKEET_CAPTURE_VIEWS);
+        assert_eq!(
+            app.view.unified_parakeet_sessions.last().map(|session| session.job_id),
+            Some(JobId(1_007)),
+            "the ninth active session cannot grow the bounded metadata list"
+        );
+        assert!(app.view.selected_unified_session.is_some());
     }
 
     #[test]

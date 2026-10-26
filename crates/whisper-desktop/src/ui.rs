@@ -362,6 +362,26 @@ pub struct DesktopApp<A> {
     microphone_test_identity: Option<(JobId, Generation)>,
     last_test_default_identity: Option<String>,
     confirmed_live_default_identity: Option<String>,
+    last_unified_document_request: Option<(JobId, Generation, u64, u64)>,
+    last_unified_audio_request: Option<(
+        JobId,
+        Generation,
+        u64,
+        u64,
+        u64,
+        Option<u64>,
+        whisper_core::ports::UnifiedSessionPhase,
+    )>,
+    unified_wait_tracking:
+        std::collections::HashMap<
+            (JobId, Generation),
+            (
+                u64,
+                u64,
+                whisper_core::ports::UnifiedSessionPhase,
+                std::time::Instant,
+            ),
+        >,
     #[cfg(test)]
     microphone_test_button_rect: Option<egui::Rect>,
     #[cfg(test)]
@@ -515,6 +535,9 @@ impl<A: Application> DesktopApp<A> {
             microphone_test_identity: None,
             last_test_default_identity: None,
             confirmed_live_default_identity: None,
+            last_unified_document_request: None,
+            last_unified_audio_request: None,
+            unified_wait_tracking: std::collections::HashMap::new(),
             #[cfg(test)]
             microphone_test_button_rect: None,
             #[cfg(test)]
@@ -682,6 +705,7 @@ impl<A: Application> DesktopApp<A> {
                 | AppCommand::ResumeInterrupted { .. }
                 | AppCommand::StartLive { .. }
                 | AppCommand::StartLiveConfigured { .. }
+                | AppCommand::StartUnifiedLiveConfigured { .. }
                 | AppCommand::StartDirectLiveConfigured { .. }
         );
         if gpu_selection_command
@@ -729,6 +753,320 @@ impl<A: Application> DesktopApp<A> {
                 self.view.message = Some(format!("Commande impossible : {error:?}"));
                 false
             }
+        }
+    }
+
+    fn render_unified_parakeet_ui(&mut self, ui: &mut egui::Ui) {
+        let sessions = self.view.unified_parakeet_sessions.clone();
+        self.unified_wait_tracking.retain(|identity, _| {
+            sessions.iter().any(|session| {
+                (session.job_id, session.generation) == *identity
+                    && matches!(
+                        session.phase,
+                        whisper_core::ports::UnifiedSessionPhase::Starting
+                            | whisper_core::ports::UnifiedSessionPhase::Capturing
+                            | whisper_core::ports::UnifiedSessionPhase::Finalizing
+                            | whisper_core::ports::UnifiedSessionPhase::Publishing
+                    )
+            })
+        });
+        if sessions.is_empty() {
+            return;
+        }
+        ui.separator();
+        ui.heading("Transcriptions Parakeet");
+        for session in sessions.iter().rev() {
+            let identity = (session.job_id, session.generation);
+            let selected = self.view.selected_unified_session.as_ref().is_some_and(|view| {
+                (view.job_id, view.generation) == identity
+            });
+            let label = format!(
+                "{} — {}",
+                if session.microphone_capture {
+                    "Microphone"
+                } else {
+                    std::path::Path::new(&session.source_path)
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("Import audio")
+                },
+                unified_session_phase_label(session.phase)
+            );
+            if ui.selectable_label(selected, label).clicked() {
+                self.last_unified_document_request = None;
+                self.last_unified_audio_request = None;
+                self.dispatch(AppCommand::SelectUnifiedSession {
+                    job_id: identity.0,
+                    generation: identity.1,
+                });
+            }
+        }
+
+        let Some(selected) = self.view.selected_unified_session.clone() else {
+            return;
+        };
+        let Some(session) = sessions.iter().find(|session| {
+            (session.job_id, session.generation) == (selected.job_id, selected.generation)
+        }) else {
+            return;
+        };
+        let identity = (session.job_id, session.generation);
+        let active = matches!(
+            session.phase,
+            whisper_core::ports::UnifiedSessionPhase::Starting
+                | whisper_core::ports::UnifiedSessionPhase::Capturing
+                | whisper_core::ports::UnifiedSessionPhase::Finalizing
+                | whisper_core::ports::UnifiedSessionPhase::Publishing
+        );
+        if active {
+            let progress = (session.captured_samples, session.durable_samples);
+            let started = match self.unified_wait_tracking.get(&identity) {
+                Some((previous, durable, phase, started))
+                    if (*previous, *durable, *phase) == (progress.0, progress.1, session.phase) =>
+                {
+                    *started
+                }
+                _ => {
+                    let started = std::time::Instant::now();
+                    self.unified_wait_tracking
+                        .insert(identity, (progress.0, progress.1, session.phase, started));
+                    started
+                }
+            };
+            ui.label(format!(
+                "{} — temps écoulé depuis le dernier progrès : {:.1} s",
+                unified_session_phase_label(session.phase),
+                started.elapsed().as_secs_f64()
+            ));
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(100));
+        } else {
+            self.unified_wait_tracking.remove(&identity);
+            ui.label(unified_session_phase_label(session.phase));
+        }
+        if let Some(total) = session.total_samples {
+            ui.label(format!(
+                "Audio : {} / {} échantillons capturés; {} durables",
+                session.captured_samples, total, session.durable_samples
+            ));
+        } else {
+            ui.label(format!(
+                "Audio : {} échantillons capturés; {} durables",
+                session.captured_samples, session.durable_samples
+            ));
+        }
+        if active
+            && ui.button(if session.phase == whisper_core::ports::UnifiedSessionPhase::Starting {
+                "Annuler / arrêter"
+            } else {
+                "Arrêter le microphone"
+            }).clicked()
+        {
+            let command = if session.microphone_capture {
+                AppCommand::StopUnifiedLive {
+                    job_id: session.job_id,
+                    generation: session.generation,
+                }
+            } else {
+                AppCommand::Stop {
+                    job_id: session.job_id,
+                    generation: session.generation,
+                }
+            };
+            self.dispatch(command);
+        }
+        if let Some(message) = session.message.as_deref() {
+            ui.colored_label(egui::Color32::YELLOW, message);
+        }
+
+        let document_current = selected
+            .document_page
+            .as_ref()
+            .is_some_and(|page| page.revision == session.document_revision);
+        if session.document_revision > 0
+            && !document_current
+            && selected.document_error.is_none()
+        {
+            let first_sequence = selected
+                .document_page
+                .as_ref()
+                .and_then(|page| page.entries.first())
+                .map_or(1, |entry| entry.segment.segment_id.0);
+            let request = (
+                identity.0,
+                identity.1,
+                session.document_revision,
+                first_sequence,
+            );
+            if self.last_unified_document_request != Some(request) {
+                self.last_unified_document_request = Some(request);
+                self.dispatch(AppCommand::ReadUnifiedDocumentPage {
+                    job_id: identity.0,
+                    generation: identity.1,
+                    expected_revision: session.document_revision,
+                    first_sequence,
+                });
+            }
+        }
+        let parts_current = selected.audio_parts_page.as_ref().is_some_and(|page| {
+            page.revision == session.audio_parts_revision && session.audio_parts_revision != 0
+        });
+        if !parts_current && selected.audio_parts_error.is_none() {
+            let offset = selected
+                .audio_parts_page
+                .as_ref()
+                .map_or(0, |page| page.offset);
+            let request = (
+                identity.0,
+                identity.1,
+                session.audio_parts_revision,
+                offset,
+                session.durable_samples,
+                session.total_samples,
+                session.phase,
+            );
+            if self.last_unified_audio_request != Some(request) {
+                self.last_unified_audio_request = Some(request);
+                self.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+                    job_id: identity.0,
+                    generation: identity.1,
+                    expected_revision: session.audio_parts_revision,
+                    offset,
+                });
+            }
+        }
+
+        ui.separator();
+        if let Some(preview) = selected.preview.as_ref() {
+            ui.weak("Aperçu provisoire");
+            ui.label(preview.segment.text.as_str());
+        }
+        ui.label("Texte final");
+        if document_current {
+            let page = selected.document_page.as_ref().unwrap();
+            egui::ScrollArea::vertical()
+                .max_height(240.0)
+                .show(ui, |ui| {
+                    for entry in &page.entries {
+                        ui.label(entry.segment.text.as_str());
+                    }
+                });
+            ui.horizontal(|ui| {
+                if ui.button("Précédent").clicked() {
+                    let first = page.entries.first().map_or(1, |entry| {
+                        entry.segment.segment_id.0.saturating_sub(128).max(1)
+                    });
+                    self.last_unified_document_request = Some((
+                        identity.0,
+                        identity.1,
+                        session.document_revision,
+                        first,
+                    ));
+                    self.dispatch(AppCommand::ReadUnifiedDocumentPage {
+                        job_id: identity.0,
+                        generation: identity.1,
+                        expected_revision: session.document_revision,
+                        first_sequence: first,
+                    });
+                }
+                if let Some(next) = page.next_sequence
+                    && ui.button("Suivant").clicked()
+                {
+                    self.last_unified_document_request = Some((
+                        identity.0,
+                        identity.1,
+                        session.document_revision,
+                        next,
+                    ));
+                    self.dispatch(AppCommand::ReadUnifiedDocumentPage {
+                        job_id: identity.0,
+                        generation: identity.1,
+                        expected_revision: session.document_revision,
+                        first_sequence: next,
+                    });
+                }
+            });
+        } else if let Some(error) = selected.document_error.as_deref() {
+            ui.colored_label(egui::Color32::YELLOW, error);
+        } else if session.document_revision == 0 {
+            ui.weak("Aucun texte final n’est encore disponible.");
+        } else {
+            ui.label("Chargement de la page…");
+        }
+
+        ui.separator();
+        ui.label("Parties audio WAV");
+        if parts_current {
+            let page = selected.audio_parts_page.as_ref().unwrap();
+            egui::ScrollArea::vertical()
+                .max_height(150.0)
+                .show(ui, |ui| {
+                    for part in &page.entries {
+                        ui.label(format!(
+                            "Partie {} — {}..{} échantillons",
+                            part.number, part.start_sample, part.end_sample
+                        ));
+                        ui.selectable_label(false, part.path.as_str());
+                    }
+                });
+            ui.horizontal(|ui| {
+                if ui.button("Parties précédentes").clicked() {
+                    let offset = page.offset.saturating_sub(128);
+                    self.last_unified_audio_request = Some((
+                        identity.0,
+                        identity.1,
+                        session.audio_parts_revision,
+                        offset,
+                        session.durable_samples,
+                        session.total_samples,
+                        session.phase,
+                    ));
+                    self.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+                        job_id: identity.0,
+                        generation: identity.1,
+                        expected_revision: session.audio_parts_revision,
+                        offset,
+                    });
+                }
+                if let Some(next) = page.next_offset
+                    && ui.button("Parties suivantes").clicked()
+                {
+                    self.last_unified_audio_request = Some((
+                        identity.0,
+                        identity.1,
+                        session.audio_parts_revision,
+                        next,
+                        session.durable_samples,
+                        session.total_samples,
+                        session.phase,
+                    ));
+                    self.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+                        job_id: identity.0,
+                        generation: identity.1,
+                        expected_revision: session.audio_parts_revision,
+                        offset: next,
+                    });
+                }
+            });
+        } else if let Some(error) = selected.audio_parts_error.as_deref() {
+            ui.colored_label(egui::Color32::YELLOW, error);
+        } else {
+            ui.label("Chargement des références de parties…");
+        }
+        ui.horizontal(|ui| {
+            if let Some(path) = session.txt_path.as_deref() {
+                ui.label("TXT");
+                ui.selectable_label(false, path);
+            }
+            if let Some(path) = session.srt_path.as_deref() {
+                ui.label("SRT");
+                ui.selectable_label(false, path);
+            }
+        });
+        if (session.txt_path.is_none() || session.srt_path.is_none())
+            && session.phase != whisper_core::ports::UnifiedSessionPhase::Complete
+        {
+            ui.weak("Les chemins TXT et SRT seront affichés après publication complète.");
         }
     }
 
@@ -1064,10 +1402,7 @@ impl<A: Application> DesktopApp<A> {
     }
 
     fn request_quit(&mut self) -> bool {
-        let Some((job_id, generation)) = self.active_identity else {
-            return false;
-        };
-        self.dispatch(AppCommand::Quit { job_id, generation })
+        self.dispatch(AppCommand::RequestClose)
     }
 
     fn refresh_microphones(&mut self) {
@@ -1674,21 +2009,24 @@ impl<A: Application> DesktopApp<A> {
             self.scanned_destination = None;
         }
         self.observed_job_state = state;
+        let unified_busy = self.view.unified_parakeet_sessions.iter().any(|session| {
+            matches!(
+                session.phase,
+                whisper_core::ports::UnifiedSessionPhase::Starting
+                    | whisper_core::ports::UnifiedSessionPhase::Capturing
+                    | whisper_core::ports::UnifiedSessionPhase::Finalizing
+                    | whisper_core::ports::UnifiedSessionPhase::Publishing
+            )
+        });
         let busy = self.view.microphone_test_active
+            || unified_busy
+            || (self.view.close_requested && !self.view.close_ready)
             || self
                 .view
                 .active_job
                 .is_some_and(|(_, state)| window_must_remain_open(state));
         let can_enqueue = import_enqueue_enabled(busy);
-        if ui.ctx().input(|input| input.viewport().close_requested())
-            && self.view.microphone_test_active
-        {
-            ui.ctx()
-                .send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            self.stop_microphone_test();
-            self.quit_pending = true;
-            self.view.message = Some("Fermeture après arrêt du test microphone…".into());
-        } else if ui.ctx().input(|input| input.viewport().close_requested()) && busy {
+        if ui.ctx().input(|input| input.viewport().close_requested()) && busy {
             ui.ctx()
                 .send_viewport_cmd(egui::ViewportCommand::CancelClose);
             if !self.quit_pending && self.request_quit() {
@@ -1716,10 +2054,7 @@ impl<A: Application> DesktopApp<A> {
         }
         if !busy {
             self.active_identity = None;
-            if self.quit_pending && state == Some(JobState::Recoverable) {
-                self.quit_pending = false;
-            }
-            if self.quit_pending {
+            if self.quit_pending && self.view.close_ready {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
@@ -2231,6 +2566,7 @@ impl<A: Application> DesktopApp<A> {
                 });
             }
         }
+        self.render_unified_parakeet_ui(ui);
         self.render_parakeet_capture_ui(ui);
         if let Some(message) = &self.view.message {
             let visible_message = if message.starts_with("ModelMissing:") {
@@ -2876,6 +3212,17 @@ fn capture_state_label(state: whisper_core::ports::ParakeetCaptureViewState) -> 
     }
 }
 
+fn unified_session_phase_label(state: whisper_core::ports::UnifiedSessionPhase) -> &'static str {
+    match state {
+        whisper_core::ports::UnifiedSessionPhase::Starting => "Démarrage",
+        whisper_core::ports::UnifiedSessionPhase::Capturing => "Capture ou transcription en cours",
+        whisper_core::ports::UnifiedSessionPhase::Finalizing => "Finalisation",
+        whisper_core::ports::UnifiedSessionPhase::Publishing => "Publication",
+        whisper_core::ports::UnifiedSessionPhase::Complete => "Terminé",
+        whisper_core::ports::UnifiedSessionPhase::Recoverable => "Récupérable",
+    }
+}
+
 fn compute_choice_label(choice: ComputeChoice) -> &'static str {
     match choice {
         ComputeChoice::Cpu => "CPU",
@@ -3028,6 +3375,7 @@ fn command_compute_choice(command: &AppCommand) -> Option<ComputeChoice> {
         | AppCommand::ProcessQueued { request }
         | AppCommand::ResumeInterrupted { request } => Some(request.config.compute),
         AppCommand::StartLiveConfigured { request }
+        | AppCommand::StartUnifiedLiveConfigured { request }
         | AppCommand::StartDirectLiveConfigured { request } => Some(request.config.compute),
         _ => None,
     }
@@ -5136,5 +5484,310 @@ mod tests {
             provisional_without_confirmed_prefix(&capture, "nouveau texte"),
             Some("nouveau texte".into())
         );
+    }
+
+    #[test]
+    fn unified_ui_renders_one_bounded_page_preview_parts_outputs_and_wait_state() {
+        let application = MicrophoneCycleApplication::default();
+        let identity = (JobId(9_901), Generation::first());
+        let final_segment = whisper_core::ports::WorkerSegment {
+            job_id: identity.0,
+            generation: identity.1,
+            instance_id: 1,
+            segment_id: whisper_core::domain::SegmentId(1),
+            range: whisper_core::domain::SourceRange::new(0, 16_000, 16_000).unwrap(),
+            text: "Texte final paginé".into(),
+        };
+        let preview_segment = whisper_core::ports::WorkerSegment {
+            segment_id: whisper_core::domain::SegmentId(2),
+            text: "Aperçu remplaçable".into(),
+            ..final_segment.clone()
+        };
+        let mut view = application.view.borrow_mut();
+        view.unified_parakeet_sessions.push(
+            whisper_core::ports::UnifiedParakeetSessionView {
+                job_id: identity.0,
+                generation: identity.1,
+                microphone_capture: true,
+                destination: "archive".into(),
+                source_path: "archive/source.wav".into(),
+                phase: whisper_core::ports::UnifiedSessionPhase::Capturing,
+                captured_samples: 16_000,
+                durable_samples: 8_000,
+                total_samples: None,
+                document_revision: 1,
+                audio_parts_revision: 1,
+                wav_path: Some("archive/source.wav".into()),
+                txt_path: Some("archive/exports/capture.txt".into()),
+                srt_path: Some("archive/exports/capture.srt".into()),
+                message: None,
+            },
+        );
+        view.selected_unified_session = Some(
+            whisper_core::ports::UnifiedParakeetSelectionView {
+                job_id: identity.0,
+                generation: identity.1,
+                document_page: Some(whisper_core::ports::ParakeetDocumentPage {
+                    revision: 1,
+                    entries: vec![whisper_core::ports::ParakeetDocumentEntry {
+                        segment: final_segment,
+                        revision: 1,
+                    }],
+                    next_sequence: None,
+                }),
+                preview: Some(whisper_core::ports::ParakeetPreview {
+                    segment: preview_segment,
+                    revision: 2,
+                }),
+                audio_parts_page: Some(whisper_core::ports::UnifiedAudioPartPage {
+                    revision: 1,
+                    offset: 0,
+                    entries: vec![whisper_core::ports::UnifiedAudioPart {
+                        number: 1,
+                        start_sample: 0,
+                        end_sample: 16_000,
+                        path: "archive/source.wav.part-000000.wav".into(),
+                    }],
+                    next_offset: None,
+                }),
+                document_error: None,
+                audio_parts_error: None,
+            },
+        );
+        drop(view);
+
+        let paths = whisper_core::path_settings::PathSettingsApp::new(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: "synthetic-audio".into(),
+                model_path: "synthetic-model".into(),
+                destination: "synthetic-archive".into(),
+            },
+            Box::new(whisper_core::path_settings::NullPathPort),
+        );
+        let mut app = DesktopApp::with_paths(application, ComputeChoice::Cpu, None, paths);
+        let context = egui::Context::default();
+        let output = context.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 2600.0),
+                )),
+                ..Default::default()
+            },
+            |ui| app.show_ui(ui),
+        );
+        let rendered = output
+            .shapes
+            .into_iter()
+            .filter_map(|clipped| match clipped.shape {
+                egui::Shape::Text(text) => Some(text.galley.job.text.to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(rendered.contains("Texte final paginé"), "{rendered}");
+        assert!(rendered.contains("Aperçu remplaçable"), "{rendered}");
+        assert!(rendered.contains("source.wav.part-000000.wav"), "{rendered}");
+        assert!(rendered.contains("capture.txt"), "{rendered}");
+        assert!(rendered.contains("capture.srt"), "{rendered}");
+        assert!(rendered.contains("temps écoulé depuis le dernier progrès"), "{rendered}");
+    }
+
+    #[test]
+    fn unified_ui_requests_only_the_selected_identity_pages() {
+        let application = MicrophoneCycleApplication::default();
+        let identity = (JobId(9_902), Generation::first());
+        {
+            let mut view = application.view.borrow_mut();
+            view.unified_parakeet_sessions.push(
+                whisper_core::ports::UnifiedParakeetSessionView {
+                    job_id: identity.0,
+                    generation: identity.1,
+                    microphone_capture: false,
+                    destination: "archive".into(),
+                    source_path: "archive/source.wav".into(),
+                    phase: whisper_core::ports::UnifiedSessionPhase::Complete,
+                    captured_samples: 0,
+                    durable_samples: 0,
+                    total_samples: Some(16_000),
+                    document_revision: 4,
+                    audio_parts_revision: 5,
+                    wav_path: Some("archive/source.wav".into()),
+                    txt_path: None,
+                    srt_path: None,
+                    message: None,
+                },
+            );
+            view.selected_unified_session = Some(
+                whisper_core::ports::UnifiedParakeetSelectionView {
+                    job_id: identity.0,
+                    generation: identity.1,
+                    document_page: None,
+                    preview: None,
+                    audio_parts_page: None,
+                    document_error: None,
+                    audio_parts_error: None,
+                },
+            );
+        }
+        let paths = whisper_core::path_settings::PathSettingsApp::new(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: "synthetic-audio".into(),
+                model_path: "synthetic-model".into(),
+                destination: "synthetic-archive".into(),
+            },
+            Box::new(whisper_core::path_settings::NullPathPort),
+        );
+        let mut app = DesktopApp::with_paths(application.clone(), ComputeChoice::Cpu, None, paths);
+        let context = egui::Context::default();
+        let _ = context.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 2600.0),
+                )),
+                ..Default::default()
+            },
+            |ui| app.show_ui(ui),
+        );
+
+        let commands = application.commands.borrow();
+        assert!(commands.iter().any(|command| matches!(
+            command,
+            AppCommand::ReadUnifiedDocumentPage {
+                job_id,
+                generation,
+                expected_revision: 4,
+                first_sequence: 1,
+            } if (*job_id, *generation) == identity
+        )));
+        assert!(commands.iter().any(|command| matches!(
+            command,
+            AppCommand::ReadUnifiedAudioPartsPage {
+                job_id,
+                generation,
+                expected_revision: 5,
+                offset: 0,
+            } if (*job_id, *generation) == identity
+        )));
+    }
+
+    #[test]
+    fn unified_wait_tracking_prunes_finished_evicted_sessions_and_keeps_selected_wait() {
+        let application = MicrophoneCycleApplication::default();
+        let a = (JobId(9_910), Generation::first());
+        let b = (JobId(9_911), Generation::first());
+        let session = |identity: (JobId, Generation), phase| {
+            whisper_core::ports::UnifiedParakeetSessionView {
+                job_id: identity.0,
+                generation: identity.1,
+                microphone_capture: true,
+                destination: "synthetic-archive".into(),
+                source_path: "synthetic-source.wav".into(),
+                phase,
+                captured_samples: 1,
+                durable_samples: 1,
+                total_samples: None,
+                document_revision: 0,
+                audio_parts_revision: 0,
+                wav_path: None,
+                txt_path: None,
+                srt_path: None,
+                message: None,
+            }
+        };
+        {
+            let mut view = application.view.borrow_mut();
+            view.unified_parakeet_sessions.extend([
+                session(a, whisper_core::ports::UnifiedSessionPhase::Capturing),
+                session(b, whisper_core::ports::UnifiedSessionPhase::Capturing),
+            ]);
+            view.selected_unified_session = Some(
+                whisper_core::ports::UnifiedParakeetSelectionView {
+                    job_id: a.0,
+                    generation: a.1,
+                    document_page: None,
+                    preview: None,
+                    audio_parts_page: None,
+                    document_error: None,
+                    audio_parts_error: None,
+                },
+            );
+        }
+        let paths = whisper_core::path_settings::PathSettingsApp::new(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: "synthetic-audio".into(),
+                model_path: "synthetic-model".into(),
+                destination: "synthetic-archive".into(),
+            },
+            Box::new(whisper_core::path_settings::NullPathPort),
+        );
+        let mut app = DesktopApp::with_paths(application.clone(), ComputeChoice::Cpu, None, paths);
+        let context = egui::Context::default();
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert!(app.unified_wait_tracking.contains_key(&a));
+
+        application.view.borrow_mut().selected_unified_session = Some(
+            whisper_core::ports::UnifiedParakeetSelectionView {
+                job_id: b.0,
+                generation: b.1,
+                document_page: None,
+                preview: None,
+                audio_parts_page: None,
+                document_error: None,
+                audio_parts_error: None,
+            },
+        );
+        app.view = application.view.borrow().clone();
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert!(app.unified_wait_tracking.contains_key(&a));
+        let b_started = app.unified_wait_tracking.get(&b).unwrap().3;
+
+        {
+            let mut view = application.view.borrow_mut();
+            view.unified_parakeet_sessions
+                .iter_mut()
+                .find(|entry| (entry.job_id, entry.generation) == a)
+                .unwrap()
+                .phase = whisper_core::ports::UnifiedSessionPhase::Complete;
+        }
+        app.view = application.view.borrow().clone();
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert!(!app.unified_wait_tracking.contains_key(&a));
+
+        for raw_id in 9_912..=9_922 {
+            let mut view = application.view.borrow_mut();
+            if view.unified_parakeet_sessions.len() == 8 {
+                let finished = view
+                    .unified_parakeet_sessions
+                    .iter()
+                    .position(|entry| {
+                        matches!(
+                            entry.phase,
+                            whisper_core::ports::UnifiedSessionPhase::Complete
+                                | whisper_core::ports::UnifiedSessionPhase::Recoverable
+                        )
+                    })
+                    .expect("a finished card is available for bounded eviction");
+                view.unified_parakeet_sessions.remove(finished);
+            }
+            view.unified_parakeet_sessions.push(session(
+                (JobId(raw_id), Generation::first()),
+                whisper_core::ports::UnifiedSessionPhase::Complete,
+            ));
+            app.view = view.clone();
+            drop(view);
+            run_ui_frame(&context, &mut app, Vec::new());
+            assert!(app.unified_wait_tracking.len() <= 8);
+            assert!(app.unified_wait_tracking.contains_key(&b));
+            assert_eq!(app.unified_wait_tracking.get(&b).unwrap().3, b_started);
+        }
+        let view = application.view.borrow();
+        assert_eq!(view.unified_parakeet_sessions.len(), 8);
+        assert!(!view
+            .unified_parakeet_sessions
+            .iter()
+            .any(|entry| (entry.job_id, entry.generation) == a));
     }
 }

@@ -92,7 +92,7 @@ pub struct ParakeetDocumentEntry {
 
 /// A bounded read of the session document. `next_sequence` is the continuation
 /// token; callers must pass the same expected revision when reading another page.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ParakeetDocumentPage {
     pub revision: u64,
     pub entries: Vec<ParakeetDocumentEntry>,
@@ -104,6 +104,69 @@ pub struct ParakeetDocumentPage {
 pub struct ParakeetPreview {
     pub segment: WorkerSegment,
     pub revision: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UnifiedSessionPhase {
+    Starting,
+    Capturing,
+    Finalizing,
+    Publishing,
+    Complete,
+    Recoverable,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct UnifiedAudioPart {
+    pub number: u64,
+    pub start_sample: u64,
+    pub end_sample: u64,
+    pub path: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct UnifiedAudioPartPage {
+    pub revision: u64,
+    pub offset: u64,
+    pub entries: Vec<UnifiedAudioPart>,
+    pub next_offset: Option<u64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnifiedParakeetSessionView {
+    pub job_id: JobId,
+    pub generation: Generation,
+    pub microphone_capture: bool,
+    pub destination: String,
+    pub source_path: String,
+    pub phase: UnifiedSessionPhase,
+    pub captured_samples: u64,
+    pub durable_samples: u64,
+    pub total_samples: Option<u64>,
+    pub document_revision: u64,
+    pub audio_parts_revision: u64,
+    pub wav_path: Option<String>,
+    pub txt_path: Option<String>,
+    pub srt_path: Option<String>,
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnifiedParakeetSelectionView {
+    pub job_id: JobId,
+    pub generation: Generation,
+    pub document_page: Option<ParakeetDocumentPage>,
+    pub preview: Option<ParakeetPreview>,
+    pub audio_parts_page: Option<UnifiedAudioPartPage>,
+    pub document_error: Option<String>,
+    pub audio_parts_error: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct UnifiedPublicationFiles {
+    pub wav_path: String,
+    pub txt_path: String,
+    pub srt_path: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -429,6 +492,24 @@ pub enum ImportEffect {
     StartLive(LiveRequest),
     StartDirectLive(LiveRequest),
     StartUnifiedLive(LiveRequest),
+    ReadUnifiedDocumentPage {
+        job_id: JobId,
+        generation: Generation,
+        request_id: u64,
+        destination: String,
+        expected_revision: u64,
+        first_sequence: u64,
+        limit: usize,
+    },
+    ReadUnifiedAudioPartsPage {
+        job_id: JobId,
+        generation: Generation,
+        request_id: u64,
+        destination: String,
+        expected_revision: u64,
+        offset: u64,
+        limit: usize,
+    },
     SetMicrophoneGain {
         job_id: JobId,
         generation: Generation,
@@ -727,6 +808,23 @@ pub enum ImportEvent {
     Published {
         job_id: JobId,
         generation: Generation,
+    },
+    UnifiedDocumentPage {
+        job_id: JobId,
+        generation: Generation,
+        request_id: u64,
+        result: Result<ParakeetDocumentPage, String>,
+    },
+    UnifiedAudioPartsPage {
+        job_id: JobId,
+        generation: Generation,
+        request_id: u64,
+        result: Result<UnifiedAudioPartPage, String>,
+    },
+    UnifiedPublicationArtifacts {
+        job_id: JobId,
+        generation: Generation,
+        result: Result<UnifiedPublicationFiles, String>,
     },
     Failed {
         job_id: JobId,

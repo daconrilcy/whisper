@@ -1922,6 +1922,186 @@ impl ArchiveStore {
             .exists()
     }
 
+    pub fn read_unified_document_page(
+        root: &Path,
+        job_id: JobId,
+        generation: Generation,
+        expected_revision: u64,
+        first_sequence: u64,
+        limit: usize,
+    ) -> Result<whisper_core::ports::ParakeetDocumentPage, String> {
+        const INDEX_HEADER: &[u8; 8] = b"PUDOC001";
+        const INDEX_ENTRY_BYTES: u64 = 16;
+        if first_sequence == 0 || limit == 0 {
+            return Err("InvalidInput: document page cursor or limit".into());
+        }
+        let directory = generation_path(root, job_id, generation).join("parakeet-unified/document");
+        let mut index = File::open(directory.join("document.idx"))
+            .map_err(|error| format!("DocumentUnavailable: {error}"))?;
+        let mut header = [0_u8; 8];
+        index.read_exact(&mut header).map_err(|error| format!("DocumentIndex: {error}"))?;
+        let index_size = index.metadata().map_err(|error| format!("DocumentIndex: {error}"))?.len();
+        if &header != INDEX_HEADER
+            || index_size < INDEX_HEADER.len() as u64
+            || (index_size - INDEX_HEADER.len() as u64) % INDEX_ENTRY_BYTES != 0
+        {
+            return Err("StorageCorrupt: unified document index".into());
+        }
+        let revision = (index_size - INDEX_HEADER.len() as u64) / INDEX_ENTRY_BYTES;
+        if revision != expected_revision {
+            return Err("StaleResponse: unified document revision changed".into());
+        }
+        let limit = limit.min(128);
+        let mut document = BufReader::new(
+            File::open(directory.join("document.jsonl"))
+                .map_err(|error| format!("DocumentUnavailable: {error}"))?,
+        );
+        let mut entries = Vec::with_capacity(limit);
+        let mut sequence = first_sequence;
+        while sequence <= revision && entries.len() < limit {
+            let record_offset = INDEX_HEADER.len() as u64
+                + (sequence - 1)
+                    .checked_mul(INDEX_ENTRY_BYTES)
+                    .ok_or_else(|| "DocumentIndex: sequence overflow".to_owned())?;
+            index.seek(SeekFrom::Start(record_offset)).map_err(|error| error.to_string())?;
+            let mut raw = [0_u8; 16];
+            index.read_exact(&mut raw).map_err(|error| format!("StorageCorrupt: document index record: {error}"))?;
+            let offset = u64::from_le_bytes(raw[..8].try_into().unwrap());
+            let length = u64::from_le_bytes(raw[8..].try_into().unwrap());
+            let line_length = usize::try_from(length).map_err(|_| "StorageCorrupt: document record length".to_owned())?;
+            if line_length == 0 || line_length > 1_048_576 {
+                return Err("StorageCorrupt: document record length".into());
+            }
+            document.seek(SeekFrom::Start(offset)).map_err(|error| error.to_string())?;
+            let mut line = String::with_capacity(line_length);
+            document.by_ref().take(length).read_line(&mut line).map_err(|error| error.to_string())?;
+            if line.len() != line_length {
+                return Err("StorageCorrupt: short unified document record".into());
+            }
+            let entry: whisper_core::ports::ParakeetDocumentEntry = serde_json::from_str(line.trim_end())
+                .map_err(|error| format!("StorageCorrupt: unified document entry: {error}"))?;
+            if entry.segment.job_id != job_id
+                || entry.segment.generation != generation
+                || entry.segment.segment_id.0 != sequence
+                || entry.revision != sequence
+            {
+                return Err("StaleResponse: unified document identity changed".into());
+            }
+            entries.push(entry);
+            sequence += 1;
+        }
+        Ok(whisper_core::ports::ParakeetDocumentPage {
+            revision,
+            entries,
+            next_sequence: (sequence <= revision).then_some(sequence),
+        })
+    }
+
+    pub fn read_unified_audio_parts_page(
+        root: &Path,
+        job_id: JobId,
+        generation: Generation,
+        expected_revision: u64,
+        offset: u64,
+        limit: usize,
+    ) -> Result<whisper_core::ports::UnifiedAudioPartPage, String> {
+        if limit == 0 {
+            return Err("InvalidInput: audio part page limit".into());
+        }
+        let source_path = generation_path(root, job_id, generation)
+            .join("parakeet-unified/source.wav");
+        let index_path = source_path.with_extension("parts.idx");
+        let before = sha256_file(&index_path)
+            .map_err(|error| format!("AudioPartsUnavailable: {error}"))?;
+        let index_bytes = fs::metadata(&index_path)
+            .map_err(|error| format!("AudioPartsUnavailable: {error}"))?
+            .len();
+        const INDEX_HEADER_BYTES: u64 = 8;
+        const INDEX_RECORD_BYTES: u64 = 24;
+        if index_bytes < INDEX_HEADER_BYTES
+            || (index_bytes - INDEX_HEADER_BYTES) % INDEX_RECORD_BYTES != 0
+        {
+            return Err("StorageCorrupt: unified audio part index length".into());
+        }
+        let part_count = (index_bytes - INDEX_HEADER_BYTES) / INDEX_RECORD_BYTES;
+        let revision = u64::from_le_bytes(before[..8].try_into().unwrap()).max(1);
+        if expected_revision != 0 && expected_revision != revision {
+            return Err("StaleResponse: unified audio parts changed".into());
+        }
+        let store = crate::parakeet_audio::PcmPartStore::open(&source_path);
+        let page = store
+            .read_page(offset, limit.min(128))
+            .map_err(|error| format!("StorageCorrupt: audio part index: {error:?}"))?;
+        if sha256_file(&index_path).map_err(|error| error.to_string())? != before {
+            return Err("StaleResponse: unified audio parts changed during read".into());
+        }
+        let entries = page
+            .into_iter()
+            .map(|part| whisper_core::ports::UnifiedAudioPart {
+                number: part.number,
+                start_sample: part.start_sample,
+                end_sample: part.end_sample,
+                path: part.path.to_string_lossy().into_owned(),
+            })
+            .collect::<Vec<_>>();
+        if entries.iter().any(|part| !Path::new(&part.path).is_file()) {
+            return Err("StorageCorrupt: indexed unified audio part is missing".into());
+        }
+        let next = offset.saturating_add(entries.len() as u64);
+        let next_offset = (next < part_count).then_some(next);
+        Ok(whisper_core::ports::UnifiedAudioPartPage {
+            revision,
+            offset,
+            entries,
+            next_offset,
+        })
+    }
+
+    pub fn published_unified_files(
+        root: &Path,
+        job_id: JobId,
+        generation: Generation,
+    ) -> Result<whisper_core::ports::UnifiedPublicationFiles, String> {
+        let directory = generation_path(root, job_id, generation);
+        let current = fs::read(directory.join("CURRENT"))
+            .map_err(|error| format!("PublicationUnavailable: CURRENT: {error}"))?;
+        if current != b"manifest.json\n" {
+            return Err("PublicationUnavailable: unified session is not CURRENT".into());
+        }
+        let manifest: CompleteRecord = serde_json::from_slice(
+            &fs::read(directory.join("manifest.json"))
+                .map_err(|error| format!("PublicationUnavailable: manifest: {error}"))?,
+        )
+        .map_err(|error| format!("StorageCorrupt: unified manifest: {error}"))?;
+        if manifest.job_id != job_id || manifest.generation != generation {
+            return Err("StaleResponse: unified publication identity changed".into());
+        }
+        let intent: PublicationIntent = serde_json::from_slice(
+            &fs::read(directory.join("r11-publication.json"))
+                .map_err(|error| format!("PublicationUnavailable: export intent: {error}"))?,
+        )
+        .map_err(|error| format!("StorageCorrupt: unified export intent: {error}"))?;
+        if intent.internal_only {
+            return Err("PublicationUnavailable: unified exports are internal only".into());
+        }
+        let wav_path = directory.join("parakeet-unified/source.wav");
+        let txt_path = root.join("exports").join(format!("{}.txt", intent.export_basename));
+        let srt_path = root.join("exports").join(format!("{}.srt", intent.export_basename));
+        verify_artifact(&directory, &manifest.text)?;
+        verify_artifact(&directory, &manifest.srt)?;
+        if !wav_path.with_extension("parts.idx").is_file()
+            || !txt_path.is_file()
+            || !srt_path.is_file()
+        {
+            return Err("PublicationUnavailable: unified audio or TXT/SRT reference is missing".into());
+        }
+        Ok(whisper_core::ports::UnifiedPublicationFiles {
+            wav_path: wav_path.to_string_lossy().into_owned(),
+            txt_path: txt_path.to_string_lossy().into_owned(),
+            srt_path: srt_path.to_string_lossy().into_owned(),
+        })
+    }
+
     pub fn reserve_new_import(
         root: &Path,
         request: &ImportRequest,
@@ -7020,6 +7200,123 @@ fn timestamp(sample: u64) -> String {
 mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn unified_archive_pages_cap_text_and_audio_entries_at_128_with_real_cursors() {
+        use whisper_core::ports::ParakeetDocumentPort;
+
+        let root = std::env::temp_dir().join(format!(
+            "whisper-unified-pages-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let job_id = JobId(9_801);
+        let generation = Generation::first();
+        let generation_directory = generation_path(&root, job_id, generation);
+        let document_directory = generation_directory.join("parakeet-unified/document");
+        let mut document = crate::parakeet_document::ParakeetDocumentStore::create(
+            &document_directory,
+            job_id,
+            generation,
+        )
+        .unwrap();
+        for sequence in 1..=130_u64 {
+            document
+                .append_final(WorkerSegment {
+                    job_id,
+                    generation,
+                    instance_id: 1,
+                    segment_id: whisper_core::SegmentId(sequence),
+                    range: SourceRange::new(
+                        (sequence - 1) * 16_000,
+                        sequence * 16_000,
+                        16_000,
+                    )
+                    .unwrap(),
+                    text: format!("segment-{sequence}"),
+                })
+                .unwrap();
+        }
+
+        let document_first = ArchiveStore::read_unified_document_page(
+            &root,
+            job_id,
+            generation,
+            130,
+            1,
+            512,
+        )
+        .unwrap();
+        assert_eq!(document_first.entries.len(), 128);
+        assert_eq!(document_first.entries.first().unwrap().segment.segment_id.0, 1);
+        assert_eq!(document_first.entries.last().unwrap().segment.segment_id.0, 128);
+        assert_eq!(document_first.next_sequence, Some(129));
+        let document_last = ArchiveStore::read_unified_document_page(
+            &root,
+            job_id,
+            generation,
+            130,
+            document_first.next_sequence.unwrap(),
+            512,
+        )
+        .unwrap();
+        assert_eq!(document_last.entries.len(), 2);
+        assert_eq!(document_last.entries[0].segment.segment_id.0, 129);
+        assert_eq!(document_last.entries[1].segment.segment_id.0, 130);
+        assert_eq!(document_last.next_sequence, None);
+
+        let source_path = generation_directory.join("parakeet-unified/source.wav");
+        fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        fs::write(&source_path, b"").unwrap();
+        let mut index = File::create(source_path.with_extension("parts.idx")).unwrap();
+        index.write_all(b"PUAUD001").unwrap();
+        for number in 1..=130_u64 {
+            index.write_all(&number.to_le_bytes()).unwrap();
+            index.write_all(&((number - 1) * 16_000).to_le_bytes()).unwrap();
+            index.write_all(&(number * 16_000).to_le_bytes()).unwrap();
+            let part_path = if number == 1 {
+                source_path.clone()
+            } else {
+                source_path.with_file_name(format!("source.part-{number:06}.wav"))
+            };
+            fs::write(part_path, b"").unwrap();
+        }
+        index.sync_all().unwrap();
+        drop(index);
+
+        let audio_first = ArchiveStore::read_unified_audio_parts_page(
+            &root,
+            job_id,
+            generation,
+            0,
+            0,
+            512,
+        )
+        .unwrap();
+        assert_eq!(audio_first.entries.len(), 128);
+        assert_eq!(audio_first.entries.first().unwrap().number, 1);
+        assert_eq!(audio_first.entries.last().unwrap().number, 128);
+        assert_eq!(audio_first.next_offset, Some(128));
+        let audio_last = ArchiveStore::read_unified_audio_parts_page(
+            &root,
+            job_id,
+            generation,
+            audio_first.revision,
+            audio_first.next_offset.unwrap(),
+            512,
+        )
+        .unwrap();
+        assert_eq!(audio_last.entries.len(), 2);
+        assert_eq!(audio_last.entries[0].number, 129);
+        assert_eq!(audio_last.entries[1].number, 130);
+        assert_eq!(audio_last.next_offset, None);
+        assert!(audio_last.entries.iter().all(|part| Path::new(&part.path).is_file()));
+
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn pending_archive_versions_bind_strategy_and_keep_legacy_default() {

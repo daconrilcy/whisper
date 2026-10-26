@@ -639,6 +639,7 @@ impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
         };
         let live = match command {
             AppCommand::StartLiveConfigured { request }
+            | AppCommand::StartUnifiedLiveConfigured { request }
             | AppCommand::StartDirectLiveConfigured { request } => Some(request),
             _ => None,
         };
@@ -684,11 +685,14 @@ impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
             AppCommand::StartImport { .. }
             | AppCommand::ProcessQueued { .. }
             | AppCommand::StartLiveConfigured { .. }
-            | AppCommand::StartDirectLiveConfigured { .. } => active,
+            | AppCommand::StartUnifiedLiveConfigured { .. }
+            | AppCommand::StartDirectLiveConfigured { .. } => view.close_requested || active,
             AppCommand::ResumeInterrupted { request } => {
-                active || request.generation.next().is_none()
+                view.close_requested || active || request.generation.next().is_none()
             }
-            AppCommand::EnqueueImport { .. } => active && view.direct_capture_phase.is_some(),
+            AppCommand::EnqueueImport { .. } => {
+                view.close_requested || (active && view.direct_capture_phase.is_some())
+            }
             _ => false,
         }
     }
@@ -713,6 +717,7 @@ impl<P: ImportIoPort> Application for DesktopAdmissionApplication<P> {
                 | AppCommand::ProcessQueued { .. }
                 | AppCommand::ResumeInterrupted { .. }
                 | AppCommand::StartLiveConfigured { .. }
+                | AppCommand::StartUnifiedLiveConfigured { .. }
                 | AppCommand::StartDirectLiveConfigured { .. }
         );
         if is_model_start
@@ -1312,6 +1317,66 @@ mod tests {
                 .as_deref()
                 .is_some_and(|message| message.contains("Modèle indisponible"))
         );
+    }
+
+    #[test]
+    fn unified_live_start_applies_its_staged_candidate_before_the_start_effect() {
+        let model_root = fixture_root("unified-live-staged-candidate");
+        let io = RecordingIo::default();
+        let effects = io.effects.clone();
+        let mut snapshot = admission_snapshot(&model_root, ModelAvailability::Missing);
+        let record = model_registry::model(ModelId::ParakeetTdt06BV3);
+        if let Some(entry) = snapshot
+            .entries
+            .iter_mut()
+            .find(|entry| entry.id == ModelId::ParakeetTdt06BV3)
+        {
+            entry.availability = ModelAvailability::Ready;
+            entry.observed_sha256 = Some(record.artifact.sha256.to_owned());
+            entry.observed_size_bytes = Some(record.artifact.size_bytes);
+            entry.diagnostic = None;
+        }
+        apply_parakeet_key_availability(&mut snapshot, true);
+        let mut app = guarded_application(
+            io,
+            &model_root,
+            "C:/known/turbo.bin".into(),
+            admission_receiver(snapshot),
+        );
+        let job_id = JobId(903);
+        let generation = Generation::first();
+        let request = whisper_core::LiveRequest {
+            job_id,
+            generation,
+            model_path: model_root
+                .join(record.artifact.file_name)
+                .to_string_lossy()
+                .into_owned(),
+            model_sha256: model_sha(ModelId::ParakeetTdt06BV3),
+            destination: "archive".into(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: whisper_core::microphone::MicrophoneChoice::WindowsDefault,
+            microphone_gain_db: 0,
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        app.set_gpu_candidate(job_id, generation, None).unwrap();
+        app.dispatch(AppCommand::StartUnifiedLiveConfigured { request })
+            .unwrap();
+
+        assert!(matches!(
+            effects.lock().unwrap().as_slice(),
+            [
+                ImportEffect::SetGpuCandidate { job_id: actual, generation: actual_generation, candidate: None },
+                ImportEffect::StartUnifiedLive(request),
+            ] if *actual == job_id
+                && *actual_generation == generation
+                && request.job_id == job_id
+                && request.generation == generation
+        ));
     }
 
     #[test]
