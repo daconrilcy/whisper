@@ -630,3 +630,8 @@ PU-L2-25, MINEUR de l'oracle selon reviewer : le compteur intermédiaire décrit
 
 
 **Extension précise du budget PU-L2.** Le 26 octobre 2026, à la question citant le correctif commité e40188c3, les 76 min 37 s consommées et les scénarios restant à exécuter, l'utilisateur répond : « Oui, extension à 150 minutes cumulées ». Le plafond du §19.3 passe de 90 à **150 minutes cumulées (9 000 secondes), sans remise à zéro**. Les deux seules racines lot-02 et cargo-shared, la limite de croissance de 8 Gio, la surveillance incluant .git et toutes les conditions d'arrêt restent identiques. Aucun microphone réel, inférence native ou ouverture de fenêtre autorisé par cette extension. Le lanceur conserve le cumul de tous les runs et le même état initial de stockage ; seul le plafond temporel et son libellé sont ajustés avant le nouveau passage.
+
+
+**Compilation après réservation.** Candidat 6b4e4afd96ac047f8c89c283d19b69de77bd9e14, run 2d8293512607478e9fb0fd1dbf6d008b : fmt check PASS, no-run FAIL code 101, aucun test exécuté. PU-L2-28 IMPORTANT : le chemin reservation était déplacé par fs::read puis réutilisé par is_file. Le même worker corrige uniquement l'emprunt dans archive.rs, sans changer la réservation durable de 27. Preuve de compilation et scénario A/B restent requis. Arrêt et journaux conservés, aucun nouvel incident sensible signalé ; **4 635,8176007 secondes cumulées** sur 9 000, aucune remise à zéro.
+
+Même reviewer : PU-L2-28 fermé statiquement, aucun constat source restant ; no-run core/adapters/desktop code 0 et validation globale encore requis. Sources figées pour reprise gardée.

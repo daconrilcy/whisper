@@ -2800,7 +2800,7 @@ impl ArchiveStore {
         let reservation =
             publication_reservation_path(&destination, request.job_id, request.generation);
         let publication = if reservation.is_file() {
-            serde_json::from_slice(&fs::read(reservation).map_err(|error| error.to_string())?)
+            serde_json::from_slice(&fs::read(&reservation).map_err(|error| error.to_string())?)
                 .map_err(|error| format!("StorageCorrupt: publication reservation: {error}"))?
         } else {
             let expected_active = Self::published_imports_for_strategy(
