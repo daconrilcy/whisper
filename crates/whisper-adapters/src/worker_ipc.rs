@@ -11103,7 +11103,11 @@ mod tests {
             }
             match self.runtime.poll() {
                 Some(Ok(event)) => Ok(Some(event)),
-                Some(Err((_, _, message))) => Err(PortError::Failed(message)),
+                Some(Err((job_id, generation, message))) => Ok(Some(ImportEvent::Failed {
+                    job_id,
+                    generation,
+                    message,
+                })),
                 None => Ok(None),
             }
         }
@@ -12493,9 +12497,12 @@ mod tests {
 
         assert!(matches!(port.poll(), Ok(Some(ImportEvent::Ready { .. }))));
         std::fs::remove_dir_all(document_path).unwrap();
-        assert!(
-            matches!(port.poll(), Err(PortError::Failed(message)) if message.starts_with("Document:"))
-        );
+        assert!(matches!(
+            port.poll(),
+            Ok(Some(ImportEvent::Failed { job_id, generation, message }))
+                if (job_id, generation) == (request.job_id, request.generation)
+                    && message.starts_with("Document:")
+        ));
         assert!(port.runtime.document_drains.is_empty());
         assert!(
             matches!(port.poll(), Ok(None)),
@@ -13584,10 +13591,17 @@ mod tests {
 
     #[test]
     fn controlled_worker_and_invalid_times_leave_no_complete_archive() {
-        for (index, worker) in [
-            Box::new(FailedUnifiedWorker) as Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
-            Box::new(InvalidTimeUnifiedWorker)
-                as Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+        for (index, (worker, expected_failure)) in [
+            (
+                Box::new(FailedUnifiedWorker)
+                    as Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+                "controlled worker failure",
+            ),
+            (
+                Box::new(InvalidTimeUnifiedWorker)
+                    as Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+                "InvalidTimestamp",
+            ),
         ]
         .into_iter()
         .enumerate()
@@ -13621,17 +13635,31 @@ mod tests {
                 unified_stop_submissions: None,
                 controlled_capture_blocks: None,
             });
-            app.dispatch(AppCommand::StartImport { request }).unwrap();
-            for _ in 0..24 {
-                if app
-                    .dispatch(AppCommand::Refresh)
-                    .unwrap()
-                    .active_job
-                    .is_none()
-                {
+            app.dispatch(AppCommand::StartImport {
+                request: request.clone(),
+            })
+            .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(5);
+            let mut terminal_view = None;
+            while Instant::now() < deadline {
+                let view = app.dispatch(AppCommand::Refresh).unwrap();
+                if view.active_job == Some((request.job_id, JobState::Recoverable)) {
+                    terminal_view = Some(view);
                     break;
                 }
+                thread::sleep(Duration::from_millis(2));
             }
+            let terminal_view = terminal_view.expect("controlled import must report Recoverable");
+            assert_eq!(
+                terminal_view.active_job,
+                Some((request.job_id, JobState::Recoverable))
+            );
+            assert!(
+                terminal_view
+                    .message
+                    .as_deref()
+                    .is_some_and(|message| message.contains(expected_failure))
+            );
             let entries = ArchiveStore::scan(&root.join("archive")).unwrap();
             assert!(!entries.iter().any(|entry| entry.complete));
             std::fs::remove_dir_all(&root).unwrap();
