@@ -657,8 +657,16 @@ mod tests {
         let audio_path = root.join("source.wav");
         let mut capture = CapturePcmWriter::start(&audio_path, 2).unwrap();
         let first_len = (WINDOW_MAX_SAMPLES + MARGIN_SAMPLES) as usize;
-        capture.try_append(&vec![100_i16; first_len]).unwrap();
-        let first_ack = wait_for_ack(&capture);
+        let mut first_written = 0_u64;
+        while first_written < first_len as u64 {
+            let chunk_len = (first_len as u64 - first_written).min(80_000) as usize;
+            capture.try_append(&vec![100_i16; chunk_len]).unwrap();
+            let ack = wait_for_ack(&capture);
+            assert_eq!(ack.range, first_written..first_written + chunk_len as u64);
+            assert_eq!(ack.written_samples, ack.range.end);
+            first_written = ack.written_samples;
+        }
+        assert_eq!(first_written, first_len as u64);
         let source = PcmPartStore::open(&audio_path);
         let mut document =
             ParakeetDocumentStore::create(root.join("document"), JobId(34), Generation::first())
@@ -670,7 +678,7 @@ mod tests {
                     &mut capture,
                     &mut document,
                     &mut ControlledWorker,
-                    first_ack.written_samples,
+                    first_written,
                     false,
                 )
                 .unwrap(),
@@ -683,10 +691,8 @@ mod tests {
 
         capture.try_append(&vec![200_i16; 32_000]).unwrap();
         let tail_ack = wait_for_ack(&capture);
-        assert_eq!(
-            tail_ack.range,
-            first_ack.written_samples..tail_ack.written_samples
-        );
+        assert_eq!(tail_ack.range, first_written..first_written + 32_000);
+        assert_eq!(tail_ack.written_samples, first_len as u64 + 32_000);
         let total_samples = capture.close().unwrap();
         assert_eq!(total_samples, first_len as u64 + 32_000);
         assert!(matches!(
