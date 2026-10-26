@@ -11336,6 +11336,33 @@ mod tests {
         }
     }
 
+    struct ObservedTailAwareUnifiedWorker {
+        windows: Arc<Mutex<Vec<(u64, u64, usize)>>>,
+    }
+
+    impl crate::parakeet_pipeline::WindowTranscriber for ObservedTailAwareUnifiedWorker {
+        fn instance_id(&self) -> u64 {
+            TailAwareUnifiedWorker.instance_id()
+        }
+
+        fn transcribe(
+            &mut self,
+            window: whisper_core::parakeet_session::AudioWindow,
+            pcm: &[i16],
+        ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+            self.windows
+                .lock()
+                .expect("observed unified worker windows")
+                .push((
+                    window.native_start_sample,
+                    window.native_end_sample,
+                    pcm.len(),
+                ));
+            let mut inner = TailAwareUnifiedWorker;
+            inner.transcribe(window, pcm)
+        }
+    }
+
     struct InvalidTimeUnifiedWorker;
 
     impl crate::parakeet_pipeline::WindowTranscriber for InvalidTimeUnifiedWorker {
@@ -12223,6 +12250,7 @@ mod tests {
         }
         let document_revision = Arc::new(AtomicU64::new(0));
         let stop_submissions = Arc::new(AtomicU64::new(0));
+        let observed_windows = Arc::new(Mutex::new(Vec::new()));
         let runtime = ImportRuntime::new(
             WorkerPaths {
                 cpu: PathBuf::from("unused-cpu"),
@@ -12230,7 +12258,9 @@ mod tests {
             },
             Arc::new(PublicationGate::default()),
         )
-        .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker))
+        .with_controlled_transcriber(Box::new(ObservedTailAwareUnifiedWorker {
+            windows: Arc::clone(&observed_windows),
+        }))
         .with_controlled_capture(capture, Some(PART_LIMIT_BYTES));
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
@@ -12275,12 +12305,25 @@ mod tests {
             document_revision.load(Ordering::Relaxed) > 0,
             "a final page must be committed while capture is still open"
         );
-        assert!(
-            preview_revision >= 2,
-            "the 4-second preview must be replaced in place"
-        );
+        assert!(preview_revision >= 2, "preview must be replaced in place");
         let (preview_start, preview_end) = preview_range.unwrap();
-        assert_eq!(preview_end - preview_start, 4 * 16_000);
+        let observed_windows = observed_windows.lock().unwrap().clone();
+        assert!(
+            observed_windows.iter().any(|(start, end, pcm_len)| {
+                *end - *start == 4 * 16_000 && *pcm_len == 4 * 16_000
+            }),
+            "controlled worker must receive the 64,000-sample four-second preview PCM window"
+        );
+        assert!(
+            observed_windows.iter().any(|(start, end, pcm_len)| {
+                *end - *start == 4 * 16_000
+                    && *pcm_len == 4 * 16_000
+                    && preview_start >= *start
+                    && preview_end <= *end
+                    && preview_start < preview_end
+            }),
+            "preview segment must remain bounded by its actual worker context"
+        );
         assert_eq!(stop_submissions.load(Ordering::Relaxed), 0);
 
         app.dispatch(AppCommand::StopUnifiedLive {
