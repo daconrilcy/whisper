@@ -1,6 +1,6 @@
-Avancée : ST1 à ST7 automatiques réalisés, delta SPECTRE relu CLEAN et EXE personnel remis le 26 octobre 2026.
-Blocage : recette Windows utilisateur à faire ; formatage global antérieur, deux tests matériels ignorés et réserve Parakeet CPU conservés.
-Décision : tester le nouvel EXE avec les deux spectres en direct pendant le test et la capture microphone.
+Avancée : correctif du clignotement spectral relu CLEAN, tests de stabilité réussis et EXE personnel remplacé le 26 octobre 2026.
+Blocage : confirmation matérielle du correctif à faire ; réserves de formatage, WASAPI et Parakeet CPU conservées.
+Décision : retester les deux spectres continus pendant le test et la capture, avec gain/arrêt/reprise déjà confirmés par l'utilisateur.
 
 # Whisper — Plan du réglage du niveau microphone
 
@@ -576,3 +576,52 @@ Présence et SHA-256 des 18 ressources personnelles vérifiés en lecture seule 
 Archive des petites preuves : `target/parakeet-tests/micro-level/archives/spectre-v2-20261026/`, **121 fichiers, 1 956 484 octets**, arborescence conservée et tous les SHA-256 copie/source conformes. Contenu : 118 stdout/stderr du lot, journaux de garde et observations, garde utilisée ; aucun WAV/corpus/cache Cargo ni nouveau manifeste. Espace libre final relevé par la session principale après remise : **129 556 926 464 octets**, supérieur à 30 Gio. Watchers et commandes Cargo terminés avant rédaction.
 
 Reste de ST7 : **recette physique Windows NOT RUN**, réservée à l'utilisateur. À observer : deux courbes pendant test puis prise de son Turbo/Parakeet, effet du gain et saturation, texte accessible, Stop retirant immédiatement les courbes, attente au nouveau démarrage et reprise après capture finalisée. Les deux tests matériels ignorés et la réserve D2 Parakeet CPU restent annoncés ; les fixtures simulées ne prouvent pas la qualité ASR native ni la comparaison GPU. Verdict code SPECTRE CLEAN, sans qualification globale nouvelle du produit. Aucun commit de code, push, téléchargement ou installation ; seuls ces deux documents sont commités localement.
+
+### Correctif de recette — spectres clignotants, 26 octobre 2026
+
+Retour utilisateur : gain, arrêt et redémarrage validés dans le nouvel EXE ; les spectres clignotent pendant le test et la prise de son. Ce défaut d'affichage relève des critères existants S02/S04/S06. Baseline : livraison documentaire `884330b58fa0338035a74f21f9a25e1b4d079c25` et onze copies ordinaires pré-correctif sous `target/parakeet-tests/micro-level/spectre-flicker-baseline/`. Le travail micro-level/SPECTRE antérieur est préservé ; aucune nouvelle étape produit, dépendance ou racine de campagne.
+
+Cause et correction : entre deux FFT à 10 Hz, `MicrophoneSpectrumReader::poll` émettait `Unavailable` pour une paire fraîche mais inchangée. Le chemin de répétition retourne désormais `None`, en conservant le temps d'acquisition original ; la disparition après péremption, perte ou changement d'époque reste effective. La reproduction rouge a d'abord constaté l'invalidation erronée après un vrai `Available`. Les essais corrigés vérifient deux polls identiques sans événement, puis une seule invalidation après 501 ms. Le multipass egui est une situation de régression vérifiée, pas la cause démontrée.
+
+Fichiers du correctif : `crates/whisper-adapters/src/microphone_probe.rs` (lecteur et test), `crates/whisper-desktop/src/ui.rs` (test/helpers de rendu), modes ciblés de `target/parakeet-tests/micro-level/guard-micro-level.ps1`. La revue indépendante du même `rust_reviewer`, orchestrée par `rust_review_coordinator`, déclare **CLEAN pour le delta correctif, epoch 0**, une passe de revue, aucun constat requis. Ce verdict n'est pas une nouvelle qualification globale de l'ASR ni une preuve physique Windows.
+
+#### Incident de formatage, arrêt et reprise autorisée
+
+L'implémenteur a lancé par erreur une commande d'écriture `cargo fmt --package whisper-adapters --package whisper-desktop` pendant la surveillance. La garde a interrompu **FmtMicrophoneWrite-20261026T075111795-bb5ea83f**, le 26 octobre à 07:51, après signalement de `Changed crates/whisper-adapters/src/direct_live.rs` hors racines d'exécution. Cet incident est une écriture attribuée à la campagne, distincte des observations UNATTRIBUTED. Aucun nouveau Cargo ou restauration n'a suivi avant arbitrage ; logs et état courant conservés.
+
+La session principale a contrôlé le diff en lecture seule : présentation du test R04 antérieur dans `direct_live.rs`, copie baseline exacte disponible. À la question autorisant la restauration exacte de ce fichier depuis la copie vérifiée puis reprise revue/vérifications/compilation du nouvel EXE, réponse utilisateur **« je t'autorise »**. Restauration limitée à ce fichier, contrôle SHA-256 :
+
+- Copie antérieure et fichier après restauration : `EFE24849CCB95F0F6CD030CD2EF5C6B81E5863CDF963831D5FDA445BAB168175`.
+- État après formatage accidentel, avant restauration : `E740AFE2E2A7312D8530297B00DA0C9F720B6D1838C70C97A4D6E655E24777AB`.
+
+Le mode `FmtMicrophoneWrite` a été retiré de la garde. Les assertions nouvelles ont été formatées manuellement entre commandes, watchers terminés. Le contrôle `FmtMicrophone --check` demeure non nul seulement pour la mise en forme R04 préexistante de `direct_live.rs`, restaurée volontairement ; les deux fichiers du correctif ne présentent plus d'écart. Le défaut global antérieur de `model_selection_app.rs:144` reste hors périmètre. Aucun succès global de formatage n'est annoncé. Les preuves de l'incident restent dans l'archive ; l'autorisation de reprise ne transforme pas cette écriture en destination autorisée.
+
+#### Vérifications après restauration et revue
+
+Toutes les commandes Cargo passent par la garde existante, hors ligne/verrouillé, target partagé canonique et variables de caches/temporaires sous micro-level. SelfTest préalable ; aucune source ou documentation modifiée pendant surveillance. Les refus de chemins externes restent actifs, et le traitement Temp UNATTRIBUTED conserve les limites de DEC-CAMP-S01.
+
+| Vérification | Résultat / journal sous micro-level/logs |
+| --- | --- |
+| ProbeRepeatSpectrum | PASS 1/1 ; `ProbeRepeatSpectrum-20261026T075946751-b1ff66c6.stdout.log`. Instantané répété sans invalidation, puis péremption unique. |
+| DesktopSpectrumStability | PASS 1/1 ; `DesktopSpectrumStability-20261026T080138614-783bdfc9.stdout.log`. Quatre frames, au moins deux passes chacune ; deux rectangles dans clip/écran à chaque frame, stabilité <1 px, identité effective conservée. Les 1 025 bins par voie viennent d'une vraie sonde. |
+| ProbeUnit | PASS 9/9 ; `ProbeUnit-20261026T080039346-296742ce.stdout.log`. |
+| DesktopMicrophoneStop | PASS 3/3 ; `DesktopMicrophoneStop-20261026T080048013-53656eb0.stdout.log`, dont arrêt/retest. |
+| SelfTest / git diff --check | PASS ; check format en lecture seule avec seule réserve baseline précisée ci-dessus. |
+
+La durée des tests/commandes est restée dans les plafonds acceptés de 10 min hors compilation et 90 min compilation incluse ; aucun mode D2, appel ASR réel ou test GPU. L'incident a interrompu sa commande ; la reprise est précisément autorisée et vérifiée, pas une continuation automatique.
+
+#### Nouvelle remise personnelle
+
+SelfTest PASS puis **PersonalRelease-20261026T080702459-ed33b38b**, exit 0, durée gardée **35 s** (Cargo : 34,04 s). Journaux stdout/stderr de ce run archivés. Aucun changement source/test/config après le verdict CLEAN ; ST7 n'a produit que les artefacts. Aucun processus `whisper-desktop.exe` ouvert avant copie, aucun processus utilisateur fermé, aucun EXE lancé par l'agent. Dossier inchangé, exactement trois fichiers : `target/parakeet-tests/micro-level/recette-personnelle/`.
+
+| EXE | Octets | SHA-256 source et copie |
+| --- | ---: | --- |
+| whisper-desktop.exe | 14 365 696 | `08C992139CFC17417AEFC8A3D509DC02B688A77DA444AC9FD075C56A5707C69E` |
+| whisper-worker-cpu.exe | 20 809 728 | `33CAAAC2C87B65CE0EBB2BC18042A50BE823C6BECE575B662E5C75D601C0B876` |
+| whisper-worker-gpu.exe | 20 882 432 | `D166CC51B6E02F38B38BCD9A00736E381A176B67187B4F283443B9FA0D915809` |
+
+Les 18 ressources du profil installé ont été hachées en lecture seule ; comparaison par la session principale avec les relevés précédents : **18/18 identiques en taille et SHA-256**. Aucun worker Parakeet/DLL ajouté à la recette ; le dossier utilise toujours l'installation personnelle stable.
+
+Archive corrective : `target/parakeet-tests/micro-level/archives/spectre-flicker-20261026/`, **20 fichiers, 1 771 968 octets**, arborescence et tous les SHA-256/taille source-copie contrôlés. Elle comprend RED/GREEN, rendu, régressions, formatage et incident, build, journaux guard/events/Temp et garde courante sans le mode d'écriture. Aucun corpus, WAV, cache ni nouveau manifeste. Espace libre final **125 618 352 128 octets**, supérieur à 30 Gio. Aucun guard actif avant cette rédaction ; aucun nettoyage, commit de code ou push.
+
+Reste à l'utilisateur : confirmer les courbes continues pendant test puis prise de son, le gain, Stop et reprise. Le gain/arrêt/redémarrage ont déjà été confirmés sur la précédente remise et leurs régressions passent. La réserve Parakeet CPU native et les deux tests matériels ignorés restent inchangés ; la nouvelle recette physique n'est pas annoncée exécutée.
