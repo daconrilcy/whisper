@@ -1769,7 +1769,7 @@ impl UnifiedInferenceExecutor {
                 .name("parakeet-unified-inference".into())
                 .spawn(move || {
                     let mut worker = worker;
-                    let mut child_jobs = BTreeMap::<JobId, (Generation, u64)>::new();
+                    let mut child_jobs = BTreeMap::<u128, (Generation, u64)>::new();
                     let mut wire_request_id = 0_u64;
                     #[cfg(test)]
                     observe_controlled_child(
@@ -1812,7 +1812,8 @@ impl UnifiedInferenceExecutor {
                                 let logical_attempt = command.call.attempt.checked_add(1);
                                 let child_can_add_job =
                                     child_jobs.len() < UNIFIED_CHILD_JOB_CAPACITY;
-                                let admission = match (logical_attempt, child_jobs.get(&session.job_id)) {
+                                let job_key = session.job_id.0;
+                                let admission = match (logical_attempt, child_jobs.get(&job_key)) {
                                     (None, _) => Err("SessionAttemptIdentityExhausted".to_owned()),
                                     (Some(_), Some((generation, _)))
                                         if *generation != session.generation =>
@@ -1825,16 +1826,13 @@ impl UnifiedInferenceExecutor {
                                         Err("ChildAttemptStale: logical attempt regressed".into())
                                     }
                                     (Some(attempt), Some((generation, _))) => {
-                                        child_jobs.insert(session.job_id, (*generation, attempt));
+                                        child_jobs.insert(job_key, (*generation, attempt));
                                         Ok(attempt)
                                     }
                                     (Some(attempt), None)
                                         if child_can_add_job =>
                                     {
-                                        child_jobs.insert(
-                                            session.job_id,
-                                            (session.generation, attempt),
-                                        );
+                                        child_jobs.insert(job_key, (session.generation, attempt));
                                         Ok(attempt)
                                     }
                                     (Some(_), None) => Err(format!(
@@ -2800,6 +2798,24 @@ struct ImportRequestState {
     gpu_attested: bool,
 }
 
+fn pending_unified_event_identity(event: &ImportEvent) -> Option<(JobId, Generation)> {
+    match event {
+        ImportEvent::Failed {
+            job_id, generation, ..
+        }
+        | ImportEvent::MicrophoneGainApplied {
+            job_id, generation, ..
+        }
+        | ImportEvent::MicrophoneGainRejected {
+            job_id, generation, ..
+        }
+        | ImportEvent::ParakeetCaptureStopped {
+            job_id, generation, ..
+        } => Some((*job_id, *generation)),
+        _ => None,
+    }
+}
+
 impl ImportRuntime {
     fn release_unified_terminal_state(&mut self, job_id: JobId, generation: Generation) {
         let session = whisper_core::parakeet_scheduler::SchedulerSession { job_id, generation };
@@ -2811,7 +2827,7 @@ impl ImportRuntime {
         self.unified_archives.remove(&session);
         self.gpu_candidates.remove(&(job_id, generation.get()));
         self.parakeet_pending_events
-            .retain(|event| event.identity() != (job_id, generation));
+            .retain(|event| pending_unified_event_identity(event) != Some((job_id, generation)));
     }
 
     fn unified_admission_full(&self) -> bool {
@@ -3842,7 +3858,7 @@ impl ImportRuntime {
                                 }
                                 Ok(None) => {}
                                 Err(stop_error) => failure.push_str(&format!(
-                                    "; capture {}/{} stop: {stop_error}",
+                                    "; capture {:?}/{:?} stop: {stop_error}",
                                     other.job_id, other.generation
                                 )),
                             }
@@ -3868,7 +3884,7 @@ impl ImportRuntime {
                                 job_id: other.job_id,
                                 generation: other.generation,
                                 message: format!(
-                                    "InferenceWorkerLost: peer session terminated after worker panic while processing {}/{}",
+                                    "InferenceWorkerLost: peer session terminated after worker panic while processing {:?}/{:?}",
                                     session.job_id, session.generation
                                 ),
                             });
@@ -4670,21 +4686,26 @@ impl ImportRuntime {
                         } else if let Some(direct) = self.direct_live.as_ref()
                             && direct.identity() == (job_id, generation)
                         {
-                            direct.set_gain(&target_identity, expected_revision, gain)
+                            direct
+                                .set_gain(&target_identity, expected_revision, gain)
+                                .map(|_| ())
                         } else if let Some(parakeet) = self.parakeet_live.as_ref()
                             && parakeet.identity() == (job_id, generation)
                         {
-                            parakeet.set_gain(&target_identity, expected_revision, gain)
+                            parakeet
+                                .set_gain(&target_identity, expected_revision, gain)
+                                .map(|_| ())
                         } else if let Some(test) = self.microphone_test.as_ref()
                             && (test.job_id, test.generation) == (job_id, generation)
                         {
                             test.set_gain(&target_identity, expected_revision, gain)
+                                .map(|_| ())
                         } else if let Some(live) = self.live.as_ref()
                             && (live.request.job_id, live.request.generation)
                                 == (job_id, generation)
                             && live.capture.source_identity() == Some(target_identity.as_str())
                         {
-                            live.capture.set_gain(expected_revision, gain)
+                            live.capture.set_gain(expected_revision, gain).map(|_| ())
                         } else {
                             Err("MicrophoneLevel: capture cible absente ou périmée".into())
                         }
@@ -11011,6 +11032,7 @@ mod tests {
         capture_progress: Option<(JobId, Arc<AtomicU64>)>,
         document_revision: Option<(JobId, Arc<AtomicU64>)>,
         unified_stop_submissions: Option<Arc<AtomicU64>>,
+        controlled_capture_blocks: Option<Arc<Mutex<VecDeque<(JobId, Generation, Vec<f32>)>>>>,
     }
 
     impl ImportIoPort for RuntimeImportPort {
@@ -11038,6 +11060,19 @@ mod tests {
         }
 
         fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
+            if let Some(blocks) = &self.controlled_capture_blocks {
+                let mut blocks = blocks.lock().expect("controlled capture block queue");
+                while let Some((job_id, generation, samples)) = blocks.pop_front() {
+                    let session =
+                        whisper_core::parakeet_scheduler::SchedulerSession { job_id, generation };
+                    if let Some(state) = self.runtime.unified_sessions.get_mut(&session) {
+                        state.source.enqueue_test_block(samples);
+                    } else {
+                        blocks.push_front((job_id, generation, samples));
+                        break;
+                    }
+                }
+            }
             if let Some(event) = self.events.pop_front() {
                 return Ok(Some(event));
             }
@@ -11440,6 +11475,7 @@ mod tests {
                 capture_progress: None,
                 document_revision: None,
                 unified_stop_submissions: None,
+                controlled_capture_blocks: None,
             };
             let mut app = ImportApplication::new(port);
             app.dispatch(AppCommand::StartImport { request }).unwrap();
@@ -11570,6 +11606,7 @@ mod tests {
             capture_progress: Some((JobId(B_ID), Arc::clone(&b_progress))),
             document_revision: None,
             unified_stop_submissions: Some(Arc::clone(&stop_submissions)),
+            controlled_capture_blocks: None,
         });
 
         app.dispatch(AppCommand::StartUnifiedLiveConfigured {
@@ -11872,6 +11909,7 @@ mod tests {
             capture_progress: Some((JobId(B_ID), Arc::clone(&b_progress))),
             document_revision: None,
             unified_stop_submissions: Some(Arc::clone(&stop_submissions)),
+            controlled_capture_blocks: None,
         });
 
         app.dispatch(AppCommand::StartImport {
@@ -12008,6 +12046,7 @@ mod tests {
             capture_progress: None,
             document_revision: Some((JobId(JOB_ID), Arc::clone(&document_revision))),
             unified_stop_submissions: Some(Arc::clone(&stop_submissions)),
+            controlled_capture_blocks: None,
         });
         app.dispatch(AppCommand::StartUnifiedLiveConfigured {
             request: request.clone(),
@@ -12207,6 +12246,7 @@ mod tests {
             capture_progress: None,
             document_revision: None,
             unified_stop_submissions: None,
+            controlled_capture_blocks: None,
         };
         let mut app = ImportApplication::new(port);
         app.dispatch(AppCommand::StartImport {
@@ -12448,6 +12488,7 @@ mod tests {
             capture_progress: None,
             document_revision: None,
             unified_stop_submissions: None,
+            controlled_capture_blocks: None,
         };
 
         assert!(matches!(port.poll(), Ok(Some(ImportEvent::Ready { .. }))));
@@ -13322,12 +13363,14 @@ mod tests {
         )
         .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker))
         .with_controlled_capture(capture, None);
+        let controlled_capture_blocks = Arc::new(Mutex::new(VecDeque::new()));
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
             capture_progress: None,
             document_revision: None,
             unified_stop_submissions: None,
+            controlled_capture_blocks: Some(Arc::clone(&controlled_capture_blocks)),
         });
 
         app.dispatch(AppCommand::StartUnifiedLiveConfigured {
@@ -13343,21 +13386,15 @@ mod tests {
             gain: whisper_core::microphone_level::GainDb::new(6).unwrap(),
         })
         .unwrap();
-        let session = whisper_core::parakeet_scheduler::SchedulerSession {
-            job_id: request.job_id,
-            generation: request.generation,
-        };
-        app.io
-            .runtime
-            .unified_sessions
-            .get_mut(&session)
-            .unwrap()
-            .source
-            .enqueue_test_block(vec![0.1; 16_000]);
+        controlled_capture_blocks.lock().unwrap().push_back((
+            request.job_id,
+            request.generation,
+            vec![0.1; 16_000],
+        ));
         app.dispatch(AppCommand::Refresh).unwrap();
-        assert_eq!(app.view.microphone_gain_db, 6);
-        assert_eq!(app.view.microphone_gain_revision, 1);
-        assert_eq!(app.view.microphone_gain_applied_first_frame, Some(16_000));
+        assert_eq!(app.view().microphone_gain_db, 6);
+        assert_eq!(app.view().microphone_gain_revision, 1);
+        assert_eq!(app.view().microphone_gain_applied_first_frame, Some(16_000));
 
         app.dispatch(AppCommand::SetMicrophoneGain {
             job_id: request.job_id,
@@ -13379,14 +13416,14 @@ mod tests {
         ));
         app.dispatch(AppCommand::Refresh).unwrap();
         assert!(
-            app.view
+            app.view()
                 .message
                 .as_deref()
                 .is_some_and(|message| message.contains("source active différente"))
         );
-        assert_eq!(app.view.microphone_gain_revision, 1);
-        assert_eq!(app.view.microphone_gain_requested_revision, 1);
-        assert_eq!(app.view.microphone_gain_requested_db, 6);
+        assert_eq!(app.view().microphone_gain_revision, 1);
+        assert_eq!(app.view().microphone_gain_requested_revision, 1);
+        assert_eq!(app.view().microphone_gain_requested_db, 6);
         app.dispatch(AppCommand::SetMicrophoneGain {
             job_id: request.job_id,
             generation: request.generation,
@@ -13395,17 +13432,15 @@ mod tests {
             gain: whisper_core::microphone_level::GainDb::new(0).unwrap(),
         })
         .unwrap();
-        app.io
-            .runtime
-            .unified_sessions
-            .get_mut(&session)
-            .unwrap()
-            .source
-            .enqueue_test_block(vec![0.1; 16_000]);
+        controlled_capture_blocks.lock().unwrap().push_back((
+            request.job_id,
+            request.generation,
+            vec![0.1; 16_000],
+        ));
         app.dispatch(AppCommand::Refresh).unwrap();
-        assert_eq!(app.view.microphone_gain_db, 0);
-        assert_eq!(app.view.microphone_gain_revision, 2);
-        assert_eq!(app.view.microphone_gain_applied_first_frame, Some(32_000));
+        assert_eq!(app.view().microphone_gain_db, 0);
+        assert_eq!(app.view().microphone_gain_revision, 2);
+        assert_eq!(app.view().microphone_gain_applied_first_frame, Some(32_000));
 
         app.dispatch(AppCommand::StopUnifiedLive {
             job_id: request.job_id,
@@ -13534,6 +13569,7 @@ mod tests {
             capture_progress: None,
             document_revision: None,
             unified_stop_submissions: None,
+            controlled_capture_blocks: None,
         });
         app.dispatch(AppCommand::StartUnifiedLiveConfigured {
             request: live_request,
@@ -13583,6 +13619,7 @@ mod tests {
                 capture_progress: None,
                 document_revision: None,
                 unified_stop_submissions: None,
+                controlled_capture_blocks: None,
             });
             app.dispatch(AppCommand::StartImport { request }).unwrap();
             for _ in 0..24 {
@@ -13632,6 +13669,7 @@ mod tests {
             capture_progress: None,
             document_revision: None,
             unified_stop_submissions: None,
+            controlled_capture_blocks: None,
         });
         app.dispatch(AppCommand::StartImport { request }).unwrap();
         for _ in 0..24 {
