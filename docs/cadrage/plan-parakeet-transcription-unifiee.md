@@ -1,6 +1,6 @@
 Avancée : plan accepté ; candidat PU-L1 écrit partiellement et relu, trois constats corrigés et clos.
 Blocage : T4 non raccordée au vrai import (R1) ; E-GUARD non satisfait, compilation et tests non exécutés.
-Décision : autorisation de code limitée à PU-L1 acquise ; extension de périmètre à arbitrer avant de terminer T4.
+Décision : ajustement du plan et fin de T4 autorisés ; CHANGE-PU-L1-01 en revue ciblée avant reprise du code.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -179,3 +179,61 @@ Cette section décrit la réalisation postérieure à la clôture documentaire c
 **Arbitrage de périmètre proposé, non accepté.** Étendre T4 à `crates/whisper-adapters/src/queue_store.rs` et `crates/whisper-adapters/src/source_binding.rs`, actuellement hors chemins d'écriture, afin de porter une identité explicite et versionnée de stratégie dans les demandes persistées. Préserver le sens des demandes anciennes et distinguer les nouvelles demandes unifiées sans emprunter les qualifications single-pass/VAD existantes. La représentation et la compatibilité doivent être précisées dans le PLAN_CHANGE et revues de façon ciblée avant ces modifications. Les chemins de tests supplémentaires éventuellement nécessaires devront être explicités dans cet ajustement ; aucune extension implicite n'est autorisée. Ce changement de périmètre n'est pas adopté par le présent bilan.
 
 E-GUARD demeure une décision d'exécution distincte : aucune garde n'a été adaptée, aucune ancienne dérogation transférée et aucune campagne lancée. Aucun temporaire de campagne créé ou nettoyé par cette réalisation. Espace libre relevé à la clôture de ce candidat partiel : 113,65 Gio.
+
+## 6. CHANGE-PU-L1-01 — identité persistée et raccord T4
+
+**Autorité et état.** Le 26 octobre 2026, après présentation de R1 et des deux chemins de persistance manquants, l'utilisateur répond : « je t'autorise l'ajustement du plan puis terminer T4 ». Cette autorisation lève l'arbitrage de périmètre proposé au §5 ; elle couvre l'ajustement puis le code T4 et ses adaptations nécessaires, sans campagne, activation native unifiée, lot suivant ni push. Version du plan avec cet ajustement : v0.2 ; le §1 et le §4 conservent l'historique de la version v0.1.
+
+Contribution technique `ARCH-PU-L1-01 v1`, auteur `/root/pu_l1_plan_change`, rôle `rust_architect`, lecture seule sur la base `29b924303afb89608d8841e676187bcb8505f709`. Sources : plan §3/§5, design DEC-T-PU-01/06 et PORT-PU-01 à 05 ; `ImportRequest`, dispatch `ImportApplication`, `QueueStore`, `SourceBinding`, `ArchiveStore`, `WorkerSupervisor` et composition desktop. Aucun fichier écrit ni commande Rust/campagne exécutée par l'architecte. Auteur du présent ajustement : session principale. Statut : candidat pour revue ciblée, avant code.
+
+**Nature et impact.** PLAN_CHANGE à la suite de la découverte technique R1 ; aucun changement de besoin ou de critère d'acceptation. Étend T4 et précise l'identité/cache déjà exigée par DEC-T-PU-06 ; ne crée aucune onzième tâche ni nouveau rapport. Objectif inchangé : vraie application → import unifié à worker contrôlé → publication cohérente, avec identité distincte des stratégies historiques. L'activation native unifiée reste T9. Les contrats ci-dessous complètent T4 et priment sur l'ancien inventaire de chemins pour les usages expressément listés.
+
+### 6.1 Contrats de stratégie et compatibilité
+
+- Ajouter à `ImportRequest` un champ typé `strategy`, en étendant `TranscriptionStrategy` avec `LegacyV1` et en conservant `BoundedWindowsV1`. La version est portée par la variante ; `stable_id()` distingue `legacy-v1` et `bounded-windows-v1`. Un champ absent dans un ancien enregistrement signifie exclusivement `LegacyV1`. Toute valeur inconnue est une erreur explicite, sans conversion silencieuse. Le même identifiant traverse préparation, file, binding, exécution et publication ; aucune sélection par durée.
+- Lire les anciennes entrées sans modifier leur sens ou leurs fichiers lors de la lecture. Les nouvelles entrées unifiées sont écrites avec un schéma identifiable et refusé par l'ancien lecteur : queue v2 pour les entrées unifiées, lecture des v1 legacy conservée ; snapshot v2 pour les bindings unifiés, lecture v1 legacy conservée ; pending d'archive v4 pour la stratégie unifiée, versions 1–3 historiques inchangées. Vérifier les couples schéma/stratégie : un ancien schéma ne peut porter une stratégie unifiée ; un nouveau schéma unifié ne peut omettre la stratégie. Pas de migration destructive ni réécriture globale de la file. Une demande en attente ou reprise conserve sa stratégie ; toute substitution est refusée.
+- `SourceBinding::apply_to_request` conserve la stratégie ; l'ouverture d'un binding existant vérifie sa concordance avec la demande. L'identité persistée d'archive et toute comparaison de réutilisation/cache incluent la stratégie en plus de la source, du modèle et des identités de calcul/moteur déjà exigées. Une archive legacy ne satisfait jamais une demande unifiée. La stratégie applicative ne remplace pas `ArchiveQualificationKey` : les qualificatifs single-pass/VAD existants gardent leur sens et ne qualifient pas la session unifiée. Les anciens résultats restent consultables selon leurs règles.
+
+### 6.2 Raccord applicatif et limite d'activation
+
+`ImportApplication` transmet la stratégie sans la recalculer lors des événements ou des reprises. La composition assemble le vrai adaptateur d'import ; celui-ci choisit le pipeline borné uniquement sur `BoundedWindowsV1`, décode séquentiellement la source liée, traite les fenêtres avec un worker contrôlé injecté, persiste document/couverture et publie via le mécanisme réel d'archive. La branche unifiée ne conserve aucun plafond applicatif de durée ; chaque clip garde les bornes natives. La publication n'est annoncée qu'après couverture finale et engagement réel des sorties.
+
+La composition native et les nouvelles demandes de l'UI restent explicitement legacy jusqu'à T9. Les requêtes unifiées servent ici la composition contrôlée du vrai parcours applicatif. Un appel unifié dans une composition native non qualifiée est refusé explicitement avant inférence ; aucune ancienne qualification ne l'autorise. Les points d'injection de worker contrôlé sont privés aux tests ou des ports effectivement consommés, sans commutateur d'environnement permettant de contourner la qualification native.
+
+Aucun changement de parcours UI, micro, ordonnancement, annulation A/B ou qualification native prévu dans T5–T10. Les adaptations des constructions de demandes dans `ui.rs` et `parakeet_live.rs` sont uniquement mécaniques et utilisent `LegacyV1`, sans changement de comportement.
+
+### 6.3 Chemins additionnels de T4
+
+| Usage autorisé pour terminer T4 | Chemins additionnels exacts |
+| --- | --- |
+| Persistance et propagation | `crates/whisper-adapters/src/queue_store.rs` ; `crates/whisper-adapters/src/source_binding.rs` |
+| Constructions mécaniques seulement, sans comportement T6/T8 | `crates/whisper-adapters/src/parakeet_live.rs` ; `crates/whisper-desktop/src/ui.rs` |
+| Constructions et tests core existants | `crates/whisper-core/tests/import_contract.rs` ; `crates/whisper-core/tests/model_selection_app.rs` ; `crates/whisper-core/tests/parakeet_import_contract.rs` ; `crates/whisper-core/tests/scheduler_contract.rs` |
+| Constructions et tests adapters existants | `crates/whisper-adapters/tests/durability.rs` ; `crates/whisper-adapters/tests/legacy_model_requests.rs` ; `crates/whisper-adapters/tests/import_mp3.rs` ; `crates/whisper-adapters/tests/import_cpu.rs` ; `crates/whisper-adapters/tests/model_catalog.rs` ; `crates/whisper-adapters/tests/reprocessing_cleanup.rs` ; `crates/whisper-adapters/tests/parakeet_long.rs` ; `crates/whisper-adapters/tests/source_binding.rs` ; `crates/whisper-adapters/tests/reprocessing_create.rs` |
+
+Les autres constructions relevées sont déjà dans les chemins PU-L1/GT : application, ports, archive, worker_ipc, root, parakeet_import/control/archive et reprocessing_baseline. Les nouveaux tests `parakeet_unified.rs` restent autorisés. Aucun Cargo manifest, worker natif ou nouveau fichier de production supplémentaire nécessaire. L'inventaire ne donne pas d'autorité de modifier des comportements étrangers à T4 dans ces fichiers.
+
+### 6.4 Responsabilités et vérifications ciblées
+
+| Propriétaire | Dépendance/contrat |
+| --- | --- |
+| Core ports/session | Possède stratégie typée et demande sérialisable ; aucun IO |
+| Application | Préserve stratégie et génération ; orchestre effets/états existants |
+| Queue/source-binding/archive | Implémente persistance compatible et contrôle de concordance |
+| Adaptateur pipeline/worker_ipc | Sélection explicite, fenêtres bornées, effets réels et publication |
+| Root | Injecte implémentations et statut d'activation ; aucune politique métier parallèle |
+| UI/micro | Adaptation de construction legacy seulement |
+
+Vérifications à écrire dans les chemins de tests ci-dessus ou GT, liées à T4 / AC-PU-03/05 et DEC-T-PU-06, toutes **NOT RUN** jusqu'à E-GUARD :
+
+- Ancien JSON sans stratégie → legacy ; round-trip unifié ; valeur inconnue et couples schéma/stratégie incohérents refusés.
+- File legacy inchangée à la lecture ; queue unifiée conserve sa stratégie après réouverture et changement CPU/Auto/GPU permis ; substitution lors d'une reprise refusée.
+- Binding conserve la stratégie et refuse une discordance, sans toucher la source.
+- Même source/modèle : résultat legacy non réutilisé pour stratégie unifiée.
+- Import court et long via **`ImportApplication` et le vrai adaptateur raccordé**, worker contrôlé seul substitué : dernière fenêtre/phrase terminale, couverture contiguë, TXT/SRT publiés, référence réelle constatée.
+- Échec worker, temps invalides ou export impossible : aucune annonce de paquet complet ; ancienne publication préservée.
+- Composition native : requête unifiée explicitement refusée avant appel moteur ; imports legacy/Turbo inchangés.
+
+Les futures commandes C1/C2 restent soumises à la même enveloppe ; les tests ciblés de persistance/binding/import seront inclus dans C2 ou dans la régression workspace prévue. Aucune commande nouvelle autorisée par cet ajustement. Récupération : préserver anciennes entrées et publications ; aucun nettoyage, migration destructive ou relance de campagne.
+
+**Restant.** Revue ciblée de cet ajustement versionné ; implémentation T4 par le worker original ; fermeture de R1 par le reviewer indépendant. La revue du plan ne ferme pas R1 et ne vaut pas compilation. La limite de deux cycles revue/correction du code PU-L1 est conservée, avec une correction déjà accomplie. E-GUARD et validations natives/utilisateur restent distincts.
