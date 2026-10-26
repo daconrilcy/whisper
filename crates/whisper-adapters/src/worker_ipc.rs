@@ -11874,11 +11874,30 @@ mod tests {
 
             let source_path = generation.join("parakeet-unified/source.wav");
             let source = crate::parakeet_audio::PcmPartStore::open(source_path);
-            let expected_pcm = if label == "B" {
-                (0.15_f32 * 32_767.0).round() as i16
+            let (block_count, block_samples, input_level) = if label == "B" {
+                (7, 5 * 16_000, 0.15_f32)
             } else {
-                (0.25_f32 * 32_767.0).round() as i16
+                (25, 77_440, 0.25_f32)
             };
+            let mut reference_capture =
+                crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:pcm-reference");
+            for _ in 0..block_count {
+                reference_capture.enqueue_test_block(vec![input_level; block_samples]);
+            }
+            let mut reference_converter = crate::capture::Pcm16Converter::new(16_000, 1).unwrap();
+            let mut expected_pcm = Vec::with_capacity(expected_samples as usize);
+            while let Some(block) = reference_capture.try_next_block() {
+                expected_pcm.extend(reference_converter.push(&block).unwrap());
+                reference_capture.recycle_block(block).unwrap();
+            }
+            expected_pcm.extend(reference_converter.finish().unwrap());
+            assert_eq!(expected_pcm.len() as u64, expected_samples);
+            let steady_level = (input_level * 32_767.0).round() as i16;
+            assert!(
+                expected_pcm[128..expected_pcm.len() - 128]
+                    .iter()
+                    .all(|sample| sample.abs_diff(steady_level) <= 2)
+            );
             let mut start = 0_u64;
             while start < expected_samples {
                 let end = start.saturating_add(80_000).min(expected_samples);
@@ -11887,8 +11906,21 @@ mod tests {
                 assert!(
                     samples
                         .iter()
-                        .all(|sample| sample.abs_diff(expected_pcm) <= 2)
+                        .zip(&expected_pcm[start as usize..end as usize])
+                        .all(|(actual, expected)| actual.abs_diff(*expected) <= 2),
+                    "capture {label} PCM differs from the sequential converter reference in {start}..{end}"
                 );
+                let interior_start = start.max(128);
+                let interior_end = end.min(expected_samples - 128);
+                if interior_start < interior_end {
+                    let local_start = (interior_start - start) as usize;
+                    let local_end = (interior_end - start) as usize;
+                    assert!(
+                        samples[local_start..local_end]
+                            .iter()
+                            .all(|sample| sample.abs_diff(steady_level) <= 2)
+                    );
+                }
                 start = end;
             }
 
