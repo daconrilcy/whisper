@@ -1,6 +1,6 @@
-Avancée : reprise ciblée effectuée et deux avis indépendants reçus ; R5/R6 corrigés statiquement.
-Blocage : R1 reste ouvert sur la fixture GPU ; S2-1 ouvert sur l'erreur de lecture de page ; exécution NOT RUN.
-Décision : LIVRÉ AVEC RÉSERVES après la reprise autorisée ; arbitrage sur les deux constats restants.
+Avancée : R1 et S2-1 corrigés et clos statiquement par les deux mêmes reviewers ; aucun constat de code ouvert.
+Blocage : validation BLOCKED sous E-GUARD ; compilation, tests et exécution GPU NOT RUN.
+Décision : corrections ciblées et vérifications indépendantes réalisées ; aucune validation fonctionnelle déduite.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -289,3 +289,22 @@ E-GUARD est inchangé : aucun Cargo, rustc, rustfmt, compilation, test, binaire,
 **État de livraison.** Verdict de coordination : **LIVRÉ AVEC RÉSERVES** ; aucun des deux avis n'est CLEAN. R5 et la borne mémoire R6 ont une fermeture statique du reviewer historique, mais cela ne ferme ni R1 ni S2-1 et ne prouve pas la compilation. Les descriptions du §8 sont le mandat ; le présent résultat est l'état réellement obtenu. T4 n'est pas déclarée terminée.
 
 `git diff --check` réussi par le worker et confirmé par la session principale. Compilation, formatage, tests, exécution audio/native et recette Windows **NOT RUN**, E-GUARD inchangé. Espace libre à la clôture : 113,18 Gio. Aucun fichier personnel touché, campagne, nettoyage, installation, nouvelle dépendance, worker natif ou push. La décision restante est une correction ciblée des deux constats suivie de leur relecture, ou le maintien du candidat avec ces réserves ; elle n'est pas déduite implicitement de la reprise déjà réalisée.
+
+## 10. Fermeture statique de R1 et S2-1
+
+**Autorisation de la session, 26 octobre 2026.** Après le §9, l'utilisateur confirme : « je t'autorise la correction ciblée de ces deux points, puis leur vérification par les mêmes reviewers ». Base de reprise : `2554fe97993ca3a4f018a8aa4ad3db948e62a03d`, branche `evo-startup-perf`, suivi propre. Espace libre avant reprise : 112,85 Gio. Cette autorisation précise couvre la quatrième correction cumulée, bornée à R1/S2-1, puis deux relectures par les reviewers déjà intervenus ; elle ne réinitialise aucun compteur historique ni n'autorise une campagne.
+
+**Candidat corrigé.** Même `/root/pu_l1_implementer`, mode CORRECT, un seul chemin source modifié : `crates/whisper-adapters/src/worker_ipc.rs`. La fixture GPU utilise désormais l'identité complète `PARAKEET_TEST_GPU_PNP_INSTANCE_ID`, sans retirer les contrôles PCI/PnP, de génération et de runtime de `expected_gpu_for_candidate`. Le modèle est résolu par le registre `ParakeetTdt06BV3` puis vérifié par `assert_real_unified_model` ; son absence reste un échec explicite. Les scénarios GPU écrits dépendent aussi du GPU correspondant et de `nvidia-smi`, ce qui ne constitue pas une exécution ni une qualification native dans cette reprise.
+
+`poll_controlled_document()` prend le drainage avant lecture ; il ne le réinstalle qu'après un état Ready ou une page lue avec succès. Une erreur ou la fin libère ce drainage. Le test ajouté via l'adaptateur vérifie une seule `PortError::Failed`, puis `Ok(None)`. Aucun test lancé. Le candidat a été figé avant les relectures et n'a pas changé entre les avis.
+
+**Deux avis séparés sur le même candidat.** Coordination `/root/pu_l1_review`, sans participation au code. Le reviewer historique `/root/pu_l1_review/pu_l1_reviewer` et le second `/root/pu_l1_review/pu_l1_second_review` ont chacun reçu les mêmes critères R1/S2-1 et le delta figé ; aucune conclusion de l'un n'a été transmise à l'autre avant réception de leurs packets.
+
+| Reviewer | Résultat du packet |
+| --- | --- |
+| Historique | **BLOCKED** pour les preuves d'exécution sous E-GUARD ; aucun finding ouvert. Ferme statiquement R1 et S2-1 et confirme les fermetures R2–R6. |
+| Second | **BLOCKED** pour les preuves d'exécution sous E-GUARD ; aucun finding ouvert. Ferme statiquement R1 et S2-1, sans nouveau défaut relevé sur le delta. |
+
+La correction et les deux vérifications demandées sont réalisées. Les deux points de code sont clos par les reviewers, et non par le worker ou la session principale. Il n'y a aucun constat de code ouvert à l'issue de ces packets. Leur verdict **BLOCKED** ne devient pas CLEAN : compilation, formatage, tests, comportement réel et GPU restent non vérifiés. Les deux nouvelles passes s'ajoutent aux cinq lectures antérieures du code ; le cumul est de quatre corrections et sept passes de revue, avec les autorisations supplémentaires distinctes des §§8 et 10. Aucun cycle de correction supplémentaire n'est lancé.
+
+**Contrôles et clôture.** `git diff --check` réussi par le worker et confirmé par la session principale. Cargo, rustc, rustfmt, compilation, tests, audio/GPU et recette Windows **NOT RUN** ; E-GUARD toujours non satisfait. Espace libre final : 112,81 Gio. `models/` et `sound example/` restent non suivis et préservés. Aucun fichier hors dépôt, dépendance, worker natif, installation, campagne, nettoyage ou push. Le raccord T4 dispose maintenant d'un candidat sans constat de code ouvert, mais sa démonstration exécutée et sa validation fonctionnelle ne sont pas acquises ; les dépendances EXECUTION des lots suivants restent non satisfaites.

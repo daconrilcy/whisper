@@ -2414,25 +2414,30 @@ impl ImportRuntime {
     #[cfg(test)]
     fn poll_controlled_document(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
         use whisper_core::ports::ParakeetDocumentPort;
-        let drain = self.controlled_document_drain.as_mut()?;
+        let mut drain = self.controlled_document_drain.take()?;
         if drain.ready_pending {
             drain.ready_pending = false;
+            let job_id = drain.job_id;
+            let generation = drain.generation;
+            self.controlled_document_drain = Some(drain);
             return Some(Ok(ImportEvent::Ready {
-                job_id: drain.job_id,
-                generation: drain.generation,
+                job_id,
+                generation,
                 backend: "controlled-test-worker".into(),
             }));
         }
         if drain.next_sequence <= drain.revision {
-            return Some(match drain.document.read_page(
+            let page_result = drain.document.read_page(
                 drain.job_id,
                 drain.generation,
                 drain.revision,
                 drain.next_sequence,
                 1,
-            ) {
+            );
+            return Some(match page_result {
                 Ok(mut page) if page.entries.len() == 1 => {
                     drain.next_sequence += 1;
+                    self.controlled_document_drain = Some(drain);
                     Ok(ImportEvent::Segment(page.entries.remove(0).segment))
                 }
                 Ok(_) => Err((drain.job_id, drain.generation,
@@ -2441,7 +2446,6 @@ impl ImportRuntime {
                     format!("Document: {error:?}"))),
             });
         }
-        let drain = self.controlled_document_drain.take().expect("drain was present");
         Some(Ok(ImportEvent::End {
             job_id: drain.job_id,
             generation: drain.generation,
@@ -9317,6 +9321,35 @@ mod tests {
     }
 
     #[test]
+    fn controlled_document_drain_terminates_after_page_read_error() {
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-page-drain-error-{}", std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let source_path = root.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let request = unified_import_request(&root.join("archive"), &source_path, 792);
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths { cpu: PathBuf::from("unused-cpu"), gpu: PathBuf::from("unused-gpu") },
+            Arc::new(PublicationGate::default()),
+        ).with_controlled_transcriber(Box::new(ControlledUnifiedWorker));
+        runtime.run_controlled_unified_import(&request).unwrap();
+        let document_path = root.join(format!(
+            "archive/transcriptions/{:032x}/1/parakeet-unified/document", request.job_id.0
+        ));
+        let mut port = RuntimeImportPort { runtime, events: VecDeque::new() };
+
+        assert!(matches!(port.poll(), Ok(Some(ImportEvent::Ready { .. }))));
+        std::fs::remove_dir_all(document_path).unwrap();
+        assert!(matches!(port.poll(), Err(PortError::Failed(message)) if message.starts_with("Document:")));
+        assert!(port.runtime.controlled_document_drain.is_none());
+        assert!(matches!(port.poll(), Ok(None)), "a terminal page error must be emitted only once");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn unified_request_without_controlled_injection_is_refused_before_worker_start() {
         let root = std::env::temp_dir().join(format!("parakeet-unified-native-refusal-{}", std::process::id()));
         let request = unified_import_request(&root, Path::new("missing.wav"), 777);
@@ -12033,7 +12066,7 @@ fn main() {
     fn fake_gpu_candidate() -> whisper_core::gpu_inventory::GpuRuntimeIdentity {
         whisper_core::gpu_inventory::GpuRuntimeIdentity {
             generation: 8,
-            pnp_instance_id: "PCI\\VEN_10DE&DEV_1B06".into(),
+            pnp_instance_id: whisper_core::model_registry::PARAKEET_TEST_GPU_PNP_INSTANCE_ID.into(),
             dxgi_rank: 2,
             luid: 0x1234,
             pci_id: "0000:01:00.0".into(),
