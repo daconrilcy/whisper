@@ -1,6 +1,6 @@
-Avancée : correctif du clignotement spectral relu CLEAN, tests de stabilité réussis et EXE personnel remplacé le 26 octobre 2026.
-Blocage : confirmation matérielle du correctif à faire ; réserves de formatage, WASAPI et Parakeet CPU conservées.
-Décision : retester les deux spectres continus pendant le test et la capture, avec gain/arrêt/reprise déjà confirmés par l'utilisateur.
+Avancée : noms des microphones et indices d'homonymes livrés, revue CLEAN et EXE personnel remplacé ; spectres sans clignotement confirmés par l'utilisateur.
+Blocage : recette Windows des nouveaux libellés à faire ; réserves de formatage, WASAPI et Parakeet CPU conservées.
+Décision : afficher les noms tout en conservant les références techniques comme clés internes.
 
 # Whisper — Plan du réglage du niveau microphone
 
@@ -635,3 +635,38 @@ Trois étapes bornées : (1) projection de libellés commune et rendu desktop, (
 Critères : nom unique inchangé ; groupe de noms identiques numéroté 1..N selon tri des identifiants complets ; permutation d'un même inventaire sans changement des libellés ; liste et lignes prévu/utilisé/avis de changement cohérentes ; noms inconnus affichés comme indisponibles, sans référence technique ; commandes et préférences conservent les identifiants, jamais l'index. La décision de changement de source compare les identifiants avant formatage, même si deux noms sont identiques/inconnus. Les indices ne sont pas persistés et peuvent évoluer si la composition de l'inventaire change.
 
 Vérifications proposées, NOT RUN : fixtures nom unique/deux et trois homonymes, ordre inversé, nom absent, contexte WindowsDefault et source effectivement distincte de la source prévue ; contrôle du vrai rendu et des commandes émises par identifiant. Modes existants DesktopLevel et tests UI ciblés via garde, SelfTest préalable ; pas d'ASR, GPU ou pilotage de la fenêtre. Aucun Cargo fmt en écriture ; formatage manuel ciblé hors watcher et contrôle en lecture seule avec réserves de baseline déjà connues. Racines/environnement/garde et DEC-CAMP-S01 inchangés, seuil 30 Gio et plafonds de campagne applicables. Espace libre avant cet ajustement : **125 497 999 360 octets**. Remise dans le même dossier personnel des trois EXE, ressources installées en lecture seule et recette physique par l'utilisateur.
+
+### Bilan du détail de présentation MICROPHONE-LABELS — 26 octobre 2026
+
+Base documentaire avant réalisation : `28e3bd2c`, avec deux copies ordinaires pré-labels sous `target/parakeet-tests/micro-level/microphone-labels-baseline/`. Les seuls fichiers Rust de ce détail sont `crates/whisper-desktop/src/ui.rs` et `crates/whisper-desktop/tests/microphone_level_ui.rs`. La garde existante a reçu le filtre exact MicrophoneLabels, sans nouvelle racine ou mode d'écriture. Tous les travaux micro-level/SPECTRE précédents ont été préservés.
+
+Projection commune de noms Windows et indices : nom unique inchangé ; homonymes 1..N selon tri complet d'ID, indépendant de la permutation de l'inventaire. Cohérence du sélecteur, des lignes prévu/utilisé et des avis. Le changement de source est toujours décidé par comparaison des ID avant formatage. L'ID reste dans la sélection, les commandes, les préférences et les gains ; l'index demeure une présentation de l'inventaire courant, non persistée. Les identités absentes/vides/blanches rendent une indisponibilité lisible, jamais un nom trompeur ou la référence brute.
+
+Revue par le même reviewer indépendant, orchestrée selon AGENTS.md : première lecture FINDINGS, **L01 IMPORTANT** (identité vide/blanche admise par lookup), correction limitée aux deux fichiers, seconde lecture **CLEAN et L01 fermé**. Aucun autre constat ouvert dans ce détail ; aucun ancien constat SPECTRE/flicker réouvert. Le garde `identity.trim().is_empty()` intervient avant le lookup de nom ; la régression inclut liste, lignes prévu/utilisé et avis public avec identité invalide même si un nom est fourni. Un import manquant dans le module de test a causé un essai de compilation arrêté et conservé ; l'import a été corrigé puis la campagne a réussi. Aucune reprise identique sans changement ni formatage en écriture.
+
+| Vérification gardée, SelfTest préalable | Résultat / journal sous micro-level/logs |
+| --- | --- |
+| MicrophoneLabels final après L01 | PASS **4 tests unitaires + 1 intégration**, exit 0 ; `MicrophoneLabels-20261026T091306264-c7911d6b.stdout.log`. Noms uniques/homonymes, ordre inversé, indisponibilité et commandes par ID. |
+| Échec de compilation du test puis correction | Diagnostic E0425 conservé dans `MicrophoneLabels-20261026T091241528-db8a5bb0.stderr.log`, import privé ajouté avant le run vert suivant. |
+| DesktopMicrophoneStop | PASS **7/7**, exit 0 ; `DesktopMicrophoneStop-20261026T083332011-f174fc3c.stdout.log`. |
+| DesktopSpectrumStability | PASS **1/1**, exit 0 ; `DesktopSpectrumStability-20261026T083339678-c3a75f16.stdout.log`. |
+| FmtMicrophone en lecture seule | FAIL baseline uniquement : `direct_live.rs:1641`, hors périmètre, journal `FmtMicrophone-20261026T083256933-58e28414.stdout.log`. Les fichiers de ce détail sont au format ; aucun formatage global en écriture. |
+| SelfTest / git diff --check | PASS ; chemins, refus externes et état de diff vérifiés. Observation Temp UNATTRIBUTED consignée selon la règle existante, sans qualification de fuite attribuée ni preuve de confinement. |
+
+Commandes hors ligne/verrouillées via la garde, CARGO_TARGET_DIR partagé et variables canoniques micro-level inchangés. Aucun dépassement des plafonds de campagne 90 min commandes / 10 min tests hors compilation ; aucun corpus D2, appel ASR, test GPU ou matériel supplémentaire. Les réserves de formatage antérieures, tests WASAPI ignorés et qualité native Parakeet CPU restent inchangées.
+
+Build personnel **PersonalRelease-20261026T091604201-1245625b**, SelfTest PASS, exit 0, **4 s**. Journaux stdout/stderr archivés. L'EXE de recette était ouvert sous PID 74028 ; la copie a attendu la réponse utilisateur **« La fenêtre est fermée »**, suivie d'un contrôle CIM sans processus actif. Aucun kill ou fermeture automatique. Les deux workers étant déjà identiques, seul le desktop a été recopié. Aucun fichier source/test/config modifié après le verdict CLEAN.
+
+Remise dans `target/parakeet-tests/micro-level/recette-personnelle/`, exactement trois fichiers dont tailles et SHA-256 correspondent aux artefacts release :
+
+| EXE | Octets | SHA-256 |
+| --- | ---: | --- |
+| whisper-desktop.exe | 14 374 912 | `4CA87A024FF977E747E9A36AB94B055F652158D92DFAF93EB3A885CBBB395238` |
+| whisper-worker-cpu.exe | 20 809 728 | `33CAAAC2C87B65CE0EBB2BC18042A50BE823C6BECE575B662E5C75D601C0B876` |
+| whisper-worker-gpu.exe | 20 882 432 | `D166CC51B6E02F38B38BCD9A00736E381A176B67187B4F283443B9FA0D915809` |
+
+Les 18 ressources personnelles (deux workers Parakeet, cinq DLL CPU, neuf DLL GPU, deux modèles) sont présentes et relues en lecture seule. La session principale a comparé tailles/SHA-256 au relevé antérieur : **18/18 identiques**. Aucune ressource Parakeet/DLL ajoutée à la recette, aucune installation ou modification des paramètres personnels. Le dossier conserve sa dépendance à l'installation stable.
+
+Archive `target/parakeet-tests/micro-level/archives/microphone-labels-20261026/` : **20 fichiers, 1 831 008 octets**, arborescence conservée et tous les SHA-256/tailles source-copie vérifiés. Journaux du détail, correction L01, régressions, formatage, build et garde/events/Temp/script ; aucun corpus/WAV/cache, manifeste nouveau ou nettoyage. Espace libre final : **124 769 734 656 octets**, supérieur à 30 Gio. Aucun watcher actif avant rédaction.
+
+Reste à confirmer par l'utilisateur dans la fenêtre Windows : noms lisibles, homonymes numérotés et cohérence prévu/utilisé. Le spectre sans clignotement est déjà confirmé par sa recette précédente. Aucun EXE lancé par l'agent, commit de code ou push ; seuls les deux documents sont commités localement.
