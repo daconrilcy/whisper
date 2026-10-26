@@ -1014,8 +1014,9 @@ mod tests {
                 thread::yield_now();
             }
         }
-        assert_eq!(acknowledgements[0].range, 0..4);
-        assert_eq!(acknowledgements[1].range, 4..6);
+        assert_eq!(acknowledgements[0].range, 0..3);
+        assert_eq!(acknowledgements[0].written_samples, 3);
+        assert_eq!(acknowledgements[1].range, 3..6);
         assert_eq!(acknowledgements[1].written_samples, 6);
         assert_eq!(
             writer.read_written_window(0..6).unwrap(),
