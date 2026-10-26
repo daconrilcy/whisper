@@ -4,6 +4,7 @@ pub mod decoder;
 mod direct_live;
 pub mod gpu_inventory;
 pub mod journal;
+pub mod microphone_probe;
 pub mod model_catalog;
 pub mod parakeet_import;
 mod parakeet_live;

@@ -135,6 +135,7 @@ fn path_write_before_preference_migration_preserves_paths_and_v1_backup() {
     let mut snapshot = paths.load().unwrap().unwrap();
     snapshot.destination = r"C:\NewOutput".into();
     snapshot.microphone_id = Some("mic-new".into());
+    snapshot.microphone_gains_db.insert("wasapi:id-A".into(), 6);
     paths.save(1, snapshot).unwrap();
     wait_for_path_ack(&mut paths, 1);
     drop(paths);
@@ -156,6 +157,7 @@ fn path_write_before_preference_migration_preserves_paths_and_v1_backup() {
     assert_eq!(current["version"], 2);
     assert_eq!(current["destination"], r"C:\NewOutput");
     assert_eq!(current["microphone_id"], "mic-new");
+    assert_eq!(current["microphone_gains_db"]["wasapi:id-A"], 6);
     assert_eq!(current["preferred_model"], "ParakeetTdt06BV3");
     assert_eq!(current["startup_compute"], "Auto");
 }
@@ -174,6 +176,9 @@ fn concurrent_path_and_preference_writes_merge_after_v1_migration() {
     let mut stale_paths = paths.load().unwrap().unwrap();
     stale_paths.destination = r"C:\ConcurrentOutput".into();
     stale_paths.audio_directory = Some(r"C:\ConcurrentAudio".into());
+    stale_paths
+        .microphone_gains_db
+        .insert("wasapi:id-B".into(), -9);
 
     let mut preferences = WindowsModelPreferencePort::new_at(settings.clone(), KNOWN_TURBO);
     let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
@@ -201,6 +206,7 @@ fn concurrent_path_and_preference_writes_merge_after_v1_migration() {
     assert_eq!(current["destination"], r"C:\ConcurrentOutput");
     assert_eq!(current["preferred_model"], "ParakeetTdt06BV3");
     assert_eq!(current["startup_compute"], "Auto");
+    assert_eq!(current["microphone_gains_db"]["wasapi:id-B"], -9);
 }
 
 fn wait_for_path_ack(paths: &mut WindowsPathPort, revision: u64) {

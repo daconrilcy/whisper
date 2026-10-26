@@ -16,6 +16,177 @@ use whisper_core::model_catalog::{Backend, ModelId};
 use whisper_core::model_registry::TURBO_LANGUAGE_INPUTS;
 use whisper_core::model_selection_app::ModelSelectionApp;
 use whisper_core::path_settings::{PathDefaults, PathField, PathSettingsApp, SaveStatus};
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum MicrophoneMeterPresentation {
+    Awaiting,
+    Stale,
+    WrongCapture,
+    Absent,
+    Silence,
+    Signal { rms_dbfs: f64, peak_dbfs: f64 },
+}
+
+fn paint_microphone_spectrum(
+    ui: &mut egui::Ui,
+    title: &str,
+    bins: &[whisper_core::microphone_level::SpectrumBin],
+    sample_rate_hz: u32,
+) {
+    use whisper_core::microphone_level::SpectrumBin;
+    ui.label(title);
+    if bins.iter().all(|bin| matches!(bin, SpectrumBin::Silence)) {
+        ui.label("Silence détecté");
+    }
+    let width = ui.available_width().max(180.0);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, 116.0), egui::Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 2.0, egui::Color32::from_gray(18));
+    let left = rect.left() + 34.0;
+    let right = rect.right() - 8.0;
+    let top = rect.top() + 8.0;
+    let bottom = rect.bottom() - 18.0;
+    for db in [-120.0, -60.0, 0.0] {
+        let y = bottom - (db + 120.0) / 120.0 * (bottom - top);
+        painter.line_segment(
+            [egui::pos2(left, y), egui::pos2(right, y)],
+            egui::Stroke::new(1.0, egui::Color32::DARK_GRAY),
+        );
+        painter.text(
+            egui::pos2(rect.left() + 1.0, y),
+            egui::Align2::LEFT_CENTER,
+            format!("{db:.0}"),
+            egui::FontId::monospace(9.0),
+            egui::Color32::GRAY,
+        );
+    }
+    let mut prior = None;
+    let mut out_of_scale = false;
+    for (index, bin) in bins.iter().enumerate() {
+        let SpectrumBin::MilliDb(milli_db) = bin else {
+            prior = None;
+            continue;
+        };
+        let db = f64::from(*milli_db) / 1000.0;
+        if !(-120.0..=0.0).contains(&db) {
+            out_of_scale = true;
+        }
+        let x = left + (index as f32 / bins.len().saturating_sub(1).max(1) as f32) * (right - left);
+        let y = bottom - (((db + 120.0) / 120.0).clamp(0.0, 1.0) as f32) * (bottom - top);
+        let point = egui::pos2(x, y);
+        if let Some(previous) = prior {
+            painter.line_segment(
+                [previous, point],
+                egui::Stroke::new(1.25, egui::Color32::LIGHT_GREEN),
+            );
+        }
+        prior = Some(point);
+    }
+    let nyquist = sample_rate_hz / 2;
+    painter.text(
+        egui::pos2(left, rect.bottom() - 3.0),
+        egui::Align2::LEFT_BOTTOM,
+        "0 Hz",
+        egui::FontId::monospace(9.0),
+        egui::Color32::GRAY,
+    );
+    painter.text(
+        egui::pos2(right, rect.bottom() - 3.0),
+        egui::Align2::RIGHT_BOTTOM,
+        format!("{nyquist} Hz"),
+        egui::FontId::monospace(9.0),
+        egui::Color32::GRAY,
+    );
+    if out_of_scale {
+        ui.small("Valeurs hors de l’échelle verticale affichées au bord du graphe");
+    }
+}
+
+const MICROPHONE_SATURATION_LABEL: &str = "Écrêtage après gain détecté";
+const MICROPHONE_SATURATION_COLOR: egui::Color32 = egui::Color32::RED;
+
+pub fn microphone_source_change_notice(
+    actual: Option<&str>,
+    planned: Option<&str>,
+    devices: &[MicrophoneDevice],
+) -> Option<String> {
+    let (Some(actual), Some(planned)) = (actual, planned) else {
+        return None;
+    };
+    if actual == planned {
+        return None;
+    }
+    let labels = MicrophoneLabelProjection::new(devices);
+    Some(format!(
+        "Le microphone prévu a changé ({}), mais le flux actif reste sur {}. Arrêtez-le puis démarrez une nouvelle action pour ouvrir la nouvelle source.",
+        labels.device_label(planned),
+        labels.device_label(actual)
+    ))
+}
+
+pub fn microphone_meter_presentation(
+    meter: Option<&whisper_core::microphone_level::MicrophoneMeter>,
+    active: Option<(JobId, Generation)>,
+    now_ms: u64,
+) -> MicrophoneMeterPresentation {
+    let Some(meter) = meter else {
+        return MicrophoneMeterPresentation::Awaiting;
+    };
+    if active != Some((meter.job_id, meter.generation)) {
+        return MicrophoneMeterPresentation::WrongCapture;
+    }
+    if now_ms.saturating_sub(meter.captured_at_monotonic_ms) > 500 {
+        return MicrophoneMeterPresentation::Stale;
+    }
+    use whisper_core::microphone_level::MeasurementStatus;
+    match meter.post_gain_limiter.status {
+        MeasurementStatus::Absent => MicrophoneMeterPresentation::Absent,
+        MeasurementStatus::Silence => MicrophoneMeterPresentation::Silence,
+        MeasurementStatus::Signal => MicrophoneMeterPresentation::Signal {
+            rms_dbfs: meter
+                .post_gain_limiter
+                .rms_dbfs()
+                .unwrap_or(f64::NEG_INFINITY),
+            peak_dbfs: if meter.post_gain_limiter.peak() > 0.0 {
+                20.0 * meter.post_gain_limiter.peak().log10()
+            } else {
+                f64::NEG_INFINITY
+            },
+        },
+    }
+}
+
+fn microphone_saturation_is_current(
+    meter: Option<&whisper_core::microphone_level::MicrophoneMeter>,
+    active: Option<(JobId, Generation)>,
+    source_identity: Option<&str>,
+    capture_active: bool,
+    now_ms: u64,
+) -> bool {
+    let Some(meter) = meter else {
+        return false;
+    };
+    capture_active
+        && active == Some((meter.job_id, meter.generation))
+        && source_identity == Some(meter.source_identity.as_str())
+        && now_ms.saturating_sub(meter.captured_at_monotonic_ms) <= 500
+        && meter.limiter_samples > 0
+}
+
+fn microphone_test_start_enabled(identified_target: bool, view: &AppView) -> bool {
+    identified_target
+        && !view.microphone_test_active
+        && !view.direct_capture_phase.is_some_and(|phase| {
+            matches!(
+                phase,
+                whisper_core::application::DirectCapturePhase::Initializing
+                    | whisper_core::application::DirectCapturePhase::Active
+            )
+        })
+        && !view
+            .active_job
+            .is_some_and(|(_, state)| window_must_remain_open(state))
+}
 use whisper_core::ports::DuplicateImportChoice;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -188,6 +359,15 @@ pub struct DesktopApp<A> {
     selected_capture_text: CaptureTextSelection,
     automatic_draft_cache: Option<((JobId, Generation), String, String)>,
     automatic_draft_error: Option<String>,
+    microphone_test_identity: Option<(JobId, Generation)>,
+    last_test_default_identity: Option<String>,
+    confirmed_live_default_identity: Option<String>,
+    #[cfg(test)]
+    microphone_test_button_rect: Option<egui::Rect>,
+    #[cfg(test)]
+    microphone_saturation_badge_rect: Option<egui::Rect>,
+    #[cfg(test)]
+    live_stop_button_rect: Option<egui::Rect>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -332,6 +512,15 @@ impl<A: Application> DesktopApp<A> {
             selected_capture_text: CaptureTextSelection::Confirmed,
             automatic_draft_cache: None,
             automatic_draft_error: None,
+            microphone_test_identity: None,
+            last_test_default_identity: None,
+            confirmed_live_default_identity: None,
+            #[cfg(test)]
+            microphone_test_button_rect: None,
+            #[cfg(test)]
+            microphone_saturation_badge_rect: None,
+            #[cfg(test)]
+            live_stop_button_rect: None,
         };
         #[cfg(test)]
         {
@@ -883,7 +1072,18 @@ impl<A: Application> DesktopApp<A> {
 
     fn refresh_microphones(&mut self) {
         match self.microphones.refresh() {
-            Ok(()) => self.microphone_notice = None,
+            Ok(()) => {
+                self.microphone_notice = None;
+                if (self.view.microphone_test_active || self.view.active_job.is_some())
+                    && let Some(notice) = microphone_source_change_notice(
+                        self.view.microphone_source_identity.as_deref(),
+                        self.microphones.target_identity(),
+                        self.microphones.devices(),
+                    )
+                {
+                    self.microphone_notice = Some(notice);
+                }
+            }
             Err(_) => self.microphone_notice = self.microphones.take_notice(),
         }
     }
@@ -979,10 +1179,132 @@ impl<A: Application> DesktopApp<A> {
         }
     }
 
+    fn start_microphone_test(&mut self) {
+        if !microphone_test_start_enabled(true, &self.view) {
+            return;
+        }
+        let was_default = matches!(
+            self.microphones.effective(),
+            MicrophoneChoice::WindowsDefault
+        );
+        let _ = self.microphones.refresh();
+        let Some(source_identity) = self.microphones.target_identity().map(str::to_owned) else {
+            self.microphone_notice = Some(
+                self.microphones
+                    .target_error()
+                    .unwrap_or("Identité du microphone indisponible")
+                    .to_owned(),
+            );
+            return;
+        };
+        let Ok(identity) =
+            whisper_core::microphone_level::MicrophoneIdentity::new(&source_identity)
+        else {
+            self.microphone_notice = Some("Identité du microphone invalide".into());
+            return;
+        };
+        let gain_db = self.paths.microphone_gain(&identity).value();
+        let job_id = next_import_job_id();
+        let generation = Generation::first();
+        if self.dispatch(AppCommand::StartMicrophoneTest {
+            job_id,
+            generation,
+            microphone: self.microphones.capture_choice(),
+            gain_db,
+        }) {
+            self.microphone_test_identity = Some((job_id, generation));
+            self.last_test_default_identity = was_default.then_some(source_identity);
+            self.confirmed_live_default_identity = None;
+            self.active_identity = Some((job_id, generation));
+            self.microphone_notice = None;
+        }
+    }
+
+    fn set_microphone_gain(&mut self, gain_db: i8) {
+        let Some(source_identity) = self
+            .view
+            .microphone_source_identity
+            .as_deref()
+            .or_else(|| self.microphones.target_identity())
+        else {
+            self.microphone_notice = Some(
+                self.microphones
+                    .target_error()
+                    .unwrap_or("Identité du microphone indisponible")
+                    .to_owned(),
+            );
+            return;
+        };
+        let Ok(identity) = whisper_core::microphone_level::MicrophoneIdentity::new(source_identity)
+        else {
+            self.microphone_notice = Some("Identité du microphone invalide".into());
+            return;
+        };
+        let Ok(gain) = whisper_core::microphone_level::GainDb::new(gain_db) else {
+            return;
+        };
+        self.paths.set_microphone_gain(&identity, gain);
+        let active_capture =
+            self.view.microphone_test_active || self.view.direct_capture_phase.is_some();
+        if let Some((job_id, generation)) = self.active_identity
+            && active_capture
+            && let Some(target_identity) = self
+                .view
+                .microphone_source_identity
+                .clone()
+                .or_else(|| self.microphones.target_identity().map(str::to_owned))
+        {
+            self.dispatch(AppCommand::SetMicrophoneGain {
+                job_id,
+                generation,
+                target_identity,
+                expected_revision: self.view.microphone_gain_requested_revision,
+                gain,
+            });
+        }
+    }
+
+    fn stop_microphone_test(&mut self) {
+        let Some((job_id, generation)) = self.microphone_test_identity else {
+            return;
+        };
+        self.dispatch(AppCommand::StopMicrophoneTest { job_id, generation });
+    }
+
     fn start_live(&mut self, generation: Generation) {
+        if self.view.microphone_test_active {
+            self.stop_microphone_test();
+            self.view.message = Some(
+                "Test microphone arrêté. Cliquez de nouveau pour démarrer la transcription.".into(),
+            );
+            return;
+        }
         if !model_supports_live(self.selection.model) {
             self.view.message =
                 Some("Le modèle sélectionné est qualifié uniquement pour l'import.".into());
+            return;
+        }
+        let _ = self.microphones.refresh();
+        let microphone = self.microphones.capture_choice();
+        let target_identity = match &microphone {
+            MicrophoneChoice::Device(identity) => Some(identity.as_str()),
+            MicrophoneChoice::WindowsDefault => None,
+        };
+        if matches!(
+            self.microphones.effective(),
+            MicrophoneChoice::WindowsDefault
+        ) && let (Some(previous), Some(current)) =
+            (self.last_test_default_identity.as_deref(), target_identity)
+            && previous != current
+            && self.confirmed_live_default_identity.as_deref() != Some(current)
+        {
+            self.confirmed_live_default_identity = Some(current.to_owned());
+            let labels = MicrophoneLabelProjection::new(self.microphones.devices());
+            self.microphone_notice = Some(format!(
+                "Le microphone par défaut est passé de {} à {} depuis le test. Vérifiez ce changement puis cliquez de nouveau pour démarrer.",
+                labels.device_label(previous),
+                labels.device_label(current)
+            ));
             return;
         }
         if self.selection.model == Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
@@ -1023,7 +1345,13 @@ impl<A: Application> DesktopApp<A> {
                     .saturating_add(self.view.captured_samples)
             }),
             auto_stop_after_speech_samples: None,
-            microphone: self.microphones.effective().clone(),
+            microphone: microphone.clone(),
+            microphone_gain_db: target_identity
+                .and_then(|source_identity| {
+                    whisper_core::microphone_level::MicrophoneIdentity::new(source_identity).ok()
+                })
+                .map(|identity| self.paths.microphone_gain(&identity).value())
+                .unwrap_or(0),
             config: JobConfig {
                 language: selected_language(&self.selection),
                 compute: compute_for_model(self.selection.model, self.compute_choice),
@@ -1035,6 +1363,13 @@ impl<A: Application> DesktopApp<A> {
         self.active_identity = Some((job_id, generation));
         self.live_request = Some(request.clone());
         if self.dispatch(AppCommand::StartDirectLiveConfigured { request }) {
+            self.confirmed_live_default_identity = None;
+            if matches!(
+                self.microphones.effective(),
+                MicrophoneChoice::WindowsDefault
+            ) {
+                self.last_test_default_identity = target_identity.map(str::to_owned);
+            }
             if self.selection.model == Some(ModelId::ParakeetTdt06BV3) {
                 self.selected_parakeet_capture = Some((job_id, generation));
                 self.selected_capture_text = CaptureTextSelection::Confirmed;
@@ -1053,6 +1388,9 @@ impl<A: Application> DesktopApp<A> {
 
 impl<A: Application> eframe::App for DesktopApp<A> {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        if self.view.microphone_test_active {
+            self.stop_microphone_test();
+        }
         self.paths.commit_manual(PathField::Audio);
         self.paths.commit_manual(PathField::Destination);
         if let Some(inventory) = &mut self.gpu_inventory {
@@ -1061,6 +1399,226 @@ impl<A: Application> eframe::App for DesktopApp<A> {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.show_ui(ui);
+    }
+}
+
+impl<A: Application> DesktopApp<A> {
+    fn microphone_settings_ui(&mut self, ui: &mut egui::Ui, busy: bool) {
+        ui.group(|ui| {
+            ui.heading("Microphone");
+            ui.add_enabled_ui(!busy, |ui| {
+                if ui.button("Actualiser les microphones").clicked() {
+                    self.refresh_microphones();
+                }
+                ui.horizontal(|ui| {
+                    ui.label("Source microphone");
+                    let mut choice = self.microphones.preferred().clone();
+                    let mut choice_requested = false;
+                    let selected_text = microphone_choice_label(
+                        self.microphones.effective(),
+                        self.microphones.devices(),
+                    );
+                    egui::ComboBox::from_id_salt("microphone_choice")
+                        .selected_text(selected_text)
+                        .show_ui(ui, |ui| {
+                            choice_requested |= ui
+                                .selectable_value(
+                                    &mut choice,
+                                    MicrophoneChoice::WindowsDefault,
+                                    "Microphone par défaut de Windows",
+                                )
+                                .clicked();
+                            for device in self.microphones.devices() {
+                                ui.add_enabled_ui(device.selectable(), |ui| {
+                                    choice_requested |= ui
+                                        .selectable_value(
+                                            &mut choice,
+                                            MicrophoneChoice::Device(device.id.clone()),
+                                            microphone_device_label(
+                                                device,
+                                                self.microphones.devices(),
+                                            ),
+                                        )
+                                        .clicked();
+                                });
+                            }
+                        });
+                    if choice_requested {
+                        match self.microphones.select(choice) {
+                            Ok(()) => {
+                                self.paths
+                                    .set_microphone_preference(self.microphones.preferred());
+                                self.microphone_notice = None;
+                            }
+                            Err(error) => self.microphone_notice = Some(error),
+                        }
+                    }
+                });
+                if let MicrophoneChoice::Device(_) = self.microphones.preferred()
+                    && self.microphones.effective() == &MicrophoneChoice::WindowsDefault
+                {
+                    ui.label(
+                        "Source préférée indisponible. Le microphone par défaut de Windows est utilisé.",
+                    );
+                }
+                if self.microphones.devices().is_empty() && !self.microphones.list_failed() {
+                    ui.label("Aucun microphone d'entrée disponible.");
+                }
+                for device in self.microphones.devices() {
+                    if let Some(reason) = &device.unavailable_reason {
+                        ui.label(format!("{} : {reason}", device.name));
+                    }
+                }
+            });
+
+            let identified_target = self.microphones.target_identity().is_some();
+            let button = if self.view.microphone_test_active {
+                let response = ui.button("Arrêter le test microphone");
+                if response.clicked() {
+                    self.stop_microphone_test();
+                }
+                response
+            } else {
+                let response = ui.add_enabled(
+                    microphone_test_start_enabled(identified_target, &self.view),
+                    egui::Button::new("Tester le microphone"),
+                );
+                if response.clicked() {
+                    self.start_microphone_test();
+                }
+                response
+            };
+            #[cfg(test)]
+            {
+                self.microphone_test_button_rect = Some(button.rect);
+            }
+            #[cfg(not(test))]
+            let _ = button;
+
+            if let Some(actual) = self.view.microphone_source_identity.as_deref() {
+                let line =
+                    MicrophoneLabelProjection::new(self.microphones.devices()).actual_line(actual);
+                ui.label(line);
+            } else if let Some(expected) = self.microphones.target_identity() {
+                let line = MicrophoneLabelProjection::new(self.microphones.devices())
+                    .planned_line(expected);
+                ui.label(line);
+            }
+            let meter_state = microphone_meter_presentation(
+                self.view.microphone_meter.as_ref(),
+                self.active_identity,
+                whisper_core::microphone_level::monotonic_millis(),
+            );
+            let saturated = microphone_saturation_is_current(
+                self.view.microphone_meter.as_ref(),
+                self.active_identity,
+                self.view.microphone_source_identity.as_deref(),
+                self.view.microphone_test_active
+                    || self.view.direct_capture_phase.is_some_and(|phase| {
+                        matches!(
+                            phase,
+                            whisper_core::application::DirectCapturePhase::Initializing
+                                | whisper_core::application::DirectCapturePhase::Active
+                        )
+                    }),
+                whisper_core::microphone_level::monotonic_millis(),
+            );
+            #[cfg(test)]
+            {
+                self.microphone_saturation_badge_rect = None;
+            }
+            match meter_state {
+                MicrophoneMeterPresentation::Awaiting if self.view.microphone_test_active => {
+                    ui.label("En attente de mesures microphone…");
+                }
+                MicrophoneMeterPresentation::Awaiting => {}
+                MicrophoneMeterPresentation::Stale => {
+                    ui.colored_label(egui::Color32::YELLOW, "Jauge périmée");
+                }
+                MicrophoneMeterPresentation::WrongCapture => {
+                    ui.colored_label(egui::Color32::YELLOW, "Mesure d'une ancienne capture ignorée");
+                }
+                MicrophoneMeterPresentation::Absent => {
+                    ui.label("Mesure microphone indisponible");
+                }
+                MicrophoneMeterPresentation::Silence => {
+                    ui.label("Silence détecté");
+                }
+                MicrophoneMeterPresentation::Signal { rms_dbfs, peak_dbfs } => {
+                    ui.label(format!("Niveau micro — RMS {rms_dbfs:.1} dBFS, pic {peak_dbfs:.1} dBFS"));
+                }
+            }
+            if saturated {
+                let response = ui.colored_label(
+                    MICROPHONE_SATURATION_COLOR,
+                    MICROPHONE_SATURATION_LABEL,
+                );
+                #[cfg(test)]
+                {
+                    self.microphone_saturation_badge_rect = Some(response.rect);
+                }
+            }
+            if self.view.microphone_acquisition.is_some() {
+                ui.separator();
+                ui.label("Spectre en direct — échelle commune de −120 à 0 dBFS/Hz");
+                if let Some(spectrum) = self.view.microphone_spectrum.as_ref() {
+                    let age = whisper_core::microphone_level::monotonic_millis()
+                        .saturating_sub(spectrum.captured_at_monotonic_ms);
+                    if age <= 500 {
+                        paint_microphone_spectrum(ui, "Avant gain", &spectrum.pre_gain, spectrum.sample_rate_hz);
+                        paint_microphone_spectrum(ui, "Après gain et limiteur", &spectrum.post_gain_limiter, spectrum.sample_rate_hz);
+                        if spectrum.mixed_gain {
+                            ui.label(format!("Fenêtre FFT avec gain variable : {} → {} dB", spectrum.gain_first_db, spectrum.gain_last_db));
+                        }
+                    } else {
+                        ui.colored_label(egui::Color32::YELLOW, "Spectre périmé ; attente d’une nouvelle fenêtre audio");
+                    }
+                } else {
+                    ui.label("En attente de 2048 trames audio pour calculer le spectre…");
+                }
+            }
+            let gain_identity = self
+                .view
+                .microphone_source_identity
+                .as_deref()
+                .or_else(|| self.microphones.target_identity());
+            if let Some(gain_identity) = gain_identity
+                && let Ok(identity) =
+                    whisper_core::microphone_level::MicrophoneIdentity::new(gain_identity)
+            {
+                let enabled = (self.view.microphone_test_active
+                    || self.view.direct_capture_phase.is_some()
+                    || self.view.active_job.is_none())
+                    && (self.view.microphone_source_identity.is_some()
+                        || self.microphones.target_identity().is_some());
+                let mut gain = if self.view.microphone_test_active
+                    || self.view.direct_capture_phase.is_some()
+                {
+                    self.view.microphone_gain_requested_db
+                } else {
+                    self.paths.microphone_gain(&identity).value()
+                };
+                if ui
+                    .add_enabled(
+                        enabled,
+                        egui::Slider::new(&mut gain, -24..=24).text("Gain microphone (dB)"),
+                    )
+                    .changed()
+                {
+                    self.set_microphone_gain(gain);
+                }
+            } else {
+                ui.label("Gain microphone indisponible : cible non identifiée.");
+            }
+        });
+    }
+
+    fn show_ui(&mut self, ui: &mut egui::Ui) {
+        if self.view.microphone_acquisition.is_some() {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(50));
+        }
         self.reactivity_log.record_once(
             process_log_session(),
             "first_ui_callback",
@@ -1115,12 +1673,21 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             self.scanned_destination = None;
         }
         self.observed_job_state = state;
-        let busy = self
-            .view
-            .active_job
-            .is_some_and(|(_, state)| window_must_remain_open(state));
+        let busy = self.view.microphone_test_active
+            || self
+                .view
+                .active_job
+                .is_some_and(|(_, state)| window_must_remain_open(state));
         let can_enqueue = import_enqueue_enabled(busy);
-        if ui.ctx().input(|input| input.viewport().close_requested()) && busy {
+        if ui.ctx().input(|input| input.viewport().close_requested())
+            && self.view.microphone_test_active
+        {
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.stop_microphone_test();
+            self.quit_pending = true;
+            self.view.message = Some("Fermeture après arrêt du test microphone…".into());
+        } else if ui.ctx().input(|input| input.viewport().close_requested()) && busy {
             ui.ctx()
                 .send_viewport_cmd(egui::ViewportCommand::CancelClose);
             if !self.quit_pending && self.request_quit() {
@@ -1233,15 +1800,21 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                         projection
                             .models
                             .iter()
-                            .find(|model| model.id == whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+                            .find(|model| {
+                                model.id == whisper_core::model_catalog::ModelId::ParakeetTdt06BV3
+                            })
                             .is_some_and(|model| {
                                 model.configurations.iter().any(|configuration| {
-                                    configuration.key.backend == whisper_core::model_catalog::Backend::Gpu
+                                    configuration.key.backend
+                                        == whisper_core::model_catalog::Backend::Gpu
                                         && configuration.selectable
                                         && configuration.auto_language_selectable
                                 })
                             })
-                    }) && self.catalog.as_ref().is_some_and(parakeet_gpu_catalog_ready);
+                    }) && self
+                        .catalog
+                        .as_ref()
+                        .is_some_and(parakeet_gpu_catalog_ready);
                     egui::ComboBox::from_id_salt("compute_choice")
                         .selected_text(match self.compute_choice {
                             ComputeChoice::Cpu => "CPU",
@@ -1249,16 +1822,20 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                             ComputeChoice::Auto => "Auto",
                         })
                         .show_ui(ui, |ui| {
-                            compute_interacted |= ui.selectable_value(
-                                &mut self.compute_choice,
-                                ComputeChoice::Auto,
-                                "Auto",
-                            ).clicked();
-                            compute_interacted |= ui.selectable_value(
-                                &mut self.compute_choice,
-                                ComputeChoice::Cpu,
-                                "CPU",
-                            ).clicked();
+                            compute_interacted |= ui
+                                .selectable_value(
+                                    &mut self.compute_choice,
+                                    ComputeChoice::Auto,
+                                    "Auto",
+                                )
+                                .clicked();
+                            compute_interacted |= ui
+                                .selectable_value(
+                                    &mut self.compute_choice,
+                                    ComputeChoice::Cpu,
+                                    "CPU",
+                                )
+                                .clicked();
                             let gpu_response = ui.add_enabled_ui(gpu_selectable, |ui| {
                                 ui.selectable_value(
                                     &mut self.compute_choice,
@@ -1269,23 +1846,35 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                             compute_interacted |= gpu_response.inner.clicked();
                         });
                 } else {
-                egui::ComboBox::from_id_salt("compute_choice")
-                    .selected_text(match self.compute_choice {
-                        ComputeChoice::Cpu => "CPU",
-                        ComputeChoice::Gpu => "GPU",
-                        ComputeChoice::Auto => "Auto",
-                    })
-                    .show_ui(ui, |ui| {
-                        compute_interacted |= ui
-                            .selectable_value(&mut self.compute_choice, ComputeChoice::Auto, "Auto")
-                            .clicked();
-                        compute_interacted |= ui
-                            .selectable_value(&mut self.compute_choice, ComputeChoice::Cpu, "CPU")
-                            .clicked();
-                        compute_interacted |= ui
-                            .selectable_value(&mut self.compute_choice, ComputeChoice::Gpu, "GPU")
-                            .clicked();
-                    });
+                    egui::ComboBox::from_id_salt("compute_choice")
+                        .selected_text(match self.compute_choice {
+                            ComputeChoice::Cpu => "CPU",
+                            ComputeChoice::Gpu => "GPU",
+                            ComputeChoice::Auto => "Auto",
+                        })
+                        .show_ui(ui, |ui| {
+                            compute_interacted |= ui
+                                .selectable_value(
+                                    &mut self.compute_choice,
+                                    ComputeChoice::Auto,
+                                    "Auto",
+                                )
+                                .clicked();
+                            compute_interacted |= ui
+                                .selectable_value(
+                                    &mut self.compute_choice,
+                                    ComputeChoice::Cpu,
+                                    "CPU",
+                                )
+                                .clicked();
+                            compute_interacted |= ui
+                                .selectable_value(
+                                    &mut self.compute_choice,
+                                    ComputeChoice::Gpu,
+                                    "GPU",
+                                )
+                                .clicked();
+                        });
                 }
                 let compute_changed = self.compute_choice != previous_compute;
                 let compute_selection_interacted = record_compute_selection_interaction(
@@ -1293,9 +1882,7 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     compute_interacted,
                     compute_changed,
                 );
-                if compute_selection_interacted
-                    && let Some(sender) = &self.preference_commands
-                {
+                if compute_selection_interacted && let Some(sender) = &self.preference_commands {
                     let preference = if self.compute_choice == ComputeChoice::Auto {
                         whisper_core::path_settings::StartupComputePreference::Auto
                     } else {
@@ -1336,77 +1923,16 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 self.paths.set_gpu_preference(preferred_gpu);
             }
             if let Some(inventory) = &self.gpu_inventory {
-                let resolution = inventory.resolve_selection(
-                    self.compute_choice,
-                    self.paths.gpu_preference(),
-                );
-                ui.label(gpu_selection_resolution_label(&resolution, &gpu_preferences));
+                let resolution =
+                    inventory.resolve_selection(self.compute_choice, self.paths.gpu_preference());
+                ui.label(gpu_selection_resolution_label(
+                    &resolution,
+                    &gpu_preferences,
+                ));
             }
-            ui.group(|ui| {
-                ui.heading("Microphone");
-                if ui.button("Actualiser les microphones").clicked() {
-                    self.refresh_microphones();
-                }
-                ui.horizontal(|ui| {
-                    ui.label("Source microphone");
-                    let mut choice = self.microphones.preferred().clone();
-                    let mut choice_requested = false;
-                    let selected_text = microphone_choice_label(
-                        self.microphones.effective(),
-                        self.microphones.devices(),
-                    );
-                    egui::ComboBox::from_id_salt("microphone_choice")
-                        .selected_text(selected_text)
-                        .show_ui(ui, |ui| {
-                            choice_requested |= ui
-                                .selectable_value(
-                                    &mut choice,
-                                    MicrophoneChoice::WindowsDefault,
-                                    "Microphone par défaut de Windows",
-                                )
-                                .clicked();
-                            for device in self.microphones.devices() {
-                                ui.add_enabled_ui(device.selectable(), |ui| {
-                                    choice_requested |= ui
-                                        .selectable_value(
-                                            &mut choice,
-                                            MicrophoneChoice::Device(device.id.clone()),
-                                            microphone_device_label(
-                                                device,
-                                                self.microphones.devices(),
-                                            ),
-                                        )
-                                        .clicked();
-                                });
-                            }
-                        });
-                    if choice_requested {
-                        match self.microphones.select(choice) {
-                            Ok(()) => {
-                                self.paths
-                                    .set_microphone_preference(self.microphones.preferred());
-                                self.microphone_notice = None;
-                            }
-                            Err(error) => self.microphone_notice = Some(error),
-                        }
-                    }
-                });
-                if let MicrophoneChoice::Device(_) = self.microphones.preferred()
-                    && self.microphones.effective() == &MicrophoneChoice::WindowsDefault
-                {
-                    ui.label(
-                        "Source préférée indisponible. Le microphone par défaut de Windows est utilisé.",
-                    );
-                }
-                if self.microphones.devices().is_empty() && !self.microphones.list_failed() {
-                    ui.label("Aucun microphone d'entrée disponible.");
-                }
-                for device in self.microphones.devices() {
-                    if let Some(reason) = &device.unavailable_reason {
-                        ui.label(format!("{} : {reason}", device.name));
-                    }
-                }
-            });
+        });
+        self.microphone_settings_ui(ui, busy);
+        ui.add_enabled_ui(can_enqueue, |ui| {
             if !IMPORT_CPU_MVP {
                 ui.add_enabled_ui(!busy, |ui| {
                     ui.horizontal(|ui| {
@@ -1426,7 +1952,11 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             let can_start = self.selected_model_artifact().is_some()
                 && !self.paths.audio.trim().is_empty()
                 && !self.paths.destination.trim().is_empty()
-                && self.selection.manual_language.as_ref().is_none_or(|language| !language.is_empty());
+                && self
+                    .selection
+                    .manual_language
+                    .as_ref()
+                    .is_none_or(|language| !language.is_empty());
             if ui
                 .add_enabled(can_start, egui::Button::new("Importer et transcrire"))
                 .clicked()
@@ -1434,14 +1964,18 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                 self.start_import();
             }
             {
-                let can_start_live = !busy
+                let can_start_live = (!busy || self.view.microphone_test_active)
                     && model_supports_live(self.selection.model)
                     && (self.selection.model
                         != Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
                         || self.selection.manual_language.is_none())
                     && self.selected_model_artifact().is_some()
                     && !self.paths.destination.trim().is_empty()
-                    && self.selection.manual_language.as_ref().is_none_or(|language| !language.is_empty());
+                    && self
+                        .selection
+                        .manual_language
+                        .as_ref()
+                        .is_none_or(|language| !language.is_empty());
                 if ui
                     .add_enabled(can_start_live, egui::Button::new("Démarrer le micro"))
                     .clicked()
@@ -1454,7 +1988,9 @@ impl<A: Application> eframe::App for DesktopApp<A> {
                     == Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
                     && self.selection.manual_language.is_some()
                 {
-                    ui.label("Le microphone Parakeet requiert la détection automatique de la langue.");
+                    ui.label(
+                        "Le microphone Parakeet requiert la détection automatique de la langue.",
+                    );
                 }
             }
         });
@@ -1573,7 +2109,12 @@ impl<A: Application> eframe::App for DesktopApp<A> {
             } else {
                 "Arrêter"
             };
-            if ui.button(label).clicked() {
+            let stop_button = ui.button(label);
+            #[cfg(test)]
+            {
+                self.live_stop_button_rect = Some(stop_button.rect);
+            }
+            if stop_button.clicked() {
                 self.stop_active();
             }
         }
@@ -2211,45 +2752,69 @@ pub fn gpu_qualified_presentation(
     }
 }
 
-fn microphone_device_label(device: &MicrophoneDevice, devices: &[MicrophoneDevice]) -> String {
-    if devices
-        .iter()
-        .filter(|other| other.name == device.name)
-        .count()
-        > 1
-    {
-        let suffix = (8..=device.id.chars().count())
-            .find_map(|length| {
-                let suffix = device
-                    .id
-                    .chars()
-                    .rev()
-                    .take(length)
-                    .collect::<String>()
-                    .chars()
-                    .rev()
-                    .collect::<String>();
-                devices
-                    .iter()
-                    .filter(|other| other.name == device.name)
-                    .all(|other| other.id == device.id || !other.id.ends_with(&suffix))
-                    .then_some(suffix)
-            })
-            .unwrap_or_else(|| device.id.clone());
-        format!("{} ({suffix})", device.name)
-    } else {
-        device.name.clone()
+struct MicrophoneLabelProjection<'a> {
+    devices: &'a [MicrophoneDevice],
+}
+
+impl<'a> MicrophoneLabelProjection<'a> {
+    fn new(devices: &'a [MicrophoneDevice]) -> Self {
+        Self { devices }
+    }
+
+    fn device_label(&self, identity: &str) -> String {
+        if identity.trim().is_empty() {
+            return "Microphone indisponible".into();
+        }
+        let Some(device) = self.devices.iter().find(|device| device.id == identity) else {
+            return "Microphone indisponible".into();
+        };
+        let name = if device.name.trim().is_empty() {
+            "Microphone sans nom"
+        } else {
+            &device.name
+        };
+        let mut same_name_ids = self
+            .devices
+            .iter()
+            .filter(|other| other.name == device.name)
+            .map(|other| other.id.as_str())
+            .collect::<Vec<_>>();
+        if same_name_ids.len() <= 1 {
+            return name.to_owned();
+        }
+        same_name_ids.sort_unstable();
+        let Some(index) = same_name_ids
+            .iter()
+            .position(|candidate| *candidate == identity)
+            .map(|index| index + 1)
+        else {
+            return "Microphone indisponible".into();
+        };
+        format!("{name} ({index})")
+    }
+
+    fn choice_label(&self, choice: &MicrophoneChoice) -> String {
+        match choice {
+            MicrophoneChoice::WindowsDefault => "Microphone par défaut de Windows".into(),
+            MicrophoneChoice::Device(identity) => self.device_label(identity),
+        }
+    }
+
+    fn actual_line(&self, identity: &str) -> String {
+        format!("Microphone utilisé : {}", self.device_label(identity))
+    }
+
+    fn planned_line(&self, identity: &str) -> String {
+        format!("Microphone prévu : {}", self.device_label(identity))
     }
 }
 
+fn microphone_device_label(device: &MicrophoneDevice, devices: &[MicrophoneDevice]) -> String {
+    MicrophoneLabelProjection::new(devices).device_label(&device.id)
+}
+
 fn microphone_choice_label(choice: &MicrophoneChoice, devices: &[MicrophoneDevice]) -> String {
-    match choice {
-        MicrophoneChoice::WindowsDefault => "Microphone par défaut de Windows".into(),
-        MicrophoneChoice::Device(id) => devices.iter().find(|device| device.id == *id).map_or_else(
-            || "Microphone sélectionné indisponible".into(),
-            |device| microphone_device_label(device, devices),
-        ),
-    }
+    MicrophoneLabelProjection::new(devices).choice_label(choice)
 }
 
 fn path_text_edit(ui: &mut egui::Ui, path: &mut String, width: f32) -> egui::Response {
@@ -2848,13 +3413,24 @@ fn record_first_render(
 #[cfg(test)]
 mod tests {
     use super::{
-        CatalogSnapshot, DesktopApp, ModelId, ModelSelectionRuntime, command_compute_choice,
-        compute_for_model, gpu_selection_identity, import_enqueue_enabled, manual_stop_available,
-        microphone_device_label, model_preference_command_channel, parakeet_gpu_catalog_ready,
-        provisional_without_confirmed_prefix, queued_request_for_compute, record_first_render,
-        speech_limit_samples, window_must_remain_open,
+        CatalogSnapshot, DesktopApp, MICROPHONE_SATURATION_COLOR, MICROPHONE_SATURATION_LABEL,
+        MicrophoneLabelProjection, MicrophoneMeterPresentation, ModelId, ModelSelectionRuntime,
+        command_compute_choice, compute_for_model, gpu_selection_identity, import_enqueue_enabled,
+        manual_stop_available, microphone_device_label, microphone_meter_presentation,
+        microphone_saturation_is_current, microphone_test_start_enabled,
+        model_preference_command_channel,
+        parakeet_gpu_catalog_ready, provisional_without_confirmed_prefix,
+        queued_request_for_compute, record_first_render, speech_limit_samples,
+        window_must_remain_open,
     };
-    use std::{cell::RefCell, collections::VecDeque, rc::Rc};
+    use eframe::egui;
+    use std::{
+        cell::RefCell,
+        collections::VecDeque,
+        rc::Rc,
+        thread,
+        time::{Duration, Instant},
+    };
     use whisper_core::gpu_inventory::{GpuObservation, GpuPresence, GpuState};
     use whisper_core::gpu_inventory_app::{
         GpuCollection, GpuInventoryApp, GpuInventoryPort, GpuInventoryState,
@@ -2954,6 +3530,355 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Default)]
+    struct MicrophoneCycleApplication {
+        commands: Rc<RefCell<Vec<AppCommand>>>,
+        events: Rc<RefCell<VecDeque<whisper_core::ports::ImportEvent>>>,
+        view: Rc<RefCell<AppView>>,
+    }
+
+    impl Application for MicrophoneCycleApplication {
+        fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
+            self.commands.borrow_mut().push(command.clone());
+            match command {
+                AppCommand::StartMicrophoneTest {
+                    job_id,
+                    generation,
+                    microphone: _,
+                    gain_db,
+                } => {
+                    {
+                        let mut view = self.view.borrow_mut();
+                        view.microphone_test_active = true;
+                        view.microphone_acquisition = Some(
+                            whisper_core::microphone_level::MicrophoneAcquisitionContext::new(
+                                job_id,
+                                generation,
+                                &MicrophoneChoice::Device("wasapi:chosen".into()),
+                            ),
+                        );
+                        view.active_generation = Some(generation);
+                        view.microphone_gain_requested_db = gain_db;
+                        view.microphone_gain_requested_revision = 0;
+                        view.microphone_gain_db = gain_db;
+                        view.microphone_gain_revision = 0;
+                        view.message = Some("Ouverture du test microphone…".into());
+                    }
+                    let meter = whisper_core::microphone_level::MicrophoneMeter {
+                        job_id,
+                        generation,
+                        source_identity: "wasapi:chosen".into(),
+                        sequence: 1,
+                        first_frame: 0,
+                        last_frame: 4_800,
+                        sample_rate_hz: 48_000,
+                        analyzed_channels: 1,
+                        gain_first_db: 0,
+                        gain_first_revision: 0,
+                        gain_last_db: 0,
+                        gain_last_revision: 0,
+                        mixed_gain: false,
+                        pre_gain: whisper_core::microphone_level::MeterLevel {
+                            status: whisper_core::microphone_level::MeasurementStatus::Signal,
+                            sample_count: 4_800,
+                            rms_micros: 100_000,
+                            peak_micros: 200_000,
+                        },
+                        post_gain_limiter: whisper_core::microphone_level::MeterLevel {
+                            status: whisper_core::microphone_level::MeasurementStatus::Signal,
+                            sample_count: 4_800,
+                            rms_micros: 100_000,
+                            peak_micros: 200_000,
+                        },
+                        limiter_samples: 42,
+                        dropped_updates: 0,
+                        captured_at_monotonic_ms: whisper_core::microphone_level::monotonic_millis(
+                        ),
+                    };
+                    let spectrum = whisper_core::microphone_level::MicrophoneSpectrum {
+                        job_id,
+                        generation,
+                        source_identity: "wasapi:chosen".into(),
+                        sequence: 1,
+                        epoch: 0,
+                        first_frame: 0,
+                        last_frame: 2048,
+                        sample_rate_hz: 48_000,
+                        captured_at_monotonic_ms: whisper_core::microphone_level::monotonic_millis(
+                        ),
+                        gain_first_db: 0,
+                        gain_first_revision: 0,
+                        gain_last_db: 0,
+                        gain_last_revision: 0,
+                        mixed_gain: false,
+                        dropped_updates: 0,
+                        pre_gain: vec![
+                            whisper_core::microphone_level::SpectrumBin::MilliDb(-50_000);
+                            1025
+                        ],
+                        post_gain_limiter: vec![
+                            whisper_core::microphone_level::SpectrumBin::MilliDb(
+                                -48_000
+                            );
+                            1025
+                        ],
+                    };
+                    self.events.borrow_mut().extend([
+                        whisper_core::ports::ImportEvent::MicrophoneTestStarted {
+                            job_id,
+                            generation,
+                            source_identity: "wasapi:chosen".into(),
+                            gain_db,
+                        },
+                        whisper_core::ports::ImportEvent::MicrophoneGainApplied {
+                            job_id,
+                            generation,
+                            target_identity: "wasapi:chosen".into(),
+                            gain_db: 0,
+                            gain_revision: 0,
+                            first_frame: 0,
+                        },
+                        whisper_core::ports::ImportEvent::MicrophoneMeter(meter),
+                        whisper_core::ports::ImportEvent::MicrophoneSpectrum(
+                            whisper_core::microphone_level::MicrophoneSpectrumUpdate::Available(
+                                spectrum,
+                            ),
+                        ),
+                    ]);
+                }
+                AppCommand::StopMicrophoneTest { job_id, generation } => self
+                    .events
+                    .borrow_mut()
+                    .push_back(whisper_core::ports::ImportEvent::MicrophoneTestStopped {
+                        job_id,
+                        generation,
+                    }),
+                AppCommand::Stop { job_id, .. } => {
+                    let mut view = self.view.borrow_mut();
+                    view.active_job = Some((job_id, whisper_core::JobState::Draining));
+                    view.direct_capture_phase =
+                        Some(whisper_core::application::DirectCapturePhase::Stopped);
+                    view.message = Some("Arrêt du micro en cours".into());
+                }
+                AppCommand::Refresh => {
+                    if let Some(event) = self.events.borrow_mut().pop_front() {
+                        apply_microphone_cycle_event(&mut self.view.borrow_mut(), event);
+                    }
+                }
+                _ => {}
+            }
+            Ok(self.view.borrow().clone())
+        }
+
+        fn view(&self) -> AppView {
+            self.view.borrow().clone()
+        }
+    }
+
+    fn apply_microphone_cycle_event(view: &mut AppView, event: whisper_core::ports::ImportEvent) {
+        use whisper_core::ports::ImportEvent;
+        match event {
+            ImportEvent::MicrophoneTestStarted {
+                source_identity,
+                gain_db,
+                ..
+            } => {
+                view.microphone_test_active = true;
+                view.direct_capture_phase =
+                    Some(whisper_core::application::DirectCapturePhase::Active);
+                view.microphone_source_identity = Some(source_identity);
+                view.microphone_gain_db = gain_db;
+                view.message = Some("Test microphone actif".into());
+            }
+            ImportEvent::MicrophoneGainApplied {
+                target_identity,
+                gain_db,
+                gain_revision,
+                first_frame,
+                ..
+            } => {
+                view.microphone_source_identity = Some(target_identity);
+                view.microphone_gain_db = gain_db;
+                view.microphone_gain_revision = gain_revision;
+                view.microphone_gain_applied_first_frame = Some(first_frame);
+                view.message = Some(format!(
+                    "Gain microphone appliqué : {gain_db} dB à la trame {first_frame}"
+                ));
+            }
+            ImportEvent::MicrophoneMeter(meter) => view.microphone_meter = Some(meter),
+            ImportEvent::MicrophoneSpectrum(
+                whisper_core::microphone_level::MicrophoneSpectrumUpdate::Available(spectrum),
+            ) => view.microphone_spectrum = Some(spectrum),
+            ImportEvent::MicrophoneSpectrum(
+                whisper_core::microphone_level::MicrophoneSpectrumUpdate::Unavailable { .. },
+            ) => view.microphone_spectrum = None,
+            ImportEvent::MicrophoneTestStopped { .. } => {
+                view.microphone_test_active = false;
+                view.microphone_acquisition = None;
+                view.microphone_spectrum = None;
+                view.direct_capture_phase =
+                    Some(whisper_core::application::DirectCapturePhase::Stopped);
+                view.microphone_meter = None;
+                view.microphone_source_identity = None;
+                view.microphone_gain_db = 0;
+                view.microphone_gain_revision = 0;
+                view.microphone_gain_requested_db = 0;
+                view.microphone_gain_requested_revision = 0;
+                view.microphone_gain_applied_first_frame = None;
+                view.active_generation = None;
+                view.message = Some("Test microphone arrêté".into());
+            }
+            _ => {}
+        }
+    }
+
+    struct UiFrameReport {
+        shape_count: usize,
+        completed_passes: usize,
+        visible_spectra: Vec<egui::Rect>,
+    }
+
+    fn run_ui_frame(
+        context: &egui::Context,
+        app: &mut DesktopApp<MicrophoneCycleApplication>,
+        events: Vec<egui::Event>,
+    ) -> UiFrameReport {
+        run_ui_frame_at_size(context, app, events, egui::vec2(1200.0, 3000.0))
+    }
+
+    fn run_ui_frame_at_size(
+        context: &egui::Context,
+        app: &mut DesktopApp<MicrophoneCycleApplication>,
+        events: Vec<egui::Event>,
+        size: egui::Vec2,
+    ) -> UiFrameReport {
+        run_ui_frame_with_discard(context, app, events, size, false)
+    }
+
+    fn run_ui_frame_with_discard(
+        context: &egui::Context,
+        app: &mut DesktopApp<MicrophoneCycleApplication>,
+        events: Vec<egui::Event>,
+        size: egui::Vec2,
+        discard_first_pass: bool,
+    ) -> UiFrameReport {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            events,
+            ..Default::default()
+        };
+        let output = context.run_ui(input, |ui| {
+            if discard_first_pass && ui.ctx().current_pass_index() == 0 {
+                ui.ctx()
+                    .request_discard("microphone spectrum multipass test");
+            }
+            app.show_ui(ui);
+        });
+        let screen_rect = egui::Rect::from_min_size(egui::Pos2::ZERO, size);
+        let visible_spectra = output
+            .shapes
+            .iter()
+            .filter_map(|clipped| {
+                let egui::Shape::Rect(rect) = &clipped.shape else {
+                    return None;
+                };
+                (rect.fill == egui::Color32::from_gray(18)
+                    && rect.rect.height() == 116.0
+                    && rect
+                        .rect
+                        .intersect(clipped.clip_rect)
+                        .intersect(screen_rect)
+                        .is_positive())
+                .then_some(rect.rect)
+            })
+            .collect();
+        UiFrameReport {
+            shape_count: output.shapes.len(),
+            completed_passes: output.platform_output.num_completed_passes,
+            visible_spectra,
+        }
+    }
+
+    fn actual_probe_spectrum() -> whisper_core::microphone_level::MicrophoneSpectrum {
+        use whisper_adapters::{
+            capture::ProbeAudioBlock,
+            microphone_probe::{MicrophoneProbe, MicrophoneSpectrumReader},
+        };
+        use whisper_core::microphone_level::GainRevision;
+
+        let source_identity = "wasapi:chosen";
+        let probe = MicrophoneProbe::start(
+            48_000,
+            Some(source_identity.into()),
+            JobId(902),
+            Generation::first(),
+        )
+        .expect("probe starts");
+        for block in 0..6_u64 {
+            let first_frame = block * 960;
+            let samples = (first_frame..first_frame + 960)
+                .map(|frame| 0.35 * (std::f32::consts::TAU * 440.0 * frame as f32 / 48_000.0).sin())
+                .collect::<Vec<_>>();
+            probe.submit(ProbeAudioBlock {
+                sample_rate_hz: 48_000,
+                first_frame,
+                acquired_at: Instant::now(),
+                gain: GainRevision {
+                    revision: 0,
+                    gain: whisper_core::microphone_level::GainDb::new(0).unwrap(),
+                },
+                mono_pre_gain: samples.clone(),
+                mono_post_gain_limiter: samples,
+                limiter_mask: vec![false; 960],
+                pre_pcm_limiter_count: 0,
+            });
+            thread::sleep(Duration::from_millis(20));
+        }
+        let mut reader = MicrophoneSpectrumReader::default();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            if let Some(update) = reader.poll(&probe, Instant::now()) {
+                return match update {
+                    whisper_core::microphone_level::MicrophoneSpectrumUpdate::Available(value) => {
+                        value
+                    }
+                    whisper_core::microphone_level::MicrophoneSpectrumUpdate::Unavailable {
+                        ..
+                    } => {
+                        panic!("fresh probe unexpectedly invalidated spectrum")
+                    }
+                };
+            }
+            assert!(
+                Instant::now() < deadline,
+                "probe did not publish its FFT pair"
+            );
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    fn click_ui_button(
+        context: &egui::Context,
+        app: &mut DesktopApp<MicrophoneCycleApplication>,
+        position: egui::Pos2,
+    ) {
+        for pressed in [true, false] {
+            run_ui_frame(
+                context,
+                app,
+                vec![
+                    egui::Event::PointerMoved(position),
+                    egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::default(),
+                    },
+                ],
+            );
+        }
+    }
+
     struct RejectQuitApplication;
     struct RejectStartApplication;
 
@@ -2964,6 +3889,8 @@ mod tests {
     }
 
     struct OneMicrophone;
+    #[derive(Clone)]
+    struct ChangingDefaultMicrophone(Rc<RefCell<String>>);
 
     #[derive(Clone, Default)]
     struct ControlledGpuInventory(Rc<RefCell<VecDeque<(u64, Result<GpuCollection, String>)>>>);
@@ -2985,6 +3912,53 @@ mod tests {
                 name: "Microphone de test".into(),
                 unavailable_reason: None,
             }])
+        }
+
+        fn default_input_identity(&self) -> Result<Option<String>, String> {
+            Ok(Some("wasapi:chosen".into()))
+        }
+    }
+
+    struct HomonymousMicrophones;
+
+    impl MicrophonePort for HomonymousMicrophones {
+        fn list_inputs(&self) -> Result<Vec<MicrophoneDevice>, String> {
+            Ok(vec![
+                MicrophoneDevice {
+                    id: "wasapi:alpha".into(),
+                    name: "Micro de bureau".into(),
+                    unavailable_reason: None,
+                },
+                MicrophoneDevice {
+                    id: "wasapi:beta".into(),
+                    name: "Micro de bureau".into(),
+                    unavailable_reason: None,
+                },
+                MicrophoneDevice {
+                    id: "wasapi:gamma".into(),
+                    name: "Micro de bureau".into(),
+                    unavailable_reason: None,
+                },
+            ])
+        }
+
+        fn default_input_identity(&self) -> Result<Option<String>, String> {
+            Ok(Some("wasapi:alpha".into()))
+        }
+    }
+
+    impl MicrophonePort for ChangingDefaultMicrophone {
+        fn list_inputs(&self) -> Result<Vec<MicrophoneDevice>, String> {
+            let id = self.0.borrow().clone();
+            Ok(vec![MicrophoneDevice {
+                id: id.clone(),
+                name: "Microphone Windows".into(),
+                unavailable_reason: None,
+            }])
+        }
+
+        fn default_input_identity(&self) -> Result<Option<String>, String> {
+            Ok(Some(self.0.borrow().clone()))
         }
     }
 
@@ -3085,6 +4059,382 @@ mod tests {
     }
 
     #[test]
+    fn microphone_test_button_stops_after_neutral_gain_ack_and_reopens() {
+        let application = MicrophoneCycleApplication::default();
+        {
+            let mut view = application.view.borrow_mut();
+            view.active_job = Some((JobId(501), whisper_core::JobState::Capturing));
+            view.active_generation = Some(Generation::first());
+            view.direct_capture_phase = Some(whisper_core::application::DirectCapturePhase::Active);
+            view.microphone_source_identity = Some("wasapi:chosen".into());
+            view.last_result = Some("Résultat précédent conservé".into());
+        }
+        let paths = whisper_core::path_settings::PathSettingsApp::new(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: "audio".into(),
+                model_path: "model".into(),
+                destination: "output".into(),
+            },
+            Box::new(whisper_core::path_settings::NullPathPort),
+        );
+        let mut app = DesktopApp::with_microphones(
+            application.clone(),
+            ComputeChoice::Cpu,
+            None,
+            paths,
+            Box::new(OneMicrophone),
+        );
+        let context = egui::Context::default();
+
+        let baseline_shapes = run_ui_frame(&context, &mut app, Vec::new()).shape_count;
+        let blocked_start = app
+            .microphone_test_button_rect
+            .expect("real microphone test button rendered");
+        click_ui_button(&context, &mut app, blocked_start.center());
+        assert_eq!(
+            application
+                .commands
+                .borrow()
+                .iter()
+                .filter(|command| matches!(command, AppCommand::StartMicrophoneTest { .. }))
+                .count(),
+            0,
+            "an active capture keeps the real Test button disabled"
+        );
+        {
+            let mut view = application.view.borrow_mut();
+            view.active_job = Some((JobId(501), whisper_core::JobState::Complete));
+            view.direct_capture_phase =
+                Some(whisper_core::application::DirectCapturePhase::Stopped);
+            view.microphone_source_identity = None;
+        }
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert_eq!(
+            app.view.last_result.as_deref(),
+            Some("Résultat précédent conservé")
+        );
+        assert!(microphone_test_start_enabled(true, &app.view));
+        let start = app
+            .microphone_test_button_rect
+            .expect("Test button enabled after completed capture");
+        click_ui_button(&context, &mut app, start.center());
+        assert!(matches!(
+            application
+                .commands
+                .borrow()
+                .iter()
+                .find(|command| matches!(command, AppCommand::StartMicrophoneTest { .. })),
+            Some(AppCommand::StartMicrophoneTest { gain_db: 0, .. })
+        ));
+
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert!(
+            app.view.microphone_test_active,
+            "Started keeps Stop visible"
+        );
+        assert_eq!(
+            app.view.microphone_source_identity.as_deref(),
+            Some("wasapi:chosen")
+        );
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert!(app.view.microphone_test_active);
+        run_ui_frame(&context, &mut app, Vec::new());
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert!(app.view.microphone_meter.is_some());
+        assert!(app.view.microphone_spectrum.is_some());
+        let spectrum_frame = run_ui_frame(&context, &mut app, Vec::new());
+        assert!(
+            spectrum_frame.shape_count > baseline_shapes + 10,
+            "live pre/post-gain spectrum adds plotted geometry during capture"
+        );
+        assert!(
+            run_ui_frame_at_size(&context, &mut app, Vec::new(), egui::vec2(640.0, 480.0))
+                .shape_count
+                > 10,
+            "spectrum remains part of the rendered UI at a small window size"
+        );
+
+        assert_eq!(
+            app.view.message.as_deref(),
+            Some("Gain microphone appliqué : 0 dB à la trame 0")
+        );
+        assert_eq!(app.view.microphone_gain_applied_first_frame, Some(0));
+        assert_eq!(app.view.microphone_gain_revision, 0);
+
+        run_ui_frame(&context, &mut app, Vec::new());
+        let meter = app
+            .view
+            .microphone_meter
+            .as_ref()
+            .expect("meter event polled");
+        assert_eq!(meter.sequence, 1);
+        assert_eq!(
+            app.view.microphone_gain_db, 0,
+            "meter changes without gain change"
+        );
+        assert!(app.microphone_saturation_badge_rect.is_some());
+        assert!(microphone_saturation_is_current(
+            app.view.microphone_meter.as_ref(),
+            app.active_identity,
+            app.view.microphone_source_identity.as_deref(),
+            app.view.microphone_test_active
+                || app.view.direct_capture_phase.is_some_and(|phase| {
+                    matches!(
+                        phase,
+                        whisper_core::application::DirectCapturePhase::Initializing
+                            | whisper_core::application::DirectCapturePhase::Active
+                    )
+                }),
+            whisper_core::microphone_level::monotonic_millis(),
+        ));
+        assert!(matches!(
+            microphone_meter_presentation(
+                app.view.microphone_meter.as_ref(),
+                app.active_identity,
+                whisper_core::microphone_level::monotonic_millis(),
+            ),
+            MicrophoneMeterPresentation::Signal { .. }
+        ));
+
+        let stop = app
+            .microphone_test_button_rect
+            .expect("real Stop button rendered after gain acknowledgement");
+        click_ui_button(&context, &mut app, stop.center());
+        assert!(
+            application
+                .commands
+                .borrow()
+                .iter()
+                .any(|command| matches!(command, AppCommand::StopMicrophoneTest { .. })),
+            "the egui Stop click must route to the capture owner"
+        );
+
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert!(!app.view.microphone_test_active);
+        assert!(
+            app.view.microphone_meter.is_none(),
+            "stop invalidates the meter"
+        );
+        assert!(app.view.microphone_source_identity.is_none());
+        assert_eq!(
+            app.view.last_result.as_deref(),
+            Some("Résultat précédent conservé"),
+            "testing and stopping preserves the completed transcription"
+        );
+        assert_eq!(app.view.message.as_deref(), Some("Test microphone arrêté"));
+
+        let reopen = app
+            .microphone_test_button_rect
+            .expect("test button rendered after release");
+        click_ui_button(&context, &mut app, reopen.center());
+        assert_eq!(
+            application
+                .commands
+                .borrow()
+                .iter()
+                .filter(|command| matches!(command, AppCommand::StartMicrophoneTest { .. }))
+                .count(),
+            2,
+            "a released capture can be opened again"
+        );
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert!(app.view.microphone_test_active);
+
+        run_ui_frame(&context, &mut app, Vec::new());
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert!(app.view.microphone_meter.is_some());
+        let (live_job, live_generation) = app.active_identity.expect("active test identity");
+        {
+            let mut view = application.view.borrow_mut();
+            view.microphone_test_active = false;
+            view.active_job = Some((live_job, whisper_core::JobState::Capturing));
+            view.active_generation = Some(live_generation);
+            view.direct_capture_phase = Some(whisper_core::application::DirectCapturePhase::Active);
+            view.microphone_source_identity = Some("wasapi:chosen".into());
+        }
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert!(app.microphone_saturation_badge_rect.is_some());
+        let direct_stop = app
+            .live_stop_button_rect
+            .expect("real direct capture Stop button rendered");
+        click_ui_button(&context, &mut app, direct_stop.center());
+        assert!(application.commands.borrow().iter().any(|command| matches!(
+            command,
+            AppCommand::Stop { job_id, generation }
+                if *job_id == live_job && *generation == live_generation
+        )));
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert_eq!(
+            app.view.active_job,
+            Some((live_job, whisper_core::JobState::Draining))
+        );
+        assert_eq!(
+            app.view.direct_capture_phase,
+            Some(whisper_core::application::DirectCapturePhase::Stopped)
+        );
+        assert!(
+            app.view.microphone_meter.is_some(),
+            "stop may retain the last meter"
+        );
+        assert!(
+            app.microphone_saturation_badge_rect.is_none(),
+            "the real panel removes the stale saturation warning immediately after direct Stop"
+        );
+    }
+
+    #[test]
+    fn actual_probe_spectra_stay_visible_across_discarded_egui_passes() {
+        let spectrum = actual_probe_spectrum();
+        assert_eq!(spectrum.pre_gain.len(), 1025);
+        assert_eq!(spectrum.post_gain_limiter.len(), 1025);
+
+        let application = MicrophoneCycleApplication::default();
+        {
+            let mut view = application.view.borrow_mut();
+            view.microphone_test_active = true;
+            view.microphone_acquisition = Some(
+                whisper_core::microphone_level::MicrophoneAcquisitionContext::new(
+                    JobId(902),
+                    Generation::first(),
+                    &MicrophoneChoice::Device("wasapi:chosen".into()),
+                ),
+            );
+            view.active_generation = Some(Generation::first());
+            view.microphone_source_identity = Some("wasapi:chosen".into());
+            view.microphone_spectrum = Some(spectrum);
+        }
+        let paths = whisper_core::path_settings::PathSettingsApp::new(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: "audio".into(),
+                model_path: "model".into(),
+                destination: "output".into(),
+            },
+            Box::new(whisper_core::path_settings::NullPathPort),
+        );
+        let mut app = DesktopApp::with_microphones(
+            application.clone(),
+            ComputeChoice::Cpu,
+            None,
+            paths,
+            Box::new(OneMicrophone),
+        );
+        let context = egui::Context::default();
+        let size = egui::vec2(1200.0, 3000.0);
+
+        let initial = run_ui_frame_at_size(&context, &mut app, Vec::new(), size);
+        assert_eq!(initial.visible_spectra.len(), 2);
+        assert_eq!(
+            app.view.microphone_source_identity.as_deref(),
+            Some("wasapi:chosen")
+        );
+
+        let mut previous = initial.visible_spectra;
+        for _ in 0..4 {
+            let frame = run_ui_frame_with_discard(&context, &mut app, Vec::new(), size, true);
+            assert!(
+                frame.completed_passes >= 2,
+                "the UI frame must complete a discarded and final pass"
+            );
+            assert_eq!(
+                frame.visible_spectra.len(),
+                2,
+                "both clipped graph areas remain visible"
+            );
+            for (before, after) in previous.iter().zip(&frame.visible_spectra) {
+                assert!(before.min.distance(after.min) < 1.0);
+                assert!(before.max.distance(after.max) < 1.0);
+            }
+            assert!(app.view.microphone_spectrum.is_some());
+            assert_eq!(
+                app.view.microphone_source_identity.as_deref(),
+                Some("wasapi:chosen")
+            );
+            previous = frame.visible_spectra;
+        }
+    }
+
+    #[test]
+    fn microphone_saturation_badge_requires_current_identity_and_fresh_limiter_data() {
+        assert_eq!(MICROPHONE_SATURATION_LABEL, "Écrêtage après gain détecté");
+        assert_eq!(MICROPHONE_SATURATION_COLOR, egui::Color32::RED);
+        let meter = whisper_core::microphone_level::MicrophoneMeter {
+            job_id: JobId(7),
+            generation: Generation::first(),
+            source_identity: "wasapi:A".into(),
+            sequence: 1,
+            first_frame: 0,
+            last_frame: 480,
+            sample_rate_hz: 48_000,
+            analyzed_channels: 1,
+            gain_first_db: 0,
+            gain_first_revision: 0,
+            gain_last_db: 0,
+            gain_last_revision: 0,
+            mixed_gain: false,
+            pre_gain: whisper_core::microphone_level::MeterLevel {
+                status: whisper_core::microphone_level::MeasurementStatus::Signal,
+                sample_count: 480,
+                rms_micros: 100_000,
+                peak_micros: 200_000,
+            },
+            post_gain_limiter: whisper_core::microphone_level::MeterLevel {
+                status: whisper_core::microphone_level::MeasurementStatus::Signal,
+                sample_count: 480,
+                rms_micros: 100_000,
+                peak_micros: 1_000_000,
+            },
+            limiter_samples: 2,
+            dropped_updates: 0,
+            captured_at_monotonic_ms: 1_000,
+        };
+        let capture = Some((JobId(7), Generation::first()));
+        assert!(microphone_saturation_is_current(
+            Some(&meter),
+            capture,
+            Some("wasapi:A"),
+            true,
+            1_500
+        ));
+        assert!(!microphone_saturation_is_current(
+            Some(&meter),
+            capture,
+            Some("wasapi:B"),
+            true,
+            1_500
+        ));
+        assert!(!microphone_saturation_is_current(
+            Some(&meter),
+            capture,
+            Some("wasapi:A"),
+            true,
+            1_501
+        ));
+        assert!(!microphone_saturation_is_current(
+            Some(&meter),
+            None,
+            Some("wasapi:A"),
+            true,
+            1_500
+        ));
+        assert!(!microphone_saturation_is_current(
+            Some(&meter),
+            capture,
+            Some("wasapi:A"),
+            false,
+            1_500
+        ));
+        let mut unclipped = meter;
+        unclipped.limiter_samples = 0;
+        assert!(!microphone_saturation_is_current(
+            Some(&unclipped),
+            capture,
+            Some("wasapi:A"),
+            true,
+            1_500
+        ));
+    }
+
+    #[test]
     fn starting_a_new_microphone_job_hides_the_previous_publication() {
         let mut app = DesktopApp::new(RecordingApplication::default());
         app.view.active_job = Some((JobId(1), whisper_core::JobState::Complete));
@@ -3167,23 +4517,115 @@ mod tests {
     }
 
     #[test]
-    fn homonymous_microphones_have_distinct_labels() {
+    fn microphone_labels_number_homonyms_by_sorted_identity() {
+        let devices = HomonymousMicrophones.list_inputs().unwrap();
+        let expected = [
+            ("wasapi:alpha", "Micro de bureau (1)"),
+            ("wasapi:beta", "Micro de bureau (2)"),
+            ("wasapi:gamma", "Micro de bureau (3)"),
+        ];
+        for order in [devices.clone(), devices.iter().cloned().rev().collect()] {
+            let labels = MicrophoneLabelProjection::new(&order);
+            for (identity, label) in expected {
+                assert_eq!(labels.device_label(identity), label);
+            }
+        }
+        assert_eq!(
+            MicrophoneLabelProjection::new(&devices).device_label("wasapi:missing"),
+            "Microphone indisponible"
+        );
+        assert_eq!(
+            MicrophoneLabelProjection::new(&devices)
+                .choice_label(&MicrophoneChoice::WindowsDefault),
+            "Microphone par défaut de Windows"
+        );
+        let labels = MicrophoneLabelProjection::new(&devices);
+        assert_eq!(
+            labels.actual_line("wasapi:alpha"),
+            "Microphone utilisé : Micro de bureau (1)"
+        );
+        assert_eq!(
+            labels.planned_line("wasapi:beta"),
+            "Microphone prévu : Micro de bureau (2)"
+        );
+    }
+
+    #[test]
+    fn microphone_labels_keep_unique_names_and_hide_missing_names() {
         let devices = vec![
             MicrophoneDevice {
-                id: "wasapi:one".into(),
-                name: "Micro".into(),
+                id: "wasapi:unique".into(),
+                name: "Micro de casque".into(),
                 unavailable_reason: None,
             },
             MicrophoneDevice {
-                id: "wasapi:two".into(),
-                name: "Micro".into(),
+                id: "wasapi:unnamed".into(),
+                name: "  ".into(),
+                unavailable_reason: None,
+            },
+            MicrophoneDevice {
+                id: String::new(),
+                name: "Nom associé à une identité vide".into(),
+                unavailable_reason: None,
+            },
+            MicrophoneDevice {
+                id: "   ".into(),
+                name: "Nom associé à une identité blanche".into(),
                 unavailable_reason: None,
             },
         ];
-        assert_ne!(
-            microphone_device_label(&devices[0], &devices),
-            microphone_device_label(&devices[1], &devices)
+        let labels = MicrophoneLabelProjection::new(&devices);
+        assert_eq!(labels.device_label("wasapi:unique"), "Micro de casque");
+        assert_eq!(labels.device_label("wasapi:unnamed"), "Microphone sans nom");
+        assert_eq!(labels.device_label(""), "Microphone indisponible");
+        assert_eq!(labels.device_label("   "), "Microphone indisponible");
+        assert_eq!(
+            microphone_device_label(&devices[2], &devices),
+            "Microphone indisponible"
         );
+        assert_eq!(
+            microphone_device_label(&devices[3], &devices),
+            "Microphone indisponible"
+        );
+        assert_eq!(labels.planned_line(""), "Microphone prévu : Microphone indisponible");
+        assert_eq!(labels.actual_line("   "), "Microphone utilisé : Microphone indisponible");
+        assert!(!labels.device_label("wasapi:missing").contains("wasapi:"));
+    }
+
+    #[test]
+    fn microphone_labels_selection_keeps_the_full_identity_in_commands() {
+        let devices = HomonymousMicrophones.list_inputs().unwrap();
+        let paths = whisper_core::path_settings::PathSettingsApp::with_defaults(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: String::new(),
+                model_path: "model".into(),
+                destination: "output".into(),
+            },
+        );
+        let application = RecordingApplication::default();
+        let mut app = DesktopApp::with_microphones(
+            application.clone(),
+            ComputeChoice::Cpu,
+            None,
+            paths,
+            Box::new(HomonymousMicrophones),
+        );
+        app.microphones
+            .select(MicrophoneChoice::Device("wasapi:beta".into()))
+            .unwrap();
+        assert_eq!(
+            MicrophoneLabelProjection::new(&devices).choice_label(app.microphones.effective()),
+            "Micro de bureau (2)"
+        );
+
+        app.start_microphone_test();
+        assert!(matches!(
+            application.0.borrow().last(),
+            Some(AppCommand::StartMicrophoneTest {
+                microphone: MicrophoneChoice::Device(identity),
+                ..
+            }) if identity == "wasapi:beta"
+        ));
     }
 
     #[test]
@@ -3372,6 +4814,93 @@ mod tests {
             recorder.0.borrow().first(),
             Some(AppCommand::StartDirectLiveConfigured { request })
                 if request.config.compute == ComputeChoice::Gpu
+        ));
+    }
+
+    #[test]
+    fn microphone_labels_changed_windows_default_notice_keeps_identity_and_gain() {
+        let recorder = RecordingApplication::default();
+        let default_id = Rc::new(RefCell::new("wasapi:A".to_owned()));
+        let paths = whisper_core::path_settings::PathSettingsApp::new(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: "audio".into(),
+                model_path: "model".into(),
+                destination: "output".into(),
+            },
+            Box::new(whisper_core::path_settings::NullPathPort),
+        );
+        let mut app = DesktopApp::with_microphones(
+            recorder.clone(),
+            ComputeChoice::Cpu,
+            None,
+            paths,
+            Box::new(ChangingDefaultMicrophone(default_id.clone())),
+        );
+        let a = whisper_core::microphone_level::MicrophoneIdentity::new("wasapi:A").unwrap();
+        let b = whisper_core::microphone_level::MicrophoneIdentity::new("wasapi:B").unwrap();
+        app.paths
+            .set_microphone_gain(&a, whisper_core::GainDb::new(12).unwrap());
+        app.paths
+            .set_microphone_gain(&b, whisper_core::GainDb::new(-12).unwrap());
+
+        app.start_microphone_test();
+        assert!(
+            matches!(recorder.0.borrow().last(), Some(AppCommand::StartMicrophoneTest {
+            microphone: MicrophoneChoice::Device(id), gain_db: 12, ..
+        }) if id == "wasapi:A")
+        );
+        app.view.microphone_test_active = false;
+        app.view.active_job = None;
+        *default_id.borrow_mut() = "wasapi:B".into();
+
+        let count = recorder.0.borrow().len();
+        app.start_live(Generation::first());
+        assert_eq!(
+            recorder.0.borrow().len(),
+            count,
+            "first transition action only announces identity change"
+        );
+        assert!(app.microphone_notice.as_deref().is_some_and(|notice| {
+            notice.contains("Microphone indisponible")
+                && notice.contains("Microphone Windows")
+                && !notice.contains("wasapi:")
+        }));
+
+        app.start_live(Generation::first());
+        assert!(
+            matches!(recorder.0.borrow().last(), Some(AppCommand::StartDirectLiveConfigured {
+            request: whisper_core::ports::LiveRequest { microphone: MicrophoneChoice::Device(id), microphone_gain_db: -12, .. }
+        }) if id == "wasapi:B")
+        );
+    }
+
+    #[test]
+    fn gain_gesture_during_capture_open_targets_the_pinned_identity() {
+        let recorder = RecordingApplication::default();
+        let paths = whisper_core::path_settings::PathSettingsApp::new(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: "audio".into(),
+                model_path: "model".into(),
+                destination: "output".into(),
+            },
+            Box::new(whisper_core::path_settings::NullPathPort),
+        );
+        let mut app = DesktopApp::with_microphones(
+            recorder.clone(),
+            ComputeChoice::Cpu,
+            None,
+            paths,
+            Box::new(OneMicrophone),
+        );
+        app.view.direct_capture_phase =
+            Some(whisper_core::application::DirectCapturePhase::Initializing);
+        app.active_identity = Some((JobId(910), Generation::first()));
+        app.set_microphone_gain(6);
+        assert!(matches!(
+            recorder.0.borrow().last(),
+            Some(AppCommand::SetMicrophoneGain {
+                job_id: JobId(910), expected_revision: 0, gain, target_identity, ..
+            }) if target_identity == "wasapi:chosen" && gain.value() == 6
         ));
     }
 

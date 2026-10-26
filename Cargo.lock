@@ -3788,6 +3788,7 @@ dependencies = [
  "cpal",
  "rfd",
  "rtrb",
+ "rustfft",
  "rubato",
  "same-file",
  "serde",

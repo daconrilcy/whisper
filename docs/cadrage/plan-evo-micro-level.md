@@ -1,6 +1,6 @@
-Avancée : noms des microphones et indices d'homonymes livrés, revue CLEAN et EXE personnel remplacé ; spectres sans clignotement confirmés par l'utilisateur.
-Blocage : recette Windows des nouveaux libellés à faire ; réserves de formatage, WASAPI et Parakeet CPU conservées.
-Décision : afficher les noms tout en conservant les références techniques comme clés internes.
+Avancée : noms des microphones et indices d'homonymes validés conformes dans la fenêtre ; spectres sans clignotement déjà confirmés.
+Blocage : aucun pour cette recette d'interface ; réserves de formatage, WASAPI et Parakeet CPU conservées.
+Décision : commiter et pousser l'évolution micro validée sur evo-startup-perf, avec les documents de cadrage et les réserves explicites.
 
 # Whisper — Plan du réglage du niveau microphone
 
@@ -670,3 +670,11 @@ Les 18 ressources personnelles (deux workers Parakeet, cinq DLL CPU, neuf DLL GP
 Archive `target/parakeet-tests/micro-level/archives/microphone-labels-20261026/` : **20 fichiers, 1 831 008 octets**, arborescence conservée et tous les SHA-256/tailles source-copie vérifiés. Journaux du détail, correction L01, régressions, formatage, build et garde/events/Temp/script ; aucun corpus/WAV/cache, manifeste nouveau ou nettoyage. Espace libre final : **124 769 734 656 octets**, supérieur à 30 Gio. Aucun watcher actif avant rédaction.
 
 Reste à confirmer par l'utilisateur dans la fenêtre Windows : noms lisibles, homonymes numérotés et cohérence prévu/utilisé. Le spectre sans clignotement est déjà confirmé par sa recette précédente. Aucun EXE lancé par l'agent, commit de code ou push ; seuls les deux documents sont commités localement.
+
+### Validation Windows et autorisation de publication — 26 octobre 2026
+
+Réponse utilisateur après cette remise : **« ok tout est conforme : les noms s'affichent bien avec le bon format. Tu peux commit et push »**. Recette des noms/indices : validée. Les confirmations précédentes du spectre sans clignotement, du gain, de l'arrêt et du redémarrage demeurent acquises. Aucun nouveau test ou build n'est nécessaire pour publier le candidat inchangé déjà vérifié et testé par l'utilisateur.
+
+Publication autorisée : branche courante `evo-startup-perf`, remote `origin` du projet. Le commit source regroupe le delta micro-level resté dans l'arbre de travail : contrats et capture/gain/mémoire, sonde et spectres, intégrations Turbo/Parakeet, présentation et libellés, tests et dépendance Rustfft déjà verrouillée. Les documents locaux de cette même évolution sont inclus dans le push. Stage par liste explicite des chemins autorisés, contrôle `git diff --cached --check`, puis vérification de concordance SHA local/upstream/remote. Aucun push forcé ni réécriture des commits existants.
+
+Hors publication : `models/`, `sound example/`, EXE de recette, caches, corpus et sorties sous `target/`. Les réserves de qualité ASR native Parakeet CPU, les tests WASAPI ignorés et le formatage préexistant restent consignés ; la validation des noms ne les transforme pas en succès. Aucun changement source entre la dernière revue/remise et cette publication.

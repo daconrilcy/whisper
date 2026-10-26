@@ -219,6 +219,9 @@ pub struct LiveRequest {
     pub auto_stop_after_speech_samples: Option<u64>,
     #[serde(default)]
     pub microphone: crate::microphone::MicrophoneChoice,
+    /// Gain loaded for the identity selected before the audio stream is played.
+    #[serde(default)]
+    pub microphone_gain_db: i8,
     pub config: JobConfig,
 }
 
@@ -353,6 +356,23 @@ pub enum ImportEffect {
     },
     StartLive(LiveRequest),
     StartDirectLive(LiveRequest),
+    SetMicrophoneGain {
+        job_id: JobId,
+        generation: Generation,
+        target_identity: String,
+        expected_revision: u64,
+        gain_db: i8,
+    },
+    StartMicrophoneTest {
+        job_id: JobId,
+        generation: Generation,
+        microphone: crate::microphone::MicrophoneChoice,
+        gain_db: i8,
+    },
+    StopMicrophoneTest {
+        job_id: JobId,
+        generation: Generation,
+    },
     StartAutomaticFinalTranscription(AutomaticFinalImport),
     Enqueue(ImportRequest),
     ConfirmDuplicateImport {
@@ -417,6 +437,32 @@ pub enum ImportEvent {
         generation: Generation,
         first_sample_at_unix_ms: u64,
         first_admitted_at_unix_ms: u64,
+    },
+    MicrophoneGainApplied {
+        job_id: JobId,
+        generation: Generation,
+        target_identity: String,
+        gain_db: i8,
+        gain_revision: u64,
+        first_frame: u64,
+    },
+    MicrophoneGainRejected {
+        job_id: JobId,
+        generation: Generation,
+        target_identity: String,
+        message: String,
+    },
+    MicrophoneTestStarted {
+        job_id: JobId,
+        generation: Generation,
+        source_identity: String,
+        gain_db: i8,
+    },
+    MicrophoneMeter(crate::microphone_level::MicrophoneMeter),
+    MicrophoneSpectrum(crate::microphone_level::MicrophoneSpectrumUpdate),
+    MicrophoneTestStopped {
+        job_id: JobId,
+        generation: Generation,
     },
     DirectConfirmed(WorkerSegment),
     DirectPublished {
@@ -549,6 +595,8 @@ pub enum ImportEvent {
     LiveRetryingOnCpu {
         job_id: JobId,
         generation: Generation,
+        spectrum_min_epoch: u64,
+        spectrum_not_before_monotonic_ms: u64,
     },
     LiveFinalizing {
         job_id: JobId,

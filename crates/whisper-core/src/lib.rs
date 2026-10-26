@@ -10,6 +10,7 @@ pub mod gpu_inventory_app;
 pub mod gpu_selection;
 pub mod ipc;
 pub mod microphone;
+pub mod microphone_level;
 pub mod model_catalog;
 pub mod model_registry;
 pub mod model_selection_app;
@@ -29,6 +30,10 @@ pub use domain::{
 };
 pub use microphone::{
     MicrophoneChoice, MicrophoneDevice, MicrophonePort, MicrophoneSettings, NullMicrophonePort,
+};
+pub use microphone_level::{
+    GainDb, GainError, GainRevision, LevelMeasurement, MeasurementStatus, MicrophoneIdentity,
+    MicrophoneLevelError, SelectionContext, SelectionRevision,
 };
 pub use ports::{
     ArchiveHistoryItem, Clock, DecodeRequest, DecodedPcmBlock, DecoderPort, DiagnosticNotice,

@@ -42,6 +42,16 @@ fn l3d_event_trace(event: &ImportEvent) {
         | ImportEvent::DirectPublished {
             job_id, generation, ..
         }
+        | ImportEvent::MicrophoneGainApplied {
+            job_id, generation, ..
+        }
+        | ImportEvent::MicrophoneGainRejected {
+            job_id, generation, ..
+        }
+        | ImportEvent::MicrophoneTestStarted {
+            job_id, generation, ..
+        }
+        | ImportEvent::MicrophoneTestStopped { job_id, generation }
         | ImportEvent::Diagnostic {
             job_id, generation, ..
         }
@@ -86,8 +96,29 @@ fn l3d_event_trace(event: &ImportEvent) {
             job_id, generation, ..
         }
         | ImportEvent::LiveAttemptStarting { job_id, generation }
-        | ImportEvent::LiveRetryingOnCpu { job_id, generation }
+        | ImportEvent::LiveRetryingOnCpu {
+            job_id, generation, ..
+        }
         | ImportEvent::LiveFinalizing { job_id, generation }
+        | ImportEvent::MicrophoneMeter(crate::microphone_level::MicrophoneMeter {
+            job_id,
+            generation,
+            ..
+        })
+        | ImportEvent::MicrophoneSpectrum(
+            crate::microphone_level::MicrophoneSpectrumUpdate::Available(
+                crate::microphone_level::MicrophoneSpectrum {
+                    job_id, generation, ..
+                },
+            ),
+        )
+        | ImportEvent::MicrophoneSpectrum(
+            crate::microphone_level::MicrophoneSpectrumUpdate::Unavailable {
+                job_id,
+                generation,
+                ..
+            },
+        )
         | ImportEvent::ResumeCheckpoint {
             job_id, generation, ..
         }
@@ -156,6 +187,12 @@ impl ImportEvent {
             Self::DirectCaptureActive { .. } => "direct_capture_active",
             Self::DirectConfirmed(_) => "direct_confirmed",
             Self::DirectPublished { .. } => "direct_published",
+            Self::MicrophoneGainApplied { .. } => "microphone_gain_applied",
+            Self::MicrophoneGainRejected { .. } => "microphone_gain_rejected",
+            Self::MicrophoneTestStarted { .. } => "microphone_test_started",
+            Self::MicrophoneMeter(_) => "microphone_meter",
+            Self::MicrophoneSpectrum(_) => "microphone_spectrum",
+            Self::MicrophoneTestStopped { .. } => "microphone_test_stopped",
             Self::Diagnostic { .. } => "diagnostic",
             Self::LiveProvisional { .. } => "live_provisional",
             Self::ParakeetLiveStarted { .. } => "parakeet_live_started",
@@ -240,6 +277,23 @@ pub enum AppCommand {
     StartDirectLiveConfigured {
         request: LiveRequest,
     },
+    StartMicrophoneTest {
+        job_id: JobId,
+        generation: Generation,
+        microphone: crate::microphone::MicrophoneChoice,
+        gain_db: i8,
+    },
+    StopMicrophoneTest {
+        job_id: JobId,
+        generation: Generation,
+    },
+    SetMicrophoneGain {
+        job_id: JobId,
+        generation: Generation,
+        target_identity: String,
+        expected_revision: u64,
+        gain: crate::microphone_level::GainDb,
+    },
     FinishLiveOnCpu {
         job_id: JobId,
         generation: Generation,
@@ -278,7 +332,17 @@ impl AppCommand {
             }
             | Self::Stop { job_id, generation }
             | Self::Quit { job_id, generation }
-            | Self::FinishLiveOnCpu { job_id, generation } => Some(CommandIdentity {
+            | Self::FinishLiveOnCpu { job_id, generation }
+            | Self::StartMicrophoneTest {
+                job_id, generation, ..
+            }
+            | Self::StopMicrophoneTest { job_id, generation } => Some(CommandIdentity {
+                job_id: *job_id,
+                generation: *generation,
+            }),
+            Self::SetMicrophoneGain {
+                job_id, generation, ..
+            } => Some(CommandIdentity {
                 job_id: *job_id,
                 generation: *generation,
             }),
@@ -363,6 +427,16 @@ pub struct AppView {
     pub automatic_final_transcription: Option<crate::ports::AutomaticFinalTranscriptionView>,
     /// Parakeet captures from this process only; a new process starts with an empty list.
     pub parakeet_captures: Vec<crate::ports::ParakeetCaptureView>,
+    pub microphone_test_active: bool,
+    pub microphone_acquisition: Option<crate::microphone_level::MicrophoneAcquisitionContext>,
+    pub microphone_source_identity: Option<String>,
+    pub microphone_meter: Option<crate::microphone_level::MicrophoneMeter>,
+    pub microphone_spectrum: Option<crate::microphone_level::MicrophoneSpectrum>,
+    pub microphone_gain_db: i8,
+    pub microphone_gain_revision: u64,
+    pub microphone_gain_requested_db: i8,
+    pub microphone_gain_requested_revision: u64,
+    pub microphone_gain_applied_first_frame: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -477,7 +551,15 @@ impl<P: ImportIoPort> ImportApplication<P> {
         }
         let _ = self.retry_automatic_final_segment()?;
         for _ in 0..MAX_EVENTS_PER_REFRESH {
-            let Some(event) = self.io.poll().map_err(|e| self.fail(e))? else {
+            let polled = match self.io.poll() {
+                Ok(polled) => polled,
+                Err(error) => {
+                    self.view.microphone_acquisition = None;
+                    self.view.microphone_spectrum = None;
+                    return Err(self.fail(error));
+                }
+            };
+            let Some(event) = polled else {
                 return Ok(());
             };
             let became_ready = matches!(&event, ImportEvent::Ready { .. });
@@ -616,6 +698,23 @@ impl<P: ImportIoPort> ImportApplication<P> {
         }
         let (job_id, generation) = event.identity();
         let identity = CommandIdentity { job_id, generation };
+        if self
+            .view
+            .microphone_acquisition
+            .as_ref()
+            .is_some_and(|owner| owner.job_id == job_id && owner.generation == generation)
+            && matches!(
+                &event,
+                ImportEvent::End { .. }
+                    | ImportEvent::Failed { .. }
+                    | ImportEvent::Stopped { .. }
+                    | ImportEvent::Published { .. }
+                    | ImportEvent::ParakeetCaptureStopped { .. }
+            )
+        {
+            self.view.microphone_acquisition = None;
+            self.view.microphone_spectrum = None;
+        }
         if self.automatic_final_identity == Some(identity) && self.active != Some(identity) {
             return self.handle_automatic_final_event(event, identity);
         }
@@ -639,6 +738,113 @@ impl<P: ImportIoPort> ImportApplication<P> {
             return Ok(());
         }
         match event {
+            ImportEvent::MicrophoneGainApplied {
+                target_identity,
+                gain_db,
+                gain_revision,
+                first_frame,
+                ..
+            } => {
+                if self
+                    .view
+                    .microphone_source_identity
+                    .as_deref()
+                    .is_some_and(|current| current != target_identity)
+                    || gain_revision < self.view.microphone_gain_revision
+                {
+                    return Ok(());
+                }
+                self.view.microphone_source_identity = Some(target_identity);
+                self.view.microphone_gain_db = gain_db;
+                self.view.microphone_gain_revision = gain_revision;
+                self.view.microphone_gain_applied_first_frame = Some(first_frame);
+                self.view.message = Some(format!(
+                    "Gain microphone appliqué : {} dB à la trame {}",
+                    gain_db, first_frame
+                ));
+            }
+            ImportEvent::MicrophoneGainRejected { message, .. } => {
+                self.view.message = Some(format!("Gain microphone non appliqué : {message}"));
+            }
+            ImportEvent::MicrophoneTestStarted {
+                source_identity,
+                gain_db,
+                ..
+            } => {
+                self.view.microphone_source_identity = Some(source_identity);
+                self.view.microphone_gain_db = gain_db;
+                self.view.microphone_gain_revision = 0;
+                self.view.microphone_gain_applied_first_frame = None;
+                // A gain gesture may already have been submitted while the
+                // asynchronous capture opening was still in progress. Keep
+                // that requested value/revision; the adapter will apply its
+                // revision after the opened stream starts acquiring blocks.
+                if self.view.microphone_gain_requested_revision == 0 {
+                    self.view.microphone_gain_requested_db = gain_db;
+                }
+                self.view.message = Some("Test microphone actif".into());
+            }
+            ImportEvent::MicrophoneMeter(meter) => {
+                if self.stopping != Some(identity) {
+                    if self
+                        .view
+                        .microphone_acquisition
+                        .as_mut()
+                        .is_some_and(|acquisition| !acquisition.bind_source(&meter.source_identity))
+                    {
+                        return Ok(());
+                    }
+                    self.view.microphone_source_identity = Some(meter.source_identity.clone());
+                    self.view.microphone_gain_db = meter.gain_last_db;
+                    self.view.microphone_gain_revision = meter.gain_last_revision;
+                    if meter.gain_last_revision >= self.view.microphone_gain_requested_revision {
+                        self.view.microphone_gain_requested_db = meter.gain_last_db;
+                        self.view.microphone_gain_requested_revision = meter.gain_last_revision;
+                    }
+                    self.view.microphone_meter = Some(meter);
+                }
+            }
+            ImportEvent::MicrophoneSpectrum(update) => {
+                if self.stopping == Some(identity) {
+                    return Ok(());
+                }
+                let now = crate::microphone_level::monotonic_millis();
+                let Some(acquisition) = self.view.microphone_acquisition.as_mut() else {
+                    return Ok(());
+                };
+                let Some(available) = acquisition.accept_spectrum_update(&update, now) else {
+                    return Ok(());
+                };
+                if available {
+                    let crate::microphone_level::MicrophoneSpectrumUpdate::Available(spectrum) =
+                        update
+                    else {
+                        return Ok(());
+                    };
+                    self.view.microphone_source_identity = Some(spectrum.source_identity.clone());
+                    self.view.microphone_spectrum = Some(spectrum.clone());
+                } else {
+                    self.view.microphone_spectrum = None;
+                }
+            }
+            ImportEvent::MicrophoneTestStopped { .. } => {
+                self.view.microphone_test_active = false;
+                self.view.microphone_acquisition = None;
+                self.view.microphone_meter = None;
+                self.view.microphone_spectrum = None;
+                self.view.microphone_source_identity = None;
+                self.view.microphone_gain_db = 0;
+                self.view.microphone_gain_revision = 0;
+                self.view.microphone_gain_applied_first_frame = None;
+                self.view.microphone_gain_requested_db = 0;
+                self.view.microphone_gain_requested_revision = 0;
+                self.view.active_generation = None;
+                self.view.message = Some("Test microphone arrêté".into());
+                self.active = None;
+                self.request = None;
+                self.stopping = None;
+                self.direct_live = false;
+            }
             ImportEvent::DirectCaptureActive {
                 first_sample_at_unix_ms,
                 first_admitted_at_unix_ms,
@@ -844,6 +1050,8 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 }
             }
             ImportEvent::ParakeetCaptureStopped {
+                job_id,
+                generation,
                 session_id,
                 wav_path,
                 txt_path,
@@ -855,6 +1063,10 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 automatic_final,
                 ..
             } => {
+                if self.active == Some(CommandIdentity { job_id, generation }) {
+                    self.view.microphone_acquisition = None;
+                    self.view.microphone_spectrum = None;
+                }
                 if self.view.provisional_session_id != Some(session_id) {
                     return Ok(());
                 }
@@ -1004,6 +1216,12 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 next_segment_sequence,
                 ..
             } => {
+                self.view.microphone_spectrum = None;
+                if let Some(acquisition) = &mut self.view.microphone_acquisition {
+                    acquisition.spectrum_epoch = None;
+                    acquisition.spectrum_sequence = 0;
+                    acquisition.spectrum_visible = false;
+                }
                 if confirmed_samples < self.view.confirmed_samples
                     || confirmed_samples > self.view.audio_durable_samples
                     || next_segment_sequence == 0
@@ -1024,7 +1242,20 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 self.view.active_job = Some((job_id, JobState::Preparing));
                 self.view.message = Some("Attente de l’attestation du worker CPU…".into());
             }
-            ImportEvent::LiveRetryingOnCpu { .. } => {
+            ImportEvent::LiveRetryingOnCpu {
+                spectrum_min_epoch,
+                spectrum_not_before_monotonic_ms,
+                ..
+            } => {
+                self.view.microphone_spectrum = None;
+                if let Some(acquisition) = &mut self.view.microphone_acquisition {
+                    acquisition.spectrum_epoch = None;
+                    acquisition.spectrum_sequence = 0;
+                    acquisition.spectrum_visible = false;
+                    acquisition.spectrum_min_epoch = Some(spectrum_min_epoch);
+                    acquisition.spectrum_not_before_monotonic_ms =
+                        Some(spectrum_not_before_monotonic_ms);
+                }
                 self.view.active_job = Some((job_id, JobState::Capturing));
                 self.view.message = Some(
                     "Le GPU a échoué ; la capture continue et le passage sera repris sur CPU."
@@ -1227,6 +1458,20 @@ impl<P: ImportIoPort> ImportApplication<P> {
             ImportEvent::Failed { message, .. } => {
                 if self.automatic_final_identity == Some(identity) {
                     self.mark_automatic_final_failed(identity, message);
+                    return Ok(());
+                }
+                if self.view.microphone_test_active {
+                    self.view.microphone_test_active = false;
+                    self.view.microphone_meter = None;
+                    self.view.microphone_source_identity = None;
+                    self.view.microphone_gain_db = 0;
+                    self.view.microphone_gain_revision = 0;
+                    self.view.active_generation = None;
+                    self.view.message = Some(format!("Test microphone arrêté : {message}"));
+                    self.active = None;
+                    self.request = None;
+                    self.stopping = None;
+                    self.direct_live = false;
                     return Ok(());
                 }
                 if self.direct_live {
@@ -1700,6 +1945,8 @@ impl<P: ImportIoPort> ImportApplication<P> {
                         Some("Capture arrêtée avant confirmation de la finalisation WAV".into());
                 }
             }
+            ImportEvent::MicrophoneGainApplied { .. }
+            | ImportEvent::MicrophoneGainRejected { .. } => {}
             _ => {}
         }
     }
@@ -2249,6 +2496,60 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 );
                 self.poll_once()?;
             }
+            AppCommand::StartMicrophoneTest {
+                job_id,
+                generation,
+                microphone,
+                gain_db,
+            } => {
+                if self.active.is_some() || self.view.microphone_test_active {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let identity = CommandIdentity { job_id, generation };
+                let requested_microphone = microphone.clone();
+                self.io
+                    .submit(ImportEffect::StartMicrophoneTest {
+                        job_id,
+                        generation,
+                        microphone,
+                        gain_db,
+                    })
+                    .map_err(|error| self.fail(error))?;
+                self.view.microphone_acquisition =
+                    Some(crate::microphone_level::MicrophoneAcquisitionContext::new(
+                        job_id,
+                        generation,
+                        &requested_microphone,
+                    ));
+                self.view.microphone_spectrum = None;
+                self.active = Some(identity);
+                self.request = None;
+                self.direct_live = false;
+                self.stopping = None;
+                self.view.active_generation = Some(generation);
+                self.view.microphone_test_active = true;
+                self.view.microphone_source_identity = None;
+                self.view.microphone_meter = None;
+                self.view.microphone_gain_requested_db = gain_db;
+                self.view.microphone_gain_requested_revision = 0;
+                self.view.microphone_gain_db = gain_db;
+                self.view.microphone_gain_revision = 0;
+                self.view.message = Some("Ouverture du test microphone…".into());
+            }
+            AppCommand::StopMicrophoneTest { job_id, generation } => {
+                let identity = CommandIdentity { job_id, generation };
+                if self.active != Some(identity) || !self.view.microphone_test_active {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                self.io
+                    .submit(ImportEffect::StopMicrophoneTest { job_id, generation })
+                    .map_err(|error| self.fail(error))?;
+                self.stopping = Some(identity);
+                self.view.microphone_acquisition = None;
+                self.view.microphone_meter = None;
+                self.view.microphone_spectrum = None;
+                self.view.message = Some("Arrêt du test microphone…".into());
+            }
             AppCommand::ScanHistory { destination } => {
                 self.io
                     .submit(ImportEffect::ScanHistory {
@@ -2342,6 +2643,12 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     generation: request.generation,
                 };
                 let requested_compute = request.config.compute;
+                let requested_microphone_gain_db = request.microphone_gain_db;
+                let requested_microphone = request.microphone.clone();
+                let requested_microphone_identity = match &request.microphone {
+                    crate::microphone::MicrophoneChoice::Device(identity) => Some(identity.clone()),
+                    crate::microphone::MicrophoneChoice::WindowsDefault => None,
+                };
                 self.auto_stop_after_speech_samples = request
                     .auto_stop_after_speech_samples
                     .filter(|limit| *limit > 0);
@@ -2351,6 +2658,13 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     ImportEffect::StartLive(request)
                 };
                 self.io.submit(effect).map_err(|e| self.fail(e))?;
+                self.view.microphone_acquisition =
+                    Some(crate::microphone_level::MicrophoneAcquisitionContext::new(
+                        identity.job_id,
+                        identity.generation,
+                        &requested_microphone,
+                    ));
+                self.view.microphone_spectrum = None;
                 self.request = None;
                 self.direct_live = direct;
                 self.active_live_compute = direct.then_some((identity, requested_compute));
@@ -2389,11 +2703,52 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.direct_ready_at_unix_ms = None;
                 self.view.direct_capture_phase = direct.then_some(DirectCapturePhase::Initializing);
                 self.view.direct_engine_phase = direct.then_some(DirectEnginePhase::Preparing);
+                if direct {
+                    self.view.microphone_source_identity = requested_microphone_identity;
+                    self.view.microphone_meter = None;
+                    self.view.microphone_gain_db = 0;
+                    self.view.microphone_gain_revision = 0;
+                    self.view.microphone_gain_applied_first_frame = None;
+                }
+                self.view.microphone_gain_requested_db = requested_microphone_gain_db;
+                self.view.microphone_gain_requested_revision = 0;
                 self.view.message = Some(if direct {
                     "Microphone en cours d'initialisation".into()
                 } else {
                     "Préparation du staging durable et du worker…".into()
                 });
+            }
+            AppCommand::SetMicrophoneGain {
+                job_id,
+                generation,
+                target_identity,
+                expected_revision,
+                gain,
+            } => {
+                let identity = CommandIdentity { job_id, generation };
+                if self.active != Some(identity)
+                    || (!self.direct_live && !self.view.microphone_test_active)
+                    || self.stopping == Some(identity)
+                {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                if expected_revision != self.view.microphone_gain_requested_revision {
+                    return Err(ApplicationError::InvalidCommand);
+                }
+                let Some(next_revision) = expected_revision.checked_add(1) else {
+                    return Err(ApplicationError::InvalidCommand);
+                };
+                self.io
+                    .submit(ImportEffect::SetMicrophoneGain {
+                        job_id,
+                        generation,
+                        target_identity,
+                        expected_revision,
+                        gain_db: gain.value(),
+                    })
+                    .map_err(|error| self.fail(error))?;
+                self.view.microphone_gain_requested_db = gain.value();
+                self.view.microphone_gain_requested_revision = next_revision;
             }
             AppCommand::FinishLiveOnCpu { job_id, generation } => {
                 let identity = CommandIdentity { job_id, generation };
@@ -2611,8 +2966,30 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 match self.io.submit(ImportEffect::Stop { job_id, generation }) {
                     Ok(()) => {
                         self.stopping = Some(CommandIdentity { job_id, generation });
+                        if self
+                            .view
+                            .microphone_acquisition
+                            .as_ref()
+                            .is_some_and(|context| {
+                                context.job_id == job_id && context.generation == generation
+                            })
+                        {
+                            self.view.microphone_acquisition = None;
+                            self.view.microphone_spectrum = None;
+                        }
                     }
                     Err(PortError::Committing) => {
+                        if self
+                            .view
+                            .microphone_acquisition
+                            .as_ref()
+                            .is_some_and(|context| {
+                                context.job_id == job_id && context.generation == generation
+                            })
+                        {
+                            self.view.microphone_acquisition = None;
+                            self.view.microphone_spectrum = None;
+                        }
                         self.view.active_job = Some((job_id, JobState::Finalizing));
                         self.view.message = Some(
                             "Publication en cours ; l’arrêt est trop tardif. Attendez sa fin."
@@ -2663,6 +3040,18 @@ impl ImportEvent {
             Self::DirectPublished {
                 job_id, generation, ..
             } => (*job_id, *generation),
+            Self::MicrophoneGainApplied {
+                job_id, generation, ..
+            }
+            | Self::MicrophoneGainRejected {
+                job_id, generation, ..
+            } => (*job_id, *generation),
+            Self::MicrophoneTestStarted {
+                job_id, generation, ..
+            }
+            | Self::MicrophoneTestStopped { job_id, generation } => (*job_id, *generation),
+            Self::MicrophoneMeter(meter) => (meter.job_id, meter.generation),
+            Self::MicrophoneSpectrum(update) => update.owner(),
             Self::LiveProvisional { segment, .. } => (segment.job_id, segment.generation),
             Self::ParakeetLiveStarted {
                 job_id, generation, ..
@@ -2704,7 +3093,9 @@ impl ImportEvent {
             Self::LiveAttemptReset {
                 job_id, generation, ..
             } => (*job_id, *generation),
-            Self::LiveRetryingOnCpu { job_id, generation } => (*job_id, *generation),
+            Self::LiveRetryingOnCpu {
+                job_id, generation, ..
+            } => (*job_id, *generation),
             Self::LiveAttemptStarting { job_id, generation } => (*job_id, *generation),
             Self::LiveFinalizing { job_id, generation }
             | Self::Diagnostic {
@@ -2804,10 +3195,14 @@ mod tests {
     struct ScanTestIo {
         effects: Vec<ImportEffect>,
         events: VecDeque<ImportEvent>,
+        stop_committing: bool,
     }
 
     impl ImportIoPort for ScanTestIo {
         fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
+            if self.stop_committing && matches!(effect, ImportEffect::Stop { .. }) {
+                return Err(PortError::Committing);
+            }
             self.effects.push(effect);
             Ok(())
         }
@@ -2815,6 +3210,457 @@ mod tests {
         fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
             Ok(self.events.pop_front())
         }
+    }
+
+    #[test]
+    fn microphone_gain_command_is_scoped_to_the_active_direct_capture() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let job_id = JobId(901);
+        let generation = Generation::first();
+        app.dispatch(AppCommand::StartDirectLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.nmodel".into(),
+                model_sha256: [1; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                microphone: crate::microphone::MicrophoneChoice::Device("mic:A".into()),
+                microphone_gain_db: 0,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+
+        app.dispatch(AppCommand::SetMicrophoneGain {
+            job_id,
+            generation,
+            target_identity: "mic:A".into(),
+            expected_revision: 0,
+            gain: crate::microphone_level::GainDb::new(6).unwrap(),
+        })
+        .unwrap();
+        assert!(matches!(
+            app.io.effects.last(),
+            Some(ImportEffect::SetMicrophoneGain {
+                job_id: actual_job,
+                generation: actual_generation,
+                target_identity,
+                expected_revision: 0,
+                gain_db,
+            }) if *actual_job == job_id
+                && *actual_generation == generation
+                && target_identity == "mic:A"
+                && *gain_db == 6
+        ));
+        assert_eq!(app.view.microphone_gain_requested_db, 6);
+        assert_eq!(app.view.microphone_gain_requested_revision, 1);
+        assert_eq!(
+            app.view.microphone_gain_db, 0,
+            "requested is not yet applied"
+        );
+        app.dispatch(AppCommand::SetMicrophoneGain {
+            job_id,
+            generation,
+            target_identity: "mic:A".into(),
+            expected_revision: 1,
+            gain: crate::microphone_level::GainDb::new(9).unwrap(),
+        })
+        .unwrap();
+        assert_eq!(app.view.microphone_gain_requested_db, 9);
+        assert_eq!(app.view.microphone_gain_requested_revision, 2);
+        assert_eq!(app.view.microphone_gain_revision, 0);
+        assert_eq!(
+            app.dispatch(AppCommand::SetMicrophoneGain {
+                job_id,
+                generation,
+                target_identity: "mic:A".into(),
+                expected_revision: 0,
+                gain: crate::microphone_level::GainDb::new(-3).unwrap(),
+            }),
+            Err(ApplicationError::InvalidCommand)
+        );
+        app.io
+            .events
+            .push_back(ImportEvent::MicrophoneGainRejected {
+                job_id,
+                generation,
+                target_identity: "mic:A".into(),
+                message: "révision périmée".into(),
+            });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(app.active, Some(CommandIdentity { job_id, generation }));
+        assert!(
+            app.direct_live,
+            "gain refusal must not terminate the capture"
+        );
+        app.io.events.push_back(ImportEvent::MicrophoneGainApplied {
+            job_id,
+            generation,
+            target_identity: "mic:A".into(),
+            gain_db: 9,
+            gain_revision: 2,
+            first_frame: 16_000,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(app.view.microphone_gain_db, 9);
+        assert_eq!(app.view.microphone_gain_revision, 2);
+        assert_eq!(app.view.microphone_gain_applied_first_frame, Some(16_000));
+        assert_eq!(app.view.microphone_gain_requested_db, 9);
+        assert_eq!(
+            app.dispatch(AppCommand::SetMicrophoneGain {
+                job_id,
+                generation: generation.next().unwrap(),
+                target_identity: "mic:A".into(),
+                expected_revision: 2,
+                gain: crate::microphone_level::GainDb::NEUTRAL,
+            }),
+            Err(ApplicationError::InvalidCommand)
+        );
+        app.dispatch(AppCommand::Stop { job_id, generation })
+            .unwrap();
+        assert_eq!(
+            app.dispatch(AppCommand::SetMicrophoneGain {
+                job_id,
+                generation,
+                target_identity: "mic:A".into(),
+                expected_revision: 2,
+                gain: crate::microphone_level::GainDb::NEUTRAL,
+            }),
+            Err(ApplicationError::InvalidCommand)
+        );
+    }
+
+    #[test]
+    fn microphone_test_gain_requested_during_open_survives_started_event() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let job_id = JobId(904);
+        let generation = Generation::first();
+
+        app.dispatch(AppCommand::StartMicrophoneTest {
+            job_id,
+            generation,
+            microphone: crate::microphone::MicrophoneChoice::Device("mic:A".into()),
+            gain_db: 0,
+        })
+        .unwrap();
+        app.dispatch(AppCommand::SetMicrophoneGain {
+            job_id,
+            generation,
+            target_identity: "mic:A".into(),
+            expected_revision: 0,
+            gain: crate::microphone_level::GainDb::new(6).unwrap(),
+        })
+        .unwrap();
+
+        assert!(matches!(
+            app.io.effects.last(),
+            Some(ImportEffect::SetMicrophoneGain {
+                expected_revision: 0,
+                gain_db: 6,
+                ..
+            })
+        ));
+        app.io.events.push_back(ImportEvent::MicrophoneTestStarted {
+            job_id,
+            generation,
+            source_identity: "mic:A".into(),
+            gain_db: 0,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+
+        assert_eq!(
+            app.view.microphone_source_identity.as_deref(),
+            Some("mic:A")
+        );
+        assert_eq!(app.view.microphone_gain_requested_db, 6);
+        assert_eq!(app.view.microphone_gain_requested_revision, 1);
+        assert_eq!(app.view.microphone_gain_db, 0);
+        assert_eq!(app.view.microphone_gain_revision, 0);
+
+        app.dispatch(AppCommand::SetMicrophoneGain {
+            job_id,
+            generation,
+            target_identity: "mic:A".into(),
+            expected_revision: 1,
+            gain: crate::microphone_level::GainDb::new(9).unwrap(),
+        })
+        .unwrap();
+        assert!(matches!(
+            app.io.effects.last(),
+            Some(ImportEffect::SetMicrophoneGain {
+                expected_revision: 1,
+                gain_db: 9,
+                ..
+            })
+        ));
+        assert_eq!(app.view.microphone_gain_requested_db, 9);
+        assert_eq!(app.view.microphone_gain_requested_revision, 2);
+
+        app.io.events.push_back(ImportEvent::MicrophoneGainApplied {
+            job_id,
+            generation,
+            target_identity: "mic:A".into(),
+            gain_db: 6,
+            gain_revision: 1,
+            first_frame: 960,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(app.view.microphone_gain_db, 6);
+        assert_eq!(app.view.microphone_gain_revision, 1);
+        assert_eq!(app.view.microphone_gain_applied_first_frame, Some(960));
+        assert_eq!(app.view.microphone_gain_requested_db, 9);
+        assert_eq!(app.view.microphone_gain_requested_revision, 2);
+    }
+
+    #[test]
+    fn microphone_test_owns_one_capture_then_releases_before_live_restart() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let job_id = JobId(902);
+        let generation = Generation::first();
+        app.dispatch(AppCommand::StartMicrophoneTest {
+            job_id,
+            generation,
+            microphone: crate::microphone::MicrophoneChoice::Device("mic:A".into()),
+            gain_db: 6,
+        })
+        .unwrap();
+        assert!(matches!(
+            app.io.effects.last(),
+            Some(ImportEffect::StartMicrophoneTest { job_id: actual, gain_db: 6, .. })
+                if *actual == job_id
+        ));
+        let effect_count = app.io.effects.len();
+        assert_eq!(
+            app.dispatch(AppCommand::StartDirectLiveConfigured {
+                request: LiveRequest {
+                    job_id,
+                    generation: generation.next().unwrap(),
+                    model_path: "model.nmodel".into(),
+                    model_sha256: [1; 32],
+                    destination: "archive".into(),
+                    group_offset_samples: 0,
+                    auto_stop_after_speech_samples: None,
+                    microphone: crate::microphone::MicrophoneChoice::Device("mic:A".into()),
+                    microphone_gain_db: 6,
+                    config: JobConfig {
+                        language: LanguageChoice::Automatic,
+                        compute: ComputeChoice::Cpu,
+                    },
+                },
+            }),
+            Err(ApplicationError::InvalidCommand)
+        );
+        assert_eq!(
+            app.io.effects.len(),
+            effect_count,
+            "test owns the only capture"
+        );
+
+        app.io.events.push_back(ImportEvent::MicrophoneTestStarted {
+            job_id,
+            generation,
+            source_identity: "mic:A".into(),
+            gain_db: 6,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(app.view.microphone_test_active);
+        assert_eq!(
+            app.view.microphone_source_identity.as_deref(),
+            Some("mic:A")
+        );
+        assert_eq!(app.view.microphone_gain_db, 6);
+
+        app.dispatch(AppCommand::StopMicrophoneTest { job_id, generation })
+            .unwrap();
+        assert!(app.view.microphone_meter.is_none());
+        assert!(matches!(
+            app.io.effects.last(),
+            Some(ImportEffect::StopMicrophoneTest { job_id: actual, .. }) if *actual == job_id
+        ));
+        app.io
+            .events
+            .push_back(ImportEvent::MicrophoneTestStopped { job_id, generation });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(!app.view.microphone_test_active);
+        assert!(app.view.microphone_source_identity.is_none());
+
+        let next_generation = generation.next().unwrap();
+        app.dispatch(AppCommand::StartLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation: next_generation,
+                model_path: "model.nmodel".into(),
+                model_sha256: [1; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                microphone: crate::microphone::MicrophoneChoice::Device("mic:A".into()),
+                microphone_gain_db: 6,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+        assert_eq!(app.view.direct_capture_phase, None);
+        assert_eq!(
+            app.view
+                .microphone_acquisition
+                .as_ref()
+                .map(|context| context.expected_source_identity.as_deref()),
+            Some(Some("mic:A"))
+        );
+        let mut spectrum = crate::microphone_level::MicrophoneSpectrum {
+            job_id,
+            generation: next_generation,
+            source_identity: "mic:A".into(),
+            sequence: 1,
+            epoch: 0,
+            first_frame: 0,
+            last_frame: 2048,
+            sample_rate_hz: 48_000,
+            captured_at_monotonic_ms: crate::microphone_level::monotonic_millis(),
+            gain_first_db: 6,
+            gain_first_revision: 0,
+            gain_last_db: 6,
+            gain_last_revision: 0,
+            mixed_gain: false,
+            dropped_updates: 0,
+            pre_gain: vec![crate::microphone_level::SpectrumBin::Silence; 1025],
+            post_gain_limiter: vec![crate::microphone_level::SpectrumBin::Silence; 1025],
+        };
+        spectrum.source_identity = "mic:wrong".into();
+        app.io.events.push_back(ImportEvent::MicrophoneSpectrum(
+            crate::microphone_level::MicrophoneSpectrumUpdate::Available(spectrum.clone()),
+        ));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(
+            app.view.microphone_spectrum.is_none(),
+            "wrong explicit source cannot bind the acquisition"
+        );
+        spectrum.source_identity = "mic:A".into();
+        spectrum.captured_at_monotonic_ms = crate::microphone_level::monotonic_millis();
+        app.io.events.push_back(ImportEvent::MicrophoneSpectrum(
+            crate::microphone_level::MicrophoneSpectrumUpdate::Available(spectrum.clone()),
+        ));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(
+            app.view.microphone_spectrum.is_some(),
+            "the actual source can bind even while direct capture phase is None"
+        );
+        let retry_barrier = crate::microphone_level::monotonic_millis();
+        app.io.events.push_back(ImportEvent::LiveRetryingOnCpu {
+            job_id,
+            generation: next_generation,
+            spectrum_min_epoch: 1,
+            spectrum_not_before_monotonic_ms: retry_barrier,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(app.view.microphone_spectrum.is_none());
+        let mut old_epoch_spectrum = spectrum.clone();
+        old_epoch_spectrum.captured_at_monotonic_ms = retry_barrier.saturating_sub(1);
+        app.io.events.push_back(ImportEvent::MicrophoneSpectrum(
+            crate::microphone_level::MicrophoneSpectrumUpdate::Available(old_epoch_spectrum),
+        ));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(
+            app.view.microphone_spectrum.is_none(),
+            "queued pre-retry spectrum for the same job and generation is rejected"
+        );
+        app.io.stop_committing = true;
+        app.dispatch(AppCommand::Stop {
+            job_id,
+            generation: next_generation,
+        })
+        .unwrap();
+        assert_eq!(app.view.active_job, Some((job_id, JobState::Finalizing)));
+        assert!(app.view.microphone_acquisition.is_none());
+        assert!(
+            app.view.microphone_spectrum.is_none(),
+            "Stop clears before asynchronous events are drained"
+        );
+        app.io.events.push_back(ImportEvent::MicrophoneSpectrum(
+            crate::microphone_level::MicrophoneSpectrumUpdate::Available(spectrum),
+        ));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(
+            app.view.microphone_spectrum.is_none(),
+            "late spectrum after Stop is ignored"
+        );
+        app.io.events.push_back(ImportEvent::MicrophoneMeter(
+            crate::microphone_level::MicrophoneMeter {
+                job_id,
+                generation,
+                source_identity: "mic:A".into(),
+                sequence: 1,
+                first_frame: 0,
+                last_frame: 4_800,
+                sample_rate_hz: 48_000,
+                analyzed_channels: 1,
+                gain_first_db: 6,
+                gain_first_revision: 0,
+                gain_last_db: 6,
+                gain_last_revision: 0,
+                mixed_gain: false,
+                pre_gain: crate::microphone_level::MeterLevel {
+                    status: crate::microphone_level::MeasurementStatus::Signal,
+                    sample_count: 4_800,
+                    rms_micros: 100_000,
+                    peak_micros: 200_000,
+                },
+                post_gain_limiter: crate::microphone_level::MeterLevel {
+                    status: crate::microphone_level::MeasurementStatus::Signal,
+                    sample_count: 4_800,
+                    rms_micros: 200_000,
+                    peak_micros: 400_000,
+                },
+                limiter_samples: 0,
+                dropped_updates: 0,
+                captured_at_monotonic_ms: 10,
+            },
+        ));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(
+            app.view.microphone_meter.is_none(),
+            "old generation is ignored"
+        );
+    }
+
+    #[test]
+    fn microphone_test_failure_invalidates_its_meter_and_source() {
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let job_id = JobId(903);
+        let generation = Generation::first();
+        app.dispatch(AppCommand::StartMicrophoneTest {
+            job_id,
+            generation,
+            microphone: crate::microphone::MicrophoneChoice::Device("mic:A".into()),
+            gain_db: 0,
+        })
+        .unwrap();
+        app.io.events.push_back(ImportEvent::MicrophoneTestStarted {
+            job_id,
+            generation,
+            source_identity: "mic:A".into(),
+            gain_db: 0,
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.io.events.push_back(ImportEvent::Failed {
+            job_id,
+            generation,
+            message: "flux microphone interrompu".into(),
+        });
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(!app.view.microphone_test_active);
+        assert!(app.view.microphone_meter.is_none());
+        assert!(app.view.microphone_source_identity.is_none());
+        assert!(app.view.message.as_deref().unwrap().contains("arrêté"));
     }
 
     #[test]
@@ -2985,6 +3831,7 @@ mod tests {
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
             microphone: crate::microphone::MicrophoneChoice::WindowsDefault,
+            microphone_gain_db: 0,
             config,
         };
         let snapshot = crate::model_registry::engine_snapshot(
@@ -3096,6 +3943,7 @@ mod tests {
                                     group_offset_samples: 0,
                                     auto_stop_after_speech_samples: None,
                                     microphone: crate::microphone::MicrophoneChoice::WindowsDefault,
+                                    microphone_gain_db: 0,
                                     config,
                                 },
                             })
@@ -3213,6 +4061,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -3285,6 +4134,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -3349,6 +4199,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -3403,6 +4254,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -3446,6 +4298,7 @@ mod tests {
                     group_offset_samples: 0,
                     auto_stop_after_speech_samples: limit,
                     microphone: Default::default(),
+                    microphone_gain_db: 0,
                     config: JobConfig {
                         language: LanguageChoice::Automatic,
                         compute: ComputeChoice::Cpu,
@@ -3501,6 +4354,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -3559,6 +4413,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: config.clone(),
             },
         })
@@ -3603,6 +4458,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: config.clone(),
             },
         })
@@ -3716,6 +4572,7 @@ mod tests {
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
             microphone: Default::default(),
+            microphone_gain_db: 0,
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute: ComputeChoice::Cpu,
@@ -3788,6 +4645,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -3821,6 +4679,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -4056,6 +4915,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: automatic.request.config.clone(),
             },
         })
@@ -4311,6 +5171,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Gpu,
@@ -4473,6 +5334,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Gpu,
@@ -4551,6 +5413,7 @@ mod tests {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,

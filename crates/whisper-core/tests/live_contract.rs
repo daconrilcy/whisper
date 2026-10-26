@@ -35,6 +35,7 @@ fn request() -> LiveRequest {
         group_offset_samples: 0,
         auto_stop_after_speech_samples: None,
         microphone: Default::default(),
+        microphone_gain_db: 0,
         config: JobConfig {
             language: LanguageChoice::Manual("fr".into()),
             compute: ComputeChoice::Cpu,

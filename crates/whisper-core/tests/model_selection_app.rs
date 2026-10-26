@@ -126,6 +126,7 @@ fn turbo_existing_matrix_admits_and_submits_all_1206_guard_requests() {
                                 auto_stop_after_speech_samples: None,
                                 microphone:
                                     whisper_core::microphone::MicrophoneChoice::WindowsDefault,
+                                microphone_gain_db: 0,
                                 config,
                             };
                             assert!(guard.admit_live(&request).is_ok(), "{input}");
@@ -392,6 +393,7 @@ fn parakeet_live_is_admitted_only_through_the_live_guard() {
         group_offset_samples: 0,
         auto_stop_after_speech_samples: None,
         microphone: whisper_core::microphone::MicrophoneChoice::WindowsDefault,
+        microphone_gain_db: 0,
         config: config.clone(),
     };
     assert!(guard.admit_live(&live).is_ok());

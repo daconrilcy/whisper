@@ -15,6 +15,7 @@ use whisper_core::{
 use crate::{
     WorkerTransport,
     capture::{CaptureStream, Pcm16Converter},
+    microphone_probe::{MicrophoneProbe, MicrophoneSpectrumReader},
     supervisor::{DiagnosticCode, DiagnosticPhase, DiagnosticRecord, DiagnosticSink, WorkerPaths},
     worker_ipc::ChildWorkerTransport,
 };
@@ -41,6 +42,12 @@ pub(crate) struct DirectLive {
     gpu_attested: bool,
     legacy_fallback: bool,
     capture: Option<CaptureStream>,
+    probe: Option<MicrophoneProbe>,
+    last_meter_sequence: u64,
+    spectrum_reader: MicrophoneSpectrumReader,
+    next_spectrum_telemetry: bool,
+    telemetry_due_after_worker_event: bool,
+    last_acknowledged_gain_revision: Option<u64>,
     converter: Option<Pcm16Converter>,
     wav: Option<WavOutput>,
     diagnostics: Option<DiagnosticSink>,
@@ -60,6 +67,132 @@ pub(crate) struct DirectLive {
 }
 
 impl DirectLive {
+    #[cfg(test)]
+    pub(crate) fn from_test_capture(
+        request: LiveRequest,
+        capture: CaptureStream,
+    ) -> Result<Self, String> {
+        let converter = Pcm16Converter::new(capture.sample_rate_hz(), capture.channels())?;
+        let probe = MicrophoneProbe::start(
+            capture.sample_rate_hz(),
+            capture.source_identity().map(str::to_owned),
+            request.job_id,
+            request.generation,
+        )?;
+        let wav = WavOutput::create(&request)?;
+        Ok(Self {
+            request,
+            auto_preference: false,
+            fallback_reason: None,
+            cpu_worker_path: PathBuf::new(),
+            worker_path: PathBuf::new(),
+            gpu_candidate: None,
+            worker: None,
+            instance: 1,
+            worker_ready: false,
+            gpu_attested: false,
+            legacy_fallback: false,
+            capture: Some(capture),
+            probe: Some(probe),
+            last_meter_sequence: 0,
+            spectrum_reader: MicrophoneSpectrumReader::default(),
+            next_spectrum_telemetry: false,
+            telemetry_due_after_worker_event: false,
+            last_acknowledged_gain_revision: None,
+            converter: Some(converter),
+            wav: Some(wav),
+            diagnostics: None,
+            pending: VecDeque::new(),
+            next_offset: 0,
+            next_window: 1,
+            inflight: None,
+            next_segment: 1,
+            segments: Vec::new(),
+            window_segments: Vec::new(),
+            ready_events: VecDeque::new(),
+            capture_announced: false,
+            first_admitted_at_unix_ms: None,
+            stop_requested: false,
+            stop_sent: false,
+            done: false,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_test_capture_with_cpu_worker(
+        request: LiveRequest,
+        capture: CaptureStream,
+        worker_path: PathBuf,
+        instance: u64,
+    ) -> Result<Self, String> {
+        if request.config.compute != ComputeChoice::Cpu {
+            return Err("D2 live harness requires an explicit CPU request".into());
+        }
+        let worker = spawn_direct_worker(&request, &worker_path, instance, None, None)?;
+        let converter = Pcm16Converter::new(capture.sample_rate_hz(), capture.channels())?;
+        let probe = MicrophoneProbe::start(
+            capture.sample_rate_hz(),
+            capture.source_identity().map(str::to_owned),
+            request.job_id,
+            request.generation,
+        )?;
+        let wav = WavOutput::create(&request)?;
+        Ok(Self {
+            request,
+            auto_preference: false,
+            fallback_reason: None,
+            cpu_worker_path: worker_path.clone(),
+            worker_path,
+            gpu_candidate: None,
+            worker: Some(worker),
+            instance,
+            worker_ready: false,
+            gpu_attested: false,
+            legacy_fallback: false,
+            capture: Some(capture),
+            probe: Some(probe),
+            last_meter_sequence: 0,
+            spectrum_reader: MicrophoneSpectrumReader::default(),
+            next_spectrum_telemetry: false,
+            telemetry_due_after_worker_event: false,
+            last_acknowledged_gain_revision: None,
+            converter: Some(converter),
+            wav: Some(wav),
+            diagnostics: None,
+            pending: VecDeque::new(),
+            next_offset: 0,
+            next_window: 1,
+            inflight: None,
+            next_segment: 1,
+            segments: Vec::new(),
+            window_segments: Vec::new(),
+            ready_events: VecDeque::new(),
+            capture_announced: false,
+            first_admitted_at_unix_ms: None,
+            stop_requested: false,
+            stop_sent: false,
+            done: false,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn finish_test_wav(&mut self) -> Result<String, String> {
+        self.wav.take().ok_or("test WAV is absent")?.finish()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_worker_ready(&self) -> bool {
+        self.worker_ready
+    }
+
+    #[cfg(test)]
+    pub(crate) fn enqueue_test_capture_block(&mut self, samples: Vec<f32>) {
+        self.capture
+            .as_mut()
+            .expect("test capture remains active")
+            .enqueue_test_block(samples);
+    }
+
     pub(crate) fn start(
         mut request: LiveRequest,
         workers: &WorkerPaths,
@@ -136,17 +269,33 @@ impl DirectLive {
                 ));
             }
         };
-        let mut capture = match crate::capture::start_direct(&request.microphone) {
-            Ok(capture) => capture,
-            Err(error) => {
-                worker.abort();
-                return Err(format!(
-                    "{MICROPHONE_ERROR} : ouverture impossible : {error}"
-                ));
-            }
-        };
+        let initial_gain = whisper_core::microphone_level::GainDb::new(request.microphone_gain_db)
+            .map_err(|error| format!("MicrophoneLevel: {error}"))?;
+        let mut capture =
+            match crate::capture::start_direct_with_gain(&request.microphone, initial_gain) {
+                Ok(capture) => capture,
+                Err(error) => {
+                    worker.abort();
+                    return Err(format!(
+                        "{MICROPHONE_ERROR} : ouverture impossible : {error}"
+                    ));
+                }
+            };
         let converter = match Pcm16Converter::new(capture.sample_rate_hz(), capture.channels()) {
             Ok(converter) => converter,
+            Err(error) => {
+                capture.stop();
+                worker.abort();
+                return Err(error);
+            }
+        };
+        let probe = match MicrophoneProbe::start(
+            capture.sample_rate_hz(),
+            capture.source_identity().map(str::to_owned),
+            request.job_id,
+            request.generation,
+        ) {
+            Ok(probe) => probe,
             Err(error) => {
                 capture.stop();
                 worker.abort();
@@ -175,6 +324,12 @@ impl DirectLive {
             gpu_attested: false,
             legacy_fallback: false,
             capture: Some(capture),
+            probe: Some(probe),
+            last_meter_sequence: 0,
+            spectrum_reader: MicrophoneSpectrumReader::default(),
+            next_spectrum_telemetry: false,
+            telemetry_due_after_worker_event: false,
+            last_acknowledged_gain_revision: None,
             converter: Some(converter),
             wav: Some(wav),
             pending: VecDeque::new(),
@@ -195,6 +350,19 @@ impl DirectLive {
 
     pub(crate) fn identity(&self) -> (JobId, Generation) {
         (self.request.job_id, self.request.generation)
+    }
+
+    pub(crate) fn set_gain(
+        &self,
+        target_identity: &str,
+        expected_revision: u64,
+        gain: whisper_core::microphone_level::GainDb,
+    ) -> Result<whisper_core::microphone_level::GainRevision, String> {
+        let capture = self.capture.as_ref().ok_or("Capture microphone arrêtée")?;
+        if capture.source_identity() != Some(target_identity) {
+            return Err("MicrophoneLevel: source active différente de la cible".into());
+        }
+        capture.set_gain(expected_revision, gain)
     }
 
     pub(crate) fn done(&self) -> bool {
@@ -218,6 +386,9 @@ impl DirectLive {
             return Ok(());
         }
         self.stop_requested = true;
+        if let Some(probe) = &self.probe {
+            probe.invalidate();
+        }
         if let Some(capture) = self.capture.as_mut() {
             capture.stop();
             self.drain_capture()?;
@@ -251,6 +422,12 @@ impl DirectLive {
         if let Some(event) = self.ready_events.pop_front() {
             return Ok(Some(event));
         }
+        if self.telemetry_due_after_worker_event {
+            self.telemetry_due_after_worker_event = false;
+            if let Some(event) = self.take_next_probe_telemetry() {
+                return Ok(Some(event));
+            }
+        }
         let received = match self.worker.as_mut().expect("worker owned").receive() {
             Ok(event) => event,
             Err(error)
@@ -271,10 +448,23 @@ impl DirectLive {
         if let Some(event) = received
             && let Some(result) = self.handle_worker(event)?
         {
+            self.telemetry_due_after_worker_event = true;
             return Ok(Some(result));
         }
         self.send_next()?;
-        Ok(None)
+        Ok(self.take_next_probe_telemetry())
+    }
+
+    fn take_next_probe_telemetry(&mut self) -> Option<ImportEvent> {
+        if self.next_spectrum_telemetry {
+            self.next_spectrum_telemetry = false;
+            self.take_probe_spectrum()
+                .or_else(|| self.take_probe_meter())
+        } else {
+            self.next_spectrum_telemetry = true;
+            self.take_probe_meter()
+                .or_else(|| self.take_probe_spectrum())
+        }
     }
 
     pub(crate) fn pump_capture(&mut self) -> Result<(), String> {
@@ -282,6 +472,22 @@ impl DirectLive {
             self.drain_capture()?;
         }
         Ok(())
+    }
+
+    fn take_probe_meter(&mut self) -> Option<ImportEvent> {
+        let snapshot = self.probe.as_ref()?.latest_at(std::time::Instant::now())?;
+        if snapshot.sequence <= self.last_meter_sequence {
+            return None;
+        }
+        let meter = snapshot.meter()?;
+        self.last_meter_sequence = snapshot.sequence;
+        Some(ImportEvent::MicrophoneMeter(meter))
+    }
+
+    fn take_probe_spectrum(&mut self) -> Option<ImportEvent> {
+        self.spectrum_reader
+            .poll(self.probe.as_ref()?, std::time::Instant::now())
+            .map(ImportEvent::MicrophoneSpectrum)
     }
 
     fn drain_capture(&mut self) -> Result<(), String> {
@@ -309,14 +515,39 @@ impl DirectLive {
             let Some(block) = capture.try_next_block() else {
                 break;
             };
-            let samples = self
+            let block_gain = block.gain();
+            let block_first_frame = block.first_frame();
+            if self
+                .last_acknowledged_gain_revision
+                .is_none_or(|revision| block_gain.revision > revision)
+            {
+                self.last_acknowledged_gain_revision = Some(block_gain.revision);
+                if let Some(target_identity) = capture.source_identity().map(str::to_owned) {
+                    self.ready_events
+                        .push_back(ImportEvent::MicrophoneGainApplied {
+                            job_id: self.request.job_id,
+                            generation: self.request.generation,
+                            target_identity,
+                            gain_db: block_gain.gain.value(),
+                            gain_revision: block_gain.revision,
+                            first_frame: block_first_frame,
+                        });
+                }
+            }
+            let converted = self
                 .converter
                 .as_mut()
                 .expect("converter ready")
-                .push(&block)?;
+                .push_with_probe(&block)?;
             capture.recycle_block(block)?;
-            self.wav.as_mut().expect("wav ready").append(&samples)?;
-            if !samples.is_empty() && self.first_admitted_at_unix_ms.is_none() {
+            if let Some(probe) = &self.probe {
+                probe.submit(converted.probe);
+            }
+            self.wav
+                .as_mut()
+                .expect("wav ready")
+                .append(&converted.samples)?;
+            if !converted.samples.is_empty() && self.first_admitted_at_unix_ms.is_none() {
                 self.first_admitted_at_unix_ms = Some(
                     std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
@@ -635,6 +866,9 @@ impl DirectLive {
 
     fn retry_cpu(&mut self, reason: String) -> Result<(), String> {
         self.worker.as_mut().expect("worker owned").abort();
+        if let Some(probe) = &self.probe {
+            probe.invalidate();
+        }
         if !self.cpu_worker_path.is_file() {
             return Err(format!("GPU non utilisable ({reason}) ; CPU indisponible"));
         }
@@ -1217,6 +1451,7 @@ mod tests {
         finalize_incomplete_outputs, gpu_ready_requires_attestation,
         should_retry_auto_gpu_before_ready, window_size, write_wav_header,
     };
+    use crate::microphone_probe::{MicrophoneProbe, MicrophoneSpectrumReader};
     use std::collections::VecDeque;
     use std::path::Path;
     use whisper_core::ports::WorkerSegment;
@@ -1231,6 +1466,188 @@ mod tests {
             "direct-live-{label}-{}-{nonce}",
             std::process::id()
         ))
+    }
+
+    #[test]
+    fn direct_capture_publishes_frequency_spectrum_without_changing_wav_audio() {
+        let directory = test_directory("spectrum-direct");
+        std::fs::create_dir_all(&directory).unwrap();
+        let mut request = startup_request(&directory, ComputeChoice::Cpu);
+        request.microphone = whisper_core::MicrophoneChoice::Device("test:mic".into());
+        let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+        let mut live = super::DirectLive::from_test_capture(request, capture).unwrap();
+        let input_blocks = (0..5)
+            .map(|block| {
+                (block * 960..(block + 1) * 960)
+                    .map(|frame| 0.5 * (std::f32::consts::TAU * 64.0 * frame as f32 / 2048.0).sin())
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        for audio in &input_blocks {
+            live.capture
+                .as_mut()
+                .unwrap()
+                .enqueue_test_block(audio.clone());
+            live.pump_capture().unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let event = loop {
+            if let Some(event) = live.take_probe_spectrum() {
+                break event;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "direct spectrum not published"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        };
+        let whisper_core::ImportEvent::MicrophoneSpectrum(
+            whisper_core::microphone_level::MicrophoneSpectrumUpdate::Available(spectrum),
+        ) = event
+        else {
+            panic!("expected a current direct spectrum")
+        };
+        assert_eq!(spectrum.source_identity, "test:mic");
+        let peak = spectrum
+            .pre_gain
+            .iter()
+            .enumerate()
+            .filter_map(|(index, bin)| match bin {
+                whisper_core::microphone_level::SpectrumBin::MilliDb(value) => Some((index, value)),
+                whisper_core::microphone_level::SpectrumBin::Silence => None,
+            })
+            .max_by_key(|(_, value)| *value)
+            .unwrap()
+            .0;
+        let hz = peak as f64 * f64::from(spectrum.sample_rate_hz) / 2048.0;
+        assert!((hz - 500.0).abs() < 10.0, "expected 500 Hz, got {hz} Hz");
+        let baseline_dir = directory.join("without-probe");
+        std::fs::create_dir_all(&baseline_dir).unwrap();
+        let mut baseline_request = startup_request(&baseline_dir, ComputeChoice::Cpu);
+        baseline_request.job_id = whisper_core::JobId(7_202);
+        let mut baseline_capture =
+            crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+        let mut baseline_converter = crate::capture::Pcm16Converter::new(16_000, 1).unwrap();
+        let mut baseline_wav = WavOutput::create(&baseline_request).unwrap();
+        for audio in &input_blocks {
+            baseline_capture.enqueue_test_block(audio.clone());
+            let block = baseline_capture.try_next_block().unwrap();
+            let pcm = baseline_converter.push(&block).unwrap();
+            baseline_wav.append(&pcm).unwrap();
+            baseline_capture.recycle_block(block).unwrap();
+        }
+        baseline_wav
+            .append(&baseline_converter.finish().unwrap())
+            .unwrap();
+        let baseline_path = baseline_wav.finish().unwrap();
+        live.stop().unwrap();
+        let live_samples = live.wav.as_ref().unwrap().sample_count();
+        assert_eq!(
+            live_samples, 4_800,
+            "probe preserves saved PCM sample count"
+        );
+        let live_path = live.finish_test_wav().unwrap();
+        assert_eq!(
+            std::fs::read(live_path).unwrap(),
+            std::fs::read(baseline_path).unwrap(),
+            "Turbo WAV with spectrum reader is byte-identical to the no-reader baseline"
+        );
+        drop(live);
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn direct_capture_poll_keeps_spectrum_text_and_terminal_progress_within_four_events() {
+        let directory = test_directory("spectrum-direct-poll");
+        std::fs::create_dir_all(&directory).unwrap();
+        let mut request = startup_request(&directory, ComputeChoice::Cpu);
+        request.microphone = whisper_core::MicrophoneChoice::Device("test:mic".into());
+        let capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+        let worker = startup_worker(&directory, "cpu-poll-spectrum");
+        let mut live = DirectLive::from_test_capture_with_cpu_worker(request, capture, worker, 91)
+            .unwrap();
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let mut saw_ready = false;
+        while !saw_ready && std::time::Instant::now() < deadline {
+            if matches!(live.poll().unwrap(), Some(whisper_core::ImportEvent::Ready { .. })) {
+                saw_ready = true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(saw_ready, "simulated direct worker did not become ready");
+
+        let mut saw_spectrum = false;
+        let mut spectrum_updates = 0;
+        let mut saw_confirmed_text = false;
+        let mut saw_terminal = false;
+        for block_index in 0..100 {
+            let first_frame = block_index * 960;
+            let audio = (first_frame..first_frame + 960)
+                .map(|frame| {
+                    0.5 * (std::f32::consts::TAU * 64.0 * frame as f32 / 2048.0).sin()
+                })
+                .collect::<Vec<_>>();
+            live.capture
+                .as_mut()
+                .unwrap()
+                .enqueue_test_block(audio);
+            let mut events_in_refresh = 0;
+            for _ in 0..4 {
+                events_in_refresh += 1;
+                if let Some(event) = live.poll().unwrap() {
+                    match event {
+                        whisper_core::ImportEvent::MicrophoneSpectrum(
+                            whisper_core::microphone_level::MicrophoneSpectrumUpdate::Available(_),
+                        ) => {
+                            saw_spectrum = true;
+                            spectrum_updates += 1;
+                        }
+                        whisper_core::ImportEvent::DirectConfirmed(segment) => {
+                            saw_confirmed_text = !segment.text.trim().is_empty();
+                        }
+                        whisper_core::ImportEvent::DirectPublished { .. } => saw_terminal = true,
+                        _ => {}
+                    }
+                }
+                if saw_terminal {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(3));
+            }
+            assert!(events_in_refresh <= 4);
+            std::thread::sleep(std::time::Duration::from_millis(8));
+        }
+
+        live.stop().unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while !saw_terminal && std::time::Instant::now() < deadline {
+            if let Some(event) = live.poll().unwrap() {
+                match event {
+                    whisper_core::ImportEvent::MicrophoneSpectrum(
+                        whisper_core::microphone_level::MicrophoneSpectrumUpdate::Available(_),
+                    ) => {
+                        saw_spectrum = true;
+                        spectrum_updates += 1;
+                    }
+                    whisper_core::ImportEvent::DirectConfirmed(segment) => {
+                        saw_confirmed_text = !segment.text.trim().is_empty();
+                    }
+                    whisper_core::ImportEvent::DirectPublished { .. } => saw_terminal = true,
+                    _ => {}
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+
+        assert!(saw_spectrum, "poll() did not publish spectrum during capture");
+        assert!(spectrum_updates > 1, "spectrum did not refresh during the stream");
+        assert!(saw_confirmed_text, "poll() starved confirmed worker text");
+        assert!(saw_terminal, "poll() starved the worker terminal event");
+        assert!(live.done());
+        drop(live);
+        let _ = std::fs::remove_dir_all(directory);
     }
 
     #[test]
@@ -1304,6 +1721,7 @@ mod tests {
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
             microphone: Default::default(),
+            microphone_gain_db: 0,
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute,
@@ -1338,9 +1756,34 @@ fn field(line: &str, name: &str) -> String {
     let tail = line.split_once(&format!("\"{name}\":" )).unwrap().1.trim_start();
     tail.chars().take_while(|c| c.is_ascii_digit()).collect()
 }
+
+
 fn main() {
     let start = io::stdin().lock().lines().next().unwrap().unwrap();
     let (job, generation, instance) = (field(&start, "job_id"), field(&start, "generation"), field(&start, "instance_id"));
+    if "__NAME__" == "cpu-poll-spectrum" {
+        println!("{{\"version\":2,\"message\":{{\"Ready\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"backend\":\"Cpu\"}}}}}}");
+        io::stdout().flush().unwrap();
+        let mut segment_id = 1;
+        for command in io::stdin().lock().lines().flatten() {
+            if command.contains("\"LiveWindow\"") {
+                let sequence = field(&command, "sequence");
+                let start_sample = field(&command, "start_sample");
+                let end_sample = field(&command, "end_sample");
+                let sample_rate_hz = field(&command, "sample_rate_hz");
+                println!("{{\"version\":2,\"message\":{{\"Segment\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"segment_id\":{segment_id},\"range\":{{\"start_sample\":{start_sample},\"end_sample\":{end_sample},\"sample_rate_hz\":{sample_rate_hz}}},\"text\":\"simulated confirmed text\"}}}}}}");
+                io::stdout().flush().unwrap();
+                println!("{{\"version\":2,\"message\":{{\"WindowFinished\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"sequence\":{sequence},\"range\":{{\"start_sample\":{start_sample},\"end_sample\":{end_sample},\"sample_rate_hz\":{sample_rate_hz}}},\"last_segment_sequence\":{segment_id}}}}}}}");
+                io::stdout().flush().unwrap();
+                segment_id += 1;
+            } else if command.contains("\"Stop\"") {
+                println!("{{\"version\":2,\"message\":{{\"Stopped\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance}}}}}}}");
+                io::stdout().flush().unwrap();
+                return;
+            }
+        }
+        return;
+    }
     if "__NAME__" == "gpu-stop-fail" {
         std::thread::sleep(std::time::Duration::from_millis(100));
         println!("{{\"version\":2,\"message\":{{\"Failed\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"code\":\"BackendUnavailable\",\"message\":\"injected delayed CUDA initialization failure\"}}}}}}");
@@ -1608,6 +2051,7 @@ fn main() {
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
             microphone: Default::default(),
+            microphone_gain_db: 0,
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute: ComputeChoice::Cpu,
@@ -1642,6 +2086,13 @@ fn main() {
         let converter = Pcm16Converter::new(16_000, 1).unwrap();
         let wav = WavOutput::create(&request).unwrap();
         let job_id = request.job_id;
+        let probe = MicrophoneProbe::start(
+            capture.sample_rate_hz(),
+            capture.source_identity().map(str::to_owned),
+            request.job_id,
+            request.generation,
+        )
+        .unwrap();
         let mut live = DirectLive {
             request,
             auto_preference: false,
@@ -1655,6 +2106,12 @@ fn main() {
             gpu_candidate: None,
             legacy_fallback: false,
             capture: Some(capture),
+            probe: Some(probe),
+            last_meter_sequence: 0,
+            spectrum_reader: MicrophoneSpectrumReader::default(),
+            next_spectrum_telemetry: false,
+            telemetry_due_after_worker_event: false,
+            last_acknowledged_gain_revision: None,
             converter: Some(converter),
             wav: Some(wav),
             diagnostics: None,
@@ -1684,6 +2141,145 @@ fn main() {
         drop(live);
         let path = directory.join(format!("micro-{:032x}.wav", job_id.0));
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn gain_command_changes_only_subsequently_acquired_audio_and_stop_finalizes_wav() {
+        let directory = test_directory("gain-next-acquisition");
+        let mut request = startup_request(&directory, ComputeChoice::Cpu);
+        request.microphone = whisper_core::MicrophoneChoice::Device("test:mic".into());
+        request.job_id = whisper_core::JobId(
+            ((std::process::id() as u128) << 64)
+                | std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+        );
+        let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+        capture.enqueue_test_block(vec![0.25; 16_000]);
+        let converter = Pcm16Converter::new(16_000, 1).unwrap();
+        let wav = WavOutput::create(&request).unwrap();
+        let job_id = request.job_id;
+        let mut live = DirectLive {
+            request,
+            auto_preference: false,
+            fallback_reason: None,
+            cpu_worker_path: PathBuf::new(),
+            worker_path: PathBuf::new(),
+            worker: None,
+            instance: 1,
+            worker_ready: false,
+            gpu_attested: false,
+            gpu_candidate: None,
+            legacy_fallback: false,
+            capture: Some(capture),
+            probe: None,
+            last_meter_sequence: 0,
+            spectrum_reader: MicrophoneSpectrumReader::default(),
+            next_spectrum_telemetry: false,
+            telemetry_due_after_worker_event: false,
+            last_acknowledged_gain_revision: None,
+            converter: Some(converter),
+            wav: Some(wav),
+            diagnostics: None,
+            pending: VecDeque::new(),
+            next_offset: 0,
+            next_window: 1,
+            inflight: None,
+            next_segment: 1,
+            segments: Vec::new(),
+            window_segments: Vec::new(),
+            ready_events: VecDeque::new(),
+            capture_announced: false,
+            first_admitted_at_unix_ms: None,
+            stop_requested: false,
+            stop_sent: false,
+            done: false,
+        };
+
+        live.pump_capture().unwrap();
+        let applied = live
+            .set_gain("test:mic", 0, whisper_core::GainDb::new(6).unwrap())
+            .unwrap();
+        assert_eq!(applied.revision, 1);
+        live.capture
+            .as_mut()
+            .unwrap()
+            .enqueue_test_block(vec![0.25; 16_000]);
+        live.stop().unwrap();
+
+        let wav = live.wav.as_mut().unwrap();
+        assert_eq!(wav.samples, 32_000);
+        let samples = wav.read_samples(0, 32_000).unwrap();
+        assert_eq!(samples.len(), 32_000);
+        assert!(samples[320..15_680].iter().all(|sample| *sample == 8_192));
+        assert!(
+            samples[16_320..31_680]
+                .iter()
+                .all(|sample| (16_300..=16_400).contains(sample))
+        );
+        drop(live);
+        std::fs::remove_file(directory.join(format!("micro-{:032x}.wav", job_id.0))).unwrap();
+    }
+
+    #[test]
+    fn test_capture_gain_preserves_probe_a_and_applies_once_to_wav_pcm() {
+        let directory = test_directory("gain-single-application");
+        let mut request = startup_request(&directory, ComputeChoice::Cpu);
+        request.microphone = whisper_core::MicrophoneChoice::Device("test:gain-once".into());
+        request.microphone_gain_db = 6;
+        let gain = whisper_core::GainDb::new(6).unwrap();
+        let source = (0..16_000)
+            .map(|index| if index < 8_000 { 0.25_f32 } else { 0.75_f32 })
+            .collect::<Vec<_>>();
+
+        let mut capture = crate::capture::CaptureStream::empty_test_capture_with_gain(
+            16_000,
+            1,
+            "test:gain-once",
+            gain,
+        );
+        capture.enqueue_test_block(source.clone());
+        let block = capture.try_next_block().unwrap();
+        assert_eq!(block.gain().revision, 0);
+        assert_eq!(block.gain().gain, gain);
+        assert!(
+            block
+                .samples()
+                .iter()
+                .zip(&source)
+                .all(|(actual, expected)| (actual - expected).abs() <= f32::EPSILON)
+        );
+
+        let mut probe_converter = Pcm16Converter::new(16_000, 1).unwrap();
+        let probe = probe_converter.push_with_probe(&block).unwrap().probe;
+        assert!(
+            probe
+                .mono_pre_gain
+                .iter()
+                .zip(&source)
+                .all(|(actual, expected)| (actual - expected).abs() <= f32::EPSILON)
+        );
+        let factor = 10.0_f32.powf(6.0 / 20.0);
+        for (index, actual) in probe.mono_post_gain_limiter.iter().enumerate() {
+            let expected = (source[index] * factor).clamp(-1.0, 1.0);
+            assert!((actual - expected).abs() <= 1.0e-6);
+        }
+        capture.recycle_block(block).unwrap();
+
+        let mut live = DirectLive::from_test_capture(request, capture).unwrap();
+        live.enqueue_test_capture_block(source);
+        live.stop().unwrap();
+        let wav = live.wav.as_mut().unwrap();
+        assert_eq!(wav.samples, 16_000);
+        let pcm = wav.read_samples(0, 16_000).unwrap();
+        let expected_unclamped = ((0.25_f32 * factor).clamp(-1.0, 1.0) * 32_767.0).round() as i16;
+        assert!(
+            pcm[500..7_500]
+                .iter()
+                .all(|sample| *sample == expected_unclamped)
+        );
+        assert!(pcm[8_500..15_500].iter().all(|sample| *sample == i16::MAX));
     }
 
     #[test]
@@ -1740,6 +2336,7 @@ fn main() {
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
             microphone: Default::default(),
+            microphone_gain_db: 0,
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute: ComputeChoice::Gpu,
@@ -1943,5 +2540,641 @@ fn main() {
         ] {
             std::fs::remove_file(path).unwrap();
         }
+    }
+}
+
+#[cfg(test)]
+mod d2_corpus {
+    use crate::{
+        capture::CaptureStream, direct_live::DirectLive, parakeet_import::ParakeetWorkerPaths,
+    };
+    use sha2::{Digest, Sha256};
+    use std::{
+        collections::VecDeque,
+        fs::{self, OpenOptions},
+        io::Write,
+        path::{Path, PathBuf},
+        sync::atomic::{AtomicU64, Ordering},
+        time::{Duration, Instant},
+    };
+    use whisper_core::{
+        ComputeChoice, Generation, ImportEvent, JobConfig, JobId, LanguageChoice, LiveRequest,
+        microphone_level::GainDb, model_catalog::ModelId,
+    };
+
+    static CASE_ID: AtomicU64 = AtomicU64::new(1);
+    const INPUTS: [(&str, &str, &str, &str, &str); 4] = [
+        (
+            "fr_pauses",
+            "sound example/voxpopuli/clips/long_examples/fr_long_2020.wav",
+            "docs/cadrage/feas-pm-01-corpus/candidate_fr_pauses_copie.txt",
+            "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
+            "abd2ac3ec6bc0fceb7c044f56d8ee0c29c4b2ca4a2ba8ca364ee169cb47e78cf",
+        ),
+        (
+            "en_pauses",
+            "sound example/voxpopuli/clips/long_examples/en_long_2020.wav",
+            "docs/cadrage/feas-pm-01-corpus/candidate_en_pauses_copie.txt",
+            "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a",
+            "c2971f66c57658ca613d578df807559604b5581c8b5ef72102900700fcf33cb1",
+        ),
+        (
+            "fr_continu",
+            "sound example/voxpopuli/clips/long_examples/fr_continuous60_2020_CANDIDATE.wav",
+            "docs/cadrage/feas-pm-01-corpus/candidate_fr_continu_copie.txt",
+            "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+            "ed150b6360d409b4d575b23253db5849dd709ab4f1b99416f29ba7d18a921ca7",
+        ),
+        (
+            "en_continu",
+            "sound example/voxpopuli/clips/long_examples/en_continuous60_2020_CANDIDATE.wav",
+            "docs/cadrage/feas-pm-01-corpus/candidate_en_continu_copie.txt",
+            "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+            "93a7ae7ac4c940f98d64eecf5ef6ce0bed883da4202a4df5762b4f4782bf8bad",
+        ),
+    ];
+    const CONDITIONS: [(&str, i8, Option<i8>); 4] = [
+        ("0db", 0, None),
+        ("minus6db", -6, None),
+        ("plus6db", 6, None),
+        ("abrupt-minus6-to-plus6", -6, Some(6)),
+    ];
+    const D2_POLL_INTERVAL: Duration = Duration::from_millis(5);
+    const D2_MAX_EVENTS_PER_DRAIN: usize = 32;
+    const D2_MAX_DRAIN_BATCHES: usize = 8;
+
+    fn d2_frame_deadline(playback_origin: Instant, frame_end: usize) -> Instant {
+        let frames = frame_end as u64;
+        let seconds = frames / 16_000;
+        let remainder = frames % 16_000;
+        playback_origin
+            + Duration::from_secs(seconds)
+            + Duration::from_nanos(remainder * 1_000_000_000 / 16_000)
+    }
+
+    fn d2_rebase_if_late(playback_origin: &mut Instant, frame_end: usize, now: Instant) -> bool {
+        let deadline = d2_frame_deadline(*playback_origin, frame_end);
+        if now < deadline {
+            return false;
+        }
+        let elapsed = deadline.duration_since(*playback_origin);
+        *playback_origin = now.checked_sub(elapsed).unwrap_or(now);
+        true
+    }
+
+    fn drain_d2_events<E>(
+        poll: &mut impl FnMut() -> Result<Option<E>, String>,
+        record: &mut impl FnMut(E),
+    ) -> Result<usize, String> {
+        let mut drained = 0;
+        for _ in 0..D2_MAX_EVENTS_PER_DRAIN {
+            let Some(event) = poll()? else { break };
+            record(event);
+            drained += 1;
+        }
+        Ok(drained)
+    }
+
+    fn pace_d2_frame_end<E>(
+        playback_origin: &mut Instant,
+        frame_end: usize,
+        poll: &mut impl FnMut() -> Result<Option<E>, String>,
+        record: &mut impl FnMut(E),
+    ) -> Result<(), String> {
+        let deadline = d2_frame_deadline(*playback_origin, frame_end);
+        loop {
+            let drained = drain_d2_events(poll, record)?;
+            let now = Instant::now();
+            let remaining = deadline.saturating_duration_since(now);
+            if remaining.is_zero() {
+                d2_rebase_if_late(playback_origin, frame_end, now);
+                return Ok(());
+            }
+            if drained == D2_MAX_EVENTS_PER_DRAIN {
+                continue;
+            }
+            std::thread::sleep(remaining.min(D2_POLL_INTERVAL));
+        }
+    }
+
+    fn record_parakeet_poll_event(
+        event: ImportEvent,
+        applied: &mut Vec<serde_json::Value>,
+        poll_events: &mut Vec<String>,
+    ) {
+        poll_events.push(format!("{event:?}"));
+        if let ImportEvent::MicrophoneGainApplied {
+            gain_db,
+            gain_revision,
+            first_frame,
+            ..
+        } = event
+        {
+            applied.push(serde_json::json!({"gain_db":gain_db,"revision":gain_revision,"first_frame":first_frame}));
+        }
+    }
+
+    fn drain_d2_events_after_playback<E>(
+        poll: &mut impl FnMut() -> Result<Option<E>, String>,
+        record: &mut impl FnMut(E),
+    ) -> Result<(), String> {
+        for _ in 0..D2_MAX_DRAIN_BATCHES {
+            if drain_d2_events(poll, record)? < D2_MAX_EVENTS_PER_DRAIN {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn d2_corpus_real_cpu_turbo_and_parakeet() {
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let root =
+            PathBuf::from(std::env::var_os("WHISPER_MIC_LEVEL_D2_ROOT").expect("guarded D2 root"));
+        fs::create_dir_all(&root).unwrap();
+        let checkpoint = root.join("checkpoint.jsonl");
+        let engine_filter =
+            std::env::var("WHISPER_MIC_LEVEL_D2_ENGINE").expect("guarded D2 engine filter");
+        assert_eq!(engine_filter, "parakeet-cpu", "D2 replay is Parakeet-only");
+        record(
+            &checkpoint,
+            serde_json::json!({"event":"campaign-start","engine_filter":engine_filter,"cases":16,"timeout_seconds":1162}),
+        );
+        assert!(
+            std::env::var_os("CUDA_CACHE_PATH").is_none(),
+            "CPU D2 must not redirect CUDA cache"
+        );
+        let local = PathBuf::from(std::env::var_os("LOCALAPPDATA").expect("LOCALAPPDATA"));
+        let turbo_worker = local.join("Whisper/app/whisper-worker-cpu.exe");
+        let turbo_model = local.join("Whisper/models/ggml-large-v3-turbo.bin");
+        assert!(turbo_worker.is_file() && turbo_model.is_file());
+        let parakeet = ParakeetWorkerPaths {
+            executable: local.join("Whisper/worker/whisper-worker-parakeet-cpu.exe"),
+            native_dir: local.join("Whisper/native/cpu"),
+            model: local.join("Whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf"),
+            runtime_root: local.join("Whisper"),
+        };
+        parakeet.validate().expect("personal Parakeet CPU route");
+        let engines = [
+            ("turbo-cpu", turbo_model, ModelId::WhisperLargeV3Turbo),
+            (
+                "parakeet-cpu",
+                parakeet.model.clone(),
+                ModelId::ParakeetTdt06BV3,
+            ),
+        ];
+        for (engine, model_path, model_id) in engines
+            .into_iter()
+            .filter(|(engine, _, _)| *engine == engine_filter.as_str())
+        {
+            for (corpus, wav_rel, ref_rel, wav_hash, ref_hash) in INPUTS {
+                let input = repo.join(wav_rel);
+                let reference_path = repo.join(ref_rel);
+                assert_eq!(
+                    hash(&input),
+                    wav_hash,
+                    "approved WAV hash changed: {corpus}"
+                );
+                assert_eq!(
+                    hash(&reference_path),
+                    ref_hash,
+                    "approved reference hash changed: {corpus}"
+                );
+                let reference = fs::read_to_string(reference_path).unwrap();
+                let (rate, channels, samples) = read_wav16(&input);
+                assert_eq!(
+                    (rate, channels),
+                    (16_000, 1),
+                    "approved corpus WAV format changed"
+                );
+                for (condition, initial, transition) in CONDITIONS {
+                    let ordinal = CASE_ID.fetch_add(1, Ordering::Relaxed);
+                    let case_root =
+                        root.join(format!("{ordinal:02}-{engine}-{corpus}-{condition}"));
+                    fs::create_dir_all(&case_root).unwrap();
+                    record(
+                        &checkpoint,
+                        serde_json::json!({"event":"case-start","ordinal":ordinal,"engine":engine,"corpus":corpus,"condition":condition,"input_frames":samples.len()}),
+                    );
+                    let req = LiveRequest {
+                        job_id: JobId(((std::process::id() as u128) << 64) | u128::from(ordinal)),
+                        generation: Generation::first(),
+                        model_path: model_path.to_string_lossy().into_owned(),
+                        model_sha256: decode_sha256(
+                            whisper_core::model_registry::model(model_id)
+                                .artifact
+                                .sha256,
+                        ),
+                        destination: case_root.to_string_lossy().into_owned(),
+                        group_offset_samples: 0,
+                        auto_stop_after_speech_samples: None,
+                        microphone: whisper_core::MicrophoneChoice::Device(
+                            "d2:approved-wav".into(),
+                        ),
+                        microphone_gain_db: initial,
+                        config: JobConfig {
+                            language: LanguageChoice::Automatic,
+                            compute: ComputeChoice::Cpu,
+                        },
+                    };
+                    let capture = CaptureStream::empty_test_capture_with_gain(
+                        rate,
+                        channels,
+                        "d2:approved-wav",
+                        GainDb::new(initial).unwrap(),
+                    );
+                    let start = Instant::now();
+                    let (wav, txt, srt, frames, transcript, gain_frames) = if engine == "turbo-cpu"
+                    {
+                        turbo_case(req, capture, &turbo_worker, &samples, transition)
+                    } else {
+                        parakeet_case(req, capture, &parakeet, &samples, transition)
+                    };
+                    assert!(
+                        Path::new(&wav).is_file()
+                            && Path::new(&txt).is_file()
+                            && Path::new(&srt).is_file()
+                    );
+                    assert_eq!(
+                        frames,
+                        samples.len() as u64,
+                        "output frame continuity mismatch"
+                    );
+                    assert_eq!(
+                        gain_frames.len(),
+                        if transition.is_some() { 2 } else { 1 },
+                        "gain application acknowledgements"
+                    );
+                    assert_eq!(gain_frames[0]["gain_db"], initial);
+                    assert_eq!(gain_frames[0]["revision"], 0);
+                    assert_eq!(gain_frames[0]["first_frame"], 0);
+                    if let Some(gain) = transition {
+                        assert_eq!(gain_frames[1]["gain_db"], gain);
+                        assert_eq!(gain_frames[1]["revision"], 1);
+                        assert_eq!(gain_frames[1]["first_frame"], samples.len() / 2);
+                    }
+                    record(
+                        &checkpoint,
+                        serde_json::json!({
+                            "event":"case-complete","ordinal":ordinal,"engine":engine,"corpus":corpus,"condition":condition,
+                            "input_wav_sha256":wav_hash,"reference_sha256":ref_hash,"output_wav_sha256":hash(Path::new(&wav)),"input_frames":samples.len(),"output_frames":frames,
+                            "wav":wav,"txt":txt,"srt":srt,"elapsed_ms":start.elapsed().as_millis(),
+                            "approved_reference":reference,"transcript":transcript,"gain_frame_revisions":gain_frames,"comparison":"descriptive only; no WER threshold"
+                        }),
+                    );
+                    eprintln!("D2_CASE_DONE {ordinal}/16 {engine} {corpus} {condition}");
+                }
+            }
+        }
+        record(
+            &checkpoint,
+            serde_json::json!({"event":"campaign-complete","engine_filter":engine_filter,"cases":16}),
+        );
+    }
+
+    fn turbo_case(
+        req: LiveRequest,
+        capture: CaptureStream,
+        worker: &Path,
+        samples: &[i16],
+        transition: Option<i8>,
+    ) -> (String, String, String, u64, String, Vec<serde_json::Value>) {
+        let mut live =
+            DirectLive::from_test_capture_with_cpu_worker(req, capture, worker.to_path_buf(), 1)
+                .unwrap();
+        let mut applied = Vec::new();
+        let mut offset = 0;
+        let midpoint = samples.len() / 2;
+        let mut changed = false;
+        while offset < samples.len() {
+            if !changed && offset >= midpoint {
+                if let Some(gain) = transition {
+                    live.set_gain("d2:approved-wav", 0, GainDb::new(gain).unwrap())
+                        .unwrap();
+                    changed = true;
+                }
+            }
+            let boundary = if !changed && transition.is_some() {
+                midpoint
+            } else {
+                samples.len()
+            };
+            let end = (offset + 1600).min(boundary).max(offset + 1);
+            live.enqueue_test_capture_block(
+                samples[offset..end]
+                    .iter()
+                    .map(|sample| f32::from(*sample) / 32768.0)
+                    .collect(),
+            );
+            if let Some(ImportEvent::MicrophoneGainApplied {
+                gain_db,
+                gain_revision,
+                first_frame,
+                ..
+            }) = live.poll().unwrap()
+            {
+                applied.push(serde_json::json!({"gain_db":gain_db,"revision":gain_revision,"first_frame":first_frame}));
+            }
+            offset = end;
+        }
+        live.stop().unwrap();
+        let deadline = Instant::now() + Duration::from_secs(3500);
+        let mut published = None;
+        while !live.done() && Instant::now() < deadline {
+            if let Some(event) = live.poll().unwrap() {
+                match event {
+                    ImportEvent::DirectPublished { wav_path, txt_path, srt_path, .. } => published = Some((wav_path,txt_path,srt_path)),
+                    ImportEvent::MicrophoneGainApplied { gain_db, gain_revision, first_frame, .. } => applied.push(serde_json::json!({"gain_db":gain_db,"revision":gain_revision,"first_frame":first_frame})),
+                    _ => {}
+                }
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(live.done(), "Turbo CPU direct capture did not finish");
+        let (wav, txt, srt) = published.expect("DirectPublished");
+        let frames = pcm_frames(&wav);
+        let transcript = fs::read_to_string(&txt).unwrap();
+        assert!(!transcript.trim().is_empty(), "Turbo CPU transcript empty");
+        (wav, txt, srt, frames, transcript, applied)
+    }
+
+    fn parakeet_case(
+        req: LiveRequest,
+        capture: CaptureStream,
+        paths: &ParakeetWorkerPaths,
+        samples: &[i16],
+        transition: Option<i8>,
+    ) -> (String, String, String, u64, String, Vec<serde_json::Value>) {
+        let session = CASE_ID.load(Ordering::Relaxed);
+        let destination = PathBuf::from(&req.destination);
+        let mut live = crate::parakeet_live::ParakeetLive::start_test_capture(
+            req,
+            paths.clone(),
+            session,
+            capture,
+        )
+        .unwrap();
+        let mut applied = Vec::new();
+        let mut poll_events = Vec::new();
+        let mut playback_origin = Instant::now();
+        let mut offset = 0;
+        let midpoint = samples.len() / 2;
+        let mut changed = false;
+        while offset < samples.len() {
+            if !changed && offset >= midpoint {
+                if let Some(gain) = transition {
+                    live.set_gain("d2:approved-wav", 0, GainDb::new(gain).unwrap())
+                        .unwrap();
+                    changed = true;
+                }
+            }
+            let boundary = if !changed && transition.is_some() {
+                midpoint
+            } else {
+                samples.len()
+            };
+            let end = (offset + 1600).min(boundary).max(offset + 1);
+            live.enqueue_d2_capture_block(
+                samples[offset..end]
+                    .iter()
+                    .map(|sample| f32::from(*sample) / 32768.0)
+                    .collect(),
+            );
+            live.pump_capture().unwrap();
+            let mut poll = || live.poll();
+            let mut record =
+                |event| record_parakeet_poll_event(event, &mut applied, &mut poll_events);
+            pace_d2_frame_end(&mut playback_origin, end, &mut poll, &mut record).unwrap();
+            offset = end;
+        }
+        {
+            let mut poll = || live.poll();
+            let mut record =
+                |event| record_parakeet_poll_event(event, &mut applied, &mut poll_events);
+            drain_d2_events_after_playback(&mut poll, &mut record).unwrap();
+        }
+        let event = live.stop().unwrap();
+        let ImportEvent::ParakeetCaptureStopped {
+            wav_path,
+            txt_path: Some(txt),
+            srt_path: Some(srt),
+            final_segments,
+            complete,
+            diagnostic,
+            unresolved,
+            ..
+        } = event
+        else {
+            panic!("missing Parakeet finalized outputs: {event:?}")
+        };
+        record_engine_status(
+            &destination,
+            serde_json::json!({
+                "engine":"parakeet-cpu",
+                "complete":complete,
+                "diagnostic":diagnostic.clone(),
+                "confirmed_segments":final_segments.len(),
+                "unresolved":unresolved.iter().map(|range| format!("{range:?}")).collect::<Vec<_>>(),
+                "gain_frame_revisions":applied.clone(),
+                "poll_events":poll_events,
+                "worker_events_path":destination.join("d2-worker-events.jsonl"),
+                "wav_path":wav_path.clone(),
+                "txt_path":txt.clone(),
+                "srt_path":srt.clone(),
+            }),
+        );
+        assert!(
+            !final_segments.is_empty(),
+            "Parakeet CPU returned no segments"
+        );
+        let frames = pcm_frames(&wav_path);
+        let transcript = fs::read_to_string(&txt).unwrap();
+        assert!(
+            !transcript.trim().is_empty(),
+            "Parakeet CPU transcript empty"
+        );
+        (wav_path, txt, srt, frames, transcript, applied)
+    }
+
+    fn record_engine_status(root: &Path, status: serde_json::Value) {
+        record(&root.join("d2-engine-status.json"), status);
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn d2_frame_deadlines_follow_the_monotone_one_x_sample_clock() {
+            let origin = Instant::now();
+            let after_100ms = d2_frame_deadline(origin, 1_600);
+            let after_200ms = d2_frame_deadline(origin, 3_200);
+            assert_eq!(
+                after_100ms.duration_since(origin),
+                Duration::from_millis(100)
+            );
+            assert_eq!(
+                after_200ms.duration_since(origin),
+                Duration::from_millis(200)
+            );
+            assert!(after_200ms > after_100ms);
+        }
+
+        #[test]
+        fn d2_event_drain_stops_after_its_bounded_batch() {
+            let mut pending = (0..D2_MAX_EVENTS_PER_DRAIN + 3).collect::<VecDeque<_>>();
+            let mut poll = || Ok(pending.pop_front());
+            let mut observed = Vec::new();
+            let mut record = |event| observed.push(event);
+            assert_eq!(
+                drain_d2_events(&mut poll, &mut record).unwrap(),
+                D2_MAX_EVENTS_PER_DRAIN
+            );
+            drop(record);
+            drop(poll);
+            assert_eq!(observed.len(), D2_MAX_EVENTS_PER_DRAIN);
+            assert_eq!(pending.len(), 3);
+            let mut poll = || Ok(pending.pop_front());
+            let mut record = |event| observed.push(event);
+            assert_eq!(drain_d2_events(&mut poll, &mut record).unwrap(), 3);
+            assert_eq!(observed.len(), D2_MAX_EVENTS_PER_DRAIN + 3);
+        }
+
+        #[test]
+        fn d2_driver_paces_frames_and_drains_events_before_deadline() {
+            let origin = Instant::now();
+            let mut pending = VecDeque::from([1, 2]);
+            let mut polls = 0;
+            let mut poll = || {
+                polls += 1;
+                Ok(pending.pop_front())
+            };
+            let mut observed = Vec::new();
+            let mut record = |event| observed.push(event);
+            let mut playback_origin = origin;
+            pace_d2_frame_end(&mut playback_origin, 1_600, &mut poll, &mut record).unwrap();
+
+            assert!(Instant::now().duration_since(origin) >= Duration::from_millis(100));
+            assert_eq!(observed, vec![1, 2]);
+            assert!(polls > 2, "driver must poll throughout the frame interval");
+        }
+
+        #[test]
+        fn d2_expired_frame_deadline_rebases_without_catch_up_burst() {
+            let now = Instant::now();
+            let mut playback_origin = now - Duration::from_secs(8);
+            assert!(d2_rebase_if_late(&mut playback_origin, 1_600, now));
+
+            assert_eq!(d2_frame_deadline(playback_origin, 1_600), now);
+            assert_eq!(
+                d2_frame_deadline(playback_origin, 3_200),
+                now + Duration::from_millis(100)
+            );
+            assert!(!d2_rebase_if_late(&mut playback_origin, 3_200, now));
+        }
+
+        #[test]
+        fn d2_post_playback_drain_has_a_bounded_batch_count() {
+            let mut pending =
+                (0..D2_MAX_EVENTS_PER_DRAIN * (D2_MAX_DRAIN_BATCHES + 2)).collect::<VecDeque<_>>();
+            let mut observed = Vec::new();
+            let mut poll = || Ok(pending.pop_front());
+            let mut record = |event| observed.push(event);
+            drain_d2_events_after_playback(&mut poll, &mut record).unwrap();
+
+            assert_eq!(
+                observed.len(),
+                D2_MAX_EVENTS_PER_DRAIN * D2_MAX_DRAIN_BATCHES
+            );
+            assert_eq!(pending.len(), D2_MAX_EVENTS_PER_DRAIN * 2);
+        }
+
+        #[test]
+        fn test_status_writer_preserves_diagnostics() {
+            let root = PathBuf::from(
+                std::env::var_os("WHISPER_MIC_LEVEL_D2_ROOT").expect("guarded D2 root"),
+            );
+            fs::create_dir_all(&root).unwrap();
+            let case_root = root.join(format!("status-selftest-{}", std::process::id()));
+            fs::create_dir_all(&case_root).unwrap();
+            let status = serde_json::json!({
+                "engine":"parakeet-cpu",
+                "complete":false,
+                "confirmed_segments":0,
+                "diagnostic":"synthetic worker failure",
+                "worker_events_path":"synthetic-events.jsonl",
+            });
+            record_engine_status(&case_root, status.clone());
+            let saved: serde_json::Value =
+                serde_json::from_slice(&fs::read(case_root.join("d2-engine-status.json")).unwrap())
+                    .unwrap();
+            assert_eq!(saved, status);
+        }
+    }
+
+    fn read_wav16(path: &Path) -> (u32, u16, Vec<i16>) {
+        let bytes = fs::read(path).unwrap();
+        assert_eq!(&bytes[..4], b"RIFF");
+        assert_eq!(&bytes[8..12], b"WAVE");
+        let (mut rate, mut channels, mut format, mut bits, mut pcm) =
+            (None, None, None, None, None);
+        let mut at = 12;
+        while at + 8 <= bytes.len() {
+            let size = u32::from_le_bytes(bytes[at + 4..at + 8].try_into().unwrap()) as usize;
+            let begin = at + 8;
+            let end = begin.checked_add(size).unwrap();
+            assert!(end <= bytes.len());
+            match &bytes[at..at + 4] {
+                b"fmt " => {
+                    format = Some(u16::from_le_bytes(
+                        bytes[begin..begin + 2].try_into().unwrap(),
+                    ));
+                    channels = Some(u16::from_le_bytes(
+                        bytes[begin + 2..begin + 4].try_into().unwrap(),
+                    ));
+                    rate = Some(u32::from_le_bytes(
+                        bytes[begin + 4..begin + 8].try_into().unwrap(),
+                    ));
+                    bits = Some(u16::from_le_bytes(
+                        bytes[begin + 14..begin + 16].try_into().unwrap(),
+                    ));
+                }
+                b"data" => pcm = Some(&bytes[begin..end]),
+                _ => {}
+            }
+            at = end + (size % 2);
+        }
+        assert_eq!(format, Some(1));
+        assert_eq!(bits, Some(16));
+        let samples = pcm
+            .unwrap()
+            .chunks_exact(2)
+            .map(|p| i16::from_le_bytes([p[0], p[1]]))
+            .collect();
+        (rate.unwrap(), channels.unwrap(), samples)
+    }
+    fn pcm_frames(path: &str) -> u64 {
+        let bytes = fs::read(path).unwrap();
+        assert_eq!(&bytes[..4], b"RIFF");
+        (bytes.len() - 44) as u64 / 2
+    }
+    fn hash(path: &Path) -> String {
+        format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
+    }
+    fn decode_sha256(value: &str) -> [u8; 32] {
+        assert_eq!(value.len(), 64);
+        std::array::from_fn(|index| {
+            u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap()
+        })
+    }
+    fn record(path: &Path, value: serde_json::Value) {
+        let mut f = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .unwrap();
+        serde_json::to_writer(&mut f, &value).unwrap();
+        f.write_all(b"\n").unwrap();
+        f.sync_data().unwrap();
     }
 }

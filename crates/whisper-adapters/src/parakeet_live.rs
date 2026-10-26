@@ -8,6 +8,7 @@ mod confirmation;
 
 use confirmation::{Confirmation, Hypothesis, TimedWord};
 
+use crate::microphone_probe::{MicrophoneProbe, MicrophoneSpectrumReader};
 use crate::{
     capture::{CaptureStream, Pcm16Converter},
     direct_live::WavOutput,
@@ -64,6 +65,75 @@ enum InferenceRequest {
         recovery_for: Option<SourceRange>,
     },
     Stop,
+}
+
+#[derive(Clone)]
+struct D2WorkerDiagnostics {
+    #[cfg(test)]
+    path: Option<PathBuf>,
+    #[cfg(test)]
+    write_lock: Arc<std::sync::Mutex<()>>,
+}
+
+#[cfg(test)]
+impl Default for D2WorkerDiagnostics {
+    fn default() -> Self {
+        Self {
+            path: None,
+            write_lock: Arc::new(std::sync::Mutex::new(())),
+        }
+    }
+}
+
+#[cfg(not(test))]
+impl Default for D2WorkerDiagnostics {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
+impl D2WorkerDiagnostics {
+    #[cfg(test)]
+    fn for_d2_destination(destination: &Path) -> Result<Self, String> {
+        let root = env::var_os("WHISPER_MIC_LEVEL_D2_ROOT")
+            .map(PathBuf::from)
+            .ok_or_else(|| "D2 diagnostics root is absent".to_owned())?
+            .canonicalize()
+            .map_err(|error| format!("D2 diagnostics root: {error}"))?;
+        let destination = destination
+            .canonicalize()
+            .map_err(|error| format!("D2 case root: {error}"))?;
+        if !destination.starts_with(&root) {
+            return Err("D2 diagnostics destination is outside the guarded root".into());
+        }
+        Ok(Self {
+            path: Some(destination.join("d2-worker-events.jsonl")),
+            write_lock: Arc::new(std::sync::Mutex::new(())),
+        })
+    }
+
+    fn enabled(&self) -> bool {
+        #[cfg(test)]
+        {
+            return self.path.is_some();
+        }
+        #[cfg(not(test))]
+        false
+    }
+
+    fn record(&self, value: serde_json::Value) {
+        #[cfg(test)]
+        if let Some(path) = &self.path {
+            if let Ok(_guard) = self.write_lock.lock()
+                && let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path)
+            {
+                let _ = serde_json::to_writer(&mut file, &value);
+                let _ = file.write_all(b"\n");
+            }
+        }
+        #[cfg(not(test))]
+        let _ = value;
+    }
 }
 
 #[derive(Debug)]
@@ -369,6 +439,12 @@ pub(crate) struct ParakeetLive {
     inference_events: Receiver<InferenceEvent>,
     cancel_inference: Arc<AtomicBool>,
     capture: Option<CaptureStream>,
+    probe: MicrophoneProbe,
+    last_meter_sequence: u64,
+    spectrum_reader: crate::microphone_probe::MicrophoneSpectrumReader,
+    next_spectrum_telemetry: bool,
+    telemetry_due_after_event: bool,
+    last_acknowledged_gain_revision: Option<u64>,
     converter: Option<Pcm16Converter>,
     wav: Option<WavOutput>,
     window_root: PathBuf,
@@ -385,6 +461,8 @@ pub(crate) struct ParakeetLive {
     confirmation: Confirmation,
     recovery_attempts: RecoveryAttemptLedger,
     trace: TraceSink,
+    #[cfg(test)]
+    d2_worker_diagnostics: D2WorkerDiagnostics,
 }
 
 impl ParakeetLive {
@@ -394,6 +472,34 @@ impl ParakeetLive {
         expected_gpu: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
         session_id: u64,
     ) -> Result<Self, String> {
+        Self::start_with_capture(request, paths, expected_gpu, session_id, None)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn start_test_capture(
+        request: LiveRequest,
+        paths: ParakeetWorkerPaths,
+        session_id: u64,
+        capture: CaptureStream,
+    ) -> Result<Self, String> {
+        Self::start_with_capture(request, paths, None, session_id, Some(capture))
+    }
+
+    fn start_with_capture(
+        request: LiveRequest,
+        paths: ParakeetWorkerPaths,
+        expected_gpu: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+        session_id: u64,
+        test_capture: Option<CaptureStream>,
+    ) -> Result<Self, String> {
+        #[cfg(test)]
+        let d2_worker_diagnostics = if test_capture.is_some() {
+            D2WorkerDiagnostics::for_d2_destination(Path::new(&request.destination))?
+        } else {
+            D2WorkerDiagnostics::default()
+        };
+        #[cfg(not(test))]
+        let d2_worker_diagnostics = D2WorkerDiagnostics::default();
         if request.destination.trim().is_empty() || request.model_path.trim().is_empty() {
             return Err("Micro Parakeet : modèle ou dossier de sortie invalide".into());
         }
@@ -403,9 +509,26 @@ impl ParakeetLive {
         }
 
         // Open the microphone and durable WAV before starting the potentially slow worker.
-        let mut capture = crate::capture::start_direct(&request.microphone)?;
+        let initial_gain = whisper_core::microphone_level::GainDb::new(request.microphone_gain_db)
+            .map_err(|error| format!("MicrophoneLevel: {error}"))?;
+        let mut capture = match test_capture {
+            Some(capture) => capture,
+            None => crate::capture::start_direct_with_gain(&request.microphone, initial_gain)?,
+        };
         let converter = match Pcm16Converter::new(capture.sample_rate_hz(), capture.channels()) {
             Ok(converter) => converter,
+            Err(error) => {
+                capture.stop();
+                return Err(error);
+            }
+        };
+        let probe = match MicrophoneProbe::start(
+            capture.sample_rate_hz(),
+            capture.source_identity().map(str::to_owned),
+            request.job_id,
+            request.generation,
+        ) {
+            Ok(probe) => probe,
             Err(error) => {
                 capture.stop();
                 return Err(error);
@@ -436,6 +559,7 @@ impl ParakeetLive {
         let worker_paths = paths.clone();
         let worker_request = request.clone();
         let worker_log_root = window_root.clone();
+        let worker_diagnostics = d2_worker_diagnostics.clone();
         let backend = match request.config.compute {
             ComputeChoice::Cpu => "CPU".to_owned(),
             ComputeChoice::Gpu => "GPU".to_owned(),
@@ -460,6 +584,7 @@ impl ParakeetLive {
                     request_rx,
                     event_tx,
                     trace_enabled,
+                    worker_diagnostics,
                 )
             })
             .map_err(|error| format!("Worker Parakeet non démarré : {error}"))?;
@@ -472,6 +597,12 @@ impl ParakeetLive {
             inference_events,
             cancel_inference,
             capture: Some(capture),
+            probe,
+            last_meter_sequence: 0,
+            spectrum_reader: crate::microphone_probe::MicrophoneSpectrumReader::default(),
+            next_spectrum_telemetry: false,
+            telemetry_due_after_event: false,
+            last_acknowledged_gain_revision: None,
             converter: Some(converter),
             wav: Some(wav),
             window_root,
@@ -488,6 +619,8 @@ impl ParakeetLive {
             confirmation: Confirmation::default(),
             recovery_attempts: RecoveryAttemptLedger::default(),
             trace,
+            #[cfg(test)]
+            d2_worker_diagnostics,
         })
     }
 
@@ -501,6 +634,14 @@ impl ParakeetLive {
 
     pub(crate) fn destination(&self) -> &str {
         &self.request.destination
+    }
+
+    #[cfg(test)]
+    pub(crate) fn enqueue_d2_capture_block(&mut self, samples: Vec<f32>) {
+        self.capture
+            .as_mut()
+            .expect("D2 capture remains active")
+            .enqueue_test_block(samples);
     }
 
     pub(crate) fn automatic_final_import(
@@ -546,13 +687,36 @@ impl ParakeetLive {
             let Some(block) = capture.try_next_block() else {
                 break;
             };
-            let samples = self
+            let block_gain = block.gain();
+            let block_first_frame = block.first_frame();
+            if self
+                .last_acknowledged_gain_revision
+                .is_none_or(|revision| block_gain.revision > revision)
+            {
+                self.last_acknowledged_gain_revision = Some(block_gain.revision);
+                if let Some(target_identity) = capture.source_identity().map(str::to_owned) {
+                    self.pending_events
+                        .push_back(ImportEvent::MicrophoneGainApplied {
+                            job_id: self.request.job_id,
+                            generation: self.request.generation,
+                            target_identity,
+                            gain_db: block_gain.gain.value(),
+                            gain_revision: block_gain.revision,
+                            first_frame: block_first_frame,
+                        });
+                }
+            }
+            let converted = self
                 .converter
                 .as_mut()
                 .expect("active converter")
-                .push(&block)?;
+                .push_with_probe(&block)?;
             capture.recycle_block(block)?;
-            self.wav.as_mut().expect("active WAV").append(&samples)?;
+            self.probe.submit(converted.probe);
+            self.wav
+                .as_mut()
+                .expect("active WAV")
+                .append(&converted.samples)?;
         }
         let samples = self.wav.as_ref().expect("active WAV").sample_count();
         if self.capture_origin_unix_ms.is_none() {
@@ -571,13 +735,39 @@ impl ParakeetLive {
         self.schedule_window(false)
     }
 
+    pub(crate) fn set_gain(
+        &self,
+        target_identity: &str,
+        expected_revision: u64,
+        gain: whisper_core::microphone_level::GainDb,
+    ) -> Result<whisper_core::microphone_level::GainRevision, String> {
+        let capture = self.capture.as_ref().ok_or("Capture microphone arrêtée")?;
+        if capture.source_identity() != Some(target_identity) {
+            return Err("MicrophoneLevel: source active différente de la cible".into());
+        }
+        capture.set_gain(expected_revision, gain)
+    }
+
     pub(crate) fn poll(&mut self) -> Result<Option<ImportEvent>, String> {
+        if self.telemetry_due_after_event {
+            self.telemetry_due_after_event = false;
+            if let Some(event) = self.take_next_probe_telemetry() {
+                return Ok(Some(event));
+            }
+        }
         if let Some(event) = self.pop_pending_event() {
+            self.telemetry_due_after_event = true;
             return Ok(Some(event));
         }
         loop {
             match self.inference_events.try_recv() {
                 Ok(InferenceEvent::Ready { backend }) => {
+                    #[cfg(test)]
+                    self.d2_worker_diagnostics.record(serde_json::json!({
+                        "event":"parakeet-live-poll-ready",
+                        "backend":backend.clone(),
+                        "at_unix_ms":unix_time_ms(),
+                    }));
                     if self.trace.enabled() {
                         self.trace.record(serde_json::json!({
                             "event": "worker_ready",
@@ -610,6 +800,17 @@ impl ParakeetLive {
                     native,
                     recovery_for,
                 }) => {
+                    #[cfg(test)]
+                    self.d2_worker_diagnostics.record(serde_json::json!({
+                        "event":"parakeet-live-poll-result",
+                        "sequence":sequence,
+                        "start_sample":start_sample,
+                        "end_sample":end_sample,
+                        "text_bytes":text.len(),
+                        "word_count":words.len(),
+                        "recovery_for":recovery_for.as_ref().map(|range| format!("{range:?}")),
+                        "at_unix_ms":unix_time_ms(),
+                    }));
                     let received_at_unix_ms = unix_time_ms();
                     self.inflight = false;
                     let global_start = self
@@ -772,6 +973,15 @@ impl ParakeetLive {
                     native,
                     recovery_for,
                 }) => {
+                    #[cfg(test)]
+                    self.d2_worker_diagnostics.record(serde_json::json!({
+                        "event":"parakeet-live-poll-window-unusable",
+                        "sequence":sequence,
+                        "start_sample":start_sample,
+                        "end_sample":end_sample,
+                        "message":message.clone(),
+                        "at_unix_ms":unix_time_ms(),
+                    }));
                     self.inflight = false;
                     let start = self
                         .request
@@ -814,6 +1024,12 @@ impl ParakeetLive {
                     self.remove_completed_window(sequence);
                 }
                 Ok(InferenceEvent::Unavailable(message)) => {
+                    #[cfg(test)]
+                    self.d2_worker_diagnostics.record(serde_json::json!({
+                        "event":"parakeet-live-poll-unavailable",
+                        "message":message.clone(),
+                        "at_unix_ms":unix_time_ms(),
+                    }));
                     self.inflight = false;
                     self.unavailable = true;
                     if self.trace.enabled() {
@@ -837,6 +1053,11 @@ impl ParakeetLive {
                     break;
                 }
                 Ok(InferenceEvent::Stopped) => {
+                    #[cfg(test)]
+                    self.d2_worker_diagnostics.record(serde_json::json!({
+                        "event":"parakeet-live-poll-stopped",
+                        "at_unix_ms":unix_time_ms(),
+                    }));
                     if self.trace.enabled() {
                         self.trace.record(serde_json::json!({
                             "event": "worker_stopped",
@@ -851,6 +1072,11 @@ impl ParakeetLive {
                 }
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
+                    #[cfg(test)]
+                    self.d2_worker_diagnostics.record(serde_json::json!({
+                        "event":"parakeet-live-poll-disconnected",
+                        "at_unix_ms":unix_time_ms(),
+                    }));
                     self.inflight = false;
                     if !self.unavailable && !self.stopped {
                         self.unavailable = true;
@@ -867,10 +1093,39 @@ impl ParakeetLive {
             }
         }
         if let Some(event) = self.pop_pending_event() {
+            self.telemetry_due_after_event = true;
             return Ok(Some(event));
         }
         self.schedule_window(false)?;
-        Ok(None)
+        Ok(self.take_next_probe_telemetry())
+    }
+
+    fn take_next_probe_telemetry(&mut self) -> Option<ImportEvent> {
+        if self.next_spectrum_telemetry {
+            self.next_spectrum_telemetry = false;
+            self.take_probe_spectrum()
+                .or_else(|| self.take_probe_meter())
+        } else {
+            self.next_spectrum_telemetry = true;
+            self.take_probe_meter()
+                .or_else(|| self.take_probe_spectrum())
+        }
+    }
+
+    fn take_probe_meter(&mut self) -> Option<ImportEvent> {
+        let snapshot = self.probe.latest_at(Instant::now())?;
+        if snapshot.sequence <= self.last_meter_sequence {
+            return None;
+        }
+        let meter = snapshot.meter()?;
+        self.last_meter_sequence = snapshot.sequence;
+        Some(ImportEvent::MicrophoneMeter(meter))
+    }
+
+    fn take_probe_spectrum(&mut self) -> Option<ImportEvent> {
+        self.spectrum_reader
+            .poll(&self.probe, Instant::now())
+            .map(ImportEvent::MicrophoneSpectrum)
     }
 
     pub(crate) fn stop(&mut self) -> Result<ImportEvent, String> {
@@ -878,6 +1133,7 @@ impl ParakeetLive {
             return Err("Session Parakeet déjà arrêtée".into());
         }
         self.finalizing = true;
+        self.probe.invalidate();
         let mut failures = Vec::new();
         if let Some(mut capture) = self.capture.take() {
             capture.stop();
@@ -1077,6 +1333,7 @@ impl ParakeetLive {
     pub(crate) fn stop_after_capture_error(&mut self, error: String) -> ImportEvent {
         self.finalizing = true;
         self.stopped = true;
+        self.probe.invalidate();
         self.cancel_inference.store(true, Ordering::Release);
         if let Some(mut capture) = self.capture.take() {
             capture.stop();
@@ -1635,6 +1892,13 @@ impl Drop for ParakeetLive {
     }
 }
 
+fn expected_live_worker_backend(compute: ComputeChoice) -> &'static str {
+    match compute {
+        ComputeChoice::Cpu | ComputeChoice::Auto => "CPU",
+        ComputeChoice::Gpu => "CUDA0",
+    }
+}
+
 fn inference_thread(
     paths: ParakeetWorkerPaths,
     request: LiveRequest,
@@ -1644,7 +1908,19 @@ fn inference_thread(
     requests: Receiver<InferenceRequest>,
     events: SyncSender<InferenceEvent>,
     trace_enabled: bool,
+    diagnostics: D2WorkerDiagnostics,
 ) {
+    diagnostics.record(serde_json::json!({
+        "event":"worker-configured",
+        "executable":paths.executable.to_string_lossy().into_owned(),
+        "model":paths.model.to_string_lossy().into_owned(),
+        "native_dir":paths.native_dir.to_string_lossy().into_owned(),
+        "runtime_root":paths.runtime_root.to_string_lossy().into_owned(),
+        "compute":request.config.compute,
+        "model_request_path":request.model_path.clone(),
+        "session_log_root":session_log_root.to_string_lossy().into_owned(),
+        "at_unix_ms":unix_time_ms(),
+    }));
     let expected_gpu = match (request.config.compute, candidate.as_ref()) {
         (ComputeChoice::Gpu, Some(candidate)) => {
             match crate::parakeet_import::expected_gpu_for_candidate(candidate) {
@@ -1664,15 +1940,35 @@ fn inference_thread(
         _ => None,
     };
     let mut process = match ParakeetProcess::spawn_live(&paths, &session_log_root) {
-        Ok(process) => process,
+        Ok(process) => {
+            diagnostics.record(serde_json::json!({
+                "event":"worker-spawned",
+                "executable":paths.executable.to_string_lossy().into_owned(),
+                "pid":process.pid(),
+                "at_unix_ms":unix_time_ms(),
+            }));
+            process
+        }
         Err(error) => {
+            diagnostics.record(serde_json::json!({
+                "event":"worker-spawn-failed",
+                "executable":paths.executable.to_string_lossy().into_owned(),
+                "error":error.clone(),
+                "at_unix_ms":unix_time_ms(),
+            }));
             let _ = events.send(InferenceEvent::Unavailable(error));
             return;
         }
     };
-    let identity = loop {
+    let (identity, native_call_marker_required) = loop {
         if cancel.load(Ordering::Acquire) {
-            let _ = process.terminate();
+            let exit = process.terminate();
+            diagnostics.record(serde_json::json!({
+                "event":"worker-terminated-before-ready",
+                "pid":process.pid(),
+                "exit_status":exit.as_ref().map(|status| status.to_string()).map_err(ToString::to_string),
+                "at_unix_ms":unix_time_ms(),
+            }));
             let _ = events.send(InferenceEvent::Stopped);
             return;
         }
@@ -1683,6 +1979,22 @@ fn inference_thread(
                 gpu_evidence,
                 ..
             })) => {
+                diagnostics.record(serde_json::json!({
+                    "event":"worker-ready",
+                    "pid":process.pid(),
+                    "backend":backend.clone(),
+                    "worker_sha256":identity.build_sha256.clone(),
+                    "profile":identity.profile.clone(),
+                    "at_unix_ms":unix_time_ms(),
+                }));
+                if backend != expected_live_worker_backend(request.config.compute) {
+                    let _ = events.send(InferenceEvent::Unavailable(format!(
+                        "BackendMismatch: expected {}, got {backend}",
+                        expected_live_worker_backend(request.config.compute)
+                    )));
+                    let _ = process.terminate();
+                    return;
+                }
                 if request.config.compute == ComputeChoice::Gpu {
                     let Some(expected) = expected_gpu.as_ref() else {
                         let _ =
@@ -1711,18 +2023,44 @@ fn inference_thread(
                     let _ = process.terminate();
                     return;
                 }
+                let native_call_marker_required = backend == "CUDA0";
                 let _ = events.send(InferenceEvent::Ready { backend });
-                break identity;
+                break (identity, native_call_marker_required);
             }
             Ok(Some(WorkerEvent::Failed { message, .. })) => {
+                diagnostics.record(serde_json::json!({
+                    "event":"worker-failed-before-ready",
+                    "pid":process.pid(),
+                    "message":message.clone(),
+                    "at_unix_ms":unix_time_ms(),
+                }));
                 let _ = events.send(InferenceEvent::Unavailable(message));
-                let _ = process.terminate();
+                let exit = process.terminate();
+                diagnostics.record(serde_json::json!({
+                    "event":"worker-terminated-after-ready-failure",
+                    "pid":process.pid(),
+                    "exit_status":exit.as_ref().map(|status| status.to_string()).map_err(ToString::to_string),
+                    "at_unix_ms":unix_time_ms(),
+                }));
                 return;
             }
             Ok(Some(_)) | Ok(None) => thread::sleep(Duration::from_millis(5)),
             Err(error) => {
+                diagnostics.record(serde_json::json!({
+                    "event":"worker-poll-error-before-ready",
+                    "pid":process.pid(),
+                    "error":error.clone(),
+                    "exit_status":process.try_wait().ok().flatten().map(|status| status.to_string()),
+                    "at_unix_ms":unix_time_ms(),
+                }));
                 let _ = events.send(InferenceEvent::Unavailable(error));
-                let _ = process.terminate();
+                let exit = process.terminate();
+                diagnostics.record(serde_json::json!({
+                    "event":"worker-terminated-after-poll-error",
+                    "pid":process.pid(),
+                    "exit_status":exit.as_ref().map(|status| status.to_string()).map_err(ToString::to_string),
+                    "at_unix_ms":unix_time_ms(),
+                }));
                 return;
             }
         }
@@ -1730,7 +2068,13 @@ fn inference_thread(
             .try_recv()
             .is_ok_and(|message| matches!(message, InferenceRequest::Stop))
         {
-            let _ = process.terminate();
+            let exit = process.terminate();
+            diagnostics.record(serde_json::json!({
+                "event":"worker-terminated-on-stop-before-ready",
+                "pid":process.pid(),
+                "exit_status":exit.as_ref().map(|status| status.to_string()).map_err(ToString::to_string),
+                "at_unix_ms":unix_time_ms(),
+            }));
             let _ = events.send(InferenceEvent::Stopped);
             return;
         }
@@ -1739,7 +2083,49 @@ fn inference_thread(
     loop {
         match requests.recv_timeout(Duration::from_millis(10)) {
             Ok(InferenceRequest::Stop) => {
-                let _ = process.shutdown();
+                let shutdown = process.shutdown();
+                diagnostics.record(serde_json::json!({
+                    "event":"worker-shutdown-requested",
+                    "pid":process.pid(),
+                    "result":shutdown.as_ref().map(|_| "sent").map_err(ToString::to_string),
+                    "at_unix_ms":unix_time_ms(),
+                }));
+                if diagnostics.enabled() {
+                    let deadline = Instant::now() + Duration::from_secs(2);
+                    loop {
+                        match process.try_wait() {
+                            Ok(Some(status)) => {
+                                diagnostics.record(serde_json::json!({
+                                    "event":"worker-exited-after-shutdown",
+                                    "pid":process.pid(),
+                                    "exit_status":status.to_string(),
+                                    "at_unix_ms":unix_time_ms(),
+                                }));
+                                break;
+                            }
+                            Ok(None) if Instant::now() < deadline => {
+                                thread::sleep(Duration::from_millis(10));
+                            }
+                            Ok(None) => {
+                                diagnostics.record(serde_json::json!({
+                                    "event":"worker-exit-status-pending-after-shutdown",
+                                    "pid":process.pid(),
+                                    "at_unix_ms":unix_time_ms(),
+                                }));
+                                break;
+                            }
+                            Err(error) => {
+                                diagnostics.record(serde_json::json!({
+                                    "event":"worker-exit-status-error",
+                                    "pid":process.pid(),
+                                    "error":error,
+                                    "at_unix_ms":unix_time_ms(),
+                                }));
+                                break;
+                            }
+                        }
+                    }
+                }
                 let _ = events.send(InferenceEvent::Stopped);
                 return;
             }
@@ -1756,6 +2142,7 @@ fn inference_thread(
                     &mut process,
                     &request,
                     &identity,
+                    native_call_marker_required,
                     expected_gpu.clone(),
                     attempt,
                     &cancel,
@@ -1773,6 +2160,14 @@ fn inference_thread(
                         words,
                         native,
                     }) => {
+                        diagnostics.record(serde_json::json!({
+                            "event":"worker-window-result",
+                            "pid":process.pid(),
+                            "sequence":sequence,
+                            "text_bytes":text.len(),
+                            "word_count":words.len(),
+                            "at_unix_ms":unix_time_ms(),
+                        }));
                         let end_sample = start_sample.saturating_add(samples.len() as u64);
                         if events
                             .send(InferenceEvent::Result {
@@ -1793,6 +2188,13 @@ fn inference_thread(
                         }
                     }
                     Ok(WindowTranscription::Unusable { message, native }) => {
+                        diagnostics.record(serde_json::json!({
+                            "event":"worker-window-unusable",
+                            "pid":process.pid(),
+                            "sequence":sequence,
+                            "message":message.clone(),
+                            "at_unix_ms":unix_time_ms(),
+                        }));
                         let end_sample = start_sample.saturating_add(samples.len() as u64);
                         if events
                             .send(InferenceEvent::WindowUnusable {
@@ -1810,14 +2212,34 @@ fn inference_thread(
                         }
                     }
                     Err(error) => {
+                        diagnostics.record(serde_json::json!({
+                            "event":"worker-transcribe-error",
+                            "pid":process.pid(),
+                            "sequence":sequence,
+                            "error":error.clone(),
+                            "exit_status":process.try_wait().ok().flatten().map(|status| status.to_string()),
+                            "at_unix_ms":unix_time_ms(),
+                        }));
                         let _ = events.send(InferenceEvent::Unavailable(error));
-                        let _ = process.terminate();
+                        let exit = process.terminate();
+                        diagnostics.record(serde_json::json!({
+                            "event":"worker-terminated-after-transcribe-error",
+                            "pid":process.pid(),
+                            "exit_status":exit.as_ref().map(|status| status.to_string()).map_err(ToString::to_string),
+                            "at_unix_ms":unix_time_ms(),
+                        }));
                         return;
                     }
                 }
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
-                if process.try_wait().ok().flatten().is_some() {
+                if let Ok(Some(status)) = process.try_wait() {
+                    diagnostics.record(serde_json::json!({
+                        "event":"worker-exited-idle",
+                        "pid":process.pid(),
+                        "exit_status":status.to_string(),
+                        "at_unix_ms":unix_time_ms(),
+                    }));
                     let _ = events.send(InferenceEvent::Unavailable(
                         "Le worker Parakeet s'est arrêté".into(),
                     ));
@@ -1836,6 +2258,7 @@ fn transcribe_window(
     process: &mut ParakeetProcess,
     request: &LiveRequest,
     identity: &whisper_core::parakeet_ipc::WorkerIdentity,
+    native_call_marker_required: bool,
     expected_gpu: Option<whisper_core::parakeet_ipc::ExpectedGpu>,
     attempt: u64,
     cancel: &AtomicBool,
@@ -1845,8 +2268,9 @@ fn transcribe_window(
     global_window_start_sample: u64,
     trace_enabled: bool,
 ) -> Result<WindowTranscription, String> {
+    let expected_job_id = format!("{:032x}", request.job_id.0);
     process.transcribe_with_gpu(
-        format!("{:032x}", request.job_id.0),
+        expected_job_id.clone(),
         request.generation.get(),
         attempt,
         path,
@@ -1866,7 +2290,7 @@ fn transcribe_window(
                 attempt: actual_attempt,
                 pid,
             }) if request_id == attempt
-                && job_id == format!("{:032x}", request.job_id.0)
+                && job_id == expected_job_id
                 && generation == request.generation.get()
                 && actual_attempt == attempt
                 && pid == process.pid() =>
@@ -1885,24 +2309,37 @@ fn transcribe_window(
                 words,
                 gpu_evidence,
                 ..
-            }) if request_id == attempt
-                && job_id == format!("{:032x}", request.job_id.0)
-                && generation == request.generation.get()
-                && actual_attempt == attempt
-                && actual_identity == *identity
-                && source_sha256.eq_ignore_ascii_case(&sha256)
-                && duration_samples == expected_samples
-                && native_call_started
-                && (request.config.compute != ComputeChoice::Gpu
-                    || gpu_evidence.as_ref().is_some_and(|evidence| {
-                        expected_gpu.as_ref().is_some_and(|expected| {
-                            crate::worker_ipc::gpu_evidence_matches(
-                                Some(evidence),
-                                Some(expected),
-                                process.pid(),
-                            )
-                        })
-                    })) =>
+            }) if window_result_matches(
+                WindowResultIdentity {
+                    request_id: attempt,
+                    job_id: &expected_job_id,
+                    generation: request.generation.get(),
+                    attempt,
+                    identity,
+                    source_sha256: &sha256,
+                    duration_samples: expected_samples,
+                },
+                WindowResultIdentity {
+                    request_id,
+                    job_id: &job_id,
+                    generation,
+                    attempt: actual_attempt,
+                    identity: &actual_identity,
+                    source_sha256: &source_sha256,
+                    duration_samples,
+                },
+                native_call_marker_required,
+                native_call_started,
+            ) && (request.config.compute != ComputeChoice::Gpu
+                || gpu_evidence.as_ref().is_some_and(|evidence| {
+                    expected_gpu.as_ref().is_some_and(|expected| {
+                        crate::worker_ipc::gpu_evidence_matches(
+                            Some(evidence),
+                            Some(expected),
+                            process.pid(),
+                        )
+                    })
+                })) =>
             {
                 let validation = validate_words(&words, expected_samples);
                 let native = trace_enabled.then(|| {
@@ -1946,6 +2383,35 @@ fn transcribe_window(
             None => thread::sleep(Duration::from_millis(5)),
         }
     }
+}
+
+#[derive(Clone, Copy)]
+struct WindowResultIdentity<'a> {
+    request_id: u64,
+    job_id: &'a str,
+    generation: u64,
+    attempt: u64,
+    identity: &'a whisper_core::parakeet_ipc::WorkerIdentity,
+    source_sha256: &'a str,
+    duration_samples: u64,
+}
+
+fn window_result_matches(
+    expected: WindowResultIdentity<'_>,
+    actual: WindowResultIdentity<'_>,
+    native_call_marker_required: bool,
+    native_call_started: bool,
+) -> bool {
+    actual.request_id == expected.request_id
+        && actual.job_id == expected.job_id
+        && actual.generation == expected.generation
+        && actual.attempt == expected.attempt
+        && actual.identity == expected.identity
+        && actual
+            .source_sha256
+            .eq_ignore_ascii_case(expected.source_sha256)
+        && actual.duration_samples == expected.duration_samples
+        && (!native_call_marker_required || native_call_started)
 }
 
 fn validate_words(words: &[Word], window_samples: u64) -> Result<Vec<AbsoluteWordSamples>, String> {
@@ -2047,6 +2513,287 @@ mod recovery_tests {
             ),
             None
         );
+    }
+}
+
+#[cfg(test)]
+mod window_result_contract_tests {
+    use super::*;
+
+    fn worker_identity() -> whisper_core::parakeet_ipc::WorkerIdentity {
+        whisper_core::parakeet_ipc::WorkerIdentity {
+            model_sha256: "model-sha".into(),
+            runtime_sha256: "runtime-sha".into(),
+            build_sha256: "worker-sha".into(),
+            profile: "import-single-pass".into(),
+        }
+    }
+
+    fn result_identity<'a>(
+        identity: &'a whisper_core::parakeet_ipc::WorkerIdentity,
+    ) -> WindowResultIdentity<'a> {
+        WindowResultIdentity {
+            request_id: 7,
+            job_id: "0000000000000000000000000000002a",
+            generation: 3,
+            attempt: 7,
+            identity,
+            source_sha256: "0123456789abcdef",
+            duration_samples: 64_000,
+        }
+    }
+
+    #[test]
+    fn correlated_cpu_result_does_not_require_native_call_marker() {
+        let identity = worker_identity();
+        let result = result_identity(&identity);
+        assert!(window_result_matches(result, result, false, false));
+    }
+
+    #[test]
+    fn expected_gpu_result_requires_native_call_marker() {
+        let identity = worker_identity();
+        let result = result_identity(&identity);
+        assert!(!window_result_matches(result, result, true, false));
+        assert!(window_result_matches(result, result, true, true));
+    }
+
+    #[test]
+    fn foreign_result_is_rejected_even_without_gpu_marker_requirement() {
+        let identity = worker_identity();
+        let expected = result_identity(&identity);
+        let foreign = WindowResultIdentity {
+            request_id: expected.request_id + 1,
+            ..expected
+        };
+        assert!(!window_result_matches(expected, foreign, false, false));
+    }
+
+    #[test]
+    fn configured_compute_selects_expected_ready_backend() {
+        assert_eq!(expected_live_worker_backend(ComputeChoice::Cpu), "CPU");
+        assert_eq!(expected_live_worker_backend(ComputeChoice::Auto), "CPU");
+        assert_eq!(expected_live_worker_backend(ComputeChoice::Gpu), "CUDA0");
+    }
+}
+
+#[cfg(test)]
+mod microphone_spectrum_tests {
+    use super::*;
+    use std::collections::VecDeque;
+    use std::{
+        sync::{atomic::AtomicBool, mpsc},
+        time::Duration,
+    };
+    use whisper_core::microphone_level::{MicrophoneSpectrumUpdate, SpectrumBin};
+
+    #[test]
+    fn parakeet_capture_pump_publishes_frequency_spectrum_and_preserves_wav() {
+        let directory = std::env::temp_dir().join(format!(
+            "parakeet-spectrum-{}-{}",
+            std::process::id(),
+            unix_time_ms()
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let job_id = JobId(7201);
+        let generation = Generation::first();
+        let request = LiveRequest {
+            job_id,
+            generation,
+            model_path: "unused-model".into(),
+            model_sha256: [0; 32],
+            destination: directory.to_string_lossy().into_owned(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: whisper_core::MicrophoneChoice::Device("test:mic".into()),
+            microphone_gain_db: 0,
+            config: whisper_core::JobConfig {
+                language: whisper_core::LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+        let probe =
+            MicrophoneProbe::start(16_000, Some("test:mic".into()), job_id, generation).unwrap();
+        let converter = Pcm16Converter::new(16_000, 1).unwrap();
+        let wav = WavOutput::create(&request).unwrap();
+        let (inference_request, _request_rx) = mpsc::sync_channel(1);
+        let (_event_tx, inference_events) = mpsc::sync_channel(2);
+        let window_root = directory.join("windows");
+        fs::create_dir(&window_root).unwrap();
+        let mut live = ParakeetLive {
+            request,
+            gpu_candidate: None,
+            session_id: 1,
+            inference_request,
+            inference_events,
+            cancel_inference: Arc::new(AtomicBool::new(false)),
+            capture: Some(capture),
+            probe,
+            last_meter_sequence: 0,
+            spectrum_reader: MicrophoneSpectrumReader::default(),
+            next_spectrum_telemetry: false,
+            telemetry_due_after_event: false,
+            last_acknowledged_gain_revision: None,
+            converter: Some(converter),
+            wav: Some(wav),
+            window_root,
+            next_window_start: 0,
+            next_sequence: 1,
+            last_reported_samples: 0,
+            capture_origin_unix_ms: None,
+            inflight: false,
+            stopped: false,
+            unavailable: false,
+            ready_sent: false,
+            finalizing: false,
+            pending_events: VecDeque::new(),
+            confirmation: Confirmation::default(),
+            recovery_attempts: RecoveryAttemptLedger::default(),
+            trace: TraceSink::disabled(),
+            d2_worker_diagnostics: D2WorkerDiagnostics::default(),
+        };
+        let input_blocks = (0..5)
+            .map(|block| {
+                (block * 960..(block + 1) * 960)
+                    .map(|frame| 0.5 * (std::f32::consts::TAU * 64.0 * frame as f32 / 2048.0).sin())
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        for samples in &input_blocks {
+            live.capture
+                .as_mut()
+                .unwrap()
+                .enqueue_test_block(samples.clone());
+            live.pump_capture().unwrap();
+            thread::sleep(Duration::from_millis(20));
+        }
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let ready = ImportEvent::ParakeetInferenceReady {
+            job_id,
+            generation,
+            session_id: 1,
+            backend: "CPU".into(),
+        };
+        live.pending_events.extend([
+            ready.clone(),
+            ImportEvent::ParakeetConfirmed {
+                job_id,
+                generation,
+                session_id: 1,
+                segment: whisper_core::ports::WorkerSegment {
+                    job_id,
+                    generation,
+                    instance_id: 1,
+                    segment_id: whisper_core::SegmentId(1),
+                    range: whisper_core::SourceRange::new(0, 160, 16_000).unwrap(),
+                    text: "continuité".into(),
+                },
+            },
+            ready.clone(),
+            ImportEvent::ParakeetCaptureStopped {
+                job_id,
+                generation,
+                session_id: 1,
+                wav_path: "test.wav".into(),
+                txt_path: None,
+                srt_path: None,
+                complete: false,
+                final_segments: Vec::new(),
+                unresolved: Vec::new(),
+                diagnostic: None,
+                automatic_final: None,
+            },
+        ]);
+        let mut ready_count = 0;
+        let mut saw_confirmed = false;
+        let mut saw_stopped = false;
+        let mut saw_meter = false;
+        let mut event = None;
+        while Instant::now() < deadline
+            && (ready_count < 2 || !saw_confirmed || !saw_stopped || !saw_meter || event.is_none())
+        {
+            if let Some(next) = live.poll().unwrap() {
+                match next {
+                    ImportEvent::ParakeetInferenceReady { .. } => ready_count += 1,
+                    ImportEvent::ParakeetConfirmed { .. } => saw_confirmed = true,
+                    ImportEvent::ParakeetCaptureStopped { .. } => saw_stopped = true,
+                    ImportEvent::MicrophoneMeter(_) => saw_meter = true,
+                    spectrum @ ImportEvent::MicrophoneSpectrum(
+                        MicrophoneSpectrumUpdate::Available(_),
+                    ) => event = Some(spectrum),
+                    _ => {}
+                }
+            } else {
+                thread::sleep(Duration::from_millis(5));
+            }
+        }
+        assert_eq!(ready_count, 2, "Parakeet control events did not progress");
+        assert!(saw_confirmed, "confirmed Parakeet text did not progress");
+        assert!(saw_stopped, "Parakeet terminal event did not progress");
+        assert!(saw_meter, "Parakeet RMS telemetry did not progress");
+        let event = event.expect("Parakeet spectrum did not progress");
+        let ImportEvent::MicrophoneSpectrum(MicrophoneSpectrumUpdate::Available(spectrum)) = event
+        else {
+            panic!("expected a current Parakeet spectrum")
+        };
+        assert_eq!(spectrum.source_identity, "test:mic");
+        let peak = spectrum
+            .pre_gain
+            .iter()
+            .enumerate()
+            .filter_map(|(index, bin)| match bin {
+                SpectrumBin::MilliDb(value) => Some((index, value)),
+                SpectrumBin::Silence => None,
+            })
+            .max_by_key(|(_, value)| *value)
+            .unwrap()
+            .0;
+        let hz = peak as f64 * f64::from(spectrum.sample_rate_hz) / 2048.0;
+        assert!((hz - 500.0).abs() < 10.0, "expected 500 Hz, got {hz} Hz");
+        let tail = live.converter.as_mut().unwrap().finish().unwrap();
+        live.wav.as_mut().unwrap().append(&tail).unwrap();
+        assert_eq!(live.wav.as_ref().unwrap().sample_count(), 4_800);
+        let with_probe_path = live.wav.take().unwrap().finish().unwrap();
+        let baseline_dir = directory.join("without-probe");
+        fs::create_dir_all(&baseline_dir).unwrap();
+        let baseline_request = LiveRequest {
+            job_id: JobId(7202),
+            generation,
+            model_path: "unused-model".into(),
+            model_sha256: [0; 32],
+            destination: baseline_dir.to_string_lossy().into_owned(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: whisper_core::MicrophoneChoice::Device("test:mic".into()),
+            microphone_gain_db: 0,
+            config: whisper_core::JobConfig {
+                language: whisper_core::LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        let mut baseline_capture = CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+        let mut baseline_converter = Pcm16Converter::new(16_000, 1).unwrap();
+        let mut baseline_wav = crate::direct_live::WavOutput::create(&baseline_request).unwrap();
+        for samples in &input_blocks {
+            baseline_capture.enqueue_test_block(samples.clone());
+            let block = baseline_capture.try_next_block().unwrap();
+            baseline_wav
+                .append(&baseline_converter.push(&block).unwrap())
+                .unwrap();
+            baseline_capture.recycle_block(block).unwrap();
+        }
+        baseline_wav
+            .append(&baseline_converter.finish().unwrap())
+            .unwrap();
+        let without_probe_path = baseline_wav.finish().unwrap();
+        assert_eq!(
+            fs::read(with_probe_path).unwrap(),
+            fs::read(without_probe_path).unwrap(),
+            "Parakeet WAV with spectrum reader is byte-identical to the no-reader baseline"
+        );
+        drop(live);
+        let _ = fs::remove_dir_all(directory);
     }
 }
 

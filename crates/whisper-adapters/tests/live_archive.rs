@@ -28,6 +28,7 @@ fn attempt_journal_reserves_monotonically_and_enforces_transitions() {
         group_offset_samples: 0,
         auto_stop_after_speech_samples: None,
         microphone: Default::default(),
+        microphone_gain_db: 0,
         config: JobConfig {
             language: LanguageChoice::Automatic,
             compute: ComputeChoice::Auto,
@@ -76,6 +77,7 @@ fn a_live_group_has_one_archive_writer_at_a_time() {
         group_offset_samples: 0,
         auto_stop_after_speech_samples: None,
         microphone: Default::default(),
+        microphone_gain_db: 0,
         config: JobConfig {
             language: LanguageChoice::Automatic,
             compute: ComputeChoice::Cpu,
@@ -103,6 +105,7 @@ fn next_passage_refuses_durable_pcm_without_verified_coverage() {
         group_offset_samples: 0,
         auto_stop_after_speech_samples: None,
         microphone: Default::default(),
+        microphone_gain_db: 0,
         config: JobConfig {
             language: LanguageChoice::Automatic,
             compute: ComputeChoice::Cpu,
@@ -143,6 +146,7 @@ fn fully_covered_but_unpublished_passage_stays_recoverable_and_blocks_next_gener
         group_offset_samples: 0,
         auto_stop_after_speech_samples: None,
         microphone: Default::default(),
+        microphone_gain_db: 0,
         config: JobConfig {
             language: LanguageChoice::Automatic,
             compute: ComputeChoice::Cpu,
@@ -209,6 +213,7 @@ fn next_passage_refuses_text_after_the_last_coverage_commit() {
         group_offset_samples: 0,
         auto_stop_after_speech_samples: None,
         microphone: Default::default(),
+        microphone_gain_db: 0,
         config: JobConfig {
             language: LanguageChoice::Automatic,
             compute: ComputeChoice::Cpu,
@@ -271,6 +276,7 @@ fn next_passage_refuses_unconfirmed_pcm_after_the_durable_checkpoint() {
         group_offset_samples: 0,
         auto_stop_after_speech_samples: None,
         microphone: Default::default(),
+        microphone_gain_db: 0,
         config: JobConfig {
             language: LanguageChoice::Automatic,
             compute: ComputeChoice::Cpu,
@@ -330,6 +336,7 @@ fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation() {
         group_offset_samples: 0,
         auto_stop_after_speech_samples: None,
         microphone: Default::default(),
+        microphone_gain_db: 0,
         config: JobConfig {
             language: LanguageChoice::Manual("fr".into()),
             compute: ComputeChoice::Cpu,
@@ -568,6 +575,7 @@ fn recovery_adopts_a_synced_silent_window_commit_without_a_durable_ack() {
         group_offset_samples: 0,
         auto_stop_after_speech_samples: None,
         microphone: Default::default(),
+        microphone_gain_db: 0,
         config: JobConfig {
             language: LanguageChoice::Manual("fr".into()),
             compute: ComputeChoice::Cpu,

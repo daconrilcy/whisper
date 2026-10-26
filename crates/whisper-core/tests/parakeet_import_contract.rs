@@ -259,6 +259,7 @@ fn turbo_live_guard_remains_available_through_legacy_constructor() {
         group_offset_samples: 0,
         auto_stop_after_speech_samples: None,
         microphone: whisper_core::microphone::MicrophoneChoice::WindowsDefault,
+        microphone_gain_db: 0,
         config: JobConfig {
             language: LanguageChoice::Automatic,
             compute: ComputeChoice::Cpu,

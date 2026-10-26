@@ -20,6 +20,10 @@ impl MicrophoneDevice {
 
 pub trait MicrophonePort {
     fn list_inputs(&self) -> Result<Vec<MicrophoneDevice>, String>;
+
+    fn default_input_identity(&self) -> Result<Option<String>, String> {
+        Ok(None)
+    }
 }
 
 pub struct NullMicrophonePort;
@@ -37,6 +41,8 @@ pub struct MicrophoneSettings {
     devices: Vec<MicrophoneDevice>,
     list_failed: bool,
     notice: Option<String>,
+    default_identity: Option<String>,
+    default_identity_error: Option<String>,
 }
 
 impl MicrophoneSettings {
@@ -48,6 +54,8 @@ impl MicrophoneSettings {
             devices: Vec::new(),
             list_failed: false,
             notice: None,
+            default_identity: None,
+            default_identity_error: None,
         };
         let listed = settings.refresh().is_ok();
         if let MicrophoneChoice::Device(id) = &settings.preferred
@@ -66,6 +74,16 @@ impl MicrophoneSettings {
     }
 
     pub fn refresh(&mut self) -> Result<(), String> {
+        match self.port.default_input_identity() {
+            Ok(identity) => {
+                self.default_identity = identity;
+                self.default_identity_error = None;
+            }
+            Err(error) => {
+                self.default_identity = None;
+                self.default_identity_error = Some(error);
+            }
+        }
         match self.port.list_inputs() {
             Ok(devices) => {
                 self.devices = devices;
@@ -115,6 +133,29 @@ impl MicrophoneSettings {
 
     pub fn take_notice(&mut self) -> Option<String> {
         self.notice.take()
+    }
+
+    pub fn target_identity(&self) -> Option<&str> {
+        match self.effective() {
+            MicrophoneChoice::Device(identity) => Some(identity),
+            MicrophoneChoice::WindowsDefault => self.default_identity.as_deref(),
+        }
+    }
+
+    pub fn capture_choice(&self) -> MicrophoneChoice {
+        self.target_identity()
+            .map(|identity| MicrophoneChoice::Device(identity.to_owned()))
+            .unwrap_or_else(|| self.effective.clone())
+    }
+
+    pub fn target_error(&self) -> Option<&str> {
+        if self.target_identity().is_none() {
+            self.default_identity_error
+                .as_deref()
+                .or(Some("Identité du microphone par défaut indisponible"))
+        } else {
+            None
+        }
     }
 }
 

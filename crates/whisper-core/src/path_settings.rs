@@ -17,6 +17,89 @@ pub struct StoredPaths {
     pub microphone_id: Option<String>,
     #[serde(default)]
     pub gpu_device_id: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_microphone_gains")]
+    pub microphone_gains_db: std::collections::BTreeMap<String, i64>,
+}
+
+fn deserialize_microphone_gains<'de, D>(
+    deserializer: D,
+) -> Result<std::collections::BTreeMap<String, i64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let values =
+        <std::collections::BTreeMap<String, GainDbEntry> as serde::Deserialize>::deserialize(
+            deserializer,
+        )?;
+    Ok(values
+        .into_iter()
+        .map(|(identity, value)| (identity, value.0))
+        .collect())
+}
+
+struct GainDbEntry(i64);
+
+impl<'de> serde::Deserialize<'de> for GainDbEntry {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(GainDbEntryVisitor)
+    }
+}
+
+struct GainDbEntryVisitor;
+
+impl<'de> serde::de::Visitor<'de> for GainDbEntryVisitor {
+    type Value = GainDbEntry;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("an integer microphone gain")
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(GainDbEntry(value))
+    }
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(GainDbEntry(i64::try_from(value).unwrap_or(i64::MIN)))
+    }
+    fn visit_bool<E>(self, _value: bool) -> Result<Self::Value, E> {
+        Ok(GainDbEntry(i64::MIN))
+    }
+    fn visit_f64<E>(self, _value: f64) -> Result<Self::Value, E> {
+        Ok(GainDbEntry(i64::MIN))
+    }
+    fn visit_str<E>(self, _value: &str) -> Result<Self::Value, E> {
+        Ok(GainDbEntry(i64::MIN))
+    }
+    fn visit_string<E>(self, _value: String) -> Result<Self::Value, E> {
+        Ok(GainDbEntry(i64::MIN))
+    }
+    fn visit_none<E>(self) -> Result<Self::Value, E> {
+        Ok(GainDbEntry(i64::MIN))
+    }
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(GainDbEntry(i64::MIN))
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
+        Ok(GainDbEntry(i64::MIN))
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while map
+            .next_entry::<serde::de::IgnoredAny, serde::de::IgnoredAny>()?
+            .is_some()
+        {}
+        Ok(GainDbEntry(i64::MIN))
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -225,12 +308,13 @@ impl PathSettingsApp {
             destination: defaults.destination.clone(),
             audio_directory: defaults.audio_directory.clone(),
             saved: StoredPaths {
-                version: 1,
+                version: 2,
                 audio_directory: Some(defaults.audio_directory.clone()),
                 model_path: defaults.model_path.clone(),
                 destination: defaults.destination.clone(),
                 microphone_id: None,
                 gpu_device_id: None,
+                microphone_gains_db: std::collections::BTreeMap::new(),
             },
             port,
             notice: None,
@@ -256,6 +340,18 @@ impl PathSettingsApp {
 
     fn restore(&mut self, saved: StoredPaths) {
         let mut missing = Vec::new();
+        let mut invalid_gains = 0_usize;
+        let mut microphone_gains_db = std::collections::BTreeMap::new();
+        for (identity, value) in &saved.microphone_gains_db {
+            let valid = i8::try_from(*value)
+                .ok()
+                .and_then(|value| crate::microphone_level::GainDb::new(value).ok());
+            if let Some(gain) = valid {
+                microphone_gains_db.insert(identity.clone(), i64::from(gain.value()));
+            } else {
+                invalid_gains += 1;
+            }
+        }
         if let Some(directory) = saved.audio_directory {
             if self
                 .port
@@ -282,12 +378,19 @@ impl PathSettingsApp {
         } else {
             missing.push("dossier des transcriptions");
         }
+        let mut notices = Vec::new();
         if !missing.is_empty() {
-            self.notice = Some(format!(
+            notices.push(format!(
                 "Chemin mémorisé introuvable ({}) : valeur par défaut rétablie. Vérifiez le chemin avant de démarrer.",
                 missing.join(", ")
             ));
         }
+        if invalid_gains > 0 {
+            notices.push(format!(
+                "Gain microphone invalide neutralisé pour {invalid_gains} identité(s)."
+            ));
+        }
+        self.notice = (!notices.is_empty()).then(|| notices.join(" "));
         self.saved = StoredPaths {
             version: saved.version,
             audio_directory: Some(self.audio_directory.clone()),
@@ -295,6 +398,7 @@ impl PathSettingsApp {
             destination: self.destination.clone(),
             microphone_id: saved.microphone_id,
             gpu_device_id: saved.gpu_device_id,
+            microphone_gains_db,
         };
     }
 
@@ -408,6 +512,34 @@ impl PathSettingsApp {
         self.save();
     }
 
+    pub fn microphone_gain(
+        &self,
+        identity: &crate::microphone_level::MicrophoneIdentity,
+    ) -> crate::microphone_level::GainDb {
+        self.saved
+            .microphone_gains_db
+            .get(identity.as_str())
+            .and_then(|value| i8::try_from(*value).ok())
+            .and_then(|value| crate::microphone_level::GainDb::new(value).ok())
+            .unwrap_or(crate::microphone_level::GainDb::NEUTRAL)
+    }
+
+    pub fn set_microphone_gain(
+        &mut self,
+        identity: &crate::microphone_level::MicrophoneIdentity,
+        gain: crate::microphone_level::GainDb,
+    ) {
+        if gain == crate::microphone_level::GainDb::NEUTRAL {
+            self.saved.microphone_gains_db.remove(identity.as_str());
+        } else {
+            self.saved
+                .microphone_gains_db
+                .insert(identity.as_str().to_owned(), i64::from(gain.value()));
+        }
+        self.saved.version = 2;
+        self.save();
+    }
+
     pub fn gpu_preference(&self) -> Option<&str> {
         self.saved.gpu_device_id.as_deref()
     }
@@ -484,7 +616,7 @@ impl PathSettingsApp {
 
 #[cfg(test)]
 mod microphone_tests {
-    use super::{PathDefaults, PathField, PathPort, PathSettingsApp, StoredPaths};
+    use super::{PathDefaults, PathField, PathPort, PathSettingsApp, SaveStatus, StoredPaths};
     use crate::MicrophoneChoice;
     use std::{
         cell::RefCell,
@@ -493,6 +625,42 @@ mod microphone_tests {
     };
 
     struct MemoryPort(Rc<RefCell<Option<StoredPaths>>>);
+
+    struct AckPort {
+        saved: Rc<RefCell<Option<StoredPaths>>>,
+        acknowledgements: Rc<RefCell<std::collections::VecDeque<super::SaveAcknowledgement>>>,
+        submit_error: Option<String>,
+    }
+
+    impl PathPort for AckPort {
+        fn load(&self) -> Result<Option<StoredPaths>, String> {
+            Ok(self.saved.borrow().clone())
+        }
+
+        fn save(&mut self, _revision: u64, paths: StoredPaths) -> Result<(), String> {
+            if let Some(error) = &self.submit_error {
+                return Err(error.clone());
+            }
+            *self.saved.borrow_mut() = Some(paths);
+            Ok(())
+        }
+
+        fn pick(&mut self, _field: PathField, _directory: &Path) -> Option<PathBuf> {
+            None
+        }
+
+        fn exists(&self, _path: &Path, _field: PathField) -> bool {
+            true
+        }
+
+        fn has_pending_save(&self) -> bool {
+            !self.acknowledgements.borrow().is_empty()
+        }
+
+        fn poll_save_acknowledgement(&mut self) -> Option<super::SaveAcknowledgement> {
+            self.acknowledgements.borrow_mut().pop_front()
+        }
+    }
 
     impl PathPort for MemoryPort {
         fn load(&self) -> Result<Option<StoredPaths>, String> {
@@ -538,5 +706,146 @@ mod microphone_tests {
             MicrophoneChoice::Device("wasapi:one".into())
         );
         assert_eq!(reopened.model, "model");
+    }
+
+    #[test]
+    fn microphone_gains_are_persisted_per_identity_and_neutral_is_absent() {
+        let state = Rc::new(RefCell::new(None));
+        let defaults = || PathDefaults {
+            audio_directory: "audio".into(),
+            model_path: "model".into(),
+            destination: "output".into(),
+        };
+        let a = crate::microphone_level::MicrophoneIdentity::new("wasapi:id-A").unwrap();
+        let b = crate::microphone_level::MicrophoneIdentity::new("wasapi:id-B").unwrap();
+        let mut app = PathSettingsApp::new(defaults(), Box::new(MemoryPort(state.clone())));
+        assert_eq!(
+            app.microphone_gain(&a),
+            crate::microphone_level::GainDb::NEUTRAL
+        );
+        app.set_microphone_preference(&MicrophoneChoice::Device("wasapi:id-A".into()));
+        app.set_microphone_gain(&a, crate::microphone_level::GainDb::new(9).unwrap());
+        app.set_microphone_gain(&b, crate::microphone_level::GainDb::new(-3).unwrap());
+        app.set_microphone_gain(&a, crate::microphone_level::GainDb::NEUTRAL);
+
+        let reopened = PathSettingsApp::new(defaults(), Box::new(MemoryPort(state.clone())));
+        assert_eq!(
+            reopened.microphone_gain(&a),
+            crate::microphone_level::GainDb::NEUTRAL
+        );
+        assert_eq!(reopened.microphone_gain(&b).value(), -3);
+        assert_eq!(
+            reopened.microphone_preference(),
+            MicrophoneChoice::Device("wasapi:id-A".into())
+        );
+        let stored = state.borrow().clone().unwrap();
+        assert_eq!(stored.version, 2);
+        assert!(!stored.microphone_gains_db.contains_key("wasapi:id-A"));
+        assert_eq!(stored.microphone_gains_db.get("wasapi:id-B"), Some(&-3));
+    }
+
+    #[test]
+    fn invalid_gain_is_neutralized_alone_and_reported() {
+        let saved = StoredPaths {
+            version: 2,
+            audio_directory: Some("audio".into()),
+            model_path: "model".into(),
+            destination: "output".into(),
+            microphone_id: Some("wasapi:preferred".into()),
+            gpu_device_id: Some("gpu:preferred".into()),
+            microphone_gains_db: std::collections::BTreeMap::from([
+                ("wasapi:bad".into(), 100),
+                ("wasapi:good".into(), 7),
+            ]),
+        };
+        let bad = crate::microphone_level::MicrophoneIdentity::new("wasapi:bad").unwrap();
+        let good = crate::microphone_level::MicrophoneIdentity::new("wasapi:good").unwrap();
+        let state = Rc::new(RefCell::new(Some(saved.clone())));
+        let mut app = PathSettingsApp::new(
+            PathDefaults {
+                audio_directory: "audio-default".into(),
+                model_path: "model-default".into(),
+                destination: "output-default".into(),
+            },
+            Box::new(MemoryPort(state.clone())),
+        );
+        assert_eq!(
+            app.microphone_gain(&bad),
+            crate::microphone_level::GainDb::NEUTRAL
+        );
+        assert_eq!(app.microphone_gain(&good).value(), 7);
+        assert!(app.take_startup_notice().unwrap().contains("neutralisé"));
+        app.set_gpu_preference(Some("gpu:new".into()));
+        let saved = state.borrow().clone().unwrap();
+        assert_eq!(saved.microphone_id.as_deref(), Some("wasapi:preferred"));
+        assert_eq!(saved.gpu_device_id.as_deref(), Some("gpu:new"));
+        assert_eq!(
+            saved.microphone_gains_db,
+            std::collections::BTreeMap::from([("wasapi:good".into(), 7)])
+        );
+    }
+
+    #[test]
+    fn stale_save_ack_is_ignored_and_failed_latest_save_is_visible_without_losing_live_gain() {
+        let saved = Rc::new(RefCell::new(None));
+        let acknowledgements = Rc::new(RefCell::new(std::collections::VecDeque::new()));
+        let defaults = PathDefaults {
+            audio_directory: "audio".into(),
+            model_path: "model".into(),
+            destination: "output".into(),
+        };
+        let identity = crate::microphone_level::MicrophoneIdentity::new("wasapi:active").unwrap();
+        let mut app = PathSettingsApp::new(
+            defaults,
+            Box::new(AckPort {
+                saved: saved.clone(),
+                acknowledgements: acknowledgements.clone(),
+                submit_error: None,
+            }),
+        );
+        app.set_microphone_gain(&identity, crate::microphone_level::GainDb::new(4).unwrap());
+        app.set_microphone_gain(&identity, crate::microphone_level::GainDb::new(8).unwrap());
+        assert_eq!(app.save_status(), &SaveStatus::Pending { revision: 2 });
+        acknowledgements
+            .borrow_mut()
+            .push_front(super::SaveAcknowledgement {
+                revision: 1,
+                result: Ok(()),
+            });
+        assert_eq!(app.poll_notice(), None);
+        assert_eq!(app.save_status(), &SaveStatus::Pending { revision: 2 });
+        acknowledgements
+            .borrow_mut()
+            .push_front(super::SaveAcknowledgement {
+                revision: 2,
+                result: Err("disque indisponible".into()),
+            });
+        assert!(app.poll_notice().unwrap().contains("n'a pas été mémorisée"));
+        assert_eq!(
+            app.save_status(),
+            &SaveStatus::Failed {
+                revision: 2,
+                error: "disque indisponible".into()
+            }
+        );
+        assert_eq!(app.microphone_gain(&identity).value(), 8);
+
+        let failing = PathSettingsApp::new(
+            PathDefaults {
+                audio_directory: "audio".into(),
+                model_path: "model".into(),
+                destination: "output".into(),
+            },
+            Box::new(AckPort {
+                saved: Rc::new(RefCell::new(None)),
+                acknowledgements: Rc::new(RefCell::new(std::collections::VecDeque::new())),
+                submit_error: Some("écriture refusée".into()),
+            }),
+        );
+        let mut failing = failing;
+        failing.set_microphone_gain(&identity, crate::microphone_level::GainDb::new(5).unwrap());
+        assert_eq!(failing.microphone_gain(&identity).value(), 5);
+        assert!(matches!(failing.save_status(), SaveStatus::Failed { .. }));
+        assert!(failing.poll_notice().unwrap().contains("écriture refusée"));
     }
 }

@@ -43,6 +43,11 @@ use whisper_core::{
 
 const MAX_FRAME_BYTES: usize = 1_048_576;
 const TDT_FRAME_OVERLAP_SAMPLES: u64 = 80 * 16;
+const LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL: u8 = 2;
+
+fn live_capture_poll_allowed(events_since_worker_poll: u8, worker_available: bool) -> bool {
+    events_since_worker_poll < LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL || !worker_available
+}
 static NEXT_IMPORT_JOB_ID: AtomicU64 = AtomicU64::new(1);
 static NEXT_AUTO_EXPORT_STAGE: AtomicU64 = AtomicU64::new(1);
 
@@ -679,6 +684,8 @@ pub struct ChildWorkerTransport {
     transport_ended: bool,
     expected_gpu_session: Option<ExpectedGpuSession>,
     gpu_session_attested: bool,
+    #[cfg(test)]
+    injected_events: VecDeque<WorkerEvent>,
 }
 
 #[derive(Clone)]
@@ -780,7 +787,14 @@ impl ChildWorkerTransport {
             transport_ended: false,
             expected_gpu_session: None,
             gpu_session_attested: false,
+            #[cfg(test)]
+            injected_events: VecDeque::new(),
         })
+    }
+
+    #[cfg(test)]
+    fn inject_event(&mut self, event: WorkerEvent) {
+        self.injected_events.push_back(event);
     }
 
     pub fn try_wait(&mut self) -> Result<Option<std::process::ExitStatus>, PortError> {
@@ -847,6 +861,10 @@ impl WorkerTransport for ChildWorkerTransport {
     }
 
     fn receive(&mut self) -> Result<Option<WorkerEvent>, PortError> {
+        #[cfg(test)]
+        if let Some(event) = self.injected_events.pop_front() {
+            return Ok(Some(event));
+        }
         match self.events.try_recv() {
             Ok(WorkerReaderMessage::Event(Ok(event))) => match &event {
                 WorkerEvent::GpuSessionAttested {
@@ -1439,17 +1457,162 @@ struct ImportRuntime {
     live_archive: Option<LiveArchive>,
     direct_live: Option<crate::direct_live::DirectLive>,
     parakeet_live: Option<crate::parakeet_live::ParakeetLive>,
+    microphone_test: Option<MicrophoneTestCapture>,
     automatic_final_outputs: HashMap<(JobId, u64), whisper_core::ports::AutomaticFinalImport>,
     parakeet_pending_events: VecDeque<ImportEvent>,
     pending_attempt_reset: Option<ImportEvent>,
     pending_recovery_counters: Option<ImportEvent>,
     live_pending_persistence: usize,
+    live_capture_events_since_worker_poll: u8,
     deferred_live_stopped: Option<WorkerEvent>,
     deferred_live_window_finished: Option<FinishedLiveWindow>,
     gpu_candidates: std::collections::HashMap<
         (JobId, u64),
         Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     >,
+}
+
+struct MicrophoneTestCapture {
+    job_id: JobId,
+    generation: Generation,
+    capture: crate::capture::CaptureStream,
+    converter: Pcm16Converter,
+    probe: crate::microphone_probe::MicrophoneProbe,
+    spectrum_reader: crate::microphone_probe::MicrophoneSpectrumReader,
+    last_meter_sequence: u64,
+    next_spectrum_telemetry: bool,
+    last_acknowledged_gain_revision: Option<u64>,
+    pending_events: VecDeque<ImportEvent>,
+}
+
+impl MicrophoneTestCapture {
+    fn start(
+        job_id: JobId,
+        generation: Generation,
+        microphone: &whisper_core::microphone::MicrophoneChoice,
+        gain_db: i8,
+    ) -> Result<(Self, String), String> {
+        let gain = whisper_core::microphone_level::GainDb::new(gain_db)
+            .map_err(|error| format!("MicrophoneLevel: {error}"))?;
+        let capture = crate::capture::start_direct_with_gain(microphone, gain)?;
+        Self::from_capture(job_id, generation, capture)
+    }
+
+    fn from_capture(
+        job_id: JobId,
+        generation: Generation,
+        capture: crate::capture::CaptureStream,
+    ) -> Result<(Self, String), String> {
+        let source_identity = capture
+            .source_identity()
+            .map(str::to_owned)
+            .ok_or_else(|| "MicrophoneLevel: identité du flux ouvert indisponible".to_owned())?;
+        let converter = Pcm16Converter::new(capture.sample_rate_hz(), capture.channels())?;
+        let probe = crate::microphone_probe::MicrophoneProbe::start(
+            capture.sample_rate_hz(),
+            Some(source_identity.clone()),
+            job_id,
+            generation,
+        )?;
+        Ok((
+            Self {
+                job_id,
+                generation,
+                capture,
+                converter,
+                probe,
+                spectrum_reader: crate::microphone_probe::MicrophoneSpectrumReader::default(),
+                last_meter_sequence: 0,
+                next_spectrum_telemetry: false,
+                last_acknowledged_gain_revision: None,
+                pending_events: VecDeque::new(),
+            },
+            source_identity,
+        ))
+    }
+
+    fn set_gain(
+        &self,
+        target_identity: &str,
+        expected_revision: u64,
+        gain: whisper_core::microphone_level::GainDb,
+    ) -> Result<whisper_core::microphone_level::GainRevision, String> {
+        if self.capture.source_identity() != Some(target_identity) {
+            return Err("MicrophoneLevel: source active différente de la cible".into());
+        }
+        self.capture.set_gain(expected_revision, gain)
+    }
+
+    fn pump(&mut self) -> Result<Option<ImportEvent>, String> {
+        if self.capture.is_saturated() {
+            return Err("Tampon du test microphone saturé".into());
+        }
+        if self.capture.failure() {
+            return Err(self
+                .capture
+                .failure_detail()
+                .unwrap_or_else(|| "Flux du test microphone interrompu".into()));
+        }
+        for _ in 0..crate::capture::CAPTURE_SLOTS {
+            let Some(block) = self.capture.try_next_block() else {
+                break;
+            };
+            let gain = block.gain();
+            let first_frame = block.first_frame();
+            if self
+                .last_acknowledged_gain_revision
+                .is_none_or(|revision| gain.revision > revision)
+            {
+                self.last_acknowledged_gain_revision = Some(gain.revision);
+                if let Some(target_identity) = self.capture.source_identity().map(str::to_owned) {
+                    self.pending_events
+                        .push_back(ImportEvent::MicrophoneGainApplied {
+                            job_id: self.job_id,
+                            generation: self.generation,
+                            target_identity,
+                            gain_db: gain.gain.value(),
+                            gain_revision: gain.revision,
+                            first_frame,
+                        });
+                }
+            }
+            let converted = self.converter.push_with_probe(&block)?;
+            self.capture.recycle_block(block)?;
+            self.probe.submit(converted.probe);
+        }
+        if let Some(event) = self.pending_events.pop_front() {
+            return Ok(Some(event));
+        }
+        if self.next_spectrum_telemetry {
+            self.next_spectrum_telemetry = false;
+            if let Some(update) = self.spectrum_reader.poll(&self.probe, Instant::now()) {
+                return Ok(Some(ImportEvent::MicrophoneSpectrum(update)));
+            }
+        } else {
+            self.next_spectrum_telemetry = true;
+        }
+        let Some(meter) = self
+            .probe
+            .latest_at(Instant::now())
+            .and_then(|snapshot| snapshot.meter())
+        else {
+            return Ok(None);
+        };
+        if meter.sequence <= self.last_meter_sequence {
+            return Ok(None);
+        }
+        self.last_meter_sequence = meter.sequence;
+        Ok(Some(ImportEvent::MicrophoneMeter(meter)))
+    }
+
+    fn stop(mut self) -> ImportEvent {
+        self.probe.invalidate();
+        self.capture.stop();
+        ImportEvent::MicrophoneTestStopped {
+            job_id: self.job_id,
+            generation: self.generation,
+        }
+    }
 }
 
 struct ParakeetVadRun {
@@ -2014,6 +2177,11 @@ enum LiveRecoveryState {
 struct LiveCaptureState {
     request: LiveRequest,
     capture: CaptureStream,
+    probe: crate::microphone_probe::MicrophoneProbe,
+    spectrum_reader: crate::microphone_probe::MicrophoneSpectrumReader,
+    last_meter_sequence: u64,
+    next_spectrum_telemetry: bool,
+    telemetry_due_after_event: bool,
     converter: Pcm16Converter,
     vad: VoiceActivity,
     staging: PcmWriter,
@@ -2039,6 +2207,12 @@ struct LiveCaptureState {
     confirmed_fragment_end: u64,
     last_reported_durable: u64,
     failure: Option<String>,
+}
+impl LiveCaptureState {
+    fn stop_capture(&mut self) {
+        self.probe.invalidate();
+        self.capture.stop();
+    }
 }
 struct PendingLiveState {
     request: LiveRequest,
@@ -2134,11 +2308,13 @@ impl ImportRuntime {
             live_archive: None,
             direct_live: None,
             parakeet_live: None,
+            microphone_test: None,
             automatic_final_outputs: HashMap::new(),
             parakeet_pending_events: VecDeque::new(),
             pending_attempt_reset: None,
             pending_recovery_counters: None,
             live_pending_persistence: 0,
+            live_capture_events_since_worker_poll: 0,
             deferred_live_stopped: None,
             deferred_live_window_finished: None,
             gpu_candidates: std::collections::HashMap::new(),
@@ -2420,6 +2596,39 @@ impl ImportRuntime {
                     .insert((job_id, generation.get()), candidate);
                 Ok(())
             }
+            ImportEffect::StartMicrophoneTest {
+                job_id,
+                generation,
+                microphone,
+                gain_db,
+            } => {
+                if self.microphone_test.is_some()
+                    || self.direct_live.is_some()
+                    || self.parakeet_live.is_some()
+                    || self.live.is_some()
+                    || self.active.is_some()
+                {
+                    Err((
+                        job_id,
+                        generation,
+                        "Une capture microphone est déjà ouverte".into(),
+                    ))
+                } else {
+                    match MicrophoneTestCapture::start(job_id, generation, &microphone, gain_db) {
+                        Ok((capture, source_identity)) => {
+                            self.microphone_test = Some(capture);
+                            events.push_back(ImportEvent::MicrophoneTestStarted {
+                                job_id,
+                                generation,
+                                source_identity,
+                                gain_db,
+                            });
+                            Ok(())
+                        }
+                        Err(error) => Err((job_id, generation, error)),
+                    }
+                }
+            }
             ImportEffect::StartDirectLive(request) => {
                 let id = (request.job_id, request.generation);
                 let candidate = self.gpu_candidates.remove(&(id.0, id.1.get())).flatten();
@@ -2515,6 +2724,54 @@ impl ImportRuntime {
                     match self.bind_live_request(&request) {
                         Ok(request) => self.start_live(request, candidate),
                         Err(error) => Err((id.0, id.1, format!("Modèle indisponible : {error}"))),
+                    }
+                }
+            }
+            ImportEffect::SetMicrophoneGain {
+                job_id,
+                generation,
+                target_identity,
+                expected_revision,
+                gain_db,
+            } => {
+                let result = whisper_core::microphone_level::GainDb::new(gain_db)
+                    .map_err(|error| error.to_string())
+                    .and_then(|gain| {
+                        if let Some(direct) = self.direct_live.as_ref()
+                            && direct.identity() == (job_id, generation)
+                        {
+                            direct.set_gain(&target_identity, expected_revision, gain)
+                        } else if let Some(parakeet) = self.parakeet_live.as_ref()
+                            && parakeet.identity() == (job_id, generation)
+                        {
+                            parakeet.set_gain(&target_identity, expected_revision, gain)
+                        } else if let Some(test) = self.microphone_test.as_ref()
+                            && (test.job_id, test.generation) == (job_id, generation)
+                        {
+                            test.set_gain(&target_identity, expected_revision, gain)
+                        } else if let Some(live) = self.live.as_ref()
+                            && (live.request.job_id, live.request.generation)
+                                == (job_id, generation)
+                            && live.capture.source_identity() == Some(target_identity.as_str())
+                        {
+                            live.capture.set_gain(expected_revision, gain)
+                        } else {
+                            Err("MicrophoneLevel: capture cible absente ou périmée".into())
+                        }
+                    });
+                match result {
+                    Ok(applied) => {
+                        let _ = applied;
+                        Ok(())
+                    }
+                    Err(message) => {
+                        events.push_back(ImportEvent::MicrophoneGainRejected {
+                            job_id,
+                            generation,
+                            target_identity,
+                            message,
+                        });
+                        Ok(())
                     }
                 }
             }
@@ -3752,6 +4009,19 @@ impl ImportRuntime {
                     }
                 }
             }
+            ImportEffect::StopMicrophoneTest { job_id, generation } => {
+                match self.microphone_test.take() {
+                    Some(test) if (test.job_id, test.generation) == (job_id, generation) => {
+                        events.push_back(test.stop());
+                        Ok(())
+                    }
+                    Some(test) => {
+                        self.microphone_test = Some(test);
+                        Err((job_id, generation, "Arrêt du test microphone périmé".into()))
+                    }
+                    None => Err((job_id, generation, "Test microphone absent".into())),
+                }
+            }
         };
         if persisted_live_segment.is_some() {
             self.live_pending_persistence = self.live_pending_persistence.saturating_sub(1);
@@ -3794,7 +4064,7 @@ impl ImportRuntime {
                 && (live.request.job_id, live.request.generation) == (job, generation)
             {
                 deferred_live_failure = true;
-                live.capture.stop();
+                live.stop_capture();
                 let _ = live.staging.drain();
                 live.failure = Some(message.clone());
                 if let Some(transport) = self.transport.as_mut() {
@@ -3928,8 +4198,11 @@ impl ImportRuntime {
             return Ok(());
         };
         let (job_id, generation) = (pending.request.job_id, pending.request.generation);
-        let mut capture =
-            crate::capture::start_default().map_err(|error| (job_id, generation, error))?;
+        let initial_gain =
+            whisper_core::microphone_level::GainDb::new(pending.request.microphone_gain_db)
+                .map_err(|error| (job_id, generation, error.to_string()))?;
+        let mut capture = crate::capture::start_default_with_gain(initial_gain)
+            .map_err(|error| (job_id, generation, error))?;
         let converter = match Pcm16Converter::new(capture.sample_rate_hz(), capture.channels()) {
             Ok(converter) => converter,
             Err(error) => {
@@ -3937,6 +4210,13 @@ impl ImportRuntime {
                 return Err((job_id, generation, error));
             }
         };
+        let probe = crate::microphone_probe::MicrophoneProbe::start(
+            capture.sample_rate_hz(),
+            capture.source_identity().map(str::to_owned),
+            pending.request.job_id,
+            pending.request.generation,
+        )
+        .map_err(|error| (job_id, generation, error))?;
         let mut live_archive = pending.live_archive;
         if let Err(error) = live_archive.capture_started() {
             capture.stop();
@@ -3946,6 +4226,11 @@ impl ImportRuntime {
         self.live = Some(LiveCaptureState {
             request: pending.request,
             capture,
+            probe,
+            spectrum_reader: crate::microphone_probe::MicrophoneSpectrumReader::default(),
+            last_meter_sequence: 0,
+            next_spectrum_telemetry: false,
+            telemetry_due_after_event: false,
             converter,
             vad: VoiceActivity::new(),
             staging: pending.staging,
@@ -4655,7 +4940,7 @@ impl ImportRuntime {
             Ok(spawned) => spawned,
             Err(error) => {
                 if let Some(live) = self.live.as_mut() {
-                    live.capture.stop();
+                    live.stop_capture();
                     let _ = live.staging.drain();
                 }
                 self.live = None;
@@ -4864,9 +5149,13 @@ impl ImportRuntime {
                 let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
             }
             return Ok(match decision {
-                whisper_core::BackendDecision::RetryCpu => {
-                    ImportEvent::LiveRetryingOnCpu { job_id, generation }
-                }
+                whisper_core::BackendDecision::RetryCpu => ImportEvent::LiveRetryingOnCpu {
+                    job_id,
+                    generation,
+                    spectrum_min_epoch: 0,
+                    spectrum_not_before_monotonic_ms:
+                        whisper_core::microphone_level::monotonic_millis(),
+                },
                 _ => ImportEvent::LiveFinalizing { job_id, generation },
             });
         }
@@ -4941,15 +5230,15 @@ impl ImportRuntime {
                     live.inference_admission_closed = true;
                     live.pending_window = None;
                     live.barrier_m = Some(live.inference_sequence.saturating_sub(1));
-                    live.capture.stop();
+                    live.stop_capture();
                 }
                 whisper_core::BackendDecision::Fail => {
-                    live.capture.stop();
+                    live.stop_capture();
                     let _ = live.staging.drain();
                     live.failure = Some(message.clone());
                 }
                 whisper_core::BackendDecision::Start(_) => {
-                    live.capture.stop();
+                    live.stop_capture();
                     let _ = live.staging.drain();
                     live.failure = Some(message.clone());
                 }
@@ -4962,9 +5251,19 @@ impl ImportRuntime {
             if let Some(transport) = self.transport.as_mut() {
                 let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
             }
+            let retry_spectrum_barrier = self.live.as_ref().map(|live| live.probe.advance_epoch());
             return match decision {
                 whisper_core::BackendDecision::RetryCpu => {
-                    Ok(ImportEvent::LiveRetryingOnCpu { job_id, generation })
+                    let (spectrum_min_epoch, spectrum_not_before_monotonic_ms) =
+                        retry_spectrum_barrier.unwrap_or_else(|| {
+                            (0, whisper_core::microphone_level::monotonic_millis())
+                        });
+                    Ok(ImportEvent::LiveRetryingOnCpu {
+                        job_id,
+                        generation,
+                        spectrum_min_epoch,
+                        spectrum_not_before_monotonic_ms,
+                    })
                 }
                 whisper_core::BackendDecision::AwaitUserChoice => {
                     Ok(ImportEvent::LiveFinalizing { job_id, generation })
@@ -5243,7 +5542,7 @@ impl ImportRuntime {
                 });
                 return Ok(());
             }
-            live.capture.stop();
+            live.stop_capture();
             if live.failure.is_none() {
                 while let Some(block) = live.capture.try_next_block() {
                     let samples = live
@@ -5394,7 +5693,7 @@ impl ImportRuntime {
             } else {
                 "CaptureInterrupted: WASAPI stream failed"
             };
-            live.capture.stop();
+            live.stop_capture();
             live.failure = Some(reason.into());
             if let Some(transport) = self.transport.as_mut() {
                 let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
@@ -5402,10 +5701,10 @@ impl ImportRuntime {
             return None;
         }
         let block = live.capture.try_next_block()?;
-        let converted = match live.converter.push(&block) {
-            Ok(samples) => samples,
+        let converted = match live.converter.push_with_probe(&block) {
+            Ok(converted) => converted,
             Err(error) => {
-                live.capture.stop();
+                live.stop_capture();
                 live.failure = Some(error.clone());
                 if let Some(transport) = self.transport.as_mut() {
                     let _ = transport.try_request(WorkerCommand::Stop {
@@ -5417,7 +5716,7 @@ impl ImportRuntime {
             }
         };
         if let Err(error) = live.capture.recycle_block(block) {
-            live.capture.stop();
+            live.stop_capture();
             live.failure = Some(error.clone());
             if let Some(transport) = self.transport.as_mut() {
                 let _ = transport.try_request(WorkerCommand::Stop {
@@ -5427,7 +5726,8 @@ impl ImportRuntime {
             }
             return None;
         }
-        live.frame_pending.extend(converted);
+        live.probe.submit(converted.probe);
+        live.frame_pending.extend(converted.samples);
         while live.frame_pending.len() >= 320 {
             let frame: Vec<i16> = live.frame_pending.drain(..320).collect();
             live.captured = live.captured.saturating_add(320);
@@ -5435,7 +5735,7 @@ impl ImportRuntime {
                 Ok(true) => live.speech = live.speech.saturating_add(320),
                 Ok(false) => {}
                 Err(error) => {
-                    live.capture.stop();
+                    live.stop_capture();
                     live.failure = Some(error.clone());
                     if let Some(transport) = self.transport.as_mut() {
                         let _ = transport.try_request(WorkerCommand::Stop {
@@ -5447,7 +5747,7 @@ impl ImportRuntime {
                 }
             }
             if let Err(error) = live.staging.try_append_frame(frame) {
-                live.capture.stop();
+                live.stop_capture();
                 let reason = if error.kind() == io::ErrorKind::WouldBlock {
                     "CaptureSaturated: bounded PCM writer queue is full".to_owned()
                 } else {
@@ -5517,7 +5817,7 @@ impl ImportRuntime {
                     Ok(None) => return,
                     Err(error) => {
                         live.failure = Some(format!("StorageUnavailable: PCM spool read: {error}"));
-                        live.capture.stop();
+                        live.stop_capture();
                         return;
                     }
                 }
@@ -5530,7 +5830,7 @@ impl ImportRuntime {
             };
             let Some(range) = whisper_core::SourceRange::new(start, end, 16_000) else {
                 live.failure = Some("StorageCorrupt: live inference range is invalid".into());
-                live.capture.stop();
+                live.stop_capture();
                 return;
             };
             let replay = start < live.replay_until;
@@ -5583,7 +5883,7 @@ impl ImportRuntime {
                 }
                 Err(EnqueueError::Disconnected) => {
                     live.failure = Some("WorkerExited: stdin dispatcher stopped".into());
-                    live.capture.stop();
+                    live.stop_capture();
                     return;
                 }
             }
@@ -6424,6 +6724,20 @@ impl ImportRuntime {
         if let Some(event) = self.parakeet_pending_events.pop_front() {
             return Some(Ok(event));
         }
+        if let Some(test) = self.microphone_test.as_mut() {
+            let identity = (test.job_id, test.generation);
+            match test.pump() {
+                Ok(Some(event)) => return Some(Ok(event)),
+                Ok(None) => {}
+                Err(error) => {
+                    if let Some(mut test) = self.microphone_test.take() {
+                        test.probe.invalidate();
+                        test.capture.stop();
+                    }
+                    return Some(Err((identity.0, identity.1, error)));
+                }
+            }
+        }
         if self
             .idle_worker
             .as_ref()
@@ -6537,7 +6851,23 @@ impl ImportRuntime {
                 notice: DiagnosticNotice::LoggingUnavailable,
             }));
         }
-        if let Some(event) = self.poll_live_capture() {
+        if self
+            .live
+            .as_ref()
+            .is_some_and(|live| live.telemetry_due_after_event)
+        {
+            if let Some(live) = self.live.as_mut() {
+                live.telemetry_due_after_event = false;
+            }
+            if let Some(event) = self.take_legacy_live_telemetry() {
+                return Some(Ok(event));
+            }
+        }
+        let capture_may_publish = live_capture_poll_allowed(
+            self.live_capture_events_since_worker_poll,
+            self.transport.is_some(),
+        );
+        if capture_may_publish && let Some(event) = self.poll_live_capture() {
             if let Ok(ImportEvent::LiveCounters {
                 captured_samples,
                 audio_durable_samples,
@@ -6549,6 +6879,11 @@ impl ImportRuntime {
                 progress.observe(ProgressPhase::Capturing, *captured_samples, now);
                 progress.observe(ProgressPhase::Draining, *audio_durable_samples, now);
             }
+            if let Some(live) = self.live.as_mut() {
+                live.telemetry_due_after_event = true;
+            }
+            self.live_capture_events_since_worker_poll =
+                self.live_capture_events_since_worker_poll.saturating_add(1);
             return Some(event);
         }
         if self.deferred_live_window_finished.is_some() && self.live_pending_persistence > 0 {
@@ -6627,11 +6962,13 @@ impl ImportRuntime {
             )?
         } else {
             let transport = self.transport.as_mut()?;
-            match transport.receive() {
+            let received = transport.receive();
+            self.live_capture_events_since_worker_poll = 0;
+            match received {
                 Ok(Some(event)) => event,
                 Ok(None) => {
                     let _ = transport.try_wait();
-                    return None;
+                    return self.take_legacy_live_telemetry().map(Ok);
                 }
                 Err(error) => {
                     let active = self.active.as_ref()?;
@@ -6667,7 +7004,7 @@ impl ImportRuntime {
                         format!("WorkerExited without End: {error:?}"),
                     ));
                     if let Some(live) = self.live.as_mut() {
-                        live.capture.stop();
+                        live.stop_capture();
                         let _ = live.staging.drain();
                     }
                     self.live = None;
@@ -6861,7 +7198,7 @@ impl ImportRuntime {
             if let Some(archive) = self.live_archive.as_mut() {
                 if let Err(error) = archive.append_mp3_packet(bytes) {
                     if let Some(live) = self.live.as_mut() {
-                        live.capture.stop();
+                        live.stop_capture();
                         let _ = live.staging.drain();
                         live.failure = Some(error.clone());
                     }
@@ -7001,7 +7338,7 @@ impl ImportRuntime {
         if matches!(event, WorkerEvent::Stopped { .. }) && self.live.is_some() {
             if let Some(reason) = self.live.as_ref().and_then(|live| live.failure.clone()) {
                 if let Some(live) = self.live.as_mut() {
-                    live.capture.stop();
+                    live.stop_capture();
                     let _ = live.staging.drain();
                 }
                 self.live = None;
@@ -7033,7 +7370,7 @@ impl ImportRuntime {
             }
             if let Some(Err(error)) = final_drain {
                 if let Some(live) = self.live.as_mut() {
-                    live.capture.stop();
+                    live.stop_capture();
                 }
                 self.live = None;
                 self.live_archive = None;
@@ -7106,7 +7443,7 @@ impl ImportRuntime {
                 self.active = None;
                 if self.publication_gate.is_cancelled() {
                     if let Some(live) = self.live.as_mut() {
-                        live.capture.stop();
+                        live.stop_capture();
                     }
                     self.live = None;
                     self.live_archive = None;
@@ -7123,7 +7460,7 @@ impl ImportRuntime {
                     || self.publication_gate.is_cancelled();
                 if stop_was_latched {
                     if let Some(live) = self.live.as_mut() {
-                        live.capture.stop();
+                        live.stop_capture();
                     }
                     self.live = None;
                     self.live_archive = None;
@@ -7137,7 +7474,7 @@ impl ImportRuntime {
                 .map(|archive| archive.publish(durable, confirmed, pcm_sha256));
             if let Some(Err(error)) = publish_result {
                 if let Some(live) = self.live.as_mut() {
-                    live.capture.stop();
+                    live.stop_capture();
                 }
                 self.live = None;
                 self.live_archive = None;
@@ -7444,7 +7781,7 @@ impl ImportRuntime {
             && let Some(live) = self.live.as_mut()
             && (live.request.job_id, live.request.generation) == (*failed_job, *failed_generation)
         {
-            live.capture.stop();
+            live.stop_capture();
             let _ = live.staging.drain();
             live.failure = Some(message.clone());
             if let Some(transport) = self.transport.as_mut() {
@@ -7452,7 +7789,41 @@ impl ImportRuntime {
             }
             return None;
         }
+        if result.as_ref().is_ok_and(|event| {
+            !matches!(
+                event,
+                ImportEvent::End { .. }
+                    | ImportEvent::Failed { .. }
+                    | ImportEvent::Stopped { .. }
+                    | ImportEvent::Published { .. }
+            )
+        }) && let Some(live) = self
+            .live
+            .as_mut()
+            .filter(|live| (live.request.job_id, live.request.generation) == (job_id, generation))
+        {
+            live.telemetry_due_after_event = true;
+        }
         Some(result)
+    }
+
+    fn take_legacy_live_telemetry(&mut self) -> Option<ImportEvent> {
+        let live = self.live.as_mut()?;
+        if live.next_spectrum_telemetry {
+            live.next_spectrum_telemetry = false;
+            if let Some(update) = live.spectrum_reader.poll(&live.probe, Instant::now()) {
+                return Some(ImportEvent::MicrophoneSpectrum(update));
+            }
+        } else {
+            live.next_spectrum_telemetry = true;
+        }
+        let snapshot = live.probe.latest_at(Instant::now())?;
+        if snapshot.sequence <= live.last_meter_sequence {
+            return None;
+        }
+        let meter = snapshot.meter()?;
+        live.last_meter_sequence = snapshot.sequence;
+        Some(ImportEvent::MicrophoneMeter(meter))
     }
 }
 
@@ -7766,6 +8137,13 @@ fn import_effect_identity(effect: &ImportEffect) -> Option<(JobId, u64)> {
         | ImportEffect::ResolveImportPublication {
             job_id, generation, ..
         }
+        | ImportEffect::SetMicrophoneGain {
+            job_id, generation, ..
+        }
+        | ImportEffect::StartMicrophoneTest {
+            job_id, generation, ..
+        }
+        | ImportEffect::StopMicrophoneTest { job_id, generation }
         | ImportEffect::PersistSegment(WorkerSegment {
             job_id, generation, ..
         })
@@ -7809,6 +8187,7 @@ fn terminal_import_event_identity(event: &ImportEvent) -> Option<(JobId, u64)> {
         | ImportEvent::Stopped {
             job_id, generation, ..
         } => (*job_id, *generation),
+        ImportEvent::MicrophoneTestStopped { job_id, generation } => (*job_id, *generation),
         _ => return None,
     };
     Some((job_id, generation.get()))
@@ -7830,6 +8209,14 @@ impl ImportIoPort for AsyncImportIo {
                 "frame_limit_bytes": MAX_FRAME_BYTES,
             }),
         );
+        if let ImportEffect::StopMicrophoneTest { job_id, generation } = &effect {
+            if self.active_identity != Some((*job_id, *generation)) {
+                return Err(PortError::StaleResponse);
+            }
+            return self.stops.try_send(effect).map_err(|error| match error {
+                TrySendError::Full(_) | TrySendError::Disconnected(_) => PortError::Unavailable,
+            });
+        }
         if let ImportEffect::Stop { job_id, generation } = &effect {
             let identity = (*job_id, generation.get());
             if self.automatic_identities.contains(&identity) {
@@ -7943,6 +8330,9 @@ impl ImportIoPort for AsyncImportIo {
                 return Err(PortError::StaleResponse);
             }
             let active_identity = match &effect {
+                ImportEffect::StartMicrophoneTest {
+                    job_id, generation, ..
+                } => Some((*job_id, *generation)),
                 ImportEffect::StartLive(request) | ImportEffect::StartDirectLive(request) => {
                     Some((request.job_id, request.generation))
                 }
@@ -8425,7 +8815,11 @@ fn service_loop<R: ServiceRuntime>(
         }
         match (effect, stop) {
             (
-                Some(effect @ (ImportEffect::StartLive(_) | ImportEffect::StartDirectLive(_))),
+                Some(
+                    effect @ (ImportEffect::StartLive(_)
+                    | ImportEffect::StartDirectLive(_)
+                    | ImportEffect::StartMicrophoneTest { .. }),
+                ),
                 Some(stop),
             ) => {
                 runtime.apply_effect(effect, &mut pending);
@@ -8510,10 +8904,562 @@ mod tests {
     use super::*;
     use sha2::{Digest, Sha256};
     use std::io::Cursor;
+    use std::{cell::RefCell, rc::Rc};
     use whisper_core::{
         AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
         JobConfig, JobId, JobState, LanguageChoice,
     };
+
+    #[test]
+    fn microphone_legacy_capture_budget_forces_worker_poll_within_four_ui_events() {
+        let mut capture_events_since_worker = 0;
+        let mut worker_events = VecDeque::from(["confirmed text", "terminal"]);
+        let mut delivered = vec!["durable counters"];
+        capture_events_since_worker += 1;
+        delivered.push("spectrum telemetry");
+        assert!(live_capture_poll_allowed(capture_events_since_worker, true));
+        delivered.push("durable counters");
+        capture_events_since_worker += 1;
+        assert!(!live_capture_poll_allowed(
+            capture_events_since_worker,
+            true
+        ));
+        delivered.push(worker_events.pop_front().unwrap());
+        capture_events_since_worker = 0;
+        assert_eq!(
+            delivered,
+            [
+                "durable counters",
+                "spectrum telemetry",
+                "durable counters",
+                "confirmed text"
+            ]
+        );
+        assert!(!live_capture_poll_allowed(2, true));
+        assert!(live_capture_poll_allowed(2, false));
+        assert_eq!(worker_events.pop_front(), Some("terminal"));
+    }
+
+    #[test]
+    fn microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end() {
+        let root = std::env::temp_dir().join(format!(
+            "legacy-spectrum-fairness-{}-{}",
+            std::process::id(),
+            whisper_core::microphone_level::monotonic_millis()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("worker-ready");
+        let worker = compile_fake_worker(&root, "cpu-live", &marker);
+        let job_id = JobId(881);
+        let generation = Generation::first();
+        let request = LiveRequest {
+            job_id,
+            generation,
+            model_path: "unused-model".into(),
+            model_sha256: [0; 32],
+            destination: root.join("archive").to_string_lossy().into_owned(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: whisper_core::MicrophoneChoice::Device("test:legacy".into()),
+            microphone_gain_db: 0,
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        let mut capture = CaptureStream::empty_test_capture(16_000, 1, "test:legacy");
+        let probe = crate::microphone_probe::MicrophoneProbe::start(
+            16_000,
+            Some("test:legacy".into()),
+            job_id,
+            generation,
+        )
+        .unwrap();
+        let staging_path = root.join("pending.pcm");
+        let staging = PcmStaging::create(&staging_path).unwrap().into_writer();
+        let mut archive = LiveArchive::prepare(&request.destination, request.clone()).unwrap();
+        archive.capture_started().unwrap();
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: worker.clone(),
+                gpu: worker.clone(),
+            },
+            Arc::new(PublicationGate::default()),
+        );
+        let mut transport = ChildWorkerTransport::spawn(&worker).unwrap();
+        transport
+            .request(WorkerCommand::StartLiveWorker {
+                job_id,
+                generation,
+                instance_id: 1,
+                model_path: request.model_path.clone(),
+                model_sha256: request.model_sha256,
+                config: request.config.clone(),
+            })
+            .unwrap();
+        runtime.transport = Some(transport);
+        runtime.active = Some(ImportRequestState {
+            job_id,
+            generation,
+            instance_id: 1,
+            backend: BackendKind::Cpu,
+            attempt_number: 0,
+            import_request: None,
+            recovery: LiveRecoveryState::None,
+            startup_ready: true,
+            gpu_candidate: None,
+            gpu_attested: false,
+        });
+        runtime.live_archive = Some(archive);
+        runtime.live = Some(LiveCaptureState {
+            request: request.clone(),
+            capture,
+            probe,
+            spectrum_reader: crate::microphone_probe::MicrophoneSpectrumReader::default(),
+            last_meter_sequence: 0,
+            next_spectrum_telemetry: false,
+            telemetry_due_after_event: false,
+            converter: Pcm16Converter::new(16_000, 1).unwrap(),
+            vad: VoiceActivity::new(),
+            staging,
+            frame_pending: Vec::with_capacity(320),
+            inference_cursor: 0,
+            inference_sequence: 1,
+            pending_window: None,
+            replay_until: 0,
+            replay_windows_queued: 0,
+            replay_windows_to_skip: 0,
+            segment_sequence_base: 1,
+            window_sequence_base: 1,
+            recovery: LiveRecoveryState::None,
+            barrier_m: None,
+            inference_admission_closed: false,
+            worker_ready: true,
+            stop_requested: false,
+            stop_enqueued: false,
+            started_at_unix_ms: unix_time_ms(),
+            captured: 0,
+            admitted: 0,
+            speech: 0,
+            confirmed_fragment_end: 0,
+            last_reported_durable: 0,
+            failure: None,
+        });
+
+        let mut saw_counters = false;
+        let mut saw_meter = false;
+        let mut saw_spectrum = false;
+        for block in 0..12 {
+            let samples = (block * 960..(block + 1) * 960)
+                .map(|frame| 0.001 * (std::f32::consts::TAU * 64.0 * frame as f32 / 2048.0).sin())
+                .collect::<Vec<_>>();
+            runtime
+                .live
+                .as_mut()
+                .unwrap()
+                .capture
+                .enqueue_test_block(samples);
+            let mut refresh_events = 0;
+            for _ in 0..4 {
+                match runtime.poll() {
+                    Some(Ok(event)) => {
+                        refresh_events += 1;
+                        saw_counters |= matches!(event, ImportEvent::LiveCounters { .. });
+                        saw_meter |= matches!(event, ImportEvent::MicrophoneMeter(_));
+                        saw_spectrum |= matches!(event, ImportEvent::MicrophoneSpectrum(_));
+                    }
+                    Some(Err(error)) => panic!("legacy runtime poll failed: {error:?}"),
+                    None => {}
+                }
+            }
+            assert!(refresh_events <= 4);
+            thread::sleep(Duration::from_millis(10));
+        }
+        let telemetry_deadline = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < telemetry_deadline && !(saw_meter && saw_spectrum) {
+            runtime
+                .live
+                .as_mut()
+                .unwrap()
+                .capture
+                .enqueue_test_block(vec![0.0; 960]);
+            if let Some(Ok(event)) = runtime.poll() {
+                saw_counters |= matches!(event, ImportEvent::LiveCounters { .. });
+                saw_meter |= matches!(event, ImportEvent::MicrophoneMeter(_));
+                saw_spectrum |= matches!(event, ImportEvent::MicrophoneSpectrum(_));
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(
+            saw_counters,
+            "legacy capture did not publish durable counters"
+        );
+        assert!(saw_meter, "legacy capture did not publish RMS telemetry");
+        assert!(saw_spectrum, "legacy capture did not publish a spectrum");
+
+        let segment = WorkerSegment {
+            job_id,
+            generation,
+            instance_id: 1,
+            segment_id: whisper_core::SegmentId(1),
+            range: whisper_core::SourceRange::new(0, 320, 16_000).unwrap(),
+            text: "legacy confirmed".into(),
+        };
+        while runtime.live.as_ref().unwrap().staging.durable_samples() < 320 {
+            thread::sleep(Duration::from_millis(5));
+        }
+        runtime
+            .live_archive
+            .as_mut()
+            .unwrap()
+            .persist_segment(
+                &segment,
+                runtime.live.as_ref().unwrap().staging.durable_samples(),
+            )
+            .unwrap();
+        let transport = runtime.transport.as_mut().unwrap();
+        transport.inject_event(WorkerEvent::Segment(
+            whisper_core::ipc::WorkerSegmentDto::from(segment.clone()),
+        ));
+        transport.inject_event(WorkerEvent::WindowFinished {
+            job_id,
+            generation,
+            instance_id: 1,
+            sequence: 1,
+            range: segment.range,
+            last_segment_sequence: 1,
+        });
+        transport.inject_event(WorkerEvent::End {
+            job_id,
+            generation,
+            instance_id: 1,
+            last_sequence: 1,
+            last_offset: 320,
+        });
+        let mut saw_text = false;
+        let mut saw_confirmed = false;
+        let mut saw_end = false;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while Instant::now() < deadline && !(saw_text && saw_confirmed && saw_end) {
+            runtime
+                .live
+                .as_mut()
+                .unwrap()
+                .capture
+                .enqueue_test_block(vec![0.0; 960]);
+            let mut refresh_events = 0;
+            for _ in 0..4 {
+                match runtime.poll() {
+                    Some(Ok(event)) => {
+                        refresh_events += 1;
+                        match event {
+                            ImportEvent::LiveProvisional { .. } => {
+                                saw_text = true;
+                                runtime.live_pending_persistence = 0;
+                            }
+                            ImportEvent::WindowFinished { .. } => saw_confirmed = true,
+                            ImportEvent::End { .. } => saw_end = true,
+                            _ => {}
+                        }
+                    }
+                    Some(Err(error)) => panic!("legacy worker event failed: {error:?}"),
+                    None => {}
+                }
+            }
+            assert!(refresh_events <= 4);
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(saw_text, "mock worker confirmed text did not progress");
+        assert!(saw_confirmed, "window confirmation did not progress");
+        assert!(saw_end, "mock worker End did not progress");
+        if let Some(mut live) = runtime.live.take() {
+            live.stop_capture();
+            drop(live);
+        }
+        runtime.transport.take();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn microphone_gain_command_reaches_acquisition_and_finalized_wav_while_worker_is_delayed() {
+        #[derive(Clone)]
+        struct SimulatedPort(Rc<RefCell<Vec<ImportEffect>>>);
+
+        impl ImportIoPort for SimulatedPort {
+            fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
+                self.0.borrow_mut().push(effect);
+                Ok(())
+            }
+
+            fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
+                Ok(None)
+            }
+        }
+
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("target/parakeet-tests/micro-level/t3-gain-e2e")
+            .join(format!(
+                "{}-{}",
+                std::process::id(),
+                NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed)
+            ));
+        fs::create_dir_all(&root).unwrap();
+        let request = LiveRequest {
+            job_id: JobId(((std::process::id() as u128) << 64) | 0xA551),
+            generation: Generation::first(),
+            model_path: "delayed-engine-model".into(),
+            model_sha256: [1; 32],
+            destination: root.to_string_lossy().into_owned(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: whisper_core::MicrophoneChoice::Device("test:mic".into()),
+            microphone_gain_db: 0,
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        let effects = Rc::new(RefCell::new(Vec::new()));
+        let mut app = ImportApplication::new(SimulatedPort(effects.clone()));
+        app.dispatch(AppCommand::StartDirectLiveConfigured {
+            request: request.clone(),
+        })
+        .unwrap();
+        let ImportEffect::StartDirectLive(request) = effects.borrow()[0].clone() else {
+            panic!("direct start command must produce the direct capture effect")
+        };
+
+        let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+        capture.enqueue_test_block(vec![0.25; 16_000]);
+        let direct =
+            crate::direct_live::DirectLive::from_test_capture(request.clone(), capture).unwrap();
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: root.join("unused-cpu.exe"),
+                gpu: root.join("unused-gpu.exe"),
+            },
+            Arc::new(PublicationGate::default()),
+        );
+        runtime.direct_live = Some(direct);
+        let direct = runtime.direct_live.as_mut().unwrap();
+        assert!(
+            !direct.test_worker_ready(),
+            "engine remains delayed in this test"
+        );
+        app.dispatch(AppCommand::SetMicrophoneGain {
+            job_id: request.job_id,
+            generation: request.generation,
+            target_identity: "test:mic".into(),
+            expected_revision: 0,
+            gain: whisper_core::GainDb::new(6).unwrap(),
+        })
+        .unwrap();
+        let gain_effect = effects.borrow().last().unwrap().clone();
+        let mut events = VecDeque::new();
+        runtime.effect(gain_effect, &mut events);
+        assert!(
+            events.is_empty(),
+            "command acceptance is not an acquisition acknowledgement"
+        );
+        runtime
+            .direct_live
+            .as_mut()
+            .unwrap()
+            .pump_capture()
+            .unwrap();
+        assert!(
+            matches!(
+                runtime.direct_live.as_mut().unwrap().poll().unwrap(),
+                Some(ImportEvent::MicrophoneGainApplied {
+                    gain_db: 0,
+                    gain_revision: 0,
+                    first_frame: 0,
+                    ..
+                })
+            ),
+            "pre-command backlog acknowledges only its old revision"
+        );
+        assert!(matches!(
+            runtime.direct_live.as_mut().unwrap().poll().unwrap(),
+            Some(ImportEvent::DirectCaptureActive { .. })
+        ));
+        runtime
+            .direct_live
+            .as_mut()
+            .unwrap()
+            .enqueue_test_capture_block(vec![0.25; 16_000]);
+        runtime
+            .direct_live
+            .as_mut()
+            .unwrap()
+            .pump_capture()
+            .unwrap();
+        assert!(matches!(
+            runtime.direct_live.as_mut().unwrap().poll().unwrap(),
+            Some(ImportEvent::MicrophoneGainApplied {
+                gain_db: 6,
+                gain_revision: 1,
+                first_frame: 16_000,
+                ..
+            })
+        ));
+        runtime.effect(
+            ImportEffect::SetMicrophoneGain {
+                job_id: request.job_id,
+                generation: request.generation,
+                target_identity: "test:other".into(),
+                expected_revision: 1,
+                gain_db: 0,
+            },
+            &mut events,
+        );
+        assert!(matches!(
+            events.pop_front(),
+            Some(ImportEvent::MicrophoneGainRejected { target_identity, .. })
+                if target_identity == "test:other"
+        ));
+        assert!(
+            runtime.direct_live.is_some(),
+            "gain rejection must preserve the capture owner"
+        );
+        app.dispatch(AppCommand::Stop {
+            job_id: request.job_id,
+            generation: request.generation,
+        })
+        .unwrap();
+        let stop_effect = effects.borrow().last().unwrap().clone();
+        runtime.effect(stop_effect, &mut events);
+        assert!(matches!(
+            events.pop_front(),
+            Some(ImportEvent::LiveFinalizing { .. })
+        ));
+
+        let wav_path = runtime
+            .direct_live
+            .as_mut()
+            .unwrap()
+            .finish_test_wav()
+            .unwrap();
+        let bytes = fs::read(&wav_path).unwrap();
+        assert_eq!(
+            u32::from_le_bytes(bytes[40..44].try_into().unwrap()),
+            64_000
+        );
+        let pcm: Vec<i16> = bytes[44..]
+            .chunks_exact(2)
+            .map(|pair| i16::from_le_bytes([pair[0], pair[1]]))
+            .collect();
+        assert_eq!(pcm.len(), 32_000);
+        assert!(pcm[320..15_680].iter().all(|sample| *sample == 8_192));
+        assert!(
+            pcm[16_320..31_680]
+                .iter()
+                .all(|sample| (16_300..=16_400).contains(sample))
+        );
+        fs::remove_file(wav_path).unwrap();
+        fs::remove_dir(root).unwrap();
+    }
+
+    #[test]
+    fn stopping_before_the_first_gain_revision_block_emits_no_applied_acknowledgement() {
+        let capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+        let (mut test, identity) =
+            MicrophoneTestCapture::from_capture(JobId(904), Generation::first(), capture).unwrap();
+        let accepted = test
+            .set_gain(&identity, 0, whisper_core::GainDb::new(6).unwrap())
+            .unwrap();
+        assert_eq!(accepted.revision, 1);
+        assert!(
+            test.pump().unwrap().is_none(),
+            "no captured block means no applied event"
+        );
+        assert!(matches!(
+            test.stop(),
+            ImportEvent::MicrophoneTestStopped {
+                job_id: JobId(904),
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn microphone_test_capture_owns_only_capture_conversion_and_probe_until_stop() {
+        let mut capture =
+            crate::capture::CaptureStream::empty_test_capture(48_000, 1, "wasapi:test-device");
+        let (mut test, identity) =
+            MicrophoneTestCapture::from_capture(JobId(904), Generation::first(), capture).unwrap();
+        assert_eq!(identity, "wasapi:test-device");
+
+        let mut observed_meter = None;
+        let mut observed_spectrum = None;
+        let deadline = Instant::now() + Duration::from_secs(2);
+        for _ in 0..5 {
+            let processed_before = test.probe.processed_chunks();
+            test.capture.enqueue_test_block(vec![0.25; 960]);
+            if let Some(event) = test.pump().unwrap() {
+                match event {
+                    ImportEvent::MicrophoneMeter(meter) => observed_meter = Some(meter),
+                    ImportEvent::MicrophoneSpectrum(update) => observed_spectrum = Some(update),
+                    _ => {}
+                }
+            }
+            while test.probe.processed_chunks() == processed_before && Instant::now() < deadline {
+                std::thread::yield_now();
+            }
+            if let Some(event) = test.pump().unwrap() {
+                match event {
+                    ImportEvent::MicrophoneMeter(meter) => observed_meter = Some(meter),
+                    ImportEvent::MicrophoneSpectrum(update) => observed_spectrum = Some(update),
+                    _ => {}
+                }
+            }
+            std::thread::yield_now();
+        }
+        while (observed_meter.is_none() || observed_spectrum.is_none()) && Instant::now() < deadline
+        {
+            if let Some(event) = test.pump().unwrap() {
+                match event {
+                    ImportEvent::MicrophoneMeter(meter) => observed_meter = Some(meter),
+                    ImportEvent::MicrophoneSpectrum(update) => observed_spectrum = Some(update),
+                    _ => {}
+                }
+            }
+            std::thread::yield_now();
+        }
+        let meter = observed_meter.expect("probe reports captured audio");
+        assert_eq!(meter.source_identity, identity);
+        assert_eq!(meter.job_id, JobId(904));
+        assert_eq!(
+            meter.pre_gain.status,
+            whisper_core::microphone_level::MeasurementStatus::Signal
+        );
+        let whisper_core::microphone_level::MicrophoneSpectrumUpdate::Available(spectrum) =
+            observed_spectrum.expect("microphone test publishes a spectrum during acquisition")
+        else {
+            panic!("expected a current microphone spectrum")
+        };
+        assert_eq!(spectrum.source_identity, identity);
+        assert_eq!(spectrum.pre_gain.len(), 1025);
+
+        let applied = test
+            .set_gain(
+                &identity,
+                0,
+                whisper_core::microphone_level::GainDb::new(6).unwrap(),
+            )
+            .unwrap();
+        assert_eq!(applied.gain.value(), 6);
+        assert_eq!(applied.revision, 1);
+
+        assert!(matches!(
+            test.stop(),
+            ImportEvent::MicrophoneTestStopped {
+                job_id: JobId(904),
+                ..
+            }
+        ));
+    }
 
     fn automatic_final_test_root(label: &str) -> PathBuf {
         PathBuf::from(std::env::var_os("CARGO_TARGET_DIR").expect("guarded target dir")).join(
@@ -8573,6 +9519,7 @@ mod tests {
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
             microphone: Default::default(),
+            microphone_gain_db: 0,
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute: ComputeChoice::Gpu,
@@ -10879,6 +11826,7 @@ fn main() {
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
             microphone: Default::default(),
+            microphone_gain_db: 0,
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute: ComputeChoice::Auto,
@@ -10946,6 +11894,7 @@ fn main() {
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
             microphone: Default::default(),
+            microphone_gain_db: 0,
             config: JobConfig {
                 language: LanguageChoice::Automatic,
                 compute: ComputeChoice::Gpu,
@@ -11455,6 +12404,7 @@ fn main() {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -11628,6 +12578,7 @@ fn main() {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -11723,6 +12674,7 @@ fn main() {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -11767,6 +12719,7 @@ fn main() {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -11827,6 +12780,7 @@ fn main() {
                 group_offset_samples: 0,
                 auto_stop_after_speech_samples: None,
                 microphone: Default::default(),
+                microphone_gain_db: 0,
                 config: JobConfig {
                     language: LanguageChoice::Automatic,
                     compute: ComputeChoice::Cpu,
@@ -12911,6 +13865,7 @@ fn main() {
             group_offset_samples: 0,
             auto_stop_after_speech_samples: None,
             microphone: whisper_core::microphone::MicrophoneChoice::WindowsDefault,
+            microphone_gain_db: 0,
             config: request.config.clone(),
         };
         runtime.effect(ImportEffect::StartLive(live.clone()), &mut events);

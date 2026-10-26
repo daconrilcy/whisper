@@ -317,6 +317,10 @@ fn write_settings(path: &Path, revision: u64, paths: &StoredPaths) -> Result<(),
         "gpu_device_id".into(),
         serde_json::json!(paths.gpu_device_id),
     );
+    object.insert(
+        "microphone_gains_db".into(),
+        serde_json::json!(paths.microphone_gains_db),
+    );
     write_settings_value(path, revision, &value)
 }
 
@@ -474,4 +478,68 @@ fn write_settings_value(
         let _ = fs::remove_file(temporary);
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{cell::RefCell, rc::Rc};
+    use whisper_core::path_settings::{PathDefaults, PathPort, PathSettingsApp};
+
+    #[derive(Clone)]
+    struct MemoryPathPort(Rc<RefCell<Option<StoredPaths>>>);
+
+    impl PathPort for MemoryPathPort {
+        fn load(&self) -> Result<Option<StoredPaths>, String> {
+            Ok(self.0.borrow().clone())
+        }
+        fn save(&mut self, _revision: u64, paths: StoredPaths) -> Result<(), String> {
+            *self.0.borrow_mut() = Some(paths);
+            Ok(())
+        }
+        fn pick(&mut self, _field: PathField, _directory: &Path) -> Option<PathBuf> {
+            None
+        }
+        fn exists(&self, _path: &Path, _field: PathField) -> bool {
+            true
+        }
+        fn has_pending_save(&self) -> bool {
+            false
+        }
+        fn poll_save_acknowledgement(&mut self) -> Option<SaveAcknowledgement> {
+            None
+        }
+    }
+
+    #[test]
+    fn malformed_json_gain_isolated_while_valid_settings_and_other_gain_restore() {
+        let json = r#"{"version":2,"audio_directory":"audio","model_path":"model","destination":"output","microphone_id":"wasapi:preferred","gpu_device_id":"gpu:preferred","microphone_gains_db":{"wasapi:bad":"bad","wasapi:good":7}}"#;
+        let saved: StoredPaths = serde_json::from_str(json).unwrap();
+        let state = Rc::new(RefCell::new(Some(saved)));
+        let good = whisper_core::microphone_level::MicrophoneIdentity::new("wasapi:good").unwrap();
+        let mut app = PathSettingsApp::new(
+            PathDefaults {
+                audio_directory: "audio-default".into(),
+                model_path: "model-default".into(),
+                destination: "output-default".into(),
+            },
+            Box::new(MemoryPathPort(state.clone())),
+        );
+        assert_eq!(app.model, "model");
+        assert_eq!(app.destination, "output");
+        assert_eq!(
+            app.microphone_preference(),
+            whisper_core::microphone::MicrophoneChoice::Device("wasapi:preferred".into())
+        );
+        assert_eq!(app.microphone_gain(&good).value(), 7);
+        assert!(app.take_startup_notice().unwrap().contains("neutralisé"));
+        app.set_gpu_preference(Some("gpu:changed".into()));
+        let persisted = state.borrow().clone().unwrap();
+        assert_eq!(persisted.microphone_id.as_deref(), Some("wasapi:preferred"));
+        assert_eq!(persisted.gpu_device_id.as_deref(), Some("gpu:changed"));
+        assert_eq!(
+            persisted.microphone_gains_db,
+            std::collections::BTreeMap::from([("wasapi:good".into(), 7)])
+        );
+    }
 }
