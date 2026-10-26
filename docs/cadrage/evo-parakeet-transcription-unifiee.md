@@ -1,12 +1,12 @@
-Avancée : cadrage complet intégré ; correction de l'équité d'ordonnancement soumise à re-revue.
-Blocage : DESIGN-PU-R1 reste ouvert jusqu'à vérification par le reviewer indépendant.
-Décision : texte unique révisable pendant la capture, puis résultat final automatique ; aucune implémentation autorisée.
+Avancée : cadrage complet versionné ; revue indépendante CLEAN après un cycle de correction.
+Blocage : aucun constat REQUIRED ouvert ; mesures produit et seuils de délai restent à établir.
+Décision : DESIGN READY pour acceptation utilisateur ; planification et implémentation restent distinctes.
 
 # Parakeet — transcription unifiée au micro et à l'import
 
 ## 1. Identité, autorisation et sources
 
-- ID : D-PARA-UNIFIED-01 ; version de travail : v0.2 ; statut : DRAFT — re-revue en attente.
+- ID : D-PARA-UNIFIED-01 ; version : v0.2 ; statut : DESIGN READY pour acceptation utilisateur.
 - Date : 26 octobre 2026. Dépôt : `C:\dev\whisper` ; branche : `evo-startup-perf`.
 - Base produit inspectée : `a483e176759fcd2f2340f221470fe09f20ec8545`.
 - Auteur documentaire autorisé : session Codex principale ; spécialistes en lecture seule, contributions attribuées ci-dessous.
@@ -88,8 +88,8 @@ Question : un seul fichier `.wav` passant à RF64 si nécessaire, avec compatibi
 | 5 — Domaine, états et invariants | rust_domain_architect | DOMAIN-PU v2 intégré |
 | 6 — Architecture, contrats, dépendances et preuves | rust_architect | ARCH-PU v2 intégré |
 | 7 — Questions et traçabilité transversale | sources utilisateur et contributions attribuées | Décisions versionnées, couverture sections 4–6 |
-| 8 — Readiness et suite | session principale, sur verdict du reviewer | PENDING REVIEW |
-| Compte rendu de revue séparé | rust_design_reviewer | FINDINGS initial ; re-revue en attente |
+| 8 — Readiness et suite | session principale, sur verdict du reviewer | DESIGN READY pour acceptation utilisateur |
+| Compte rendu de revue séparé | rust_design_reviewer | CLEAN sur 42c8c16d ; R1 et A1 CLOSED |
 
 ## 3. Brief produit
 
@@ -453,7 +453,9 @@ CAP-PU-01 à 10 → REQ-PU/UC-PU/AC-PU-01 à 10 : couverture bijective en §4 ; 
 
 ## 8. Readiness
 
-DESIGN DRAFT — contributions PRODUCT-PU v1, REQUIREMENTS-PU v2, DOMAIN-PU v2 et ARCH-PU v2 intégrées. Revue initiale FINDINGS sur `bb308b58` : DESIGN-PU-R1 ouvert, amendement soumis au même reviewer ; la session principale ne ferme aucun constat. Acceptation utilisateur du design, planification et implémentation restent distinctes.
+**DESIGN READY pour acceptation utilisateur** — contributions PRODUCT-PU v1, REQUIREMENTS-PU v2, DOMAIN-PU v2 et ARCH-PU v2 intégrées. Revue initiale FINDINGS sur `bb308b58`, puis re-revue **CLEAN** par le même reviewer indépendant sur le candidat `42c8c16d379a0acb9ea91416fbd0eb5a587a0270`. Le reviewer a fermé DESIGN-PU-R1 et DESIGN-PU-A1 après un cycle de correction ; aucun REQUIRED ouvert. Voir `revue-parakeet-transcription-unifiee.md`.
+
+La clôture documentaire ne modifie que les métadonnées et consigne ce verdict, comme expressément permis par le reviewer. Aucun changement technique après la re-revue. Q-PU-03 et Q-RQ-01 restent ouverts avant les lots/validations concernés ; performances, raccords, ressources et recette Windows restent NOT RUN. Acceptation utilisateur du design, planification et implémentation restent distinctes.
 
 | Rubrique de readiness | Applicabilité et éléments soumis à la revue |
 | --- | --- |

@@ -1,6 +1,6 @@
-Avancée : revue indépendante initiale du cadrage terminée sur bb308b58.
-Blocage : DESIGN-PU-R1 ouvert ; équité d'ordonnancement à corriger.
-Décision : retour à l'architecte puis au même reviewer avant readiness.
+Avancée : revue indépendante et re-revue terminées après un cycle de correction.
+Blocage : aucun constat REQUIRED ouvert ; R1 et A1 fermés par le reviewer.
+Décision : CLEAN sur 42c8c16d ; design prêt pour acceptation utilisateur.
 
 # Revue du cadrage Parakeet unifié
 
@@ -60,4 +60,19 @@ Le reviewer confirme que les limites historiques citées concordent avec les sou
 
 Cycle de correction 1 : amendement ARCH-PU v2 rendu par `/root/parakeet_architect`, base `bb308b58`, pour R1 et A1. Intégré par l'auteur documentaire : quota P = 1, tour de rôle final A/B, garantie conditionnelle d'un tour en quatre appels maximum, scénario V-PU-EQUITY-01 avec témoin négatif, attente non préemptible explicitée et lien Q-PU-03. L'auteur de la correction ne revendique pas la fermeture. Aucun troisième cycle ne sera ouvert ; maximum deux cycles revue/correction sur ce livrable.
 
-Re-revue : PENDING. Le reviewer seul fermera les constats et déclarera CLEAN. Aucun verdict n'accepte le design au nom de l'utilisateur ni n'autorise la planification, le code ou le push.
+### Re-revue — VERDICT : CLEAN
+
+Même reviewer indépendant, sans participation à la correction. Candidat vérifié : `D-PARA-UNIFIED-01 v0.2`, Git `42c8c16d379a0acb9ea91416fbd0eb5a587a0270`. Revue ciblée du diff `bb308b58..42c8c16d` et des contrats environnants ; source et empreinte transitoire inchangées avant/après ; contrôle des espaces Git réussi. Aucun fichier modifié ni test/binaire exécuté par le reviewer.
+
+| ID | Statut prononcé par le reviewer | Preuve de fermeture |
+| --- | --- | --- |
+| DESIGN-PU-R1 | CLOSED | DEC-T-PU-05 v2 impose au plus un aperçu entre deux appels finaux éligibles et des tours alternés A/B. Nouveaux aperçus sans réinitialisation du quota/ordre. Préparation dans le tour réservé, échec explicite. Avec deux sessions, la borne de quatre appels est cohérente sous les hypothèses de terminaison déclarées. |
+| DESIGN-PU-A1 | CLOSED — conseil intégré | Limite de préemption et Q-PU-03 distinguent durée audio, exécution et attente de l'aperçu ; aucun délai utilisateur déduit de la borne d'appels. |
+
+V-PU-EQUITY-01 couvre charge d'aperçus continue, alternance A/B, arrivée défavorable d'une session, identités, couverture, libération d'admission et fermeture. Son témoin négatif doit détecter l'ancienne priorité stricte. Il reste PRODUCT_VALIDATION — NOT RUN.
+
+Aucune régression documentaire identifiée dans le diff. Les conclusions de couverture de la première revue restent valides ; la rubrique concurrence passe à PASS documentaire.
+
+Conclusion du reviewer : **DESIGN READY pour acceptation utilisateur**, avec Q-PU-03/Q-RQ-01 ouverts avant les lots ou validations concernés. Performances, raccords réels, ressources et essais Windows restent NOT RUN.
+
+Le reviewer permet à la session principale de finaliser uniquement les métadonnées d'en-tête, de carte des contenus et de readiness, ainsi que ce compte rendu. Aucun changement technique supplémentaire n'est couvert par cette clôture. Aucun verdict n'accepte le design au nom de l'utilisateur ni n'autorise la planification, le code ou le push.
