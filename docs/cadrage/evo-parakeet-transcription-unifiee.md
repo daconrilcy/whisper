@@ -78,7 +78,7 @@ Interprétation annoncée dans cette session : absence de plafond de durée impo
 | Section | Propriétaire du contenu | État |
 | --- | --- | --- |
 | 3 — Brief, capacités et décisions produit | rust_product_framer | PRODUCT-PU v1 intégré |
-| 4 — Exigences, cas d'usage, acceptation et risques fonctionnels | rust_requirements_analyst | PENDING |
+| 4 — Exigences, cas d'usage, acceptation et risques fonctionnels | rust_requirements_analyst | REQUIREMENTS-PU v2 intégré |
 | 5 — Domaine, états et invariants | rust_domain_architect | PENDING |
 | 6 — Architecture, contrats, dépendances et preuves | rust_architect | PENDING |
 | 7 — Questions et traçabilité transversale | sources utilisateur et contributions attribuées | PENDING |
@@ -142,7 +142,79 @@ Les réglages existants restent utilisables ; **de nouveaux réglages** n'entren
 
 ## 4. Exigences et acceptation
 
-Contribution attendue.
+Contribution `REQUIREMENTS-PU v2`, auteur `/root/parakeet_requirements` (`rust_requirements_analyst`), remplace v1 avant handoff. Base : `db220d8b`, produit `a483e176` ; sources S-USER-01 à 05, CA-01 à 08 et PRODUCT-PU v1. Sources complémentaires : `evo-micro-direct.md:17–22`, `evo-parakeet.md:325–328`, `evo-parakeet-micro-progressif.md:49–54`, bilan lot 3 `:95–99`, `ports.rs:246–300`, `application.rs:475–496`, `ui.rs:1676–1723`. Statut DRAFT ; aucun fichier ni test exécuté par le spécialiste. Terminé : exigences, scénarios, états visibles, risques et protocole. Restant : domaine, architecture, faisabilité des ressources, Q-PU-03, revue et acceptation.
+
+### 4.1 Exigences et couverture
+
+Exigences **proposées** à partir des objectifs acceptés et non-régressions. Chaque ligne renvoie aux UC/AC de même numéro en 4.2.
+
+| ID | Exigence | CAP / source / CA initial |
+| --- | --- | --- |
+| REQ-PU-01 | Pendant la capture Parakeet, présenter un texte unique automatiquement révisable, sans catégories confirmé/brouillon ni validation de mots. | CAP-01 ; USER-01/02 ; CA-01 |
+| REQ-PU-02 | Après arrêt normal, finaliser automatiquement tout l'audio admis ; remplacer le texte en cours par le résultat final. L'absence de confirmation directe n'est pas un motif d'omission finale. | CAP-02 ; USER-01/02 ; CA-01/02 |
+| REQ-PU-03 | Importer WAV/MP3 sans préparation d'extraits ou confirmation de mots ; préserver la source et harmoniser progression, résultat et erreurs avec le micro. | CAP-03 ; USER-01 ; CA-03 |
+| REQ-PU-04 | Ne fixer aucun plafond applicatif de durée pour fichiers et micro ; effectuer découpage, raccords et temps globaux automatiquement. La durée ne doit pas imposer le chargement intégral de l'audio ou une croissance non bornée des ressources de travail. Limites physiques de disque, ressources et formats : détecter, terminer proprement et signaler les ressources préservées. Les mécanismes relèvent de l'architecture. | CAP-04 ; USER-04/05 ; CA-02/03/07/08 |
+| REQ-PU-05 | Associer résultat visible, TXT/SRT et audio à la même opération ; signaler une sortie absente ou invalide. Un résultat complet exige les sorties prévues disponibles et la couverture complète du traitement. | CAP-05 ; qualification ; CA-04 |
+| REQ-PU-06 | Distinguer incident de capture, portion non traitée et échec d'export ; préserver les ressources récupérables et proposer une action utile. Aucune lacune masquée par un faux mot ou succès complet. | CAP-06 ; qualification ; CA-02/05 |
+| REQ-PU-07 | Corréler résultats et états à leur capture : une fin tardive de A ne modifie ni texte, ni audio, ni chemins de B. | CAP-07 ; qualification ; CA-06 |
+| REQ-PU-08 | Préserver CPU/GPU/Auto et les règles de repli existantes, source/gain micro et Turbo ; aucune substitution de modèle ou micro introduite. | CAP-08 ; AGENTS ; CA-08 |
+| REQ-PU-09 | Préserver les fichiers existants tant qu'un remplacement n'est pas explicitement autorisé ; cette protection reste distincte des confirmations de mots. | CAP-09 ; parcours existant ; CA-03/04/05 |
+| REQ-PU-10 | Rendre attente, arrêt, annulation et fermeture observables ; la fermeture normale attend l'issue réelle des finalisations acceptées. Aucun faux « annulé » après engagement ni terminaison fondée seulement sur l'âge. | CAP-10 ; contrats existants ; CA-05/08 |
+
+### 4.2 Cas d'usage et acceptation
+
+**Validation future NOT RUN.** Fixtures et injections à préparer dans un lot autorisé ; aucune expérience finie ne prouve une durée infinie.
+
+| UC / REQ | Scénario, données et action | AC et méthode de constat |
+| --- | --- | --- |
+| UC-PU-01 / REQ-01 | Enregistrer des extraits FR/EN avec pauses, hésitation et parole continue. | **AC-PU-01 :** un texte principal unique évolue avant arrêt, sans validation de mots ni sélection de version. Observer dans la fenêtre et corréler les mises à jour à la capture. |
+| UC-PU-02 / REQ-02 | Prononcer une phrase terminale puis arrêter ; inclure un passage non stabilisé en direct. | **AC-PU-02 :** résultat final automatique ; tous les intervalles admis ont été soumis au traitement prévu ou un défaut explicite est présent. Vérifier couverture, dernière phrase et sorties ; couverture n'équivaut pas à exactitude lexicale. |
+| UC-PU-03 / REQ-03 | Importer WAV puis MP3 ; essayer aussi une source illisible/non supportée. | **AC-PU-03 :** résultat et sorties attendues au nominal ; refus motivé sinon ; source conservée, aucune préparation manuelle. Recette Windows et comparaison de l'état source. |
+| UC-PU-04 / REQ-04 | Fichiers puis captures de durées croissantes, dont plusieurs >30 min, avec parole et silences repérés aux raccords et en fin ; exercer séparément les limites de ressources/format. | **AC-PU-04 :** aucun refus/arrêt fondé sur un plafond en minutes/heures ; aucune portion sautée ou duplication introduite par l'assemblage ; temps globaux cohérents. Inspection structurelle du traitement et mesures de mémoire/chargements, plus contrôle des intervalles et écoute des raccords. Aux limites physiques : issue explicite et ressources récupérables préservées. Ces essais finis ne garantissent pas l'infini. |
+| UC-PU-05 / REQ-05 | Produire un résultat puis rendre TXT ou SRT impossible/invalide. | **AC-PU-05 :** écran et fichiers valides correspondent à la même opération ; sortie défectueuse identifiée ; aucun succès complet pour un paquet incomplet. Comparer identités, contenu, chemins et temps SRT ; aucun temps inventé. |
+| UC-PU-06 / REQ-06 | Exercices distincts : panne moteur, saturation capture, écriture refusée, erreur de finalisation. | **AC-PU-06 :** cause, frontière audio connue, ressources et action possible visibles ; aucun trou silencieux. Vérifier événements/fichiers, puis relance explicite depuis source conservée lorsque possible ; aucune reprise après panne générale déduite. |
+| UC-PU-07 / REQ-07 | Faire terminer A pendant B ; livrer aussi un résultat périmé. | **AC-PU-07 :** seule A se met à jour ; B garde texte/configuration/chemins ; périmé ignoré. Contrôle déterministe des identités puis recette avec chevauchement réellement observé. |
+| UC-PU-08 / REQ-08 | CPU, GPU manuel, Auto ; micro explicite/défaut, gain non nul ; Turbo témoin. | **AC-PU-08 :** choix/règles existants conservés, moteur effectif identifiable lorsqu'il est prouvé, aucun repli ou changement de source interdit. Vérifier configuration, événements et sorties ; branches natives non exercées restent NOT RUN. |
+| UC-PU-09 / REQ-09 | Réimporter une source déjà transcrite ; refuser puis autoriser le remplacement. | **AC-PU-09 :** refus préserve les sorties ; accord ne remplace que le résultat désigné ; conflit/échec explicite. Comparer fichiers et identité de publication. |
+| UC-PU-10 / REQ-10 | Annuler avant/après engagement ; fermer pendant capture ou finalisation A/B ; répéter Arrêter. | **AC-PU-10 :** demande et issue distinguées, arrêt idempotent, fermeture attendant l'issue réelle des finalisations acceptées ; aucun faux succès/annulation. Contrôler transitions et fenêtre ; aucune fermeture instantanée promise. |
+
+### 4.3 États visibles
+
+Présentation proposée : **prêt**, **préparation**, **capture**, **transcription**, **finalisation**, **résultat disponible**, **annulation demandée**, **fermeture en attente**, **incident avec ressources conservées**. Le domaine définit ses états séparément.
+
+L'attente montre activité et dernier progrès observés, sans pourcentage ni temps restant inventé. Un silence du moteur ne prouve pas son blocage. La stagnation n'impose pas d'arrêt par l'âge seul.
+
+En fermeture normale, capture arrêtée et finalisation achevée restent distinctes. L'UI observée fonde principalement `busy` sur le job actif (`ui.rs:1676–1723`) : attendre toutes les finalisations n'est **pas une garantie actuellement démontrée**.
+
+### 4.4 Mesures et questions
+
+Sur les ressources Windows CPU/GPU retenues, utiliser extraits FR/EN courts, raccords annotés et durées longues croissantes :
+
+- **Premier texte utile :** premier échantillon admis → premier texte non vide présenté ; préparation moteur et début de capture relevés séparément.
+- **Retard :** frontière audio admise moins dernière frontière source effectivement traitée ; ne pas l'inférer d'un mot mal horodaté.
+- **Après arrêt :** clic → capture drainée, puis → résultat et sorties disponibles.
+- **Absence de progrès :** dernier événement, durée silencieuse et activité réelle du worker ; aucun seuil accepté ici.
+- **Interruption normale :** comparer plages reçues/admises, WAV final et traitement ; sous contention, examiner les pertes périphérique. Un WAV cohérent ne prouve pas seul la continuité physique.
+- **Longue durée :** inspecter allocations/lectures et suivre mémoire, temporaires et stockage ; vérifier que le volume total n'impose pas de chargement intégral. Architecture responsable des bornes techniques.
+- **Qualité :** référence humaine distinguant erreurs ASR, portions jamais traitées, doublons de raccord et temps invalides.
+
+**Q-PU-02 — CLOSED sur le besoin :** S-USER-05 répond « sans limite. » Aucun plafond applicatif de durée. Faisabilité et gestion des limites physiques : architecte, avant readiness de l'architecture ; aucune nouvelle question de durée à l'utilisateur.
+
+**Q-PU-03 — DETAIL, STRUCTURING si elle conditionne l'architecture :** seuils de premier texte, retard et attente ; analyste définit les métriques, architecte instruit les compromis, utilisateur tranche avant validation dépendante. Aucun ancien seuil du confirmé n'est transposé au texte révisable.
+
+**Q-RQ-01 — DETAIL :** seuil d'alerte d'absence de progrès ; recommandation informer sans arrêt automatique. Owner analyste/UI ; autorité utilisateur si effet sur le parcours ; avant lot UI, REQ-10/AC-10.
+
+### 4.5 Risques et exclusions
+
+| ID | Risque / critères | Traitement |
+| --- | --- | --- |
+| RISK-F-PU-01 | Faux résultat complet avec audio non traité — AC-02/04/05. | Conditions de complétude et diagnostic. |
+| RISK-F-PU-02 | Raccord perdu/doublé, temps dérivés ou mémoire croissante — AC-04/05. | Contrats bornés, inspection et contrôles aux raccords. |
+| RISK-F-PU-03 | Contention/limite disque-format causant interruption silencieuse — AC-04/06/07/08. | Frontières d'admission, fin propre et incident. |
+| RISK-F-PU-04 | Fermeture/annulation abandonnant une finalisation — AC-10. | Issue réelle et propriété des opérations. |
+| RISK-F-PU-05 | Résultat tardif/remplacement altérant une autre capture — AC-07/09. | Identités et protection des publications. |
+
+Aucun GAP CAP-PU-01 à 10. Différés de §3.2 inchangés : nouvelles fonctions d'installation, tray, bibliothèque durable et reprise après panne exigent une mission distincte ; aucune REQ ajoutée ici. Seuils ouverts et preuves futures ne sont pas présentés comme acceptés ou réussis.
 
 ## 5. Domaine
 
