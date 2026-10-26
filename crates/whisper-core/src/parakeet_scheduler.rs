@@ -620,7 +620,7 @@ mod tests {
             mutant.sessions.insert(
                 session(job_id),
                 SessionState {
-                    admission_order: job_id,
+                    admission_order: u64::try_from(job_id).expect("witness order fits u64"),
                     next_attempt: 0,
                     incarnation: 1,
                     final_ready: None,

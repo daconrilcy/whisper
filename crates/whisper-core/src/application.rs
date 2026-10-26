@@ -1579,7 +1579,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 {
                     return Ok(());
                 }
-                self.view.microphone_source_identity = Some(target_identity);
+                self.view.microphone_source_identity = Some(target_identity.clone());
                 self.view.microphone_gain_db = gain_db;
                 self.view.microphone_gain_revision = gain_revision;
                 self.view.microphone_gain_applied_first_frame = Some(first_frame);
