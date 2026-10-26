@@ -86,8 +86,8 @@ Question : un seul fichier `.wav` passant à RF64 si nécessaire, avec compatibi
 | 3 — Brief, capacités et décisions produit | rust_product_framer | PRODUCT-PU v1 intégré |
 | 4 — Exigences, cas d'usage, acceptation et risques fonctionnels | rust_requirements_analyst | REQUIREMENTS-PU v2 intégré |
 | 5 — Domaine, états et invariants | rust_domain_architect | DOMAIN-PU v2 intégré |
-| 6 — Architecture, contrats, dépendances et preuves | rust_architect | PENDING |
-| 7 — Questions et traçabilité transversale | sources utilisateur et contributions attribuées | PENDING |
+| 6 — Architecture, contrats, dépendances et preuves | rust_architect | ARCH-PU v1 intégré |
+| 7 — Questions et traçabilité transversale | sources utilisateur et contributions attribuées | Décisions versionnées, couverture sections 4–6 |
 | 8 — Readiness et suite | session principale, sur verdict du reviewer | PENDING REVIEW |
 | Compte rendu de revue séparé | rust_design_reviewer | NOT RUN |
 
@@ -305,7 +305,96 @@ Les seuils de délai restent Q-PU-03 ; aucun seuil n'est ajouté. Après arrêt 
 
 ## 6. Architecture et preuves
 
-Contribution attendue.
+Contribution `ARCH-PU v1`, auteur `/root/parakeet_architect` (`rust_architect`). Domaine DOMAIN-PU v2 relu au Git `133f45f6`, registre `89467aa3`, produit `a483e176` ; S-USER-01 à 06 et REQUIREMENTS-PU v2. Sources : fichiers cités, Cargo.toml/Cargo.lock, source locale Symphonia 0.5.5, règles et contrats centraux. Terminé : inventaire, décisions techniques proposées, contrats, ressources, couverture et classification des preuves. Restant : revue et acceptation du design ; plan/code non commandés. Aucun fichier modifié ni commande Cargo/exécution produit par le spécialiste.
+
+### 6.1 Contraintes constatées et portée du changement
+
+Lever seulement le refus des durées longues serait insuffisant :
+
+- `worker_ipc.rs:4626–4640` et `archive.rs:2620–2646` refusent le profil long en production.
+- L'ancien parcours VAD accumule tout le PCM (`worker_ipc.rs:5983`), puis toute la liste des fenêtres (`:5994`). Il ne fournit donc pas une architecture de mémoire bornée.
+- `WavOutput` refuse la limite RIFF32 (`direct_live.rs:1341`), lit à offset fixe 44 (`:1366`) et finalise un en-tête 32 bits. S-USER-06 permet de résoudre cette contrainte par rotation de WAV classiques.
+- `application.rs:873` accumule le texte ; les vues contiennent des vecteurs de segments/lacunes (`:1536–1546`) ; `ui.rs:922/984` lit des TXT entiers.
+- Le worker Parakeet charge une fois le moteur puis accepte des commandes successives (`main.rs:70–97`). Sa normalisation exige des mots et temps valides (`native_engine.rs:76–111`). La limite d'une requête demeure 30 minutes ; elle ne doit plus constituer une limite de session.
+- Le planificateur actuel utilise des centres 60/90/120 secondes et des marges de 200 ms, mais peut refuser une longue parole sans silence (`parakeet_windows.rs:7–12,159–218`).
+
+**DEC-T-PU-01 — proposé :** une stratégie applicative `bounded-windows-v1`, commune à l'import et à la finalisation micro, soumet des clips RIFF courts au worker existant. Elle ne se présente pas comme une qualification acquise du traitement long. Les identités d'archives/caches incluent cette stratégie ; aucune reprise d'un ancien résultat `import-single-pass` comme s'il avait été produit par la nouvelle stratégie.
+
+### 6.2 Composants et dépendances
+
+| ID / responsabilité | Implantation cible | Dépendances autorisées et contrôles futurs |
+| --- | --- | --- |
+| ARCH-PU-01 — modèles et règles | `whisper-core/domain.rs`, types purs spécifiques si séparation utile | `std`, types purs ; aucune IO/UI/adaptateur. Contrôler imports et API publiques. |
+| ARCH-PU-02 — orchestration de session | `whisper-core/application.rs`, contrats `ports.rs` | Domaine et ports possédés par l'application ; aucune implémentation concrète. |
+| ARCH-PU-03 — source audio logique | adaptateurs de capture, stockage et décodage Parakeet | Core, `std::fs/io`, Symphonia et convertisseur existants ; hors thread UI. |
+| ARCH-PU-04 — ordonnanceur/reconnaissance | `worker_ipc.rs`, `parakeet_live.rs`, `parakeet_import.rs`, règles pures de fenêtres | Core et worker isolé ; aucun appel natif dans le core ou l'UI. |
+| ARCH-PU-05 — document et publication | stockage Parakeet et `archive.rs` | Core, IO de fichiers ; réutiliser réservations, identités et protections de remplacement. |
+| ARCH-PU-06 — présentation paginée | `whisper-desktop/src/ui.rs` | API de l'application et types purs ; lecture du document via port, sans `read_to_string` sur le nouveau parcours. |
+| ARCH-PU-07 — assemblage | `whisper-desktop/src/root.rs` et composition existante | Instancie et injecte ; aucune seconde règle métier. |
+
+Les dépendances physiques de `whisper-desktop` incluent les adaptateurs parce que le crate contient aussi la composition. Cela n'autorise pas de nouveaux appels d'infrastructure depuis l'UI. Les imports et lectures directs déjà observés constituent une dette locale ; le nouveau parcours utilise les ports. Pas de refonte globale des autres écrans.
+
+**Stack conservée**, selon Cargo.toml/Cargo.lock : Rust déclaré 1.98.1, édition 2024 ; Symphonia 0.5.5 WAV/PCM/MP3, CPAL 0.18.2, Rubato 0.16.2, rtrb 0.4.0, eframe 0.35.0, serde 1.0.228, serde_json 1.0.145, sha2 0.10.9 et libloading 0.8.9. Les versions de rustc installé et des DLL déployées ne sont pas vérifiées par ce cadrage.
+
+Le worker et ses runtimes CPU/GPU existants restent isolés. Aucun nouveau FFI, `unsafe`, pilote, service ou dépendance native n'est proposé. Les ressources personnelles/Test et leur qualification de livraison restent régies par AGENTS ; aucun paquet n'est construit ici.
+
+### 6.3 Source longue, fenêtres et document
+
+**DEC-T-PU-02 — proposé, réalise S-USER-06 :** source logique en échantillons 16 kHz `u64`, arithmétique contrôlée, et parties WAV classiques de **1 Gio maximum de données PCM**. Cette taille technique laisse une marge sous RIFF32 ; elle ne limite pas la durée totale. Scinder le bloc à la frontière exacte, finaliser la partie, ouvrir la suivante avec création exclusive, puis poursuivre la même chronologie.
+
+Le nom de famille reste celui de la session ; les parties portent un numéro et leurs bornes globales dans l'index produit. Le nommage physique exact doit préserver le cas court et sera fixé avant le lot de stockage. L'index sert à retrouver l'audio, pas à qualifier les agents. Ses enregistrements sont ajoutés et consultés par pages, sans charger toutes les parties.
+
+Un échec de création/écriture/rotation arrête proprement la capture, conserve les parties réellement écrites et expose frontière et incident. Il ne devient ni une rotation réussie ni un arrêt normal causé par la durée.
+
+L'import conserve sa source et utilise la liaison/snapshot existante. Décodage **séquentiel une seule fois**, en blocs bornés, dans un thread d'adaptateur via les dépendances Rust existantes ; ne pas rescanner le fichier depuis le début pour chaque bloc. Le PCM nécessaire à la suite est stocké dans la source logique. Hash et inspection de source restent des parcours streaming ; pas de chargement intégral ni de nouveau hash intégral par fenêtre.
+
+**DEC-T-PU-03 — proposé :** planification incrémentale des fenêtres finales, avec curseur contigu : cible 90 s, recherche d'un silence entre 60 et 120 s, puis **coupe à 120 s si aucun silence admissible**, contexte de 200 ms de chaque côté. Ces paramètres reprennent les valeurs existantes ; le repli sans silence supprime le refus structurel de parole continue. Leur qualité reste à valider.
+
+Un mot doté de temps valides appartient à l'intervalle central contenant son milieu temporel, règle déjà définie par `word_belongs_to_central_range` (`parakeet_windows.rs:262–271`). Temps locaux → globaux par addition contrôlée. Aucun mot n'exige deux reconnaissances concordantes. La qualité aux raccords et les variations des temps restent des risques ASR testables ; une couverture audio complète ne les résout pas.
+
+**DEC-T-PU-04 — proposé :** l'aperçu courant reste court et révisable, fenêtre maximale de 4 s issue du direct existant. Les résultats de fenêtres finales remplacent les portions correspondantes dans le même document. Le traitement final peut avancer pendant la capture ; après arrêt, il traite le reliquat jusqu'à la frontière close. Le budget historique de **30 s de finalisation directe est retiré de cette voie** : il ne doit pas tronquer le résultat.
+
+Le document, ses révisions, les résultats et la couverture sont persistés par enregistrements/pages. Le succès séquentiel avance un préfixe contigu ; à la première plage finale défectueuse, l'opération conserve son résultat partiel et s'arrête avec incident. Pas de liste RAM de tous les mots, fenêtres, échecs ou révisions.
+
+### 6.4 Contrats concrets et ressources
+
+Les ports sont possédés par l'application ; leurs adaptateurs exécutent les effets.
+
+| Port | Entrées / résultat / préconditions | Erreurs, thread, arrêt et durabilité |
+| --- | --- | --- |
+| PORT-PU-01 — Source audio | Identité, bloc/plage globale ; écrit ou lit une plage, retourne frontière réellement écrite et référence de partie. Blocs consécutifs, indices vérifiés. | Callback non bloquant ; writer dédié et tampon capture existant de 100 slots. Saturation = incident de capture. L'arrêt ferme admission puis draine ; l'ack distingue écriture, flush et synchronisation réellement réalisées. |
+| PORT-PU-02 — Décodage import | Source liée, curseur ; produit prochain bloc PCM, au plus 80 000 échantillons, ou EOF réel. | IO/décodage/changement de source explicites ; état de conversion conservé entre blocs. Annulation entre blocs ; source d'origine inchangée. |
+| PORT-PU-03 — Reconnaissance | Session/génération/requête, clip borné, identité moteur/calcul ; retourne texte/mots/temps et intervalle source. | Un appel par worker, hors UI ; aucune interruption native instantanée promise. Temps invalides : résultat final défectueux, audio et texte déjà utilisable conservés, jamais temps inventés. |
+| PORT-PU-04 — Document | Révision ou lecture page avec version attendue ; retourne nouvelle référence ou page bornée. | Révision périmée ignorée ; conflit réel signalé. Disque proportionnel au contenu ; cache UI de pages fixe, événements limités, pas de chaîne complète. |
+| PORT-PU-05 — Publication | Document final, couverture, sorties attendues, autorisation précise de remplacement. | Écriture streaming TXT/SRT vers génération préparée ; contrôles puis engagement de référence. Chaque fichier a son résultat réel. Échec conserve ancienne référence et fichiers récupérables. Pas de transaction atomique présumée entre WAV/TXT/SRT. |
+
+**DEC-T-PU-05 — proposé :** un ordonnanceur applicatif possède les demandes, avec une seule inférence en vol par backend et aucune concurrence GPU libre entre captures. Aux frontières d'appels, l'aperçu actif a priorité ; les travaux finaux progressent selon l'ordre des captures. Le callback et l'écriture audio ne dépendent jamais d'une réponse d'inférence. Un aperçu peut être remplacé dans sa file de capacité un ; le travail final reste référencé sur disque et ne disparaît pas.
+
+Limiter les opérations acceptées à **deux sessions non terminales** : A peut se finaliser pendant la capture B ; après arrêt B, ses plages attendent sans nouvelle liste de tâches RAM. Une nouvelle opération qui dépasserait cette capacité est refusée **avant ouverture du micro**, avec attente expliquée. C'est une limite de concurrence, pas de durée. Garder au plus huit fiches récentes, conformément à la borne actuelle. Résultats/commandes IPC conservent la limite existante de 1 Mio. Les tables worker de tentatives doivent rester limitées aux sessions actives, plutôt que croître à chaque session.
+
+Une annulation avant engagement invalide la génération, attend la fin réelle de l'appel engagé ou son issue de processus, et rejette les retours obsolètes. Après engagement, rendre l'issue réelle. La fermeture normale bloque de nouvelles admissions, arrête la capture, puis attend toutes les obligations A/B. Aucun arrêt sur l'âge seul ni repli CPU après début audio n'est introduit. Les délais de cette attente restent Q-PU-03.
+
+### 6.5 Publication, compatibilité et preuves
+
+**DEC-T-PU-06 — proposé :** un document final et un TXT/SRT logiques par session, temps globaux continus malgré les parties WAV. La référence principale n'est activée qu'après couverture et sorties valides. Une erreur SRT peut laisser un texte utilisable ; le paquet reste incomplet. Les anciens fichiers confirmé/brouillon ne sont ni fusionnés ni réécrits rétroactivement.
+
+Le store de publication actuel fournit réservations et engagement de référence (`archive.rs`, notamment `CURRENT` et index). Son implémentation doit être adaptée aux lectures/écritures streaming, pas réutilisée avec ses vecteurs complets. La cohérence lors d'erreurs normales appartient au périmètre ; reprise après panne et réparation automatique restent différées.
+
+| Preuve / risque | Classe, état et échéance |
+| --- | --- |
+| Réutilisation worker clips successifs et validation bornée | **DESIGN_FEASIBILITY — PASS documentaire**, sources `main.rs:70–97`, `native_engine.rs:12–56`, `parakeet_ipc.rs:3–6`. Ne prouve pas qualité longue. |
+| Rotation RIFF, lecture par plages, agrégation et export streaming | **DESIGN_FEASIBILITY — PASS documentaire sur le mécanisme**, appuyé sur IO/Ranges déjà employés et choix S-USER-06. Nouveau code non exécuté. |
+| RISK-T-PU-01 — trous/doublons/temps aux raccords | **PRODUCT_VALIDATION — NOT RUN**, AC-02/04/05 : parole continue et pauses FR/EN, fins de capture et rotations. |
+| RISK-T-PU-02 — PCM, index, UI ou résultats encore cumulatifs | **PRODUCT_VALIDATION — NOT RUN**, AC-04 : inspection de tous chemins et mesures sur durées croissantes ; mémoire de travail, temporaires et données disque distingués. |
+| RISK-T-PU-03 — contention/saturation/fermeture A/B | **PRODUCT_VALIDATION — NOT RUN**, AC-06/07/10 : issues réelles et chevauchement observé. |
+| RISK-T-PU-04 — erreurs disque, rotation ou publication | **PRODUCT_VALIDATION — NOT RUN**, AC-04/05/06/09 : injections séparées, audio et ancienne référence préservés. |
+| Runtimes personnels/Test, workers, modèles, DLL et backend réel | **DELIVERY_QUALIFICATION — NOT RUN**, avant remise Windows selon AGENTS. |
+
+Aucun SPIKE supplémentaire n'est proposé : le design n'exige ni capacité native nouvelle, ni nouveau conteneur ni nouvelle pile. Les preuves manquantes portent sur le produit à construire. Toute découverte contraire revient à l'architecte et à la revue ; ce classement n'est pas un PASS runtime.
+
+**Couverture bidirectionnelle :** CAP/REQ/UC/AC-01→DOM-05/INV-01→ARCH-02/04/06 ; 02–04→DOM-02/03/04/INV-02/03/05/08→ARCH-03/04 ; 05–06→DOM-06/INV-04/06/07→ARCH-03/05 ; 07–08→DOM-01/03/08/INV-01/04→ARCH-02/04/07 ; 09–10→DOM-07/08/INV-01/07/08→ARCH-02/05. Les risques ci-dessus et AC de §4 couvrent ces responsabilités ; aucun composant ajouté sans capacité associée.
+
+RF64 est écarté par S-USER-06. La recherche primaire du 26 octobre 2026 a confirmé son mécanisme de dépassement RIFF32 dans [EBU Tech 3306-2009, §3.5](https://tech.ebu.ch/docs/tech/tech3306v1_1.pdf) ; elle n'est pas une dépendance ni une preuve exigée de la solution choisie. Aucun railguard nouveau n'est proposé.
 
 ## 7. Questions, décisions et couverture
 
@@ -329,8 +418,23 @@ Registre établi par la session principale à partir des réponses utilisateur e
 
 ### 7.3 Couverture transversale
 
-CAP-PU-01 à 10 → REQ-PU/UC-PU/AC-PU-01 à 10 : couverture bijective en §4 ; domaine et invariants en §5.5. La correspondance architecture, risques et preuves est attendue en §6 avant revue. Les exigences et décisions techniques restent proposées jusqu'à acceptation du design ; les décisions utilisateur DEC-PU-01 à 03 sont déjà acquises et ne sont pas rouvertes.
+CAP-PU-01 à 10 → REQ-PU/UC-PU/AC-PU-01 à 10 : couverture bijective en §4 ; domaine et invariants en §5.5 ; architecture, risques et preuves en §6.5. Les exigences et décisions techniques restent proposées jusqu'à acceptation du design ; les décisions utilisateur DEC-PU-01 à 03 sont déjà acquises et ne sont pas rouvertes.
 
 ## 8. Readiness
 
-DESIGN DRAFT — contributions et revue en attente. Acceptation utilisateur du design, planification et implémentation restent distinctes.
+DESIGN DRAFT — contributions PRODUCT-PU v1, REQUIREMENTS-PU v2, DOMAIN-PU v2 et ARCH-PU v1 intégrées ; revue indépendante en attente. Aucun BLOQUANT déclaré par les auteurs ; seul le reviewer juge les constats du candidat Git. Acceptation utilisateur du design, planification et implémentation restent distinctes.
+
+| Rubrique de readiness | Applicabilité et éléments soumis à la revue |
+| --- | --- |
+| Scope | §§1/3/7, sources et décisions utilisateur, inclusions/exclusions explicites. |
+| Use cases / errors | §4 UC/AC-01 à 10, états visibles, annulation, fermeture et incidents normaux. |
+| Domain | §5 concepts, transitions, préconditions, effets et invariants. |
+| Dependencies | §6.2 matrice par responsabilité, stack existante et contrôles futurs. |
+| Persistence | §§5/6 source multi-WAV, document paginé, publications et compatibilité anciennes sorties ; reprise après panne différée. |
+| Concurrency | §6.4 ordonnanceur, bornes, admission A/B, annulation et fermeture réelles. |
+| Platform | Windows/Rust/CPU-GPU existants, pas de nouvelle capacité native ; qualification livraison NOT RUN. |
+| Acceptance | §4 protocole, scénarios et questions de seuils ouvertes ; tests produit NOT RUN. |
+| Risks | §6.5 faisabilité documentaire distinguée de validation produit et livraison, réserves anciennes non fermées. |
+| Railguard | N/A : aucun nouveau railguard exigé ou activé ; règles AGENTS et frontières centrales analysées. |
+
+Suite autorisable après ce cadrage : acceptation du design, puis mission distincte de planification avec un plan futur de dix tâches maximum lié aux REQ/AC. Aucun plan exécutable ni lot de code n'est produit par cette mission.
