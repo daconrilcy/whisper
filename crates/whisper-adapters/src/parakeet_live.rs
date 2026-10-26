@@ -61,8 +61,18 @@ pub(crate) struct UnifiedCapturePump {
     capture: Option<CaptureStream>,
     converter: Option<Pcm16Converter>,
     writer: Option<CapturePcmWriter>,
+    source_identity: Option<String>,
+    last_acknowledged_gain_revision: Option<u64>,
+    gain_events: std::collections::VecDeque<AppliedCaptureGain>,
     acknowledgements_received: u64,
     closed: Option<Result<(u64, Vec<CaptureWriteAck>), String>>,
+}
+
+pub(crate) struct AppliedCaptureGain {
+    pub(crate) target_identity: String,
+    pub(crate) gain_db: i8,
+    pub(crate) gain_revision: u64,
+    pub(crate) first_frame: u64,
 }
 
 impl UnifiedCapturePump {
@@ -88,6 +98,7 @@ impl UnifiedCapturePump {
         test_part_limit: Option<u64>,
     ) -> Result<Self, String> {
         let converter = Pcm16Converter::new(capture.sample_rate_hz(), capture.channels())?;
+        let source_identity = capture.source_identity().map(str::to_owned);
         let writer = if let Some(part_limit) = test_part_limit {
             #[cfg(test)]
             {
@@ -110,6 +121,9 @@ impl UnifiedCapturePump {
             capture: Some(capture),
             converter: Some(converter),
             writer: Some(writer),
+            source_identity,
+            last_acknowledged_gain_revision: None,
+            gain_events: std::collections::VecDeque::new(),
             acknowledgements_received: 0,
             closed: None,
         })
@@ -126,10 +140,13 @@ impl UnifiedCapturePump {
         if capture.failure() {
             return Err("CaptureLost: microphone stream failed".into());
         }
+        let mut gain_updates = Vec::new();
         for _ in 0..MAX_CAPTURE_BLOCKS_PER_PUMP {
             let Some(block) = capture.try_next_block() else {
                 break;
             };
+            let block_gain = block.gain();
+            let block_first_frame = block.first_frame();
             let samples = self
                 .converter
                 .as_mut()
@@ -142,8 +159,58 @@ impl UnifiedCapturePump {
                     .try_append(&samples)
                     .map_err(|error| format!("CaptureLost: audio writer: {error:?}"))?;
             }
+            gain_updates.push((block_gain, block_first_frame));
+        }
+        for (gain, first_frame) in gain_updates {
+            self.record_gain_acknowledgement(gain, first_frame);
         }
         Ok(self.collect_available_acknowledgements()?)
+    }
+
+    pub(crate) fn set_gain(
+        &self,
+        target_identity: &str,
+        expected_revision: u64,
+        gain: whisper_core::microphone_level::GainDb,
+    ) -> Result<whisper_core::microphone_level::GainRevision, String> {
+        let capture = self.capture.as_ref().ok_or("Capture Parakeet arrêtée")?;
+        if capture.source_identity() != Some(target_identity) {
+            return Err("MicrophoneLevel: source active différente de la cible".into());
+        }
+        capture.set_gain(expected_revision, gain)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn enqueue_test_block(&mut self, samples: Vec<f32>) {
+        self.capture
+            .as_mut()
+            .expect("test capture remains open")
+            .enqueue_test_block(samples);
+    }
+
+    pub(crate) fn take_gain_events(&mut self) -> Vec<AppliedCaptureGain> {
+        self.gain_events.drain(..).collect()
+    }
+
+    fn record_gain_acknowledgement(
+        &mut self,
+        gain: whisper_core::microphone_level::GainRevision,
+        first_frame: u64,
+    ) {
+        if self
+            .last_acknowledged_gain_revision
+            .is_none_or(|revision| gain.revision > revision)
+        {
+            self.last_acknowledged_gain_revision = Some(gain.revision);
+            if let Some(target_identity) = self.source_identity.clone() {
+                self.gain_events.push_back(AppliedCaptureGain {
+                    target_identity,
+                    gain_db: gain.gain.value(),
+                    gain_revision: gain.revision,
+                    first_frame,
+                });
+            }
+        }
     }
 
     pub(crate) fn stop(&mut self) -> Result<(u64, Vec<CaptureWriteAck>), String> {
@@ -162,6 +229,8 @@ impl UnifiedCapturePump {
             }
             capture.stop();
             while let Some(block) = capture.try_next_block() {
+                let block_gain = block.gain();
+                let block_first_frame = block.first_frame();
                 let samples = self
                     .converter
                     .as_mut()
@@ -170,6 +239,7 @@ impl UnifiedCapturePump {
                 if !samples.is_empty() {
                     self.append_during_stop(&samples)?;
                 }
+                self.record_gain_acknowledgement(block_gain, block_first_frame);
             }
         }
         let tail = self

@@ -612,4 +612,61 @@ mod tests {
                 .all(|work| matches!(work, ScheduledWork::Preview { .. }))
         );
     }
+
+    #[test]
+    fn unrecycled_table_growth_witness_fails_the_two_session_bound() {
+        let mut mutant = ParakeetScheduler::default();
+        for job_id in 1..=3 {
+            mutant.sessions.insert(
+                session(job_id),
+                SessionState {
+                    admission_order: job_id,
+                    next_attempt: 0,
+                    incarnation: 1,
+                    final_ready: None,
+                    preview_ready: None,
+                    terminal: true,
+                },
+            );
+        }
+        assert_eq!(mutant.sessions.len(), 3);
+        assert!(mutant.sessions.values().all(|state| state.terminal));
+        assert!(
+            mutant.active_sessions() > MAX_SESSIONS,
+            "the negative mutant retains terminal keys in the actual session table"
+        );
+
+        let mut scheduler = ParakeetScheduler::default();
+        scheduler.admit(session(1)).unwrap();
+        scheduler.admit(session(2)).unwrap();
+        assert_eq!(scheduler.admit(session(3)), Err(SchedulerError::Capacity));
+        assert_eq!(scheduler.active_sessions(), MAX_SESSIONS);
+    }
+
+    #[test]
+    fn reserved_final_turn_covers_preparation_and_ready_wait() {
+        let a = session(1);
+        let b = session(2);
+        let mut scheduler = ParakeetScheduler::default();
+        scheduler.admit(a).unwrap();
+        scheduler.admit(b).unwrap();
+        scheduler.queue_final(a, 1).unwrap();
+        scheduler.queue_final(b, 1).unwrap();
+
+        let reserved_final = scheduler.next_call().unwrap().unwrap();
+        assert_eq!(reserved_final.session, a);
+        assert!(matches!(reserved_final.work, ScheduledWork::Final { .. }));
+        scheduler.queue_preview(b, 1).unwrap();
+        assert_eq!(scheduler.in_flight(), Some(reserved_final));
+        assert_eq!(scheduler.next_call(), Err(SchedulerError::CallInFlight));
+
+        // The reservation remains held through preparation and backend readiness;
+        // only the matching response releases its fairness turn.
+        scheduler.begin_call(reserved_final).unwrap();
+        assert_eq!(scheduler.next_call(), Err(SchedulerError::CallInFlight));
+        scheduler.complete(reserved_final).unwrap();
+        assert!(scheduler.in_flight().is_none());
+        let next = scheduler.next_call().unwrap().unwrap();
+        assert!(matches!(next.work, ScheduledWork::Preview { .. }));
+    }
 }

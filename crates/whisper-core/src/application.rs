@@ -490,6 +490,7 @@ pub struct ImportApplication<P> {
     active_live_compute: Option<(CommandIdentity, crate::domain::ComputeChoice)>,
     active_live_parakeet: Option<CommandIdentity>,
     unified_captures: std::collections::HashMap<(JobId, Generation), UnifiedCaptureAdmission>,
+    microphone_gain_view_owner: Option<CommandIdentity>,
 }
 
 struct UnifiedCaptureAdmission {
@@ -497,6 +498,8 @@ struct UnifiedCaptureAdmission {
     destination: String,
     stop_submitted: bool,
     publish_submitted: bool,
+    microphone_gain_requested_revision: u64,
+    microphone_gain_requested_target_identity: Option<String>,
     next_sequence: u64,
     pending_persistence: usize,
     pending_segments: std::collections::VecDeque<crate::ports::WorkerSegment>,
@@ -547,6 +550,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
             active_live_compute: None,
             active_live_parakeet: None,
             unified_captures: std::collections::HashMap::new(),
+            microphone_gain_view_owner: None,
         }
     }
 
@@ -1554,6 +1558,69 @@ impl<P: ImportIoPort> ImportApplication<P> {
     fn handle_unified_capture_event(&mut self, event: ImportEvent) -> Result<(), ApplicationError> {
         let key = event.identity();
         match event {
+            ImportEvent::MicrophoneGainApplied {
+                target_identity,
+                gain_db,
+                gain_revision,
+                first_frame,
+                ..
+            } => {
+                let Some(capture) = self.unified_captures.get_mut(&key) else {
+                    return Ok(());
+                };
+                if gain_revision < self.view.microphone_gain_revision
+                    || gain_revision > capture.microphone_gain_requested_revision
+                    || self.microphone_gain_view_owner != Some(capture.identity)
+                    || self
+                        .view
+                        .microphone_source_identity
+                        .as_deref()
+                        .is_some_and(|current| current != target_identity)
+                {
+                    return Ok(());
+                }
+                self.view.microphone_source_identity = Some(target_identity);
+                self.view.microphone_gain_db = gain_db;
+                self.view.microphone_gain_revision = gain_revision;
+                self.view.microphone_gain_applied_first_frame = Some(first_frame);
+                if capture.microphone_gain_requested_revision == gain_revision
+                    && capture.microphone_gain_requested_target_identity.as_deref()
+                        == Some(target_identity.as_str())
+                {
+                    capture.microphone_gain_requested_target_identity = None;
+                }
+                self.view.message = Some(format!(
+                    "Gain microphone appliqué : {} dB à la trame {}",
+                    gain_db, first_frame
+                ));
+            }
+            ImportEvent::MicrophoneGainRejected {
+                target_identity,
+                message,
+                ..
+            } => {
+                let owns_view = self.unified_captures.get(&key).is_some_and(|capture| {
+                    self.microphone_gain_view_owner == Some(capture.identity)
+                });
+                if let Some(capture) = self.unified_captures.get_mut(&key)
+                    && capture.microphone_gain_requested_target_identity.as_deref()
+                        == Some(target_identity.as_str())
+                {
+                    capture.microphone_gain_requested_target_identity = None;
+                    if self.microphone_gain_view_owner == Some(capture.identity) {
+                        capture.microphone_gain_requested_revision =
+                            self.view.microphone_gain_revision;
+                        capture.microphone_gain_requested_target_identity =
+                            self.view.microphone_source_identity.clone();
+                        self.view.microphone_gain_requested_revision =
+                            self.view.microphone_gain_revision;
+                        self.view.microphone_gain_requested_db = self.view.microphone_gain_db;
+                    }
+                }
+                if owns_view {
+                    self.view.message = Some(format!("Gain microphone non appliqué : {message}"));
+                }
+            }
             ImportEvent::Prepared(request) => {
                 let capture = self
                     .unified_captures
@@ -2874,9 +2941,21 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                     generation: request.generation,
                 };
                 let destination = request.destination.clone();
+                let microphone = request.microphone.clone();
+                let microphone_gain_db = request.microphone_gain_db;
                 self.io
                     .submit(ImportEffect::StartUnifiedLive(request))
                     .map_err(|error| self.fail(error))?;
+                self.view.microphone_source_identity = match microphone {
+                    crate::microphone::MicrophoneChoice::Device(identity) => Some(identity),
+                    crate::microphone::MicrophoneChoice::WindowsDefault => None,
+                };
+                self.view.microphone_gain_db = microphone_gain_db;
+                self.view.microphone_gain_requested_db = microphone_gain_db;
+                self.view.microphone_gain_requested_revision = 0;
+                self.view.microphone_gain_revision = 0;
+                self.view.microphone_gain_applied_first_frame = None;
+                self.microphone_gain_view_owner = Some(identity);
                 self.unified_captures.insert(
                     (identity.job_id, identity.generation),
                     UnifiedCaptureAdmission {
@@ -2884,6 +2963,8 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                         destination,
                         stop_submitted: false,
                         publish_submitted: false,
+                        microphone_gain_requested_revision: 0,
+                        microphone_gain_requested_target_identity: None,
                         next_sequence: 1,
                         pending_persistence: 0,
                         pending_segments: std::collections::VecDeque::new(),
@@ -3001,18 +3082,31 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 gain,
             } => {
                 let identity = CommandIdentity { job_id, generation };
-                if self.active != Some(identity)
-                    || (!self.direct_live && !self.view.microphone_test_active)
-                    || self.stopping == Some(identity)
-                {
+                let unified_capture_active = self
+                    .unified_captures
+                    .get(&(job_id, generation))
+                    .is_some_and(|capture| !capture.stop_submitted);
+                let legacy_capture_active = self.active == Some(identity)
+                    && (self.direct_live || self.view.microphone_test_active)
+                    && self.stopping != Some(identity);
+                if !unified_capture_active && !legacy_capture_active {
                     return Err(ApplicationError::InvalidCommand);
                 }
-                if expected_revision != self.view.microphone_gain_requested_revision {
+                let current_revision = if unified_capture_active {
+                    self.unified_captures
+                        .get(&(job_id, generation))
+                        .map(|capture| capture.microphone_gain_requested_revision)
+                        .ok_or(ApplicationError::InvalidCommand)?
+                } else {
+                    self.view.microphone_gain_requested_revision
+                };
+                if expected_revision != current_revision {
                     return Err(ApplicationError::InvalidCommand);
                 }
                 let Some(next_revision) = expected_revision.checked_add(1) else {
                     return Err(ApplicationError::InvalidCommand);
                 };
+                let requested_target_identity = target_identity.clone();
                 self.io
                     .submit(ImportEffect::SetMicrophoneGain {
                         job_id,
@@ -3022,6 +3116,16 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                         gain_db: gain.value(),
                     })
                     .map_err(|error| self.fail(error))?;
+                if unified_capture_active {
+                    let capture = self
+                        .unified_captures
+                        .get_mut(&(job_id, generation))
+                        .ok_or(ApplicationError::InvalidCommand)?;
+                    capture.microphone_gain_requested_revision = next_revision;
+                    capture.microphone_gain_requested_target_identity =
+                        Some(requested_target_identity);
+                    self.microphone_gain_view_owner = Some(identity);
+                }
                 self.view.microphone_gain_requested_db = gain.value();
                 self.view.microphone_gain_requested_revision = next_revision;
             }
@@ -5798,6 +5902,8 @@ mod tests {
             destination: "archive".into(),
             stop_submitted: true,
             publish_submitted: false,
+            microphone_gain_requested_revision: 0,
+            microphone_gain_requested_target_identity: None,
             next_sequence: 1,
             pending_persistence: 0,
             pending_segments: std::collections::VecDeque::new(),
@@ -5805,6 +5911,61 @@ mod tests {
             last_sequence: None,
             total_samples: None,
         }
+    }
+
+    #[test]
+    fn late_unified_gain_rejection_does_not_rollback_newer_capture_view() {
+        let rejected_job = JobId(0xCA);
+        let current_job = JobId(0xCB);
+        let rejected_identity = CommandIdentity {
+            job_id: rejected_job,
+            generation: Generation::first(),
+        };
+        let current_identity = CommandIdentity {
+            job_id: current_job,
+            generation: Generation::first(),
+        };
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        let mut rejected_capture = unified_capture_state(rejected_job);
+        rejected_capture.microphone_gain_requested_revision = 2;
+        rejected_capture.microphone_gain_requested_target_identity = Some("mic:A".into());
+        let mut current_capture = unified_capture_state(current_job);
+        current_capture.microphone_gain_requested_revision = 3;
+        current_capture.microphone_gain_requested_target_identity = Some("mic:B".into());
+        app.unified_captures
+            .insert((rejected_job, Generation::first()), rejected_capture);
+        app.unified_captures
+            .insert((current_job, Generation::first()), current_capture);
+        app.microphone_gain_view_owner = Some(current_identity);
+        app.view.microphone_source_identity = Some("mic:B".into());
+        app.view.microphone_gain_db = 6;
+        app.view.microphone_gain_revision = 2;
+        app.view.microphone_gain_requested_db = 12;
+        app.view.microphone_gain_requested_revision = 3;
+        app.view.message = Some("Gain B demandé".into());
+
+        app.handle_unified_capture_event(ImportEvent::MicrophoneGainRejected {
+            job_id: rejected_identity.job_id,
+            generation: rejected_identity.generation,
+            target_identity: "mic:A".into(),
+            message: "source A unavailable".into(),
+        })
+        .unwrap();
+
+        assert_eq!(
+            app.view.microphone_source_identity.as_deref(),
+            Some("mic:B")
+        );
+        assert_eq!(app.view.microphone_gain_db, 6);
+        assert_eq!(app.view.microphone_gain_revision, 2);
+        assert_eq!(app.view.microphone_gain_requested_db, 12);
+        assert_eq!(app.view.microphone_gain_requested_revision, 3);
+        assert_eq!(app.view.message.as_deref(), Some("Gain B demandé"));
+        assert_eq!(
+            app.unified_captures[&(current_job, Generation::first())]
+                .microphone_gain_requested_revision,
+            3
+        );
     }
 
     fn prepared_unified_capture(job_id: JobId, source_samples: u64) -> ImportRequest {

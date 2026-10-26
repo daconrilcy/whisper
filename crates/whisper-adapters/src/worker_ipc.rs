@@ -12,7 +12,7 @@ use crate::{
 use serde::{Serialize, de::DeserializeOwned};
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     fs,
     io::{self, BufRead, BufReader, Write},
     path::{Path, PathBuf},
@@ -44,6 +44,7 @@ use whisper_core::{
 const MAX_FRAME_BYTES: usize = 1_048_576;
 const TDT_FRAME_OVERLAP_SAMPLES: u64 = 80 * 16;
 const LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL: u8 = 2;
+const UNIFIED_CHILD_JOB_CAPACITY: usize = 2;
 
 fn live_capture_poll_allowed(events_since_worker_poll: u8, worker_available: bool) -> bool {
     events_since_worker_poll < LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL || !worker_available
@@ -1481,6 +1482,20 @@ struct ImportRuntime {
     controlled_captures: VecDeque<CaptureStream>,
     #[cfg(test)]
     controlled_part_limits: VecDeque<Option<u64>>,
+    #[cfg(test)]
+    controlled_disconnect_session: Option<whisper_core::parakeet_scheduler::SchedulerSession>,
+    #[cfg(test)]
+    controlled_panic_session: Option<whisper_core::parakeet_scheduler::SchedulerSession>,
+    #[cfg(test)]
+    controlled_finish_failure_session: Option<whisper_core::parakeet_scheduler::SchedulerSession>,
+    #[cfg(test)]
+    controlled_hold_reserved_call_once: bool,
+    #[cfg(test)]
+    controlled_ready_gate: Option<Arc<(Mutex<bool>, std::sync::Condvar)>>,
+    #[cfg(test)]
+    controlled_child_observer: Option<Arc<Mutex<Vec<ControlledChildObservation>>>>,
+    #[cfg(test)]
+    controlled_skip_child_recycle: bool,
     document_drains: VecDeque<UnifiedDocumentDrain>,
 }
 
@@ -1528,6 +1543,32 @@ impl UnifiedSessionSource {
         }
     }
 
+    fn set_gain(
+        &self,
+        target_identity: &str,
+        expected_revision: u64,
+        gain: whisper_core::microphone_level::GainDb,
+    ) -> Result<whisper_core::microphone_level::GainRevision, String> {
+        match self {
+            Self::Capture(capture) => capture.set_gain(target_identity, expected_revision, gain),
+            Self::Closed(_) => Err("MicrophoneLevel: unified capture is not open".into()),
+        }
+    }
+
+    fn take_gain_events(&mut self) -> Vec<crate::parakeet_live::AppliedCaptureGain> {
+        match self {
+            Self::Capture(capture) => capture.take_gain_events(),
+            Self::Closed(_) => Vec::new(),
+        }
+    }
+
+    #[cfg(test)]
+    fn enqueue_test_block(&mut self, samples: Vec<f32>) {
+        if let Self::Capture(capture) = self {
+            capture.enqueue_test_block(samples);
+        }
+    }
+
     fn pump(&mut self) -> Result<Vec<crate::parakeet_audio::CaptureWriteAck>, String> {
         self.pump_capture()
     }
@@ -1541,6 +1582,12 @@ struct UnifiedSessionState {
     document: crate::parakeet_document::ParakeetDocumentStore,
     finalizer: crate::parakeet_pipeline::ParakeetFinalizer,
     pending_call: Option<whisper_core::parakeet_scheduler::ScheduledCall>,
+    pending_prepared: Option<(
+        whisper_core::parakeet_scheduler::ScheduledCall,
+        whisper_core::parakeet_session::AudioWindow,
+        Vec<i16>,
+        bool,
+    )>,
     preview_sequence: u64,
     pending_window: Option<whisper_core::parakeet_session::AudioWindow>,
     pending_available_samples: Option<u64>,
@@ -1559,6 +1606,45 @@ struct UnifiedInferenceResult {
     words: Result<Vec<whisper_core::parakeet_ipc::Word>, String>,
 }
 
+#[cfg(test)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ControlledChildObservation {
+    incarnation: u64,
+    event: &'static str,
+    job_id: Option<JobId>,
+    generation: Option<Generation>,
+    attempt: Option<u64>,
+    wire_request_id: u64,
+    retained_job_ids: usize,
+}
+
+#[cfg(test)]
+fn observe_controlled_child(
+    observer: Option<&Arc<Mutex<Vec<ControlledChildObservation>>>>,
+    incarnation: u64,
+    event: &'static str,
+    job_id: Option<JobId>,
+    generation: Option<Generation>,
+    attempt: Option<u64>,
+    wire_request_id: u64,
+    retained_job_ids: usize,
+) {
+    if let Some(observer) = observer {
+        observer
+            .lock()
+            .expect("controlled child observation mutex")
+            .push(ControlledChildObservation {
+                incarnation,
+                event,
+                job_id,
+                generation,
+                attempt,
+                wire_request_id,
+                retained_job_ids,
+            });
+    }
+}
+
 enum UnifiedExecutorCommand {
     Infer(UnifiedInferenceCommand),
     Stop,
@@ -1567,23 +1653,89 @@ enum UnifiedExecutorCommand {
 struct UnifiedInferenceExecutor {
     commands: SyncSender<UnifiedExecutorCommand>,
     results: Receiver<UnifiedInferenceResult>,
+    ready: Receiver<()>,
+    ready_seen: bool,
     thread: Option<thread::JoinHandle<Box<dyn crate::parakeet_pipeline::WindowTranscriber>>>,
     worker: Option<Box<dyn crate::parakeet_pipeline::WindowTranscriber>>,
     in_flight: bool,
+    #[cfg(test)]
+    disconnect_result_for: Option<whisper_core::parakeet_scheduler::SchedulerSession>,
+    #[cfg(test)]
+    panic_during_transcription_for: Option<whisper_core::parakeet_scheduler::SchedulerSession>,
+    #[cfg(test)]
+    next_child_incarnation: u64,
+    #[cfg(test)]
+    current_child_incarnation: u64,
+    #[cfg(test)]
+    child_observer: Option<Arc<Mutex<Vec<ControlledChildObservation>>>>,
+    #[cfg(test)]
+    ready_gate: Option<Arc<(Mutex<bool>, std::sync::Condvar)>>,
 }
 
 impl UnifiedInferenceExecutor {
+    fn is_available(&self) -> bool {
+        self.thread.is_some() || self.worker.is_some()
+    }
+
     fn start(worker: Box<dyn crate::parakeet_pipeline::WindowTranscriber>) -> Result<Self, String> {
+        #[cfg(test)]
+        {
+            Self::start_inner(worker, None, None)
+        }
+        #[cfg(not(test))]
+        {
+            Self::start_inner(worker)
+        }
+    }
+
+    #[cfg(test)]
+    fn start_observed(
+        worker: Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+        observer: Arc<Mutex<Vec<ControlledChildObservation>>>,
+    ) -> Result<Self, String> {
+        Self::start_inner(worker, Some(observer), None)
+    }
+
+    #[cfg(test)]
+    fn start_observed_with_ready_gate(
+        worker: Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+        observer: Arc<Mutex<Vec<ControlledChildObservation>>>,
+        ready_gate: Arc<(Mutex<bool>, std::sync::Condvar)>,
+    ) -> Result<Self, String> {
+        Self::start_inner(worker, Some(observer), Some(ready_gate))
+    }
+
+    fn start_inner(
+        worker: Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+        #[cfg(test)] child_observer: Option<Arc<Mutex<Vec<ControlledChildObservation>>>>,
+        #[cfg(test)] ready_gate: Option<Arc<(Mutex<bool>, std::sync::Condvar)>>,
+    ) -> Result<Self, String> {
         let (commands, command_rx) = mpsc::sync_channel(1);
         let (result_tx, results) = mpsc::sync_channel(1);
+        let (ready_tx, ready) = mpsc::sync_channel(1);
         drop(command_rx);
         drop(result_tx);
+        drop(ready_tx);
         let mut executor = Self {
             commands,
             results,
+            ready,
+            ready_seen: false,
             thread: None,
             worker: Some(worker),
             in_flight: false,
+            #[cfg(test)]
+            disconnect_result_for: None,
+            #[cfg(test)]
+            panic_during_transcription_for: None,
+            #[cfg(test)]
+            next_child_incarnation: 0,
+            #[cfg(test)]
+            current_child_incarnation: 0,
+            #[cfg(test)]
+            child_observer,
+            #[cfg(test)]
+            ready_gate,
         };
         executor.start_instance()?;
         Ok(executor)
@@ -1596,16 +1748,117 @@ impl UnifiedInferenceExecutor {
             .ok_or_else(|| "InferenceStart: worker is missing".to_owned())?;
         let (commands, command_rx) = mpsc::sync_channel(1);
         let (result_tx, results) = mpsc::sync_channel(1);
+        let (ready_tx, ready) = mpsc::sync_channel(1);
+        #[cfg(test)]
+        let disconnect_result_for = self.disconnect_result_for;
+        #[cfg(test)]
+        let panic_during_transcription_for = self.panic_during_transcription_for;
+        #[cfg(test)]
+        {
+            self.next_child_incarnation = self.next_child_incarnation.saturating_add(1);
+            self.current_child_incarnation = self.next_child_incarnation;
+        }
+        #[cfg(test)]
+        let child_incarnation = self.current_child_incarnation;
+        #[cfg(test)]
+        let child_observer = self.child_observer.clone();
+        #[cfg(test)]
+        let ready_gate = self.ready_gate.clone();
         self.thread = Some(
             thread::Builder::new()
                 .name("parakeet-unified-inference".into())
                 .spawn(move || {
                     let mut worker = worker;
+                    let mut child_jobs = BTreeMap::<JobId, (Generation, u64)>::new();
+                    let mut wire_request_id = 0_u64;
+                    #[cfg(test)]
+                    observe_controlled_child(
+                        child_observer.as_ref(), child_incarnation, "Spawn", None, None, None,
+                        wire_request_id, child_jobs.len(),
+                    );
+                    #[cfg(test)]
+                    if let Some(gate) = ready_gate.as_ref() {
+                        let (released, changed) = &**gate;
+                        let mut released = released.lock().expect("controlled ready gate");
+                        while !*released {
+                            released = changed.wait(released).expect("controlled ready gate");
+                        }
+                    }
+                    #[cfg(test)]
+                    observe_controlled_child(
+                        child_observer.as_ref(), child_incarnation, "Ready", None, None, None,
+                        wire_request_id, child_jobs.len(),
+                    );
+                    let _ = ready_tx.send(());
                     while let Ok(command) = command_rx.recv() {
                         match command {
                             UnifiedExecutorCommand::Infer(command) => {
+                                let Some(next_wire_request_id) = wire_request_id.checked_add(1)
+                                else {
+                                    let _ = result_tx.send(UnifiedInferenceResult {
+                                        call: command.call,
+                                        instance_id: worker.instance_id(),
+                                        words: Err("WireRequestIdentityExhausted".into()),
+                                    });
+                                    break;
+                                };
+                                wire_request_id = next_wire_request_id;
+                                #[cfg(test)]
+                                if panic_during_transcription_for == Some(command.call.session) {
+                                    panic!("controlled unified worker panic");
+                                }
                                 let instance_id = worker.instance_id();
-                                let words = worker.transcribe(command.window, &command.pcm);
+                                let session = command.call.session;
+                                let logical_attempt = command.call.attempt.checked_add(1);
+                                let child_can_add_job =
+                                    child_jobs.len() < UNIFIED_CHILD_JOB_CAPACITY;
+                                let admission = match (logical_attempt, child_jobs.get(&session.job_id)) {
+                                    (None, _) => Err("SessionAttemptIdentityExhausted".to_owned()),
+                                    (Some(_), Some((generation, _)))
+                                        if *generation != session.generation =>
+                                    {
+                                        Err("ChildSessionMismatch: JobId is bound to another generation".into())
+                                    }
+                                    (Some(attempt), Some((_, previous_attempt)))
+                                        if attempt < *previous_attempt =>
+                                    {
+                                        Err("ChildAttemptStale: logical attempt regressed".into())
+                                    }
+                                    (Some(attempt), Some((generation, _))) => {
+                                        child_jobs.insert(session.job_id, (*generation, attempt));
+                                        Ok(attempt)
+                                    }
+                                    (Some(attempt), None)
+                                        if child_can_add_job =>
+                                    {
+                                        child_jobs.insert(
+                                            session.job_id,
+                                            (session.generation, attempt),
+                                        );
+                                        Ok(attempt)
+                                    }
+                                    (Some(_), None) => Err(format!(
+                                        "ChildSessionCapacity: at most {UNIFIED_CHILD_JOB_CAPACITY} JobIds per worker instance"
+                                    )),
+                                };
+                                #[cfg(test)]
+                                observe_controlled_child(
+                                    child_observer.as_ref(),
+                                    child_incarnation,
+                                    if admission.is_ok() { "Command" } else { "Rejected" },
+                                    Some(session.job_id),
+                                    Some(session.generation),
+                                    logical_attempt,
+                                    wire_request_id,
+                                    child_jobs.len(),
+                                );
+                                let words = admission.and_then(|_| {
+                                    worker.transcribe(command.window, &command.pcm)
+                                });
+                                #[cfg(test)]
+                                if disconnect_result_for == Some(command.call.session) {
+                                    break;
+                                }
                                 if result_tx
                                     .send(UnifiedInferenceResult {
                                         call: command.call,
@@ -1617,16 +1870,37 @@ impl UnifiedInferenceExecutor {
                                     break;
                                 }
                             }
-                            UnifiedExecutorCommand::Stop => break,
+                            UnifiedExecutorCommand::Stop => {
+                                #[cfg(test)]
+                                observe_controlled_child(
+                                    child_observer.as_ref(), child_incarnation, "Stop", None, None,
+                                    None, wire_request_id, child_jobs.len(),
+                                );
+                                break;
+                            }
                         }
                     }
+                    #[cfg(test)]
+                    observe_controlled_child(
+                        child_observer.as_ref(), child_incarnation, "Exit", None, None, None,
+                        wire_request_id, child_jobs.len(),
+                    );
                     worker
                 })
                 .map_err(|error| format!("InferenceStart: {error}"))?,
         );
         self.commands = commands;
         self.results = results;
+        self.ready = ready;
+        self.ready_seen = false;
         Ok(())
+    }
+
+    fn is_ready(&mut self) -> bool {
+        if !self.ready_seen && self.ready.try_recv().is_ok() {
+            self.ready_seen = true;
+        }
+        self.ready_seen
     }
 
     fn dispatch(&mut self, command: UnifiedInferenceCommand) -> Result<(), String> {
@@ -1670,7 +1944,57 @@ impl UnifiedInferenceExecutor {
                 .join()
                 .map_err(|_| "InferenceReap: worker thread panicked".to_owned())?,
         );
+        #[cfg(test)]
+        observe_controlled_child(
+            self.child_observer.as_ref(),
+            self.current_child_incarnation,
+            "Reaped",
+            None,
+            None,
+            None,
+            0,
+            0,
+        );
         Ok(())
+    }
+
+    fn reap_disconnected(&mut self) -> Result<(), String> {
+        let thread = self
+            .thread
+            .take()
+            .ok_or_else(|| "InferenceReap: disconnected worker instance is missing".to_owned())?;
+        self.in_flight = false;
+        match thread.join() {
+            Ok(worker) => {
+                self.worker = Some(worker);
+                #[cfg(test)]
+                observe_controlled_child(
+                    self.child_observer.as_ref(),
+                    self.current_child_incarnation,
+                    "Reaped",
+                    None,
+                    None,
+                    None,
+                    0,
+                    0,
+                );
+                Ok(())
+            }
+            Err(_) => {
+                #[cfg(test)]
+                observe_controlled_child(
+                    self.child_observer.as_ref(),
+                    self.current_child_incarnation,
+                    "Reaped",
+                    None,
+                    None,
+                    None,
+                    0,
+                    0,
+                );
+                Err("InferenceReap: disconnected worker thread panicked".into())
+            }
+        }
     }
 
     fn restart(&mut self) -> Result<(), String> {
@@ -2477,6 +2801,32 @@ struct ImportRequestState {
 }
 
 impl ImportRuntime {
+    fn release_unified_terminal_state(&mut self, job_id: JobId, generation: Generation) {
+        let session = whisper_core::parakeet_scheduler::SchedulerSession { job_id, generation };
+        if self.unified_sessions.contains_key(&session) {
+            return;
+        }
+        self.document_drains
+            .retain(|drain| (drain.job_id, drain.generation) != (job_id, generation));
+        self.unified_archives.remove(&session);
+        self.gpu_candidates.remove(&(job_id, generation.get()));
+        self.parakeet_pending_events
+            .retain(|event| event.identity() != (job_id, generation));
+    }
+
+    fn unified_admission_full(&self) -> bool {
+        let mut parent_sessions = std::collections::HashSet::new();
+        parent_sessions.extend(self.unified_sessions.keys().copied());
+        parent_sessions.extend(self.unified_archives.keys().copied());
+        parent_sessions.extend(self.document_drains.iter().map(|drain| {
+            whisper_core::parakeet_scheduler::SchedulerSession {
+                job_id: drain.job_id,
+                generation: drain.generation,
+            }
+        }));
+        parent_sessions.len() >= 2 || self.parakeet_scheduler.active_sessions() >= 2
+    }
+
     fn is_controlled_bounded_test(&self, request: &ImportRequest) -> bool {
         if request.strategy
             != whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
@@ -2587,6 +2937,20 @@ impl ImportRuntime {
             controlled_captures: VecDeque::new(),
             #[cfg(test)]
             controlled_part_limits: VecDeque::new(),
+            #[cfg(test)]
+            controlled_disconnect_session: None,
+            #[cfg(test)]
+            controlled_panic_session: None,
+            #[cfg(test)]
+            controlled_finish_failure_session: None,
+            #[cfg(test)]
+            controlled_hold_reserved_call_once: false,
+            #[cfg(test)]
+            controlled_ready_gate: None,
+            #[cfg(test)]
+            controlled_child_observer: None,
+            #[cfg(test)]
+            controlled_skip_child_recycle: false,
             document_drains: VecDeque::new(),
         }
     }
@@ -2597,6 +2961,64 @@ impl ImportRuntime {
         transcriber: Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
     ) -> Self {
         self.controlled_transcriber = Some(transcriber);
+        self
+    }
+
+    #[cfg(test)]
+    fn with_disconnected_result_for(
+        mut self,
+        session: whisper_core::parakeet_scheduler::SchedulerSession,
+    ) -> Self {
+        self.controlled_disconnect_session = Some(session);
+        self
+    }
+
+    #[cfg(test)]
+    fn with_panicking_transcriber_for(
+        mut self,
+        session: whisper_core::parakeet_scheduler::SchedulerSession,
+    ) -> Self {
+        self.controlled_panic_session = Some(session);
+        self
+    }
+
+    #[cfg(test)]
+    fn with_finish_document_failure_for(
+        mut self,
+        session: whisper_core::parakeet_scheduler::SchedulerSession,
+    ) -> Self {
+        self.controlled_finish_failure_session = Some(session);
+        self
+    }
+
+    #[cfg(test)]
+    fn hold_next_reserved_call_once(&mut self) {
+        self.controlled_hold_reserved_call_once = true;
+    }
+
+    #[cfg(test)]
+    fn hold_next_child_ready(&mut self) -> Arc<(Mutex<bool>, std::sync::Condvar)> {
+        let gate = Arc::new((Mutex::new(false), std::sync::Condvar::new()));
+        self.controlled_ready_gate = Some(Arc::clone(&gate));
+        gate
+    }
+
+    #[cfg(test)]
+    fn with_child_observer(
+        mut self,
+        observer: Arc<Mutex<Vec<ControlledChildObservation>>>,
+    ) -> Self {
+        self.controlled_child_observer = Some(observer);
+        self
+    }
+
+    #[cfg(test)]
+    fn with_unrecycled_child_mutant(
+        mut self,
+        observer: Arc<Mutex<Vec<ControlledChildObservation>>>,
+    ) -> Self {
+        self.controlled_child_observer = Some(observer);
+        self.controlled_skip_child_recycle = true;
         self
     }
 
@@ -2616,10 +3038,13 @@ impl ImportRuntime {
     }
 
     fn start_controlled_unified_import(&mut self, request: &ImportRequest) -> Result<(), String> {
-        if self.unified_sessions.len() >= 2 {
+        if self.unified_admission_full() {
             return Err("SchedulerCapacity: two unified sessions are already admitted".into());
         }
-        let executor_available = self.unified_executor.is_some();
+        let executor_available = self
+            .unified_executor
+            .as_ref()
+            .is_some_and(UnifiedInferenceExecutor::is_available);
         #[cfg(test)]
         let controlled_worker_available = self.controlled_transcriber.is_some();
         #[cfg(not(test))]
@@ -2671,6 +3096,7 @@ impl ImportRuntime {
                     request.generation,
                 ),
                 pending_call: None,
+                pending_prepared: None,
                 preview_sequence: 0,
                 pending_window: None,
                 pending_available_samples: None,
@@ -2688,7 +3114,7 @@ impl ImportRuntime {
         capture: CaptureStream,
         test_part_limit: Option<u64>,
     ) -> Result<(), String> {
-        if self.unified_sessions.len() >= 2 {
+        if self.unified_admission_full() {
             return Err("SchedulerCapacity: two unified sessions are already admitted".into());
         }
         if self
@@ -2698,7 +3124,10 @@ impl ImportRuntime {
         {
             return Err("SchedulerCapacity: an open unified capture is already admitted".into());
         }
-        let executor_available = self.unified_executor.is_some();
+        let executor_available = self
+            .unified_executor
+            .as_ref()
+            .is_some_and(UnifiedInferenceExecutor::is_available);
         #[cfg(test)]
         let controlled_worker_available = self.controlled_transcriber.is_some();
         #[cfg(not(test))]
@@ -2770,6 +3199,7 @@ impl ImportRuntime {
                     request.generation,
                 ),
                 pending_call: None,
+                pending_prepared: None,
                 preview_sequence: 0,
                 pending_window: None,
                 pending_available_samples: None,
@@ -2802,6 +3232,7 @@ impl ImportRuntime {
             .stop_capture()
             .map_err(|error| format!("CaptureStop: {error}"))?
             .ok_or_else(|| "UnifiedCaptureMissing".to_owned())?;
+        let final_gain_updates = state.source.take_gain_events();
         state.available_samples = total_samples;
         state.source_closed = true;
         let source = crate::parakeet_audio::PcmPartStore::open(&state.request.source_path);
@@ -2814,6 +3245,16 @@ impl ImportRuntime {
         self.parakeet_scheduler
             .clear_preview(session)
             .map_err(|error| format!("SchedulerPreview: {error:?}"))?;
+        for gain in final_gain_updates {
+            events.push_back(ImportEvent::MicrophoneGainApplied {
+                job_id,
+                generation,
+                target_identity: gain.target_identity,
+                gain_db: gain.gain_db,
+                gain_revision: gain.gain_revision,
+                first_frame: gain.first_frame,
+            });
+        }
         events.push_back(ImportEvent::Prepared(request));
         Ok(())
     }
@@ -3064,8 +3505,40 @@ impl ImportRuntime {
         if self.unified_executor.is_none()
             && let Some(worker) = self.controlled_transcriber.take()
         {
-            match UnifiedInferenceExecutor::start(worker) {
-                Ok(executor) => self.unified_executor = Some(executor),
+            #[cfg(test)]
+            let start_result = match self.controlled_child_observer.clone() {
+                Some(observer) if self.controlled_ready_gate.is_some() => {
+                    UnifiedInferenceExecutor::start_observed_with_ready_gate(
+                        worker,
+                        observer,
+                        self.controlled_ready_gate
+                            .take()
+                            .expect("ready gate checked"),
+                    )
+                }
+                Some(observer) => UnifiedInferenceExecutor::start_observed(worker, observer),
+                None => UnifiedInferenceExecutor::start(worker),
+            };
+            #[cfg(not(test))]
+            let start_result = UnifiedInferenceExecutor::start(worker);
+            match start_result {
+                Ok(mut executor) => {
+                    #[cfg(test)]
+                    {
+                        executor.disconnect_result_for = self.controlled_disconnect_session;
+                        executor.panic_during_transcription_for = self.controlled_panic_session;
+                        if executor.disconnect_result_for.is_some()
+                            || executor.panic_during_transcription_for.is_some()
+                        {
+                            if let Err(error) =
+                                executor.stop_and_reap().and_then(|()| executor.restart())
+                            {
+                                return Some(Err((JobId(0), Generation::first(), error)));
+                            }
+                        }
+                    }
+                    self.unified_executor = Some(executor);
+                }
                 Err(error) => return Some(Err((JobId(0), Generation::first(), error))),
             }
         }
@@ -3093,6 +3566,7 @@ impl ImportRuntime {
         }
         let mut pump_error = None;
         let mut preview_updates = Vec::new();
+        let mut gain_updates = Vec::new();
         for (session, state) in &mut self.unified_sessions {
             if !state.source.is_capture() || state.source_closed {
                 continue;
@@ -3107,6 +3581,13 @@ impl ImportRuntime {
                             state.preview_sequence = boundary;
                             preview_updates.push((*session, boundary));
                         }
+                        gain_updates.extend(
+                            state
+                                .source
+                                .take_gain_events()
+                                .into_iter()
+                                .map(|gain| (*session, gain)),
+                        );
                     }
                 }
                 Err(error) => {
@@ -3117,6 +3598,17 @@ impl ImportRuntime {
             }
         }
         let _ = pump_error;
+        self.parakeet_pending_events
+            .extend(gain_updates.into_iter().map(|(session, gain)| {
+                ImportEvent::MicrophoneGainApplied {
+                    job_id: session.job_id,
+                    generation: session.generation,
+                    target_identity: gain.target_identity,
+                    gain_db: gain.gain_db,
+                    gain_revision: gain.gain_revision,
+                    first_frame: gain.first_frame,
+                }
+            }));
         for (session, boundary) in preview_updates {
             if let Err(error) = self.parakeet_scheduler.queue_preview(session, boundary) {
                 return Some(Err((
@@ -3185,13 +3677,19 @@ impl ImportRuntime {
                     Err(error) => {
                         let _ = self.parakeet_scheduler.fail_call(result.call);
                         let _ = self.parakeet_scheduler.mark_terminal(session);
-                        if let Err(reap_error) = executor.stop_and_reap() {
-                            self.unified_sessions.insert(session, state);
-                            return Some(Err((
-                                session.job_id,
-                                session.generation,
-                                format!("{error}; InferenceReap: {reap_error}"),
-                            )));
+                        #[cfg(test)]
+                        let skip_recycle = self.controlled_skip_child_recycle;
+                        #[cfg(not(test))]
+                        let skip_recycle = false;
+                        if !skip_recycle {
+                            if let Err(reap_error) = executor.stop_and_reap() {
+                                self.unified_sessions.insert(session, state);
+                                return Some(Err((
+                                    session.job_id,
+                                    session.generation,
+                                    format!("{error}; InferenceReap: {reap_error}"),
+                                )));
+                            }
                         }
                         if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
                             self.unified_sessions.insert(session, state);
@@ -3309,8 +3807,95 @@ impl ImportRuntime {
             }
             Ok(None) => {}
             Err(error) => {
-                let identity = self.unified_sessions.keys().next().copied()?;
-                return Some(Err((identity.job_id, identity.generation, error)));
+                let Some(call) = self.parakeet_scheduler.in_flight() else {
+                    let identity = self.unified_sessions.keys().next().copied().unwrap_or(
+                        whisper_core::parakeet_scheduler::SchedulerSession {
+                            job_id: JobId(0),
+                            generation: Generation::first(),
+                        },
+                    );
+                    return Some(Err((
+                        identity.job_id,
+                        identity.generation,
+                        format!("{error}; SchedulerCallMissing"),
+                    )));
+                };
+                let session = call.session;
+                let exited_instance = executor.thread.is_some();
+                let reap = executor.reap_disconnected();
+                if !exited_instance {
+                    return Some(Err((
+                        session.job_id,
+                        session.generation,
+                        format!("{error}; InferenceReap: disconnected instance exit is unproven"),
+                    )));
+                }
+                if let Err(reap_error) = reap {
+                    let mut failure = format!("{error}; {reap_error}");
+                    let sessions: Vec<_> = self.unified_sessions.keys().copied().collect();
+                    for (other, state) in &mut self.unified_sessions {
+                        if state.source.is_capture() && !state.source_closed {
+                            match state.source.stop_capture() {
+                                Ok(Some(total_samples)) => {
+                                    state.available_samples = total_samples;
+                                    state.source_closed = true;
+                                }
+                                Ok(None) => {}
+                                Err(stop_error) => failure.push_str(&format!(
+                                    "; capture {}/{} stop: {stop_error}",
+                                    other.job_id, other.generation
+                                )),
+                            }
+                        }
+                    }
+                    if let Err(scheduler_error) = self.parakeet_scheduler.fail_call(call) {
+                        failure.push_str(&format!("; SchedulerCall: {scheduler_error:?}"));
+                    }
+                    for other in &sessions {
+                        if let Err(scheduler_error) = self.parakeet_scheduler.abort_session(*other)
+                        {
+                            failure.push_str(&format!("; SchedulerAbort: {scheduler_error:?}"));
+                        }
+                    }
+                    if let Err(scheduler_error) = self.parakeet_scheduler.confirm_child_exited() {
+                        failure.push_str(&format!("; SchedulerReap: {scheduler_error:?}"));
+                    }
+                    for other in sessions {
+                        self.unified_sessions.remove(&other);
+                        self.release_unified_terminal_state(other.job_id, other.generation);
+                        if other != session {
+                            self.parakeet_pending_events.push_back(ImportEvent::Failed {
+                                job_id: other.job_id,
+                                generation: other.generation,
+                                message: format!(
+                                    "InferenceWorkerLost: peer session terminated after worker panic while processing {}/{}",
+                                    session.job_id, session.generation
+                                ),
+                            });
+                        }
+                    }
+                    return Some(Err((session.job_id, session.generation, failure)));
+                }
+                let mut failure = error;
+                if let Err(scheduler_error) = self.parakeet_scheduler.fail_call(call) {
+                    failure.push_str(&format!("; SchedulerCall: {scheduler_error:?}"));
+                    return Some(Err((session.job_id, session.generation, failure)));
+                }
+                if let Err(scheduler_error) = self.parakeet_scheduler.mark_terminal(session) {
+                    failure.push_str(&format!("; SchedulerTerminal: {scheduler_error:?}"));
+                    return Some(Err((session.job_id, session.generation, failure)));
+                }
+                if let Err(scheduler_error) = self.parakeet_scheduler.confirm_child_exited() {
+                    failure.push_str(&format!("; SchedulerReap: {scheduler_error:?}"));
+                    return Some(Err((session.job_id, session.generation, failure)));
+                }
+                self.unified_sessions.remove(&session);
+                if self.parakeet_scheduler.active_sessions() > 0 {
+                    if let Err(restart_error) = executor.restart() {
+                        failure.push_str(&format!("; InferenceRestart: {restart_error}"));
+                    }
+                }
+                return Some(Err((session.job_id, session.generation, failure)));
             }
         }
         if executor.in_flight {
@@ -3362,23 +3947,33 @@ impl ImportRuntime {
         });
         if let Some(session) = finished_session {
             let mut state = self.unified_sessions.remove(&session)?;
-            let result = match state.finalizer.finish_document(
-                &mut state.document,
-                state.available_samples,
-                state.source_closed,
-            ) {
+            #[cfg(test)]
+            let force_finish_failure = self.controlled_finish_failure_session == Some(session);
+            #[cfg(not(test))]
+            let force_finish_failure = false;
+            let result = if force_finish_failure {
+                Err("TestOnly: injected document finalization failure".to_owned())
+            } else {
+                state.finalizer.finish_document(
+                    &mut state.document,
+                    state.available_samples,
+                    state.source_closed,
+                )
+            };
+            let result = match result {
                 Ok(crate::parakeet_pipeline::FinalizationStep::Complete(result)) => result,
                 Ok(_) => {
+                    let error = "Pipeline: closed document did not finalize".to_owned();
+                    state.failure = Some(error);
+                    let _ = self.parakeet_scheduler.abort_session(session);
                     self.unified_sessions.insert(session, state);
-                    return Some(Err((
-                        session.job_id,
-                        session.generation,
-                        "Pipeline: closed document did not finalize".into(),
-                    )));
+                    return None;
                 }
                 Err(error) => {
+                    state.failure = Some(error);
+                    let _ = self.parakeet_scheduler.abort_session(session);
                     self.unified_sessions.insert(session, state);
-                    return Some(Err((session.job_id, session.generation, error)));
+                    return None;
                 }
             };
             if let Err(error) = self.parakeet_scheduler.mark_terminal(session) {
@@ -3405,15 +4000,19 @@ impl ImportRuntime {
                     format!("SchedulerReap: {error:?}"),
                 )));
             }
-            if self.parakeet_scheduler.active_sessions() > 0
-                && let Err(error) = executor.restart()
-            {
-                self.unified_sessions.insert(session, state);
-                return Some(Err((
-                    session.job_id,
-                    session.generation,
-                    format!("InferenceRestart: {error}"),
-                )));
+            if self.parakeet_scheduler.active_sessions() > 0 {
+                #[cfg(test)]
+                if let Some(gate) = self.controlled_ready_gate.take() {
+                    executor.ready_gate = Some(gate);
+                }
+                if let Err(error) = executor.restart() {
+                    self.unified_sessions.insert(session, state);
+                    return Some(Err((
+                        session.job_id,
+                        session.generation,
+                        format!("InferenceRestart: {error}"),
+                    )));
+                }
             }
             self.document_drains.push_back(UnifiedDocumentDrain {
                 document: state.document,
@@ -3439,18 +4038,27 @@ impl ImportRuntime {
                     .queue_final(*session, state.finalizer.next_window_sequence());
             }
         }
-        let call = match self.parakeet_scheduler.next_call() {
-            Ok(Some(call)) => call,
-            Ok(None) => return None,
-            Err(error) => {
-                let identity = self.unified_sessions.keys().next().copied()?;
-                return Some(Err((
-                    identity.job_id,
-                    identity.generation,
-                    format!("SchedulerSelect: {error:?}"),
-                )));
+        let call = if let Some(call) = self.parakeet_scheduler.in_flight() {
+            call
+        } else {
+            match self.parakeet_scheduler.next_call() {
+                Ok(Some(call)) => call,
+                Ok(None) => return None,
+                Err(error) => {
+                    let identity = self.unified_sessions.keys().next().copied()?;
+                    return Some(Err((
+                        identity.job_id,
+                        identity.generation,
+                        format!("SchedulerSelect: {error:?}"),
+                    )));
+                }
             }
         };
+        #[cfg(test)]
+        if self.controlled_hold_reserved_call_once {
+            self.controlled_hold_reserved_call_once = false;
+            return None;
+        }
         let Some(mut state) = self.unified_sessions.remove(&call.session) else {
             let _ = self.parakeet_scheduler.cancel_reservation(call);
             return Some(Err((
@@ -3459,28 +4067,49 @@ impl ImportRuntime {
                 "SchedulerSelection: selected session is missing".into(),
             )));
         };
-        let prepared = match call.work {
-            whisper_core::parakeet_scheduler::ScheduledWork::Final { .. } => state
-                .finalizer
-                .prepare_next(
-                    &mut state.source,
-                    state.available_samples,
-                    state.source_closed,
-                )
-                .map(|prepared| match prepared {
-                    crate::parakeet_pipeline::PreparedFinalWindow::Ready { window, pcm } => {
-                        Some((window, pcm, true))
-                    }
-                    crate::parakeet_pipeline::PreparedFinalWindow::WaitingForAudio { .. }
-                    | crate::parakeet_pipeline::PreparedFinalWindow::Complete => None,
-                }),
-            whisper_core::parakeet_scheduler::ScheduledWork::Preview { sequence } => {
-                crate::parakeet_pipeline::prepare_preview(&mut state.source, sequence, sequence)
-                    .map(|prepared| Some((prepared.window, prepared.pcm, false)))
+        let prepared = if let Some((prepared_call, window, pcm, is_final)) =
+            state.pending_prepared.take()
+        {
+            if prepared_call != call {
+                self.unified_sessions.insert(call.session, state);
+                return Some(Err((
+                    call.session.job_id,
+                    call.session.generation,
+                    "SchedulerPreparation: retained call identity changed".into(),
+                )));
+            }
+            Ok(Some((window, pcm, is_final)))
+        } else {
+            match call.work {
+                whisper_core::parakeet_scheduler::ScheduledWork::Final { .. } => state
+                    .finalizer
+                    .prepare_next(
+                        &mut state.source,
+                        state.available_samples,
+                        state.source_closed,
+                    )
+                    .map(|prepared| match prepared {
+                        crate::parakeet_pipeline::PreparedFinalWindow::Ready { window, pcm } => {
+                            Some((window, pcm, true))
+                        }
+                        crate::parakeet_pipeline::PreparedFinalWindow::WaitingForAudio {
+                            ..
+                        }
+                        | crate::parakeet_pipeline::PreparedFinalWindow::Complete => None,
+                    }),
+                whisper_core::parakeet_scheduler::ScheduledWork::Preview { sequence } => {
+                    crate::parakeet_pipeline::prepare_preview(&mut state.source, sequence, sequence)
+                        .map(|prepared| Some((prepared.window, prepared.pcm, false)))
+                }
             }
         };
         match prepared {
             Ok(Some((window, pcm, true))) => {
+                if !executor.is_ready() {
+                    state.pending_prepared = Some((call, window, pcm, true));
+                    self.unified_sessions.insert(call.session, state);
+                    return None;
+                }
                 if let Err(error) = self.parakeet_scheduler.begin_call(call) {
                     let _ = self.parakeet_scheduler.cancel_reservation(call);
                     state.failure = Some(format!("SchedulerBegin: {error:?}"));
@@ -3508,6 +4137,11 @@ impl ImportRuntime {
                 }
             }
             Ok(Some((window, pcm, false))) => {
+                if !executor.is_ready() {
+                    state.pending_prepared = Some((call, window, pcm, false));
+                    self.unified_sessions.insert(call.session, state);
+                    return None;
+                }
                 state.pending_window = Some(window);
                 state.pending_available_samples = Some(window.central_end_sample);
                 if let Err(error) = self.parakeet_scheduler.begin_call(call) {
@@ -3820,6 +4454,26 @@ impl ImportRuntime {
             }
             _ => None,
         };
+        let unified_terminal_effect = match &effect {
+            ImportEffect::PersistSegment(segment) => self.unified_archives.contains_key(
+                &whisper_core::parakeet_scheduler::SchedulerSession {
+                    job_id: segment.job_id,
+                    generation: segment.generation,
+                },
+            ),
+            ImportEffect::Publish {
+                job_id, generation, ..
+            }
+            | ImportEffect::StopUnifiedLive {
+                job_id, generation, ..
+            } => self.unified_archives.contains_key(
+                &whisper_core::parakeet_scheduler::SchedulerSession {
+                    job_id: *job_id,
+                    generation: *generation,
+                },
+            ),
+            _ => false,
+        };
         let mut result = match effect {
             ImportEffect::SetGpuCandidate {
                 job_id,
@@ -3999,7 +4653,21 @@ impl ImportRuntime {
                 let result = whisper_core::microphone_level::GainDb::new(gain_db)
                     .map_err(|error| error.to_string())
                     .and_then(|gain| {
-                        if let Some(direct) = self.direct_live.as_ref()
+                        let unified = whisper_core::parakeet_scheduler::SchedulerSession {
+                            job_id,
+                            generation,
+                        };
+                        if let Some(state) = self.unified_sessions.get(&unified)
+                            && state.source.is_capture()
+                            && !state.source_closed
+                        {
+                            self.unified_sessions
+                                .get(&unified)
+                                .expect("unified capture was found")
+                                .source
+                                .set_gain(&target_identity, expected_revision, gain)
+                                .map(|_| ())
+                        } else if let Some(direct) = self.direct_live.as_ref()
                             && direct.identity() == (job_id, generation)
                         {
                             direct.set_gain(&target_identity, expected_revision, gain)
@@ -5353,6 +6021,20 @@ impl ImportRuntime {
                 message
             };
             let mut deferred_live_failure = false;
+            let mut deferred_unified_failure = false;
+            if unified_terminal_effect {
+                let session = whisper_core::parakeet_scheduler::SchedulerSession {
+                    job_id: job,
+                    generation,
+                };
+                if let Some(state) = self.unified_sessions.get_mut(&session) {
+                    state.failure = Some(message.clone());
+                    let _ = self.parakeet_scheduler.abort_session(session);
+                    deferred_unified_failure = true;
+                } else {
+                    self.release_unified_terminal_state(job, generation);
+                }
+            }
             if let Some(live) = self.live.as_mut()
                 && (live.request.job_id, live.request.generation) == (job, generation)
             {
@@ -5367,7 +6049,7 @@ impl ImportRuntime {
                     });
                 }
             }
-            if !deferred_live_failure {
+            if !deferred_live_failure && !deferred_unified_failure {
                 events.push_back(ImportEvent::Failed {
                     job_id: job,
                     generation,
@@ -8074,9 +8756,15 @@ impl ImportRuntime {
 
     fn poll(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
         if let Some(event) = self.poll_unified_sessions() {
+            if let Err((job_id, generation, _)) = &event {
+                self.release_unified_terminal_state(*job_id, *generation);
+            }
             return Some(event);
         }
         if let Some(event) = self.poll_unified_document() {
+            if let Err((job_id, generation, _)) = &event {
+                self.release_unified_terminal_state(*job_id, *generation);
+            }
             return Some(event);
         }
         if let Some(event) = self.parakeet_pending_events.pop_front() {
@@ -10301,6 +10989,22 @@ mod tests {
         JobConfig, JobId, JobState, LanguageChoice,
     };
 
+    fn controlled_child_job_bound(
+        observations: &[ControlledChildObservation],
+    ) -> Result<(), String> {
+        if let Some(observation) = observations
+            .iter()
+            .find(|observation| observation.retained_job_ids > UNIFIED_CHILD_JOB_CAPACITY)
+        {
+            Err(format!(
+                "child incarnation {} retained {} JobIds",
+                observation.incarnation, observation.retained_job_ids
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     struct RuntimeImportPort {
         runtime: ImportRuntime,
         events: VecDeque<ImportEvent>,
@@ -10438,8 +11142,9 @@ mod tests {
             } else {
                 "A"
             };
-            let is_final_window =
-                window.central_end_sample - window.central_start_sample > 4 * 16_000;
+            let is_final_window = window.central_end_sample - window.central_start_sample
+                > 4 * 16_000
+                || (source_name == "A" && window.central_start_sample >= 120 * 16_000);
             self.call_sources
                 .lock()
                 .expect("call-source log mutex")
@@ -11759,6 +12464,1001 @@ mod tests {
     }
 
     #[test]
+    fn unified_terminal_failures_release_all_parent_state_and_preserve_source_audio() {
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-failure-recycling-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let child_observations = Arc::new(Mutex::new(Vec::new()));
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(Box::new(FailedUnifiedWorker))
+        .with_child_observer(Arc::clone(&child_observations));
+
+        for attempt in 0..5_u128 {
+            let source_path = root.join(format!("source-{attempt}.wav"));
+            let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+            writer.append(&vec![1_000_i16; 3 * 16_000]).unwrap();
+            writer.finish().unwrap();
+            let request =
+                unified_import_request(&root.join("archive"), &source_path, 9_400 + attempt);
+            runtime.start_controlled_unified_import(&request).unwrap();
+
+            let failure_deadline = Instant::now() + Duration::from_secs(5);
+            let mut failed = false;
+            while Instant::now() < failure_deadline {
+                if let Some(Err((job_id, generation, message))) = runtime.poll() {
+                    assert_eq!(job_id, request.job_id);
+                    assert_eq!(generation, request.generation);
+                    assert!(message.contains("controlled worker failure"));
+                    failed = true;
+                    break;
+                }
+                thread::sleep(Duration::from_millis(2));
+            }
+            assert!(
+                failed,
+                "attempt {attempt} did not reach its terminal failure"
+            );
+            assert!(runtime.unified_sessions.is_empty());
+            assert!(runtime.unified_archives.is_empty());
+            assert!(runtime.document_drains.is_empty());
+            assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
+            assert!(runtime.unified_sessions.len() <= 2);
+            assert!(runtime.unified_archives.len() <= 2);
+            assert!(runtime.document_drains.len() <= 2);
+            let work_source = PathBuf::from(&request.destination)
+                .join("transcriptions")
+                .join(format!("{:032x}", request.job_id.0))
+                .join(request.generation.get().to_string())
+                .join("parakeet-unified/source.wav");
+            assert!(
+                work_source.is_file(),
+                "recoverable decoded audio was removed"
+            );
+        }
+        let observations = child_observations.lock().unwrap();
+        controlled_child_job_bound(&observations).unwrap();
+        let commands = observations
+            .iter()
+            .filter(|item| item.event == "Command")
+            .collect::<Vec<_>>();
+        assert_eq!(commands.len(), 5);
+        assert!(
+            commands
+                .iter()
+                .all(|item| item.retained_job_ids <= UNIFIED_CHILD_JOB_CAPACITY)
+        );
+        let incarnations = commands
+            .iter()
+            .map(|item| item.incarnation)
+            .collect::<HashSet<_>>();
+        assert_eq!(incarnations.len(), 5);
+        for command in commands {
+            assert!(command.job_id.is_some());
+            assert!(
+                command
+                    .generation
+                    .is_some_and(|generation| generation.get() > 0)
+            );
+            assert_eq!(command.attempt, Some(1));
+            assert_eq!(command.wire_request_id, 1);
+            let events = observations
+                .iter()
+                .filter(|item| item.incarnation == command.incarnation)
+                .map(|item| item.event)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                events,
+                ["Spawn", "Ready", "Command", "Stop", "Exit", "Reaped"]
+            );
+        }
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn unrecycled_controlled_child_rejects_third_job_with_bounded_table() {
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-child-table-mutant-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let child_observations = Arc::new(Mutex::new(Vec::new()));
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(Box::new(FailedUnifiedWorker))
+        .with_unrecycled_child_mutant(Arc::clone(&child_observations));
+
+        for attempt in 0..3_u128 {
+            let source_path = root.join(format!("source-{attempt}.wav"));
+            let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+            writer.append(&vec![1_000_i16; 3 * 16_000]).unwrap();
+            writer.finish().unwrap();
+            let request =
+                unified_import_request(&root.join("archive"), &source_path, 9_440 + attempt);
+            runtime.start_controlled_unified_import(&request).unwrap();
+
+            let failure_deadline = Instant::now() + Duration::from_secs(5);
+            let mut failed = false;
+            while Instant::now() < failure_deadline {
+                if let Some(Err((job_id, generation, message))) = runtime.poll() {
+                    assert_eq!((job_id, generation), (request.job_id, request.generation));
+                    let expected_failure = if attempt < 2 {
+                        "controlled worker failure"
+                    } else {
+                        "ChildSessionCapacity"
+                    };
+                    assert!(message.contains(expected_failure));
+                    failed = true;
+                    break;
+                }
+                thread::sleep(Duration::from_millis(2));
+            }
+            assert!(
+                failed,
+                "mutant attempt {attempt} did not terminate in the parent"
+            );
+            assert!(runtime.unified_sessions.is_empty());
+            assert!(runtime.unified_archives.is_empty());
+            assert!(runtime.document_drains.is_empty());
+            assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
+            let work_source = PathBuf::from(&request.destination)
+                .join("transcriptions")
+                .join(format!("{:032x}", request.job_id.0))
+                .join(request.generation.get().to_string())
+                .join("parakeet-unified/source.wav");
+            assert!(
+                work_source.is_file(),
+                "mutant removed recoverable source audio"
+            );
+        }
+
+        let observations = child_observations.lock().unwrap().clone();
+        let accepted = observations
+            .iter()
+            .filter(|item| item.event == "Command")
+            .collect::<Vec<_>>();
+        let rejected = observations
+            .iter()
+            .filter(|item| item.event == "Rejected")
+            .collect::<Vec<_>>();
+        assert_eq!(accepted.len(), 2);
+        assert_eq!(accepted[0].retained_job_ids, 1);
+        assert_eq!(accepted[1].retained_job_ids, 2);
+        assert_eq!(rejected.len(), 1);
+        assert_eq!(rejected[0].retained_job_ids, 2);
+        assert!(
+            accepted
+                .iter()
+                .chain(rejected.iter())
+                .all(|item| item.incarnation == accepted[0].incarnation)
+        );
+        assert_eq!(
+            accepted
+                .iter()
+                .chain(rejected.iter())
+                .map(|item| item.wire_request_id)
+                .collect::<Vec<_>>(),
+            [1, 2, 3],
+            "wire request IDs remain positive and monotone inside the unrecycled child"
+        );
+        assert_eq!(rejected[0].job_id, Some(JobId(9_442)));
+        assert!(
+            observations
+                .iter()
+                .all(|item| item.retained_job_ids <= UNIFIED_CHILD_JOB_CAPACITY),
+            "the mutant retains the production child admission bound"
+        );
+        assert!(controlled_child_job_bound(&observations).is_ok());
+        assert!(!observations.iter().any(|item| item.event == "Reaped"));
+
+        runtime
+            .unified_executor
+            .as_mut()
+            .unwrap()
+            .stop_and_reap()
+            .unwrap();
+        let observations = child_observations.lock().unwrap();
+        assert!(observations.iter().any(|item| item.event == "Stop"));
+        assert!(observations.iter().any(|item| item.event == "Exit"));
+        assert!(observations.iter().any(|item| item.event == "Reaped"));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn unified_document_finalization_failure_releases_session_and_allows_replacement() {
+        const JOB_ID: u128 = 9_423;
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-finalization-failure-{}",
+            std::process::id()
+        ));
+        let archive_root = root.join("archive");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        let request = unified_live_request(&archive_root, JOB_ID);
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request.job_id,
+            generation: request.generation,
+        };
+        let capture = CaptureStream::empty_test_capture(16_000, 1, "test:finalization-failure");
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker))
+        .with_finish_document_failure_for(session);
+        runtime
+            .start_controlled_unified_capture(&request, capture, None)
+            .unwrap();
+        runtime
+            .unified_sessions
+            .get_mut(&session)
+            .unwrap()
+            .source
+            .enqueue_test_block(vec![0.1; 4 * 16_000]);
+        runtime
+            .stop_controlled_unified_capture(
+                request.job_id,
+                request.generation,
+                &mut VecDeque::new(),
+            )
+            .unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let mut terminal_error = None;
+        while Instant::now() < deadline {
+            if let Some(Err((job_id, generation, message))) = runtime.poll() {
+                assert_eq!((job_id, generation), (request.job_id, request.generation));
+                terminal_error = Some(message);
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            terminal_error
+                .as_deref()
+                .is_some_and(|message| message.contains("injected document finalization failure"))
+        );
+        assert!(
+            runtime.poll().is_none(),
+            "finalization failure is emitted once"
+        );
+        assert!(!runtime.unified_sessions.contains_key(&session));
+        assert!(!runtime.unified_archives.contains_key(&session));
+        assert!(runtime.document_drains.is_empty());
+        assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
+        assert!(
+            archive_root
+                .join("transcriptions")
+                .join(format!("{:032x}", request.job_id.0))
+                .join(request.generation.get().to_string())
+                .join("parakeet-unified/source.wav")
+                .is_file()
+        );
+
+        let replacement = unified_live_request(&archive_root, JOB_ID + 1);
+        let replacement_session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: replacement.job_id,
+            generation: replacement.generation,
+        };
+        runtime
+            .start_controlled_unified_capture(
+                &replacement,
+                CaptureStream::empty_test_capture(16_000, 1, "test:finalization-replacement"),
+                None,
+            )
+            .unwrap();
+        assert!(runtime.unified_sessions.contains_key(&replacement_session));
+        assert_eq!(runtime.unified_sessions.len(), 1);
+        assert_eq!(runtime.unified_archives.len(), 1);
+        runtime
+            .stop_controlled_unified_capture(
+                replacement.job_id,
+                replacement.generation,
+                &mut VecDeque::new(),
+            )
+            .unwrap();
+        let _ = runtime.poll();
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready() {
+        const A_ID: u128 = 9_424;
+        const B_ID: u128 = 9_425;
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-reserved-final-preview-{}",
+            std::process::id()
+        ));
+        let archive_root = root.join("archive");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        let source_a = root.join("source-a.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_a).unwrap();
+        writer.append(&vec![10_000_i16; 121 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let source_b = root.join("source-b.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_b).unwrap();
+        writer.append(&vec![0_i16; 5 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let request_a = unified_import_request(&archive_root, &source_a, A_ID);
+        let request_b = unified_import_request(&archive_root, &source_b, B_ID);
+        let session_a = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request_a.job_id,
+            generation: request_a.generation,
+        };
+        let session_b = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request_b.job_id,
+            generation: request_b.generation,
+        };
+        let (worker, calls, maximum_active, call_sources, held_rx, release_tx) = held_worker(1);
+        let child_observations = Arc::new(Mutex::new(Vec::new()));
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(worker)
+        .with_child_observer(Arc::clone(&child_observations));
+        let ready_gate = runtime.hold_next_child_ready();
+        runtime.start_controlled_unified_import(&request_a).unwrap();
+        runtime.start_controlled_unified_import(&request_b).unwrap();
+
+        assert!(runtime.poll_unified_sessions().is_none());
+        let reserved = runtime.parakeet_scheduler.in_flight().unwrap();
+        assert_eq!(reserved.session, session_a);
+        assert!(matches!(
+            reserved.work,
+            whisper_core::parakeet_scheduler::ScheduledWork::Final { .. }
+        ));
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
+        assert!(
+            runtime.unified_sessions[&session_a]
+                .pending_prepared
+                .is_some()
+        );
+        assert!(
+            !child_observations
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|item| item.event == "Ready")
+        );
+
+        runtime
+            .parakeet_scheduler
+            .queue_preview(session_b, 5 * 16_000)
+            .unwrap();
+        assert!(runtime.poll_unified_sessions().is_none());
+        assert_eq!(runtime.parakeet_scheduler.in_flight(), Some(reserved));
+        assert!(
+            runtime.unified_sessions[&session_a]
+                .pending_prepared
+                .is_some()
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
+        let (ready_released, ready_changed) = &*ready_gate;
+        *ready_released.lock().unwrap() = true;
+        ready_changed.notify_all();
+        assert!(runtime.poll_unified_sessions().is_none());
+        assert_eq!(held_rx.recv_timeout(Duration::from_secs(5)).unwrap(), "A");
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert!(runtime.poll_unified_sessions().is_none());
+        assert_eq!(runtime.parakeet_scheduler.in_flight(), Some(reserved));
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+
+        release_tx.send(()).unwrap();
+        let peer_preview_deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < peer_preview_deadline && calls.load(Ordering::Relaxed) < 2 {
+            let _ = runtime.poll_unified_sessions();
+            thread::sleep(Duration::from_millis(2));
+        }
+        let call_log = call_sources.lock().unwrap();
+        assert!(call_log.len() >= 2);
+        assert_eq!(call_log[0], "A:final");
+        assert_eq!(call_log[1], "B:preview");
+        assert_eq!(maximum_active.load(Ordering::Relaxed), 1);
+        drop(call_log);
+
+        let recycled_ready_gate = Arc::new((Mutex::new(false), std::sync::Condvar::new()));
+        runtime.controlled_ready_gate = Some(Arc::clone(&recycled_ready_gate));
+        let ready_deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < ready_deadline {
+            if let Some(Err((job_id, generation, message))) = runtime.poll_unified_sessions() {
+                panic!("reserved turn session {job_id:?}/{generation:?} failed: {message}");
+            }
+            let observations = child_observations.lock().unwrap();
+            let recycled_spawned = observations
+                .iter()
+                .filter(|item| item.event == "Spawn")
+                .count()
+                >= 2;
+            drop(observations);
+            if recycled_spawned
+                && runtime
+                    .unified_sessions
+                    .get(&session_a)
+                    .is_some_and(|state| state.pending_prepared.is_some())
+            {
+                break;
+            }
+            let _ = runtime.poll_unified_document();
+            thread::sleep(Duration::from_millis(2));
+        }
+        let reserved_after_recycle = runtime.parakeet_scheduler.in_flight().unwrap();
+        assert_eq!(reserved_after_recycle.session, session_a);
+        assert!(matches!(
+            reserved_after_recycle.work,
+            whisper_core::parakeet_scheduler::ScheduledWork::Final { .. }
+        ));
+        assert!(
+            runtime.unified_sessions[&session_a]
+                .pending_prepared
+                .is_some()
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
+        {
+            let observations = child_observations.lock().unwrap();
+            let second_incarnation = observations
+                .iter()
+                .filter(|item| item.event == "Spawn")
+                .nth(1)
+                .expect("recycled child spawned")
+                .incarnation;
+            assert!(
+                !observations.iter().any(|item| {
+                    item.event == "Ready" && item.incarnation == second_incarnation
+                })
+            );
+        }
+        {
+            let (released, changed) = &*recycled_ready_gate;
+            *released.lock().unwrap() = true;
+            changed.notify_all();
+        }
+
+        let drain_deadline = Instant::now() + Duration::from_secs(20);
+        while Instant::now() < drain_deadline
+            && (!runtime.unified_sessions.is_empty() || !runtime.document_drains.is_empty())
+        {
+            if let Some(Err((job_id, generation, message))) = runtime.poll_unified_sessions() {
+                panic!("reserved turn session {job_id:?}/{generation:?} failed: {message}");
+            }
+            let _ = runtime.poll_unified_document();
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(runtime.unified_sessions.is_empty());
+        assert!(runtime.document_drains.is_empty());
+        assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
+        let observations = child_observations.lock().unwrap();
+        controlled_child_job_bound(&observations).unwrap();
+        let spawns = observations
+            .iter()
+            .filter(|item| item.event == "Spawn")
+            .map(|item| item.incarnation)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            spawns.len(),
+            2,
+            "terminal B must be reaped before A resumes"
+        );
+        for incarnation in &spawns {
+            let events = observations
+                .iter()
+                .filter(|item| item.incarnation == *incarnation)
+                .map(|item| item.event)
+                .collect::<Vec<_>>();
+            assert_eq!(events.first(), Some(&"Spawn"));
+            assert_eq!(events.get(1), Some(&"Ready"));
+            assert!(events.iter().position(|event| *event == "Reaped").is_some());
+        }
+        let reaped_first = observations
+            .iter()
+            .position(|item| item.event == "Reaped" && item.incarnation == spawns[0])
+            .unwrap();
+        let spawned_second = observations
+            .iter()
+            .position(|item| item.event == "Spawn" && item.incarnation == spawns[1])
+            .unwrap();
+        assert!(reaped_first < spawned_second);
+        drop(observations);
+        let final_order = call_sources
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|entry| entry.ends_with(":final"))
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(
+            final_order,
+            ["A:final", "B:final", "A:final"],
+            "final turns must retain their order across child recycle"
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn unified_child_retains_only_two_job_ids_until_real_worker_recycle() {
+        use whisper_core::parakeet_scheduler::{ScheduledCall, ScheduledWork, SchedulerSession};
+
+        let (worker, calls) = controlled_worker();
+        let mut executor = UnifiedInferenceExecutor::start(worker).unwrap();
+        let command_for = |job_id| UnifiedInferenceCommand {
+            call: ScheduledCall {
+                session: SchedulerSession {
+                    job_id: JobId(job_id),
+                    generation: Generation::first(),
+                },
+                incarnation: 1,
+                request_id: 1,
+                attempt: 0,
+                work: ScheduledWork::Final { sequence: 1 },
+            },
+            window: whisper_core::parakeet_session::AudioWindow {
+                sequence: 1,
+                central_start_sample: 0,
+                central_end_sample: 1,
+                native_start_sample: 0,
+                native_end_sample: 1,
+            },
+            pcm: vec![0],
+        };
+        let await_result = |executor: &mut UnifiedInferenceExecutor| {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                if let Some(result) = executor.try_result().unwrap() {
+                    break result;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "controlled child result timed out"
+                );
+                thread::sleep(Duration::from_millis(2));
+            }
+        };
+
+        for job_id in [9_428_u128, 9_429] {
+            executor.dispatch(command_for(job_id)).unwrap();
+            let result = await_result(&mut executor);
+            assert_eq!(result.call.session.job_id, JobId(job_id));
+            assert!(result.words.is_ok());
+        }
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+
+        executor.dispatch(command_for(9_430)).unwrap();
+        let rejected = await_result(&mut executor);
+        assert_eq!(rejected.call.session.job_id, JobId(9_430));
+        assert!(rejected.words.unwrap_err().contains("ChildSessionCapacity"));
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+
+        executor.stop_and_reap().unwrap();
+        executor.restart().unwrap();
+        executor.dispatch(command_for(9_430)).unwrap();
+        let recycled = await_result(&mut executor);
+        assert!(recycled.words.is_ok());
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
+        executor.stop_and_reap().unwrap();
+    }
+
+    #[test]
+    fn panicking_unified_worker_terminates_the_inflight_session_and_its_peer() {
+        const A_ID: u128 = 9_426;
+        const B_ID: u128 = 9_427;
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-worker-panic-{}",
+            std::process::id()
+        ));
+        let archive_root = root.join("archive");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        let source_a = root.join("source-a.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_a).unwrap();
+        writer.append(&vec![10_000_i16; 121 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let source_b = root.join("source-b.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_b).unwrap();
+        writer.append(&vec![0_i16; 5 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let request_a = unified_import_request(&archive_root, &source_a, A_ID);
+        let request_b = unified_import_request(&archive_root, &source_b, B_ID);
+        let session_a = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request_a.job_id,
+            generation: request_a.generation,
+        };
+        let session_b = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request_b.job_id,
+            generation: request_b.generation,
+        };
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker))
+        .with_panicking_transcriber_for(session_b);
+        runtime.start_controlled_unified_import(&request_a).unwrap();
+        runtime.start_controlled_unified_import(&request_b).unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let mut failed_b = false;
+        while Instant::now() < deadline {
+            if let Some(Err((job_id, generation, message))) = runtime.poll_unified_sessions() {
+                assert_eq!(
+                    (job_id, generation),
+                    (request_b.job_id, request_b.generation)
+                );
+                assert!(message.contains("worker thread panicked"));
+                failed_b = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(failed_b, "the injected worker panic did not terminate B");
+        assert!(matches!(
+            runtime.poll(),
+            Some(Ok(ImportEvent::Failed { job_id, generation, message }))
+                if job_id == request_a.job_id
+                    && generation == request_a.generation
+                    && message.contains("peer session terminated")
+        ));
+        assert!(!runtime.unified_sessions.contains_key(&session_a));
+        assert!(!runtime.unified_sessions.contains_key(&session_b));
+        assert!(!runtime.unified_archives.contains_key(&session_a));
+        assert!(!runtime.unified_archives.contains_key(&session_b));
+        assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
+        assert!(runtime.parakeet_scheduler.in_flight().is_none());
+        let executor = runtime.unified_executor.as_ref().unwrap();
+        assert!(executor.thread.is_none());
+        assert!(executor.worker.is_none());
+        assert!(
+            runtime
+                .start_controlled_unified_import(&unified_import_request(
+                    &archive_root,
+                    &source_a,
+                    A_ID + 1,
+                ))
+                .is_err()
+        );
+        for request in [&request_a, &request_b] {
+            assert!(
+                archive_root
+                    .join("transcriptions")
+                    .join(format!("{:032x}", request.job_id.0))
+                    .join(request.generation.get().to_string())
+                    .join("parakeet-unified/source.wav")
+                    .is_file()
+            );
+        }
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn unified_document_drains_are_included_in_the_two_session_admission_bound() {
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-drain-capacity-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let (worker, _) = controlled_worker();
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(worker);
+        let mut requests = Vec::new();
+        for id in [9_410_u128, 9_411] {
+            let source_path = root.join(format!("source-{id}.wav"));
+            let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+            writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+            writer.finish().unwrap();
+            let request = unified_import_request(&root.join("archive"), &source_path, id);
+            runtime.start_controlled_unified_import(&request).unwrap();
+            requests.push(request);
+        }
+
+        let drain_deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < drain_deadline
+            && (runtime.unified_sessions.len() != 0 || runtime.document_drains.len() != 2)
+        {
+            if let Some(Err((job_id, generation, message))) = runtime.poll_unified_sessions() {
+                panic!("session {job_id:?}/{generation:?} failed before document drain: {message}");
+            }
+            assert!(runtime.unified_sessions.len() <= 2);
+            assert!(runtime.unified_archives.len() <= 2);
+            assert!(runtime.document_drains.len() <= 2);
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(runtime.unified_sessions.is_empty());
+        assert_eq!(runtime.unified_archives.len(), 2);
+        assert_eq!(runtime.document_drains.len(), 2);
+        // The drain queue itself participates in admission even if an archive
+        // handle has already been released by a terminal path.
+        runtime.unified_archives.clear();
+
+        let third_source = root.join("source-third.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&third_source).unwrap();
+        writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let third = unified_import_request(&root.join("archive"), &third_source, 9_412);
+        assert!(runtime.start_controlled_unified_import(&third).is_err());
+        assert!(runtime.unified_archives.is_empty());
+        assert_eq!(runtime.document_drains.len(), 2);
+        assert!(
+            !root
+                .join("archive/transcriptions")
+                .join(format!("{:032x}", third.job_id.0))
+                .exists()
+        );
+        assert_eq!(requests.len(), 2);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn disconnected_unified_inference_result_fails_the_inflight_session_and_preserves_its_peer() {
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-disconnect-correlation-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let session_b = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: JobId(9_421),
+            generation: Generation::first(),
+        };
+        let (worker, calls) = controlled_worker();
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(worker)
+        .with_disconnected_result_for(session_b);
+
+        let source_a = root.join("source-a.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_a).unwrap();
+        writer.append(&vec![0_i16; 121 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let request_a = unified_import_request(&root.join("archive"), &source_a, 9_420);
+        let source_b = root.join("source-b.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_b).unwrap();
+        writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let request_b =
+            unified_import_request(&root.join("archive"), &source_b, session_b.job_id.0);
+        runtime.start_controlled_unified_import(&request_a).unwrap();
+        runtime.start_controlled_unified_import(&request_b).unwrap();
+
+        let failure_deadline = Instant::now() + Duration::from_secs(20);
+        let mut failed_b = false;
+        while Instant::now() < failure_deadline {
+            if let Some(Err((job_id, generation, message))) = runtime.poll() {
+                assert_eq!(job_id, session_b.job_id);
+                assert_eq!(generation, session_b.generation);
+                assert!(message.contains("result channel disconnected"));
+                failed_b = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            failed_b,
+            "the injected B result-channel disconnect was not observed"
+        );
+        let session_a = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request_a.job_id,
+            generation: request_a.generation,
+        };
+        assert!(runtime.unified_sessions.contains_key(&session_a));
+        assert!(!runtime.unified_sessions.contains_key(&session_b));
+        assert!(runtime.unified_archives.contains_key(&session_a));
+        assert!(!runtime.unified_archives.contains_key(&session_b));
+        assert_eq!(runtime.parakeet_scheduler.in_flight(), None);
+        assert_eq!(runtime.parakeet_scheduler.active_sessions(), 1);
+        assert!(runtime.unified_executor.as_ref().unwrap().thread.is_some());
+
+        let peer_deadline = Instant::now() + Duration::from_secs(20);
+        while Instant::now() < peer_deadline && runtime.unified_sessions.contains_key(&session_a) {
+            if let Some(Err((job_id, generation, message))) = runtime.poll() {
+                panic!("peer A failed after B disconnect: {job_id:?}/{generation:?}: {message}");
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(!runtime.unified_sessions.contains_key(&session_a));
+        assert!(
+            runtime
+                .document_drains
+                .iter()
+                .any(|drain| (drain.job_id, drain.generation)
+                    == (request_a.job_id, request_a.generation))
+        );
+        assert!(calls.load(Ordering::Relaxed) >= 3);
+        assert!(runtime.unified_sessions.len() <= 2);
+        assert!(runtime.unified_archives.len() <= 2);
+        assert!(runtime.document_drains.len() <= 2);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets() {
+        const JOB_ID: u128 = 9_322;
+        let root =
+            std::env::temp_dir().join(format!("parakeet-unified-live-gain-{}", std::process::id()));
+        let archive_root = root.join("archive");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        let mut request = unified_live_request(&archive_root, JOB_ID);
+        request.microphone = whisper_core::MicrophoneChoice::Device("test:unified-gain".into());
+        let mut capture = CaptureStream::empty_test_capture_with_gain(
+            16_000,
+            1,
+            "test:unified-gain",
+            whisper_core::microphone_level::GainDb::NEUTRAL,
+        );
+        capture.enqueue_test_block(vec![0.1; 16_000]);
+        let runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker))
+        .with_controlled_capture(capture, None);
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+        });
+
+        app.dispatch(AppCommand::StartUnifiedLiveConfigured {
+            request: request.clone(),
+        })
+        .unwrap();
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.dispatch(AppCommand::SetMicrophoneGain {
+            job_id: request.job_id,
+            generation: request.generation,
+            target_identity: "test:unified-gain".into(),
+            expected_revision: 0,
+            gain: whisper_core::microphone_level::GainDb::new(6).unwrap(),
+        })
+        .unwrap();
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request.job_id,
+            generation: request.generation,
+        };
+        app.io
+            .runtime
+            .unified_sessions
+            .get_mut(&session)
+            .unwrap()
+            .source
+            .enqueue_test_block(vec![0.1; 16_000]);
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(app.view.microphone_gain_db, 6);
+        assert_eq!(app.view.microphone_gain_revision, 1);
+        assert_eq!(app.view.microphone_gain_applied_first_frame, Some(16_000));
+
+        app.dispatch(AppCommand::SetMicrophoneGain {
+            job_id: request.job_id,
+            generation: request.generation,
+            target_identity: "test:wrong-source".into(),
+            expected_revision: 1,
+            gain: whisper_core::microphone_level::GainDb::new(0).unwrap(),
+        })
+        .unwrap();
+        assert!(matches!(
+            app.dispatch(AppCommand::SetMicrophoneGain {
+                job_id: request.job_id,
+                generation: request.generation,
+                target_identity: "test:unified-gain".into(),
+                expected_revision: 0,
+                gain: whisper_core::microphone_level::GainDb::new(0).unwrap(),
+            }),
+            Err(whisper_core::application::ApplicationError::InvalidCommand)
+        ));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(
+            app.view
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("source active différente"))
+        );
+        assert_eq!(app.view.microphone_gain_revision, 1);
+        assert_eq!(app.view.microphone_gain_requested_revision, 1);
+        assert_eq!(app.view.microphone_gain_requested_db, 6);
+        app.dispatch(AppCommand::SetMicrophoneGain {
+            job_id: request.job_id,
+            generation: request.generation,
+            target_identity: "test:unified-gain".into(),
+            expected_revision: 1,
+            gain: whisper_core::microphone_level::GainDb::new(0).unwrap(),
+        })
+        .unwrap();
+        app.io
+            .runtime
+            .unified_sessions
+            .get_mut(&session)
+            .unwrap()
+            .source
+            .enqueue_test_block(vec![0.1; 16_000]);
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(app.view.microphone_gain_db, 0);
+        assert_eq!(app.view.microphone_gain_revision, 2);
+        assert_eq!(app.view.microphone_gain_applied_first_frame, Some(32_000));
+
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: request.job_id,
+            generation: request.generation,
+        })
+        .unwrap();
+        let publication_deadline = Instant::now() + Duration::from_secs(20);
+        while Instant::now() < publication_deadline {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            if ArchiveStore::scan(&archive_root)
+                .unwrap()
+                .iter()
+                .any(|entry| entry.job_id == request.job_id && entry.complete)
+            {
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        let generation = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", JOB_ID))
+            .join("1");
+        let source = crate::parakeet_audio::PcmPartStore::open(
+            generation.join("parakeet-unified/source.wav"),
+        );
+        let before_gain = source.read_window(2_000..14_000).unwrap();
+        let after_gain = source.read_window(18_000..30_000).unwrap();
+        let after_recovery = source.read_window(34_000..46_000).unwrap();
+        assert!(
+            before_gain
+                .iter()
+                .all(|sample| (3_000..=3_600).contains(sample))
+        );
+        assert!(
+            after_gain
+                .iter()
+                .all(|sample| (6_000..=7_000).contains(sample))
+        );
+        assert!(
+            after_recovery
+                .iter()
+                .all(|sample| (3_000..=3_600).contains(sample))
+        );
+        assert!(
+            ArchiveStore::scan(&archive_root)
+                .unwrap()
+                .iter()
+                .any(|entry| entry.job_id == request.job_id && entry.complete)
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
     fn unified_import_and_capture_without_controlled_injection_are_refused_before_hardware_start() {
         let root = std::env::temp_dir().join(format!(
             "parakeet-unified-native-refusal-{}",
@@ -11788,6 +13488,18 @@ mod tests {
             if message.contains("ModelNotQualified") && message.contains("controlled worker"))
         );
 
+        let mut gpu_request = unified_import_request(&root, Path::new("missing-gpu.wav"), 776);
+        gpu_request.config.compute = ComputeChoice::Gpu;
+        runtime.effect(ImportEffect::StartWorker(gpu_request), &mut events);
+        assert!(matches!(
+            events.pop_front(),
+            Some(ImportEvent::Failed { message, .. })
+                if message.contains("ModelNotQualified")
+                    && message.contains("controlled worker")
+        ));
+        assert!(runtime.unified_sessions.is_empty());
+        assert!(runtime.unified_executor.is_none());
+
         let live_request = unified_live_request(&root, 778);
         runtime.effect(ImportEffect::StartUnifiedLive(live_request), &mut events);
         assert!(
@@ -11799,6 +13511,21 @@ mod tests {
             !root.exists(),
             "native capture refusal must precede storage/open side effects"
         );
+
+        let mut gpu_live_request = unified_live_request(&root, 780);
+        gpu_live_request.config.compute = ComputeChoice::Gpu;
+        runtime.effect(
+            ImportEffect::StartUnifiedLive(gpu_live_request),
+            &mut events,
+        );
+        assert!(matches!(
+            events.pop_front(),
+            Some(ImportEvent::Failed { message, .. })
+                if message.contains("ModelNotQualified")
+                    && message.contains("not enabled")
+        ));
+        assert!(runtime.unified_sessions.is_empty());
+        assert!(runtime.unified_executor.is_none());
 
         let live_request = unified_live_request(&root, 779);
         let mut app = ImportApplication::new(RuntimeImportPort {
