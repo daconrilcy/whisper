@@ -1,12 +1,12 @@
-Avancée : proposition en dix tâches et quatre lots établie à partir du design accepté.
-Blocage : aucun pour la revue du plan ; prérequis d'exécution des campagnes non satisfaits.
-Décision : soumettre le candidat Git à la revue indépendante ; aucun code autorisé.
+Avancée : plan en dix tâches et quatre lots versionné ; revue indépendante CLEAN.
+Blocage : aucun constat REQUIRED ; prérequis d'exécution des campagnes non satisfaits.
+Décision : PLANS READY pour acceptation utilisateur ; aucun code autorisé.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
 ## 1. Identité, autorité et base
 
-- ID : P-PARA-UNIFIED-01 ; version : v0.1 ; statut : DRAFT.
+- ID : P-PARA-UNIFIED-01 ; version : v0.1 ; statut : PLANS READY pour acceptation utilisateur.
 - Design parent : `docs/cadrage/evo-parakeet-transcription-unifiee.md`, D-PARA-UNIFIED-01 v0.2, accepté pour planification au commit `d8d170f9`.
 - Revue du design : `docs/cadrage/revue-parakeet-transcription-unifiee.md`, CLEAN sur `42c8c16d`, clôture documentaire `03506050` ; acceptation S-USER-07 ajoutée sans changement technique.
 - Base produit : `a483e176759fcd2f2340f221470fe09f20ec8545`, branche `evo-startup-perf`.
@@ -144,4 +144,8 @@ La future revue PLANS vérifie ce document contre le design accepté. Les états
 
 ## 4. Readiness
 
-PENDING REVIEW. Le rédacteur ne déclare pas son propre CLEAN/READY. Acceptation du plan, autorisation de lot, revue de code, validation produit et publication resteront distinctes.
+**PLANS READY pour acceptation utilisateur**, sur verdict **CLEAN** de `/root/parakeet_design_review`, indépendant de la rédaction, candidat Git `325471621ee182511cb3ff522294d73975967e4d`. Aucun constat REQUIRED, aucune correction requise. Voir `revue-plan-parakeet-transcription-unifiee.md`.
+
+Le conseil PLAN-PU-A1 est conservé pour précision avant T5 : il ne bloque pas le plan et ne change aucun chemin ni contrat dans cette clôture. E-GUARD et E-AUTH ne sont pas satisfaits ; PLANS READY ne signifie pas campagne ou code autorisé. Les seuils et autres détails gardent leurs échéances du §3.7. Tous les tests produit, passages natifs et essais Windows restent NOT RUN.
+
+La clôture ne modifie que les métadonnées de readiness et consigne le verdict, conformément à la permission explicite du reviewer. Aucun changement technique après revue. Acceptation du plan, autorisation de lot, revue de code, validation produit et publication restent distinctes.
