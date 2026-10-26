@@ -40,6 +40,14 @@ Question posée : « Pendant l'enregistrement micro, quel affichage souhaitez-vo
 
 Question : faut-il inclure les durées supérieures à 30 minutes, ou garder la limite actuelle avec annonce et arrêt micro propre ? L'utilisateur retient l'inclusion des durées longues. Cela autorise leur conception, pas une campagne, une implémentation ni une durée illimitée garantie. Les limites techniques justifiées restent à établir par le cadrage.
 
+**S-USER-05 — Absence de plafond de durée, précision de Q-PU-02 :**
+
+> sans limite.
+
+Question : « Quelle durée doit impérativement être prise en charge pour un fichier ou une session micro longue dans votre usage — par exemple 1 heure, 2 heures, 4 heures, ou davantage ? Cette cible servira à dimensionner le traitement et sa validation. »
+
+Interprétation annoncée dans cette session : absence de plafond de durée imposé par l'application. Les limites physiques de disque, ressources et formats subsistent ; le cadrage doit définir leur détection et une fin propre préservant l'audio. Aucun essai fini ne prouve une durée infinie. Ne pas remplacer ce choix par un plafond arbitraire.
+
 **S-QUAL-01 — Qualification dans cette conversation :** revue indépendante `revue_qualification`, verdict PASS, aucun P0/P1. Le résultat final reste automatique et ne vaut pas vérification humaine. Aucun fichier ni code créé sous cette mission de qualification.
 
 ### Besoin et critères issus de la qualification
@@ -127,7 +135,7 @@ Les réglages existants restent utilisables ; **de nouveaux réglages** n'entren
 ### 3.4 Questions et décisions
 
 - **Q-PU-01 — STRUCTURING, CLOSED :** durée >30 min incluse par S-USER-04. Propriétaire : utilisateur ; impacts CAP-04 et CA-02/03/07/08. Ne pas rouvrir ce choix.
-- **Q-PU-02 — STRUCTURING, OPEN :** quelles limites maximales d'audio et de ressources peuvent être proposées pour les séances longues ? L'architecte instruit la faisabilité puis propose des limites ; l'utilisateur tranche les conséquences produit avant acceptation du design. Aucune limite arbitraire ni promesse « illimitée ».
+- **Q-PU-02 — STRUCTURING, CLOSED sur le besoin :** S-USER-05 retient l'absence de plafond applicatif de durée. La faisabilité, les contraintes de format/disque et la gestion bornée des ressources restent à instruire par l'architecte ; aucune durée infinie ne peut être garantie sur une machine finie. Ce choix remplace la recherche d'une durée maximale produit.
 - **Q-PU-03 — DETAIL, OPEN :** seuils acceptables de premier texte, retard et attente après arrêt. Analyste et architecte définissent les métriques et proposent la méthode ; l'utilisateur accepte les seuils avant la validation qui en dépend. Si un seuil conditionne l'architecture, reclasser STRUCTURING. Les anciennes cibles ne doivent pas être transposées silencieusement du « confirmé » au nouveau texte révisable.
 
 **Orientation proposée :** réutiliser l'existant lorsque compatible, privilégier la conservation de l'audio et une finalisation explicite, et garder toutes les confirmations algorithmiques éventuelles hors des gestes demandés à l'utilisateur. Ce sont des objectifs de cadrage ; le choix des mécanismes appartient aux spécialistes suivants.
