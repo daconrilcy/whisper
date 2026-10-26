@@ -1,6 +1,6 @@
-Avancée : deux corrections de compilation relues CLEAN sur leurs deltas ; couverture JSON conservée sans dépendance ajoutée.
-Blocage : compilation complète et tests du candidat corrigé restent à exécuter.
-Décision : reprise finale autorisée du mandat, deux cycles consommés ; arrêt au premier échec maintenu.
+Avancée : deux corrections de compilation relues ; formatage PASS sur le candidat du cycle 2.
+Blocage : compilation FAIL E0609 dans le test source_binding ; aucun test exécuté.
+Décision : LIVRÉ AVEC RÉSERVES, deux cycles du mandat consommés ; correction supplémentaire à arbitrer.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -412,3 +412,21 @@ Le même `rust_implementer` corrige ; la coordination et le reviewer indépendan
 La version exacte du lanceur de cette interruption est conservée dans `retained-launchers/validate-before-temp-rename-debf023820f6470a8ef36fc9cad9f468.ps1`. La session principale corrige son classement pour appliquer la même règle acceptée aux deux côtés du renommage ; un mouvement depuis une racine connue de campagne vers l'extérieur, ou depuis un emplacement sensible, reste un échec. Six cas simulés de renommage (sans création extérieure) complètent les auto-tests avant la prochaine commande Cargo ; seul le contrôle de syntaxe PowerShell a été exécuté après cette adaptation à ce stade. Aucun changement de dérogation, racine ou budget ; cette correction d'enveloppe ne consomme pas un cycle de correction Rust et ne justifie pas une relance inchangée face aux erreurs E0433 déjà connues. Le marqueur d'arrêt courant reste en place jusqu'à la reprise autorisée après la correction de cycle 2 relue. Durée du passage interrompu : 139,55 secondes, ajoutées aux 431,98 secondes antérieures, sans réinitialiser les budgets.
 
 **Cycle 2 — correction et revue.** Sur la base `9d320e6e2d1b589c0440686796021bd553a984c6`, le même worker a déplacé `import_strategy_defaults_to_legacy_and_round_trips_explicit_versions` de `crates/whisper-core/tests/import_contract.rs` vers `crates/whisper-adapters/tests/parakeet_archive.rs`. Les assertions de champ absent legacy, round-trip unifié et valeur inconnue refusée sont conservées, avec la même demande construite. Deux chemins déjà autorisés, aucun code produit ou manifeste changé ; `git diff --check` PASS, candidat figé. Même coordination et reviewer historique indépendant : **CLEAN limité à V-PU-L1-04**, aucun finding sur ce transfert. Compilation/test non exécutés par le worker ou le reviewer. La sélection du lanceur inclut désormais explicitement ce test déplacé (`--test parakeet_archive` et son nom exact), afin de préserver sa preuve exécutée dans la même campagne. Les deux cycles du mandat sont consommés ; la reprise sur ce candidat relu est autorisée, sans correction supplémentaire présumée en cas de nouvel échec.
+
+## 16. Résultat de la reprise après cycle 2
+
+**Candidat :** `740752c70af61db9e0aa32d95d11b94d6928c46a`, qui versionne le déplacement du test JSON et le bilan de sa revue. Run `6f813383568442429c41107507118f9c`. Préflight PASS : 26 essais de refus et 6 cas simulés de classement des renommages PASS, sans création extérieure. La règle Temp est appliquée aux deux chemins ; les sorties hors racine connue et les emplacements sensibles restent refusés. La correction du lanceur est ainsi exercée avant Cargo, sans élargir la dérogation acceptée.
+
+| Commande | Résultat observé |
+| --- | --- |
+| `cargo fmt --all -- --check` | **PASS**, code 0. |
+| `cargo test --offline --locked -p whisper-core -p whisper-adapters -p whisper-desktop --no-run` | **FAIL**, code 101 : deux diagnostics E0609 dans le test source_binding. |
+| Tests exécutés, dont test JSON déplacé et import contrôlé CPU/GPU | **NOT RUN** ; arrêt avant ces commandes. |
+
+**V-PU-L1-05 — compilation, PRODUCT.** Dans `crates/whisper-adapters/tests/source_binding.rs:83–88`, `first_binding.apply_to_request(&first_request)` renvoie désormais `Result<ImportRequest, String>`, mais le test accède directement à `execution.source_path` et `execution.source_sha256`. Les deux E0609 ont une seule cause : le résultat n'est pas traité avant les assertions. La correction minimale proposée est de vérifier/extraire la réussite attendue de ce binding avant de consulter les champs, sans contourner les contrôles de concordance de stratégie ni retirer les assertions. Ce fichier est déjà autorisé, mais aucune troisième correction du mandat n'est engagée. E0277 et E0433 des cycles précédents ne sont plus émis dans le journal de ce passage ; cela ne transforme pas la compilation complète en succès.
+
+**Contrôles et limites.** Aucun événement `FAIL` ou `WATCH_ERROR`, 55 événements Temp `UNATTRIBUTED` consignés, sans attribution ni conclusion exhaustive sur les écritures extérieures. Le run dure 102,55 secondes ; cumul enregistré des exécutions : environ 674,08 secondes (11 min 14 s), sous les 90 minutes. Croissance nette des deux racines par rapport à la baseline partagée : environ 1,650 Gio, sous les 16 Gio, incluant le cache et les petites preuves. Espace libre final : **109,39 Gio**. Le nouveau `STOP.json`, l'arrêt interrompu précédent et la version du lanceur avant correction de classement sont conservés. Aucun nettoyage, correction automatique, relance, changement de dépendance, autre lot ou push.
+
+**Conservation.** Archive `target/parakeet-tests/parakeet-unified/lot-01/archives/pu-l1-compile-cycles-6f813383568442429c41107507118f9c.zip` : **34 fichiers**, 79 273 octets, arborescence et SHA-256 de chaque entrée vérifiés contre les originaux ; SHA-256 de l'archive `893d415eca3f60582ed566315f63de7399786aaa780dc9ec5717c9d5f26a8c10`. Les archives précédentes restent préservées ; aucun manifeste supplémentaire créé. Sources suivies propres après campagne, `models/` et `sound example/` non suivis préservés, `git diff --check` PASS.
+
+**Clôture du mandat.** Deux cycles correction/revue accomplis (trait Hash, couverture JSON), chacun relu CLEAN sur son delta, puis repris sous la garde et les budgets autorisés. Verdict de clôture : **LIVRÉ AVEC RÉSERVES**, compilation non acquise et T4 non qualifiée par exécution. La règle des deux cycles interdit une troisième correction implicite ; le constat V-PU-L1-05 est remis à l'utilisateur pour arbitrage. Les étapes suivantes du plan restent suspendues à la validation réelle de PU-L1.
