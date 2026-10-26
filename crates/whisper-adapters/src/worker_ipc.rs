@@ -11693,13 +11693,19 @@ mod tests {
         );
 
         let b_pump_deadline = Instant::now() + Duration::from_secs(5);
-        while Instant::now() < b_pump_deadline
-            && b_progress.load(Ordering::Relaxed) < B_SAMPLES as u64
-        {
+        while Instant::now() < b_pump_deadline && b_progress.load(Ordering::Relaxed) == 0 {
             app.dispatch(AppCommand::Refresh).unwrap();
             thread::sleep(Duration::from_millis(2));
         }
-        assert_eq!(b_progress.load(Ordering::Relaxed), B_SAMPLES as u64);
+        let b_written_before_stop = b_progress.load(Ordering::Relaxed);
+        assert!(
+            b_written_before_stop > 0,
+            "B did not progress during A's held call"
+        );
+        assert!(
+            b_written_before_stop < B_SAMPLES as u64,
+            "the capture's delayed converter tail is acknowledged only at Stop"
+        );
         assert_eq!(
             calls.load(Ordering::Relaxed),
             held_call_count,
