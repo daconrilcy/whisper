@@ -12382,8 +12382,8 @@ mod tests {
                     .iter()
                     .any(|entry| entry.job_id == job_id && entry.complete)
             );
-            let session = app
-                .view()
+            let view = app.view();
+            let session = view
                 .unified_parakeet_sessions
                 .iter()
                 .find(|session| session.job_id == job_id)
