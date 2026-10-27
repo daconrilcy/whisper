@@ -372,16 +372,15 @@ pub struct DesktopApp<A> {
         Option<u64>,
         whisper_core::ports::UnifiedSessionPhase,
     )>,
-    unified_wait_tracking:
-        std::collections::HashMap<
-            (JobId, Generation),
-            (
-                u64,
-                u64,
-                whisper_core::ports::UnifiedSessionPhase,
-                std::time::Instant,
-            ),
-        >,
+    unified_wait_tracking: std::collections::HashMap<
+        (JobId, Generation),
+        (
+            u64,
+            u64,
+            whisper_core::ports::UnifiedSessionPhase,
+            std::time::Instant,
+        ),
+    >,
     #[cfg(test)]
     microphone_test_button_rect: Option<egui::Rect>,
     #[cfg(test)]
@@ -777,9 +776,11 @@ impl<A: Application> DesktopApp<A> {
         ui.heading("Transcriptions Parakeet");
         for session in sessions.iter().rev() {
             let identity = (session.job_id, session.generation);
-            let selected = self.view.selected_unified_session.as_ref().is_some_and(|view| {
-                (view.job_id, view.generation) == identity
-            });
+            let selected = self
+                .view
+                .selected_unified_session
+                .as_ref()
+                .is_some_and(|view| (view.job_id, view.generation) == identity);
             let label = format!(
                 "{} — {}",
                 if session.microphone_capture {
@@ -856,11 +857,15 @@ impl<A: Application> DesktopApp<A> {
             ));
         }
         if active
-            && ui.button(if session.phase == whisper_core::ports::UnifiedSessionPhase::Starting {
-                "Annuler / arrêter"
-            } else {
-                "Arrêter le microphone"
-            }).clicked()
+            && ui
+                .button(
+                    if session.phase == whisper_core::ports::UnifiedSessionPhase::Starting {
+                        "Annuler / arrêter"
+                    } else {
+                        "Arrêter le microphone"
+                    },
+                )
+                .clicked()
         {
             let command = if session.microphone_capture {
                 AppCommand::StopUnifiedLive {
@@ -883,10 +888,7 @@ impl<A: Application> DesktopApp<A> {
             .document_page
             .as_ref()
             .is_some_and(|page| page.revision == session.document_revision);
-        if session.document_revision > 0
-            && !document_current
-            && selected.document_error.is_none()
-        {
+        if session.document_revision > 0 && !document_current && selected.document_error.is_none() {
             let first_sequence = selected
                 .document_page
                 .as_ref()
@@ -956,12 +958,8 @@ impl<A: Application> DesktopApp<A> {
                     let first = page.entries.first().map_or(1, |entry| {
                         entry.segment.segment_id.0.saturating_sub(128).max(1)
                     });
-                    self.last_unified_document_request = Some((
-                        identity.0,
-                        identity.1,
-                        session.document_revision,
-                        first,
-                    ));
+                    self.last_unified_document_request =
+                        Some((identity.0, identity.1, session.document_revision, first));
                     self.dispatch(AppCommand::ReadUnifiedDocumentPage {
                         job_id: identity.0,
                         generation: identity.1,
@@ -972,12 +970,8 @@ impl<A: Application> DesktopApp<A> {
                 if let Some(next) = page.next_sequence
                     && ui.button("Suivant").clicked()
                 {
-                    self.last_unified_document_request = Some((
-                        identity.0,
-                        identity.1,
-                        session.document_revision,
-                        next,
-                    ));
+                    self.last_unified_document_request =
+                        Some((identity.0, identity.1, session.document_revision, next));
                     self.dispatch(AppCommand::ReadUnifiedDocumentPage {
                         job_id: identity.0,
                         generation: identity.1,
@@ -5504,8 +5498,8 @@ mod tests {
             ..final_segment.clone()
         };
         let mut view = application.view.borrow_mut();
-        view.unified_parakeet_sessions.push(
-            whisper_core::ports::UnifiedParakeetSessionView {
+        view.unified_parakeet_sessions
+            .push(whisper_core::ports::UnifiedParakeetSessionView {
                 job_id: identity.0,
                 generation: identity.1,
                 microphone_capture: true,
@@ -5521,39 +5515,36 @@ mod tests {
                 txt_path: Some("archive/exports/capture.txt".into()),
                 srt_path: Some("archive/exports/capture.srt".into()),
                 message: None,
-            },
-        );
-        view.selected_unified_session = Some(
-            whisper_core::ports::UnifiedParakeetSelectionView {
-                job_id: identity.0,
-                generation: identity.1,
-                document_page: Some(whisper_core::ports::ParakeetDocumentPage {
+            });
+        view.selected_unified_session = Some(whisper_core::ports::UnifiedParakeetSelectionView {
+            job_id: identity.0,
+            generation: identity.1,
+            document_page: Some(whisper_core::ports::ParakeetDocumentPage {
+                revision: 1,
+                entries: vec![whisper_core::ports::ParakeetDocumentEntry {
+                    segment: final_segment,
                     revision: 1,
-                    entries: vec![whisper_core::ports::ParakeetDocumentEntry {
-                        segment: final_segment,
-                        revision: 1,
-                    }],
-                    next_sequence: None,
-                }),
-                preview: Some(whisper_core::ports::ParakeetPreview {
-                    segment: preview_segment,
-                    revision: 2,
-                }),
-                audio_parts_page: Some(whisper_core::ports::UnifiedAudioPartPage {
-                    revision: 1,
-                    offset: 0,
-                    entries: vec![whisper_core::ports::UnifiedAudioPart {
-                        number: 1,
-                        start_sample: 0,
-                        end_sample: 16_000,
-                        path: "archive/source.wav.part-000000.wav".into(),
-                    }],
-                    next_offset: None,
-                }),
-                document_error: None,
-                audio_parts_error: None,
-            },
-        );
+                }],
+                next_sequence: None,
+            }),
+            preview: Some(whisper_core::ports::ParakeetPreview {
+                segment: preview_segment,
+                revision: 2,
+            }),
+            audio_parts_page: Some(whisper_core::ports::UnifiedAudioPartPage {
+                revision: 1,
+                offset: 0,
+                entries: vec![whisper_core::ports::UnifiedAudioPart {
+                    number: 1,
+                    start_sample: 0,
+                    end_sample: 16_000,
+                    path: "archive/source.wav.part-000000.wav".into(),
+                }],
+                next_offset: None,
+            }),
+            document_error: None,
+            audio_parts_error: None,
+        });
         drop(view);
 
         let paths = whisper_core::path_settings::PathSettingsApp::new(
@@ -5588,10 +5579,16 @@ mod tests {
 
         assert!(rendered.contains("Texte final paginé"), "{rendered}");
         assert!(rendered.contains("Aperçu remplaçable"), "{rendered}");
-        assert!(rendered.contains("source.wav.part-000000.wav"), "{rendered}");
+        assert!(
+            rendered.contains("source.wav.part-000000.wav"),
+            "{rendered}"
+        );
         assert!(rendered.contains("capture.txt"), "{rendered}");
         assert!(rendered.contains("capture.srt"), "{rendered}");
-        assert!(rendered.contains("temps écoulé depuis le dernier progrès"), "{rendered}");
+        assert!(
+            rendered.contains("temps écoulé depuis le dernier progrès"),
+            "{rendered}"
+        );
     }
 
     #[test]
@@ -5600,8 +5597,8 @@ mod tests {
         let identity = (JobId(9_902), Generation::first());
         {
             let mut view = application.view.borrow_mut();
-            view.unified_parakeet_sessions.push(
-                whisper_core::ports::UnifiedParakeetSessionView {
+            view.unified_parakeet_sessions
+                .push(whisper_core::ports::UnifiedParakeetSessionView {
                     job_id: identity.0,
                     generation: identity.1,
                     microphone_capture: false,
@@ -5617,10 +5614,9 @@ mod tests {
                     txt_path: None,
                     srt_path: None,
                     message: None,
-                },
-            );
-            view.selected_unified_session = Some(
-                whisper_core::ports::UnifiedParakeetSelectionView {
+                });
+            view.selected_unified_session =
+                Some(whisper_core::ports::UnifiedParakeetSelectionView {
                     job_id: identity.0,
                     generation: identity.1,
                     document_page: None,
@@ -5628,8 +5624,7 @@ mod tests {
                     audio_parts_page: None,
                     document_error: None,
                     audio_parts_error: None,
-                },
-            );
+                });
         }
         let paths = whisper_core::path_settings::PathSettingsApp::new(
             whisper_core::path_settings::PathDefaults {
@@ -5703,8 +5698,8 @@ mod tests {
                 session(a, whisper_core::ports::UnifiedSessionPhase::Capturing),
                 session(b, whisper_core::ports::UnifiedSessionPhase::Capturing),
             ]);
-            view.selected_unified_session = Some(
-                whisper_core::ports::UnifiedParakeetSelectionView {
+            view.selected_unified_session =
+                Some(whisper_core::ports::UnifiedParakeetSelectionView {
                     job_id: a.0,
                     generation: a.1,
                     document_page: None,
@@ -5712,8 +5707,7 @@ mod tests {
                     audio_parts_page: None,
                     document_error: None,
                     audio_parts_error: None,
-                },
-            );
+                });
         }
         let paths = whisper_core::path_settings::PathSettingsApp::new(
             whisper_core::path_settings::PathDefaults {
@@ -5728,8 +5722,8 @@ mod tests {
         run_ui_frame(&context, &mut app, Vec::new());
         assert!(app.unified_wait_tracking.contains_key(&a));
 
-        application.view.borrow_mut().selected_unified_session = Some(
-            whisper_core::ports::UnifiedParakeetSelectionView {
+        application.view.borrow_mut().selected_unified_session =
+            Some(whisper_core::ports::UnifiedParakeetSelectionView {
                 job_id: b.0,
                 generation: b.1,
                 document_page: None,
@@ -5737,8 +5731,7 @@ mod tests {
                 audio_parts_page: None,
                 document_error: None,
                 audio_parts_error: None,
-            },
-        );
+            });
         app.view = application.view.borrow().clone();
         run_ui_frame(&context, &mut app, Vec::new());
         assert!(app.unified_wait_tracking.contains_key(&a));
@@ -5785,9 +5778,11 @@ mod tests {
         }
         let view = application.view.borrow();
         assert_eq!(view.unified_parakeet_sessions.len(), 8);
-        assert!(!view
-            .unified_parakeet_sessions
-            .iter()
-            .any(|entry| (entry.job_id, entry.generation) == a));
+        assert!(
+            !view
+                .unified_parakeet_sessions
+                .iter()
+                .any(|entry| (entry.job_id, entry.generation) == a)
+        );
     }
 }

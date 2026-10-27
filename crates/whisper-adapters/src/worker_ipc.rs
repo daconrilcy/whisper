@@ -2814,11 +2814,15 @@ fn pending_unified_event_identity(event: &ImportEvent) -> Option<(JobId, Generat
         | ImportEvent::ParakeetCaptureStopped {
             job_id, generation, ..
         } => Some((*job_id, *generation)),
-        ImportEvent::UnifiedDocumentPage { job_id, generation, .. }
-        | ImportEvent::UnifiedAudioPartsPage { job_id, generation, .. }
-        | ImportEvent::UnifiedPublicationArtifacts { job_id, generation, .. } => {
-            Some((*job_id, *generation))
+        ImportEvent::UnifiedDocumentPage {
+            job_id, generation, ..
         }
+        | ImportEvent::UnifiedAudioPartsPage {
+            job_id, generation, ..
+        }
+        | ImportEvent::UnifiedPublicationArtifacts {
+            job_id, generation, ..
+        } => Some((*job_id, *generation)),
         _ => None,
     }
 }
@@ -12147,7 +12151,10 @@ mod tests {
             app.dispatch(AppCommand::Refresh).unwrap();
             thread::sleep(Duration::from_millis(2));
         }
-        assert!(calls.load(Ordering::Relaxed) > 0, "A did not begin processing");
+        assert!(
+            calls.load(Ordering::Relaxed) > 0,
+            "A did not begin processing"
+        );
         app.dispatch(AppCommand::StopUnifiedLive {
             job_id: request_a.job_id,
             generation: request_a.generation,
@@ -12189,10 +12196,16 @@ mod tests {
             }
             thread::sleep(Duration::from_millis(2));
         }
-        assert!(b_progressed, "B did not pump while A's final inference was held");
+        assert!(
+            b_progressed,
+            "B did not pump while A's final inference was held"
+        );
 
         app.dispatch(AppCommand::RequestClose).unwrap();
-        assert!(!app.view().close_ready, "close must await A and B publication");
+        assert!(
+            !app.view().close_ready,
+            "close must await A and B publication"
+        );
         assert!(matches!(
             app.dispatch(AppCommand::StartUnifiedLiveConfigured {
                 request: request_third.clone(),
@@ -12214,11 +12227,13 @@ mod tests {
         while Instant::now() < deadline {
             app.dispatch(AppCommand::Refresh).unwrap();
             let entries = ArchiveStore::scan(&archive_root).unwrap();
-            let both_published = [request_a.job_id, request_b.job_id].into_iter().all(|job_id| {
-                entries
-                    .iter()
-                    .any(|entry| entry.job_id == job_id && entry.complete)
-            });
+            let both_published = [request_a.job_id, request_b.job_id]
+                .into_iter()
+                .all(|job_id| {
+                    entries
+                        .iter()
+                        .any(|entry| entry.job_id == job_id && entry.complete)
+                });
             if both_published && app.view().close_ready {
                 break;
             }
@@ -12226,7 +12241,11 @@ mod tests {
         }
         let entries = ArchiveStore::scan(&archive_root).unwrap();
         for job_id in [request_a.job_id, request_b.job_id] {
-            assert!(entries.iter().any(|entry| entry.job_id == job_id && entry.complete));
+            assert!(
+                entries
+                    .iter()
+                    .any(|entry| entry.job_id == job_id && entry.complete)
+            );
             let generation = archive_root
                 .join("transcriptions")
                 .join(format!("{:032x}", job_id.0))
@@ -12235,7 +12254,10 @@ mod tests {
             assert!(generation.join("transcript.txt").is_file());
             assert!(generation.join("transcript.srt").is_file());
         }
-        assert!(app.view().close_ready, "close is ready only after both commits");
+        assert!(
+            app.view().close_ready,
+            "close is ready only after both commits"
+        );
         assert_eq!(stop_submissions.load(Ordering::Relaxed), 2);
         assert_eq!(ArchiveStore::scan(&archive_root).unwrap().len(), 2);
         std::fs::remove_dir_all(&root).unwrap();

@@ -1939,8 +1939,13 @@ impl ArchiveStore {
         let mut index = File::open(directory.join("document.idx"))
             .map_err(|error| format!("DocumentUnavailable: {error}"))?;
         let mut header = [0_u8; 8];
-        index.read_exact(&mut header).map_err(|error| format!("DocumentIndex: {error}"))?;
-        let index_size = index.metadata().map_err(|error| format!("DocumentIndex: {error}"))?.len();
+        index
+            .read_exact(&mut header)
+            .map_err(|error| format!("DocumentIndex: {error}"))?;
+        let index_size = index
+            .metadata()
+            .map_err(|error| format!("DocumentIndex: {error}"))?
+            .len();
         if &header != INDEX_HEADER
             || index_size < INDEX_HEADER.len() as u64
             || (index_size - INDEX_HEADER.len() as u64) % INDEX_ENTRY_BYTES != 0
@@ -1963,23 +1968,35 @@ impl ArchiveStore {
                 + (sequence - 1)
                     .checked_mul(INDEX_ENTRY_BYTES)
                     .ok_or_else(|| "DocumentIndex: sequence overflow".to_owned())?;
-            index.seek(SeekFrom::Start(record_offset)).map_err(|error| error.to_string())?;
+            index
+                .seek(SeekFrom::Start(record_offset))
+                .map_err(|error| error.to_string())?;
             let mut raw = [0_u8; 16];
-            index.read_exact(&mut raw).map_err(|error| format!("StorageCorrupt: document index record: {error}"))?;
+            index
+                .read_exact(&mut raw)
+                .map_err(|error| format!("StorageCorrupt: document index record: {error}"))?;
             let offset = u64::from_le_bytes(raw[..8].try_into().unwrap());
             let length = u64::from_le_bytes(raw[8..].try_into().unwrap());
-            let line_length = usize::try_from(length).map_err(|_| "StorageCorrupt: document record length".to_owned())?;
+            let line_length = usize::try_from(length)
+                .map_err(|_| "StorageCorrupt: document record length".to_owned())?;
             if line_length == 0 || line_length > 1_048_576 {
                 return Err("StorageCorrupt: document record length".into());
             }
-            document.seek(SeekFrom::Start(offset)).map_err(|error| error.to_string())?;
+            document
+                .seek(SeekFrom::Start(offset))
+                .map_err(|error| error.to_string())?;
             let mut line = String::with_capacity(line_length);
-            document.by_ref().take(length).read_line(&mut line).map_err(|error| error.to_string())?;
+            document
+                .by_ref()
+                .take(length)
+                .read_line(&mut line)
+                .map_err(|error| error.to_string())?;
             if line.len() != line_length {
                 return Err("StorageCorrupt: short unified document record".into());
             }
-            let entry: whisper_core::ports::ParakeetDocumentEntry = serde_json::from_str(line.trim_end())
-                .map_err(|error| format!("StorageCorrupt: unified document entry: {error}"))?;
+            let entry: whisper_core::ports::ParakeetDocumentEntry =
+                serde_json::from_str(line.trim_end())
+                    .map_err(|error| format!("StorageCorrupt: unified document entry: {error}"))?;
             if entry.segment.job_id != job_id
                 || entry.segment.generation != generation
                 || entry.segment.segment_id.0 != sequence
@@ -2008,11 +2025,11 @@ impl ArchiveStore {
         if limit == 0 {
             return Err("InvalidInput: audio part page limit".into());
         }
-        let source_path = generation_path(root, job_id, generation)
-            .join("parakeet-unified/source.wav");
+        let source_path =
+            generation_path(root, job_id, generation).join("parakeet-unified/source.wav");
         let index_path = source_path.with_extension("parts.idx");
-        let before = sha256_file(&index_path)
-            .map_err(|error| format!("AudioPartsUnavailable: {error}"))?;
+        let before =
+            sha256_file(&index_path).map_err(|error| format!("AudioPartsUnavailable: {error}"))?;
         let index_bytes = fs::metadata(&index_path)
             .map_err(|error| format!("AudioPartsUnavailable: {error}"))?
             .len();
@@ -2085,15 +2102,21 @@ impl ArchiveStore {
             return Err("PublicationUnavailable: unified exports are internal only".into());
         }
         let wav_path = directory.join("parakeet-unified/source.wav");
-        let txt_path = root.join("exports").join(format!("{}.txt", intent.export_basename));
-        let srt_path = root.join("exports").join(format!("{}.srt", intent.export_basename));
+        let txt_path = root
+            .join("exports")
+            .join(format!("{}.txt", intent.export_basename));
+        let srt_path = root
+            .join("exports")
+            .join(format!("{}.srt", intent.export_basename));
         verify_artifact(&directory, &manifest.text)?;
         verify_artifact(&directory, &manifest.srt)?;
         if !wav_path.with_extension("parts.idx").is_file()
             || !txt_path.is_file()
             || !srt_path.is_file()
         {
-            return Err("PublicationUnavailable: unified audio or TXT/SRT reference is missing".into());
+            return Err(
+                "PublicationUnavailable: unified audio or TXT/SRT reference is missing".into(),
+            );
         }
         Ok(whisper_core::ports::UnifiedPublicationFiles {
             wav_path: wav_path.to_string_lossy().into_owned(),
@@ -7230,29 +7253,25 @@ mod tests {
                     generation,
                     instance_id: 1,
                     segment_id: whisper_core::SegmentId(sequence),
-                    range: SourceRange::new(
-                        (sequence - 1) * 16_000,
-                        sequence * 16_000,
-                        16_000,
-                    )
-                    .unwrap(),
+                    range: SourceRange::new((sequence - 1) * 16_000, sequence * 16_000, 16_000)
+                        .unwrap(),
                     text: format!("segment-{sequence}"),
                 })
                 .unwrap();
         }
 
-        let document_first = ArchiveStore::read_unified_document_page(
-            &root,
-            job_id,
-            generation,
-            130,
-            1,
-            512,
-        )
-        .unwrap();
+        let document_first =
+            ArchiveStore::read_unified_document_page(&root, job_id, generation, 130, 1, 512)
+                .unwrap();
         assert_eq!(document_first.entries.len(), 128);
-        assert_eq!(document_first.entries.first().unwrap().segment.segment_id.0, 1);
-        assert_eq!(document_first.entries.last().unwrap().segment.segment_id.0, 128);
+        assert_eq!(
+            document_first.entries.first().unwrap().segment.segment_id.0,
+            1
+        );
+        assert_eq!(
+            document_first.entries.last().unwrap().segment.segment_id.0,
+            128
+        );
         assert_eq!(document_first.next_sequence, Some(129));
         let document_last = ArchiveStore::read_unified_document_page(
             &root,
@@ -7275,7 +7294,9 @@ mod tests {
         index.write_all(b"PUAUD001").unwrap();
         for number in 1..=130_u64 {
             index.write_all(&number.to_le_bytes()).unwrap();
-            index.write_all(&((number - 1) * 16_000).to_le_bytes()).unwrap();
+            index
+                .write_all(&((number - 1) * 16_000).to_le_bytes())
+                .unwrap();
             index.write_all(&(number * 16_000).to_le_bytes()).unwrap();
             let part_path = if number == 1 {
                 source_path.clone()
@@ -7287,15 +7308,9 @@ mod tests {
         index.sync_all().unwrap();
         drop(index);
 
-        let audio_first = ArchiveStore::read_unified_audio_parts_page(
-            &root,
-            job_id,
-            generation,
-            0,
-            0,
-            512,
-        )
-        .unwrap();
+        let audio_first =
+            ArchiveStore::read_unified_audio_parts_page(&root, job_id, generation, 0, 0, 512)
+                .unwrap();
         assert_eq!(audio_first.entries.len(), 128);
         assert_eq!(audio_first.entries.first().unwrap().number, 1);
         assert_eq!(audio_first.entries.last().unwrap().number, 128);
@@ -7313,7 +7328,12 @@ mod tests {
         assert_eq!(audio_last.entries[0].number, 129);
         assert_eq!(audio_last.entries[1].number, 130);
         assert_eq!(audio_last.next_offset, None);
-        assert!(audio_last.entries.iter().all(|part| Path::new(&part.path).is_file()));
+        assert!(
+            audio_last
+                .entries
+                .iter()
+                .all(|part| Path::new(&part.path).is_file())
+        );
 
         fs::remove_dir_all(root).unwrap();
     }

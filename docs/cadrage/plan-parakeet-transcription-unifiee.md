@@ -723,3 +723,8 @@ D-PU-L3-LIFE : fermeture globale indépendante de l'identité sélectionnée, ad
 
 
 **Accord précis reçu pour PU-L3.** Le 27 octobre 2026, après proposition du candidat commité 42a86e1f et des conditions détaillées du §24, l'utilisateur répond « Je t autorise », puis « Oui, campagne PU-L3 autorisée ». L'accord couvre adaptation du lanceur PowerShell, formatage des six fichiers source déjà approuvés, compilation et tests contrôlés, 120 minutes cumulées / 8 Gio, deux seules racines lot-03 et cargo-shared, surveillance incluant .git, événements Temp non attribués conservés et arrêt sur toute écriture extérieure attribuée ou modification sensible inexpliquée. Aucun microphone réel, inférence native réelle ou ouverture de fenêtre. Cet accord est propre à PU-L3 ; aucun nettoyage, transfert à PU-L4 ou reset entre reprises. Préflight : source suivie propre au candidat, corpus/modèles non suivis préservés ; 143,87 Gio libres avant préparation du lanceur.
+
+
+## 25. Exécution PU-L3 sous garde
+
+Premier passage FormatOnly sur 1eb9c9861e5a6e0f668c60161eb4b610faa73823, run 58815d5f138c45f1843c3dc71925d992 : préflight et auto-tests PASS, copie indépendante du cache PU-L2 sous lot-03, formatage autorisé PASS code 0. Modifications de format limitées à archive.rs, worker_ipc.rs, application.rs et ui.rs, parmi les six chemins autorisés ; aucun autre fichier source modifié. **252,5366156 secondes cumulées (4 min 13 s)** sur 7 200 ; 154 788 634 624 octets libres à la fin. Aucun résultat de compilation/test encore disponible ; les sources formatées sont versionnées avant leur validation exacte.
