@@ -5391,6 +5391,7 @@ impl ImportRuntime {
                     )));
                 }
             }
+            let ready_pending = !state.backend_ready_reported;
             self.document_drains.push_back(UnifiedDocumentDrain {
                 document: state.document,
                 job_id: session.job_id,
@@ -5398,7 +5399,7 @@ impl ImportRuntime {
                 revision: result.document_revision,
                 total_samples: result.total_samples,
                 next_sequence: 1,
-                ready_pending: true,
+                ready_pending,
                 progress_pending: true,
             });
             return None;
@@ -12766,8 +12767,19 @@ mod tests {
         event: ImportEvent,
         persisted_sequences: &mut HashMap<(JobId, Generation), u64>,
         published_sessions: &mut HashSet<(JobId, Generation)>,
+        ready_labels: &mut HashMap<(JobId, Generation), Vec<String>>,
     ) {
         match event {
+            ImportEvent::Ready {
+                job_id,
+                generation,
+                backend,
+            } => {
+                ready_labels
+                    .entry((job_id, generation))
+                    .or_default()
+                    .push(backend);
+            }
             ImportEvent::Segment(segment) => {
                 let identity = (segment.job_id, segment.generation);
                 let sequence = segment.segment_id.0;
@@ -15407,6 +15419,7 @@ mod tests {
         prepare_and_start_controlled_native_route(&mut runtime, &request_b, native_route);
         runtime.native_unified_candidate_enabled = true;
         let ready_gate = runtime.hold_next_child_ready();
+        let mut ready_labels = HashMap::new();
 
         assert!(runtime.poll_unified_sessions().is_none());
         let reserved = runtime.parakeet_scheduler.in_flight().unwrap();
@@ -15455,9 +15468,15 @@ mod tests {
                     "reserved turn failed after READY release for {job_id:?}/{generation:?}: {message}"
                 ),
                 Some(Ok(ImportEvent::Ready {
-                    job_id, generation, ..
+                    job_id,
+                    generation,
+                    backend,
                 })) if (job_id, generation) == (session_a.job_id, session_a.generation) => {
                     a_ready_events += 1;
+                    ready_labels
+                        .entry((job_id, generation))
+                        .or_insert_with(Vec::new)
+                        .push(backend);
                     assert_eq!(
                         runtime.unified_sessions[&session_a].pending_prepared,
                         Some(retained_final.clone()),
@@ -15508,9 +15527,15 @@ mod tests {
                     "peer preview failed after final A for {job_id:?}/{generation:?}: {message}"
                 ),
                 Some(Ok(ImportEvent::Ready {
-                    job_id, generation, ..
+                    job_id,
+                    generation,
+                    backend,
                 })) if (job_id, generation) == (session_b.job_id, session_b.generation) => {
                     b_preview_ready_events += 1;
+                    ready_labels
+                        .entry((job_id, generation))
+                        .or_insert_with(Vec::new)
+                        .push(backend);
                     let prepared = runtime.unified_sessions[&session_b]
                         .pending_prepared
                         .clone()
@@ -15555,8 +15580,21 @@ mod tests {
         runtime.controlled_ready_gate = Some(Arc::clone(&recycled_ready_gate));
         let ready_deadline = Instant::now() + Duration::from_secs(10);
         while Instant::now() < ready_deadline {
-            if let Some(Err((job_id, generation, message))) = runtime.poll_unified_sessions() {
-                panic!("reserved turn session {job_id:?}/{generation:?} failed: {message}");
+            match runtime.poll_unified_sessions() {
+                Some(Err((job_id, generation, message))) => {
+                    panic!("reserved turn session {job_id:?}/{generation:?} failed: {message}");
+                }
+                Some(Ok(ImportEvent::Ready {
+                    job_id,
+                    generation,
+                    backend,
+                })) => {
+                    ready_labels
+                        .entry((job_id, generation))
+                        .or_insert_with(Vec::new)
+                        .push(backend);
+                }
+                _ => {}
             }
             let observations = child_observations.lock().unwrap();
             let recycled_spawned = observations
@@ -15587,6 +15625,7 @@ mod tests {
                             event,
                             &mut persisted_sequences,
                             &mut published_sessions,
+                            &mut ready_labels,
                         );
                     }
                     Err((job_id, generation, message)) => {
@@ -15632,8 +15671,21 @@ mod tests {
         while Instant::now() < drain_deadline
             && (!runtime.unified_sessions.is_empty() || !runtime.document_drains.is_empty())
         {
-            if let Some(Err((job_id, generation, message))) = runtime.poll_unified_sessions() {
-                panic!("reserved turn session {job_id:?}/{generation:?} failed: {message}");
+            match runtime.poll_unified_sessions() {
+                Some(Err((job_id, generation, message))) => {
+                    panic!("reserved turn session {job_id:?}/{generation:?} failed: {message}");
+                }
+                Some(Ok(ImportEvent::Ready {
+                    job_id,
+                    generation,
+                    backend,
+                })) => {
+                    ready_labels
+                        .entry((job_id, generation))
+                        .or_insert_with(Vec::new)
+                        .push(backend);
+                }
+                _ => {}
             }
             if let Some(event) = runtime.poll_unified_document() {
                 match event {
@@ -15649,6 +15701,7 @@ mod tests {
                             event,
                             &mut persisted_sequences,
                             &mut published_sessions,
+                            &mut ready_labels,
                         );
                     }
                     Err((job_id, generation, message)) => {
@@ -15665,6 +15718,14 @@ mod tests {
         assert!(completed_sessions.contains(&(session_b.job_id, session_b.generation)));
         assert!(published_sessions.contains(&(session_a.job_id, session_a.generation)));
         assert!(published_sessions.contains(&(session_b.job_id, session_b.generation)));
+        assert_eq!(ready_labels.len(), 2, "no other session may receive READY");
+        for session in [session_a, session_b] {
+            assert_eq!(
+                ready_labels.get(&(session.job_id, session.generation)),
+                Some(&vec!["CPU".to_owned()]),
+                "each synthetic native CPU route reports one truthful READY through publication"
+            );
+        }
         let archives = ArchiveStore::scan(&archive_root).unwrap();
         for (session, expected_samples) in
             [(session_a, 121 * 16_000_u64), (session_b, 5 * 16_000_u64)]
