@@ -1482,6 +1482,7 @@ struct ImportRuntime {
         HashMap<whisper_core::parakeet_scheduler::SchedulerSession, NativeUnifiedRoute>,
     native_executor_route: Option<NativeUnifiedRoute>,
     unified_archives: HashMap<whisper_core::parakeet_scheduler::SchedulerSession, ArchiveStore>,
+    unified_capture_sessions: HashSet<whisper_core::parakeet_scheduler::SchedulerSession>,
     #[cfg(test)]
     native_harness_observer: Option<Arc<NativeQualificationObserver>>,
     #[cfg(test)]
@@ -3870,6 +3871,7 @@ impl ImportRuntime {
         self.document_drains
             .retain(|drain| (drain.job_id, drain.generation) != (job_id, generation));
         self.unified_archives.remove(&session);
+        self.unified_capture_sessions.remove(&session);
         self.unified_publication_gates.remove(&session);
         self.native_unified_routes.remove(&session);
         self.gpu_candidates.remove(&(job_id, generation.get()));
@@ -4066,6 +4068,7 @@ impl ImportRuntime {
             native_unified_routes: HashMap::new(),
             native_executor_route: None,
             unified_archives: HashMap::new(),
+            unified_capture_sessions: HashSet::new(),
             #[cfg(test)]
             native_harness_observer: None,
             #[cfg(test)]
@@ -4432,6 +4435,7 @@ impl ImportRuntime {
         );
         self.unified_archives
             .insert(session, ArchiveStore::new(&request.destination));
+        self.unified_capture_sessions.insert(session);
         Ok(())
     }
 
@@ -5798,12 +5802,123 @@ impl ImportRuntime {
         generation: Generation,
         destination: &Path,
     ) -> Result<(), String> {
-        let Some(registry_root) = self.snapshot_registry_root.as_deref() else {
-            return Ok(());
-        };
+        let session = whisper_core::parakeet_scheduler::SchedulerSession { job_id, generation };
         if let Some(binding) = self.source_bindings.remove(&(job_id, generation.get())) {
             return binding.retire();
         }
+        if self.unified_capture_sessions.contains(&session) {
+            let stem = format!("{:032x}-{}", job_id.0, generation.get());
+            let snapshot_dir = destination.join(".whisper-source-snapshots");
+            let inspect_snapshot_artifacts = || -> Result<bool, String> {
+                let mut found = false;
+                for suffix in ["json", "snapshot", "snapshot.partial"] {
+                    let artifact = snapshot_dir.join(format!("{stem}.{suffix}"));
+                    match std::fs::symlink_metadata(&artifact) {
+                        Ok(_) => found = true,
+                        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                        Err(error) => {
+                            return Err(format!(
+                                "SourceSnapshotRegistryUnavailable: inspect capture snapshot artifact {}: {error}",
+                                artifact.display()
+                            ));
+                        }
+                    }
+                }
+                Ok(found)
+            };
+            let has_snapshot_artifact = inspect_snapshot_artifacts()?;
+            let Some(registry_root) = self.snapshot_registry_root.as_deref() else {
+                return if has_snapshot_artifact {
+                    Err("SourceSnapshotRegistryUnavailable: capture identity has durable snapshot artifacts but no registry root is configured".into())
+                } else {
+                    Ok(())
+                };
+            };
+            match std::fs::symlink_metadata(registry_root) {
+                Ok(metadata) if metadata.is_dir() => {}
+                Ok(_) => {
+                    return Err(format!(
+                        "SourceSnapshotRegistryUnavailable: registry root {} is not a directory",
+                        registry_root.display()
+                    ));
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    return if has_snapshot_artifact {
+                        Err(format!(
+                            "SourceSnapshotRegistryUnavailable: capture identity has durable snapshot artifacts but registry root {} is absent",
+                            registry_root.display()
+                        ))
+                    } else {
+                        Ok(())
+                    };
+                }
+                Err(error) => {
+                    return Err(format!(
+                        "SourceSnapshotRegistryUnavailable: inspect registry root {}: {error}",
+                        registry_root.display()
+                    ));
+                }
+            }
+
+            let lock_path = registry_root.join("reprocessing-snapshots.lock");
+            let state_path = registry_root.join("reprocessing-snapshots.json");
+            let has_lock_or_state = [lock_path, state_path].iter().try_fold(
+                false,
+                |present, path| match std::fs::symlink_metadata(path) {
+                    Ok(_) => Ok(true),
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(present),
+                    Err(error) => Err(format!(
+                        "SourceSnapshotRegistryUnavailable: inspect registry file {}: {error}",
+                        path.display()
+                    )),
+                },
+            )?;
+            if has_lock_or_state {
+                crate::source_binding::SourceBinding::retire_for_identity(
+                    registry_root,
+                    destination,
+                    job_id,
+                    generation,
+                )?;
+                if has_snapshot_artifact && inspect_snapshot_artifacts()? {
+                    return Err(
+                        "SourceSnapshotOrphaned: capture identity has snapshot artifacts without a matching durable registry binding".into(),
+                    );
+                }
+                return Ok(());
+            }
+            if has_snapshot_artifact {
+                return Err(
+                    "SourceSnapshotOrphaned: capture identity has snapshot artifacts but the registry is uninitialized".into(),
+                );
+            }
+            let mut contents = std::fs::read_dir(registry_root).map_err(|error| {
+                format!(
+                    "SourceSnapshotRegistryUnavailable: inspect registry root {}: {error}",
+                    registry_root.display()
+                )
+            })?;
+            if contents
+                .next()
+                .transpose()
+                .map_err(|error| {
+                    format!(
+                        "SourceSnapshotRegistryUnavailable: inspect registry root {}: {error}",
+                        registry_root.display()
+                    )
+                })?
+                .is_some()
+            {
+                return Err(format!(
+                    "SourceSnapshotRegistryUnavailable: uninitialized registry root {} is not empty",
+                    registry_root.display()
+                ));
+            }
+            return Ok(());
+        }
+        let Some(registry_root) = self.snapshot_registry_root.as_deref() else {
+            return Ok(());
+        };
         crate::source_binding::SourceBinding::retire_for_identity(
             registry_root,
             destination,
@@ -9112,12 +9227,14 @@ impl ImportRuntime {
                 self.unified_archives.insert(session, session_archive);
             } else {
                 self.unified_publication_gates.remove(&session);
+                self.unified_capture_sessions.remove(&session);
             }
             return result;
         }
         let result = self.publish_inner(job, generation, count, events, &publication_gate);
         if result.is_ok() {
             self.unified_publication_gates.remove(&session);
+            self.unified_capture_sessions.remove(&session);
         }
         result
     }
@@ -15357,6 +15474,316 @@ mod tests {
     }
 
     #[test]
+    fn capture_identity_does_not_mask_existing_import_source_binding() {
+        const JOB_ID: u128 = 9_426;
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-capture-binding-collision-{}",
+            std::process::id()
+        ));
+        let archive_root = root.join("archive");
+        let settings_root = root.join("settings");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        let source_path = root.join("bound-import.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![1_000_i16; 16_000]).unwrap();
+        writer.finish().unwrap();
+
+        let mut import_request = unified_import_request(&archive_root, &source_path, JOB_ID);
+        let live_request = unified_live_request(&archive_root, JOB_ID);
+        assert_eq!(import_request.generation, live_request.generation);
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: live_request.job_id,
+            generation: live_request.generation,
+        };
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker));
+        runtime.snapshot_registry_root = Some(settings_root.clone());
+        runtime.ensure_source_binding(&mut import_request).unwrap();
+        assert!(
+            runtime
+                .source_bindings
+                .contains_key(&(JobId(JOB_ID), live_request.generation.get()))
+        );
+
+        let mut capture = CaptureStream::empty_test_capture(16_000, 1, "test:binding-collision");
+        capture.enqueue_test_block(vec![0.1; 16_000]);
+        runtime
+            .start_controlled_unified_capture(&live_request, capture, None, None)
+            .unwrap();
+        assert!(runtime.unified_capture_sessions.contains(&session));
+
+        runtime
+            .release_source_binding(JobId(JOB_ID), live_request.generation, &archive_root)
+            .unwrap();
+        assert!(
+            !runtime
+                .source_bindings
+                .contains_key(&(JobId(JOB_ID), live_request.generation.get()))
+        );
+        assert!(
+            crate::source_binding::SourceBinding::inspect_recovery_candidates(&settings_root, &[],)
+                .unwrap()
+                .is_empty()
+        );
+        let snapshot_dir = archive_root.join(".whisper-source-snapshots");
+        let stem = format!("{:032x}-{}", JOB_ID, live_request.generation.get());
+        assert!(!snapshot_dir.join(format!("{stem}.json")).exists());
+        assert!(!snapshot_dir.join(format!("{stem}.snapshot")).exists());
+
+        runtime
+            .stop_controlled_unified_capture(
+                live_request.job_id,
+                live_request.generation,
+                &mut VecDeque::new(),
+            )
+            .unwrap();
+        drop(runtime);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state() {
+        const JOB_ID: u128 = 9_427;
+        const CAPTURE_SAMPLES: u64 = 4 * 16_000;
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-empty-snapshot-registry-{}",
+            std::process::id()
+        ));
+        let archive_root = root.join("archive");
+        let settings_root = root.join("settings");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        std::fs::create_dir_all(&settings_root).unwrap();
+        assert_eq!(std::fs::read_dir(&settings_root).unwrap().count(), 0);
+        let request = unified_live_request(&archive_root, JOB_ID);
+        let mut capture = CaptureStream::empty_test_capture(16_000, 1, "test:empty-registry");
+        capture.enqueue_test_block(vec![0.1; CAPTURE_SAMPLES as usize]);
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker))
+        .with_controlled_capture(capture, None);
+        runtime.snapshot_registry_root = Some(settings_root.clone());
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+            controlled_capture_blocks: None,
+        });
+        app.dispatch(AppCommand::StartUnifiedLiveConfigured {
+            request: request.clone(),
+        })
+        .unwrap();
+
+        let capture_deadline = Instant::now() + Duration::from_secs(20);
+        let mut captured = 0;
+        while Instant::now() < capture_deadline && captured < CAPTURE_SAMPLES {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            captured = app
+                .view()
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| {
+                    session.job_id == request.job_id && session.generation == request.generation
+                })
+                .map_or(0, |session| session.captured_samples);
+            if captured < CAPTURE_SAMPLES {
+                thread::sleep(Duration::from_millis(2));
+            }
+        }
+        assert_eq!(captured, CAPTURE_SAMPLES);
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: request.job_id,
+            generation: request.generation,
+        })
+        .unwrap();
+
+        let publication_deadline = Instant::now() + Duration::from_secs(20);
+        let mut app_complete = false;
+        while Instant::now() < publication_deadline {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            let archive_complete = ArchiveStore::scan(&archive_root)
+                .unwrap()
+                .iter()
+                .any(|entry| entry.job_id == request.job_id && entry.complete);
+            let view = app.view();
+            let terminal_session = view.unified_parakeet_sessions.iter().find(|session| {
+                session.job_id == request.job_id && session.generation == request.generation
+            });
+            if let Some(session) = terminal_session {
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                    panic!(
+                        "capture reached Recoverable after archive completion={archive_complete}: {:?}; message={:?}",
+                        session, view.message
+                    );
+                }
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                    app_complete = true;
+                    break;
+                }
+            } else if archive_complete {
+                panic!(
+                    "archive is Complete but the application lost the capture identity before delivering its terminal state: {:?}",
+                    view.message
+                );
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            app_complete,
+            "application must deliver Complete for the exact capture identity after archive publication"
+        );
+        let archive_complete = ArchiveStore::scan(&archive_root)
+            .unwrap()
+            .iter()
+            .any(|entry| entry.job_id == request.job_id && entry.complete);
+        assert!(
+            archive_complete,
+            "capture must reach a real Complete archive"
+        );
+        let files = ArchiveStore::published_unified_files(
+            &archive_root,
+            request.job_id,
+            request.generation,
+        )
+        .expect("Complete capture must resolve its CURRENT artifacts");
+        let generation_dir = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string());
+        assert_eq!(
+            std::fs::read_to_string(generation_dir.join("CURRENT")).unwrap(),
+            "manifest.json\n"
+        );
+        let source = crate::parakeet_audio::PcmPartStore::open(&files.wav_path);
+        assert_eq!(source.total_samples().unwrap(), CAPTURE_SAMPLES);
+        assert_eq!(
+            source.read_window(0..CAPTURE_SAMPLES).unwrap().len() as u64,
+            CAPTURE_SAMPLES,
+            "the published PCM source must be readable through its final sample"
+        );
+        let source_manifest: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(generation_dir.join("captured-source-parts.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            source_manifest["source_samples"].as_u64(),
+            Some(CAPTURE_SAMPLES)
+        );
+        assert!(!settings_root.join("reprocessing-snapshots.lock").exists());
+        assert!(!settings_root.join("reprocessing-snapshots.json").exists());
+        assert_eq!(std::fs::read_dir(&settings_root).unwrap().count(), 0);
+        drop(app);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn capture_identity_with_orphaned_snapshot_artifact_fails_closed() {
+        const JOB_ID: u128 = 9_428;
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-orphaned-snapshot-artifact-{}",
+            std::process::id()
+        ));
+        let archive_root = root.join("archive");
+        let settings_root = root.join("settings");
+        let snapshot_dir = archive_root.join(".whisper-source-snapshots");
+        std::fs::create_dir_all(&snapshot_dir).unwrap();
+        let request = unified_live_request(&archive_root, JOB_ID);
+        let stem = format!("{:032x}-{}", JOB_ID, request.generation.get());
+        let orphan = snapshot_dir.join(format!("{stem}.json"));
+        std::fs::write(&orphan, b"orphaned binding record").unwrap();
+        let capture = CaptureStream::empty_test_capture(16_000, 1, "test:orphaned-binding");
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker));
+        runtime.snapshot_registry_root = Some(settings_root);
+        runtime
+            .start_controlled_unified_capture(&request, capture, None, None)
+            .unwrap();
+
+        let error = runtime
+            .release_source_binding(request.job_id, request.generation, &archive_root)
+            .unwrap_err();
+        assert!(error.contains("SourceSnapshotRegistryUnavailable"));
+        assert!(error.contains(&orphan.display().to_string()));
+        assert!(
+            orphan.is_file(),
+            "fail-closed handling must preserve the orphan"
+        );
+        assert!(runtime.unified_sessions.contains_key(
+            &whisper_core::parakeet_scheduler::SchedulerSession {
+                job_id: request.job_id,
+                generation: request.generation,
+            }
+        ));
+        drop(runtime);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn capture_identity_does_not_mask_corrupt_snapshot_registry() {
+        const JOB_ID: u128 = 9_429;
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-corrupt-snapshot-registry-{}",
+            std::process::id()
+        ));
+        let archive_root = root.join("archive");
+        let settings_root = root.join("settings");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        std::fs::create_dir_all(&settings_root).unwrap();
+        std::fs::write(settings_root.join("reprocessing-snapshots.lock"), b"").unwrap();
+        let registry_state = settings_root.join("reprocessing-snapshots.json");
+        std::fs::write(&registry_state, b"not valid registry JSON").unwrap();
+        let request = unified_live_request(&archive_root, JOB_ID);
+        let capture = CaptureStream::empty_test_capture(16_000, 1, "test:corrupt-registry");
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker));
+        runtime.snapshot_registry_root = Some(settings_root);
+        runtime
+            .start_controlled_unified_capture(&request, capture, None, None)
+            .unwrap();
+
+        let error = runtime
+            .release_source_binding(request.job_id, request.generation, &archive_root)
+            .unwrap_err();
+        assert!(error.contains("SourceSnapshotRegistryCorrupt"), "{error}");
+        assert_eq!(
+            std::fs::read(&registry_state).unwrap(),
+            b"not valid registry JSON"
+        );
+        assert!(runtime.unified_capture_sessions.contains(
+            &whisper_core::parakeet_scheduler::SchedulerSession {
+                job_id: request.job_id,
+                generation: request.generation,
+            }
+        ));
+        drop(runtime);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
     fn unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready() {
         const A_ID: u128 = 9_424;
         const B_ID: u128 = 9_425;
@@ -17351,6 +17778,38 @@ mod tests {
         let a_samples = spoken.len();
         let expected_a_samples =
             u64::try_from(a_samples).expect("spoken prefix sample count fits u64");
+        let expected_a_tail = {
+            let mut converter = crate::capture::Pcm16Converter::new(16_000, 1)
+                .expect("create capture-compatible PCM reference converter");
+            let mut tail = VecDeque::with_capacity(160);
+            for block in spoken.chunks(80_000) {
+                for sample in converter
+                    .push(block)
+                    .expect("convert bounded spoken reference block")
+                {
+                    if tail.len() == 160 {
+                        tail.pop_front();
+                    }
+                    tail.push_back(sample);
+                }
+            }
+            for sample in converter
+                .finish()
+                .expect("drain capture-compatible reference converter at EOF")
+            {
+                if tail.len() == 160 {
+                    tail.pop_front();
+                }
+                tail.push_back(sample);
+            }
+            let tail = tail.into_iter().collect::<Vec<_>>();
+            assert_eq!(
+                tail.len(),
+                160,
+                "reference converter must produce the full tail"
+            );
+            tail
+        };
         let a = JobId((u128::from(std::process::id()) << 96) | 0x4e415449564541);
         let b = JobId(a.0 + 1);
         let c = JobId(a.0 + 2);
@@ -17368,6 +17827,14 @@ mod tests {
             parakeet_paths: Some(cpu_paths.clone()),
             gpu_parakeet_paths: Some(gpu_paths.clone()),
         });
+        let snapshot_registry_root = execution_root.join("settings");
+        assert!(
+            !snapshot_registry_root.exists()
+                && !snapshot_registry_root
+                    .join("reprocessing-snapshots.lock")
+                    .exists(),
+            "capture-only qualification must begin without a source snapshot registry"
+        );
         let (observer, native_events) = NativeQualificationObserver::channel();
         let mut runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
             workers.clone(),
@@ -17375,7 +17842,7 @@ mod tests {
             model_catalog,
             Some(cpu_paths.clone()),
             Some(gpu_paths),
-            Some(execution_root.join("settings")),
+            Some(snapshot_registry_root.clone()),
             true,
             true,
         )
@@ -17593,6 +18060,7 @@ mod tests {
         );
         let a_drain_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let mut a_drain_trace_at = Instant::now();
+        let mut a_source_flush_verified = false;
         let a_drain_completed = loop {
             let trace_refresh = a_drain_trace_at.elapsed() >= Duration::from_secs(5);
             if trace_refresh {
@@ -17616,12 +18084,33 @@ mod tests {
                 );
                 a_drain_trace_at = Instant::now();
             }
-            let a_view = app
-                .view()
+            let view = app.view();
+            let Some(a_view) = view
                 .unified_parakeet_sessions
-                .into_iter()
+                .iter()
                 .find(|session| session.job_id == a && session.generation == generation)
-                .expect("stopped A remains visible while its native request drains");
+                .cloned()
+            else {
+                panic!(
+                    "stopped A disappeared before its drain completed; active_job={:?}, message={:?}, trace={}",
+                    view.active_job,
+                    view.message,
+                    trace_path.display()
+                );
+            };
+            if a_view.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
+                || view
+                    .active_job
+                    .as_ref()
+                    .is_some_and(|(job_id, state)| *job_id == a && *state == JobState::Recoverable)
+            {
+                panic!(
+                    "A became Recoverable before final capture drain; session={a_view:?}, active_job={:?}, message={:?}, trace={}",
+                    view.active_job,
+                    view.message,
+                    trace_path.display()
+                );
+            }
             let acknowledged = observations
                 .iter()
                 .rev()
@@ -17633,10 +18122,107 @@ mod tests {
                     } if session.job_id == a => Some((*written_samples, *durable_samples)),
                     _ => None,
                 });
+            if a_view.total_samples == Some(expected_a_samples) && !a_source_flush_verified {
+                let source = crate::parakeet_audio::PcmPartStore::open(&a_view.source_path);
+                let indexed_samples = source.total_samples().unwrap_or_else(|error| {
+                    panic!(
+                        "Stop A exposed final source bounds but its PCM index is unreadable: {error}; source={}, trace={}",
+                        a_view.source_path,
+                        trace_path.display()
+                    )
+                });
+                assert_eq!(
+                    indexed_samples, expected_a_samples,
+                    "Stop A's durable PCM index must cover the complete source"
+                );
+                let tail_start = expected_a_samples
+                    .checked_sub(160)
+                    .expect("native spoken source contains at least the converter tail");
+                let tail = source
+                    .read_window(tail_start..expected_a_samples)
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "Stop A's final PCM tail is not readable: {error}; source={}, trace={}",
+                            a_view.source_path,
+                            trace_path.display()
+                        )
+                    });
+                assert_eq!(tail.len(), 160, "Stop A must retain its final PCM tail");
+                assert!(
+                    tail.iter()
+                        .zip(&expected_a_tail)
+                        .all(|(actual, expected)| actual.abs_diff(*expected) <= 2),
+                    "Stop A's final written PCM samples differ from the sequential converter reference"
+                );
+                let manifest_path = archive_root
+                    .join("transcriptions")
+                    .join(format!("{:032x}", a.0))
+                    .join(generation.get().to_string())
+                    .join("captured-source-parts.json");
+                let manifest_bytes = fs::read(&manifest_path).unwrap_or_else(|error| {
+                    panic!(
+                        "Stop A did not persist its captured-parts manifest: {error}; path={}, trace={}",
+                        manifest_path.display(),
+                        trace_path.display()
+                    )
+                });
+                let manifest: serde_json::Value = serde_json::from_slice(&manifest_bytes)
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "Stop A captured-parts manifest is invalid: {error}; path={}, trace={}",
+                            manifest_path.display(),
+                            trace_path.display()
+                        )
+                    });
+                assert_eq!(
+                    manifest["source_samples"].as_u64(),
+                    Some(expected_a_samples),
+                    "Stop A manifest must bind the complete source length"
+                );
+                assert!(
+                    manifest["source_sha256"]
+                        .as_str()
+                        .is_some_and(|sha| sha.len() == 64),
+                    "Stop A manifest must retain the logical source hash"
+                );
+                let parts = manifest["parts"]
+                    .as_array()
+                    .expect("Stop A manifest contains indexed PCM parts");
+                let mut covered_samples = 0_u64;
+                for part in parts {
+                    assert_eq!(part["start_sample"].as_u64(), Some(covered_samples));
+                    covered_samples = part["end_sample"]
+                        .as_u64()
+                        .expect("Stop A part has a final sample bound");
+                    assert!(
+                        Path::new(
+                            part["path"]
+                                .as_str()
+                                .expect("Stop A part path is persisted")
+                        )
+                        .is_file()
+                    );
+                }
+                assert_eq!(covered_samples, expected_a_samples);
+                a_source_flush_verified = true;
+                trace_checkpoint(
+                    "A-final-Stop-source-verified",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
+            }
+            let has_prior_capture_ack = acknowledged.is_some();
+            let observed_ack_is_bounded = acknowledged.is_none_or(|(written, durable)| {
+                written <= expected_a_samples && durable <= expected_a_samples
+            });
             if a_view.total_samples == Some(expected_a_samples)
                 && a_view.captured_samples == expected_a_samples
                 && a_view.durable_samples == expected_a_samples
-                && acknowledged == Some((expected_a_samples, expected_a_samples))
+                && a_view.phase == whisper_core::ports::UnifiedSessionPhase::Finalizing
+                && a_source_flush_verified
+                && has_prior_capture_ack
+                && observed_ack_is_bounded
             {
                 trace_checkpoint(
                     "A-drain-complete",
@@ -18140,6 +18726,15 @@ mod tests {
                     "published artifact missing: {path}"
                 );
             }
+            let generation_directory = archive_root
+                .join("transcriptions")
+                .join(format!("{:032x}", job_id.0))
+                .join(generation.get().to_string());
+            assert_eq!(
+                fs::read_to_string(generation_directory.join("CURRENT"))
+                    .expect("read committed capture CURRENT"),
+                "manifest.json\n"
+            );
             assert!(
                 !fs::read_to_string(&files.txt_path)
                     .expect("read published TXT")
@@ -18151,6 +18746,16 @@ mod tests {
                     .total_samples()
                     .expect("validate published source part index"),
                 session.captured_samples
+            );
+            let manifest: serde_json::Value = serde_json::from_slice(
+                &fs::read(generation_directory.join("captured-source-parts.json"))
+                    .expect("read committed capture source manifest"),
+            )
+            .expect("decode committed capture source manifest");
+            assert_eq!(
+                manifest["source_samples"].as_u64(),
+                Some(session.captured_samples),
+                "CURRENT manifest must bind the complete source for each capture"
             );
         }
         assert_ne!(
@@ -18406,6 +19011,10 @@ mod tests {
         assert!(Path::new(&c_files.wav_path).is_file());
         assert!(Path::new(&c_files.txt_path).is_file());
         assert!(Path::new(&c_files.srt_path).is_file());
+        assert!(
+            !snapshot_registry_root.exists(),
+            "capture-only A/B/C publication must not create a source snapshot registry"
+        );
 
         let startup = observations
             .iter()
