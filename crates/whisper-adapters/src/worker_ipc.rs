@@ -13517,21 +13517,75 @@ mod tests {
                 controlled_capture_blocks: None,
             };
             let mut app = ImportApplication::new(port);
+            let expected_job_id = request.job_id;
+            let expected_generation = request.generation;
             app.dispatch(AppCommand::StartImport { request }).unwrap();
-            for _ in 0..32 {
+            let terminal_deadline = Instant::now() + Duration::from_secs(20);
+            let mut application_complete = false;
+            let mut last_phase = "identity not visible".to_owned();
+            let mut last_message = None;
+            while Instant::now() < terminal_deadline {
                 let view = app.dispatch(AppCommand::Refresh).unwrap();
-                if view.active_job.is_none() {
-                    break;
+                last_message = view.message.clone();
+                let session = view.unified_parakeet_sessions.iter().find(|session| {
+                    session.job_id == expected_job_id && session.generation == expected_generation
+                });
+                if let Some(session) = session {
+                    last_phase = format!("{:?}", session.phase);
+                    if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                        panic!(
+                            "controlled import {expected_job_id:?}/{expected_generation:?} entered Recoverable ({seconds}s, {compute:?}): phase={}, message={:?}",
+                            last_phase, last_message
+                        );
+                    }
+                    if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                        application_complete = true;
+                        break;
+                    }
+                } else {
+                    last_phase = "identity not visible".into();
                 }
+                thread::sleep(Duration::from_millis(2));
             }
+            if !application_complete {
+                let archive_status = match ArchiveStore::scan(&root.join("archive")) {
+                    Ok(entries) => {
+                        let complete = entries.iter().any(|entry| {
+                            entry.job_id == expected_job_id
+                                && entry.generation == expected_generation
+                                && entry.complete
+                        });
+                        format!("scan complete={complete}; entries={}", entries.len())
+                    }
+                    Err(error) => format!("scan error={error}"),
+                };
+                let current = root
+                    .join(format!(
+                        "archive/transcriptions/{:032x}/{}/CURRENT",
+                        expected_job_id.0,
+                        expected_generation.get()
+                    ))
+                    .is_file();
+                panic!(
+                    "controlled import {expected_job_id:?}/{expected_generation:?} did not reach application Complete within the bounded wait ({seconds}s, {compute:?}); phase={last_phase}, message={last_message:?}, archive={archive_status}, CURRENT={current}"
+                );
+            }
+            assert!(application_complete);
             let entries = ArchiveStore::scan(&root.join("archive")).unwrap();
             let entry = entries
                 .iter()
                 .find(|entry| {
-                    entry.complete && entry.strategy
-                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                    entry.job_id == expected_job_id
+                        && entry.generation == expected_generation
+                        && entry.complete
+                        && entry.strategy
+                            == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
                 })
-                .unwrap();
+                .unwrap_or_else(|| {
+                    panic!(
+                        "application reported Complete before the matching unified archive was committed: {expected_job_id:?}/{expected_generation:?}"
+                    )
+                });
             assert_eq!(
                 ArchiveStore::published_imports_for_strategy(
                     &root.join("archive"),
