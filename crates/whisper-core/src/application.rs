@@ -4884,8 +4884,17 @@ mod tests {
                 result: Ok(audio_page("current-a.wav")),
             },
         ]);
-        app.dispatch(AppCommand::Refresh).unwrap();
-        app.dispatch(AppCommand::Refresh).unwrap();
+        let max_refreshes = app.io.events.len().div_ceil(MAX_EVENTS_PER_REFRESH);
+        for _ in 0..max_refreshes {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            if app.io.events.is_empty() {
+                break;
+            }
+        }
+        assert!(
+            app.io.events.is_empty(),
+            "queued fixture events were not drained"
+        );
 
         let selected = app.view.selected_unified_session.as_ref().unwrap();
         assert_eq!(
