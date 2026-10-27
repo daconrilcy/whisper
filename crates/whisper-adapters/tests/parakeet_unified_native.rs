@@ -151,7 +151,7 @@ fn run_native_import(
     gpu_candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     minimum_samples: Option<u64>,
     require_nonempty_text: bool,
-) {
+) -> u64 {
     let execution_root = required_path("WHISPER_L04_CAMPAIGN_RUN");
     let source = fixture(source_variable, &execution_root);
     let before_sha = sha256_file(&source);
@@ -275,12 +275,6 @@ fn run_native_import(
     let wav_bytes = u32::from_le_bytes(header[40..44].try_into().unwrap());
     assert_eq!(wav_bytes % 2, 0, "published PCM16 byte count must be even");
     let published_samples = u64::from(wav_bytes / 2);
-    if let Some(minimum) = minimum_samples {
-        assert!(
-            published_samples >= minimum,
-            "published WAV contains {published_samples} samples; expected at least {minimum}"
-        );
-    }
     for path in [files.wav_path, files.txt_path, files.srt_path] {
         let path = PathBuf::from(path);
         assert!(
@@ -295,15 +289,112 @@ fn run_native_import(
         before_sha,
         "source fixture changed during native inference"
     );
-    let part_index = wav_path.with_extension("parts.idx");
-    let part_count = std::fs::read_to_string(&part_index)
-        .expect("published logical WAV must retain its part index")
-        .lines()
-        .count();
+    let part_store = whisper_adapters::parakeet_audio::PcmPartStore::open(&wav_path);
+    let mut part_offset = 0_u64;
+    let mut expected_part_number = 1_u64;
+    let mut covered_samples = 0_u64;
+    let mut part_count = 0_u64;
+    let mut nonempty_part_count = 0_u64;
+    let mut first_part_samples = None;
+    loop {
+        let page = part_store
+            .read_page(part_offset, 128)
+            .expect("read published logical WAV index through PcmPartStore");
+        if page.is_empty() {
+            break;
+        }
+        for part in &page {
+            assert_eq!(part.number, expected_part_number);
+            assert_eq!(
+                part.start_sample, covered_samples,
+                "published physical-part ranges must remain contiguous"
+            );
+            assert!(part.end_sample >= part.start_sample);
+            let part_samples = part.end_sample - part.start_sample;
+            if part.number == 1 {
+                first_part_samples = Some(part_samples);
+            }
+            if part_samples > 0 {
+                nonempty_part_count += 1;
+            }
+            let metadata = std::fs::metadata(&part.path).unwrap_or_else(|error| {
+                panic!(
+                    "published physical WAV part missing {}: {error}",
+                    part.path.display()
+                )
+            });
+            let mut part_file =
+                std::fs::File::open(&part.path).expect("open indexed physical WAV part");
+            let mut part_header = [0_u8; 44];
+            part_file
+                .read_exact(&mut part_header)
+                .expect("read indexed physical WAV part header");
+            assert_eq!(&part_header[0..4], b"RIFF");
+            assert_eq!(&part_header[8..12], b"WAVE");
+            assert_eq!(&part_header[36..40], b"data");
+            assert_eq!(
+                u16::from_le_bytes(part_header[20..22].try_into().unwrap()),
+                1
+            );
+            assert_eq!(
+                u16::from_le_bytes(part_header[22..24].try_into().unwrap()),
+                1
+            );
+            assert_eq!(
+                u32::from_le_bytes(part_header[24..28].try_into().unwrap()),
+                16_000
+            );
+            assert_eq!(
+                u16::from_le_bytes(part_header[34..36].try_into().unwrap()),
+                16
+            );
+            let part_data_bytes = part_samples
+                .checked_mul(2)
+                .and_then(|bytes| u32::try_from(bytes).ok())
+                .expect("physical WAV part length fits its RIFF data field");
+            assert_eq!(
+                u32::from_le_bytes(part_header[40..44].try_into().unwrap()),
+                part_data_bytes,
+                "physical WAV data length must agree with the indexed sample range"
+            );
+            assert_eq!(metadata.len(), 44 + u64::from(part_data_bytes));
+            covered_samples = part.end_sample;
+            expected_part_number += 1;
+            part_count += 1;
+        }
+        part_offset = part_offset
+            .checked_add(page.len() as u64)
+            .expect("part index offset must not overflow");
+    }
     assert!(
         part_count > 0,
         "published logical WAV must reference at least one part"
     );
+    assert!(
+        nonempty_part_count > 0,
+        "published logical WAV must contain at least one physical part with samples"
+    );
+    assert_eq!(
+        first_part_samples,
+        Some(published_samples),
+        "published WAV header must match the first physical index range"
+    );
+    let indexed_samples = part_store
+        .total_samples()
+        .expect("validate complete, contiguous physical-part index");
+    assert_eq!(indexed_samples, covered_samples);
+    assert_eq!(
+        Some(indexed_samples),
+        session.total_samples,
+        "physical parts, published RIFF data and decoded source sample count must agree"
+    );
+    if let Some(minimum) = minimum_samples {
+        assert!(
+            indexed_samples >= minimum,
+            "published logical WAV contains {indexed_samples} samples; expected at least {minimum}"
+        );
+    }
+    indexed_samples
 }
 
 #[cfg(windows)]
@@ -475,13 +566,17 @@ fn run_native_long_case(language: &str, compute: ComputeChoice, minimum_samples:
         ComputeChoice::Cpu => None,
         ComputeChoice::Gpu | ComputeChoice::Auto => Some(personal_gpu_candidate()),
     };
-    run_native_import(
+    let imported_samples = run_native_import(
         source_variable,
         &format!("native-{compute:?}-long-{language}"),
         compute,
         gpu_candidate,
         Some(minimum_samples),
         true,
+    );
+    assert_eq!(
+        imported_samples, actual_samples,
+        "published logical parts must cover the exact decoded long-session source"
     );
 }
 
