@@ -4308,7 +4308,7 @@ mod tests {
 
     impl Application for RejectQuitApplication {
         fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
-            if matches!(command, AppCommand::Quit { .. }) {
+            if matches!(command, AppCommand::Quit { .. } | AppCommand::RequestClose) {
                 Err(ApplicationError::Failed("quit admission rejected".into()))
             } else {
                 Ok(AppView::default())
