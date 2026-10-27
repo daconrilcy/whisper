@@ -1,6 +1,6 @@
 Avancée : PU-L4 T9 — 173 tests contrôlés composés, douze cas natifs et rotation physique >1 Gio réussis ; revue technique favorable avec provenance.
 Blocage : deadlock de reprise d'import T9-38 identifié dans archive.rs ; workspace incomplet, qualité/Q-PU-03/T10 ouverts.
-Décision : soumettre l'ajout ciblé de archive.rs au §33, sans relâcher le verrou de publication ; aucune nouvelle correction avant accord.
+Décision : correction ciblée de archive.rs autorisée au §33 ; préserver la section critique, relire puis valider sous garde.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -1045,7 +1045,7 @@ FormatOnly `ab0722ea04eb412a8baad452ffb6ce5e` PASS, reprise de l'arrêt `f632c45
 
 **T9-38 BLOQUANT, diagnostic indépendant.** Dans `ArchiveStore::resume_from_with_qualification` (`crates/whisper-adapters/src/archive.rs`, vers 3212), `_publication_lock` reste vivant quand la méthode appelle `prepare_inner` (vers 3264). Le chemin `prepare_inner_impl` reprend `Self::lock_publications(&destination)` (vers 2992). `lock_publications` ouvre puis prend un verrou fichier bloquant (vers 1723–1735), non réentrant sur ces handles. La reprise tente ainsi une seconde acquisition du même `.whisper-publications.lock` avant de libérer la première. Cela explique la confirmation de reprise restée Queued sans Ready puis l'appel direct figé sans processus enfant. Risque produit concret : un import interrompu ne peut plus être repris. Pas de correction source entreprise, car `archive.rs` n'est pas dans le périmètre des deux fixtures du §32.
 
-## 33. Correction ciblée du verrou de reprise — proposition non acceptée
+## 33. Correction ciblée du verrou de reprise — accord précis reçu
 
 Avancée : cause commune aux deux échecs de reprise identifiée par revue ; preuves de l'incident et des contrôles précédents conservées.
 Blocage : ajouter `archive.rs` au périmètre de correction PU-L4 nécessite un accord écrit précis ; le dernier accord ne couvrait que deux fixtures de test.
@@ -1066,3 +1066,5 @@ Décision proposée : autoriser la correction minimale de la double acquisition 
 **Alternative.** Arrêter la livraison technique avec la réserve bloquante de reprise d'import et le workspace incomplet. La suppression du test, un nouvel `--skip` pour ces deux cas ou une simple hausse du délai ne corrigeraient pas le double verrou et ne sont pas proposés. Aucun correctif ni nouvelle compilation ne sera lancé avant l'accord précis sur ce périmètre.
 
 **Revue indépendante §33 avant soumission.** Verdict documentaire CLEAN, exécution BLOCKED jusqu'à accord précis. La section critique reste couvrante pendant validation/réservation/préparation, le verrou habituel des autres appelants est conservé ; seul `archive.rs` est proposé. Le reviewer recommande, avant workspace et en plus des deux tests de reprise, les tests existants `archive::tests::resumed_prefix_copy_retries_after_pending_creation_without_duplication` et `archive::tests::r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision`. Même reviewer vérifiera qu'aucun chemin de préparation perd son verrou. Les preuves T9-34/35/36 restent liées au SHA précédent, pas réputées exécutées sur un candidat futur. Aucun code ou Cargo lancé pendant cette préparation.
+
+**Accord précis reçu le 27 octobre 2026.** À la question ajoutant uniquement `crates/whisper-adapters/src/archive.rs` à la correction/au formatage du double verrou, sans relâcher la publication, avec même auteur/reviewer, quatre tests ciblés puis workspace à trois exclusions, rejouant seulement les preuves invalidées, mêmes racines/garde et budgets cumulés 240 minutes / 16 Gio (145 min 58 s déjà consommées), l'utilisateur répond : **« Oui, correction ciblée du §33 (recommandé) »**. Les sept actions proposées sont autorisées pour ce seul périmètre. Aucun autre chemin source, nouvelle exclusion ou modification produit hors double acquisition. Pas de microphone réel, fenêtre, nettoyage ou push ; budgets non réinitialisés. Même implémenteur puis même reviewer avant toute exécution de validation.
