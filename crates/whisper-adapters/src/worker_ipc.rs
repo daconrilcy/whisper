@@ -14904,7 +14904,6 @@ mod tests {
             },
             Arc::new(PublicationGate::default()),
         )
-        .with_controlled_transcriber(Box::new(FailedUnifiedWorker))
         .with_child_observer(Arc::clone(&child_observations));
 
         for attempt in 0..5_u128 {
@@ -14914,6 +14913,7 @@ mod tests {
             writer.finish().unwrap();
             let request =
                 unified_import_request(&root.join("archive"), &source_path, 9_400 + attempt);
+            runtime.controlled_transcriber = Some(Box::new(FailedUnifiedWorker));
             runtime.start_controlled_unified_import(&request).unwrap();
 
             let failure_deadline = Instant::now() + Duration::from_secs(5);
