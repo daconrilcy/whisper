@@ -1,6 +1,6 @@
 Avancée : PU-L4 T9 — 173 tests contrôlés composés, douze cas natifs et rotation physique >1 Gio réussis ; revue technique favorable avec provenance.
-Blocage : arrêt de budget de croissance 16 Gio pendant la régression finale ; workspace incomplet, qualité/Q-PU-03/T10 ouverts.
-Décision : conserver toutes les preuves et soumettre au §35 une extension à 24 Gio sans remise à zéro ; aucun nouveau Cargo avant accord.
+Blocage : régression globale encore à terminer ; qualité lexicale, Q-PU-03 et T10 restent ouverts.
+Décision : plafond de croissance porté à 24 Gio au §35, sans remise à zéro ; reprendre sous la même garde et 240 minutes cumulées.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -1105,7 +1105,7 @@ Décision proposée : autoriser une correction limitée à la fixture de test `R
 
 **T9-40 fermé dynamiquement.** UiFocused `91d5358c9d364ca680f58ee1af21ca01` sur `fc61b147963bebbeb7fdfba8da9e4a3944542bb9` : fmt/no-run, exact de refus de fermeture 1/0, bibliothèque UI entière 40/0, UI_FOCUSED_PASS et CAMPAIGN_END code 0, aucun incident de garde. Même reviewer confirme la fermeture, seul delta depuis c2e4 = fixture test UI. Cumul 9 484,1992139 s ; 144 549 650 432 octets libres.
 
-## 35. Arrêt de plafond de croissance — extension proposée, non acceptée
+## 35. Arrêt de plafond de croissance — extension à 24 Gio acceptée
 
 Avancée : les corrections ciblées passent ; la régression globale finale a commencé sur le même candidat gelé.
 Blocage : la garde a arrêté la commande lorsque la croissance cumulée a atteint 16 Gio ; aucun nettoyage ni relancement.
@@ -1124,3 +1124,5 @@ Aucune source Rust ou nouvelle exclusion ; candidat `fc61b147` inchangé. Repren
 **Qualification indépendante du volume.** Le reviewer confirme que le test `resume_keeps_legacy_checkpoint_identity...` (`worker_ipc.rs`, vers 24761–24775) crée un dossier PID/horodatage puis un **hard link** du modèle vers `legacy/ggml-large-v3-turbo.bin`. Les quatre chemins représentent environ **6,05 Gio de tailles logiques comptabilisées**, pas quatre copies physiques indépendantes. Le test ne les nettoie pas. Cette distinction explique l'écart avec l'espace libre ; le calcul conservatif de la garde n'est pas modifié ni dédupliqué pour contourner le plafond. Les fichiers et liens sont préservés ; leur retrait n'est pas autorisé. Les reprises ciblées antérieures passent, le workspace interrompu reste non validé. Aucun correctif source supplémentaire requis pour proposer le seul ajustement de budget.
 
 **Revue indépendante §35 avant soumission.** Verdict documentaire CLEAN. Limite seule 16→24 Gio, chiffres et distinction hard links/taille logique cohérents ; baseline, cumul temporel 240 minutes, racines, garde, trois exclusions et absence de nettoyage inchangés. Le run 7ef372 reste NOT PASS. Après accord écrit précis : revue du seul paramètre de plafond dans le lanceur, préflight/auto-tests, espace libre supérieur à 30 Gio, puis régression et archive. Aucune nouvelle revue source ou reprise des tests ciblés non invalidés n'est requise pour ce seul ajustement d'enveloppe.
+
+**Accord précis reçu le 27 octobre 2026.** À la question portant uniquement le plafond de croissance de 16 à 24 Gio, sans remise à zéro ni nettoyage, avec 17,14 Gio de croissance mesurée, les 240 minutes cumulées inchangées (159 min 55 s consommées), mêmes racines/baseline/trois exclusions, aucun changement Rust, microphone, fenêtre ou push, l'utilisateur répond : **« Oui, plafond de 24 Gio (recommandé) »**. La limite effective devient **25 769 803 776 octets**. Le seuil temporel reste 14 400 secondes et la baseline partagée initiale 16 896 133 474 octets. Toutes les preuves, liens, fichiers temporaires, corpus et caches restent préservés. Le lanceur change uniquement le seuil de croissance, son libellé et sa consignation de préflight ; source Rust inchangée. Même préflight/auto-tests et arrêt sous 30 Gio libres, même surveillance et conditions d'incident. Reprise de la régression globale puis archivage, aucun budget réinitialisé.
