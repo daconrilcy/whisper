@@ -728,3 +728,8 @@ D-PU-L3-LIFE : fermeture globale indépendante de l'identité sélectionnée, ad
 ## 25. Exécution PU-L3 sous garde
 
 Premier passage FormatOnly sur 1eb9c9861e5a6e0f668c60161eb4b610faa73823, run 58815d5f138c45f1843c3dc71925d992 : préflight et auto-tests PASS, copie indépendante du cache PU-L2 sous lot-03, formatage autorisé PASS code 0. Modifications de format limitées à archive.rs, worker_ipc.rs, application.rs et ui.rs, parmi les six chemins autorisés ; aucun autre fichier source modifié. **252,5366156 secondes cumulées (4 min 13 s)** sur 7 200 ; 154 788 634 624 octets libres à la fin. Aucun résultat de compilation/test encore disponible ; les sources formatées sont versionnées avant leur validation exacte.
+
+
+Premier G1 PU-L3 sur ff7bda1f8892aadf4d4195857bd053f8dc842ec2, run 16ec955ecf794711925a58200e12fc31 : fmt check PASS, compilation no-run core FAIL code 101, aucun test exécuté. Même reviewer émet PU-L3-04/05 : request_id u64 déréférencé à tort dans deux comparaisons, puis match legacy non exhaustif pour les trois nouveaux événements déjà routés vers le handler unifié. Le même worker corrige application.rs seul, valeurs et bras explicites, filtres identité/génération/sélection et routage anticipé conservés. Tests non modifiés. Sources gelées pour relecture ; compilation et tests restent NOT RUN sur le correctif. **322,4987216 secondes cumulées (5 min 22 s)** sur 7 200 ; arrêt et journaux conservés, budget non remis à zéro.
+
+Même reviewer ferme statiquement 04/05, aucun constat source restant ; no-run gardé encore requis. FormatOnly de reprise aca881e1242f435d859f9f74a4f396e3 PASS code 0, arrêt antérieur conservé ; aucune remise à zéro des budgets.

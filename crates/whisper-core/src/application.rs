@@ -1583,6 +1583,9 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 self.view.active_job = Some((job_id, JobState::Preparing));
                 self.view.message = Some("Attente de l’attestation du worker CPU…".into());
             }
+            ImportEvent::UnifiedDocumentPage { .. }
+            | ImportEvent::UnifiedAudioPartsPage { .. }
+            | ImportEvent::UnifiedPublicationArtifacts { .. } => {}
             ImportEvent::LiveRetryingOnCpu {
                 spectrum_min_epoch,
                 spectrum_not_before_monotonic_ms,
@@ -2154,7 +2157,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
             ImportEvent::UnifiedDocumentPage {
                 request_id, result, ..
             } => {
-                if self.current_unified_document_request != Some((key, *request_id))
+                if self.current_unified_document_request != Some((key, request_id))
                     || !self
                         .view
                         .selected_unified_session
@@ -2205,7 +2208,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
             ImportEvent::UnifiedAudioPartsPage {
                 request_id, result, ..
             } => {
-                if self.current_unified_audio_request != Some((key, *request_id))
+                if self.current_unified_audio_request != Some((key, request_id))
                     || !self
                         .view
                         .selected_unified_session
