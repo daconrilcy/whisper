@@ -93,11 +93,17 @@ impl UnifiedCapturePump {
     }
 
     fn from_capture_inner(
-        capture: CaptureStream,
+        mut capture: CaptureStream,
         source_path: PathBuf,
         test_part_limit: Option<u64>,
     ) -> Result<Self, String> {
-        let converter = Pcm16Converter::new(capture.sample_rate_hz(), capture.channels())?;
+        let converter = match Pcm16Converter::new(capture.sample_rate_hz(), capture.channels()) {
+            Ok(converter) => converter,
+            Err(error) => {
+                capture.stop();
+                return Err(error);
+            }
+        };
         let source_identity = capture.source_identity().map(str::to_owned);
         let writer = if let Some(part_limit) = test_part_limit {
             #[cfg(test)]
@@ -115,8 +121,14 @@ impl UnifiedCapturePump {
             }
         } else {
             CapturePcmWriter::start(source_path, crate::capture::CAPTURE_SLOTS)
-        }
-        .map_err(|error| format!("StorageUnavailable: {error}"))?;
+        };
+        let writer = match writer {
+            Ok(writer) => writer,
+            Err(error) => {
+                capture.stop();
+                return Err(format!("StorageUnavailable: {error}"));
+            }
+        };
         Ok(Self {
             capture: Some(capture),
             converter: Some(converter),

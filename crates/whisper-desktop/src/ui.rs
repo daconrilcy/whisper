@@ -327,6 +327,7 @@ pub struct DesktopApp<A> {
     auto_stop_enabled: bool,
     auto_stop_minutes: u64,
     compute_choice: ComputeChoice,
+    unified_candidate_enabled: bool,
     compute_choice_touched: bool,
     startup_preferences_loaded: bool,
     startup_message: Option<String>,
@@ -387,6 +388,12 @@ pub struct DesktopApp<A> {
     microphone_saturation_badge_rect: Option<egui::Rect>,
     #[cfg(test)]
     live_stop_button_rect: Option<egui::Rect>,
+    #[cfg(test)]
+    live_start_button_rect: Option<egui::Rect>,
+    #[cfg(test)]
+    live_start_button_enabled: Option<bool>,
+    #[cfg(test)]
+    microphone_gain_slider_enabled: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -444,6 +451,11 @@ impl<A: Application> DesktopApp<A> {
         self
     }
 
+    pub(crate) fn with_unified_candidate_enabled(mut self, enabled: bool) -> Self {
+        self.unified_candidate_enabled = enabled;
+        self
+    }
+
     fn poll_gpu_probe(&mut self) {
         let result = self
             .gpu_probe
@@ -496,6 +508,7 @@ impl<A: Application> DesktopApp<A> {
             auto_stop_enabled: false,
             auto_stop_minutes: 120,
             compute_choice,
+            unified_candidate_enabled: false,
             compute_choice_touched: false,
             startup_preferences_loaded: true,
             startup_message,
@@ -543,6 +556,12 @@ impl<A: Application> DesktopApp<A> {
             microphone_saturation_badge_rect: None,
             #[cfg(test)]
             live_stop_button_rect: None,
+            #[cfg(test)]
+            live_start_button_rect: None,
+            #[cfg(test)]
+            live_start_button_enabled: None,
+            #[cfg(test)]
+            microphone_gain_slider_enabled: None,
         };
         #[cfg(test)]
         {
@@ -1488,7 +1507,14 @@ impl<A: Application> DesktopApp<A> {
         };
         if self.dispatch(AppCommand::EnqueueImport {
             request: ImportRequest {
-                strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+                strategy: if self.unified_candidate_enabled
+                    && self.selection.model
+                        == Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+                {
+                    whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                } else {
+                    whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
+                },
                 job_id,
                 generation,
                 source_path: self.paths.audio.trim().to_owned(),
@@ -1551,12 +1577,16 @@ impl<A: Application> DesktopApp<A> {
     }
 
     fn set_microphone_gain(&mut self, gain_db: i8) {
-        let Some(source_identity) = self
-            .view
-            .microphone_source_identity
-            .as_deref()
-            .or_else(|| self.microphones.target_identity())
-        else {
+        let unified_capture_identity = self.active_unified_capture_identity();
+        let source_identity = if unified_capture_identity.is_some() {
+            self.view.microphone_source_identity.as_deref()
+        } else {
+            self.view
+                .microphone_source_identity
+                .as_deref()
+                .or_else(|| self.microphones.target_identity())
+        };
+        let Some(source_identity) = source_identity else {
             self.microphone_notice = Some(
                 self.microphones
                     .target_error()
@@ -1574,15 +1604,19 @@ impl<A: Application> DesktopApp<A> {
             return;
         };
         self.paths.set_microphone_gain(&identity, gain);
-        let active_capture =
-            self.view.microphone_test_active || self.view.direct_capture_phase.is_some();
+        let active_capture = self.view.microphone_test_active
+            || self.view.direct_capture_phase.is_some()
+            || unified_capture_identity.is_some();
         if let Some((job_id, generation)) = self.active_identity
             && active_capture
-            && let Some(target_identity) = self
-                .view
-                .microphone_source_identity
-                .clone()
-                .or_else(|| self.microphones.target_identity().map(str::to_owned))
+            && let Some(target_identity) = if unified_capture_identity.is_some() {
+                self.view.microphone_source_identity.clone()
+            } else {
+                self.view
+                    .microphone_source_identity
+                    .clone()
+                    .or_else(|| self.microphones.target_identity().map(str::to_owned))
+            }
         {
             self.dispatch(AppCommand::SetMicrophoneGain {
                 job_id,
@@ -1592,6 +1626,23 @@ impl<A: Application> DesktopApp<A> {
                 gain,
             });
         }
+    }
+
+    fn active_unified_capture_identity(&self) -> Option<(JobId, Generation)> {
+        let identity = self.active_identity?;
+        self.view
+            .unified_parakeet_sessions
+            .iter()
+            .any(|session| {
+                (session.job_id, session.generation) == identity
+                    && session.microphone_capture
+                    && matches!(
+                        session.phase,
+                        whisper_core::ports::UnifiedSessionPhase::Starting
+                            | whisper_core::ports::UnifiedSessionPhase::Capturing
+                    )
+            })
+            .then_some(identity)
     }
 
     fn stop_microphone_test(&mut self) {
@@ -1692,7 +1743,14 @@ impl<A: Application> DesktopApp<A> {
             .record_once(session, "micro_clicked", clicked_at, None);
         self.active_identity = Some((job_id, generation));
         self.live_request = Some(request.clone());
-        if self.dispatch(AppCommand::StartDirectLiveConfigured { request }) {
+        let command = if self.unified_candidate_enabled
+            && self.selection.model == Some(ModelId::ParakeetTdt06BV3)
+        {
+            AppCommand::StartUnifiedLiveConfigured { request }
+        } else {
+            AppCommand::StartDirectLiveConfigured { request }
+        };
+        if self.dispatch(command) {
             self.confirmed_live_default_identity = None;
             if matches!(
                 self.microphones.effective(),
@@ -1908,34 +1966,43 @@ impl<A: Application> DesktopApp<A> {
                     ui.label("En attente de 2048 trames audio pour calculer le spectre…");
                 }
             }
-            let gain_identity = self
-                .view
-                .microphone_source_identity
-                .as_deref()
-                .or_else(|| self.microphones.target_identity());
+            let unified_capture_active = self.active_unified_capture_identity().is_some();
+            let gain_identity = if unified_capture_active {
+                self.view.microphone_source_identity.as_deref()
+            } else {
+                self.view
+                    .microphone_source_identity
+                    .as_deref()
+                    .or_else(|| self.microphones.target_identity())
+            };
             if let Some(gain_identity) = gain_identity
                 && let Ok(identity) =
                     whisper_core::microphone_level::MicrophoneIdentity::new(gain_identity)
             {
                 let enabled = (self.view.microphone_test_active
                     || self.view.direct_capture_phase.is_some()
+                    || unified_capture_active
                     || self.view.active_job.is_none())
                     && (self.view.microphone_source_identity.is_some()
-                        || self.microphones.target_identity().is_some());
+                        || (!unified_capture_active
+                            && self.microphones.target_identity().is_some()));
                 let mut gain = if self.view.microphone_test_active
                     || self.view.direct_capture_phase.is_some()
+                    || unified_capture_active
                 {
                     self.view.microphone_gain_requested_db
                 } else {
                     self.paths.microphone_gain(&identity).value()
                 };
-                if ui
-                    .add_enabled(
-                        enabled,
-                        egui::Slider::new(&mut gain, -24..=24).text("Gain microphone (dB)"),
-                    )
-                    .changed()
+                let response = ui.add_enabled(
+                    enabled,
+                    egui::Slider::new(&mut gain, -24..=24).text("Gain microphone (dB)"),
+                );
+                #[cfg(test)]
                 {
+                    self.microphone_gain_slider_enabled = Some(response.enabled());
+                }
+                if response.changed() {
                     self.set_microphone_gain(gain);
                 }
             } else {
@@ -2297,37 +2364,40 @@ impl<A: Application> DesktopApp<A> {
             {
                 self.start_import();
             }
-            {
-                let can_start_live = (!busy || self.view.microphone_test_active)
-                    && model_supports_live(self.selection.model)
-                    && (self.selection.model
-                        != Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
-                        || self.selection.manual_language.is_none())
-                    && self.selected_model_artifact().is_some()
-                    && !self.paths.destination.trim().is_empty()
-                    && self
-                        .selection
-                        .manual_language
-                        .as_ref()
-                        .is_none_or(|language| !language.is_empty());
-                if ui
-                    .add_enabled(can_start_live, egui::Button::new("Démarrer le micro"))
-                    .clicked()
-                {
-                    self.start_live(Generation::first());
-                }
-                if !model_supports_live(self.selection.model) {
-                    ui.label("Le microphone n'est pas qualifié pour ce modèle.");
-                } else if self.selection.model
-                    == Some(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
-                    && self.selection.manual_language.is_some()
-                {
-                    ui.label(
-                        "Le microphone Parakeet requiert la détection automatique de la langue.",
-                    );
-                }
-            }
         });
+
+        let unified_candidate_selected = self.unified_candidate_enabled
+            && self.selection.model == Some(ModelId::ParakeetTdt06BV3);
+        let can_start_live = (if unified_candidate_selected {
+            unified_live_admission_available(&self.view)
+        } else {
+            !busy || self.view.microphone_test_active
+        }) && model_supports_live(self.selection.model)
+            && (self.selection.model != Some(ModelId::ParakeetTdt06BV3)
+                || self.selection.manual_language.is_none())
+            && self.selected_model_artifact().is_some()
+            && !self.paths.destination.trim().is_empty()
+            && self
+                .selection
+                .manual_language
+                .as_ref()
+                .is_none_or(|language| !language.is_empty());
+        let response = ui.add_enabled(can_start_live, egui::Button::new("Démarrer le micro"));
+        #[cfg(test)]
+        {
+            self.live_start_button_rect = Some(response.rect);
+            self.live_start_button_enabled = Some(response.enabled());
+        }
+        if response.clicked() {
+            self.start_live(Generation::first());
+        }
+        if !model_supports_live(self.selection.model) {
+            ui.label("Le microphone n'est pas qualifié pour ce modèle.");
+        } else if self.selection.model == Some(ModelId::ParakeetTdt06BV3)
+            && self.selection.manual_language.is_some()
+        {
+            ui.label("Le microphone Parakeet requiert la détection automatique de la langue.");
+        }
 
         if let Some(prompt) = self.view.duplicate_import_prompt.clone() {
             egui::Modal::new(egui::Id::new("duplicate_import_confirmation")).show(ui.ctx(), |ui| {
@@ -3395,6 +3465,42 @@ pub fn model_supports_live(model: Option<whisper_core::model_catalog::ModelId>) 
     true
 }
 
+fn unified_live_admission_available(view: &AppView) -> bool {
+    use whisper_core::ports::UnifiedSessionPhase as Phase;
+
+    if view.microphone_test_active
+        || view.direct_capture_phase.is_some()
+        || (view.close_requested && !view.close_ready)
+    {
+        return false;
+    }
+    let sessions = &view.unified_parakeet_sessions;
+    let admitted = sessions
+        .iter()
+        .filter(|session| !matches!(session.phase, Phase::Complete | Phase::Recoverable))
+        .count();
+    if admitted >= 2
+        || sessions.iter().any(|session| {
+            session.microphone_capture
+                && matches!(session.phase, Phase::Starting | Phase::Capturing)
+        })
+    {
+        return false;
+    }
+    if let Some((job_id, state)) = view.active_job
+        && window_must_remain_open(state)
+        && !sessions.iter().any(|session| {
+            session.job_id == job_id
+                && view.active_generation == Some(session.generation)
+                && session.microphone_capture
+                && matches!(session.phase, Phase::Finalizing | Phase::Publishing)
+        })
+    {
+        return false;
+    }
+    true
+}
+
 pub fn model_selection_combo(
     ui: &mut egui::Ui,
     projection: &EngineProjection,
@@ -4008,6 +4114,40 @@ mod tests {
                     view.direct_capture_phase =
                         Some(whisper_core::application::DirectCapturePhase::Stopped);
                     view.message = Some("Arrêt du micro en cours".into());
+                }
+                AppCommand::StartUnifiedLiveConfigured { request } => {
+                    let mut view = self.view.borrow_mut();
+                    if view.unified_parakeet_sessions.len() < 2
+                        && !view.unified_parakeet_sessions.iter().any(|session| {
+                            session.microphone_capture
+                                && matches!(
+                                    session.phase,
+                                    whisper_core::ports::UnifiedSessionPhase::Starting
+                                        | whisper_core::ports::UnifiedSessionPhase::Capturing
+                                )
+                        })
+                    {
+                        view.unified_parakeet_sessions
+                            .push(whisper_core::ports::UnifiedParakeetSessionView {
+                                job_id: request.job_id,
+                                generation: request.generation,
+                                microphone_capture: true,
+                                destination: request.destination,
+                                source_path: String::new(),
+                                phase: whisper_core::ports::UnifiedSessionPhase::Capturing,
+                                captured_samples: 0,
+                                durable_samples: 0,
+                                total_samples: None,
+                                document_revision: 0,
+                                audio_parts_revision: 0,
+                                wav_path: None,
+                                txt_path: None,
+                                srt_path: None,
+                                message: None,
+                            });
+                    } else {
+                        return Err(ApplicationError::InvalidCommand);
+                    }
                 }
                 AppCommand::Refresh => {
                     if let Some(event) = self.events.borrow_mut().pop_front() {
@@ -4863,6 +5003,242 @@ mod tests {
             Some(AppCommand::StartDirectLiveConfigured { request })
                 if request.microphone == MicrophoneChoice::Device("wasapi:chosen".into())
                     && request.config.compute == ComputeChoice::Gpu
+        ));
+    }
+
+    #[test]
+    fn desktop_parakeet_handlers_select_unified_routes_only_for_enabled_candidate() {
+        let parakeet = ModelId::ParakeetTdt06BV3;
+
+        let candidate = RecordingApplication::default();
+        let mut candidate_app = DesktopApp::new(candidate.clone())
+            .with_unified_candidate_enabled(true);
+        candidate_app.selection.model = Some(parakeet);
+        candidate_app.paths.audio = "input.wav".into();
+        candidate_app.paths.destination = "output".into();
+        candidate_app.start_import();
+        candidate_app.start_live(Generation::first());
+        candidate_app.stop_active();
+        assert!(candidate_app.request_quit());
+        let candidate_commands = candidate.0.borrow();
+        assert!(matches!(
+            candidate_commands.first(),
+            Some(AppCommand::EnqueueImport { request })
+                if request.strategy
+                    == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        ));
+        assert!(matches!(
+            candidate_commands.get(1),
+            Some(AppCommand::StartUnifiedLiveConfigured { request })
+                if request.config.language == LanguageChoice::Automatic
+                    && request.model_sha256
+                        == parse_sha256(
+                            whisper_core::model_registry::model(parakeet).artifact.sha256,
+                        )
+        ));
+        let live_identity = match candidate_commands.get(1) {
+            Some(AppCommand::StartUnifiedLiveConfigured { request }) => {
+                (request.job_id, request.generation)
+            }
+            _ => unreachable!("candidate handler must use unified live command"),
+        };
+        assert!(matches!(
+            candidate_commands.get(2),
+            Some(AppCommand::Stop { job_id, generation })
+                if (*job_id, *generation) == live_identity
+        ));
+        assert!(matches!(
+            candidate_commands.get(3),
+            Some(AppCommand::RequestClose)
+        ));
+        drop(candidate_commands);
+
+        let historical = RecordingApplication::default();
+        let mut historical_app = DesktopApp::new(historical.clone());
+        historical_app.selection.model = Some(parakeet);
+        historical_app.paths.audio = "input.wav".into();
+        historical_app.start_import();
+        historical_app.start_live(Generation::first());
+        let historical_commands = historical.0.borrow();
+        assert!(matches!(
+            historical_commands.first(),
+            Some(AppCommand::EnqueueImport { request })
+                if request.strategy
+                    == whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
+        ));
+        assert!(matches!(
+            historical_commands.get(1),
+            Some(AppCommand::StartDirectLiveConfigured { .. })
+        ));
+        drop(historical_commands);
+
+        let turbo = RecordingApplication::default();
+        let mut turbo_app = DesktopApp::new(turbo.clone()).with_unified_candidate_enabled(true);
+        turbo_app.paths.audio = "input.wav".into();
+        turbo_app.start_import();
+        turbo_app.start_live(Generation::first());
+        let turbo_commands = turbo.0.borrow();
+        assert!(matches!(
+            turbo_commands.first(),
+            Some(AppCommand::EnqueueImport { request })
+                if request.strategy
+                    == whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1
+        ));
+        assert!(matches!(
+            turbo_commands.get(1),
+            Some(AppCommand::StartDirectLiveConfigured { .. })
+        ));
+    }
+
+    #[test]
+    fn unified_finalizing_capture_keeps_live_button_available_for_second_capture_only() {
+        use whisper_core::ports::{UnifiedParakeetSessionView, UnifiedSessionPhase as Phase};
+
+        let application = MicrophoneCycleApplication::default();
+        let session = |job_id, phase| UnifiedParakeetSessionView {
+            job_id: JobId(job_id),
+            generation: Generation::first(),
+            microphone_capture: true,
+            destination: "output".into(),
+            source_path: String::new(),
+            phase,
+            captured_samples: 16_000,
+            durable_samples: 16_000,
+            total_samples: Some(16_000),
+            document_revision: 1,
+            audio_parts_revision: 1,
+            wav_path: None,
+            txt_path: None,
+            srt_path: None,
+            message: None,
+        };
+        {
+            let mut view = application.view.borrow_mut();
+            view.active_job = Some((JobId(801), whisper_core::JobState::Capturing));
+            view.active_generation = Some(Generation::first());
+            view.unified_parakeet_sessions
+                .push(session(801, Phase::Finalizing));
+        }
+        let paths = whisper_core::path_settings::PathSettingsApp::new(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: String::new(),
+                model_path: "model".into(),
+                destination: "output".into(),
+            },
+            Box::new(whisper_core::path_settings::NullPathPort),
+        );
+        let mut app = DesktopApp::with_microphones(
+            application.clone(),
+            ComputeChoice::Cpu,
+            None,
+            paths,
+            Box::new(OneMicrophone),
+        )
+        .with_unified_candidate_enabled(true);
+        app.selection.model = Some(ModelId::ParakeetTdt06BV3);
+        let context = egui::Context::default();
+
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert_eq!(app.live_start_button_enabled, Some(true));
+        let start_button = app.live_start_button_rect.expect("live button rendered");
+        click_ui_button(&context, &mut app, start_button.center());
+        assert_eq!(
+            application
+                .commands
+                .borrow()
+                .iter()
+                .filter(|command| matches!(command, AppCommand::StartUnifiedLiveConfigured { .. }))
+                .count(),
+            1,
+            "the rendered control admits B while A finalizes"
+        );
+        assert_eq!(app.view.unified_parakeet_sessions.len(), 2);
+        assert!(app.view.unified_parakeet_sessions.iter().any(|session| {
+            session.microphone_capture && session.phase == Phase::Capturing
+        }));
+
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert_eq!(
+            app.live_start_button_enabled,
+            Some(false),
+            "the rendered control refuses a third admission while B is open"
+        );
+        let third_button = app.live_start_button_rect.expect("live button rendered");
+        click_ui_button(&context, &mut app, third_button.center());
+        assert_eq!(
+            application
+                .commands
+                .borrow()
+                .iter()
+                .filter(|command| matches!(command, AppCommand::StartUnifiedLiveConfigured { .. }))
+                .count(),
+            1,
+            "a disabled third-start control does not submit another capture"
+        );
+    }
+
+    #[test]
+    fn unified_capture_gain_slider_targets_the_current_source_and_revision() {
+        use whisper_core::ports::{UnifiedParakeetSessionView, UnifiedSessionPhase as Phase};
+
+        let application = MicrophoneCycleApplication::default();
+        application.view.borrow_mut().unified_parakeet_sessions.push(
+            UnifiedParakeetSessionView {
+                job_id: JobId(910),
+                generation: Generation::first(),
+                microphone_capture: true,
+                destination: "output".into(),
+                source_path: String::new(),
+                phase: Phase::Capturing,
+                captured_samples: 16_000,
+                durable_samples: 16_000,
+                total_samples: None,
+                document_revision: 1,
+                audio_parts_revision: 1,
+                wav_path: None,
+                txt_path: None,
+                srt_path: None,
+                message: None,
+            },
+        );
+        {
+            let mut view = application.view.borrow_mut();
+            view.microphone_source_identity = Some("wasapi:chosen".into());
+            view.microphone_gain_requested_db = 3;
+            view.microphone_gain_requested_revision = 4;
+        }
+        let paths = whisper_core::path_settings::PathSettingsApp::new(
+            whisper_core::path_settings::PathDefaults {
+                audio_directory: String::new(),
+                model_path: "model".into(),
+                destination: "output".into(),
+            },
+            Box::new(whisper_core::path_settings::NullPathPort),
+        );
+        let mut app = DesktopApp::with_microphones(
+            application.clone(),
+            ComputeChoice::Cpu,
+            None,
+            paths,
+            Box::new(OneMicrophone),
+        );
+        app.active_identity = Some((JobId(910), Generation::first()));
+        let context = egui::Context::default();
+
+        run_ui_frame(&context, &mut app, Vec::new());
+        assert_eq!(app.microphone_gain_slider_enabled, Some(true));
+        app.set_microphone_gain(9);
+        assert!(matches!(
+            application.commands.borrow().last(),
+            Some(AppCommand::SetMicrophoneGain {
+                job_id: JobId(910),
+                generation,
+                target_identity,
+                expected_revision: 4,
+                gain,
+            }) if *generation == Generation::first()
+                && target_identity == "wasapi:chosen"
+                && gain.value() == 9
         ));
     }
 

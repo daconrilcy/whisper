@@ -32,6 +32,7 @@ use whisper_desktop::ui::{
 pub struct DesktopComposition {
     pub application: DesktopAdmissionApplication<AsyncImportIo>,
     pub compute_choice: ComputeChoice,
+    pub unified_candidate_enabled: bool,
     pub startup_message: Option<String>,
     pub paths: PathSettingsApp,
     pub gpu_probe: Receiver<Result<(), String>>,
@@ -298,6 +299,7 @@ pub fn compose() -> DesktopComposition {
     DesktopComposition {
         application,
         compute_choice: ComputeChoice::Cpu,
+        unified_candidate_enabled: native_candidate_enabled,
         startup_message: if cfg!(feature = "personal-install") && personal_root.is_none() {
             Some("Profil Perso indisponible : LOCALAPPDATA n'est pas défini.".into())
         } else {

@@ -9,6 +9,7 @@ fn main() -> eframe::Result {
     let root::DesktopComposition {
         application,
         compute_choice,
+        unified_candidate_enabled,
         startup_message,
         paths,
         gpu_probe,
@@ -25,5 +26,6 @@ fn main() -> eframe::Result {
         gpu_inventory,
         process_started_at_unix_ms,
         model_selection,
+        unified_candidate_enabled,
     )
 }

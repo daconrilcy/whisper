@@ -13,6 +13,7 @@ pub fn run<A: whisper_core::Application + 'static>(
     gpu_inventory: whisper_core::gpu_inventory_app::GpuInventoryApp,
     process_started_at_unix_ms: u64,
     model_selection: ui::ModelSelectionRuntime,
+    unified_candidate_enabled: bool,
 ) -> eframe::Result {
     eframe::run_native(
         "Whisper",
@@ -32,7 +33,8 @@ pub fn run<A: whisper_core::Application + 'static>(
                 .with_gpu_probe(gpu_probe)
                 .with_gpu_inventory(gpu_inventory)
                 .with_process_started(process_started_at_unix_ms)
-                .with_model_selection_runtime(model_selection),
+                .with_model_selection_runtime(model_selection)
+                .with_unified_candidate_enabled(unified_candidate_enabled),
             ))
         }),
     )

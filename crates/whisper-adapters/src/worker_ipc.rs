@@ -4293,71 +4293,18 @@ impl ImportRuntime {
         Ok(())
     }
 
-    fn start_controlled_unified_capture(
+    fn start_unified_capture(
         &mut self,
         request: &whisper_core::ports::LiveRequest,
         capture: CaptureStream,
         test_part_limit: Option<u64>,
         native_route: Option<NativeUnifiedRoute>,
     ) -> Result<(), String> {
-        if self.unified_admission_full() {
-            return Err("SchedulerCapacity: two unified sessions are already admitted".into());
-        }
-        if self
-            .unified_sessions
-            .values()
-            .any(|state| state.source.is_capture() && !state.source_closed)
-        {
-            return Err("SchedulerCapacity: an open unified capture is already admitted".into());
-        }
-        let executor_available = self
-            .unified_executor
-            .as_ref()
-            .is_some_and(UnifiedInferenceExecutor::is_available);
-        #[cfg(test)]
-        let controlled_worker_available = self.controlled_transcriber.is_some();
-        #[cfg(not(test))]
-        let controlled_worker_available = false;
-        if !controlled_worker_available && !executor_available && native_route.is_none() {
-            return Err("ModelNotQualified: controlled worker injection is required".into());
-        }
+        self.validate_unified_capture_admission(request, native_route.as_ref())?;
         let session = whisper_core::parakeet_scheduler::SchedulerSession {
             job_id: request.job_id,
             generation: request.generation,
         };
-        if self.native_unified_candidate_enabled
-            && native_route.is_none()
-            && !controlled_worker_available
-        {
-            return Err(
-                "NativeCandidateUnavailable: the capture has no validated fixed backend route"
-                    .into(),
-            );
-        }
-        if !controlled_worker_available && !executor_available && native_route.is_none() {
-            return Err("ModelNotQualified: controlled worker injection is required".into());
-        }
-        let executor_incarnation_live = self
-            .unified_executor
-            .as_ref()
-            .is_some_and(|executor| executor.thread.is_some() || executor.in_flight);
-        if let (Some(current), Some(next)) = (&self.native_executor_route, &native_route)
-            && !current.same_worker(next)
-            && (executor_incarnation_live || self.parakeet_scheduler.active_sessions() > 0)
-        {
-            return Err("NativeRouteBusy: all sessions in one executor incarnation must use the same fixed backend candidate".into());
-        }
-        if let Some(next) = &native_route
-            && self
-                .unified_sessions
-                .values()
-                .filter_map(|state| state.native_route.as_ref())
-                .any(|current| !current.same_worker(next))
-        {
-            return Err(
-                "NativeRouteBusy: admitted sessions must share one fixed backend candidate".into(),
-            );
-        }
         let work = PathBuf::from(&request.destination)
             .join("transcriptions")
             .join(format!("{:032x}", request.job_id.0))
@@ -4437,6 +4384,96 @@ impl ImportRuntime {
             .insert(session, ArchiveStore::new(&request.destination));
         self.unified_capture_sessions.insert(session);
         Ok(())
+    }
+
+    fn validate_unified_capture_admission(
+        &self,
+        request: &whisper_core::ports::LiveRequest,
+        native_route: Option<&NativeUnifiedRoute>,
+    ) -> Result<(), String> {
+        if request.destination.trim().is_empty() || request.model_path.trim().is_empty() {
+            return Err("Micro Parakeet : modèle ou dossier de sortie invalide".into());
+        }
+        whisper_core::microphone_level::GainDb::new(request.microphone_gain_db)
+            .map_err(|error| format!("MicrophoneLevel: {error}"))?;
+        if let whisper_core::microphone_level::MicrophoneChoice::Device(identity) =
+            &request.microphone
+        {
+            whisper_core::microphone_level::MicrophoneIdentity::new(identity)
+                .map_err(|error| format!("MicrophoneLevel: {error}"))?;
+        }
+        if self.unified_admission_full() {
+            return Err("SchedulerCapacity: two unified sessions are already admitted".into());
+        }
+        if self
+            .unified_sessions
+            .values()
+            .any(|state| state.source.is_capture() && !state.source_closed)
+        {
+            return Err("SchedulerCapacity: an open unified capture is already admitted".into());
+        }
+        let executor_available = self
+            .unified_executor
+            .as_ref()
+            .is_some_and(UnifiedInferenceExecutor::is_available);
+        #[cfg(test)]
+        let controlled_worker_available = self.controlled_transcriber.is_some();
+        #[cfg(not(test))]
+        let controlled_worker_available = false;
+        if !controlled_worker_available && !executor_available && native_route.is_none() {
+            return Err("ModelNotQualified: controlled worker injection is required".into());
+        }
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request.job_id,
+            generation: request.generation,
+        };
+        if self.native_unified_candidate_enabled && native_route.is_none() {
+            return Err(
+                "NativeCandidateUnavailable: the capture has no validated fixed backend route"
+                    .into(),
+            );
+        }
+        let executor_incarnation_live = self
+            .unified_executor
+            .as_ref()
+            .is_some_and(|executor| executor.thread.is_some() || executor.in_flight);
+        if let (Some(current), Some(next)) = (&self.native_executor_route, &native_route)
+            && !current.same_worker(next)
+            && (executor_incarnation_live || self.parakeet_scheduler.active_sessions() > 0)
+        {
+            return Err("NativeRouteBusy: all sessions in one executor incarnation must use the same fixed backend candidate".into());
+        }
+        if let Some(next) = &native_route
+            && self
+                .unified_sessions
+                .values()
+                .filter_map(|state| state.native_route.as_ref())
+                .any(|current| !current.same_worker(next))
+        {
+            return Err(
+                "NativeRouteBusy: admitted sessions must share one fixed backend candidate".into(),
+            );
+        }
+        Ok(())
+    }
+
+    fn start_native_unified_capture_with<F>(
+        &mut self,
+        request: &whisper_core::ports::LiveRequest,
+        native_route: NativeUnifiedRoute,
+        open_capture: F,
+    ) -> Result<(), String>
+    where
+        F: FnOnce(
+            &whisper_core::microphone::MicrophoneChoice,
+            whisper_core::microphone_level::GainDb,
+        ) -> Result<CaptureStream, String>,
+    {
+        self.validate_unified_capture_admission(request, Some(&native_route))?;
+        let gain = whisper_core::microphone_level::GainDb::new(request.microphone_gain_db)
+            .map_err(|error| format!("MicrophoneLevel: {error}"))?;
+        let capture = open_capture(&request.microphone, gain)?;
+        self.start_unified_capture(request, capture, None, Some(native_route))
     }
 
     fn stop_controlled_unified_capture(
@@ -6303,64 +6340,79 @@ impl ImportRuntime {
                     .gpu_candidates
                     .remove(&(request.job_id, request.generation.get()))
                     .flatten();
-                #[cfg(test)]
-                let controlled_capture = self.controlled_captures.pop_front();
-                #[cfg(test)]
-                let controlled_part_limit = self.controlled_part_limits.pop_front().flatten();
-                #[cfg(not(test))]
-                let controlled_capture: Option<CaptureStream> = None;
-                #[cfg(not(test))]
-                let controlled_part_limit: Option<u64> = None;
-                if let Some(capture) = controlled_capture {
-                    if self.native_unified_candidate_enabled {
-                        let result = (|| {
-                            let bound = self
-                                .model_catalog
-                                .as_ref()
-                                .ok_or_else(|| "ModelCatalogUnavailable: native capture requires the personal model catalogue".to_owned())?
-                                .bind_native_unified_live(&request)?;
-                            let import_request = ImportRequest {
-                                strategy: whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
-                                job_id: bound.job_id,
-                                generation: bound.generation,
-                                source_path: bound.model_path.clone(),
-                                source_sha256: None,
-                                source_samples: None,
-                                model_path: bound.model_path.clone(),
-                                model_sha256: bound.model_sha256,
-                                destination: bound.destination.clone(),
-                                config: bound.config.clone(),
-                            };
-                            let route = native_unified_route(
-                                &import_request,
-                                self.parakeet_paths.as_ref(),
-                                self.gpu_parakeet_paths.as_ref(),
-                                candidate.as_ref(),
-                            )?;
-                            self.start_controlled_unified_capture(
+                if self.publication_gate.is_cancelled() {
+                    Ok(())
+                } else if self.native_unified_candidate_enabled {
+                    let result = (|| {
+                        let bound = self
+                            .model_catalog
+                            .as_ref()
+                            .ok_or_else(|| "ModelCatalogUnavailable: native capture requires the personal model catalogue".to_owned())?
+                            .bind_native_unified_live(&request)?;
+                        let import_request = ImportRequest {
+                            strategy:
+                                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+                            job_id: bound.job_id,
+                            generation: bound.generation,
+                            source_path: bound.model_path.clone(),
+                            source_sha256: None,
+                            source_samples: None,
+                            model_path: bound.model_path.clone(),
+                            model_sha256: bound.model_sha256,
+                            destination: bound.destination.clone(),
+                            config: bound.config.clone(),
+                        };
+                        let route = native_unified_route(
+                            &import_request,
+                            self.parakeet_paths.as_ref(),
+                            self.gpu_parakeet_paths.as_ref(),
+                            candidate.as_ref(),
+                        )?;
+                        self.validate_unified_capture_admission(&bound, Some(&route))?;
+
+                        #[cfg(test)]
+                        if let Some(capture) = self.controlled_captures.pop_front() {
+                            let part_limit =
+                                self.controlled_part_limits.pop_front().flatten();
+                            return self.start_unified_capture(
                                 &bound,
                                 capture,
-                                controlled_part_limit,
+                                part_limit,
                                 Some(route),
-                            )
-                        })();
-                        result.map_err(|error| (id.0, id.1, error))
-                    } else {
-                        match self.bind_live_request(&request) {
-                            Ok(bound) => self
-                                .start_controlled_unified_capture(
-                                    &bound,
-                                    capture,
-                                    controlled_part_limit,
-                                    None,
-                                )
-                                .map_err(|error| (id.0, id.1, error)),
-                            Err(error) => {
-                                Err((id.0, id.1, format!("Modèle indisponible : {error}")))
-                            }
+                            );
                         }
-                    }
+
+                        #[cfg(test)]
+                        {
+                            Err("ModelNotQualified: controlled capture injection is required in tests".into())
+                        }
+                        #[cfg(not(test))]
+                        {
+                            self.start_native_unified_capture_with(
+                                &bound,
+                                route,
+                                crate::capture::start_direct_with_gain,
+                            )
+                        }
+                    })();
+                    result.map_err(|error| (id.0, id.1, error))
                 } else {
+                    let bound = match self.bind_live_request(&request) {
+                        Ok(bound) => bound,
+                        Err(error) => {
+                            return Err((id.0, id.1, format!("Modèle indisponible : {error}")));
+                        }
+                    };
+                    if let Err(error) = self.validate_unified_capture_admission(&bound, None) {
+                        return Err((id.0, id.1, error));
+                    }
+                    #[cfg(test)]
+                    if let Some(capture) = self.controlled_captures.pop_front() {
+                        let part_limit = self.controlled_part_limits.pop_front().flatten();
+                        return self
+                            .start_unified_capture(&bound, capture, part_limit, None)
+                            .map_err(|error| (id.0, id.1, error));
+                    }
                     Err((id.0, id.1,
                         "ModelNotQualified: native microphone capture remains closed until T9 qualification; use the controlled capture harness".into()))
                 }
@@ -13457,6 +13509,132 @@ mod tests {
         }
     }
 
+    fn controlled_native_route(root: &Path) -> NativeUnifiedRoute {
+        NativeUnifiedRoute {
+            paths: crate::parakeet_import::ParakeetWorkerPaths {
+                executable: root.join("controlled-worker.exe"),
+                native_dir: root.join("native"),
+                model: root.join("controlled-model.nemo"),
+                runtime_root: root.to_path_buf(),
+            },
+            requested_compute: ComputeChoice::Cpu,
+            compute: ComputeChoice::Cpu,
+            expected_gpu: None,
+            candidate: None,
+            fallback_reason: None,
+        }
+    }
+
+    #[test]
+    fn unified_capture_runtime_rejects_third_before_capture_factory() {
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-admission-before-open-{}",
+            std::process::id()
+        ));
+        let route = controlled_native_route(&root);
+        let request_a = unified_live_request(&root, 9_280);
+        let request_b = unified_live_request(&root, 9_281);
+        let request_third = unified_live_request(&root, 9_282);
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(controlled_worker().0);
+        runtime.native_unified_candidate_enabled = true;
+
+        for (request, identity) in [
+            (&request_a, "test:admission-a"),
+            (&request_b, "test:admission-b"),
+        ] {
+            let mut capture = CaptureStream::empty_test_capture(16_000, 1, identity);
+            capture.enqueue_test_block(vec![0.1; 160]);
+            runtime
+                .start_unified_capture(request, capture, None, Some(route.clone()))
+                .unwrap();
+        }
+
+        let factory_calls = AtomicU64::new(0);
+        let result = runtime.start_native_unified_capture_with(
+            &request_third,
+            route,
+            |_, _| {
+                factory_calls.fetch_add(1, Ordering::Relaxed);
+                Ok(CaptureStream::empty_test_capture(
+                    16_000,
+                    1,
+                    "test:must-not-open",
+                ))
+            },
+        );
+        assert!(
+            result
+                .as_ref()
+                .is_err_and(|error| error.contains("SchedulerCapacity")),
+            "third capture should be refused by the runtime: {result:?}"
+        );
+        assert_eq!(factory_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(runtime.unified_sessions.len(), 2);
+        assert_eq!(runtime.unified_archives.len(), 2);
+
+        for request in [&request_a, &request_b] {
+            let mut events = VecDeque::new();
+            runtime
+                .stop_controlled_unified_capture(
+                    request.job_id,
+                    request.generation,
+                    &mut events,
+                )
+                .unwrap();
+        }
+        drop(runtime);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn native_unified_capture_open_failure_leaves_no_session_or_capacity() {
+        let root = std::env::temp_dir().join(format!(
+            "parakeet-unified-open-failure-{}",
+            std::process::id()
+        ));
+        let request = unified_live_request(&root, 9_283);
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(controlled_worker().0);
+        runtime.native_unified_candidate_enabled = true;
+        let factory_calls = AtomicU64::new(0);
+
+        let result = runtime.start_native_unified_capture_with(
+            &request,
+            controlled_native_route(&root),
+            |microphone, gain| {
+                factory_calls.fetch_add(1, Ordering::Relaxed);
+                assert_eq!(microphone, &request.microphone);
+                assert_eq!(gain.value(), request.microphone_gain_db);
+                Err("controlled source unavailable".into())
+            },
+        );
+
+        assert_eq!(
+            result.unwrap_err(),
+            "controlled source unavailable"
+        );
+        assert_eq!(factory_calls.load(Ordering::Relaxed), 1);
+        assert!(runtime.unified_sessions.is_empty());
+        assert!(runtime.unified_archives.is_empty());
+        assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
+        assert!(!runtime.unified_admission_full());
+        drop(runtime);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     fn assert_real_unified_model(request: &ImportRequest) {
         assert!(
             Path::new(&request.model_path).is_file(),
@@ -15432,7 +15610,7 @@ mod tests {
         .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker))
         .with_finish_document_failure_for(session);
         runtime
-            .start_controlled_unified_capture(&request, capture, None, None)
+            .start_unified_capture(&request, capture, None, None)
             .unwrap();
         runtime
             .unified_sessions
@@ -15490,7 +15668,7 @@ mod tests {
         replacement_capture.enqueue_test_block(vec![0.1; 4 * 16_000]);
         runtime.controlled_transcriber = Some(Box::new(TailAwareUnifiedWorker));
         runtime
-            .start_controlled_unified_capture(&replacement, replacement_capture, None, None)
+            .start_unified_capture(&replacement, replacement_capture, None, None)
             .unwrap();
         assert!(runtime.unified_sessions.contains_key(&replacement_session));
         assert_eq!(runtime.unified_sessions.len(), 1);
@@ -15568,7 +15746,7 @@ mod tests {
         let mut capture = CaptureStream::empty_test_capture(16_000, 1, "test:binding-collision");
         capture.enqueue_test_block(vec![0.1; 16_000]);
         runtime
-            .start_controlled_unified_capture(&live_request, capture, None, None)
+            .start_unified_capture(&live_request, capture, None, None)
             .unwrap();
         assert!(runtime.unified_capture_sessions.contains(&session));
 
@@ -15787,7 +15965,7 @@ mod tests {
         .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker));
         runtime.snapshot_registry_root = Some(settings_root.clone());
         runtime
-            .start_controlled_unified_capture(&request, capture, None, None)
+            .start_unified_capture(&request, capture, None, None)
             .unwrap();
 
         let error = runtime
@@ -15842,7 +16020,7 @@ mod tests {
         .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker));
         runtime.snapshot_registry_root = Some(settings_root);
         runtime
-            .start_controlled_unified_capture(&request, capture, None, None)
+            .start_unified_capture(&request, capture, None, None)
             .unwrap();
 
         let error = runtime
