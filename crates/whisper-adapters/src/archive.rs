@@ -2783,6 +2783,7 @@ impl ArchiveStore {
             qualification,
             None,
             Some((source_sha, source_samples)),
+            None,
         )?;
         let directory = self
             .current
@@ -2815,6 +2816,7 @@ impl ArchiveStore {
             qualification,
             Some(binding),
             None,
+            None,
         );
         crate::worker_ipc::record_r7_timing(
             "archive_prepare_pending",
@@ -2830,9 +2832,30 @@ impl ArchiveStore {
         executable_model_path: Option<&str>,
         qualification: Option<ArchiveQualificationKey>,
     ) -> Result<ImportRequest, String> {
+        self.prepare_inner_with_publication_lock(
+            request,
+            executable_model_path,
+            qualification,
+            None,
+        )
+    }
+
+    fn prepare_inner_with_publication_lock(
+        &mut self,
+        request: ImportRequest,
+        executable_model_path: Option<&str>,
+        qualification: Option<ArchiveQualificationKey>,
+        locked_destination: Option<&Path>,
+    ) -> Result<ImportRequest, String> {
         let started = Instant::now();
-        let result =
-            self.prepare_inner_impl(request, executable_model_path, qualification, None, None);
+        let result = self.prepare_inner_impl(
+            request,
+            executable_model_path,
+            qualification,
+            None,
+            None,
+            locked_destination,
+        );
         crate::worker_ipc::record_r7_timing(
             "archive_prepare_pending",
             started.elapsed(),
@@ -2848,6 +2871,7 @@ impl ArchiveStore {
         qualification: Option<ArchiveQualificationKey>,
         source_binding: Option<&crate::source_binding::SourceBinding>,
         segmented_source_identity: Option<([u8; 32], u64)>,
+        locked_destination: Option<&Path>,
     ) -> Result<ImportRequest, String> {
         l04_campaign_assert_archive(&self.root)?;
         if self.current.is_some() {
@@ -2989,7 +3013,22 @@ impl ArchiveStore {
         }
         let destination = PathBuf::from(&request.destination);
         fs::create_dir_all(&destination).map_err(|e| format!("StorageUnavailable: {e}"))?;
-        let _publication_lock = Self::lock_publications(&destination)?;
+        let lock_already_held = if let Some(locked) = locked_destination {
+            let locked = fs::canonicalize(locked).map_err(|error| {
+                format!("StorageUnavailable: resolve held publication destination: {error}")
+            })?;
+            let current = fs::canonicalize(&destination).map_err(|error| {
+                format!("StorageUnavailable: resolve requested publication destination: {error}")
+            })?;
+            locked == current
+        } else {
+            false
+        };
+        let _publication_lock = if lock_already_held {
+            None
+        } else {
+            Some(Self::lock_publications(&destination)?)
+        };
         let directory = destination
             .join("transcriptions")
             .join(format!("{:032x}", request.job_id.0))
@@ -3122,6 +3161,26 @@ impl ArchiveStore {
             || previous.generation.next() != Some(request.generation)
         {
             return Err("InvalidInput: resume generation is not the next generation".into());
+        }
+        let previous_destination = PathBuf::from(&previous.destination);
+        let requested_destination = PathBuf::from(&request.destination);
+        let same_destination = if previous_destination == requested_destination {
+            true
+        } else {
+            let previous_destination =
+                fs::canonicalize(&previous_destination).map_err(|error| {
+                    format!("InvalidInput: cannot resolve resume checkpoint destination: {error}")
+                })?;
+            let requested_destination =
+                fs::canonicalize(&requested_destination).map_err(|error| {
+                    format!("InvalidInput: cannot resolve requested resume destination: {error}")
+                })?;
+            previous_destination == requested_destination
+        };
+        if !same_destination {
+            return Err(
+                "InvalidInput: resume destination differs from checkpoint destination".into(),
+            );
         }
         let previous_dir = PathBuf::from(&previous.destination)
             .join("transcriptions")
@@ -3259,7 +3318,12 @@ impl ArchiveStore {
                 })?;
             }
         }
-        let prepared = self.prepare_inner(request, executable_model_path, qualification)?;
+        let prepared = self.prepare_inner_with_publication_lock(
+            request,
+            executable_model_path,
+            qualification,
+            Some(&destination),
+        )?;
         self.copy_resume_prefix(&prepared, &prefix)?;
         if pending
             .qualification
@@ -8076,6 +8140,77 @@ mod tests {
                 .iter()
                 .any(|entry| entry.request.job_id == request.job_id)
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn resume_rejects_canonical_cross_destination_without_mutating_either_root() {
+        let root = std::env::temp_dir().join(format!(
+            "whisper-resume-cross-destination-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let previous_destination = root.join("previous");
+        let requested_destination = root.join("requested");
+        fs::create_dir_all(&previous_destination).unwrap();
+        fs::create_dir_all(&requested_destination).unwrap();
+        let previous_sentinel = previous_destination.join("sentinel");
+        let requested_sentinel = requested_destination.join("sentinel");
+        fs::write(&previous_sentinel, b"previous destination unchanged").unwrap();
+        fs::write(&requested_sentinel, b"requested destination unchanged").unwrap();
+        let entries = |directory: &Path| {
+            let mut entries: Vec<_> = fs::read_dir(directory)
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name())
+                .collect();
+            entries.sort();
+            entries
+        };
+        let previous_entries = entries(&previous_destination);
+        let requested_entries = entries(&requested_destination);
+        let job_id = JobId(38_001);
+        let previous = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+            job_id,
+            generation: Generation::first(),
+            source_path: "source.wav".into(),
+            source_sha256: Some([1; 32]),
+            source_samples: Some(160),
+            model_path: "model.bin".into(),
+            model_sha256: [2; 32],
+            destination: previous_destination.to_string_lossy().into_owned(),
+            config: whisper_core::JobConfig {
+                language: whisper_core::LanguageChoice::Manual("fr".into()),
+                compute: whisper_core::ComputeChoice::Cpu,
+            },
+        };
+        let mut request = previous.clone();
+        request.generation = previous.generation.next().unwrap();
+        request.destination = requested_destination.to_string_lossy().into_owned();
+        let mut archive = ArchiveStore::new(&previous_destination);
+
+        let error = archive
+            .resume_from_with_qualification(&previous, request, None, None)
+            .unwrap_err();
+
+        assert!(
+            error.contains("resume destination differs from checkpoint destination"),
+            "unexpected cross-destination resume error: {error}"
+        );
+        assert_eq!(
+            fs::read(&previous_sentinel).unwrap().as_slice(),
+            b"previous destination unchanged"
+        );
+        assert_eq!(
+            fs::read(&requested_sentinel).unwrap().as_slice(),
+            b"requested destination unchanged"
+        );
+        assert_eq!(entries(&previous_destination), previous_entries);
+        assert_eq!(entries(&requested_destination), requested_entries);
+        assert!(archive.current.is_none());
         fs::remove_dir_all(root).unwrap();
     }
 
