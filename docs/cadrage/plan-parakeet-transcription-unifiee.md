@@ -1,6 +1,6 @@
-Avancée : T9 technique CLEAN ; construction T10 personnelle isolée et vérification sans fenêtre réussies, remise relue CLEAN et preuves archivées.
-Blocage : qualité lexicale, critères de délais Q-PU-03 et recette manuelle Windows restent ouverts ; la construction T10 est terminée.
-Décision : remise T10 construite sous les plafonds de 24 Gio et 240 minutes cumulées ; aucun essai fenêtre, nettoyage ni push.
+Avancée : recette Windows partielle reçue ; qualité française du brouillon appréciée, constats T10-03 et T10-04 établis indépendamment.
+Blocage : UI encore raccordée au parcours historique et absence de défilement global ; parcours unifié réel non qualifié, essais 5 à 7 non effectués.
+Décision proposée : correction bornée du défilement et préparation du raccordement réel au §39 ; aucune nouvelle campagne ni modification Rust à cette étape.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -1238,3 +1238,36 @@ Exemple : « Micro CPU : anomalie ; tournesol absent du TXT mais présent dans l
 Bilan : qualité FR / EN, document unique, fin micro, fichiers, A/B observé ou non, import long, Turbo, fermeture. Aucun verdict de conformité de délai avant accord Q-PU-03.
 
 **Revue ciblée de remise de la recette : CLEAN statique.** Même coordinateur et même reviewer : T10-02 fermé, ordre A/B corrigé. Comparaison du lanceur actuel à l'entrée archivée de construction : préfixe des ressources/empreintes et suffixe environnement/VerifyOnly/Start inchangés ; seul bloc des préférences adapté, lecture sans écriture, destination et modèle présents conformes aux chemins contrôlés. Contrôle VerifyOnly code 0 confirmé séparément. Aucun EXE, Cargo ou desktop lancé par les reviewers. Les essais Windows, la qualité et Q-PU-03 demeurent ouverts jusqu'au retour utilisateur.
+
+## 38. Retour utilisateur T10 — accès à l'interface et finalisation à reprendre
+
+Avancée : retour Windows reçu ; essais 1 à 3 satisfaisants selon l'utilisateur, qualité du brouillon français jugée largement suffisante.
+Blocage : essai A/B avec incomplétude signalée ; contenu hors écran après le micro, essais 5 à 7 non effectués.
+Décision : diagnostiquer le raccordement réel et préparer une correction bornée ; aucune réserve d'incomplétude supprimée pour masquer le problème.
+
+**Retour exact.** 1 : « Tout est ok ». 2 : « tout est parfait CPU et GPU ». 3 : « tout est parfait CPU et GPU ». 4 effectué, messages « une portion audio demeure non confirmée », « Transcription directe incomplète », « 169 portions restent à terminer ». Appréciation : « le brouillon que j'ai lu à l'ecran presente une qualité largement suffisante en francais ». 5 à 7 non effectués : interface inaccessible après l'essai micro, demande d'ajouter des glissières verticales pour accéder à tout le contenu. Aucun résultat Auto distinct n'est déduit de la seule mention CPU/GPU ; aucune validation de finalisation complète, de délais Q-PU-03 ou des essais non effectués n'est ajoutée.
+
+**Lecture des preuves existantes, sans audio ni nouvelle inférence.** Les quatre métadonnées micro de remise-t10/sorties portent complete=false ; compteurs non confirmés 21, 2, 169 et 1. La session se terminant par `0002` contient environ 73,9 s d'audio et un statut de transcription automatique finale produced_unverified, avec 169 intervalles non confirmés. Ce statut n'est pas une publication unifiée complète. Les fichiers, réglages et sorties restent intacts. Aucun WAV ou texte personnel n'est diffusé dans ce diagnostic.
+
+**Ancres de diagnostic.** `ui.rs` affiche les messages historiques de capture vers 1170 et appelle StartDirectLiveConfigured au démarrage micro vers 1694 ; sa demande d'import porte LegacyV1 vers 1491. Ces ancres demandent vérification du routage aval avant conclusion. Les ScrollArea existantes couvrent des sous-zones ; la racine eframe::App::ui appelle directement show_ui, sans conteneur vertical global. Le diagnostic indépendant du parcours et le périmètre concret de correction sont en préparation ; aucun Rust, lanceur ou EXE modifié à cette étape, aucune compilation, fenêtre ou campagne relancée.
+
+**Diagnostic indépendant confirmé.** Même coordinateur/reviewer : **T10-03 BLOQUANT pour la recette du parcours unifié**, **T10-04 IMPORTANT pour l'accès à l'interface**. Le point d'opt-in dans root.rs (vers 274–285) rend la route native BoundedWindowsV1 disponible mais ne convertit pas les commandes émises par l'interface. L'import reste LegacyV1 ; le micro StartDirectLiveConfigured est traité par le parcours ParakeetLive historique. Le vrai StartUnifiedLive est distinct et refuse actuellement une capture physique sans injection contrôlée (worker_ipc.rs vers 6300–6366). Les réussites de la recette ne qualifient donc pas l'activation du parcours unifié T8/T10. Les preuves T9 contrôlées gardent leur portée propre, sans validation du raccordement réel. Les messages et les 169 portions proviennent de la vue historique et de son reliquat de confirmation ; ils ne prouvent pas une perte du WAV. Aucun message d'incomplétude ne doit être supprimé pour faire paraître ce parcours complet.
+
+La remise T10 était prématurée pour la validation du produit unifié : construction et vérifications d'identité ont passé, mais raccordement UI/micro physique manquant. Le présent diagnostic rectifie toute lecture plus large du CLEAN technique précédent. Le correctif défilement permettrait l'accès aux contrôles ; il ne ferme pas T10-03. La qualité française jugée suffisante par l'utilisateur reste consignée pour le brouillon réellement observé, sans équivalence artificielle entre ce brouillon et une publication unifiée finalisée.
+
+## 39. Reprise proposée après recette — défilement puis raccordement réel
+
+Avancée : deux constats précis sont établis, retour utilisateur et preuves préservés.
+Blocage : le mandat de construction T10 excluait tout changement Rust ; la remise complète unifiée nécessite un périmètre correctif distinct.
+Décision proposée : corriger d'abord l'accessibilité de la page, préparer en lecture seule le raccordement réel, sans masquer les statuts historiques.
+
+**Six actions bornées proposées.**
+
+1. Autoriser uniquement `crates/whisper-desktop/src/ui.rs` pour T10-04 : ajouter un défilement vertical englobant la page utile afin de rendre accessibles commandes et résultats lorsque la capture agrandit le contenu ou que la fenêtre est petite. Conserver les sous-zones défilantes utiles ; aucune modification des modèles, de la transcription, des états ou des messages d'incomplétude.
+2. Même rust_implementer en IMPLEMENT, puis même rust_review_coordinator et reviewer indépendant ; source gelée avant les vérifications. Aucun autre Rust, manifeste Cargo ou dépendance ouvert par ce correctif.
+3. Adapter le seul lanceur PowerShell existant sous lot-04 pour formatage ciblé de ui.rs, contrôles desktop utiles et construction release personal-install sous garde. Ne pas modifier les autres sources pour obtenir un succès. Tests desktop lib et parakeet_unified_ui offline/locked, vérification des erreurs existantes et arrêt à l'échec. Aucune inférence, capture réelle ou fenêtre exécutée par Codex.
+4. Produire une remise corrective distincte `lot-04/remise-t10-scroll/`, avec les seuls exécutables requis et un lanceur contrôlé ; conserver remise-t10, ses réglages et toutes ses sorties. Ressources Parakeet isolées existantes réutilisées sans mutation ; préciser le routage des préférences/destination dans la remise corrigée, sans effacer les données de recette. La validation de la glissière dans une petite fenêtre demeure celle de l'utilisateur. Le paquet restera explicitement NON QUALIFIÉ pour le parcours unifié tant que T10-03 n'est pas fermé.
+5. Même garde non préventive incluant .git, refus des jonctions, Temp non attribué consigné et arrêt sur écriture extérieure attribuée ou modification sensible inexpliquée. Extension explicite de cette garde à la campagne corrective proposée : seules racines lot-04/cargo-shared, mêmes baseline et plafonds 240 minutes / 24 Gio cumulés, sans remise à zéro (176 min 36,2 s de campagne consommées à la clôture précédente ; les sorties manuelles conservées comptent dans la croissance à mesurer au préflight). Arrêt sous 30 Gio libres ; aucun nettoyage, installation, téléchargement, microphone réel, ouverture de fenêtre ou push.
+6. En parallèle documentaire uniquement, préparer le périmètre exact nécessaire à T10-03 (commandes UI d'import/micro et raccordement à l'acquisition réelle) et ses preuves requises, puis le soumettre avant tout code correspondant. Aucun raccordement natif improvisé dans ui.rs au titre des glissières. Consigner et commiter localement les résultats ; le plan du raccordement et la campagne native réelle demanderont leurs décisions précises.
+
+Le retour actuel demande le défilement et décrit les anomalies ; il n'est pas transformé en autorisation silencieuse d'élargir le mandat T10 « aucun changement Rust ». Aucun correctif de code ni nouvelle campagne lancé avant cet accord ciblé. Alternative : préparer d'abord le raccordement complet avant toute nouvelle remise, en laissant l'interface actuelle inaccessible en bas de page. Recommandation : défilement borné et préparation du raccordement, avec T10-03 conservé bloquant pour la qualification du produit unifié.
