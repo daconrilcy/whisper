@@ -12110,7 +12110,11 @@ mod tests {
         let request_a = unified_live_request(&archive_root, A_ID);
         let request_b = unified_live_request(&archive_root, B_ID);
         let request_third = unified_live_request(&archive_root, THIRD_ID);
-        assert_real_unified_model(&request_a);
+        assert!(
+            Path::new(&request_a.model_path).is_file(),
+            "required real Parakeet test model is missing: {}",
+            request_a.model_path
+        );
 
         let mut capture_a =
             crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:close-a");
