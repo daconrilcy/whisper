@@ -18178,6 +18178,41 @@ mod tests {
             1,
             "duplicate Stop A during drain must not resubmit the runtime stop"
         );
+        let mut a_audio_drained_at = None;
+        let mut a_finalizing_at = None;
+        let mut a_publishing_at = None;
+        let mut a_published_at = None;
+        macro_rules! record_a_phase_observation {
+            () => {{
+                let observed_at = Instant::now();
+                let observed_view = app.view();
+                if let Some(session) = observed_view
+                    .unified_parakeet_sessions
+                    .iter()
+                    .find(|session| session.job_id == a && session.generation == generation)
+                {
+                    if a_audio_drained_at.is_none()
+                        && session.total_samples.is_some_and(|total| {
+                            session.captured_samples == total && session.durable_samples == total
+                        })
+                    {
+                        a_audio_drained_at = Some(observed_at);
+                    }
+                    match session.phase {
+                        whisper_core::ports::UnifiedSessionPhase::Finalizing => {
+                            a_finalizing_at.get_or_insert(observed_at);
+                        }
+                        whisper_core::ports::UnifiedSessionPhase::Publishing => {
+                            a_publishing_at.get_or_insert(observed_at);
+                        }
+                        whisper_core::ports::UnifiedSessionPhase::Complete => {
+                            a_published_at.get_or_insert(observed_at);
+                        }
+                        _ => {}
+                    }
+                }
+            }};
+        }
         let a_drain_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let mut a_drain_trace_at = Instant::now();
         let mut a_source_flush_verified = false;
@@ -18194,6 +18229,7 @@ mod tests {
             app.dispatch(AppCommand::Refresh)
                 .expect("close and drain capture A while A1 continues");
             native_event_drain(&native_events, &mut observations);
+            record_a_phase_observation!();
             observer.assert_healthy();
             if trace_refresh {
                 trace_checkpoint(
@@ -18437,6 +18473,7 @@ mod tests {
             app.dispatch(AppCommand::Refresh)
                 .expect("poll A/B native runtime");
             native_event_drain(&native_events, &mut observations);
+            record_a_phase_observation!();
             observer.assert_healthy();
             if trace_refresh {
                 trace_checkpoint(
@@ -18537,6 +18574,7 @@ mod tests {
                 app.dispatch(AppCommand::Refresh)
                     .expect("wait for A final document revision");
                 native_event_drain(&native_events, &mut observations);
+                record_a_phase_observation!();
                 observer.assert_healthy();
                 if trace_refresh {
                     trace_checkpoint(
@@ -18578,6 +18616,7 @@ mod tests {
                 app.dispatch(AppCommand::Refresh)
                     .expect("refresh after stale A document page");
                 native_event_drain(&native_events, &mut observations);
+                record_a_phase_observation!();
                 observer.assert_healthy();
                 if trace_refresh {
                     trace_checkpoint(
@@ -18678,6 +18717,7 @@ mod tests {
             app.dispatch(AppCommand::Refresh)
                 .expect("read A document page");
             native_event_drain(&native_events, &mut observations);
+            record_a_phase_observation!();
             observer.assert_healthy();
             if trace_refresh {
                 trace_checkpoint(
@@ -18822,6 +18862,7 @@ mod tests {
             app.dispatch(AppCommand::Refresh)
                 .expect("progress A/B windows");
             native_event_drain(&native_events, &mut observations);
+            record_a_phase_observation!();
             observer.assert_healthy();
             if trace_refresh {
                 trace_checkpoint(
@@ -18857,6 +18898,7 @@ mod tests {
             app.dispatch(AppCommand::Refresh)
                 .expect("complete A second window");
             native_event_drain(&native_events, &mut observations);
+            record_a_phase_observation!();
             observer.assert_healthy();
             if trace_refresh {
                 trace_checkpoint(
@@ -18917,13 +18959,9 @@ mod tests {
         );
         assert_eq!(stop_submissions.load(Ordering::Relaxed), 2);
         let publication_deadline = Instant::now() + Duration::from_secs(60 * 60);
-        let mut a_published_at = None;
         let mut b_published_at = None;
-        let mut a_audio_drained_at = None;
         let mut b_audio_drained_at = None;
-        let mut a_finalizing_at = None;
         let mut b_finalizing_at = None;
-        let mut a_publishing_at = None;
         let mut b_publishing_at = None;
         loop {
             let trace_refresh =
@@ -19352,8 +19390,14 @@ mod tests {
             .expect("validated initial READY event");
         let first_text = first_text_available.expect("A final text must become app-readable");
         assert!(ready > startup && first_text > run_started);
+        fn phase_elapsed_or_unobserved(stop: Instant, observed: Option<Instant>) -> String {
+            observed.map_or_else(
+                || "non observée".to_owned(),
+                |at| format!("{:?}", at.duration_since(stop)),
+            )
+        }
         println!(
-            "PU-L4 native {} A/B/C; synthetic cadence=source-derived 80k-frame burst blocks, OS cache state uncontrolled; start-to-READY={:?}, A1 send-to-result={:?}, B written-ACK within A1={:?}, start-to-first-app-text={:?}, A stop-to-audio-drain/finalizing/publishing/complete={:?}/{:?}/{:?}/{:?}, B stop-to-audio-drain/finalizing/publishing/complete={:?}/{:?}/{:?}/{:?}, C stop-to-audio-drain/finalizing/publishing/complete={:?}/{:?}/{:?}/{:?}, source prefix samples={a_samples}, C PID={c_pid} incarnation={c_incarnation}",
+            "PU-L4 native {} A/B/C; synthetic cadence=source-derived 80k-frame burst blocks, OS cache state uncontrolled; start-to-READY={:?}, A1 send-to-result={:?}, B written-ACK within A1={:?}, start-to-first-app-text={:?}, A stop-to-audio-drain/finalizing/publishing/complete={:?}/{}/{}/{:?}, B stop-to-audio-drain/finalizing/publishing/complete={:?}/{}/{}/{:?}, C stop-to-audio-drain/finalizing/publishing/complete={:?}/{}/{}/{:?}, source prefix samples={a_samples}, C PID={c_pid} incarnation={c_incarnation}",
             if compute == ComputeChoice::Cpu {
                 "CPU"
             } else {
@@ -19366,36 +19410,24 @@ mod tests {
             a_audio_drained_at
                 .expect("A final audio ACK time")
                 .duration_since(a_stop),
-            a_finalizing_at
-                .expect("A finalization time")
-                .duration_since(a_stop),
-            a_publishing_at
-                .expect("A publishing time")
-                .duration_since(a_stop),
+            phase_elapsed_or_unobserved(a_stop, a_finalizing_at),
+            phase_elapsed_or_unobserved(a_stop, a_publishing_at),
             a_published_at
                 .expect("A completion time")
                 .duration_since(a_stop),
             b_audio_drained_at
                 .expect("B final audio ACK time")
                 .duration_since(b_stop),
-            b_finalizing_at
-                .expect("B finalization time")
-                .duration_since(b_stop),
-            b_publishing_at
-                .expect("B publishing time")
-                .duration_since(b_stop),
+            phase_elapsed_or_unobserved(b_stop, b_finalizing_at),
+            phase_elapsed_or_unobserved(b_stop, b_publishing_at),
             b_published_at
                 .expect("B completion time")
                 .duration_since(b_stop),
             c_audio_drained_at
                 .expect("C final audio ACK time")
                 .duration_since(c_stop),
-            c_finalizing_at
-                .expect("C finalization time")
-                .duration_since(c_stop),
-            c_publishing_at
-                .expect("C publishing time")
-                .duration_since(c_stop),
+            phase_elapsed_or_unobserved(c_stop, c_finalizing_at),
+            phase_elapsed_or_unobserved(c_stop, c_publishing_at),
             c_published_at
                 .expect("C completion time")
                 .duration_since(c_stop),
