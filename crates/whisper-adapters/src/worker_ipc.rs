@@ -17779,12 +17779,20 @@ mod tests {
         let expected_a_samples =
             u64::try_from(a_samples).expect("spoken prefix sample count fits u64");
         let expected_a_tail = {
+            let mut reference_capture = crate::capture::CaptureStream::empty_test_capture(
+                16_000,
+                1,
+                "test:pu-l4-native-a-reference",
+            );
+            for block in spoken.chunks(80_000) {
+                reference_capture.enqueue_test_block(block.to_vec());
+            }
             let mut converter = crate::capture::Pcm16Converter::new(16_000, 1)
                 .expect("create capture-compatible PCM reference converter");
             let mut tail = VecDeque::with_capacity(160);
-            for block in spoken.chunks(80_000) {
+            while let Some(block) = reference_capture.try_next_block() {
                 for sample in converter
-                    .push(block)
+                    .push(&block)
                     .expect("convert bounded spoken reference block")
                 {
                     if tail.len() == 160 {
@@ -17792,6 +17800,9 @@ mod tests {
                     }
                     tail.push_back(sample);
                 }
+                reference_capture
+                    .recycle_block(block)
+                    .expect("recycle bounded spoken reference block");
             }
             for sample in converter
                 .finish()
