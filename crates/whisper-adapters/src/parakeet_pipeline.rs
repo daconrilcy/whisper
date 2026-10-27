@@ -13,11 +13,36 @@ const PREVIEW_SAMPLES: u64 = 4 * 16_000;
 
 pub trait WindowTranscriber: Send {
     fn instance_id(&self) -> u64;
+
+    /// Performs backend startup on the dedicated inference thread. The runtime
+    /// remains free to admit and pump capture while this may block on READY.
+    fn initialize_instance(&mut self, stop_requested: &std::sync::atomic::AtomicBool) -> Result<(), String> {
+        let _ = stop_requested;
+        Ok(())
+    }
+
+    /// Called only after the inference thread has stopped accepting calls.
+    /// Native implementations must reap their process before returning.
+    fn stop_instance(&mut self) -> Result<(), String> {
+        Ok(())
+    }
+
     fn transcribe(
         &mut self,
         window: AudioWindow,
         pcm: &[i16],
     ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String>;
+
+    fn transcribe_scheduled(
+        &mut self,
+        call: whisper_core::parakeet_scheduler::ScheduledCall,
+        scratch_directory: &std::path::Path,
+        window: AudioWindow,
+        pcm: &[i16],
+    ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+        let _ = (call, scratch_directory);
+        self.transcribe(window, pcm)
+    }
 }
 
 pub trait ReadablePcmSource {

@@ -268,14 +268,31 @@ pub fn compose() -> DesktopComposition {
         let _ = sender.send(result);
     });
     let historical_model_path = whisper_desktop::ui::default_model_path();
-    let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes_and_snapshot_registry(
-        workers,
-        model_root.clone(),
-        historical_model_path.clone(),
-        configured_parakeet_worker(),
-        configured_gpu_parakeet_worker(),
-        reprocessing_snapshot_registry_root(),
-    );
+    let cpu_parakeet = configured_parakeet_worker();
+    let gpu_parakeet = configured_gpu_parakeet_worker();
+    let snapshot_registry = reprocessing_snapshot_registry_root();
+    let native_candidate_enabled = cfg!(feature = "personal-install")
+        && std::env::var_os("WHISPER_PARAKEET_UNIFIED_NATIVE_CANDIDATE").as_deref()
+            == Some(std::ffi::OsStr::new("1"));
+    let io = if native_candidate_enabled {
+        AsyncImportIo::start_with_model_catalog_and_parakeet_routes_and_snapshot_registry_native_candidate(
+            workers,
+            model_root.clone(),
+            historical_model_path.clone(),
+            cpu_parakeet,
+            gpu_parakeet,
+            snapshot_registry,
+        )
+    } else {
+        AsyncImportIo::start_with_model_catalog_and_parakeet_routes_and_snapshot_registry(
+            workers,
+            model_root.clone(),
+            historical_model_path.clone(),
+            cpu_parakeet,
+            gpu_parakeet,
+            snapshot_registry,
+        )
+    };
     let application =
         guarded_application(io, &model_root, historical_model_path, admission_receiver);
     DesktopComposition {

@@ -741,6 +741,27 @@ impl ParakeetProcess {
         source_sha256: String,
         expected_gpu: Option<whisper_core::parakeet_ipc::ExpectedGpu>,
     ) -> Result<(), String> {
+        self.transcribe_with_gpu_correlated(
+            job_id,
+            generation,
+            attempt,
+            source_path,
+            source_sha256,
+            expected_gpu,
+        )
+        .map(|_| ())
+    }
+
+    /// Sends one window and returns the exact wire request ID used for its reply.
+    pub(crate) fn transcribe_with_gpu_correlated(
+        &mut self,
+        job_id: String,
+        generation: u64,
+        attempt: u64,
+        source_path: &Path,
+        source_sha256: String,
+        expected_gpu: Option<whisper_core::parakeet_ipc::ExpectedGpu>,
+    ) -> Result<u64, String> {
         let identity = self
             .identity
             .clone()
@@ -750,8 +771,9 @@ impl ParakeetProcess {
             .checked_add(1)
             .ok_or_else(|| "RequestIdentityExhausted".to_owned())?;
         let started = Instant::now();
+        let request_id = self.request_id;
         self.write(&Envelope::new(WorkerCommand::Transcribe {
-            request_id: self.request_id,
+            request_id,
             job_id,
             generation,
             attempt,
@@ -761,7 +783,7 @@ impl ParakeetProcess {
             expected_gpu,
         }))?;
         self.request_started_at = Some(started);
-        Ok(())
+        Ok(request_id)
     }
 
     pub fn accept_ready(&mut self, identity: WorkerIdentity) -> Result<(), String> {

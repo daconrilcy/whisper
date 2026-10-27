@@ -1879,6 +1879,17 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     session.phase = crate::ports::UnifiedSessionPhase::Capturing;
                 }
             }
+            ImportEvent::Ready { backend, .. } => {
+                if let Some(session) = self
+                    .view
+                    .unified_parakeet_sessions
+                    .iter_mut()
+                    .find(|s| (s.job_id, s.generation) == key)
+                {
+                    session.phase = crate::ports::UnifiedSessionPhase::Capturing;
+                    session.message = Some(format!("Moteur actif : {backend}"));
+                }
+            }
             ImportEvent::ParakeetCaptureProgress {
                 captured_samples,
                 audio_durable_samples,
@@ -7307,6 +7318,41 @@ mod tests {
                 compute: ComputeChoice::Cpu,
             },
         }
+    }
+
+    #[test]
+    fn unified_capture_ready_records_the_effective_native_backend() {
+        let job_id = JobId(0xC0);
+        let generation = Generation::first();
+        let mut app = ImportApplication::new(ScanTestIo::default());
+        app.unified_captures
+            .insert((job_id, generation), unified_capture_state(job_id));
+        app.add_unified_session_card(
+            job_id,
+            generation,
+            "archive".into(),
+            "capture.wav".into(),
+            true,
+        );
+
+        app.handle_unified_capture_event(ImportEvent::Ready {
+            job_id,
+            generation,
+            backend: "CPU (Auto fallback before audio: no current candidate)".into(),
+        })
+        .unwrap();
+
+        let session = app
+            .view
+            .unified_parakeet_sessions
+            .iter()
+            .find(|session| (session.job_id, session.generation) == (job_id, generation))
+            .unwrap();
+        assert_eq!(session.phase, crate::ports::UnifiedSessionPhase::Capturing);
+        assert_eq!(
+            session.message.as_deref(),
+            Some("Moteur actif : CPU (Auto fallback before audio: no current candidate)")
+        );
     }
 
     #[test]
