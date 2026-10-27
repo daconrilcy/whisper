@@ -1185,3 +1185,56 @@ Remise réelle : `target/parakeet-tests/parakeet-unified/lot-04/remise-t10/`. Tr
 CAMPAIGN_END code 0 après **132,7097546 s** d'archivage, sans nouvel incident de garde. Cumul final **10 596,2183006 s (176 min 36,2 s) / 14 400 s**, baseline et plafond **24 Gio** inchangés. Espace libre final **138 653 282 304 octets (129,13 Gio)** ; aucun processus exécuté depuis les racines de campagne ne reste actif après clôture. Les fichiers suivis hors présent bilan sont inchangés ; `models/` et `sound example/` non suivis préservés.
 
 **État final T10.** Construction et vérification de remise : PASS / revue CLEAN ciblée. Recette manuelle dans Windows, microphone réel, comparaison linguistique et critères Q-PU-03 : **NOT RUN / ouverts**. Leur autorité demeure distincte ; aucun PASS produit global, installation, nettoyage ou push annoncé.
+
+## 37. Recette manuelle Windows T10 préparée
+
+Demande utilisateur : « Prépare la recette manuelle Windows T10 et indique-moi comment lancer l’application et quoi tester. » Préparation des instructions et adaptation nécessaire du contrôle de lancement ; aucun lancement desktop, microphone, inférence ni nouvelle campagne de compilation effectué par Codex. Les EXE restent inchangés. RECETTE-T10.txt et le lanceur manuel sont actualisés ; l'archive du §36 conserve leur version de construction antérieure, sans prétendre archiver cette mise à jour.
+
+**Préférences réellement présentes et relance.** Le préflight documentaire découvre `isolated-localappdata/Whisper/settings/settings.json` version 2, destination exacte `lot-04/remise-t10/sorties`, modèle sous `isolated-localappdata/Whisper/models/ggml-large-v3-turbo.bin`, modèle préféré Parakeet ; aucun processus des racines de campagne actif. Origine de la création non attribuée ici, aucune suppression ou modification du fichier. Le refus initial de toute préférence empêcherait la commande de lancement ; seul le lanceur manuel est adapté : refus du fichier legacy `Whisper/settings.json`, lecture stricte du fichier personnel, version 2 exigée, destination canonique exactement égale à `remise-t10/sorties`, modèle canonique appartenant aux deux modèles déjà vérifiés par empreinte. Les contrôles de jonctions, empreintes et environnement enfant sont conservés. Le générateur T10Build historique et les EXE ne sont pas modifiés ; une nouvelle construction ne fait pas partie de cette préparation.
+
+Parseur PowerShell sans erreur. Exécution **uniquement** de `Lancer-T10.ps1 -VerifierUniquement` sous PowerShell 7 NoProfile/NonInteractive : code 0, ressources/chemins/environnement enfant vérifiés, retour avant démarrage desktop. Cette vérification en lecture seule n'est pas une campagne d'inférence et ne qualifie aucune fenêtre. Le lanceur ne comporte pas de surveillance continue des écritures ; aucune garde de campagne ne lui est attribuée. T10-02 documentaire : ordre A/B corrigé pour démarrer B immédiatement après Stop A, avant les contrôles finaux de A.
+
+Avancée : construction T10 et vérification sans fenêtre réussies ; recette manuelle préparée.
+Blocage : aucun essai Windows réalisé ; qualité et critères de délai Q-PU-03 restent à valider.
+Décision : l'utilisateur réalise les essais ; aucun lancement automatique par Codex.
+
+RECETTE WINDOWS T10 — une seule ouverture de l'application
+
+Dossier : C:\dev\whisper\target\parakeet-tests\parakeet-unified\lot-04\remise-t10
+Profil personnel isolé : aucune installation, ressources conservées sous lot-04.
+Ne pas déplacer ce dossier seul et ne pas lancer directement whisper-desktop.exe.
+
+LANCEMENT PAR L'UTILISATEUR
+Dans PowerShell, copier cette commande :
+& 'C:\Program Files\PowerShell\7\pwsh.exe' -NoProfile -File 'C:\dev\whisper\target\parakeet-tests\parakeet-unified\lot-04\remise-t10\Lancer-T10.ps1'
+
+Contrôle sans ouvrir l'application : même commande suivie de -VerifierUniquement.
+Le contrôle peut prendre quelques secondes car il relit les empreintes des modèles.
+Le lanceur vérifie les ressources, les chemins et les préférences avant démarrage ; il ne surveille pas en continu les écritures de la session manuelle. La garde continue de construction n'est pas active dans ce lanceur. Cette procédure n'est pas une nouvelle campagne automatisée sous garde.
+Ne pas modifier la politique de sécurité PowerShell si la commande est refusée : communiquer le message exact.
+Le processus enfant reçoit seul le choix du candidat et ses chemins isolés.
+Sortie attendue : C:\dev\whisper\target\parakeet-tests\parakeet-unified\lot-04\remise-t10\sorties
+Vérifier ce champ dans l'application avant toute transcription et le conserver pour tous les essais.
+
+ESSAIS, DANS CET ORDRE
+1. Démarrage : fenêtre utilisable, modèle Parakeet sélectionnable, microphones lisibles. Noter tout message de ressources manquantes. Sélectionner Parakeet et détection automatique de langue, puis CPU.
+2. Import court FR : choisir C:\dev\whisper\target\parakeet-tests\parakeet-unified\lot-04\fixtures\fr-short.mp3 et lancer l'import. Attendre le résultat final. Vérifier un document unique, puis les sorties TXT/SRT annoncées. Référence : « Bah la quarantaine, quarante-deux, quarante-trois. » Comparer le sens, les nombres et la fin ; la ponctuation n'exige pas une identité parfaite.
+3. GPU et Auto : après fin de l'opération précédente, choisir GPU puis importer en-short.mp3 dans le même dossier fixtures ; répéter en Auto avec une nouvelle sortie si un remplacement est proposé. Référence EN : « The weather today is sunny, quite hot, and windy. » Relever le moteur effectif et toute cause de repli. Auto avec GPU disponible ne prouve pas le repli CPU ; ne pas désactiver de pilote pour le provoquer. Ne pas écraser une sortie antérieure : choisir une nouvelle destination sous remise-t10/sorties si nécessaire.
+4. Microphone : Parakeet, langue automatique, CPU, source explicite et gain habituel. Parler 45 à 60 secondes avec une pause ; terminer par « Le dernier mot est tournesol », puis arrêter le microphone. Observer le même document qui évolue. Juste après cet arrêt, passer immédiatement à l'étape 5 si A finalise encore ; terminer les vérifications suivantes après B. Vérifier absence de doublons massifs, fin conservée, état et temps écoulé pendant l'attente, puis TXT/SRT et WAV annoncés. Écouter le WAV : début, pause et fin audibles, aucune perte inexpliquée. Aucun seuil de rapidité n'est encore accepté : relever les délais sans verdict automatique.
+5. A/B : si A affiche encore une finalisation après son arrêt, démarrer B immédiatement, puis parler et arrêter B. Vérifier que chaque fiche conserve son texte, son audio et ses sorties. Tenter une troisième opération uniquement si A et B sont encore actives : refus clair attendu avant ouverture d'un autre micro. Si A finit trop vite, noter « chevauchement non observé » ; ne pas déclarer cet essai réussi.
+6. Import long : choisir fixtures\fr-long-35m.wav, puis parcourir plusieurs pages et la fin après publication. Vérifier navigation utilisable et cohérence du TXT/SRT avec le document final. Le corpus assemble des extraits, certaines répétitions sont donc dans la source. Les annotations fr-long-35m.annotations.json servent à la comparaison linguistique. EN long (en-long-40m.wav) est un complément, pas nécessaire au premier retour. Ne pas lancer physical-rotation-over-one-gib.wav : la rotation réelle >1 Gio a déjà une preuve technique, ce fichier n'est pas un audio pertinent pour une recette d'inférence manuelle.
+7. Préservation Turbo : après fin des opérations Parakeet, choisir large-v3-turbo CPU et importer le même FR court, dans une sortie distincte. Vérifier résultat et fichiers. Cela ne qualifie pas à lui seul tous les cas Turbo GPU/micro.
+8. Fermeture : attendre que les essais soient terminés, fermer la fenêtre normalement ; noter tout blocage. Si vous choisissez de fermer pendant une finalisation, vérifier que le message d'attente correspond aux opérations restantes et que les fichiers annoncés complets sont bien disponibles après fermeture.
+
+DÉLAIS À RELEVER
+Temps jusqu'au premier texte, temps de l'arrêt micro à la fin du travail et à la disponibilité des fichiers ; préciser modèle, CPU/GPU/Auto, moteur effectif, essai et si le moteur était déjà utilisé dans cette ouverture. Une perception ou un chronomètre manuel reste une mesure approximative ; il ne remplace pas une mesure depuis le premier échantillon admis au sens de Q-PU-03.
+
+ARRÊT / SECOND LANCEMENT
+En cas d'erreur, noter le texte exact et l'essai ; ne pas supprimer les sorties ni forcer une nouvelle campagne. Le lanceur vérifie les préférences enregistrées : version 2, destination exacte du dossier sorties et modèle parmi les ressources vérifiées. Il refuse toute autre destination, modèle extérieur ou ancien fichier de préférences. Ne pas effacer ces fichiers pour contourner un refus : communiquer le message exact. Ne pas ouvrir directement l'EXE. Après fermeture, une relance avec la même commande permet de vérifier le modèle et le microphone mémorisés, si les chemins satisfont ces contrôles. Cette persistance reste NON TESTÉE jusqu'à votre retour.
+
+RETOUR ATTENDU
+Pour chaque essai : OK / anomalie / non testé ; modèle, calcul demandé et effectif ; texte ou fin manquants ; chemins des sorties ; délais approximatifs ; message exact et capture si utile.
+Exemple : « Micro CPU : anomalie ; tournesol absent du TXT mais présent dans le WAV ; finalisation environ 8 s ; sorties : ... »
+Bilan : qualité FR / EN, document unique, fin micro, fichiers, A/B observé ou non, import long, Turbo, fermeture. Aucun verdict de conformité de délai avant accord Q-PU-03.
+
+**Revue ciblée de remise de la recette : CLEAN statique.** Même coordinateur et même reviewer : T10-02 fermé, ordre A/B corrigé. Comparaison du lanceur actuel à l'entrée archivée de construction : préfixe des ressources/empreintes et suffixe environnement/VerifyOnly/Start inchangés ; seul bloc des préférences adapté, lecture sans écriture, destination et modèle présents conformes aux chemins contrôlés. Contrôle VerifyOnly code 0 confirmé séparément. Aucun EXE, Cargo ou desktop lancé par les reviewers. Les essais Windows, la qualité et Q-PU-03 demeurent ouverts jusqu'au retour utilisateur.
