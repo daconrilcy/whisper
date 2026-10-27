@@ -5033,7 +5033,7 @@ mod tests {
             Some(AppCommand::StartUnifiedLiveConfigured { request })
                 if request.config.language == LanguageChoice::Automatic
                     && request.model_sha256
-                        == parse_sha256(
+                        == super::parse_sha256(
                             whisper_core::model_registry::model(parakeet).artifact.sha256,
                         )
         ));
