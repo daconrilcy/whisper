@@ -1632,7 +1632,9 @@ impl NativeUnifiedRoute {
     fn backend_label(&self) -> String {
         match (&self.compute, &self.fallback_reason) {
             (ComputeChoice::Gpu, _) => "CUDA0".into(),
-            (ComputeChoice::Cpu, Some(reason)) => format!("CPU (Auto fallback before audio: {reason})"),
+            (ComputeChoice::Cpu, Some(reason)) => {
+                format!("CPU (Auto fallback before audio: {reason})")
+            }
             (ComputeChoice::Cpu, None) => "CPU".into(),
             (ComputeChoice::Auto, _) => "Unresolved Auto".into(),
         }
@@ -1729,9 +1731,8 @@ fn retry_native_gpu_startup_on_cpu(
     }
 
     let fallback_reason = format!("GPU pre-audio startup failed: {cause}");
-    let current_route = make_cpu_route(&current_state.request, &fallback_reason).map_err(
-        |error| format!("{fallback_reason}; CPU fallback route unavailable: {error}"),
-    )?;
+    let current_route = make_cpu_route(&current_state.request, &fallback_reason)
+        .map_err(|error| format!("{fallback_reason}; CPU fallback route unavailable: {error}"))?;
     let mut peer_routes = HashMap::new();
     for session in &auto_peers {
         let state = sessions
@@ -1778,9 +1779,8 @@ fn retry_native_gpu_startup_on_cpu(
                             "; CaptureStop: final durable acknowledgement {durable_samples} does not cover closed source {total_samples}"
                         ));
                     } else {
-                        let source = crate::parakeet_audio::PcmPartStore::open(
-                            &state.request.source_path,
-                        );
+                        let source =
+                            crate::parakeet_audio::PcmPartStore::open(&state.request.source_path);
                         match archives
                             .get_mut(session)
                             .ok_or_else(|| "ArchiveSessionMissing".to_owned())
@@ -1793,8 +1793,7 @@ fn retry_native_gpu_startup_on_cpu(
                                         None,
                                     )
                                     .map_err(|error| format!("CaptureArchive: {error}"))
-                            })
-                        {
+                            }) {
                             Ok(request) => state.request = request,
                             Err(error) => message.push_str(&format!("; {error}")),
                         }
@@ -1841,7 +1840,9 @@ fn retry_native_gpu_startup_on_cpu(
     let retry = scheduler
         .next_call()
         .map_err(|error| format!("SchedulerRetry: {error:?}"))?
-        .ok_or_else(|| "SchedulerRetry: reserved work disappeared during CPU fallback".to_owned())?;
+        .ok_or_else(|| {
+            "SchedulerRetry: reserved work disappeared during CPU fallback".to_owned()
+        })?;
     if retry.session != call.session
         || retry.request_id != call.request_id
         || retry.attempt != call.attempt
@@ -1894,8 +1895,13 @@ struct NativeParakeetWindowTranscriber {
 #[cfg(test)]
 #[derive(Debug)]
 enum NativeQualificationEventKind {
-    Starting { incarnation: u64 },
-    Spawned { incarnation: u64, pid: u32 },
+    Starting {
+        incarnation: u64,
+    },
+    Spawned {
+        incarnation: u64,
+        pid: u32,
+    },
     Ready {
         incarnation: u64,
         pid: u32,
@@ -1930,7 +1936,10 @@ enum NativeQualificationEventKind {
         written_samples: u64,
         durable_samples: u64,
     },
-    Reaped { incarnation: u64, pid: u32 },
+    Reaped {
+        incarnation: u64,
+        pid: u32,
+    },
 }
 
 #[cfg(test)]
@@ -1970,7 +1979,9 @@ impl NativeQualificationObserver {
 
     fn allocate_incarnation(&self) -> Result<u64, String> {
         self.next_incarnation
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| value.checked_add(1))
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+                value.checked_add(1)
+            })
             .map_err(|_| "NativeHarness: incarnation identity exhausted".to_owned())
     }
 
@@ -2024,11 +2035,9 @@ impl NativeParakeetWindowTranscriber {
     }
 
     fn model_sha256() -> &'static str {
-        whisper_core::model_registry::model(
-            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
-        )
-        .artifact
-        .sha256
+        whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+            .artifact
+            .sha256
     }
 
     fn verify_ready(
@@ -2042,7 +2051,9 @@ impl NativeParakeetWindowTranscriber {
         let key = match self.route.compute {
             ComputeChoice::Cpu => self.route.paths.qualification_key(profile)?,
             ComputeChoice::Gpu => self.route.paths.gpu_qualification_key(profile)?,
-            ComputeChoice::Auto => return Err("NativeRoute: Auto must be resolved before READY".into()),
+            ComputeChoice::Auto => {
+                return Err("NativeRoute: Auto must be resolved before READY".into());
+            }
         };
         self.route.paths.verify_qualification(
             Self::model_sha256(),
@@ -2050,9 +2061,15 @@ impl NativeParakeetWindowTranscriber {
             &key.worker_build,
         )?;
         if identity.profile != profile
-            || !identity.model_sha256.eq_ignore_ascii_case(Self::model_sha256())
-            || !identity.runtime_sha256.eq_ignore_ascii_case(&key.runtime_build)
-            || !identity.build_sha256.eq_ignore_ascii_case(&key.worker_build)
+            || !identity
+                .model_sha256
+                .eq_ignore_ascii_case(Self::model_sha256())
+            || !identity
+                .runtime_sha256
+                .eq_ignore_ascii_case(&key.runtime_build)
+            || !identity
+                .build_sha256
+                .eq_ignore_ascii_case(&key.worker_build)
         {
             return Err("NativeReadyIdentityMismatch: model/runtime/worker/profile differs".into());
         }
@@ -2062,14 +2079,18 @@ impl NativeParakeetWindowTranscriber {
             }
             ComputeChoice::Gpu => {
                 let expected = self.route.expected_gpu.as_ref().ok_or_else(|| {
-                    "GpuIdentityMissing: candidate identity was not captured before startup".to_owned()
+                    "GpuIdentityMissing: candidate identity was not captured before startup"
+                        .to_owned()
                 })?;
                 if backend != "CUDA0"
                     || gpu_evidence.as_ref().is_none_or(|evidence| {
                         !gpu_evidence_matches(Some(evidence), Some(expected), process.pid())
                     })
                 {
-                    return Err("GpuAttestationMismatch: READY did not attest the selected GPU and process".into());
+                    return Err(
+                        "GpuAttestationMismatch: READY did not attest the selected GPU and process"
+                            .into(),
+                    );
                 }
                 Ok(())
             }
@@ -2081,7 +2102,9 @@ impl NativeParakeetWindowTranscriber {
 
 impl crate::parakeet_pipeline::WindowTranscriber for NativeParakeetWindowTranscriber {
     fn instance_id(&self) -> u64 {
-        self.process.as_ref().map_or(0, |process| u64::from(process.pid()))
+        self.process
+            .as_ref()
+            .map_or(0, |process| u64::from(process.pid()))
     }
 
     fn initialize_instance(
@@ -2098,22 +2121,15 @@ impl crate::parakeet_pipeline::WindowTranscriber for NativeParakeetWindowTranscr
             .map(|observer| observer.allocate_incarnation())
             .transpose()?;
         #[cfg(test)]
-        if let (Some(observer), Some(incarnation)) =
-            (self.harness_observer.as_ref(), incarnation)
-        {
+        if let (Some(observer), Some(incarnation)) = (self.harness_observer.as_ref(), incarnation) {
             observer.record(NativeQualificationEventKind::Starting { incarnation });
         }
         let log_root = self.route.paths.runtime_root.join("logs");
-        fs::create_dir_all(&log_root)
-            .map_err(|error| format!("NativeLogDirectory: {error}"))?;
-        let mut process = crate::parakeet_import::ParakeetProcess::spawn_live(
-            &self.route.paths,
-            &log_root,
-        )?;
+        fs::create_dir_all(&log_root).map_err(|error| format!("NativeLogDirectory: {error}"))?;
+        let mut process =
+            crate::parakeet_import::ParakeetProcess::spawn_live(&self.route.paths, &log_root)?;
         #[cfg(test)]
-        if let (Some(observer), Some(incarnation)) =
-            (self.harness_observer.as_ref(), incarnation)
-        {
+        if let (Some(observer), Some(incarnation)) = (self.harness_observer.as_ref(), incarnation) {
             observer.record(NativeQualificationEventKind::Spawned {
                 incarnation,
                 pid: process.pid(),
@@ -2132,12 +2148,7 @@ impl crate::parakeet_pipeline::WindowTranscriber for NativeParakeetWindowTranscr
                 }) => {
                     #[cfg(test)]
                     let ready_backend = backend.clone();
-                    self.verify_ready(
-                        &mut process,
-                        identity.clone(),
-                        backend,
-                        gpu_evidence,
-                    )?;
+                    self.verify_ready(&mut process, identity.clone(), backend, gpu_evidence)?;
                     process.accept_ready(identity.clone())?;
                     #[cfg(test)]
                     if let (Some(observer), Some(incarnation)) =
@@ -2184,10 +2195,8 @@ impl crate::parakeet_pipeline::WindowTranscriber for NativeParakeetWindowTranscr
                         if let (Some(observer), Some(incarnation)) =
                             (self.harness_observer.as_ref(), incarnation)
                         {
-                            observer.record(NativeQualificationEventKind::Reaped {
-                                incarnation,
-                                pid,
-                            });
+                            observer
+                                .record(NativeQualificationEventKind::Reaped { incarnation, pid });
                         }
                         Err(error)
                     }
@@ -2237,7 +2246,9 @@ impl crate::parakeet_pipeline::WindowTranscriber for NativeParakeetWindowTranscr
     ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
         if let Some(incarnation) = self.scheduler_incarnation {
             if incarnation != call.incarnation {
-                return Err("SchedulerIncarnationMismatch: call belongs to a recycled executor".into());
+                return Err(
+                    "SchedulerIncarnationMismatch: call belongs to a recycled executor".into(),
+                );
             }
         } else {
             self.scheduler_incarnation = Some(call.incarnation);
@@ -2347,7 +2358,11 @@ impl crate::parakeet_pipeline::WindowTranscriber for NativeParakeetWindowTranscr
                         && (self.route.compute != ComputeChoice::Gpu
                             || gpu_evidence.as_ref().is_some_and(|evidence| {
                                 self.route.expected_gpu.as_ref().is_some_and(|expected| {
-                                    gpu_evidence_matches(Some(evidence), Some(expected), process.pid())
+                                    gpu_evidence_matches(
+                                        Some(evidence),
+                                        Some(expected),
+                                        process.pid(),
+                                    )
                                 })
                             })) =>
                     {
@@ -2387,7 +2402,10 @@ impl crate::parakeet_pipeline::WindowTranscriber for NativeParakeetWindowTranscr
                         && actual_job == job_id
                         && generation == call.session.generation.get()
                         && actual_attempt == attempt
-                        && actual_identity == *identity => return Err(message),
+                        && actual_identity == *identity =>
+                    {
+                        return Err(message);
+                    }
                     Some(event) => return Err(format!("NativeResponseMismatch: {event:?}")),
                     None => thread::sleep(Duration::from_millis(5)),
                 }
@@ -2465,7 +2483,9 @@ struct UnifiedInferenceExecutor {
     results: Receiver<UnifiedInferenceResult>,
     ready: Receiver<Result<(), String>>,
     ready_seen: bool,
-    thread: Option<thread::JoinHandle<Result<Box<dyn crate::parakeet_pipeline::WindowTranscriber>, String>>>,
+    thread: Option<
+        thread::JoinHandle<Result<Box<dyn crate::parakeet_pipeline::WindowTranscriber>, String>>,
+    >,
     worker: Option<Box<dyn crate::parakeet_pipeline::WindowTranscriber>>,
     stop_requested: Option<Arc<std::sync::atomic::AtomicBool>>,
     in_flight: bool,
@@ -3214,10 +3234,7 @@ impl RuntimeModelCatalog {
             .bind_turbo_live_request(request, &self.known_historical_turbo_path)
     }
 
-    fn bind_native_unified_live(
-        &self,
-        request: &LiveRequest,
-    ) -> Result<LiveRequest, String> {
+    fn bind_native_unified_live(&self, request: &LiveRequest) -> Result<LiveRequest, String> {
         use whisper_core::model_catalog::ModelId;
         let id = self
             .snapshot()
@@ -3541,20 +3558,28 @@ fn native_unified_route(
     if request.strategy != whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
         || !request_is_parakeet(request)
     {
-        return Err("NativeCandidateUnavailable: only BoundedWindowsV1 Parakeet requests are admitted".into());
+        return Err(
+            "NativeCandidateUnavailable: only BoundedWindowsV1 Parakeet requests are admitted"
+                .into(),
+        );
     }
-    if !matches!(&request.config.language, whisper_core::LanguageChoice::Automatic) {
+    if !matches!(
+        &request.config.language,
+        whisper_core::LanguageChoice::Automatic
+    ) {
         return Err("NativeCandidateUnavailable: Parakeet requires automatic language".into());
     }
-    let record = whisper_core::model_registry::model(
-        whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
-    );
+    let record =
+        whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3);
     if request.model_sha256 != decode_sha256(record.artifact.sha256)? {
-        return Err("ModelHashMismatch: request model is not the registered Parakeet artifact".into());
+        return Err(
+            "ModelHashMismatch: request model is not the registered Parakeet artifact".into(),
+        );
     }
 
     let auto = request.config.compute == ComputeChoice::Auto;
-    let gpu_candidate = candidate.filter(|identity| identity.generation == request.generation.get());
+    let gpu_candidate =
+        candidate.filter(|identity| identity.generation == request.generation.get());
     let attempt_gpu = request.config.compute == ComputeChoice::Gpu
         || (auto && gpu_candidate.is_some() && gpu_paths.is_some());
     if attempt_gpu {
@@ -3562,10 +3587,14 @@ fn native_unified_route(
             let identity = gpu_candidate.ok_or_else(|| {
                 "BackendMismatch: selected GPU has no current generation identity".to_owned()
             })?;
-            let paths = gpu_paths
-                .ok_or_else(|| "BackendUnavailable: personal Parakeet GPU worker is absent".to_owned())?;
+            let paths = gpu_paths.ok_or_else(|| {
+                "BackendUnavailable: personal Parakeet GPU worker is absent".to_owned()
+            })?;
             if !paths.is_personal_runtime() {
-                return Err("NativeCandidateUnavailable: GPU worker must use the personal runtime layout".into());
+                return Err(
+                    "NativeCandidateUnavailable: GPU worker must use the personal runtime layout"
+                        .into(),
+                );
             }
             let expected_gpu = crate::parakeet_import::expected_gpu_for_candidate(identity)?;
             let profile = whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
@@ -3614,12 +3643,14 @@ fn native_cpu_route(
     let paths = cpu_paths
         .ok_or_else(|| "ModelNotQualified: personal Parakeet CPU worker is absent".to_owned())?;
     if !paths.is_personal_runtime() {
-        return Err("NativeCandidateUnavailable: CPU worker must use the personal runtime layout".into());
+        return Err(
+            "NativeCandidateUnavailable: CPU worker must use the personal runtime layout".into(),
+        );
     }
-    let record = whisper_core::model_registry::model(
-        whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
-    );
-    let asset_key = paths.qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)?;
+    let record =
+        whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3);
+    let asset_key =
+        paths.qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)?;
     paths.verify_qualification(
         record.artifact.sha256,
         &asset_key.runtime_build,
@@ -3833,9 +3864,10 @@ impl ImportRuntime {
         self.gpu_candidates.remove(&(job_id, generation.get()));
         self.parakeet_pending_events
             .retain(|event| pending_unified_event_identity(event) != Some((job_id, generation)));
-        let executor_reaped = self.unified_executor.as_ref().is_none_or(|executor| {
-            executor.thread.is_none() && !executor.in_flight
-        });
+        let executor_reaped = self
+            .unified_executor
+            .as_ref()
+            .is_none_or(|executor| executor.thread.is_none() && !executor.in_flight);
         if self.unified_sessions.is_empty()
             && self.parakeet_scheduler.active_sessions() == 0
             && executor_reaped
@@ -4132,10 +4164,7 @@ impl ImportRuntime {
     }
 
     #[cfg(test)]
-    fn with_native_harness_observer(
-        mut self,
-        observer: Arc<NativeQualificationObserver>,
-    ) -> Self {
+    fn with_native_harness_observer(mut self, observer: Arc<NativeQualificationObserver>) -> Self {
         self.native_harness_observer = Some(observer);
         self
     }
@@ -4160,12 +4189,19 @@ impl ImportRuntime {
         if !controlled_worker_available && !executor_available && native_route.is_none() {
             return Err("ModelNotQualified: controlled worker injection is required".into());
         }
-        if self.native_unified_candidate_enabled && native_route.is_none() && !controlled_worker_available {
-            return Err("NativeCandidateUnavailable: the session has no validated fixed backend route".into());
+        if self.native_unified_candidate_enabled
+            && native_route.is_none()
+            && !controlled_worker_available
+        {
+            return Err(
+                "NativeCandidateUnavailable: the session has no validated fixed backend route"
+                    .into(),
+            );
         }
-        let executor_incarnation_live = self.unified_executor.as_ref().is_some_and(|executor| {
-            executor.thread.is_some() || executor.in_flight
-        });
+        let executor_incarnation_live = self
+            .unified_executor
+            .as_ref()
+            .is_some_and(|executor| executor.thread.is_some() || executor.in_flight);
         if let (Some(current), Some(next)) = (&self.native_executor_route, &native_route)
             && !current.same_worker(next)
             && (executor_incarnation_live || self.parakeet_scheduler.active_sessions() > 0)
@@ -4179,7 +4215,9 @@ impl ImportRuntime {
                 .filter_map(|state| state.native_route.as_ref())
                 .any(|current| !current.same_worker(next))
         {
-            return Err("NativeRouteBusy: admitted sessions must share one fixed backend candidate".into());
+            return Err(
+                "NativeRouteBusy: admitted sessions must share one fixed backend candidate".into(),
+            );
         }
         let work = PathBuf::from(&request.destination)
             .join("transcriptions")
@@ -4273,15 +4311,22 @@ impl ImportRuntime {
             job_id: request.job_id,
             generation: request.generation,
         };
-        if self.native_unified_candidate_enabled && native_route.is_none() && !controlled_worker_available {
-            return Err("NativeCandidateUnavailable: the capture has no validated fixed backend route".into());
+        if self.native_unified_candidate_enabled
+            && native_route.is_none()
+            && !controlled_worker_available
+        {
+            return Err(
+                "NativeCandidateUnavailable: the capture has no validated fixed backend route"
+                    .into(),
+            );
         }
         if !controlled_worker_available && !executor_available && native_route.is_none() {
             return Err("ModelNotQualified: controlled worker injection is required".into());
         }
-        let executor_incarnation_live = self.unified_executor.as_ref().is_some_and(|executor| {
-            executor.thread.is_some() || executor.in_flight
-        });
+        let executor_incarnation_live = self
+            .unified_executor
+            .as_ref()
+            .is_some_and(|executor| executor.thread.is_some() || executor.in_flight);
         if let (Some(current), Some(next)) = (&self.native_executor_route, &native_route)
             && !current.same_worker(next)
             && (executor_incarnation_live || self.parakeet_scheduler.active_sessions() > 0)
@@ -4295,7 +4340,9 @@ impl ImportRuntime {
                 .filter_map(|state| state.native_route.as_ref())
                 .any(|current| !current.same_worker(next))
         {
-            return Err("NativeRouteBusy: admitted sessions must share one fixed backend candidate".into());
+            return Err(
+                "NativeRouteBusy: admitted sessions must share one fixed backend candidate".into(),
+            );
         }
         let work = PathBuf::from(&request.destination)
             .join("transcriptions")
@@ -4702,9 +4749,10 @@ impl ImportRuntime {
             .zip(next_native_route)
             .is_some_and(|(current, next)| !current.same_worker(next));
         if route_changed {
-            let executor_reaped = self.unified_executor.as_ref().is_none_or(|executor| {
-                executor.thread.is_none() && !executor.in_flight
-            });
+            let executor_reaped = self
+                .unified_executor
+                .as_ref()
+                .is_none_or(|executor| executor.thread.is_none() && !executor.in_flight);
             if !executor_reaped || self.parakeet_scheduler.in_flight().is_some() {
                 let session = self.unified_sessions.keys().next().copied()?;
                 return Some(Err((
@@ -4720,7 +4768,9 @@ impl ImportRuntime {
             #[cfg(test)]
             let controlled_worker = self.controlled_transcriber.take();
             #[cfg(not(test))]
-            let controlled_worker: Option<Box<dyn crate::parakeet_pipeline::WindowTranscriber>> = None;
+            let controlled_worker: Option<
+                Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+            > = None;
             let native_route = self
                 .unified_sessions
                 .values()
@@ -4738,7 +4788,9 @@ impl ImportRuntime {
                                     .expect("ready gate checked"),
                             )
                         }
-                        Some(observer) => UnifiedInferenceExecutor::start_observed(worker, observer),
+                        Some(observer) => {
+                            UnifiedInferenceExecutor::start_observed(worker, observer)
+                        }
                         None => UnifiedInferenceExecutor::start(worker),
                     }
                 }
@@ -4758,7 +4810,9 @@ impl ImportRuntime {
                         };
                         UnifiedInferenceExecutor::start(Box::new(worker))
                     }
-                    None => Err("NativeCandidateUnavailable: no validated route for unified session".into()),
+                    None => Err(
+                        "NativeCandidateUnavailable: no validated route for unified session".into(),
+                    ),
                 }
             } else {
                 Err("ModelNotQualified: unified inference executor is unavailable".into())
@@ -5418,9 +5472,7 @@ impl ImportRuntime {
         match prepared {
             Ok(Some((window, pcm, true))) => {
                 match executor.is_ready() {
-                    Ok(true)
-                        if state.native_route.is_some() && !state.backend_ready_reported =>
-                    {
+                    Ok(true) if state.native_route.is_some() && !state.backend_ready_reported => {
                         state.backend_ready_reported = true;
                         let backend = state
                             .native_route
@@ -5456,9 +5508,7 @@ impl ImportRuntime {
                                 route.fallback_reason = Some(reason.to_owned());
                                 Ok(route)
                             },
-                            |route| {
-                                Box::new(NativeParakeetWindowTranscriber::new(route))
-                            },
+                            |route| Box::new(NativeParakeetWindowTranscriber::new(route)),
                         ) {
                             Ok(Some(retry)) => {
                                 for peer in retry.failed_manual_gpu {
@@ -5469,17 +5519,15 @@ impl ImportRuntime {
                                     self.parakeet_pending_events
                                         .push_back(manual_gpu_failure_event(peer));
                                 }
-                                state.pending_prepared =
-                                    Some((retry.call, window, pcm, true));
+                                state.pending_prepared = Some((retry.call, window, pcm, true));
                                 self.unified_sessions.insert(call.session, state);
                                 return None;
                             }
                             Err(fallback_error) => {
                                 let _ = self.parakeet_scheduler.cancel_reservation(call);
                                 let _ = self.parakeet_scheduler.mark_terminal(call.session);
-                                state.failure = Some(format!(
-                                    "{error}; AutoFallback: {fallback_error}"
-                                ));
+                                state.failure =
+                                    Some(format!("{error}; AutoFallback: {fallback_error}"));
                                 self.unified_sessions.insert(call.session, state);
                                 return Some(Err((
                                     call.session.job_id,
@@ -5529,9 +5577,7 @@ impl ImportRuntime {
             }
             Ok(Some((window, pcm, false))) => {
                 match executor.is_ready() {
-                    Ok(true)
-                        if state.native_route.is_some() && !state.backend_ready_reported =>
-                    {
+                    Ok(true) if state.native_route.is_some() && !state.backend_ready_reported => {
                         state.backend_ready_reported = true;
                         let backend = state
                             .native_route
@@ -5567,9 +5613,7 @@ impl ImportRuntime {
                                 route.fallback_reason = Some(reason.to_owned());
                                 Ok(route)
                             },
-                            |route| {
-                                Box::new(NativeParakeetWindowTranscriber::new(route))
-                            },
+                            |route| Box::new(NativeParakeetWindowTranscriber::new(route)),
                         ) {
                             Ok(Some(retry)) => {
                                 for peer in retry.failed_manual_gpu {
@@ -5580,17 +5624,15 @@ impl ImportRuntime {
                                     self.parakeet_pending_events
                                         .push_back(manual_gpu_failure_event(peer));
                                 }
-                                state.pending_prepared =
-                                    Some((retry.call, window, pcm, false));
+                                state.pending_prepared = Some((retry.call, window, pcm, false));
                                 self.unified_sessions.insert(call.session, state);
                                 return None;
                             }
                             Err(fallback_error) => {
                                 let _ = self.parakeet_scheduler.cancel_reservation(call);
                                 let _ = self.parakeet_scheduler.mark_terminal(call.session);
-                                state.failure = Some(format!(
-                                    "{error}; AutoFallback: {fallback_error}"
-                                ));
+                                state.failure =
+                                    Some(format!("{error}; AutoFallback: {fallback_error}"));
                                 self.unified_sessions.insert(call.session, state);
                                 return Some(Err((
                                     call.session.job_id,
@@ -5942,12 +5984,12 @@ impl ImportRuntime {
                     generation: *generation,
                 },
             ),
-            ImportEffect::Stop { job_id, generation } => self
-                .native_unified_routes
-                .contains_key(&whisper_core::parakeet_scheduler::SchedulerSession {
+            ImportEffect::Stop { job_id, generation } => self.native_unified_routes.contains_key(
+                &whisper_core::parakeet_scheduler::SchedulerSession {
                     job_id: *job_id,
                     generation: *generation,
-                }),
+                },
+            ),
             _ => false,
         };
         let mut result = match effect {
@@ -7215,9 +7257,8 @@ impl ImportRuntime {
                         job_id: identity.0,
                         generation: identity.1,
                     };
-                    let native_route_available =
-                        self.native_unified_routes.contains_key(&session)
-                            && self.native_unified_candidate_enabled;
+                    let native_route_available = self.native_unified_routes.contains_key(&session)
+                        && self.native_unified_candidate_enabled;
                     if self.unified_executor.is_none()
                         && !controlled_worker_available
                         && !native_route_available
@@ -7450,10 +7491,8 @@ impl ImportRuntime {
                 stopped.map_err(|error| (job_id, generation, error))
             }
             ImportEffect::Stop { job_id, generation } => {
-                let session = whisper_core::parakeet_scheduler::SchedulerSession {
-                    job_id,
-                    generation,
-                };
+                let session =
+                    whisper_core::parakeet_scheduler::SchedulerSession { job_id, generation };
                 if self.native_unified_routes.remove(&session).is_some()
                     && !self.unified_sessions.contains_key(&session)
                 {
@@ -12828,10 +12867,7 @@ mod tests {
     }
 
     impl crate::parakeet_pipeline::WindowTranscriber for StartFailsOnceUnifiedWorker {
-        fn initialize_instance(
-            &mut self,
-            _: &std::sync::atomic::AtomicBool,
-        ) -> Result<(), String> {
+        fn initialize_instance(&mut self, _: &std::sync::atomic::AtomicBool) -> Result<(), String> {
             if self.starts.fetch_add(1, Ordering::Relaxed) == 0 {
                 Err("controlled READY attestation failure".into())
             } else {
@@ -13322,17 +13358,23 @@ mod tests {
         );
         let mut source = std::fs::File::open(&source_path).expect("open physical-rotation fixture");
         let mut header = [0_u8; 44];
-        std::io::Read::read_exact(&mut source, &mut header)
-            .expect("read fixture WAV header");
+        std::io::Read::read_exact(&mut source, &mut header).expect("read fixture WAV header");
         assert_eq!(&header[0..4], b"RIFF");
         assert_eq!(&header[8..12], b"WAVE");
         assert_eq!(&header[36..40], b"data");
         assert_eq!(u16::from_le_bytes(header[20..22].try_into().unwrap()), 1);
         assert_eq!(u16::from_le_bytes(header[22..24].try_into().unwrap()), 1);
-        assert_eq!(u32::from_le_bytes(header[24..28].try_into().unwrap()), 16_000);
+        assert_eq!(
+            u32::from_le_bytes(header[24..28].try_into().unwrap()),
+            16_000
+        );
         assert_eq!(u16::from_le_bytes(header[34..36].try_into().unwrap()), 16);
         let data_bytes = u32::from_le_bytes(header[40..44].try_into().unwrap());
-        assert_eq!(data_bytes % 2, 0, "PCM16 fixture must contain complete samples");
+        assert_eq!(
+            data_bytes % 2,
+            0,
+            "PCM16 fixture must contain complete samples"
+        );
         assert_eq!(source_bytes, 44 + u64::from(data_bytes));
         assert!(
             u64::from(data_bytes) > (1_u64 << 30),
@@ -13346,7 +13388,9 @@ mod tests {
             std::io::Read::read_exact(&mut source, &mut fixture_buffer[..byte_count])
                 .expect("read bounded physical-rotation fixture samples");
             assert!(
-                fixture_buffer[..byte_count].iter().all(|sample| *sample == 0),
+                fixture_buffer[..byte_count]
+                    .iter()
+                    .all(|sample| *sample == 0),
                 "physical-rotation fixture must match the deterministic zero-sample pattern"
             );
             fixture_bytes_remaining -= byte_count as u64;
@@ -13396,7 +13440,10 @@ mod tests {
             }) {
                 break view;
             }
-            assert!(Instant::now() < deadline, "controlled physical import timed out");
+            assert!(
+                Instant::now() < deadline,
+                "controlled physical import timed out"
+            );
             thread::sleep(Duration::from_millis(10));
         };
         let session = terminal
@@ -13417,12 +13464,9 @@ mod tests {
             .find(|entry| entry.job_id == request.job_id && entry.generation == request.generation)
             .expect("controlled import must retain its archive identity");
         assert!(archive.complete, "archive must publish all physical parts");
-        let files = ArchiveStore::published_unified_files(
-            &destination,
-            request.job_id,
-            request.generation,
-        )
-        .expect("published audio, TXT and SRT references must exist");
+        let files =
+            ArchiveStore::published_unified_files(&destination, request.job_id, request.generation)
+                .expect("published audio, TXT and SRT references must exist");
         for path in [&files.wav_path, &files.txt_path, &files.srt_path] {
             assert!(
                 Path::new(path.as_str()).is_file(),
@@ -13448,8 +13492,8 @@ mod tests {
                     .expect("published physical WAV part must exist")
                     .len();
                 assert_eq!(part_bytes, 44 + (part.end_sample - part.start_sample) * 2);
-                let mut physical_part = std::fs::File::open(&part.path)
-                    .expect("open published physical WAV part");
+                let mut physical_part =
+                    std::fs::File::open(&part.path).expect("open published physical WAV part");
                 let mut part_header = [0_u8; 44];
                 std::io::Read::read_exact(&mut physical_part, &mut part_header)
                     .expect("read physical WAV part header");
@@ -13464,7 +13508,10 @@ mod tests {
             }
             index_offset += page.len() as u64;
         }
-        assert!(part_count > 1, "published output must cross the physical rotation threshold");
+        assert!(
+            part_count > 1,
+            "published output must cross the physical rotation threshold"
+        );
         assert_eq!(covered_samples, expected_samples);
         assert_eq!(audio.total_samples().unwrap(), expected_samples);
         let mut read_offset = 0_u64;
@@ -13480,7 +13527,10 @@ mod tests {
             );
             read_offset = end;
         }
-        assert!(calls.load(Ordering::Relaxed) > 0, "controlled finalizer must process windows");
+        assert!(
+            calls.load(Ordering::Relaxed) > 0,
+            "controlled finalizer must process windows"
+        );
     }
 
     #[test]
@@ -15970,23 +16020,31 @@ mod tests {
         };
         assert_eq!(validate_native_window_pcm(valid, 16_000), Ok(16_000));
         assert!(validate_native_window_pcm(valid, 15_999).is_err());
-        assert!(validate_native_window_pcm(
-            whisper_core::parakeet_session::AudioWindow {
-                native_end_sample: whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64 + 1,
-                central_end_sample: whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64 + 1,
-                ..valid
-            },
-            whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES + 1,
-        )
-        .is_err());
-        assert!(validate_native_window_pcm(
-            whisper_core::parakeet_session::AudioWindow {
-                central_start_sample: 16_001,
-                ..valid
-            },
-            16_000,
-        )
-        .is_err());
+        assert!(
+            validate_native_window_pcm(
+                whisper_core::parakeet_session::AudioWindow {
+                    native_end_sample: whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES
+                        as u64
+                        + 1,
+                    central_end_sample: whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES
+                        as u64
+                        + 1,
+                    ..valid
+                },
+                whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES + 1,
+            )
+            .is_err()
+        );
+        assert!(
+            validate_native_window_pcm(
+                whisper_core::parakeet_session::AudioWindow {
+                    central_start_sample: 16_001,
+                    ..valid
+                },
+                16_000,
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -16008,7 +16066,10 @@ mod tests {
         assert_eq!(&bytes[8..12], b"WAVE");
         assert_eq!(u16::from_le_bytes(bytes[20..22].try_into().unwrap()), 1);
         assert_eq!(u16::from_le_bytes(bytes[22..24].try_into().unwrap()), 1);
-        assert_eq!(u32::from_le_bytes(bytes[24..28].try_into().unwrap()), 16_000);
+        assert_eq!(
+            u32::from_le_bytes(bytes[24..28].try_into().unwrap()),
+            16_000
+        );
         assert_eq!(u16::from_le_bytes(bytes[34..36].try_into().unwrap()), 16);
         assert_eq!(&bytes[36..40], b"data");
         assert_eq!(u32::from_le_bytes(bytes[40..44].try_into().unwrap()), 4);
@@ -16021,12 +16082,10 @@ mod tests {
     fn failed_ready_is_reaped_before_the_executor_recycles() {
         let starts = Arc::new(AtomicU64::new(0));
         let stops = Arc::new(AtomicU64::new(0));
-        let mut executor = UnifiedInferenceExecutor::start(Box::new(
-            StartFailsOnceUnifiedWorker {
-                starts: Arc::clone(&starts),
-                stops: Arc::clone(&stops),
-            },
-        ))
+        let mut executor = UnifiedInferenceExecutor::start(Box::new(StartFailsOnceUnifiedWorker {
+            starts: Arc::clone(&starts),
+            stops: Arc::clone(&stops),
+        }))
         .unwrap();
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut ready_error = None;
@@ -16040,9 +16099,11 @@ mod tests {
                 Ok(false) => thread::sleep(Duration::from_millis(2)),
             }
         }
-        assert!(ready_error
-            .as_deref()
-            .is_some_and(|error| error.contains("controlled READY attestation failure")));
+        assert!(
+            ready_error
+                .as_deref()
+                .is_some_and(|error| error.contains("controlled READY attestation failure"))
+        );
         executor.stop_and_reap().unwrap();
         assert_eq!(starts.load(Ordering::Relaxed), 1);
         assert_eq!(stops.load(Ordering::Relaxed), 1);
@@ -16133,11 +16194,8 @@ mod tests {
             .join("source.wav");
         std::fs::create_dir_all(manual_capture_source_path.parent().unwrap()).unwrap();
         manual_request.source_path = manual_capture_source_path.to_string_lossy().into_owned();
-        let mut manual_capture = crate::capture::CaptureStream::empty_test_capture(
-            16_000,
-            1,
-            "test:manual-gpu-capture",
-        );
+        let mut manual_capture =
+            crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:manual-gpu-capture");
         manual_capture.enqueue_test_block(vec![0.25; 16_000]);
         manual_capture.enqueue_test_block(vec![0.5; 16_000]);
         let mut manual_source =
@@ -16287,10 +16345,16 @@ mod tests {
         assert_eq!(retry.failed_manual_gpu.len(), 1);
         let manual_failure = retry.failed_manual_gpu.into_iter().next().unwrap();
         assert_eq!(manual_failure.session, manual_session);
-        assert!(manual_failure.message.contains("manual capture drained and closed"));
-        assert!(manual_failure
-            .message
-            .contains("manual GPU sessions do not fall back to CPU"));
+        assert!(
+            manual_failure
+                .message
+                .contains("manual capture drained and closed")
+        );
+        assert!(
+            manual_failure
+                .message
+                .contains("manual GPU sessions do not fall back to CPU")
+        );
         assert!(manual_failure.message.contains(&startup_error));
         let failure_event = manual_gpu_failure_event(manual_failure);
         assert!(matches!(
@@ -16313,7 +16377,10 @@ mod tests {
             final_manual_samples
         );
         let manual_parts = manual_audio.read_page(0, 128).unwrap();
-        assert!(manual_parts.len() > 1, "stopped manual capture must retain its rotated parts");
+        assert!(
+            manual_parts.len() > 1,
+            "stopped manual capture must retain its rotated parts"
+        );
         let mut manual_part_cursor = 0_u64;
         for part in &manual_parts {
             assert_eq!(part.start_sample, manual_part_cursor);
@@ -16322,9 +16389,11 @@ mod tests {
             manual_part_cursor = part.end_sample;
         }
         assert_eq!(manual_part_cursor, final_manual_samples);
-        assert!(manual_capture_generation
-            .join("captured-source-parts.json")
-            .is_file());
+        assert!(
+            manual_capture_generation
+                .join("captured-source-parts.json")
+                .is_file()
+        );
         assert!(root.join("manual-document/document.jsonl").is_file());
 
         let mut reference_capture = crate::capture::CaptureStream::empty_test_capture(
@@ -16345,10 +16414,12 @@ mod tests {
         assert_eq!(expected_pcm.len(), 48_000);
         let actual_pcm = manual_audio.read_window(0..48_000).unwrap();
         assert_eq!(actual_pcm.len(), expected_pcm.len());
-        assert!(actual_pcm
-            .iter()
-            .zip(&expected_pcm)
-            .all(|(actual, expected)| actual.abs_diff(*expected) <= 2));
+        assert!(
+            actual_pcm
+                .iter()
+                .zip(&expected_pcm)
+                .all(|(actual, expected)| actual.abs_diff(*expected) <= 2)
+        );
 
         let manual_manifest: serde_json::Value = serde_json::from_slice(
             &std::fs::read(manual_capture_generation.join("captured-source-parts.json")).unwrap(),
@@ -16401,12 +16472,14 @@ mod tests {
         assert_ne!(retry_call.incarnation, call.incarnation);
         assert_eq!(retry_call.request_id, call.request_id);
         assert_eq!(retry_call.attempt, call.attempt);
-        assert!(state
-            .native_route
-            .as_ref()
-            .unwrap()
-            .backend_label()
-            .contains("CPU (Auto fallback before audio: GPU pre-audio startup failed"));
+        assert!(
+            state
+                .native_route
+                .as_ref()
+                .unwrap()
+                .backend_label()
+                .contains("CPU (Auto fallback before audio: GPU pre-audio startup failed")
+        );
         assert_eq!(request.config.compute, ComputeChoice::Auto);
         assert_eq!(
             state.native_route.as_ref().unwrap().requested_compute,
@@ -16461,13 +16534,20 @@ mod tests {
             if let Some(result) = executor.try_result().unwrap() {
                 break result;
             }
-            assert!(Instant::now() < result_deadline, "CPU retry inference timed out");
+            assert!(
+                Instant::now() < result_deadline,
+                "CPU retry inference timed out"
+            );
             thread::sleep(Duration::from_millis(2));
         };
         assert_eq!(result.call, retry_call);
         assert!(result.words.is_ok(), "CPU retry must complete inference");
         assert_eq!(calls.load(Ordering::Relaxed), 1);
-        assert_eq!(gpu_starts.load(Ordering::Relaxed), 1, "GPU must not be retried");
+        assert_eq!(
+            gpu_starts.load(Ordering::Relaxed),
+            1,
+            "GPU must not be retried"
+        );
         let observations = child_observations.lock().unwrap().clone();
         let first_reaped = observations
             .iter()
@@ -16477,7 +16557,10 @@ mod tests {
             .iter()
             .position(|observation| observation.incarnation == 2 && observation.event == "Spawn")
             .expect("CPU retry must create a new executor incarnation");
-        assert!(first_reaped < cpu_spawned, "the failed child must be reaped before CPU spawn");
+        assert!(
+            first_reaped < cpu_spawned,
+            "the failed child must be reaped before CPU spawn"
+        );
         scheduler.complete(retry_call).unwrap();
         executor.stop_and_reap().unwrap();
         std::fs::remove_dir_all(&root).unwrap();
@@ -16526,31 +16609,34 @@ mod tests {
         runtime.native_executor_route = Some(route(9_431));
         assert_eq!(runtime.native_unified_routes.len(), 2);
         assert!(runtime.unified_admission_full());
-        assert!(runtime
-            .register_prepared_native_route(session(9_433), route(9_433))
-            .is_err());
-        assert_eq!(runtime.native_unified_routes.len(), 2);
-        let third = unified_import_request(
-            &root.join("archive"),
-            Path::new("missing-third.wav"),
-            9_433,
+        assert!(
+            runtime
+                .register_prepared_native_route(session(9_433), route(9_433))
+                .is_err()
         );
+        assert_eq!(runtime.native_unified_routes.len(), 2);
+        let third =
+            unified_import_request(&root.join("archive"), Path::new("missing-third.wav"), 9_433);
         let mut prepare_events = VecDeque::new();
         let error = runtime
             .prepare(third.clone(), None, &mut prepare_events)
             .unwrap_err();
         assert!(error.2.contains("SchedulerCapacity"));
-        assert!(!root
-            .join("archive/transcriptions")
-            .join(format!("{:032x}", third.job_id.0))
-            .exists());
+        assert!(
+            !root
+                .join("archive/transcriptions")
+                .join(format!("{:032x}", third.job_id.0))
+                .exists()
+        );
 
         let source_path = root.join("prepared-source.wav");
         let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
         writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
         writer.finish().unwrap();
         let first_request = unified_import_request(&root.join("archive"), &source_path, 9_431);
-        runtime.start_controlled_unified_import(&first_request).unwrap();
+        runtime
+            .start_controlled_unified_import(&first_request)
+            .unwrap();
         let first_session = session(9_431);
         assert!(runtime.unified_sessions.contains_key(&first_session));
         assert!(!runtime.native_unified_routes.contains_key(&first_session));
@@ -16564,19 +16650,21 @@ mod tests {
             },
             &mut events,
         );
-        assert!(matches!(events.pop_front(), Some(ImportEvent::Stopped { job_id, .. }) if job_id == JobId(9_432)));
-        assert!(!runtime
-            .native_unified_routes
-            .contains_key(&session(9_432)));
+        assert!(
+            matches!(events.pop_front(), Some(ImportEvent::Stopped { job_id, .. }) if job_id == JobId(9_432))
+        );
+        assert!(!runtime.native_unified_routes.contains_key(&session(9_432)));
         assert!(runtime.native_executor_route.is_some());
         assert_eq!(runtime.native_unified_routes.len(), 0);
         runtime
             .register_prepared_native_route(session(9_433), route(9_433))
             .unwrap();
         assert_eq!(runtime.native_unified_routes.len(), 1);
-        assert!(runtime
-            .register_prepared_native_route(session(9_434), route(9_434))
-            .is_err());
+        assert!(
+            runtime
+                .register_prepared_native_route(session(9_434), route(9_434))
+                .is_err()
+        );
         drop(runtime);
         std::fs::remove_dir_all(&root).unwrap();
     }
@@ -16620,7 +16708,10 @@ mod tests {
         let mut executor = UnifiedInferenceExecutor::start(controlled_worker().0).unwrap();
         let ready_deadline = Instant::now() + Duration::from_secs(5);
         while !executor.is_ready().unwrap() {
-            assert!(Instant::now() < ready_deadline, "initial worker did not become ready");
+            assert!(
+                Instant::now() < ready_deadline,
+                "initial worker did not become ready"
+            );
             thread::sleep(Duration::from_millis(2));
         }
         executor.stop_and_reap().unwrap();
@@ -16643,10 +16734,12 @@ mod tests {
             Ok(ImportEvent::Ready { job_id, backend, .. })
                 if job_id == request.job_id && backend == "CPU"
         ));
-        assert!(recycled
-            .unified_executor
-            .as_ref()
-            .is_some_and(|executor| executor.thread.is_some()));
+        assert!(
+            recycled
+                .unified_executor
+                .as_ref()
+                .is_some_and(|executor| executor.thread.is_some())
+        );
 
         let (worker, _) = controlled_worker();
         let mut overlapping = ImportRuntime::new(
@@ -16658,7 +16751,8 @@ mod tests {
         )
         .with_controlled_transcriber(worker);
         overlapping.native_executor_route = Some(make_route(ComputeChoice::Gpu));
-        overlapping.unified_executor = Some(UnifiedInferenceExecutor::start(controlled_worker().0).unwrap());
+        overlapping.unified_executor =
+            Some(UnifiedInferenceExecutor::start(controlled_worker().0).unwrap());
         overlapping
             .register_prepared_native_route(session, make_route(ComputeChoice::Cpu))
             .unwrap();
@@ -16682,9 +16776,7 @@ mod tests {
     ) -> whisper_core::gpu_inventory::GpuRuntimeIdentity {
         use whisper_core::gpu_inventory_app::GpuInventoryPort;
 
-        let mut inventory = crate::gpu_inventory::WindowsGpuInventoryPort::new(
-            workers.gpu.clone(),
-        );
+        let mut inventory = crate::gpu_inventory::WindowsGpuInventoryPort::new(workers.gpu.clone());
         inventory
             .start(Generation::first().get())
             .expect("start the real GPU identity inventory worker");
@@ -16699,7 +16791,9 @@ mod tests {
                         identity.pnp_instance_id
                             == whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID
                     })
-                    .expect("registered personal GPU must be observed by the real inventory worker");
+                    .expect(
+                        "registered personal GPU must be observed by the real inventory worker",
+                    );
             }
             assert!(
                 Instant::now() < deadline,
@@ -16768,7 +16862,10 @@ mod tests {
         assert_eq!(&header[36..40], b"data");
         assert_eq!(u16::from_le_bytes(header[20..22].try_into().unwrap()), 1);
         assert_eq!(u16::from_le_bytes(header[22..24].try_into().unwrap()), 1);
-        assert_eq!(u32::from_le_bytes(header[24..28].try_into().unwrap()), 16_000);
+        assert_eq!(
+            u32::from_le_bytes(header[24..28].try_into().unwrap()),
+            16_000
+        );
         assert_eq!(u16::from_le_bytes(header[34..36].try_into().unwrap()), 16);
         let data_bytes = u32::from_le_bytes(header[40..44].try_into().unwrap());
         assert_eq!(metadata.len(), 44 + u64::from(data_bytes));
@@ -16804,8 +16901,8 @@ mod tests {
         assert_eq!(covered_samples, annotation.source_samples);
         assert!(covered_samples >= sample_count);
 
-        let byte_count = usize::try_from(sample_count * 2)
-            .expect("bounded spoken prefix fits address space");
+        let byte_count =
+            usize::try_from(sample_count * 2).expect("bounded spoken prefix fits address space");
         std::io::Seek::seek(&mut file, std::io::SeekFrom::Start(44))
             .expect("seek to the bounded PCM prefix");
         let mut bytes = vec![0_u8; byte_count];
@@ -16828,7 +16925,10 @@ mod tests {
                 Err(mpsc::TryRecvError::Empty | mpsc::TryRecvError::Disconnected) => break,
             }
         }
-        assert!(output.len() < 512, "native event ledger exceeded its fixed test bound");
+        assert!(
+            output.len() < 512,
+            "native event ledger exceeded its fixed test bound"
+        );
     }
 
     #[cfg(windows)]
@@ -16873,15 +16973,25 @@ mod tests {
             &cpu_paths.model,
             &turbo_model,
         ] {
-            assert!(path.is_file(), "required personal asset missing: {}", path.display());
+            assert!(
+                path.is_file(),
+                "required personal asset missing: {}",
+                path.display()
+            );
         }
         assert!(cpu_paths.validate().is_ok());
         if compute == ComputeChoice::Gpu {
             assert!(gpu_paths.executable.is_file());
             assert!(gpu_paths.validate().is_ok());
-            assert!(gpu_candidate.is_some(), "GPU route requires a real inventory identity");
+            assert!(
+                gpu_candidate.is_some(),
+                "GPU route requires a real inventory identity"
+            );
         } else {
-            assert!(gpu_candidate.is_none(), "CPU case must not imply GPU inventory evidence");
+            assert!(
+                gpu_candidate.is_none(),
+                "CPU case must not imply GPU inventory evidence"
+            );
         }
 
         let spoken = native_spoken_prefix(&execution_root);
@@ -16890,7 +17000,11 @@ mod tests {
         let b = JobId(a.0 + 1);
         let c = JobId(a.0 + 2);
         let generation = Generation::first();
-        let backend_case = if compute == ComputeChoice::Cpu { "cpu" } else { "gpu" };
+        let backend_case = if compute == ComputeChoice::Cpu {
+            "cpu"
+        } else {
+            "gpu"
+        };
         let archive_root = execution_root.join(format!("native-ab-c-{backend_case}"));
         fs::create_dir_all(&archive_root).expect("create archive root under guarded lot");
         let model_catalog = Some(RuntimeModelCatalog {
@@ -16926,26 +17040,30 @@ mod tests {
         if let Some(candidate) = &gpu_candidate {
             assert_eq!(candidate.generation, generation.get());
             for job_id in [a, b, c] {
-                runtime.gpu_candidates.insert(
-                    (job_id, generation.get()),
-                    Some(candidate.clone()),
-                );
+                runtime
+                    .gpu_candidates
+                    .insert((job_id, generation.get()), Some(candidate.clone()));
             }
         }
         let blocks = Arc::new(Mutex::new(VecDeque::new()));
         for chunk in spoken.chunks(80_000) {
-            blocks.lock().unwrap().push_back((
-                a,
-                generation,
-                chunk.to_vec(),
-            ));
+            blocks
+                .lock()
+                .unwrap()
+                .push_back((a, generation, chunk.to_vec()));
         }
         let requests = [a, b, c].map(|job_id| {
             let mut request = unified_live_request(&archive_root, job_id.0);
             request.model_path = cpu_paths.model.to_string_lossy().into_owned();
             request.microphone = whisper_core::MicrophoneChoice::Device(format!(
                 "test:pu-l4-native-{}",
-                if job_id == a { "a" } else if job_id == b { "b" } else { "c" }
+                if job_id == a {
+                    "a"
+                } else if job_id == b {
+                    "b"
+                } else {
+                    "c"
+                }
             ));
             request.config.compute = compute;
             request
@@ -16982,22 +17100,25 @@ mod tests {
             }) {
                 break event.at;
             }
-            assert!(Instant::now() < first_send_deadline, "A1 native final call was not sent");
+            assert!(
+                Instant::now() < first_send_deadline,
+                "A1 native final call was not sent"
+            );
             thread::sleep(Duration::from_millis(5));
         };
 
-        blocks.lock().unwrap().push_back((
-            b,
-            generation,
-            spoken[..5 * 16_000].to_vec(),
-        ));
+        blocks
+            .lock()
+            .unwrap()
+            .push_back((b, generation, spoken[..5 * 16_000].to_vec()));
         app.dispatch(AppCommand::StartUnifiedLiveConfigured {
             request: requests[1].clone(),
         })
         .expect("admit spoken capture B while A's native final call is in flight");
         let first_a_result_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let (first_a_result, b_audio_ack) = loop {
-            app.dispatch(AppCommand::Refresh).expect("poll A/B native runtime");
+            app.dispatch(AppCommand::Refresh)
+                .expect("poll A/B native runtime");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
             let result = observations.iter().find_map(|event| match &event.kind {
@@ -17069,7 +17190,8 @@ mod tests {
                 })
                 .expect("request A's bounded page through ImportApplication");
                 loop {
-                    app.dispatch(AppCommand::Refresh).expect("read A document page");
+                    app.dispatch(AppCommand::Refresh)
+                        .expect("read A document page");
                     native_event_drain(&native_events, &mut observations);
                     observer.assert_healthy();
                     if let Some(page) = app
@@ -17081,7 +17203,11 @@ mod tests {
                         })
                         .and_then(|selection| selection.document_page.as_ref())
                     {
-                        if page.entries.iter().any(|entry| !entry.segment.text.trim().is_empty()) {
+                        if page
+                            .entries
+                            .iter()
+                            .any(|entry| !entry.segment.text.trim().is_empty())
+                        {
                             first_text_available = Some(Instant::now());
                             break;
                         }
@@ -17106,7 +17232,8 @@ mod tests {
 
         let a_second_send_deadline = Instant::now() + Duration::from_secs(60 * 60);
         loop {
-            app.dispatch(AppCommand::Refresh).expect("progress A/B windows");
+            app.dispatch(AppCommand::Refresh)
+                .expect("progress A/B windows");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
             if observations.iter().any(|event| {
@@ -17129,7 +17256,8 @@ mod tests {
         }
         let a_second_result_deadline = Instant::now() + Duration::from_secs(60 * 60);
         loop {
-            app.dispatch(AppCommand::Refresh).expect("complete A second window");
+            app.dispatch(AppCommand::Refresh)
+                .expect("complete A second window");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
             let second_request = observations.iter().find_map(|event| match &event.kind {
@@ -17184,19 +17312,31 @@ mod tests {
         let mut a_publishing_at = None;
         let mut b_publishing_at = None;
         loop {
-            app.dispatch(AppCommand::Refresh).expect("drain A/B publication");
+            app.dispatch(AppCommand::Refresh)
+                .expect("drain A/B publication");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
             let view = app.view();
             let sessions = &view.unified_parakeet_sessions;
             let now = Instant::now();
             for (job_id, drained_at, finalizing_at, publishing_at) in [
-                (a, &mut a_audio_drained_at, &mut a_finalizing_at, &mut a_publishing_at),
-                (b, &mut b_audio_drained_at, &mut b_finalizing_at, &mut b_publishing_at),
+                (
+                    a,
+                    &mut a_audio_drained_at,
+                    &mut a_finalizing_at,
+                    &mut a_publishing_at,
+                ),
+                (
+                    b,
+                    &mut b_audio_drained_at,
+                    &mut b_finalizing_at,
+                    &mut b_publishing_at,
+                ),
             ] {
-                if let Some(session) = sessions.iter().find(|session| {
-                    session.job_id == job_id && session.generation == generation
-                }) {
+                if let Some(session) = sessions
+                    .iter()
+                    .find(|session| session.job_id == job_id && session.generation == generation)
+                {
                     if drained_at.is_none()
                         && session.total_samples.is_some_and(|total| {
                             session.captured_samples == total && session.durable_samples == total
@@ -17258,22 +17398,26 @@ mod tests {
             .cloned()
             .expect("B card remains after publication");
         for (job_id, session) in [(a, a_view), (b, b_view)] {
-            assert_eq!(session.phase, whisper_core::ports::UnifiedSessionPhase::Complete);
+            assert_eq!(
+                session.phase,
+                whisper_core::ports::UnifiedSessionPhase::Complete
+            );
             assert_eq!(session.total_samples, Some(session.captured_samples));
             assert_eq!(session.captured_samples, session.durable_samples);
-            let files = ArchiveStore::published_unified_files(
-                &archive_root,
-                job_id,
-                generation,
-            )
-            .expect("native app session must publish its complete artifacts");
+            let files = ArchiveStore::published_unified_files(&archive_root, job_id, generation)
+                .expect("native app session must publish its complete artifacts");
             for path in [&files.wav_path, &files.txt_path, &files.srt_path] {
-                assert!(Path::new(path).is_file(), "published artifact missing: {path}");
+                assert!(
+                    Path::new(path).is_file(),
+                    "published artifact missing: {path}"
+                );
             }
-            assert!(!fs::read_to_string(&files.txt_path)
-                .expect("read published TXT")
-                .trim()
-                .is_empty());
+            assert!(
+                !fs::read_to_string(&files.txt_path)
+                    .expect("read published TXT")
+                    .trim()
+                    .is_empty()
+            );
             assert_eq!(
                 crate::parakeet_audio::PcmPartStore::open(&session.source_path)
                     .total_samples()
@@ -17281,8 +17425,14 @@ mod tests {
                 session.captured_samples
             );
         }
-        assert_ne!(a_view.txt_path, b_view.txt_path, "A/B export identities must remain distinct");
-        assert_ne!(a_view.srt_path, b_view.srt_path, "A/B SRT identities must remain distinct");
+        assert_ne!(
+            a_view.txt_path, b_view.txt_path,
+            "A/B export identities must remain distinct"
+        );
+        assert_ne!(
+            a_view.srt_path, b_view.srt_path,
+            "A/B SRT identities must remain distinct"
+        );
         let first_a_windows = observations
             .iter()
             .filter_map(|event| match &event.kind {
@@ -17293,25 +17443,33 @@ mod tests {
                     work: NativeQualificationWork::Final(sequence @ 1..=2),
                     request_id,
                     ..
-                } if session.job_id == a => Some((*sequence, *incarnation, *pid, *request_id, event.at)),
+                } if session.job_id == a => {
+                    Some((*sequence, *incarnation, *pid, *request_id, event.at))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert!(first_a_windows.len() >= 2, "A must send at least two final native windows");
+        assert!(
+            first_a_windows.len() >= 2,
+            "A must send at least two final native windows"
+        );
         assert_eq!(first_a_windows[0].0, 1);
         assert_eq!(first_a_windows[1].0, 2);
         assert_eq!(first_a_windows[0].1, first_a_windows[1].1);
         assert_eq!(first_a_windows[0].2, first_a_windows[1].2);
-        assert!(!observations.iter().any(|event| {
-            event.at > first_a_windows[0].4
-                && event.at < first_a_windows[1].4
-                && matches!(
-                    &event.kind,
-                    NativeQualificationEventKind::Reaped { incarnation, .. }
-                        | NativeQualificationEventKind::Ready { incarnation, .. }
-                        if *incarnation == first_a_windows[0].1
-                )
-        }), "A's first two final windows must share one warm child incarnation");
+        assert!(
+            !observations.iter().any(|event| {
+                event.at > first_a_windows[0].4
+                    && event.at < first_a_windows[1].4
+                    && matches!(
+                        &event.kind,
+                        NativeQualificationEventKind::Reaped { incarnation, .. }
+                            | NativeQualificationEventKind::Ready { incarnation, .. }
+                            if *incarnation == first_a_windows[0].1
+                    )
+            }),
+            "A's first two final windows must share one warm child incarnation"
+        );
         assert!(observations.iter().any(|event| {
             matches!(
                 &event.kind,
@@ -17339,18 +17497,32 @@ mod tests {
         let mut maximum_in_flight = 0_usize;
         for event in &timeline {
             match &event.kind {
-                NativeQualificationEventKind::RequestSent { incarnation, request_id, .. } => {
+                NativeQualificationEventKind::RequestSent {
+                    incarnation,
+                    request_id,
+                    ..
+                } => {
                     assert!(in_flight.insert((*incarnation, *request_id)));
                     maximum_in_flight = maximum_in_flight.max(in_flight.len());
                 }
-                NativeQualificationEventKind::Result { incarnation, request_id, .. } => {
+                NativeQualificationEventKind::Result {
+                    incarnation,
+                    request_id,
+                    ..
+                } => {
                     assert!(in_flight.remove(&(*incarnation, *request_id)));
                 }
                 _ => {}
             }
         }
-        assert!(in_flight.is_empty(), "every written native request must have a correlated result");
-        assert_eq!(maximum_in_flight, 1, "one fixed backend may execute at most one native call");
+        assert!(
+            in_flight.is_empty(),
+            "every written native request must have a correlated result"
+        );
+        assert_eq!(
+            maximum_in_flight, 1,
+            "one fixed backend may execute at most one native call"
+        );
 
         let reaped_before_c = observations
             .iter()
@@ -17362,18 +17534,18 @@ mod tests {
             })
             .max_by_key(|entry| entry.2)
             .expect("A/B terminal publications must reap the prior child");
-        blocks.lock().unwrap().push_back((
-            c,
-            generation,
-            spoken[..4 * 16_000].to_vec(),
-        ));
+        blocks
+            .lock()
+            .unwrap()
+            .push_back((c, generation, spoken[..4 * 16_000].to_vec()));
         app.dispatch(AppCommand::StartUnifiedLiveConfigured {
             request: requests[2].clone(),
         })
         .expect("admit C through the same application and runtime after A/B publication");
         let c_ready_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let c_ready = loop {
-            app.dispatch(AppCommand::Refresh).expect("start replacement child for C");
+            app.dispatch(AppCommand::Refresh)
+                .expect("start replacement child for C");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
             if let Some(event) = observations.iter().find(|event| {
@@ -17385,7 +17557,10 @@ mod tests {
             }) {
                 break event;
             }
-            assert!(Instant::now() < c_ready_deadline, "C replacement child did not become READY");
+            assert!(
+                Instant::now() < c_ready_deadline,
+                "C replacement child did not become READY"
+            );
             thread::sleep(Duration::from_millis(10));
         };
         let (c_incarnation, c_pid) = match &c_ready.kind {
@@ -17396,14 +17571,27 @@ mod tests {
                 gpu_attested,
                 ..
             } => {
-                assert!(c_ready.at > reaped_before_c.2, "old child must be reaped before C READY");
-                assert_eq!(backend, if compute == ComputeChoice::Cpu { "CPU" } else { "CUDA0" });
+                assert!(
+                    c_ready.at > reaped_before_c.2,
+                    "old child must be reaped before C READY"
+                );
+                assert_eq!(
+                    backend,
+                    if compute == ComputeChoice::Cpu {
+                        "CPU"
+                    } else {
+                        "CUDA0"
+                    }
+                );
                 assert_eq!(*gpu_attested, compute == ComputeChoice::Gpu);
                 (*incarnation, *pid)
             }
             _ => unreachable!(),
         };
-        assert_ne!(c_incarnation, reaped_before_c.0, "C must use a new child incarnation");
+        assert_ne!(
+            c_incarnation, reaped_before_c.0,
+            "C must use a new child incarnation"
+        );
         for event in &observations {
             if let NativeQualificationEventKind::Ready {
                 backend,
@@ -17411,7 +17599,14 @@ mod tests {
                 ..
             } = &event.kind
             {
-                assert_eq!(backend, if compute == ComputeChoice::Cpu { "CPU" } else { "CUDA0" });
+                assert_eq!(
+                    backend,
+                    if compute == ComputeChoice::Cpu {
+                        "CPU"
+                    } else {
+                        "CUDA0"
+                    }
+                );
                 assert_eq!(*gpu_attested, compute == ComputeChoice::Gpu);
             }
         }
@@ -17427,13 +17622,16 @@ mod tests {
         let mut c_finalizing_at = None;
         let mut c_publishing_at = None;
         loop {
-            app.dispatch(AppCommand::Refresh).expect("publish C through the same runtime");
+            app.dispatch(AppCommand::Refresh)
+                .expect("publish C through the same runtime");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
             let view = app.view();
-            if let Some(session) = view.unified_parakeet_sessions.iter().find(|session| {
-                session.job_id == c && session.generation == generation
-            }) {
+            if let Some(session) = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| session.job_id == c && session.generation == generation)
+            {
                 let now = Instant::now();
                 if c_audio_drained_at.is_none()
                     && session.total_samples.is_some_and(|total| {
@@ -17457,7 +17655,10 @@ mod tests {
                     break;
                 }
             }
-            assert!(Instant::now() < c_publication_deadline, "C native publication did not complete");
+            assert!(
+                Instant::now() < c_publication_deadline,
+                "C native publication did not complete"
+            );
             thread::sleep(Duration::from_millis(10));
         }
         let c_files = ArchiveStore::published_unified_files(&archive_root, c, generation)
@@ -17466,37 +17667,71 @@ mod tests {
         assert!(Path::new(&c_files.txt_path).is_file());
         assert!(Path::new(&c_files.srt_path).is_file());
 
-        let startup = observations.iter().find_map(|event| match &event.kind {
-            NativeQualificationEventKind::Starting { incarnation } if *incarnation == 1 => {
-                Some(event.at)
-            }
-            _ => None,
-        }).expect("initial child startup event");
-        let ready = observations.iter().find_map(|event| match &event.kind {
-            NativeQualificationEventKind::Ready { incarnation: 1, .. } => Some(event.at),
-            _ => None,
-        }).expect("validated initial READY event");
+        let startup = observations
+            .iter()
+            .find_map(|event| match &event.kind {
+                NativeQualificationEventKind::Starting { incarnation } if *incarnation == 1 => {
+                    Some(event.at)
+                }
+                _ => None,
+            })
+            .expect("initial child startup event");
+        let ready = observations
+            .iter()
+            .find_map(|event| match &event.kind {
+                NativeQualificationEventKind::Ready { incarnation: 1, .. } => Some(event.at),
+                _ => None,
+            })
+            .expect("validated initial READY event");
         let first_text = first_text_available.expect("A final text must become app-readable");
         assert!(ready > startup && first_text > run_started);
         println!(
             "PU-L4 native {} A/B/C; synthetic cadence=source-derived 80k-frame burst blocks, OS cache state uncontrolled; start-to-READY={:?}, A1 send-to-result={:?}, B written-ACK within A1={:?}, start-to-first-app-text={:?}, A stop-to-audio-drain/finalizing/publishing/complete={:?}/{:?}/{:?}/{:?}, B stop-to-audio-drain/finalizing/publishing/complete={:?}/{:?}/{:?}/{:?}, C stop-to-audio-drain/finalizing/publishing/complete={:?}/{:?}/{:?}/{:?}, source prefix samples={a_samples}, C PID={c_pid} incarnation={c_incarnation}",
-            if compute == ComputeChoice::Cpu { "CPU" } else { "GPU-attested" },
+            if compute == ComputeChoice::Cpu {
+                "CPU"
+            } else {
+                "GPU-attested"
+            },
             ready.duration_since(startup),
             first_a_result.duration_since(first_a_send),
             b_audio_ack.0.duration_since(first_a_send),
             first_text.duration_since(run_started),
-            a_audio_drained_at.expect("A final audio ACK time").duration_since(a_stop),
-            a_finalizing_at.expect("A finalization time").duration_since(a_stop),
-            a_publishing_at.expect("A publishing time").duration_since(a_stop),
-            a_published_at.expect("A completion time").duration_since(a_stop),
-            b_audio_drained_at.expect("B final audio ACK time").duration_since(b_stop),
-            b_finalizing_at.expect("B finalization time").duration_since(b_stop),
-            b_publishing_at.expect("B publishing time").duration_since(b_stop),
-            b_published_at.expect("B completion time").duration_since(b_stop),
-            c_audio_drained_at.expect("C final audio ACK time").duration_since(c_stop),
-            c_finalizing_at.expect("C finalization time").duration_since(c_stop),
-            c_publishing_at.expect("C publishing time").duration_since(c_stop),
-            c_published_at.expect("C completion time").duration_since(c_stop),
+            a_audio_drained_at
+                .expect("A final audio ACK time")
+                .duration_since(a_stop),
+            a_finalizing_at
+                .expect("A finalization time")
+                .duration_since(a_stop),
+            a_publishing_at
+                .expect("A publishing time")
+                .duration_since(a_stop),
+            a_published_at
+                .expect("A completion time")
+                .duration_since(a_stop),
+            b_audio_drained_at
+                .expect("B final audio ACK time")
+                .duration_since(b_stop),
+            b_finalizing_at
+                .expect("B finalization time")
+                .duration_since(b_stop),
+            b_publishing_at
+                .expect("B publishing time")
+                .duration_since(b_stop),
+            b_published_at
+                .expect("B completion time")
+                .duration_since(b_stop),
+            c_audio_drained_at
+                .expect("C final audio ACK time")
+                .duration_since(c_stop),
+            c_finalizing_at
+                .expect("C finalization time")
+                .duration_since(c_stop),
+            c_publishing_at
+                .expect("C publishing time")
+                .duration_since(c_stop),
+            c_published_at
+                .expect("C completion time")
+                .duration_since(c_stop),
         );
     }
     #[test]
@@ -17561,7 +17796,11 @@ mod tests {
             &cpu_paths.model,
             &turbo_model,
         ] {
-            assert!(path.exists(), "required personal asset missing: {}", path.display());
+            assert!(
+                path.exists(),
+                "required personal asset missing: {}",
+                path.display()
+            );
         }
         assert!(cpu_paths.validate().is_ok());
 
@@ -17590,9 +17829,8 @@ mod tests {
         let controlled_capture_blocks = Arc::new(Mutex::new(VecDeque::new()));
         let mut request = unified_live_request(&archive_root, 9_438);
         request.model_path = cpu_paths.model.to_string_lossy().into_owned();
-        request.microphone = whisper_core::MicrophoneChoice::Device(
-            "test:pu-l4-synthetic-capture".into(),
-        );
+        request.microphone =
+            whisper_core::MicrophoneChoice::Device("test:pu-l4-synthetic-capture".into());
         request.config.compute = ComputeChoice::Cpu;
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
@@ -17620,8 +17858,7 @@ mod tests {
                 .unified_parakeet_sessions
                 .iter()
                 .find(|session| {
-                    session.job_id == request.job_id
-                        && session.generation == request.generation
+                    session.job_id == request.job_id && session.generation == request.generation
                 })
                 .is_some_and(|session| session.captured_samples > 0);
             if captured {
@@ -17629,7 +17866,10 @@ mod tests {
             }
             thread::sleep(Duration::from_millis(10));
         }
-        assert!(captured, "the synthetic capture block did not make live progress");
+        assert!(
+            captured,
+            "the synthetic capture block did not make live progress"
+        );
         app.dispatch(AppCommand::StopUnifiedLive {
             job_id: request.job_id,
             generation: request.generation,
@@ -17671,7 +17911,10 @@ mod tests {
         )
         .expect("native synthetic capture must publish referenced audio and text artifacts");
         for path in [files.wav_path, files.txt_path, files.srt_path] {
-            assert!(Path::new(&path).is_file(), "published artifact missing: {path}");
+            assert!(
+                Path::new(&path).is_file(),
+                "published artifact missing: {path}"
+            );
         }
     }
 

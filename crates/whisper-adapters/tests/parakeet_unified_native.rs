@@ -7,9 +7,7 @@ use std::{
 
 use sha2::{Digest, Sha256};
 use whisper_adapters::{
-    archive::ArchiveStore,
-    parakeet_import::ParakeetWorkerPaths,
-    supervisor::WorkerPaths,
+    archive::ArchiveStore, parakeet_import::ParakeetWorkerPaths, supervisor::WorkerPaths,
     worker_ipc::AsyncImportIo,
 };
 use whisper_core::{
@@ -53,7 +51,12 @@ fn sha256_file(path: &Path) -> [u8; 32] {
     digest.finalize().into()
 }
 
-fn personal_paths() -> (WorkerPaths, PathBuf, ParakeetWorkerPaths, ParakeetWorkerPaths) {
+fn personal_paths() -> (
+    WorkerPaths,
+    PathBuf,
+    ParakeetWorkerPaths,
+    ParakeetWorkerPaths,
+) {
     let local_app_data = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .expect("guarded PU-L4 LOCALAPPDATA is required")
@@ -83,10 +86,20 @@ fn personal_paths() -> (WorkerPaths, PathBuf, ParakeetWorkerPaths, ParakeetWorke
         &cpu.model,
         &gpu.executable,
     ] {
-        assert!(path.is_file(), "required personal asset missing: {}", path.display());
+        assert!(
+            path.is_file(),
+            "required personal asset missing: {}",
+            path.display()
+        );
     }
-    assert!(cpu.validate().is_ok(), "personal CPU route must match its exact layout");
-    assert!(gpu.validate().is_ok(), "personal GPU route must match its exact layout");
+    assert!(
+        cpu.validate().is_ok(),
+        "personal CPU route must match its exact layout"
+    );
+    assert!(
+        gpu.validate().is_ok(),
+        "personal GPU route must match its exact layout"
+    );
     (
         WorkerPaths {
             cpu: app.join("whisper-worker-cpu.exe"),
@@ -190,15 +203,16 @@ fn run_native_import(
             observed_backend = Some(message.to_owned());
         }
         if view.last_result.is_some()
-            || view
-                .active_job
-                .is_some_and(|(job_id, state)| {
-                    job_id == request.job_id && state == JobState::Recoverable
-                })
+            || view.active_job.is_some_and(|(job_id, state)| {
+                job_id == request.job_id && state == JobState::Recoverable
+            })
         {
             break view;
         }
-        assert!(Instant::now() < deadline, "native import exceeded its bounded wait");
+        assert!(
+            Instant::now() < deadline,
+            "native import exceeded its bounded wait"
+        );
         thread::sleep(Duration::from_millis(25));
     };
     let session = terminal
@@ -240,14 +254,11 @@ fn run_native_import(
         entry.strategy,
         whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
     );
-    let files = ArchiveStore::published_unified_files(
-        &destination,
-        request.job_id,
-        request.generation,
-    )
-    .expect("published audio, TXT and SRT must be referenced by the real archive");
-    let transcript = std::fs::read_to_string(&files.txt_path)
-        .expect("read published transcript text");
+    let files =
+        ArchiveStore::published_unified_files(&destination, request.job_id, request.generation)
+            .expect("published audio, TXT and SRT must be referenced by the real archive");
+    let transcript =
+        std::fs::read_to_string(&files.txt_path).expect("read published transcript text");
     if require_nonempty_text {
         assert!(
             !transcript.trim().is_empty(),
@@ -272,16 +283,27 @@ fn run_native_import(
     }
     for path in [files.wav_path, files.txt_path, files.srt_path] {
         let path = PathBuf::from(path);
-        assert!(path.is_file(), "published artifact missing: {}", path.display());
+        assert!(
+            path.is_file(),
+            "published artifact missing: {}",
+            path.display()
+        );
         assert!(std::fs::metadata(path).unwrap().len() > 0);
     }
-    assert_eq!(sha256_file(&source), before_sha, "source fixture changed during native inference");
+    assert_eq!(
+        sha256_file(&source),
+        before_sha,
+        "source fixture changed during native inference"
+    );
     let part_index = wav_path.with_extension("parts.idx");
     let part_count = std::fs::read_to_string(&part_index)
         .expect("published logical WAV must retain its part index")
         .lines()
         .count();
-    assert!(part_count > 0, "published logical WAV must reference at least one part");
+    assert!(
+        part_count > 0,
+        "published logical WAV must reference at least one part"
+    );
 }
 
 #[cfg(windows)]
@@ -311,27 +333,32 @@ fn run_native_long_case(language: &str, compute: ComputeChoice, minimum_samples:
     let execution_root = required_path("WHISPER_L04_CAMPAIGN_RUN");
     let (source_variable, source_name, annotation_name, corpus_name, tsv_name, corpus_language) =
         match language {
-        "fr" => (
-            "WHISPER_PU_L4_LONG_FR",
-            "fr-long-35m.wav",
-            "fr-long-35m.annotations.json",
-            "sps-corpus-5.0-2026-09-11-fr",
-            "ss-corpus-fr.tsv",
-            "French",
-        ),
-        "en" => (
-            "WHISPER_PU_L4_LONG_EN",
-            "en-long-40m.wav",
-            "en-long-40m.annotations.json",
-            "sps-corpus-5.0-2026-09-11-en",
-            "ss-corpus-en.tsv",
-            "English",
-        ),
-        _ => panic!("only the planned French and English long fixtures are supported"),
-    };
+            "fr" => (
+                "WHISPER_PU_L4_LONG_FR",
+                "fr-long-35m.wav",
+                "fr-long-35m.annotations.json",
+                "sps-corpus-5.0-2026-09-11-fr",
+                "ss-corpus-fr.tsv",
+                "French",
+            ),
+            "en" => (
+                "WHISPER_PU_L4_LONG_EN",
+                "en-long-40m.wav",
+                "en-long-40m.annotations.json",
+                "sps-corpus-5.0-2026-09-11-en",
+                "ss-corpus-en.tsv",
+                "English",
+            ),
+            _ => panic!("only the planned French and English long fixtures are supported"),
+        };
     let source = fixture(source_variable, &execution_root);
     let expected_source = execution_root.join("fixtures").join(source_name);
-    assert_eq!(source, expected_source.canonicalize().expect("planned long WAV fixture must exist"));
+    assert_eq!(
+        source,
+        expected_source
+            .canonicalize()
+            .expect("planned long WAV fixture must exist")
+    );
     let annotation_path = execution_root
         .join("fixtures")
         .join(annotation_name)
@@ -356,13 +383,21 @@ fn run_native_long_case(language: &str, compute: ComputeChoice, minimum_samples:
     let mut approved_rows = std::collections::HashMap::new();
     for (row_number, line) in corpus_tsv.lines().skip(1).enumerate() {
         let columns = line.splitn(19, '\t').collect::<Vec<_>>();
-        assert_eq!(columns.len(), 19, "source corpus row {} is malformed", row_number + 2);
-        let audio_id = columns[1]
-            .parse::<u64>()
-            .unwrap_or_else(|error| panic!("invalid audio_id at corpus row {}: {error}", row_number + 2));
-        let votes = columns[7]
-            .parse::<u32>()
-            .unwrap_or_else(|error| panic!("invalid vote count at corpus row {}: {error}", row_number + 2));
+        assert_eq!(
+            columns.len(),
+            19,
+            "source corpus row {} is malformed",
+            row_number + 2
+        );
+        let audio_id = columns[1].parse::<u64>().unwrap_or_else(|error| {
+            panic!("invalid audio_id at corpus row {}: {error}", row_number + 2)
+        });
+        let votes = columns[7].parse::<u32>().unwrap_or_else(|error| {
+            panic!(
+                "invalid vote count at corpus row {}: {error}",
+                row_number + 2
+            )
+        });
         let reference = columns[6].trim();
         if votes >= 1 && !reference.is_empty() {
             assert_eq!(columns[12], corpus_language);
@@ -381,7 +416,9 @@ fn run_native_long_case(language: &str, compute: ComputeChoice, minimum_samples:
         }
     }
 
-    let source_bytes = std::fs::metadata(&source).expect("stat long-session WAV").len();
+    let source_bytes = std::fs::metadata(&source)
+        .expect("stat long-session WAV")
+        .len();
     assert!(source_bytes >= 44);
     let mut wav = std::fs::File::open(&source).expect("open long-session WAV");
     let mut header = [0_u8; 44];
@@ -391,7 +428,10 @@ fn run_native_long_case(language: &str, compute: ComputeChoice, minimum_samples:
     assert_eq!(&header[36..40], b"data");
     assert_eq!(u16::from_le_bytes(header[20..22].try_into().unwrap()), 1);
     assert_eq!(u16::from_le_bytes(header[22..24].try_into().unwrap()), 1);
-    assert_eq!(u32::from_le_bytes(header[24..28].try_into().unwrap()), 16_000);
+    assert_eq!(
+        u32::from_le_bytes(header[24..28].try_into().unwrap()),
+        16_000
+    );
     assert_eq!(u16::from_le_bytes(header[34..36].try_into().unwrap()), 16);
     let data_bytes = u32::from_le_bytes(header[40..44].try_into().unwrap());
     assert_eq!(source_bytes, 44 + u64::from(data_bytes));
@@ -409,7 +449,10 @@ fn run_native_long_case(language: &str, compute: ComputeChoice, minimum_samples:
     );
     let mut next_sample = 0_u64;
     for segment in &annotation.segments {
-        assert_eq!(segment.start_sample, next_sample, "annotation ranges must be contiguous");
+        assert_eq!(
+            segment.start_sample, next_sample,
+            "annotation ranges must be contiguous"
+        );
         assert!(segment.end_sample > segment.start_sample);
         assert!(segment.end_sample <= actual_samples);
         assert!(!segment.source_path.trim().is_empty());
@@ -423,7 +466,10 @@ fn run_native_long_case(language: &str, compute: ComputeChoice, minimum_samples:
         assert!(repository_root.join(expected_path.as_str()).is_file());
         next_sample = segment.end_sample;
     }
-    assert_eq!(next_sample, actual_samples, "annotation must cover the entire WAV");
+    assert_eq!(
+        next_sample, actual_samples,
+        "annotation must cover the entire WAV"
+    );
 
     let gpu_candidate = match compute {
         ComputeChoice::Cpu => None,
@@ -474,7 +520,10 @@ fn build_long_fixture(language: &str, minimum_samples: u64) {
     std::fs::create_dir_all(&fixtures).expect("create fixture directory under guarded lot");
     let wav_path = fixtures.join(wav_name);
     let annotation_path = fixtures.join(annotation_name);
-    assert!(!wav_path.exists(), "refusing to replace an existing long-session WAV");
+    assert!(
+        !wav_path.exists(),
+        "refusing to replace an existing long-session WAV"
+    );
     assert!(
         !annotation_path.exists(),
         "refusing to replace an existing long-session annotation"
@@ -482,45 +531,68 @@ fn build_long_fixture(language: &str, minimum_samples: u64) {
     let nonce = std::process::id();
     let staging_wav = fixtures.join(format!("{language}-long-build-{nonce}.wav"));
     let staging_index = staging_wav.with_extension("parts.idx");
-    let staging_annotation = fixtures.join(format!("{language}-long-build-{nonce}.annotations.json"));
+    let staging_annotation =
+        fixtures.join(format!("{language}-long-build-{nonce}.annotations.json"));
     let mut writer = whisper_adapters::parakeet_audio::PcmPartWriter::create(&staging_wav)
         .expect("create staged long-session WAV under guarded lot");
     let mut segments = Vec::new();
     let mut covered_samples = 0_u64;
     for (row_number, line) in tsv.lines().skip(1).enumerate() {
         let columns = line.splitn(19, '\t').collect::<Vec<_>>();
-        assert_eq!(columns.len(), 19, "source corpus row {} is malformed", row_number + 2);
-        let audio_id = columns[1]
-            .parse::<u64>()
-            .unwrap_or_else(|error| panic!("invalid audio_id at corpus row {}: {error}", row_number + 2));
+        assert_eq!(
+            columns.len(),
+            19,
+            "source corpus row {} is malformed",
+            row_number + 2
+        );
+        let audio_id = columns[1].parse::<u64>().unwrap_or_else(|error| {
+            panic!("invalid audio_id at corpus row {}: {error}", row_number + 2)
+        });
         let audio_file = columns[2];
         assert_eq!(
-            Path::new(audio_file).file_name().and_then(|name| name.to_str()),
+            Path::new(audio_file)
+                .file_name()
+                .and_then(|name| name.to_str()),
             Some(audio_file),
             "corpus audio filename must not escape its audios directory"
         );
         let transcription = columns[6].trim();
-        let votes = columns[7]
-            .parse::<u32>()
-            .unwrap_or_else(|error| panic!("invalid vote count at corpus row {}: {error}", row_number + 2));
+        let votes = columns[7].parse::<u32>().unwrap_or_else(|error| {
+            panic!(
+                "invalid vote count at corpus row {}: {error}",
+                row_number + 2
+            )
+        });
         if votes < 1 || transcription.is_empty() {
             continue;
         }
-        assert_eq!(columns[12], expected_language, "language mismatch in source corpus");
+        assert_eq!(
+            columns[12], expected_language,
+            "language mismatch in source corpus"
+        );
         let source_relative = PathBuf::from("sound example")
             .join(corpus_name)
             .join("audios")
             .join(audio_file);
         let clip_path = repository_root.join(&source_relative);
-        assert!(clip_path.is_file(), "approved corpus clip missing: {}", clip_path.display());
+        assert!(
+            clip_path.is_file(),
+            "approved corpus clip missing: {}",
+            clip_path.display()
+        );
         let start_sample = writer.written_samples();
-        whisper_adapters::parakeet_audio::decode_file_to_parts(
-            &clip_path,
-            &mut writer,
-        )
-        .unwrap_or_else(|error| panic!("decode approved corpus clip {}: {error}", clip_path.display()));
+        whisper_adapters::parakeet_audio::decode_file_to_parts(&clip_path, &mut writer)
+            .unwrap_or_else(|error| {
+                panic!(
+                    "decode approved corpus clip {}: {error}",
+                    clip_path.display()
+                )
+            });
         let end_sample = writer.written_samples();
-        assert!(end_sample > start_sample, "approved corpus clip decoded to no samples");
+        assert!(
+            end_sample > start_sample,
+            "approved corpus clip decoded to no samples"
+        );
         segments.push(LongCorpusSegment {
             audio_id,
             source_path: source_relative.to_string_lossy().replace('\\', "/"),
@@ -537,7 +609,10 @@ fn build_long_fixture(language: &str, minimum_samples: u64) {
         covered_samples >= minimum_samples,
         "voted corpus clips cover {covered_samples} samples; expected at least {minimum_samples}"
     );
-    assert_eq!(writer.finish().expect("finish staged long-session WAV"), covered_samples);
+    assert_eq!(
+        writer.finish().expect("finish staged long-session WAV"),
+        covered_samples
+    );
     let annotation = LongCorpusAnnotation {
         schema: "pu-l4-corpus-v1".into(),
         language: language.into(),
@@ -586,7 +661,9 @@ fn build_french_and_english_long_session_fixtures_from_voted_sps_clips() {
 #[cfg(windows)]
 fn build_physical_rotation_fixture() {
     assert_eq!(
-        std::env::var("WHISPER_PU_L4_BUILD_ROTATION_FIXTURE").ok().as_deref(),
+        std::env::var("WHISPER_PU_L4_BUILD_ROTATION_FIXTURE")
+            .ok()
+            .as_deref(),
         Some("1"),
         "physical-rotation fixture generation requires explicit opt-in"
     );
@@ -597,7 +674,10 @@ fn build_physical_rotation_fixture() {
     const BLOCK_BYTES: u64 = 80_000 * 2;
     const DATA_BYTES: u64 = (1_u64 << 30) + BLOCK_BYTES;
     assert!(DATA_BYTES <= u64::from(u32::MAX));
-    assert!(!output.exists(), "refusing to replace the physical-rotation fixture");
+    assert!(
+        !output.exists(),
+        "refusing to replace the physical-rotation fixture"
+    );
     let data_bytes = u32::try_from(DATA_BYTES).unwrap();
     let mut header = Vec::with_capacity(44);
     header.extend_from_slice(b"RIFF");
@@ -619,7 +699,8 @@ fn build_physical_rotation_fixture() {
         .create_new(true)
         .open(&output)
         .expect("create physical-rotation fixture under guarded lot");
-    file.write_all(&header).expect("write physical-rotation WAV header");
+    file.write_all(&header)
+        .expect("write physical-rotation WAV header");
     let block = vec![0_u8; BLOCK_BYTES as usize];
     let mut remaining = DATA_BYTES;
     while remaining > 0 {
@@ -630,7 +711,9 @@ fn build_physical_rotation_fixture() {
     }
     file.sync_all().expect("sync physical-rotation fixture");
     assert_eq!(
-        std::fs::metadata(&output).expect("stat physical-rotation fixture").len(),
+        std::fs::metadata(&output)
+            .expect("stat physical-rotation fixture")
+            .len(),
         44 + DATA_BYTES
     );
 }
@@ -657,12 +740,15 @@ fn personal_gpu_candidate() -> whisper_core::gpu_inventory::GpuRuntimeIdentity {
             let identities = result.expect("GPU inventory worker must return runtime identities");
             return identities
                 .into_iter()
-                .find(|identity| {
-                    identity.pnp_instance_id == PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID
-                })
-                .expect("the registered personal GPU must be observed by the real inventory worker");
+                .find(|identity| identity.pnp_instance_id == PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID)
+                .expect(
+                    "the registered personal GPU must be observed by the real inventory worker",
+                );
         }
-        assert!(Instant::now() < deadline, "GPU runtime identity collection timed out");
+        assert!(
+            Instant::now() < deadline,
+            "GPU runtime identity collection timed out"
+        );
         thread::sleep(Duration::from_millis(10));
     }
 }

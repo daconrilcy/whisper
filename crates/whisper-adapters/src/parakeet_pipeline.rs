@@ -16,7 +16,10 @@ pub trait WindowTranscriber: Send {
 
     /// Performs backend startup on the dedicated inference thread. The runtime
     /// remains free to admit and pump capture while this may block on READY.
-    fn initialize_instance(&mut self, stop_requested: &std::sync::atomic::AtomicBool) -> Result<(), String> {
+    fn initialize_instance(
+        &mut self,
+        stop_requested: &std::sync::atomic::AtomicBool,
+    ) -> Result<(), String> {
         let _ = stop_requested;
         Ok(())
     }
