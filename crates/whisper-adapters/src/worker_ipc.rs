@@ -13537,20 +13537,59 @@ mod tests {
         .with_controlled_transcriber(controlled_worker().0);
         runtime.native_unified_candidate_enabled = true;
 
-        for (request, identity) in [
-            (&request_a, "test:admission-a"),
-            (&request_b, "test:admission-b"),
-        ] {
-            let mut capture = CaptureStream::empty_test_capture(16_000, 1, identity);
-            capture.enqueue_test_block(vec![0.1; 160]);
-            runtime
-                .start_unified_capture(request, capture, None, Some(route.clone()))
-                .unwrap();
-        }
+        let mut capture_a = CaptureStream::empty_test_capture(16_000, 1, "test:admission-a");
+        capture_a.enqueue_test_block(vec![0.1; 160]);
+        runtime
+            .start_unified_capture(&request_a, capture_a, None, Some(route.clone()))
+            .unwrap();
 
-        let factory_calls = AtomicU64::new(0);
+        let session_a = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request_a.job_id,
+            generation: request_a.generation,
+        };
+        let mut events_a = VecDeque::new();
+        runtime
+            .stop_controlled_unified_capture(request_a.job_id, request_a.generation, &mut events_a)
+            .unwrap();
+        let stopped_a = runtime
+            .unified_sessions
+            .get(&session_a)
+            .expect("A remains admitted while its closed source finalizes");
+        assert!(stopped_a.source_closed);
+        assert!(stopped_a.available_samples > 0);
+        assert_eq!(stopped_a.available_samples, stopped_a.durable_samples);
+        assert_eq!(stopped_a.finalizer.processed_samples(), 0);
+        assert_eq!(runtime.parakeet_scheduler.active_sessions(), 1);
+        assert!(runtime.unified_archives.contains_key(&session_a));
+        assert!(events_a.iter().any(|event| matches!(
+            event,
+            ImportEvent::Prepared(request)
+                if (request.job_id, request.generation)
+                    == (request_a.job_id, request_a.generation)
+        )));
+
+        let b_factory_calls = AtomicU64::new(0);
+        runtime
+            .start_native_unified_capture_with(&request_b, route.clone(), |_, _| {
+                b_factory_calls.fetch_add(1, Ordering::Relaxed);
+                let mut capture = CaptureStream::empty_test_capture(16_000, 1, "test:admission-b");
+                capture.enqueue_test_block(vec![0.1; 160]);
+                Ok(capture)
+            })
+            .unwrap();
+        assert_eq!(b_factory_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(runtime.unified_sessions.len(), 2);
+        assert!(runtime.unified_sessions.contains_key(&session_a));
+        assert!(
+            runtime
+                .unified_sessions
+                .values()
+                .any(|session| session.source.is_capture() && !session.source_closed)
+        );
+
+        let third_factory_calls = AtomicU64::new(0);
         let result = runtime.start_native_unified_capture_with(&request_third, route, |_, _| {
-            factory_calls.fetch_add(1, Ordering::Relaxed);
+            third_factory_calls.fetch_add(1, Ordering::Relaxed);
             Ok(CaptureStream::empty_test_capture(
                 16_000,
                 1,
@@ -13563,16 +13602,14 @@ mod tests {
                 .is_err_and(|error| error.contains("SchedulerCapacity")),
             "third capture should be refused by the runtime: {result:?}"
         );
-        assert_eq!(factory_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(third_factory_calls.load(Ordering::Relaxed), 0);
         assert_eq!(runtime.unified_sessions.len(), 2);
         assert_eq!(runtime.unified_archives.len(), 2);
 
-        for request in [&request_a, &request_b] {
-            let mut events = VecDeque::new();
-            runtime
-                .stop_controlled_unified_capture(request.job_id, request.generation, &mut events)
-                .unwrap();
-        }
+        let mut events_b = VecDeque::new();
+        runtime
+            .stop_controlled_unified_capture(request_b.job_id, request_b.generation, &mut events_b)
+            .unwrap();
         drop(runtime);
         let _ = std::fs::remove_dir_all(&root);
     }
