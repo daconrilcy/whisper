@@ -17995,6 +17995,8 @@ mod tests {
         let mut observations = Vec::with_capacity(256);
         let trace_path = archive_root.join("ab-c-progress.log");
         let mut trace_lines = VecDeque::with_capacity(128);
+        let document_page_trace = Arc::new(Mutex::new("not requested".to_owned()));
+        let page_trace_for_checkpoint = Arc::clone(&document_page_trace);
         let mut trace_checkpoint =
             |stage: &str,
              app: &ImportApplication<RuntimeImportPort>,
@@ -18028,8 +18030,12 @@ mod tests {
                             .collect::<String>()
                     })
                     .unwrap_or_else(|| "none".to_owned());
+                let page_state = page_trace_for_checkpoint
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clone();
                 let line = format!(
-                    "elapsed_ms={} stage={} A={:?}/{:?}[{}] B={:?}/{:?}[{}] request_id={:?} active={:?} message={:?} events={} last={}",
+                    "elapsed_ms={} stage={} A={:?}/{:?}[{}] B={:?}/{:?}[{}] request_id={:?} active={:?} message={:?} document_page={} events={} last={}",
                     run_started.elapsed().as_millis(),
                     stage,
                     a,
@@ -18043,6 +18049,7 @@ mod tests {
                     view.message
                         .as_deref()
                         .map(|message| message.chars().take(240).collect::<String>()),
+                    page_state.chars().take(512).collect::<String>(),
                     observations.len(),
                     last_event
                 );
@@ -18485,15 +18492,144 @@ mod tests {
         .expect("select A to read its real application document");
         let mut first_text_available = None;
         let document_deadline = Instant::now() + Duration::from_secs(60 * 60);
+        let mut requested_revision = None;
+        let mut stale_wait_revision = None;
+        let mut last_stale_document_error = None;
+        let mut document_request_id = 0_u64;
         loop {
-            let current_revision = app
-                .view()
+            let before_request = app.view();
+            let current_revision = before_request
                 .unified_parakeet_sessions
                 .iter()
                 .find(|session| session.job_id == a && session.generation == generation)
                 .map(|session| session.document_revision)
                 .unwrap_or(0);
-            if current_revision > 0 {
+            if current_revision == 0 {
+                *document_page_trace
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+                    "selected={a:?}/{generation:?},requested_revision=None,current_revision=0,page_revision=None,page_entries=0,document_error=None,request_id=None,result=waiting-for-revision"
+                );
+                let trace_refresh =
+                    trace_wait_before_refresh!("A-document-revision", Some(first_a_request_id));
+                app.dispatch(AppCommand::Refresh)
+                    .expect("wait for A final document revision");
+                native_event_drain(&native_events, &mut observations);
+                observer.assert_healthy();
+                if trace_refresh {
+                    trace_checkpoint(
+                        "A-document-revision-after-Refresh",
+                        &app,
+                        Some(first_a_request_id),
+                        &observations,
+                    );
+                }
+                require_b_session(&app, "waiting for A document revision", &observations);
+                assert!(
+                    Instant::now() < document_deadline,
+                    "A final document revision was not exposed to the application"
+                );
+                thread::sleep(Duration::from_millis(5));
+                continue;
+            }
+
+            if requested_revision.is_some_and(|requested| requested != current_revision) {
+                app.dispatch(AppCommand::SelectUnifiedSession {
+                    job_id: a,
+                    generation,
+                })
+                .expect("reselect A before reading its newer document revision");
+                requested_revision = None;
+                stale_wait_revision = None;
+                last_stale_document_error = None;
+            }
+
+            if stale_wait_revision == Some(current_revision) {
+                *document_page_trace
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+                    "selected={a:?}/{generation:?},requested_revision={stale_wait_revision:?},current_revision={current_revision},page_revision=None,document_error={:?},request_id={document_request_id},result=waiting-for-revision-update",
+                    last_stale_document_error
+                );
+                let trace_refresh =
+                    trace_wait_before_refresh!("A-document-stale-wait", Some(first_a_request_id));
+                app.dispatch(AppCommand::Refresh)
+                    .expect("refresh after stale A document page");
+                native_event_drain(&native_events, &mut observations);
+                observer.assert_healthy();
+                if trace_refresh {
+                    trace_checkpoint(
+                        "A-document-stale-wait-after-Refresh",
+                        &app,
+                        Some(first_a_request_id),
+                        &observations,
+                    );
+                }
+                require_b_session(
+                    &app,
+                    "waiting for A document revision after stale page",
+                    &observations,
+                );
+                let refreshed_view = app.view();
+                let refreshed_session = refreshed_view
+                    .unified_parakeet_sessions
+                    .iter()
+                    .find(|session| session.job_id == a && session.generation == generation);
+                let refreshed_revision =
+                    refreshed_session.map_or(0, |session| session.document_revision);
+                let refreshed_phase = refreshed_session.map(|session| session.phase);
+                if refreshed_revision == current_revision
+                    && refreshed_phase.is_some_and(|phase| {
+                        matches!(
+                            phase,
+                            whisper_core::ports::UnifiedSessionPhase::Complete
+                                | whisper_core::ports::UnifiedSessionPhase::Recoverable
+                        )
+                    })
+                {
+                    let phase = refreshed_phase.expect("terminal phase was checked");
+                    let current_document_error = refreshed_view
+                        .selected_unified_session
+                        .as_ref()
+                        .filter(|selection| {
+                            selection.job_id == a && selection.generation == generation
+                        })
+                        .and_then(|selection| selection.document_error.as_deref());
+                    *document_page_trace
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+                        "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={refreshed_revision},phase={phase:?},document_error={:?},request_id={document_request_id},result=stale-at-terminal",
+                        last_stale_document_error
+                    );
+                    trace_checkpoint(
+                        "A-document-stale-at-terminal",
+                        &app,
+                        Some(first_a_request_id),
+                        &observations,
+                    );
+                    panic!(
+                        "A document page request {document_request_id} returned stale and the AppView revision {refreshed_revision} did not advance before A became terminal; requested_revision={current_revision}, phase={phase:?}, stale_document_error={last_stale_document_error:?}, current_document_error={current_document_error:?}, trace={}",
+                        trace_path.display()
+                    );
+                }
+                if refreshed_revision != current_revision {
+                    stale_wait_revision = None;
+                    requested_revision = None;
+                    last_stale_document_error = None;
+                }
+                assert!(
+                    Instant::now() < document_deadline,
+                    "A document response was stale and the application revision did not advance"
+                );
+                thread::sleep(Duration::from_millis(5));
+                continue;
+            }
+            stale_wait_revision = None;
+
+            if requested_revision != Some(current_revision) {
+                document_request_id = document_request_id
+                    .checked_add(1)
+                    .expect("bounded document request ID remains representable");
                 app.dispatch(AppCommand::ReadUnifiedDocumentPage {
                     job_id: a,
                     generation,
@@ -18501,65 +18637,158 @@ mod tests {
                     first_sequence: 1,
                 })
                 .expect("request A's bounded page through ImportApplication");
-                loop {
-                    let trace_refresh =
-                        trace_wait_before_refresh!("A-document-page", Some(first_a_request_id));
-                    app.dispatch(AppCommand::Refresh)
-                        .expect("read A document page");
-                    native_event_drain(&native_events, &mut observations);
-                    observer.assert_healthy();
-                    if trace_refresh {
-                        trace_checkpoint(
-                            "A-document-page-after-Refresh",
-                            &app,
-                            Some(first_a_request_id),
-                            &observations,
-                        );
-                    }
-                    require_b_session(&app, "waiting for A document page", &observations);
-                    if let Some(page) = app
-                        .view()
-                        .selected_unified_session
-                        .as_ref()
-                        .filter(|selection| {
-                            selection.job_id == a && selection.generation == generation
-                        })
-                        .and_then(|selection| selection.document_page.as_ref())
-                    {
-                        if page
-                            .entries
-                            .iter()
-                            .any(|entry| !entry.segment.text.trim().is_empty())
-                        {
-                            first_text_available = Some(Instant::now());
-                            break;
-                        }
-                    }
-                    assert!(
-                        Instant::now() < document_deadline,
-                        "A final text was not readable from the selected application page"
-                    );
-                    thread::sleep(Duration::from_millis(5));
-                }
-                break;
-            }
-            let trace_refresh =
-                trace_wait_before_refresh!("A-document-revision", Some(first_a_request_id));
-            app.dispatch(AppCommand::Refresh)
-                .expect("wait for A final document revision");
-            native_event_drain(&native_events, &mut observations);
-            if trace_refresh {
+                requested_revision = Some(current_revision);
+                *document_page_trace
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+                    "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={current_revision},page_revision=None,page_entries=0,document_error=None,request_id={document_request_id},first_sequence=1,limit=128,result=pending"
+                );
                 trace_checkpoint(
-                    "A-document-revision-after-Refresh",
+                    "A-document-page-request",
                     &app,
                     Some(first_a_request_id),
                     &observations,
                 );
             }
-            require_b_session(&app, "waiting for A document revision", &observations);
+
+            let trace_refresh =
+                trace_wait_before_refresh!("A-document-page", Some(first_a_request_id));
+            app.dispatch(AppCommand::Refresh)
+                .expect("read A document page");
+            native_event_drain(&native_events, &mut observations);
+            observer.assert_healthy();
+            if trace_refresh {
+                trace_checkpoint(
+                    "A-document-page-after-Refresh",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
+            }
+            require_b_session(&app, "waiting for A document page", &observations);
+            let view = app.view();
+            let refreshed_revision = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| session.job_id == a && session.generation == generation)
+                .map(|session| session.document_revision)
+                .unwrap_or(0);
+            let selection = view
+                .selected_unified_session
+                .as_ref()
+                .filter(|selection| selection.job_id == a && selection.generation == generation);
+            let page = selection.and_then(|selection| selection.document_page.as_ref());
+            let document_error =
+                selection.and_then(|selection| selection.document_error.as_deref());
+            let page_summary = page.map_or_else(
+                || "none".to_owned(),
+                |page| {
+                    let first_sequence =
+                        page.entries.first().map(|entry| entry.segment.segment_id.0);
+                    let text = page
+                        .entries
+                        .iter()
+                        .find(|entry| !entry.segment.text.trim().is_empty())
+                        .map(|entry| entry.segment.text.chars().take(96).collect::<String>());
+                    format!(
+                        "revision={},entries={},first_sequence={first_sequence:?},text={text:?}",
+                        page.revision,
+                        page.entries.len()
+                    )
+                },
+            );
+            *document_page_trace
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+                "selected={a:?}/{generation:?},requested_revision={requested_revision:?},current_revision={refreshed_revision},page={page_summary},document_error={:?},request_id={document_request_id},result=refreshed",
+                document_error.map(|message| message.chars().take(240).collect::<String>()),
+            );
+
+            if let Some(message) = document_error {
+                if message.starts_with("StaleResponse:") {
+                    let stale_revision = requested_revision.unwrap_or(current_revision);
+                    last_stale_document_error = Some(message.to_owned());
+                    stale_wait_revision =
+                        (refreshed_revision == stale_revision).then_some(stale_revision);
+                    app.dispatch(AppCommand::SelectUnifiedSession {
+                        job_id: a,
+                        generation,
+                    })
+                    .expect("clear the consumed stale page response before retrying");
+                    requested_revision = None;
+                    *document_page_trace
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+                        "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={refreshed_revision},page={page_summary},document_error={:?},request_id={document_request_id},result=stale",
+                        message.chars().take(240).collect::<String>()
+                    );
+                    trace_checkpoint(
+                        "A-document-page-stale",
+                        &app,
+                        Some(first_a_request_id),
+                        &observations,
+                    );
+                    continue;
+                }
+                panic!(
+                    "A document page request {document_request_id} failed non-stale for revision {current_revision}: {message}; selected={:?}, current_revision={refreshed_revision}, trace={}",
+                    view.selected_unified_session,
+                    trace_path.display()
+                );
+            }
+            if refreshed_revision != requested_revision.unwrap_or(0) {
+                requested_revision = None;
+                stale_wait_revision = None;
+                trace_checkpoint(
+                    "A-document-revision-changed",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
+                assert!(
+                    Instant::now() < document_deadline,
+                    "A final document revision changed repeatedly before a current page became readable"
+                );
+                continue;
+            }
+            if let Some(page) = page.filter(|page| page.revision == refreshed_revision) {
+                let first_sequence = page.entries.first().map(|entry| entry.segment.segment_id.0);
+                assert_eq!(
+                    first_sequence,
+                    Some(1),
+                    "first bounded A page must preserve sequence 1"
+                );
+                if page
+                    .entries
+                    .iter()
+                    .any(|entry| !entry.segment.text.trim().is_empty())
+                {
+                    first_text_available = Some(Instant::now());
+                    *document_page_trace
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+                        "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={refreshed_revision},page_revision={},page_entries={},document_error=None,request_id={document_request_id},first_sequence=1,limit=128,result=current-nonempty-text",
+                        page.revision,
+                        page.entries.len()
+                    );
+                    trace_checkpoint(
+                        "A-document-page-current-nonempty",
+                        &app,
+                        Some(first_a_request_id),
+                        &observations,
+                    );
+                    break;
+                }
+                panic!(
+                    "A current document page {document_request_id} has no nonempty text at revision {refreshed_revision}; trace={}",
+                    trace_path.display()
+                );
+            }
             assert!(
                 Instant::now() < document_deadline,
-                "A final document revision was not exposed to the application"
+                "A final text was not readable from the selected application page: selected={:?}, requested_revision={requested_revision:?}, current_revision={refreshed_revision}, page={page_summary}, document_error={document_error:?}, request_id={document_request_id}, trace={}",
+                view.selected_unified_session,
+                trace_path.display()
             );
             thread::sleep(Duration::from_millis(5));
         }
