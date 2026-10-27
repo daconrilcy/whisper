@@ -5490,6 +5490,7 @@ impl ImportRuntime {
                             .as_ref()
                             .expect("native route guard")
                             .backend_label();
+                        state.pending_prepared = Some((call, window, pcm, true));
                         self.unified_sessions.insert(call.session, state);
                         return Some(Ok(ImportEvent::Ready {
                             job_id: call.session.job_id,
@@ -5595,6 +5596,7 @@ impl ImportRuntime {
                             .as_ref()
                             .expect("native route guard")
                             .backend_label();
+                        state.pending_prepared = Some((call, window, pcm, false));
                         self.unified_sessions.insert(call.session, state);
                         return Some(Ok(ImportEvent::Ready {
                             job_id: call.session.job_id,
@@ -15263,15 +15265,41 @@ mod tests {
         };
         let (worker, calls, maximum_active, call_sources, held_rx, release_tx) = held_worker(1);
         let child_observations = Arc::new(Mutex::new(Vec::new()));
-        let mut runtime = ImportRuntime::new(
+        let native_paths = crate::parakeet_import::ParakeetWorkerPaths {
+            executable: root.join("controlled-native-worker.exe"),
+            native_dir: root.join("controlled-native"),
+            model: root.join("controlled-model.nemo"),
+            runtime_root: root.clone(),
+        };
+        let native_route = NativeUnifiedRoute {
+            paths: native_paths,
+            requested_compute: ComputeChoice::Cpu,
+            compute: ComputeChoice::Cpu,
+            expected_gpu: None,
+            candidate: None,
+            fallback_reason: None,
+        };
+        let mut runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
             WorkerPaths {
                 cpu: PathBuf::from("unused-cpu"),
                 gpu: PathBuf::from("unused-gpu"),
             },
             Arc::new(PublicationGate::default()),
+            None,
+            None,
+            None,
+            None,
+            false,
+            true,
         )
         .with_controlled_transcriber(worker)
         .with_child_observer(Arc::clone(&child_observations));
+        runtime
+            .native_unified_routes
+            .insert(session_a, native_route.clone());
+        runtime
+            .native_unified_routes
+            .insert(session_b, native_route);
         let ready_gate = runtime.hold_next_child_ready();
         runtime.start_controlled_unified_import(&request_a).unwrap();
         runtime.start_controlled_unified_import(&request_b).unwrap();
@@ -15284,11 +15312,12 @@ mod tests {
             whisper_core::parakeet_scheduler::ScheduledWork::Final { .. }
         ));
         assert_eq!(calls.load(Ordering::Relaxed), 0);
-        assert!(
-            runtime.unified_sessions[&session_a]
-                .pending_prepared
-                .is_some()
-        );
+        let retained_final = runtime.unified_sessions[&session_a]
+            .pending_prepared
+            .clone()
+            .expect("the reserved final clip is prepared before READY");
+        assert_eq!(retained_final.0, reserved);
+        assert!(retained_final.3);
         assert!(
             !child_observations
                 .lock()
@@ -15314,12 +15343,24 @@ mod tests {
         ready_changed.notify_all();
         let ready_deadline = Instant::now() + Duration::from_secs(5);
         let mut ready_seen = false;
+        let mut a_ready_events = 0;
         let mut held_source = None;
         while Instant::now() < ready_deadline && held_source.is_none() {
-            if let Some(Err((job_id, generation, message))) = runtime.poll_unified_sessions() {
-                panic!(
+            match runtime.poll_unified_sessions() {
+                Some(Err((job_id, generation, message))) => panic!(
                     "reserved turn failed after READY release for {job_id:?}/{generation:?}: {message}"
-                );
+                ),
+                Some(Ok(ImportEvent::Ready {
+                    job_id, generation, ..
+                })) if (job_id, generation) == (session_a.job_id, session_a.generation) => {
+                    a_ready_events += 1;
+                    assert_eq!(
+                        runtime.unified_sessions[&session_a].pending_prepared,
+                        Some(retained_final.clone()),
+                        "READY must retain the exact prepared final clip"
+                    );
+                }
+                _ => {}
             }
             ready_seen |= child_observations
                 .lock()
@@ -15338,18 +15379,64 @@ mod tests {
             ready_seen,
             "controlled child READY was not observed after release"
         );
+        assert_eq!(
+            a_ready_events, 1,
+            "backend READY is reported exactly once per session"
+        );
         assert_eq!(held_source.as_deref(), Some("A"));
         assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert!(
+            runtime.unified_sessions[&session_a]
+                .pending_prepared
+                .is_none()
+        );
         assert!(runtime.poll_unified_sessions().is_none());
         assert_eq!(runtime.parakeet_scheduler.in_flight(), Some(reserved));
         assert_eq!(calls.load(Ordering::Relaxed), 1);
 
         release_tx.send(()).unwrap();
         let peer_preview_deadline = Instant::now() + Duration::from_secs(10);
+        let mut b_preview_ready_events = 0;
+        let mut retained_preview = None;
         while Instant::now() < peer_preview_deadline && calls.load(Ordering::Relaxed) < 2 {
-            let _ = runtime.poll_unified_sessions();
+            match runtime.poll_unified_sessions() {
+                Some(Err((job_id, generation, message))) => panic!(
+                    "peer preview failed after final A for {job_id:?}/{generation:?}: {message}"
+                ),
+                Some(Ok(ImportEvent::Ready {
+                    job_id, generation, ..
+                })) if (job_id, generation) == (session_b.job_id, session_b.generation) => {
+                    b_preview_ready_events += 1;
+                    let prepared = runtime.unified_sessions[&session_b]
+                        .pending_prepared
+                        .clone()
+                        .expect("READY must retain the prepared peer preview");
+                    assert!(!prepared.3, "the retained peer clip must remain a preview");
+                    assert!(matches!(
+                        prepared.0.work,
+                        whisper_core::parakeet_scheduler::ScheduledWork::Preview { .. }
+                    ));
+                    assert_eq!(runtime.parakeet_scheduler.in_flight(), Some(prepared.0));
+                    retained_preview = Some(prepared);
+                }
+                _ => {}
+            }
             thread::sleep(Duration::from_millis(2));
         }
+        assert_eq!(
+            b_preview_ready_events, 1,
+            "peer backend READY is reported exactly once"
+        );
+        let retained_preview = retained_preview.expect("the prepared preview survives READY");
+        assert_eq!(
+            runtime.parakeet_scheduler.in_flight(),
+            Some(retained_preview.0)
+        );
+        assert!(
+            runtime.unified_sessions[&session_b]
+                .pending_prepared
+                .is_none()
+        );
         let call_log = call_sources.lock().unwrap();
         assert!(call_log.len() >= 2);
         assert_eq!(call_log[0], "A:final");
@@ -15415,18 +15502,60 @@ mod tests {
         }
 
         let drain_deadline = Instant::now() + Duration::from_secs(20);
+        let mut completed_sessions = HashSet::new();
         while Instant::now() < drain_deadline
             && (!runtime.unified_sessions.is_empty() || !runtime.document_drains.is_empty())
         {
             if let Some(Err((job_id, generation, message))) = runtime.poll_unified_sessions() {
                 panic!("reserved turn session {job_id:?}/{generation:?} failed: {message}");
             }
-            let _ = runtime.poll_unified_document();
+            if let Some(event) = runtime.poll_unified_document() {
+                match event {
+                    Ok(ImportEvent::End {
+                        job_id, generation, ..
+                    }) => {
+                        completed_sessions.insert((job_id, generation));
+                    }
+                    Err((job_id, generation, message)) => {
+                        panic!("document drain failed for {job_id:?}/{generation:?}: {message}")
+                    }
+                    _ => {}
+                }
+            }
             thread::sleep(Duration::from_millis(2));
         }
         assert!(runtime.unified_sessions.is_empty());
         assert!(runtime.document_drains.is_empty());
         assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
+        assert!(completed_sessions.contains(&(session_a.job_id, session_a.generation)));
+        assert!(completed_sessions.contains(&(session_b.job_id, session_b.generation)));
+        let archives = ArchiveStore::scan(&archive_root).unwrap();
+        for (session, expected_samples) in
+            [(session_a, 121 * 16_000_u64), (session_b, 5 * 16_000_u64)]
+        {
+            let archive = archives
+                .iter()
+                .find(|entry| {
+                    entry.job_id == session.job_id && entry.generation == session.generation
+                })
+                .expect("completed controlled session must remain in archive history");
+            assert!(
+                archive.complete,
+                "document completion must publish a complete archive"
+            );
+            let source_path = archive_root
+                .join("transcriptions")
+                .join(format!("{:032x}", session.job_id.0))
+                .join(session.generation.get().to_string())
+                .join("parakeet-unified/source.wav");
+            assert_eq!(
+                crate::parakeet_audio::PcmPartStore::open(&source_path)
+                    .total_samples()
+                    .unwrap(),
+                expected_samples,
+                "completed coverage must include the whole source"
+            );
+        }
         let observations = child_observations.lock().unwrap();
         controlled_child_job_bound(&observations).unwrap();
         let spawns = observations
