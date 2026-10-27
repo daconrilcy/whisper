@@ -4396,9 +4396,7 @@ impl ImportRuntime {
         }
         whisper_core::microphone_level::GainDb::new(request.microphone_gain_db)
             .map_err(|error| format!("MicrophoneLevel: {error}"))?;
-        if let whisper_core::microphone_level::MicrophoneChoice::Device(identity) =
-            &request.microphone
-        {
+        if let whisper_core::MicrophoneChoice::Device(identity) = &request.microphone {
             whisper_core::microphone_level::MicrophoneIdentity::new(identity)
                 .map_err(|error| format!("MicrophoneLevel: {error}"))?;
         }
@@ -6396,24 +6394,19 @@ impl ImportRuntime {
                     })();
                     result.map_err(|error| (id.0, id.1, error))
                 } else {
-                    let bound = match self.bind_live_request(&request) {
-                        Ok(bound) => bound,
-                        Err(error) => {
-                            return Err((id.0, id.1, format!("Modèle indisponible : {error}")));
+                    let result = (|| {
+                        let bound = self
+                            .bind_live_request(&request)
+                            .map_err(|error| format!("Modèle indisponible : {error}"))?;
+                        self.validate_unified_capture_admission(&bound, None)?;
+                        #[cfg(test)]
+                        if let Some(capture) = self.controlled_captures.pop_front() {
+                            let part_limit = self.controlled_part_limits.pop_front().flatten();
+                            return self.start_unified_capture(&bound, capture, part_limit, None);
                         }
-                    };
-                    if let Err(error) = self.validate_unified_capture_admission(&bound, None) {
-                        return Err((id.0, id.1, error));
-                    }
-                    #[cfg(test)]
-                    if let Some(capture) = self.controlled_captures.pop_front() {
-                        let part_limit = self.controlled_part_limits.pop_front().flatten();
-                        return self
-                            .start_unified_capture(&bound, capture, part_limit, None)
-                            .map_err(|error| (id.0, id.1, error));
-                    }
-                    Err((id.0, id.1,
-                        "ModelNotQualified: native microphone capture remains closed until T9 qualification; use the controlled capture harness".into()))
+                        Err("ModelNotQualified: native microphone capture remains closed until T9 qualification; use the controlled capture harness".into())
+                    })();
+                    result.map_err(|error| (id.0, id.1, error))
                 }
             }
             ImportEffect::StartLive(request) => {
