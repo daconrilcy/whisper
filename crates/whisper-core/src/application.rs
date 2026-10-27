@@ -1891,10 +1891,19 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     .iter_mut()
                     .find(|s| (s.job_id, s.generation) == key)
                 {
-                    session.captured_samples = captured_samples;
-                    session.durable_samples = audio_durable_samples;
+                    session.captured_samples = session.captured_samples.max(captured_samples);
+                    session.durable_samples = session
+                        .durable_samples
+                        .max(audio_durable_samples)
+                        .min(session.captured_samples);
                     session.audio_parts_revision = 0;
-                    session.phase = crate::ports::UnifiedSessionPhase::Capturing;
+                    if matches!(
+                        session.phase,
+                        crate::ports::UnifiedSessionPhase::Starting
+                            | crate::ports::UnifiedSessionPhase::Capturing
+                    ) {
+                        session.phase = crate::ports::UnifiedSessionPhase::Capturing;
+                    }
                 }
                 if let Some(selected) = self.view.selected_unified_session.as_mut()
                     && (selected.job_id, selected.generation) == key

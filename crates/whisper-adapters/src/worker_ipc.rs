@@ -1538,10 +1538,12 @@ impl UnifiedSessionSource {
         }
     }
 
-    fn stop_capture(&mut self) -> Result<Option<u64>, String> {
+    fn stop_capture(
+        &mut self,
+    ) -> Result<Option<(u64, Vec<crate::parakeet_audio::CaptureWriteAck>)>, String> {
         match self {
             Self::Closed(_) => Ok(None),
-            Self::Capture(capture) => capture.stop().map(|(total, _)| Some(total)),
+            Self::Capture(capture) => capture.stop().map(Some),
         }
     }
 
@@ -1580,6 +1582,7 @@ struct UnifiedSessionState {
     request: ImportRequest,
     source: UnifiedSessionSource,
     available_samples: u64,
+    durable_samples: u64,
     source_closed: bool,
     document: crate::parakeet_document::ParakeetDocumentStore,
     finalizer: crate::parakeet_pipeline::ParakeetFinalizer,
@@ -3123,6 +3126,7 @@ impl ImportRuntime {
                 request: request.clone(),
                 source: UnifiedSessionSource::Closed(source),
                 available_samples,
+                durable_samples: available_samples,
                 source_closed: true,
                 document,
                 finalizer: crate::parakeet_pipeline::ParakeetFinalizer::new(
@@ -3230,6 +3234,7 @@ impl ImportRuntime {
                 },
                 source: UnifiedSessionSource::Capture(capture),
                 available_samples: 0,
+                durable_samples: 0,
                 source_closed: false,
                 document,
                 finalizer: crate::parakeet_pipeline::ParakeetFinalizer::new(
@@ -3265,13 +3270,30 @@ impl ImportRuntime {
         if state.source_closed {
             return Ok(());
         }
-        let total_samples = state
+        let (total_samples, final_acknowledgements) = state
             .source
             .stop_capture()
             .map_err(|error| format!("CaptureStop: {error}"))?
             .ok_or_else(|| "UnifiedCaptureMissing".to_owned())?;
+        let final_durable_samples = state
+            .durable_samples
+            .max(
+                final_acknowledgements
+                    .iter()
+                    .map(|ack| ack.flushed_samples)
+                    .max()
+                    .unwrap_or(0),
+            )
+            .min(total_samples);
+        if final_durable_samples != total_samples {
+            return Err(format!(
+                "CaptureStop: final durable acknowledgement {} does not cover closed source {total_samples}",
+                final_durable_samples
+            ));
+        }
         let final_gain_updates = state.source.take_gain_events();
         state.available_samples = total_samples;
+        state.durable_samples = final_durable_samples;
         state.source_closed = true;
         let source = crate::parakeet_audio::PcmPartStore::open(&state.request.source_path);
         let request = self
@@ -3294,6 +3316,14 @@ impl ImportRuntime {
             });
         }
         events.push_back(ImportEvent::Prepared(request));
+        events.push_back(ImportEvent::ParakeetCaptureProgress {
+            job_id,
+            generation,
+            // Unified capture progress is correlated by JobId and generation.
+            session_id: 0,
+            captured_samples: state.available_samples,
+            audio_durable_samples: state.durable_samples,
+        });
         Ok(())
     }
 
@@ -3603,6 +3633,7 @@ impl ImportRuntime {
             )));
         }
         let mut pump_error = None;
+        let mut progress_updates = Vec::new();
         let mut preview_updates = Vec::new();
         let mut gain_updates = Vec::new();
         for (session, state) in &mut self.unified_sessions {
@@ -3614,7 +3645,28 @@ impl ImportRuntime {
                     if let Some(boundary) =
                         acknowledgements.iter().map(|ack| ack.written_samples).max()
                     {
+                        let previous_samples = state.available_samples;
+                        let previous_durable_samples = state.durable_samples;
                         state.available_samples = state.available_samples.max(boundary);
+                        state.durable_samples = state
+                            .durable_samples
+                            .max(
+                                acknowledgements
+                                    .iter()
+                                    .map(|ack| ack.flushed_samples)
+                                    .max()
+                                    .unwrap_or(0),
+                            )
+                            .min(state.available_samples);
+                        if state.available_samples > previous_samples
+                            || state.durable_samples > previous_durable_samples
+                        {
+                            progress_updates.push((
+                                *session,
+                                state.available_samples,
+                                state.durable_samples,
+                            ));
+                        }
                         if boundary >= 4 * 16_000 && boundary > state.preview_sequence {
                             state.preview_sequence = boundary;
                             preview_updates.push((*session, boundary));
@@ -3647,6 +3699,28 @@ impl ImportRuntime {
                     first_frame: gain.first_frame,
                 }
             }));
+        for (session, captured_samples, audio_durable_samples) in progress_updates {
+            self.parakeet_pending_events.retain(|event| {
+                !matches!(
+                    event,
+                    ImportEvent::ParakeetCaptureProgress {
+                        job_id,
+                        generation,
+                        ..
+                    } if (*job_id, *generation) == (session.job_id, session.generation)
+                )
+            });
+            self.parakeet_pending_events
+                .push_back(ImportEvent::ParakeetCaptureProgress {
+                    job_id: session.job_id,
+                    generation: session.generation,
+                    // Unified capture progress is correlated by this event's
+                    // JobId and generation; the legacy session id is unused.
+                    session_id: 0,
+                    captured_samples,
+                    audio_durable_samples,
+                });
+        }
         for (session, boundary) in preview_updates {
             if let Err(error) = self.parakeet_scheduler.queue_preview(session, boundary) {
                 return Some(Err((
@@ -3874,8 +3948,18 @@ impl ImportRuntime {
                     for (other, state) in &mut self.unified_sessions {
                         if state.source.is_capture() && !state.source_closed {
                             match state.source.stop_capture() {
-                                Ok(Some(total_samples)) => {
+                                Ok(Some((total_samples, acknowledgements))) => {
                                     state.available_samples = total_samples;
+                                    state.durable_samples = state
+                                        .durable_samples
+                                        .max(
+                                            acknowledgements
+                                                .iter()
+                                                .map(|ack| ack.flushed_samples)
+                                                .max()
+                                                .unwrap_or(0),
+                                        )
+                                        .min(total_samples);
                                     state.source_closed = true;
                                 }
                                 Ok(None) => {}
@@ -12185,24 +12269,43 @@ mod tests {
             request: request_b.clone(),
         })
         .unwrap();
+        let b_source_path = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", request_b.job_id.0))
+            .join(request_b.generation.get().to_string())
+            .join("parakeet-unified/source.wav");
         let b_progress_deadline = Instant::now() + Duration::from_secs(5);
-        let mut b_progressed = false;
+        let mut b_card_samples = 0;
+        let mut b_written_samples = 0;
         while Instant::now() < b_progress_deadline {
             app.dispatch(AppCommand::Refresh).unwrap();
-            b_progressed = app
+            b_card_samples = app
                 .view()
                 .unified_parakeet_sessions
                 .iter()
                 .find(|session| session.job_id == request_b.job_id)
-                .is_some_and(|session| session.durable_samples > 0);
-            if b_progressed {
+                .map_or(0, |session| session.durable_samples);
+            if b_source_path.is_file() {
+                b_written_samples = crate::parakeet_audio::PcmPartStore::open(&b_source_path)
+                    .total_samples()
+                    .unwrap_or(0);
+            }
+            if b_card_samples > 0 && b_written_samples > 0 {
                 break;
             }
             thread::sleep(Duration::from_millis(2));
         }
         assert!(
-            b_progressed,
-            "B did not pump while A's final inference was held"
+            b_written_samples > 0,
+            "B's acknowledged audio write did not progress while A's final inference was held"
+        );
+        assert!(
+            b_card_samples > 0,
+            "B's acknowledged capture progress did not reach its session card while A was held"
+        );
+        assert!(
+            b_card_samples <= b_written_samples,
+            "B's session card progress exceeded the acknowledged audio write"
         );
 
         app.dispatch(AppCommand::RequestClose).unwrap();
@@ -12225,6 +12328,35 @@ mod tests {
         );
         app.dispatch(AppCommand::RequestClose).unwrap();
         assert_eq!(stop_submissions.load(Ordering::Relaxed), 2);
+        let stopped_progress_deadline = Instant::now() + Duration::from_secs(5);
+        let mut both_finalizing = false;
+        while Instant::now() < stopped_progress_deadline {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            both_finalizing = [request_a.job_id, request_b.job_id]
+                .into_iter()
+                .all(|job_id| {
+                    app.view()
+                        .unified_parakeet_sessions
+                        .iter()
+                        .find(|session| session.job_id == job_id)
+                        .is_some_and(|session| {
+                            session.total_samples.is_some_and(|total| {
+                                session.captured_samples == total
+                                    && session.durable_samples == total
+                                    && session.phase
+                                        == whisper_core::ports::UnifiedSessionPhase::Finalizing
+                            })
+                        })
+                });
+            if both_finalizing {
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            both_finalizing,
+            "closed captures must expose final flushed progress without leaving Finalizing"
+        );
         release_tx.send(()).unwrap();
 
         let deadline = Instant::now() + Duration::from_secs(20);
@@ -12249,6 +12381,21 @@ mod tests {
                 entries
                     .iter()
                     .any(|entry| entry.job_id == job_id && entry.complete)
+            );
+            let session = app
+                .view()
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| session.job_id == job_id)
+                .expect("published capture remains visible in its session card");
+            let total_samples = session
+                .total_samples
+                .expect("closed capture reports its final sample count");
+            assert_eq!(session.captured_samples, total_samples);
+            assert_eq!(session.durable_samples, total_samples);
+            assert_eq!(
+                session.phase,
+                whisper_core::ports::UnifiedSessionPhase::Complete
             );
             let generation = archive_root
                 .join("transcriptions")
