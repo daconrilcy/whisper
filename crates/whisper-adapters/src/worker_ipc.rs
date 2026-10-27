@@ -17524,12 +17524,40 @@ mod tests {
             request: requests[1].clone(),
         })
         .expect("admit spoken capture B after stopped A drained, while A1 remains in flight");
+        let require_b_session =
+            |app: &ImportApplication<RuntimeImportPort>,
+             stage: &str,
+             observations: &[NativeQualificationEvent]| {
+                let view = app.view();
+                let Some(session) = view
+                    .unified_parakeet_sessions
+                    .iter()
+                    .find(|session| session.job_id == b && session.generation == generation)
+                    .cloned()
+                else {
+                    let recent_events = observations.iter().rev().take(12).collect::<Vec<_>>();
+                    panic!(
+                        "{stage}: B session {b:?}/{generation:?} disappeared; active_job={:?}, app_message={:?}, recent_native_events={recent_events:?}",
+                        view.active_job, view.message
+                    );
+                };
+                let recoverable_active_job = view
+                    .active_job
+                    .as_ref()
+                    .is_some_and(|(job_id, state)| *job_id == b && *state == JobState::Recoverable);
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
+                    || recoverable_active_job
+                {
+                    let recent_events = observations.iter().rev().take(12).collect::<Vec<_>>();
+                    panic!(
+                        "{stage}: B became Recoverable; session={session:?}, active_job={:?}, app_message={:?}, recent_native_events={recent_events:?}",
+                        view.active_job, view.message
+                    );
+                }
+                session
+            };
         assert!(
-            app.view().unified_parakeet_sessions.iter().any(|session| {
-                session.job_id == b
-                    && session.generation == generation
-                    && session.microphone_capture
-            }),
+            require_b_session(&app, "after Start B", &observations).microphone_capture,
             "the controlled B capture stream must be available after A closes"
         );
         let first_a_result_deadline = Instant::now() + Duration::from_secs(60 * 60);
@@ -17538,6 +17566,7 @@ mod tests {
                 .expect("poll A/B native runtime");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
+            let b_view = require_b_session(&app, "waiting for B audio ACK", &observations);
             let result = observations.iter().find_map(|event| match &event.kind {
                 NativeQualificationEventKind::Result {
                     session,
@@ -17557,12 +17586,25 @@ mod tests {
                 }
                 _ => None,
             });
-            if let (Some(result_at), Some(ack)) = (result, ack) {
-                break (result_at, ack);
+            if let Some(result_at) = result {
+                if let Some(ack) = ack.filter(|ack| ack.0 < result_at) {
+                    break (result_at, ack);
+                }
+                let view = app.view();
+                let a_view = view
+                    .unified_parakeet_sessions
+                    .iter()
+                    .find(|session| session.job_id == a && session.generation == generation)
+                    .cloned();
+                let recent_events = observations.iter().rev().take(16).collect::<Vec<_>>();
+                panic!(
+                    "A1 returned before B had a prior written-and-durable PCM ACK; result_at={result_at:?}, A={a_view:?}, B={b_view:?}, active_job={:?}, app_message={:?}, B_ack={ack:?}, recent_native_events={recent_events:?}",
+                    view.active_job, view.message
+                );
             }
             assert!(
                 Instant::now() < first_a_result_deadline,
-                "A1 correlated result or B written PCM ACK was not observed"
+                "A1 correlated result or B written PCM ACK was not observed; B={b_view:?}"
             );
             thread::sleep(Duration::from_millis(5));
         };
@@ -17603,6 +17645,7 @@ mod tests {
                         .expect("read A document page");
                     native_event_drain(&native_events, &mut observations);
                     observer.assert_healthy();
+                    require_b_session(&app, "waiting for A document page", &observations);
                     if let Some(page) = app
                         .view()
                         .selected_unified_session
@@ -17632,6 +17675,7 @@ mod tests {
             app.dispatch(AppCommand::Refresh)
                 .expect("wait for A final document revision");
             native_event_drain(&native_events, &mut observations);
+            require_b_session(&app, "waiting for A document revision", &observations);
             assert!(
                 Instant::now() < document_deadline,
                 "A final document revision was not exposed to the application"
@@ -17645,6 +17689,7 @@ mod tests {
                 .expect("progress A/B windows");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
+            require_b_session(&app, "waiting for A's second final request", &observations);
             if observations.iter().any(|event| {
                 matches!(
                     &event.kind,
@@ -17669,6 +17714,7 @@ mod tests {
                 .expect("complete A second window");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
+            require_b_session(&app, "waiting for A's second final result", &observations);
             let second_request = observations.iter().find_map(|event| match &event.kind {
                 NativeQualificationEventKind::RequestSent {
                     session,
@@ -17733,6 +17779,7 @@ mod tests {
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
             let view = app.view();
+            require_b_session(&app, "waiting for A/B publication", &observations);
             let sessions = &view.unified_parakeet_sessions;
             let now = Instant::now();
             for (job_id, drained_at, finalizing_at, publishing_at) in [
