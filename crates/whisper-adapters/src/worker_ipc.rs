@@ -17021,13 +17021,16 @@ mod tests {
         runtime.effect(ImportEffect::StartUnifiedLive(live_request), &mut events);
         assert!(
             matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
-            if message.contains("ModelNotQualified") && message.contains("native microphone capture remains closed")),
+            if message.contains("ModelNotQualified")
+                && message.contains("controlled worker injection is required")),
             "native capture must be refused before opening a microphone"
         );
         assert!(
             !root.exists(),
             "native capture refusal must precede storage/open side effects"
         );
+        assert!(runtime.unified_sessions.is_empty());
+        assert!(runtime.unified_executor.is_none());
 
         let mut gpu_live_request = unified_live_request(&root, 780);
         gpu_live_request.config.compute = ComputeChoice::Gpu;
@@ -17039,12 +17042,14 @@ mod tests {
             events.pop_front(),
             Some(ImportEvent::Failed { message, .. })
                 if message.contains("ModelNotQualified")
-                    && message.contains("native microphone capture remains closed")
+                    && message.contains("controlled worker injection is required")
         ));
+        assert!(!root.exists());
         assert!(runtime.unified_sessions.is_empty());
         assert!(runtime.unified_executor.is_none());
 
         let live_request = unified_live_request(&root, 779);
+        let live_identity = (live_request.job_id, live_request.generation);
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
@@ -17062,6 +17067,14 @@ mod tests {
             !root.exists(),
             "the real application route must refuse before opening capture"
         );
+        assert!(app.view().unified_parakeet_sessions.iter().any(|session| {
+            (session.job_id, session.generation) == live_identity
+                && session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
+                && session.message.as_deref().is_some_and(|message| {
+                    message.contains("ModelNotQualified")
+                        && message.contains("controlled worker injection is required")
+                })
+        }));
     }
 
     #[test]
