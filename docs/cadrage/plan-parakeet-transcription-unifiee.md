@@ -1,6 +1,6 @@
-Avancée : douze scénarios PU-L3 et régressions PU-L1/PU-L2 PASS ; validation desktop incomplète.
-Blocage : assertion desktop antérieure contradictoire, correction hors chemins T7–T8 encore non autorisée.
-Décision : ajustement ciblé du §26 relu CLEAN documentaire, soumis à accord ; garde et budgets conservés.
+Avancée : PU-L3 T7–T8 CLEAN global sur 5432a4c1, 50 commandes et 161 tests réussis.
+Blocage : aucun constat PU-L3 ouvert ; campagne native T9, seuils Q-PU-03 et recette Windows T10 à préparer séparément.
+Décision : clôturer PU-L3 et préparer PU-L4 selon les dépendances et autorisations du plan.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -767,3 +767,16 @@ Passage 0851c5c82eddf6cd5cab177d0809df90088b4dda, run 7b6a8d4f0ed34174add8d11a8b
 
 
 **Ajustement §26 réalisé et relu.** Même worker, seul model_selection_ui.rs : test renommé parakeet_preserves_import_compute_preferences_and_legacy_live_availability_without_changing_turbo et assertion de disponibilité Parakeet rendue vraie. Même reviewer : CLEAN ciblé, reconstruction du blob antérieur en annulant ces deux changements identique à cd3286781f50b6cd1b80291ed0861759150488fb, preuve que les autres contrôles calcul/Turbo/préférence et tests restent intacts. La voie unifiée native demeure hors de ce test. FormatOnly gardé 4a08fa0e7b2a43c2826477c456c20532 PASS ; scope du lanceur limité aux six sources §23 et au seul test ajouté §26. Nouveau candidat et passage complet sans réutilisation encore requis.
+
+
+## 27. Clôture globale PU-L3 T7–T8
+
+**Candidat exact.** 5432a4c10a70f44fc94e4148d5ad8af4f7a39dd7, run gardé 98ceb5b610be4bebb1baa15ecbb9ff2e, aucun préfixe réutilisé : **50 commandes code 0**, dont 48 commandes exécutant des tests ; **161 tests réussis, zéro échoué, zéro ignoré**. Formatage check et no-run core/adapters/desktop PASS, douze scénarios PU-L3 chacun un cas réussi, quatorze sélections PU-L2, treize témoins core nommés, régressions PU-L1, source binding, WAV court/long et MP3 réel, tests desktop sélection modèle (neuf), micro (deux) et récupération (deux) tous réellement passés. VALIDATION_PASS et CAMPAIGN_END code 0 présents ; le test §26 renommé est explicitement PASS.
+
+**Verdict indépendant.** Même coordinateur et même reviewer historique : **CLEAN global PU-L3 T7/T8** après contrôle du lien SHA/journal/racines, des cinquante paires start/end et recalcul 161/0/0. Tous PU-L3-01 à 09 et l'écart du §26 clos ; findings vides, aucun gap requis pour ce lot. Le contrôle couvre fermeture A/B, annulation/engagement, admissions/file et réessai, pages/erreurs périmées, cache et attentes bornés, progression réelle/durable finale, publications et composants egui contrôlés. Aucune conclusion matérielle ou d'usage de la fenêtre Windows tirée de ces tests.
+
+**Garde et ressources.** 34 refus d'auto-tests PASS, 134 événements Temp UNATTRIBUTED conservés sans attribution, aucun FAIL/WATCH_ERROR/CLOSURE_FAIL/VALIDATION_FAIL dans le passage final. Surveillance non préventive et non exhaustive. **1 276,3678607 secondes cumulées (21 min 16 s)** sur 7 200 ; croissance mesurée avant archive **835 170 768 octets** (~0,778 Gio) sur 8 Gio, baseline partagée 16 869 669 959 octets conservée. Espace libre après archive **153 204 617 216 octets** (~142,69 Gio). Modèle et corpus MP3 SHA-256 identiques à PU-L1/PU-L2. Sources suivies propres avant cette clôture, corpus/modèles non suivis préservés ; aucun nettoyage ni push.
+
+**Petites preuves.** target/parakeet-tests/parakeet-unified/lot-03/archives/pu-l3-validation-98ceb5b610be4bebb1baa15ecbb9ff2e.zip : **298 fichiers**, 343 628 octets, arborescence/nombre/tailles/SHA-256 de chaque entrée vérifiés. SHA-256 ZIP **3970b29bbf74ef8865099d66fb275c15b7261cbc954edd504e5c91b1afcd303e**. Tous les passages, arrêts conservés et lanceur inclus ; anciennes preuves et cible Cargo partagée préservées.
+
+**Sorties pour la suite.** Prérequis CODE et EXECUTION de T7/T8 désormais fournis pour préparer PU-L4. Native CPU/GPU/Auto, qualité/vitesse, plusieurs durées >30 minutes, rotation physique >1 Gio, mémoire réelle et recette utilisateur Windows restent T9/T10 ; Q-PU-03 demeure ouverte selon §19.5. Ni l'accord §24 ni l'ajustement §26 ne transfèrent de campagne, budget ou dérogation à PU-L4. Ce commit de clôture ne change que le plan, sans modifier les sources validées.
