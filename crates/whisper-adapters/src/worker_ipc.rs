@@ -17349,6 +17349,8 @@ mod tests {
 
         let spoken = native_spoken_prefix(&execution_root);
         let a_samples = spoken.len();
+        let expected_a_samples =
+            u64::try_from(a_samples).expect("spoken prefix sample count fits u64");
         let a = JobId((u128::from(std::process::id()) << 96) | 0x4e415449564541);
         let b = JobId(a.0 + 1);
         let c = JobId(a.0 + 2);
@@ -17399,6 +17401,7 @@ mod tests {
             }
         }
         let blocks = Arc::new(Mutex::new(VecDeque::new()));
+        let stop_submissions = Arc::new(AtomicU64::new(0));
         for chunk in spoken.chunks(80_000) {
             blocks
                 .lock()
@@ -17426,7 +17429,7 @@ mod tests {
             events: VecDeque::new(),
             capture_progress: None,
             document_revision: None,
-            unified_stop_submissions: None,
+            unified_stop_submissions: Some(Arc::clone(&stop_submissions)),
             controlled_capture_blocks: Some(Arc::clone(&blocks)),
         };
         let mut app = ImportApplication::new(port);
@@ -17437,7 +17440,7 @@ mod tests {
         .expect("admit spoken capture A through ImportApplication");
         let mut observations = Vec::with_capacity(256);
         let first_send_deadline = Instant::now() + Duration::from_secs(60 * 60);
-        let first_a_send = loop {
+        let (first_a_request_id, first_a_send) = loop {
             app.dispatch(AppCommand::Refresh).expect("poll capture A");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
@@ -17451,7 +17454,11 @@ mod tests {
                     } if session.job_id == a
                 )
             }) {
-                break event.at;
+                let request_id = match &event.kind {
+                    NativeQualificationEventKind::RequestSent { request_id, .. } => *request_id,
+                    _ => unreachable!("matched A1 RequestSent"),
+                };
+                break (request_id, event.at);
             }
             assert!(
                 Instant::now() < first_send_deadline,
@@ -17460,14 +17467,71 @@ mod tests {
             thread::sleep(Duration::from_millis(5));
         };
 
+        let a_stop = Instant::now();
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: a,
+            generation,
+        })
+        .expect("stop capture A through ImportApplication while A1 remains in flight");
+        assert_eq!(
+            stop_submissions.load(Ordering::Relaxed),
+            1,
+            "the initial A stop must reach the runtime exactly once"
+        );
+        let a_drain_deadline = Instant::now() + Duration::from_secs(60 * 60);
+        let a_drain_completed = loop {
+            app.dispatch(AppCommand::Refresh)
+                .expect("close and drain capture A while A1 continues");
+            native_event_drain(&native_events, &mut observations);
+            observer.assert_healthy();
+            let a_view = app
+                .view()
+                .unified_parakeet_sessions
+                .into_iter()
+                .find(|session| session.job_id == a && session.generation == generation)
+                .expect("stopped A remains visible while its native request drains");
+            let acknowledged = observations
+                .iter()
+                .rev()
+                .find_map(|event| match &event.kind {
+                    NativeQualificationEventKind::CaptureAcknowledged {
+                        session,
+                        written_samples,
+                        durable_samples,
+                    } if session.job_id == a => Some((*written_samples, *durable_samples)),
+                    _ => None,
+                });
+            if a_view.total_samples == Some(expected_a_samples)
+                && a_view.captured_samples == expected_a_samples
+                && a_view.durable_samples == expected_a_samples
+                && acknowledged == Some((expected_a_samples, expected_a_samples))
+            {
+                break Instant::now();
+            }
+            assert!(
+                Instant::now() < a_drain_deadline,
+                "Stop A did not close and durably drain all {expected_a_samples} captured samples"
+            );
+            thread::sleep(Duration::from_millis(5));
+        };
+
         blocks
             .lock()
             .unwrap()
             .push_back((b, generation, spoken[..5 * 16_000].to_vec()));
+        let b_start = Instant::now();
         app.dispatch(AppCommand::StartUnifiedLiveConfigured {
             request: requests[1].clone(),
         })
-        .expect("admit spoken capture B while A's native final call is in flight");
+        .expect("admit spoken capture B after stopped A drained, while A1 remains in flight");
+        assert!(
+            app.view().unified_parakeet_sessions.iter().any(|session| {
+                session.job_id == b
+                    && session.generation == generation
+                    && session.microphone_capture
+            }),
+            "the controlled B capture stream must be available after A closes"
+        );
         let first_a_result_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let (first_a_result, b_audio_ack) = loop {
             app.dispatch(AppCommand::Refresh)
@@ -17480,16 +17544,7 @@ mod tests {
                     request_id,
                     work: NativeQualificationWork::Final(1),
                     ..
-                } if session.job_id == a => Some((*request_id, event.at)),
-                _ => None,
-            });
-            let send_id = observations.iter().find_map(|event| match &event.kind {
-                NativeQualificationEventKind::RequestSent {
-                    session,
-                    work: NativeQualificationWork::Final(1),
-                    request_id,
-                    ..
-                } if session.job_id == a => Some(*request_id),
+                } if session.job_id == a && *request_id == first_a_request_id => Some(event.at),
                 _ => None,
             });
             let ack = observations.iter().find_map(|event| match &event.kind {
@@ -17502,21 +17557,22 @@ mod tests {
                 }
                 _ => None,
             });
-            if let (Some((request_id, result_at)), Some(send_id), Some(ack)) =
-                (result, send_id, ack)
-            {
-                assert_eq!(request_id, send_id, "A result must correlate to A1 request");
+            if let (Some(result_at), Some(ack)) = (result, ack) {
                 break (result_at, ack);
             }
             assert!(
                 Instant::now() < first_a_result_deadline,
-                "A1 result or B written PCM ACK was not observed"
+                "A1 correlated result or B written PCM ACK was not observed"
             );
             thread::sleep(Duration::from_millis(5));
         };
         assert!(
-            first_a_send < b_audio_ack.0 && b_audio_ack.0 < first_a_result,
-            "B PCM write ACK must occur strictly between A request send and its correlated result"
+            first_a_send < a_stop
+                && a_stop < a_drain_completed
+                && a_drain_completed < b_start
+                && b_start < b_audio_ack.0
+                && b_audio_ack.0 < first_a_result,
+            "A1 must be sent, A stopped/drained, B admitted/written, then A1 returned in that order"
         );
 
         app.dispatch(AppCommand::SelectUnifiedSession {
@@ -17643,18 +17699,25 @@ mod tests {
             thread::sleep(Duration::from_millis(5));
         }
 
-        let a_stop = Instant::now();
+        let late_a_stop = Instant::now();
         app.dispatch(AppCommand::StopUnifiedLive {
             job_id: a,
             generation,
         })
-        .expect("stop A through ImportApplication");
+        .expect("a late duplicate Stop A remains idempotent through ImportApplication");
+        assert!(late_a_stop > a_stop);
+        assert_eq!(
+            stop_submissions.load(Ordering::Relaxed),
+            1,
+            "duplicate Stop A must not resubmit the runtime stop"
+        );
         let b_stop = Instant::now();
         app.dispatch(AppCommand::StopUnifiedLive {
             job_id: b,
             generation,
         })
         .expect("stop B through ImportApplication");
+        assert_eq!(stop_submissions.load(Ordering::Relaxed), 2);
         let publication_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let mut a_published_at = None;
         let mut b_published_at = None;
@@ -17757,6 +17820,13 @@ mod tests {
             );
             assert_eq!(session.total_samples, Some(session.captured_samples));
             assert_eq!(session.captured_samples, session.durable_samples);
+            if job_id == a {
+                assert_eq!(
+                    session.total_samples,
+                    Some(expected_a_samples),
+                    "published A must contain exactly the complete spoken source prefix"
+                );
+            }
             let files = ArchiveStore::published_unified_files(&archive_root, job_id, generation)
                 .expect("native app session must publish its complete artifacts");
             for path in [&files.wav_path, &files.txt_path, &files.srt_path] {
