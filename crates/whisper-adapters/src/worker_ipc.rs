@@ -15586,7 +15586,7 @@ mod tests {
                     (job_id, generation),
                     (request_b.job_id, request_b.generation)
                 );
-                assert!(message.contains("worker thread panicked"));
+                assert!(message.contains("InferenceReap: disconnected worker thread panicked"));
                 failed_b = true;
                 break;
             }
@@ -15606,9 +15606,7 @@ mod tests {
         assert!(!runtime.unified_archives.contains_key(&session_b));
         assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
         assert!(runtime.parakeet_scheduler.in_flight().is_none());
-        let executor = runtime.unified_executor.as_ref().unwrap();
-        assert!(executor.thread.is_none());
-        assert!(executor.worker.is_none());
+        assert!(runtime.unified_executor.is_none());
         assert!(
             runtime
                 .start_controlled_unified_import(&unified_import_request(
