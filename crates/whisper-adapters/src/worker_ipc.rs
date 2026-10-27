@@ -17434,16 +17434,115 @@ mod tests {
         };
         let mut app = ImportApplication::new(port);
         let run_started = Instant::now();
+        let mut observations = Vec::with_capacity(256);
+        let trace_path = archive_root.join("ab-c-progress.log");
+        let mut trace_lines = VecDeque::with_capacity(128);
+        let mut trace_checkpoint =
+            |stage: &str,
+             app: &ImportApplication<RuntimeImportPort>,
+             request_id: Option<u64>,
+             observations: &[NativeQualificationEvent]| {
+                let view = app.view();
+                let session_state = |job_id| {
+                    view.unified_parakeet_sessions
+                        .iter()
+                        .find(|session| {
+                            session.job_id == job_id && session.generation == generation
+                        })
+                        .map(|session| {
+                            format!(
+                                "phase={:?},captured={},durable={},total={:?},revision={}",
+                                session.phase,
+                                session.captured_samples,
+                                session.durable_samples,
+                                session.total_samples,
+                                session.document_revision
+                            )
+                        })
+                        .unwrap_or_else(|| "absent".to_owned())
+                };
+                let last_event = observations
+                    .last()
+                    .map(|event| {
+                        format!("{:?}@{:?}", event.kind, event.at)
+                            .chars()
+                            .take(512)
+                            .collect::<String>()
+                    })
+                    .unwrap_or_else(|| "none".to_owned());
+                let line = format!(
+                    "elapsed_ms={} stage={} A={:?}/{:?}[{}] B={:?}/{:?}[{}] request_id={:?} active={:?} message={:?} events={} last={}",
+                    run_started.elapsed().as_millis(),
+                    stage,
+                    a,
+                    generation,
+                    session_state(a),
+                    b,
+                    generation,
+                    session_state(b),
+                    request_id,
+                    view.active_job,
+                    view.message
+                        .as_deref()
+                        .map(|message| message.chars().take(240).collect::<String>()),
+                    observations.len(),
+                    last_event
+                );
+                if trace_lines.len() == 128 {
+                    trace_lines.pop_front();
+                }
+                trace_lines.push_back(line);
+                let mut file = fs::File::create(&trace_path).unwrap_or_else(|error| {
+                    panic!(
+                        "create bounded A/B/C progress trace {}: {error}",
+                        trace_path.display()
+                    )
+                });
+                for line in &trace_lines {
+                    writeln!(file, "{line}").unwrap_or_else(|error| {
+                        panic!("write bounded A/B/C progress trace: {error}")
+                    });
+                }
+                file.flush()
+                    .unwrap_or_else(|error| panic!("flush bounded A/B/C progress trace: {error}"));
+            };
+        let mut other_wait_trace_at = Instant::now();
+        macro_rules! trace_wait_before_refresh {
+            ($stage:literal, $request_id:expr) => {{
+                if other_wait_trace_at.elapsed() >= Duration::from_secs(5) {
+                    trace_checkpoint(
+                        concat!($stage, "-before-Refresh"),
+                        &app,
+                        $request_id,
+                        &observations,
+                    );
+                    other_wait_trace_at = Instant::now();
+                    true
+                } else {
+                    false
+                }
+            }};
+        }
+        trace_checkpoint("before-Start-A", &app, None, &observations);
         app.dispatch(AppCommand::StartUnifiedLiveConfigured {
             request: requests[0].clone(),
         })
         .expect("admit spoken capture A through ImportApplication");
-        let mut observations = Vec::with_capacity(256);
+        trace_checkpoint("after-Start-A", &app, None, &observations);
         let first_send_deadline = Instant::now() + Duration::from_secs(60 * 60);
+        let mut first_send_trace_at = Instant::now();
         let (first_a_request_id, first_a_send) = loop {
+            let trace_refresh = first_send_trace_at.elapsed() >= Duration::from_secs(5);
+            if trace_refresh {
+                trace_checkpoint("wait-A1-before-Refresh", &app, None, &observations);
+            }
             app.dispatch(AppCommand::Refresh).expect("poll capture A");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
+            if trace_refresh {
+                trace_checkpoint("wait-A1-after-Refresh", &app, None, &observations);
+                first_send_trace_at = Instant::now();
+            }
             if let Some(event) = observations.iter().find(|event| {
                 matches!(
                     &event.kind,
@@ -17458,32 +17557,65 @@ mod tests {
                     NativeQualificationEventKind::RequestSent { request_id, .. } => *request_id,
                     _ => unreachable!("matched A1 RequestSent"),
                 };
+                trace_checkpoint("A1-RequestSent", &app, Some(request_id), &observations);
                 break (request_id, event.at);
             }
             assert!(
                 Instant::now() < first_send_deadline,
-                "A1 native final call was not sent"
+                "A1 native final call was not sent; trace={}",
+                trace_path.display()
             );
             thread::sleep(Duration::from_millis(5));
         };
 
         let a_stop = Instant::now();
+        trace_checkpoint(
+            "before-Stop-A",
+            &app,
+            Some(first_a_request_id),
+            &observations,
+        );
         app.dispatch(AppCommand::StopUnifiedLive {
             job_id: a,
             generation,
         })
         .expect("stop capture A through ImportApplication while A1 remains in flight");
+        trace_checkpoint(
+            "after-Stop-A",
+            &app,
+            Some(first_a_request_id),
+            &observations,
+        );
         assert_eq!(
             stop_submissions.load(Ordering::Relaxed),
             1,
             "the initial A stop must reach the runtime exactly once"
         );
         let a_drain_deadline = Instant::now() + Duration::from_secs(60 * 60);
+        let mut a_drain_trace_at = Instant::now();
         let a_drain_completed = loop {
+            let trace_refresh = a_drain_trace_at.elapsed() >= Duration::from_secs(5);
+            if trace_refresh {
+                trace_checkpoint(
+                    "A-drain-before-Refresh",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
+            }
             app.dispatch(AppCommand::Refresh)
                 .expect("close and drain capture A while A1 continues");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
+            if trace_refresh {
+                trace_checkpoint(
+                    "A-drain-after-Refresh",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
+                a_drain_trace_at = Instant::now();
+            }
             let a_view = app
                 .view()
                 .unified_parakeet_sessions
@@ -17506,11 +17638,18 @@ mod tests {
                 && a_view.durable_samples == expected_a_samples
                 && acknowledged == Some((expected_a_samples, expected_a_samples))
             {
+                trace_checkpoint(
+                    "A-drain-complete",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
                 break Instant::now();
             }
             assert!(
                 Instant::now() < a_drain_deadline,
-                "Stop A did not close and durably drain all {expected_a_samples} captured samples"
+                "Stop A did not close and durably drain all {expected_a_samples} captured samples; trace={} ",
+                trace_path.display()
             );
             thread::sleep(Duration::from_millis(5));
         };
@@ -17520,10 +17659,22 @@ mod tests {
             .unwrap()
             .push_back((b, generation, spoken[..5 * 16_000].to_vec()));
         let b_start = Instant::now();
+        trace_checkpoint(
+            "before-Start-B",
+            &app,
+            Some(first_a_request_id),
+            &observations,
+        );
         app.dispatch(AppCommand::StartUnifiedLiveConfigured {
             request: requests[1].clone(),
         })
         .expect("admit spoken capture B after stopped A drained, while A1 remains in flight");
+        trace_checkpoint(
+            "after-Start-B",
+            &app,
+            Some(first_a_request_id),
+            &observations,
+        );
         let require_b_session =
             |app: &ImportApplication<RuntimeImportPort>,
              stage: &str,
@@ -17537,8 +17688,10 @@ mod tests {
                 else {
                     let recent_events = observations.iter().rev().take(12).collect::<Vec<_>>();
                     panic!(
-                        "{stage}: B session {b:?}/{generation:?} disappeared; active_job={:?}, app_message={:?}, recent_native_events={recent_events:?}",
-                        view.active_job, view.message
+                        "{stage}: B session {b:?}/{generation:?} disappeared; active_job={:?}, app_message={:?}, recent_native_events={recent_events:?}, trace={}",
+                        view.active_job,
+                        view.message,
+                        trace_path.display()
                     );
                 };
                 let recoverable_active_job = view
@@ -17550,22 +17703,44 @@ mod tests {
                 {
                     let recent_events = observations.iter().rev().take(12).collect::<Vec<_>>();
                     panic!(
-                        "{stage}: B became Recoverable; session={session:?}, active_job={:?}, app_message={:?}, recent_native_events={recent_events:?}",
-                        view.active_job, view.message
+                        "{stage}: B became Recoverable; session={session:?}, active_job={:?}, app_message={:?}, recent_native_events={recent_events:?}, trace={}",
+                        view.active_job,
+                        view.message,
+                        trace_path.display()
                     );
                 }
                 session
             };
         assert!(
             require_b_session(&app, "after Start B", &observations).microphone_capture,
-            "the controlled B capture stream must be available after A closes"
+            "the controlled B capture stream must be available after A closes; trace={}",
+            trace_path.display()
         );
         let first_a_result_deadline = Instant::now() + Duration::from_secs(60 * 60);
+        let mut b_ack_trace_at = Instant::now();
         let (first_a_result, b_audio_ack) = loop {
+            let trace_refresh = b_ack_trace_at.elapsed() >= Duration::from_secs(5);
+            if trace_refresh {
+                trace_checkpoint(
+                    "A1-B-ACK-before-Refresh",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
+            }
             app.dispatch(AppCommand::Refresh)
                 .expect("poll A/B native runtime");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
+            if trace_refresh {
+                trace_checkpoint(
+                    "A1-B-ACK-after-Refresh",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
+                b_ack_trace_at = Instant::now();
+            }
             let b_view = require_b_session(&app, "waiting for B audio ACK", &observations);
             let result = observations.iter().find_map(|event| match &event.kind {
                 NativeQualificationEventKind::Result {
@@ -17588,6 +17763,12 @@ mod tests {
             });
             if let Some(result_at) = result {
                 if let Some(ack) = ack.filter(|ack| ack.0 < result_at) {
+                    trace_checkpoint(
+                        "B-ACK-before-A1-Result",
+                        &app,
+                        Some(first_a_request_id),
+                        &observations,
+                    );
                     break (result_at, ack);
                 }
                 let view = app.view();
@@ -17598,13 +17779,16 @@ mod tests {
                     .cloned();
                 let recent_events = observations.iter().rev().take(16).collect::<Vec<_>>();
                 panic!(
-                    "A1 returned before B had a prior written-and-durable PCM ACK; result_at={result_at:?}, A={a_view:?}, B={b_view:?}, active_job={:?}, app_message={:?}, B_ack={ack:?}, recent_native_events={recent_events:?}",
-                    view.active_job, view.message
+                    "A1 returned before B had a prior written-and-durable PCM ACK; result_at={result_at:?}, A={a_view:?}, B={b_view:?}, active_job={:?}, app_message={:?}, B_ack={ack:?}, recent_native_events={recent_events:?}, trace={}",
+                    view.active_job,
+                    view.message,
+                    trace_path.display()
                 );
             }
             assert!(
                 Instant::now() < first_a_result_deadline,
-                "A1 correlated result or B written PCM ACK was not observed; B={b_view:?}"
+                "A1 correlated result or B written PCM ACK was not observed; B={b_view:?}, trace={}",
+                trace_path.display()
             );
             thread::sleep(Duration::from_millis(5));
         };
@@ -17641,10 +17825,20 @@ mod tests {
                 })
                 .expect("request A's bounded page through ImportApplication");
                 loop {
+                    let trace_refresh =
+                        trace_wait_before_refresh!("A-document-page", Some(first_a_request_id));
                     app.dispatch(AppCommand::Refresh)
                         .expect("read A document page");
                     native_event_drain(&native_events, &mut observations);
                     observer.assert_healthy();
+                    if trace_refresh {
+                        trace_checkpoint(
+                            "A-document-page-after-Refresh",
+                            &app,
+                            Some(first_a_request_id),
+                            &observations,
+                        );
+                    }
                     require_b_session(&app, "waiting for A document page", &observations);
                     if let Some(page) = app
                         .view()
@@ -17672,9 +17866,19 @@ mod tests {
                 }
                 break;
             }
+            let trace_refresh =
+                trace_wait_before_refresh!("A-document-revision", Some(first_a_request_id));
             app.dispatch(AppCommand::Refresh)
                 .expect("wait for A final document revision");
             native_event_drain(&native_events, &mut observations);
+            if trace_refresh {
+                trace_checkpoint(
+                    "A-document-revision-after-Refresh",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
+            }
             require_b_session(&app, "waiting for A document revision", &observations);
             assert!(
                 Instant::now() < document_deadline,
@@ -17685,10 +17889,20 @@ mod tests {
 
         let a_second_send_deadline = Instant::now() + Duration::from_secs(60 * 60);
         loop {
+            let trace_refresh =
+                trace_wait_before_refresh!("A-second-window-send", Some(first_a_request_id));
             app.dispatch(AppCommand::Refresh)
                 .expect("progress A/B windows");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
+            if trace_refresh {
+                trace_checkpoint(
+                    "A-second-window-send-after-Refresh",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
+            }
             require_b_session(&app, "waiting for A's second final request", &observations);
             if observations.iter().any(|event| {
                 matches!(
@@ -17710,10 +17924,20 @@ mod tests {
         }
         let a_second_result_deadline = Instant::now() + Duration::from_secs(60 * 60);
         loop {
+            let trace_refresh =
+                trace_wait_before_refresh!("A-second-window-result", Some(first_a_request_id));
             app.dispatch(AppCommand::Refresh)
                 .expect("complete A second window");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
+            if trace_refresh {
+                trace_checkpoint(
+                    "A-second-window-result-after-Refresh",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
+            }
             require_b_session(&app, "waiting for A's second final result", &observations);
             let second_request = observations.iter().find_map(|event| match &event.kind {
                 NativeQualificationEventKind::RequestSent {
@@ -17746,11 +17970,23 @@ mod tests {
         }
 
         let late_a_stop = Instant::now();
+        trace_checkpoint(
+            "before-duplicate-Stop-A",
+            &app,
+            Some(first_a_request_id),
+            &observations,
+        );
         app.dispatch(AppCommand::StopUnifiedLive {
             job_id: a,
             generation,
         })
         .expect("a late duplicate Stop A remains idempotent through ImportApplication");
+        trace_checkpoint(
+            "after-duplicate-Stop-A",
+            &app,
+            Some(first_a_request_id),
+            &observations,
+        );
         assert!(late_a_stop > a_stop);
         assert_eq!(
             stop_submissions.load(Ordering::Relaxed),
@@ -17758,11 +17994,23 @@ mod tests {
             "duplicate Stop A must not resubmit the runtime stop"
         );
         let b_stop = Instant::now();
+        trace_checkpoint(
+            "before-Stop-B",
+            &app,
+            Some(first_a_request_id),
+            &observations,
+        );
         app.dispatch(AppCommand::StopUnifiedLive {
             job_id: b,
             generation,
         })
         .expect("stop B through ImportApplication");
+        trace_checkpoint(
+            "after-Stop-B",
+            &app,
+            Some(first_a_request_id),
+            &observations,
+        );
         assert_eq!(stop_submissions.load(Ordering::Relaxed), 2);
         let publication_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let mut a_published_at = None;
@@ -17774,10 +18022,20 @@ mod tests {
         let mut a_publishing_at = None;
         let mut b_publishing_at = None;
         loop {
+            let trace_refresh =
+                trace_wait_before_refresh!("A-B-publication", Some(first_a_request_id));
             app.dispatch(AppCommand::Refresh)
                 .expect("drain A/B publication");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
+            if trace_refresh {
+                trace_checkpoint(
+                    "A-B-publication-after-Refresh",
+                    &app,
+                    Some(first_a_request_id),
+                    &observations,
+                );
+            }
             let view = app.view();
             require_b_session(&app, "waiting for A/B publication", &observations);
             let sessions = &view.unified_parakeet_sessions;
@@ -18008,16 +18266,22 @@ mod tests {
             .lock()
             .unwrap()
             .push_back((c, generation, spoken[..4 * 16_000].to_vec()));
+        trace_checkpoint("before-Start-C", &app, None, &observations);
         app.dispatch(AppCommand::StartUnifiedLiveConfigured {
             request: requests[2].clone(),
         })
         .expect("admit C through the same application and runtime after A/B publication");
+        trace_checkpoint("after-Start-C", &app, None, &observations);
         let c_ready_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let c_ready = loop {
+            let trace_refresh = trace_wait_before_refresh!("C-ready", None);
             app.dispatch(AppCommand::Refresh)
                 .expect("start replacement child for C");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
+            if trace_refresh {
+                trace_checkpoint("C-ready-after-Refresh", &app, None, &observations);
+            }
             if let Some(event) = observations.iter().find(|event| {
                 matches!(
                     &event.kind,
@@ -18081,21 +18345,27 @@ mod tests {
             }
         }
         let c_stop = Instant::now();
+        trace_checkpoint("before-Stop-C", &app, None, &observations);
         app.dispatch(AppCommand::StopUnifiedLive {
             job_id: c,
             generation,
         })
         .expect("stop C through ImportApplication");
+        trace_checkpoint("after-Stop-C", &app, None, &observations);
         let c_publication_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let mut c_published_at = None;
         let mut c_audio_drained_at = None;
         let mut c_finalizing_at = None;
         let mut c_publishing_at = None;
         loop {
+            let trace_refresh = trace_wait_before_refresh!("C-publication", None);
             app.dispatch(AppCommand::Refresh)
                 .expect("publish C through the same runtime");
             native_event_drain(&native_events, &mut observations);
             observer.assert_healthy();
+            if trace_refresh {
+                trace_checkpoint("C-publication-after-Refresh", &app, None, &observations);
+            }
             let view = app.view();
             if let Some(session) = view
                 .unified_parakeet_sessions
