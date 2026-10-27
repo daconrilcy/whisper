@@ -2587,6 +2587,17 @@ impl UnifiedInferenceExecutor {
         let panic_during_transcription_for = self.panic_during_transcription_for;
         #[cfg(test)]
         {
+            if let Some(observer) = &self.child_observer {
+                let last_observed_incarnation = observer
+                    .lock()
+                    .expect("controlled child observation mutex")
+                    .iter()
+                    .map(|event| event.incarnation)
+                    .max()
+                    .unwrap_or(0);
+                self.next_child_incarnation =
+                    self.next_child_incarnation.max(last_observed_incarnation);
+            }
             self.next_child_incarnation = self.next_child_incarnation.saturating_add(1);
             self.current_child_incarnation = self.next_child_incarnation;
         }
