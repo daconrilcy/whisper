@@ -4127,8 +4127,8 @@ mod tests {
                                 )
                         })
                     {
-                        view.unified_parakeet_sessions
-                            .push(whisper_core::ports::UnifiedParakeetSessionView {
+                        view.unified_parakeet_sessions.push(
+                            whisper_core::ports::UnifiedParakeetSessionView {
                                 job_id: request.job_id,
                                 generation: request.generation,
                                 microphone_capture: true,
@@ -4144,7 +4144,8 @@ mod tests {
                                 txt_path: None,
                                 srt_path: None,
                                 message: None,
-                            });
+                            },
+                        );
                     } else {
                         return Err(ApplicationError::InvalidCommand);
                     }
@@ -5011,8 +5012,8 @@ mod tests {
         let parakeet = ModelId::ParakeetTdt06BV3;
 
         let candidate = RecordingApplication::default();
-        let mut candidate_app = DesktopApp::new(candidate.clone())
-            .with_unified_candidate_enabled(true);
+        let mut candidate_app =
+            DesktopApp::new(candidate.clone()).with_unified_candidate_enabled(true);
         candidate_app.selection.model = Some(parakeet);
         candidate_app.paths.audio = "input.wav".into();
         candidate_app.paths.destination = "output".into();
@@ -5153,9 +5154,12 @@ mod tests {
             "the rendered control admits B while A finalizes"
         );
         assert_eq!(app.view.unified_parakeet_sessions.len(), 2);
-        assert!(app.view.unified_parakeet_sessions.iter().any(|session| {
-            session.microphone_capture && session.phase == Phase::Capturing
-        }));
+        assert!(
+            app.view
+                .unified_parakeet_sessions
+                .iter()
+                .any(|session| { session.microphone_capture && session.phase == Phase::Capturing })
+        );
 
         run_ui_frame(&context, &mut app, Vec::new());
         assert_eq!(
@@ -5182,8 +5186,11 @@ mod tests {
         use whisper_core::ports::{UnifiedParakeetSessionView, UnifiedSessionPhase as Phase};
 
         let application = MicrophoneCycleApplication::default();
-        application.view.borrow_mut().unified_parakeet_sessions.push(
-            UnifiedParakeetSessionView {
+        application
+            .view
+            .borrow_mut()
+            .unified_parakeet_sessions
+            .push(UnifiedParakeetSessionView {
                 job_id: JobId(910),
                 generation: Generation::first(),
                 microphone_capture: true,
@@ -5199,8 +5206,7 @@ mod tests {
                 txt_path: None,
                 srt_path: None,
                 message: None,
-            },
-        );
+            });
         {
             let mut view = application.view.borrow_mut();
             view.microphone_source_identity = Some("wasapi:chosen".into());

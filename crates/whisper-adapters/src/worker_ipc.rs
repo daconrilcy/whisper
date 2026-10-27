@@ -6372,8 +6372,7 @@ impl ImportRuntime {
 
                         #[cfg(test)]
                         if let Some(capture) = self.controlled_captures.pop_front() {
-                            let part_limit =
-                                self.controlled_part_limits.pop_front().flatten();
+                            let part_limit = self.controlled_part_limits.pop_front().flatten();
                             return self.start_unified_capture(
                                 &bound,
                                 capture,
@@ -13557,18 +13556,14 @@ mod tests {
         }
 
         let factory_calls = AtomicU64::new(0);
-        let result = runtime.start_native_unified_capture_with(
-            &request_third,
-            route,
-            |_, _| {
-                factory_calls.fetch_add(1, Ordering::Relaxed);
-                Ok(CaptureStream::empty_test_capture(
-                    16_000,
-                    1,
-                    "test:must-not-open",
-                ))
-            },
-        );
+        let result = runtime.start_native_unified_capture_with(&request_third, route, |_, _| {
+            factory_calls.fetch_add(1, Ordering::Relaxed);
+            Ok(CaptureStream::empty_test_capture(
+                16_000,
+                1,
+                "test:must-not-open",
+            ))
+        });
         assert!(
             result
                 .as_ref()
@@ -13582,11 +13577,7 @@ mod tests {
         for request in [&request_a, &request_b] {
             let mut events = VecDeque::new();
             runtime
-                .stop_controlled_unified_capture(
-                    request.job_id,
-                    request.generation,
-                    &mut events,
-                )
+                .stop_controlled_unified_capture(request.job_id, request.generation, &mut events)
                 .unwrap();
         }
         drop(runtime);
@@ -13622,10 +13613,7 @@ mod tests {
             },
         );
 
-        assert_eq!(
-            result.unwrap_err(),
-            "controlled source unavailable"
-        );
+        assert_eq!(result.unwrap_err(), "controlled source unavailable");
         assert_eq!(factory_calls.load(Ordering::Relaxed), 1);
         assert!(runtime.unified_sessions.is_empty());
         assert!(runtime.unified_archives.is_empty());
