@@ -15731,7 +15731,7 @@ mod tests {
             Arc::new(PublicationGate::default()),
         )
         .with_controlled_transcriber(Box::new(TailAwareUnifiedWorker));
-        runtime.snapshot_registry_root = Some(settings_root);
+        runtime.snapshot_registry_root = Some(settings_root.clone());
         runtime
             .start_controlled_unified_capture(&request, capture, None, None)
             .unwrap();
@@ -15739,8 +15739,15 @@ mod tests {
         let error = runtime
             .release_source_binding(request.job_id, request.generation, &archive_root)
             .unwrap_err();
-        assert!(error.contains("SourceSnapshotRegistryUnavailable"));
-        assert!(error.contains(&orphan.display().to_string()));
+        assert!(
+            error.contains("SourceSnapshotRegistryUnavailable"),
+            "{error}"
+        );
+        assert!(error.contains("durable snapshot artifacts"), "{error}");
+        assert!(
+            error.contains(&settings_root.display().to_string()),
+            "{error}"
+        );
         assert!(
             orphan.is_file(),
             "fail-closed handling must preserve the orphan"
