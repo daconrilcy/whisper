@@ -18156,6 +18156,28 @@ mod tests {
             1,
             "the initial A stop must reach the runtime exactly once"
         );
+        trace_checkpoint(
+            "before-duplicate-Stop-A-during-drain",
+            &app,
+            Some(first_a_request_id),
+            &observations,
+        );
+        app.dispatch(AppCommand::StopUnifiedLive {
+            job_id: a,
+            generation,
+        })
+        .expect("duplicate Stop A remains idempotent while its capture admission is retained");
+        trace_checkpoint(
+            "after-duplicate-Stop-A-during-drain",
+            &app,
+            Some(first_a_request_id),
+            &observations,
+        );
+        assert_eq!(
+            stop_submissions.load(Ordering::Relaxed),
+            1,
+            "duplicate Stop A during drain must not resubmit the runtime stop"
+        );
         let a_drain_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let mut a_drain_trace_at = Instant::now();
         let mut a_source_flush_verified = false;
@@ -18875,30 +18897,6 @@ mod tests {
             thread::sleep(Duration::from_millis(5));
         }
 
-        let late_a_stop = Instant::now();
-        trace_checkpoint(
-            "before-duplicate-Stop-A",
-            &app,
-            Some(first_a_request_id),
-            &observations,
-        );
-        app.dispatch(AppCommand::StopUnifiedLive {
-            job_id: a,
-            generation,
-        })
-        .expect("a late duplicate Stop A remains idempotent through ImportApplication");
-        trace_checkpoint(
-            "after-duplicate-Stop-A",
-            &app,
-            Some(first_a_request_id),
-            &observations,
-        );
-        assert!(late_a_stop > a_stop);
-        assert_eq!(
-            stop_submissions.load(Ordering::Relaxed),
-            1,
-            "duplicate Stop A must not resubmit the runtime stop"
-        );
         let b_stop = Instant::now();
         trace_checkpoint(
             "before-Stop-B",
