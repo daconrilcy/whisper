@@ -1,6 +1,6 @@
-Avancée : PU-L2 CLEAN global ; candidat PU-L3 T7–T8 écrit et relu sans constat source ouvert.
-Blocage : formatage, compilation et tests PU-L3 NOT RUN ; campagne distincte du §24 à autoriser.
-Décision : candidat figé/versionné et campagne PU-L3 proposée à 120 minutes cumulées / 8 Gio.
+Avancée : douze scénarios PU-L3 et régressions PU-L1/PU-L2 PASS ; validation desktop incomplète.
+Blocage : assertion desktop antérieure contradictoire, correction hors chemins T7–T8 encore non autorisée.
+Décision : ajustement ciblé du §26 relu CLEAN documentaire, soumis à accord ; garde et budgets conservés.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -758,3 +758,6 @@ Passage 0851c5c82eddf6cd5cab177d0809df90088b4dda, run 7b6a8d4f0ed34174add8d11a8b
 **Proposition bornée pour T8, sans nouvelle tâche.** Ajouter seulement crates/whisper-desktop/tests/model_selection_ui.rs aux chemins GT de T8 pour renommer le cas parakeet_preserves_import_compute_preferences_and_disables_live_without_changing_turbo et aligner son assertion de disponibilité micro Parakeet sur le comportement direct historique déjà présent. Les contrôles Turbo, choix de calcul et préférences de ce même cas restent conservés, les autres tests du fichier restent intacts. Aucun code produit, activation native unifiée ou nouveau comportement matériel proposé ; la qualification native demeure T9. Le maintien du parcours direct historique est l'option recommandée pour préserver le produit courant. Alternative : laisser ce test non aligné et faire décider une réserve explicite, sans déclarer la campagne complète.
 
 **Réalisation et preuve après accord seulement.** Même rust_implementer, correction test seule, puis même reviewer pour fermeture. Nouvelle source Rust donc nouveau candidat versionné et passage complet sans réutilisation des preuves d'un autre SHA. Relancer les douze exacts L3, régressions L1/L2 et desktop, dont reprocessing_recovery_ui encore NOT RUN ; format/compilation/tests sous la garde et les deux racines déjà autorisées. Budgets PU-L3 **120 minutes / 8 Gio conservés**, cumul de 1 046,0915891 secondes non remis à zéro. Aucun autre chemin, dépendance, campagne, nettoyage ou push. Proposition documentaire préparée avant la demande d'accord, aucun test hors scope modifié.
+
+
+**Revue du PLAN_CHANGE §26.** Relecteur documentaire indépendant de la rédaction, /root/pu_l1_change_review : **CLEAN documentaire ciblé sur 717ea00b48fa70e07463c7ce14e0ef7e5b202114**, zéro REQUIRED/ADVISORY. Objets Git lus uniquement ; blob du plan examiné 1f551d808862448335144e63d4a5f098afd2b254, preuve du test identique et du parcours direct antérieur confirmée. Rattachement d'un seul fichier de test pour assertion/nom ciblés et couverture conservée, séparation de la voie native unifiée T9, consentement encore requis avant édition/reprise, nouveau passage complet et budgets/racines inchangés jugés conformes. Aucun fichier de test ou code produit modifié par cette revue ; elle ne clôt pas la validation ni n'autorise la correction.
