@@ -15587,22 +15587,26 @@ mod tests {
         .unwrap();
 
         let capture_deadline = Instant::now() + Duration::from_secs(20);
-        let mut captured = 0;
-        while Instant::now() < capture_deadline && captured < CAPTURE_SAMPLES {
+        let mut pre_stop_progress = None;
+        while Instant::now() < capture_deadline {
             app.dispatch(AppCommand::Refresh).unwrap();
-            captured = app
-                .view()
+            let view = app.view();
+            pre_stop_progress = view
                 .unified_parakeet_sessions
                 .iter()
                 .find(|session| {
                     session.job_id == request.job_id && session.generation == request.generation
                 })
-                .map_or(0, |session| session.captured_samples);
-            if captured < CAPTURE_SAMPLES {
-                thread::sleep(Duration::from_millis(2));
+                .map(|session| (session.captured_samples, session.durable_samples));
+            if pre_stop_progress.is_some_and(|(captured, durable)| captured > 0 && durable > 0) {
+                break;
             }
+            thread::sleep(Duration::from_millis(2));
         }
-        assert_eq!(captured, CAPTURE_SAMPLES);
+        let (pre_stop_captured, pre_stop_durable) = pre_stop_progress
+            .expect("capture must expose written and durable progress before Stop");
+        assert!(pre_stop_captured > 0 && pre_stop_durable > 0);
+        assert!(pre_stop_captured <= CAPTURE_SAMPLES && pre_stop_durable <= CAPTURE_SAMPLES);
         app.dispatch(AppCommand::StopUnifiedLive {
             job_id: request.job_id,
             generation: request.generation,
@@ -15644,6 +15648,21 @@ mod tests {
             app_complete,
             "application must deliver Complete for the exact capture identity after archive publication"
         );
+        let complete_view = app.view();
+        let completed_session = complete_view
+            .unified_parakeet_sessions
+            .iter()
+            .find(|session| {
+                session.job_id == request.job_id && session.generation == request.generation
+            })
+            .expect("completed capture remains visible in the application view");
+        assert_eq!(
+            completed_session.phase,
+            whisper_core::ports::UnifiedSessionPhase::Complete
+        );
+        assert_eq!(completed_session.total_samples, Some(CAPTURE_SAMPLES));
+        assert_eq!(completed_session.captured_samples, CAPTURE_SAMPLES);
+        assert_eq!(completed_session.durable_samples, CAPTURE_SAMPLES);
         let archive_complete = ArchiveStore::scan(&archive_root)
             .unwrap()
             .iter()
