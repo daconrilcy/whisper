@@ -2052,6 +2052,10 @@ impl<A: Application> DesktopApp<A> {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
+        egui::ScrollArea::vertical()
+            .id_salt("desktop_main_page")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
         ui.heading("Whisper — transcription locale");
         ui.label("Import WAV/MP3 ou micro en direct, avec le modèle local.");
 
@@ -2800,6 +2804,7 @@ impl<A: Application> DesktopApp<A> {
                 }
             }
         }
+            });
     }
 }
 
