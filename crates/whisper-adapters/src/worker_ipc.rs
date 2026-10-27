@@ -15194,6 +15194,7 @@ mod tests {
         let mut replacement_capture =
             CaptureStream::empty_test_capture(16_000, 1, "test:finalization-replacement");
         replacement_capture.enqueue_test_block(vec![0.1; 4 * 16_000]);
+        runtime.controlled_transcriber = Some(Box::new(TailAwareUnifiedWorker));
         runtime
             .start_controlled_unified_capture(&replacement, replacement_capture, None, None)
             .unwrap();
