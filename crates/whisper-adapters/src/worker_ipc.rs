@@ -12867,6 +12867,10 @@ mod tests {
     }
 
     impl crate::parakeet_pipeline::WindowTranscriber for StartFailsOnceUnifiedWorker {
+        fn instance_id(&self) -> u64 {
+            self.starts.load(Ordering::Relaxed).max(1)
+        }
+
         fn initialize_instance(&mut self, _: &std::sync::atomic::AtomicBool) -> Result<(), String> {
             if self.starts.fetch_add(1, Ordering::Relaxed) == 0 {
                 Err("controlled READY attestation failure".into())
@@ -16448,7 +16452,8 @@ mod tests {
                 Some(expected_part_sha.as_str())
             );
         }
-        let manual_archive_entry = ArchiveStore::scan(&manual_request.destination)
+        let manual_destination = Path::new(&manual_request.destination);
+        let manual_archive_entry = ArchiveStore::scan(manual_destination)
             .unwrap()
             .into_iter()
             .find(|entry| {
@@ -17397,7 +17402,7 @@ mod tests {
             .find(|session| session.job_id == b && session.generation == generation)
             .cloned()
             .expect("B card remains after publication");
-        for (job_id, session) in [(a, a_view), (b, b_view)] {
+        for (job_id, session) in [(a, &a_view), (b, &b_view)] {
             assert_eq!(
                 session.phase,
                 whisper_core::ports::UnifiedSessionPhase::Complete
