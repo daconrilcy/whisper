@@ -1,6 +1,6 @@
 Avancée : PU-L4 T9 — 173 tests contrôlés composés, douze cas natifs et rotation physique >1 Gio réussis ; revue technique favorable avec provenance.
-Blocage : arrêt obligatoire après une écriture de test hors racines pendant la régression workspace ; qualité/Q-PU-03/T10 restent ouverts.
-Décision : conserver les preuves et qualifier en lecture seule le correctif de routage avant un nouvel arbitrage ; aucune reprise automatique.
+Blocage : corrections de fixtures et régression workspace à reprendre ; qualité lexicale, Q-PU-03 et T10 restent ouverts.
+Décision : reprise ciblée du §32 autorisée, mêmes garde/racines/budgets ; corrections relues avant tout nouveau test.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -1001,7 +1001,7 @@ T9-35 IMPORTANT : `PARAKEET_RTC02_EXEC_ROOT` est obligatoire pour les deux cas w
 
 Le scan statique complémentaire des sept membres ne démontre pas d'autre écriture active codée en dur hors racines ; les autres références sont des assertions ou des branches ignorées/conditionnelles. Ce relevé n'est pas une garantie exhaustive et ne change pas la surveillance non préventive. Aucun correctif source ni relance n'a été entrepris après l'incident.
 
-## 32. Reprise ciblée après T9-34 — proposition non acceptée
+## 32. Reprise ciblée après T9-34 — accord précis reçu
 
 Avancée : cause de l'écriture extérieure attribuée à un test synthétique ; périmètre concret de correction des fixtures et de régression préparé.
 Blocage : l'arrêt de campagne et le dernier accord « aucun changement Rust » imposent un nouvel accord précis avant correction ou reprise.
@@ -1032,3 +1032,5 @@ Les deux dernières exclusions seront données nominativement à libtest, pas pa
 **Alternative :** conserver l'état arrêté et livrer le bilan avec réserve de régression workspace, sans correction ni relance. Élargir la garde aux jonctions ou au chemin T3 historique n'est pas recommandé. La proposition n'est pas une autorisation ; aucun correctif ou Cargo ne sera lancé avant la décision précise de l'utilisateur.
 
 **Revue indépendante §32 avant soumission.** Verdict documentaire CLEAN pour soumission, exécution BLOCKED jusqu'à accord explicite. Le reviewer confirme les deux seules fixtures source, les trois exclusions nominatives NOT RUN, les deux retours desktop NOT RUN, la racine RTC-02 et la garde/budgets inchangés. Les quatre tests de nettoyage conservés construisent un worker factice source/exécutable sous cette racine ; ses enfants doivent hériter TEMP/TMP isolés et rester surveillés. Accord précis, corrections gelées relues, préflight canonique/auto-tests et environnement réel enfant, fmt/no-run puis ciblés précèdent toute nouvelle régression globale. Nouvelle écriture extérieure : nouvel arrêt. Inspection en lecture seule après incident : aucun processus exécuté depuis lot-04 ou cargo-shared ne reste actif. Sources Rust toujours inchangées, anciens contenus T3 et preuves préservés.
+
+**Accord précis de reprise reçu le 27 octobre 2026.** À la question citant l'incident, les seules deux fixtures de `worker_ipc.rs`, RTC-02 isolé sous lot-04, les deux exclusions de jonctions nominatives en plus de D2, les deux tests desktop historiques NOT RUN, la même garde et les budgets cumulés 240 minutes / 16 Gio avec 136 min 11 s consommées, l'utilisateur répond : **« Oui, reprise ciblée du §32 (recommandé) »**. Cette décision lève l'arrêt pour les seules actions du §32 ; elle remplace « aucun changement Rust » du §30 uniquement pour les deux fixtures, pas pour du code produit. Ancien parent T3 et preuves préservés, aucun nettoyage. Même implémenteur, même reviewer indépendant, tests ciblés après gel/revue puis régression globale gardée à exactement trois exclusions. Toute nouvelle écriture extérieure attribuée ou modification sensible inexpliquée imposera encore l'arrêt et un nouvel arbitrage. Aucun budget réinitialisé.
