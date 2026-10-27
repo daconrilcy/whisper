@@ -349,7 +349,8 @@ fn rendered_text(shapes: Vec<egui::epaint::ClippedShape>) -> String {
 }
 
 #[test]
-fn parakeet_preserves_import_compute_preferences_and_disables_live_without_changing_turbo() {
+fn parakeet_preserves_import_compute_preferences_and_legacy_live_availability_without_changing_turbo()
+ {
     assert_eq!(
         compute_for_model(Some(ModelId::ParakeetTdt06BV3), ComputeChoice::Gpu),
         ComputeChoice::Gpu
@@ -366,6 +367,6 @@ fn parakeet_preserves_import_compute_preferences_and_disables_live_without_chang
         compute_for_model(Some(ModelId::WhisperLargeV3Turbo), ComputeChoice::Auto),
         ComputeChoice::Auto
     );
-    assert!(!model_supports_live(Some(ModelId::ParakeetTdt06BV3)));
+    assert!(model_supports_live(Some(ModelId::ParakeetTdt06BV3)));
     assert!(model_supports_live(Some(ModelId::WhisperLargeV3Turbo)));
 }
