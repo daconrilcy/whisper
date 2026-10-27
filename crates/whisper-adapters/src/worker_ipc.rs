@@ -12784,7 +12784,7 @@ mod tests {
                         } if (*job_id, *generation, *acknowledged_sequence)
                             == (identity.0, identity.1, sequence)
                     )),
-                    "real PersistSegment effect must return a matching ACK"
+                    "real PersistSegment effect must return a matching ACK; received {acknowledgements:?}"
                 );
                 persisted_sequences.insert(identity, sequence);
             }
@@ -12827,6 +12827,47 @@ mod tests {
             }
             _ => {}
         }
+    }
+
+    fn prepare_and_start_controlled_native_route(
+        runtime: &mut ImportRuntime,
+        request: &ImportRequest,
+        route: NativeUnifiedRoute,
+    ) {
+        let mut events = VecDeque::new();
+        runtime.effect(ImportEffect::Prepare(request.clone()), &mut events);
+        let prepared = match events.pop_front() {
+            Some(ImportEvent::Prepared(prepared)) => prepared,
+            other => panic!("Prepare did not return Prepared: {other:?}; remaining={events:?}"),
+        };
+        assert_eq!(
+            (prepared.job_id, prepared.generation),
+            (request.job_id, request.generation)
+        );
+        assert_eq!(prepared.destination, request.destination);
+        assert_eq!(prepared.source_path, request.source_path);
+        assert!(prepared.source_sha256.is_some());
+        assert!(prepared.source_samples.is_some());
+        assert!(
+            events.is_empty(),
+            "Prepare returned unexpected events: {events:?}"
+        );
+
+        let identity = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: prepared.job_id,
+            generation: prepared.generation,
+        };
+        runtime.native_unified_routes.insert(identity, route);
+        runtime.effect(ImportEffect::StartWorker(prepared), &mut events);
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, ImportEvent::Failed { .. })),
+            "StartWorker failed after archive preparation: {events:?}"
+        );
+        assert!(runtime.unified_sessions.contains_key(&identity));
+        assert!(runtime.unified_archives.contains_key(&identity));
+        assert!(runtime.unified_sessions[&identity].native_route.is_some());
     }
 
     struct RuntimeImportPort {
@@ -15358,19 +15399,14 @@ mod tests {
             None,
             None,
             false,
-            true,
+            false,
         )
         .with_controlled_transcriber(worker)
         .with_child_observer(Arc::clone(&child_observations));
-        runtime
-            .native_unified_routes
-            .insert(session_a, native_route.clone());
-        runtime
-            .native_unified_routes
-            .insert(session_b, native_route);
+        prepare_and_start_controlled_native_route(&mut runtime, &request_a, native_route.clone());
+        prepare_and_start_controlled_native_route(&mut runtime, &request_b, native_route);
+        runtime.native_unified_candidate_enabled = true;
         let ready_gate = runtime.hold_next_child_ready();
-        runtime.start_controlled_unified_import(&request_a).unwrap();
-        runtime.start_controlled_unified_import(&request_b).unwrap();
 
         assert!(runtime.poll_unified_sessions().is_none());
         let reserved = runtime.parakeet_scheduler.in_flight().unwrap();
