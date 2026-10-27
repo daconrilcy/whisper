@@ -12761,6 +12761,74 @@ mod tests {
         }
     }
 
+    fn persist_and_publish_controlled_document_event(
+        runtime: &mut ImportRuntime,
+        event: ImportEvent,
+        persisted_sequences: &mut HashMap<(JobId, Generation), u64>,
+        published_sessions: &mut HashSet<(JobId, Generation)>,
+    ) {
+        match event {
+            ImportEvent::Segment(segment) => {
+                let identity = (segment.job_id, segment.generation);
+                let sequence = segment.segment_id.0;
+                assert!(sequence > persisted_sequences.get(&identity).copied().unwrap_or(0));
+                let mut acknowledgements = VecDeque::new();
+                runtime.effect(ImportEffect::PersistSegment(segment), &mut acknowledgements);
+                assert!(
+                    acknowledgements.iter().any(|event| matches!(
+                        event,
+                        ImportEvent::Persisted {
+                            job_id,
+                            generation,
+                            sequence: acknowledged_sequence,
+                        } if (*job_id, *generation, *acknowledged_sequence)
+                            == (identity.0, identity.1, sequence)
+                    )),
+                    "real PersistSegment effect must return a matching ACK"
+                );
+                persisted_sequences.insert(identity, sequence);
+            }
+            ImportEvent::End {
+                job_id,
+                generation,
+                last_sequence,
+                ..
+            } => {
+                let identity = (job_id, generation);
+                assert!(
+                    last_sequence > 0,
+                    "the completed document must contain segments"
+                );
+                assert_eq!(
+                    persisted_sequences.get(&identity).copied(),
+                    Some(last_sequence),
+                    "Publish must wait for the final Persisted ACK"
+                );
+                let mut publication_events = VecDeque::new();
+                runtime.effect(
+                    ImportEffect::Publish {
+                        job_id,
+                        generation,
+                        last_sequence,
+                    },
+                    &mut publication_events,
+                );
+                assert!(
+                    publication_events.iter().any(|event| matches!(
+                        event,
+                        ImportEvent::Published {
+                            job_id: published_job,
+                            generation: published_generation,
+                        } if (*published_job, *published_generation) == identity
+                    )),
+                    "real Publish effect must return a matching Published event"
+                );
+                assert!(published_sessions.insert(identity));
+            }
+            _ => {}
+        }
+    }
+
     struct RuntimeImportPort {
         runtime: ImportRuntime,
         events: VecDeque<ImportEvent>,
@@ -15444,6 +15512,9 @@ mod tests {
         assert_eq!(maximum_active.load(Ordering::Relaxed), 1);
         drop(call_log);
 
+        let mut persisted_sequences = HashMap::new();
+        let mut published_sessions = HashSet::new();
+        let mut completed_sessions = HashSet::new();
         let recycled_ready_gate = Arc::new((Mutex::new(false), std::sync::Condvar::new()));
         runtime.controlled_ready_gate = Some(Arc::clone(&recycled_ready_gate));
         let ready_deadline = Instant::now() + Duration::from_secs(10);
@@ -15466,7 +15537,27 @@ mod tests {
             {
                 break;
             }
-            let _ = runtime.poll_unified_document();
+            if let Some(event) = runtime.poll_unified_document() {
+                match event {
+                    Ok(event) => {
+                        if let ImportEvent::End {
+                            job_id, generation, ..
+                        } = &event
+                        {
+                            completed_sessions.insert((*job_id, *generation));
+                        }
+                        persist_and_publish_controlled_document_event(
+                            &mut runtime,
+                            event,
+                            &mut persisted_sequences,
+                            &mut published_sessions,
+                        );
+                    }
+                    Err((job_id, generation, message)) => {
+                        panic!("document drain failed for {job_id:?}/{generation:?}: {message}")
+                    }
+                }
+            }
             thread::sleep(Duration::from_millis(2));
         }
         let reserved_after_recycle = runtime.parakeet_scheduler.in_flight().unwrap();
@@ -15502,7 +15593,6 @@ mod tests {
         }
 
         let drain_deadline = Instant::now() + Duration::from_secs(20);
-        let mut completed_sessions = HashSet::new();
         while Instant::now() < drain_deadline
             && (!runtime.unified_sessions.is_empty() || !runtime.document_drains.is_empty())
         {
@@ -15511,15 +15601,23 @@ mod tests {
             }
             if let Some(event) = runtime.poll_unified_document() {
                 match event {
-                    Ok(ImportEvent::End {
-                        job_id, generation, ..
-                    }) => {
-                        completed_sessions.insert((job_id, generation));
+                    Ok(event) => {
+                        if let ImportEvent::End {
+                            job_id, generation, ..
+                        } = &event
+                        {
+                            completed_sessions.insert((*job_id, *generation));
+                        }
+                        persist_and_publish_controlled_document_event(
+                            &mut runtime,
+                            event,
+                            &mut persisted_sequences,
+                            &mut published_sessions,
+                        );
                     }
                     Err((job_id, generation, message)) => {
                         panic!("document drain failed for {job_id:?}/{generation:?}: {message}")
                     }
-                    _ => {}
                 }
             }
             thread::sleep(Duration::from_millis(2));
@@ -15529,6 +15627,8 @@ mod tests {
         assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
         assert!(completed_sessions.contains(&(session_a.job_id, session_a.generation)));
         assert!(completed_sessions.contains(&(session_b.job_id, session_b.generation)));
+        assert!(published_sessions.contains(&(session_a.job_id, session_a.generation)));
+        assert!(published_sessions.contains(&(session_b.job_id, session_b.generation)));
         let archives = ArchiveStore::scan(&archive_root).unwrap();
         for (session, expected_samples) in
             [(session_a, 121 * 16_000_u64), (session_b, 5 * 16_000_u64)]
@@ -15543,6 +15643,18 @@ mod tests {
                 archive.complete,
                 "document completion must publish a complete archive"
             );
+            let files = ArchiveStore::published_unified_files(
+                &archive_root,
+                session.job_id,
+                session.generation,
+            )
+            .expect("Published must resolve the generation-bound CURRENT artifacts");
+            for path in [&files.wav_path, &files.txt_path, &files.srt_path] {
+                assert!(
+                    Path::new(path).is_file(),
+                    "published artifact missing: {path}"
+                );
+            }
             let source_path = archive_root
                 .join("transcriptions")
                 .join(format!("{:032x}", session.job_id.0))
