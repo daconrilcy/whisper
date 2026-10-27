@@ -1,6 +1,6 @@
 Avancée : PU-L4 T9 — 173 tests contrôlés composés, douze cas natifs et rotation physique >1 Gio réussis ; revue technique favorable avec provenance.
 Blocage : un faux composant de test UI rejette Quit au lieu de RequestClose (T9-40) ; workspace pas encore réussi.
-Décision : soumettre l'ajout test-only de ui.rs au §34 ; aucune exclusion supplémentaire ni changement produit.
+Décision : fixture UI ciblée autorisée au §34 ; même revue et validation globale, aucune nouvelle exclusion.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -1079,7 +1079,7 @@ FormatOnly `0d0c1a3ee89841c18b58deb5f489e581` PASS pour les sept chemins approuv
 
 **Cibles restantes contrôlées séparément.** Sans modifier le Rust ni ajouter de `--skip`, WorkspaceRemainder `389e3892e6da426b9222787ef6c23e3e` sur le même SHA termine code 0 : binaire desktop, ses cinq intégrations, workers CPU/GPU/Parakeet. **83 succès Cargo / 11 ignorés**, dont la véritable sonde CUDA sans modèle du worker GPU (1/0) ; les retours NOT RUN des profils historiques restent séparés de la qualification effective. Sept COMMAND_END code 0, zéro incident de garde. La reconstruction CUDA locale a terminé sous les racines admises. Le journal précise `not_a_workspace_pass=true` et conserve le défaut UI comme non résolu. Cumul **9 411,3067932 s (156 min 51 s)** ; **144 564 142 080 octets libres**. Aucun autre échec connu dans les cibles parcourues ; cela ne remplace pas un nouveau passage global réussi.
 
-## 34. Aligner la fixture de refus de fermeture UI — proposition non acceptée
+## 34. Aligner la fixture de refus de fermeture UI — accord précis reçu
 
 Avancée : les parcours de reprise et les cibles restantes passent ; seul l'échec connu du faux composant UI T9-40 empêche le passage global.
 Blocage : `crates/whisper-desktop/src/ui.rs` dépasse le fichier de correction autorisé au §33 ; l'accord précis manque.
@@ -1098,3 +1098,5 @@ Décision proposée : autoriser une correction limitée à la fixture de test `R
 **Alternative :** conserver le bilan avec réserve de fixture UI et de régression globale. Retirer le test ou ajouter un `--skip` n'est pas proposé ; corriger le faux composant conserve la vérification produit attendue. Aucun changement de `ui.rs` ni nouveau test de correction avant l'accord précis de l'utilisateur.
 
 **Revue indépendante §34 avant soumission.** Verdict documentaire CLEAN, exécution BLOCKED tant que l'accord précis manque. Seul le mock `RejectQuitApplication` de `ui.rs` est proposé, la vérification de refus et de l'état `quit_pending` conservée. Format/no-run, test exact, bibliothèque UI et workspace à trois exclusions restent exigés. Les résultats WorkspaceRemainder ne sont pas présentés comme un PASS global. Aucun changement source ni nouvelle exclusion entrepris pendant la préparation.
+
+**Accord précis reçu le 27 octobre 2026.** À la question ajoutant uniquement `crates/whisper-desktop/src/ui.rs` à la correction/au formatage pour aligner le mock `RejectQuitApplication` sur `RequestClose`, sans modifier le produit ni affaiblir d'assertion, avec même auteur/reviewer puis exact/lib/workspace à trois exclusions, mêmes garde/racines et budgets cumulés 240 minutes / 16 Gio (156 min 51 s consommées), l'utilisateur répond : **« Oui, fixture UI ciblée du §34 (recommandé) »**. Les cinq actions du §34 sont autorisées pour cette seule fixture ; aucun autre chemin ou comportement produit, nouvelle exclusion, fenêtre/microphone réel, nettoyage ou push. Source gelée après correction et relue avant exécution ; budgets non réinitialisés.
