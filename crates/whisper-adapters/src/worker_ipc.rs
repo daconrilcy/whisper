@@ -20064,14 +20064,11 @@ mod tests {
             }
         }
 
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../..")
-            .join("target/parakeet-tests/micro-level/t3-gain-e2e")
-            .join(format!(
-                "{}-{}",
-                std::process::id(),
-                NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed)
-            ));
+        let root = std::env::temp_dir().join(format!(
+            "whisper-t3-gain-e2e-{}-{}",
+            std::process::id(),
+            NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed)
+        ));
         fs::create_dir_all(&root).unwrap();
         let request = LiveRequest {
             job_id: JobId(((std::process::id() as u128) << 64) | 0xA551),
@@ -22060,7 +22057,7 @@ fn main() {
     let job = field(&start, "job_id");
     let generation = field(&start, "generation");
     let instance = field(&start, "instance_id");
-    let attested = format!("{{\"version\":2,\"message\":{{\"GpuSessionAttested\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"candidate\":\"PCI\\\\VEN_10DE&DEV_1B06\",\"dxgi_rank\":2,\"luid\":4660,\"pci_id\":\"0000:01:00.0\",\"cuda_ordinal\":1,\"ggml_ordinal\":4}}}}}}");
+    let attested = format!("{{\"version\":2,\"message\":{{\"GpuSessionAttested\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"candidate\":\"PCI\\\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\\\4&8BD6E8D&0&0008\",\"dxgi_rank\":2,\"luid\":4660,\"pci_id\":\"0000:01:00.0\",\"cuda_ordinal\":1,\"ggml_ordinal\":4}}}}}}");
     if MODE == "gpu-ready-exit" {
         println!("{attested}");
         println!("{{\"version\":2,\"message\":{{\"Ready\":{{\"job_id\":{job},\"generation\":{generation},\"instance_id\":{instance},\"backend\":\"Cuda\"}}}}}}");
