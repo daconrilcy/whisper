@@ -4642,10 +4642,11 @@ mod tests {
         let view = app.dispatch(AppCommand::Refresh).unwrap();
 
         assert!(view.source_snapshot_recovery.is_none());
-        assert!(view
-            .message
-            .as_deref()
-            .is_some_and(|message| message.contains("aucune copie audio retenue récupérable")));
+        assert!(
+            view.message
+                .as_deref()
+                .is_some_and(|message| message.contains("aucune copie audio retenue récupérable"))
+        );
     }
 
     #[test]

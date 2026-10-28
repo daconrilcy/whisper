@@ -5830,8 +5830,7 @@ impl ImportRuntime {
         };
         let key = (request.job_id, request.generation.get());
         if !self.source_bindings.contains_key(&key) {
-            let binding =
-                crate::source_binding::SourceBinding::acquire(request, &registry_root)?;
+            let binding = crate::source_binding::SourceBinding::acquire(request, &registry_root)?;
             self.source_bindings.insert(key, binding);
         }
         let binding = self
@@ -5942,7 +5941,10 @@ impl ImportRuntime {
                 );
             }
             return if self.require_snapshot_registry {
-                Err("SourceSnapshotRegistryUnavailable: resume settings root is not configured".into())
+                Err(
+                    "SourceSnapshotRegistryUnavailable: resume settings root is not configured"
+                        .into(),
+                )
             } else {
                 Ok(false)
             };
@@ -5999,21 +6001,25 @@ impl ImportRuntime {
                         Ok(true)
                     }
                     Err(error) => {
-                        if let Some(binding) = crate::source_binding::SourceBinding::reopen_for_identity(
-                            &registry_root,
-                            Path::new(&previous.destination),
-                            previous.job_id,
-                            previous.generation,
-                        )? {
+                        if let Some(binding) =
+                            crate::source_binding::SourceBinding::reopen_for_identity(
+                                &registry_root,
+                                Path::new(&previous.destination),
+                                previous.job_id,
+                                previous.generation,
+                            )?
+                        {
                             self.source_bindings.insert(old_key, binding);
                             return Err(error);
                         }
-                        if let Some(binding) = crate::source_binding::SourceBinding::reopen_for_identity(
-                            &registry_root,
-                            Path::new(&resumed.destination),
-                            resumed.job_id,
-                            resumed.generation,
-                        )? {
+                        if let Some(binding) =
+                            crate::source_binding::SourceBinding::reopen_for_identity(
+                                &registry_root,
+                                Path::new(&resumed.destination),
+                                resumed.job_id,
+                                resumed.generation,
+                            )?
+                        {
                             Self::source_binding_matches_resume(&binding, previous)?;
                             self.source_bindings.insert(new_key, binding);
                             return Err(format!(
@@ -6035,7 +6041,8 @@ impl ImportRuntime {
                 Ok(true)
             }
             (None, None) if self.require_snapshot_registry => Err(
-                "SourceSnapshotUnavailable: interrupted request has no durable source binding".into(),
+                "SourceSnapshotUnavailable: interrupted request has no durable source binding"
+                    .into(),
             ),
             (None, None) => Ok(false),
         }
@@ -6065,7 +6072,8 @@ impl ImportRuntime {
                     resumed.generation,
                 )?
                 .ok_or_else(|| {
-                    "SourceSnapshotUnavailable: resumed source binding is missing during rollback".to_owned()
+                    "SourceSnapshotUnavailable: resumed source binding is missing during rollback"
+                        .to_owned()
                 })?
             }
         };
@@ -6077,12 +6085,13 @@ impl ImportRuntime {
             }
             Err(error) => {
                 if let Some(registry_root) = self.snapshot_registry_root.clone()
-                    && let Some(binding) = crate::source_binding::SourceBinding::reopen_for_identity(
-                        &registry_root,
-                        Path::new(&resumed.destination),
-                        resumed.job_id,
-                        resumed.generation,
-                    )?
+                    && let Some(binding) =
+                        crate::source_binding::SourceBinding::reopen_for_identity(
+                            &registry_root,
+                            Path::new(&resumed.destination),
+                            resumed.job_id,
+                            resumed.generation,
+                        )?
                 {
                     self.source_bindings.insert(new_key, binding);
                 }
@@ -7259,8 +7268,7 @@ impl ImportRuntime {
                             job_id: id.0,
                             generation: id.1,
                         },
-                    )
-                {
+                    ) {
                     Err("SchedulerCapacity: two unified sessions are already admitted".into())
                 } else {
                     crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
@@ -7447,7 +7455,8 @@ impl ImportRuntime {
                                                 Ok(()) => {
                                                     self.archive = archive;
                                                     events.push_back(ImportEvent::Queue(queue));
-                                                    events.push_back(ImportEvent::Prepared(prepared));
+                                                    events
+                                                        .push_back(ImportEvent::Prepared(prepared));
                                                     Ok(())
                                                 }
                                                 Err(error) => Err((id.0, id.1, error)),
@@ -7639,7 +7648,8 @@ impl ImportRuntime {
                         events.push_back(ImportEvent::Failed {
                             job_id: id.0,
                             generation: id.1,
-                            message: "SchedulerCapacity: two unified sessions are already admitted".into(),
+                            message: "SchedulerCapacity: two unified sessions are already admitted"
+                                .into(),
                         });
                         return;
                     }
@@ -7650,8 +7660,7 @@ impl ImportRuntime {
                     match validate_current_queued_gpu_candidate(&durable_request, candidate)
                         .and_then(|()| {
                             self.native_route_for_unified_import(&durable_request, candidate)
-                        })
-                    {
+                        }) {
                         Ok(route) => route,
                         Err(message) => {
                             events.push_back(ImportEvent::Failed {
@@ -7665,19 +7674,18 @@ impl ImportRuntime {
                 } else {
                     None
                 };
-                let source_binding_transferred = match self
-                    .transfer_resume_source_binding(&previous, &durable_request)
-                {
-                    Ok(transferred) => transferred,
-                    Err(message) => {
-                        events.push_back(ImportEvent::Failed {
-                            job_id: id.0,
-                            generation: id.1,
-                            message,
-                        });
-                        return;
-                    }
-                };
+                let source_binding_transferred =
+                    match self.transfer_resume_source_binding(&previous, &durable_request) {
+                        Ok(transferred) => transferred,
+                        Err(message) => {
+                            events.push_back(ImportEvent::Failed {
+                                job_id: id.0,
+                                generation: id.1,
+                                message,
+                            });
+                            return;
+                        }
+                    };
                 #[cfg(test)]
                 if source_binding_transferred
                     && let Some(gate) = self.controlled_resume_binding_transfer_gate.take()
@@ -7689,9 +7697,7 @@ impl ImportRuntime {
                     *released = true;
                     changed.notify_all();
                     let (released, timeout) = changed
-                        .wait_timeout_while(released, Duration::from_secs(30), |released| {
-                            *released
-                        })
+                        .wait_timeout_while(released, Duration::from_secs(30), |released| *released)
                         .expect("resume binding transfer test gate wait");
                     assert!(
                         !timeout.timed_out() && !*released,
@@ -7781,13 +7787,12 @@ impl ImportRuntime {
                     }
                     Err(error) => {
                         let error = if source_binding_transferred {
-                            match self.restore_resume_source_binding(
-                                &previous,
-                                &durable_request,
-                            ) {
+                            match self.restore_resume_source_binding(&previous, &durable_request) {
                                 Ok(()) => error,
                                 Err(rollback_error) => {
-                                    format!("{error}; rollback source binding failed: {rollback_error}")
+                                    format!(
+                                        "{error}; rollback source binding failed: {rollback_error}"
+                                    )
                                 }
                             }
                         } else {
@@ -14215,7 +14220,8 @@ mod tests {
     }
 
     #[test]
-    fn import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio() {
+    fn import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio()
+    {
         for (index, (seconds, compute)) in [
             (3_u64, ComputeChoice::Cpu),
             (3_u64, ComputeChoice::Gpu),
@@ -14284,10 +14290,7 @@ mod tests {
                 .iter()
                 .find(|entry| {
                     (entry.request.job_id, entry.request.generation) == identity
-                        && matches!(
-                            entry.status,
-                            whisper_core::ports::ImportQueueStatus::Queued
-                        )
+                        && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
                 })
                 .expect("the application must expose the durable FIFO request after Enqueue")
                 .request
@@ -14304,9 +14307,11 @@ mod tests {
             while Instant::now() < deadline {
                 let view = app.dispatch(AppCommand::Refresh).unwrap();
                 message = view.message.clone();
-                if let Some(session) = view.unified_parakeet_sessions.iter().find(|session| {
-                    (session.job_id, session.generation) == identity
-                }) {
+                if let Some(session) = view
+                    .unified_parakeet_sessions
+                    .iter()
+                    .find(|session| (session.job_id, session.generation) == identity)
+                {
                     phase = format!("{:?}", session.phase);
                     if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
                         panic!(
@@ -14329,19 +14334,21 @@ mod tests {
             let entry = ArchiveStore::scan(&archive_root)
                 .unwrap()
                 .into_iter()
-                .find(|entry| {
-                    (entry.job_id, entry.generation) == identity && entry.complete
-                })
+                .find(|entry| (entry.job_id, entry.generation) == identity && entry.complete)
                 .expect("the queued import must publish a complete archive");
             assert_eq!(entry.strategy, request.strategy);
-            assert!(archive_root.join("exports").join(format!(
-                "{}.txt",
-                entry.export_basename.as_deref().unwrap()
-            )).is_file());
-            assert!(archive_root.join("exports").join(format!(
-                "{}.srt",
-                entry.export_basename.as_deref().unwrap()
-            )).is_file());
+            assert!(
+                archive_root
+                    .join("exports")
+                    .join(format!("{}.txt", entry.export_basename.as_deref().unwrap()))
+                    .is_file()
+            );
+            assert!(
+                archive_root
+                    .join("exports")
+                    .join(format!("{}.srt", entry.export_basename.as_deref().unwrap()))
+                    .is_file()
+            );
             assert_eq!(hex_sha256(&source_path), source_sha);
             drop(app);
             std::fs::remove_dir_all(&root).unwrap();
@@ -14390,10 +14397,7 @@ mod tests {
             )
             .unwrap();
         let settings_root = root.join("settings");
-        drop(crate::source_binding::SourceBinding::acquire(
-            &previous,
-            &settings_root,
-        ).unwrap());
+        drop(crate::source_binding::SourceBinding::acquire(&previous, &settings_root).unwrap());
 
         let (worker, calls) = controlled_worker();
         let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
@@ -14424,30 +14428,38 @@ mod tests {
         })
         .unwrap();
         let resumed_identity = (previous.job_id, previous.generation.next().unwrap());
-        assert!(app.io.runtime.source_bindings.contains_key(&(
-            resumed_identity.0,
-            resumed_identity.1.get()
-        )));
-        assert!(!app.io.runtime.source_bindings.contains_key(&(
-            previous.job_id,
-            previous.generation.get()
-        )));
-        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
-            &settings_root,
-            Path::new(&previous.destination),
-            previous.job_id,
-            previous.generation,
-        )
-        .unwrap()
-        .is_none());
-        drop(crate::source_binding::SourceBinding::reopen_for_identity(
-            &settings_root,
-            Path::new(&previous.destination),
-            resumed_identity.0,
-            resumed_identity.1,
-        )
-        .unwrap()
-        .expect("the durable source binding must follow the resumed generation"));
+        assert!(
+            app.io
+                .runtime
+                .source_bindings
+                .contains_key(&(resumed_identity.0, resumed_identity.1.get()))
+        );
+        assert!(
+            !app.io
+                .runtime
+                .source_bindings
+                .contains_key(&(previous.job_id, previous.generation.get()))
+        );
+        assert!(
+            crate::source_binding::SourceBinding::reopen_for_identity(
+                &settings_root,
+                Path::new(&previous.destination),
+                previous.job_id,
+                previous.generation,
+            )
+            .unwrap()
+            .is_none()
+        );
+        drop(
+            crate::source_binding::SourceBinding::reopen_for_identity(
+                &settings_root,
+                Path::new(&previous.destination),
+                resumed_identity.0,
+                resumed_identity.1,
+            )
+            .unwrap()
+            .expect("the durable source binding must follow the resumed generation"),
+        );
         let deadline = Instant::now() + Duration::from_secs(60);
         let mut phase = "session not visible".to_owned();
         let mut message = None;
@@ -14455,9 +14467,11 @@ mod tests {
         while Instant::now() < deadline {
             let view = app.dispatch(AppCommand::Refresh).unwrap();
             message = view.message.clone();
-            if let Some(session) = view.unified_parakeet_sessions.iter().find(|session| {
-                (session.job_id, session.generation) == resumed_identity
-            }) {
+            if let Some(session) = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| (session.job_id, session.generation) == resumed_identity)
+            {
                 phase = format!("{:?}", session.phase);
                 if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
                     panic!("verified queue resume failed: phase={phase}, message={message:?}");
@@ -14477,9 +14491,7 @@ mod tests {
         let resumed_archive = ArchiveStore::scan(&root.join("archive"))
             .unwrap()
             .into_iter()
-            .find(|entry| {
-                (entry.job_id, entry.generation) == resumed_identity && entry.complete
-            })
+            .find(|entry| (entry.job_id, entry.generation) == resumed_identity && entry.complete)
             .expect("the resumed generation must be the completed unified archive");
         assert_eq!(
             resumed_archive.strategy,
@@ -14489,18 +14501,28 @@ mod tests {
             .export_basename
             .as_deref()
             .expect("completed resumed import must expose its export basename");
-        assert!(root.join("archive/exports").join(format!("{export_basename}.txt")).is_file());
-        assert!(root.join("archive/exports").join(format!("{export_basename}.srt")).is_file());
+        assert!(
+            root.join("archive/exports")
+                .join(format!("{export_basename}.txt"))
+                .is_file()
+        );
+        assert!(
+            root.join("archive/exports")
+                .join(format!("{export_basename}.srt"))
+                .is_file()
+        );
         assert_eq!(hex_sha256(&source_path), source_sha);
         assert!(app.io.runtime.source_bindings.is_empty());
-        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
-            &settings_root,
-            Path::new(&previous.destination),
-            resumed_identity.0,
-            resumed_identity.1,
-        )
-        .unwrap()
-        .is_none());
+        assert!(
+            crate::source_binding::SourceBinding::reopen_for_identity(
+                &settings_root,
+                Path::new(&previous.destination),
+                resumed_identity.0,
+                resumed_identity.1,
+            )
+            .unwrap()
+            .is_none()
+        );
         let mut retained = Vec::new();
         for offset in 0..2 {
             let mut capacity_request = previous.clone();
@@ -14514,16 +14536,14 @@ mod tests {
         let mut third_request = previous.clone();
         third_request.job_id = JobId(previous.job_id.0 + 12);
         third_request.generation = Generation::first();
-        let capacity_error = match crate::source_binding::SourceBinding::acquire(
-            &third_request,
-            &settings_root,
-        ) {
-            Err(error) => error,
-            Ok(binding) => {
-                binding.retire().unwrap();
-                panic!("a third retained source snapshot must be refused")
-            }
-        };
+        let capacity_error =
+            match crate::source_binding::SourceBinding::acquire(&third_request, &settings_root) {
+                Err(error) => error,
+                Ok(binding) => {
+                    binding.retire().unwrap();
+                    panic!("a third retained source snapshot must be refused")
+                }
+            };
         assert!(capacity_error.contains("SourceSnapshotCapacity"));
         for binding in retained {
             binding.retire().unwrap();
@@ -14563,17 +14583,14 @@ mod tests {
             )
             .unwrap();
         let settings_root = root.join("settings");
-        drop(crate::source_binding::SourceBinding::acquire(
-            &previous,
-            &settings_root,
-        ).unwrap());
+        drop(crate::source_binding::SourceBinding::acquire(&previous, &settings_root).unwrap());
         let resumed_generation = previous.generation.next().unwrap();
         let mut conflicting_resumed = previous.clone();
         conflicting_resumed.generation = resumed_generation;
-        drop(crate::source_binding::SourceBinding::acquire(
-            &conflicting_resumed,
-            &settings_root,
-        ).unwrap());
+        drop(
+            crate::source_binding::SourceBinding::acquire(&conflicting_resumed, &settings_root)
+                .unwrap(),
+        );
 
         let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
             WorkerPaths {
@@ -14609,8 +14626,7 @@ mod tests {
             let view = app.dispatch(AppCommand::Refresh).unwrap();
             observed_message = view.message.clone();
             observed_recoverable = view.unified_parakeet_sessions.iter().any(|session| {
-                (session.job_id, session.generation)
-                    == (previous.job_id, resumed_generation)
+                (session.job_id, session.generation) == (previous.job_id, resumed_generation)
                     && session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
             });
             if observed_recoverable {
@@ -14618,21 +14634,28 @@ mod tests {
             }
             thread::sleep(Duration::from_millis(2));
         }
-        assert!(observed_recoverable, "resume conflict must become terminal and visible: {observed_message:?}");
+        assert!(
+            observed_recoverable,
+            "resume conflict must become terminal and visible: {observed_message:?}"
+        );
         let queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
         assert!(queue.entries().iter().any(|entry| {
             (entry.request.job_id, entry.request.generation)
                 == (previous.job_id, previous.generation)
                 && entry.status == crate::queue_store::QueueStatus::Interrupted
         }));
-        assert!(app.io.runtime.source_bindings.contains_key(&(
-            previous.job_id,
-            previous.generation.get()
-        )));
-        assert!(app.io.runtime.source_bindings.contains_key(&(
-            previous.job_id,
-            resumed_generation.get()
-        )));
+        assert!(
+            app.io
+                .runtime
+                .source_bindings
+                .contains_key(&(previous.job_id, previous.generation.get()))
+        );
+        assert!(
+            app.io
+                .runtime
+                .source_bindings
+                .contains_key(&(previous.job_id, resumed_generation.get()))
+        );
         let old_binding = crate::source_binding::SourceBinding::reopen_for_identity(
             &settings_root,
             Path::new(&previous.destination),
@@ -14651,12 +14674,17 @@ mod tests {
         )
         .unwrap()
         .expect("an ambiguous resumed binding must not be silently removed");
-        assert_eq!(conflicting_binding.source_sha256(), previous.source_sha256.unwrap());
+        assert_eq!(
+            conflicting_binding.source_sha256(),
+            previous.source_sha256.unwrap()
+        );
         drop(conflicting_binding);
         assert_eq!(hex_sha256(&source_path), source_sha);
-        assert!(observed_message
-            .as_deref()
-            .is_some_and(|message| message.contains("SourceSnapshotMismatch")));
+        assert!(
+            observed_message
+                .as_deref()
+                .is_some_and(|message| message.contains("SourceSnapshotMismatch"))
+        );
         drop(app);
         let retained = crate::source_binding::SourceBinding::reopen_for_identity(
             &settings_root,
@@ -14682,14 +14710,15 @@ mod tests {
 
     #[test]
     fn failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity() {
-        let root = test_artifact_root("queued-unified-resume-after-transfer-failure").join(format!(
-            "{}-{}",
-            std::process::id(),
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
+        let root =
+            test_artifact_root("queued-unified-resume-after-transfer-failure").join(format!(
+                "{}-{}",
+                std::process::id(),
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
         std::fs::create_dir_all(&root).unwrap();
         let source_path = root.join("source.wav");
         let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
@@ -14723,9 +14752,7 @@ mod tests {
             )
             .unwrap();
         let settings_root = root.join("settings");
-        drop(
-            crate::source_binding::SourceBinding::acquire(&previous, &settings_root).unwrap(),
-        );
+        drop(crate::source_binding::SourceBinding::acquire(&previous, &settings_root).unwrap());
 
         // Keep the durable queue identity valid, but make ArchiveStore's later
         // prefix read fail after ResumeInterrupted has transferred the binding.
@@ -14733,8 +14760,11 @@ mod tests {
             .join("transcriptions")
             .join(format!("{:032x}", previous.job_id.0))
             .join(previous.generation.get().to_string());
-        std::fs::write(previous_archive_dir.join("segments.jsonl"), b"{broken checkpoint}\n")
-            .unwrap();
+        std::fs::write(
+            previous_archive_dir.join("segments.jsonl"),
+            b"{broken checkpoint}\n",
+        )
+        .unwrap();
 
         let transfer_gate = Arc::new((Mutex::new(false), std::sync::Condvar::new()));
         let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
@@ -14784,14 +14814,16 @@ mod tests {
             "resume must expose the durable N+1 binding before the induced archive failure"
         );
         drop(transferred);
-        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
-            &settings_root,
-            Path::new(&previous.destination),
-            previous.job_id,
-            previous.generation,
-        )
-        .unwrap()
-        .is_none());
+        assert!(
+            crate::source_binding::SourceBinding::reopen_for_identity(
+                &settings_root,
+                Path::new(&previous.destination),
+                previous.job_id,
+                previous.generation,
+            )
+            .unwrap()
+            .is_none()
+        );
         let transferred_binding = crate::source_binding::SourceBinding::reopen_for_identity(
             &settings_root,
             Path::new(&previous.destination),
@@ -14800,7 +14832,10 @@ mod tests {
         )
         .unwrap()
         .expect("the registry must actually move to N+1 before archive resume");
-        assert_eq!(transferred_binding.source_sha256(), previous.source_sha256.unwrap());
+        assert_eq!(
+            transferred_binding.source_sha256(),
+            previous.source_sha256.unwrap()
+        );
         drop(transferred_binding);
 
         let (transferred, changed) = &*transfer_gate;
@@ -14820,8 +14855,7 @@ mod tests {
             let view = app.dispatch(AppCommand::Refresh).unwrap();
             observed_message = view.message.clone();
             observed_recoverable = view.unified_parakeet_sessions.iter().any(|session| {
-                (session.job_id, session.generation)
-                    == (previous.job_id, resumed_generation)
+                (session.job_id, session.generation) == (previous.job_id, resumed_generation)
                     && session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
             });
             if observed_recoverable {
@@ -14833,17 +14867,23 @@ mod tests {
             observed_recoverable,
             "archive failure after binding transfer must be terminal: {observed_message:?}"
         );
-        assert!(observed_message
-            .as_deref()
-            .is_some_and(|message| message.contains("StorageCorrupt: segment")));
-        assert!(!app.io.runtime.source_bindings.contains_key(&(
-            previous.job_id,
-            resumed_generation.get()
-        )));
-        assert!(app.io.runtime.source_bindings.contains_key(&(
-            previous.job_id,
-            previous.generation.get()
-        )));
+        assert!(
+            observed_message
+                .as_deref()
+                .is_some_and(|message| message.contains("StorageCorrupt: segment"))
+        );
+        assert!(
+            !app.io
+                .runtime
+                .source_bindings
+                .contains_key(&(previous.job_id, resumed_generation.get()))
+        );
+        assert!(
+            app.io
+                .runtime
+                .source_bindings
+                .contains_key(&(previous.job_id, previous.generation.get()))
+        );
 
         let queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
         assert!(queue.entries().iter().any(|entry| {
@@ -14862,14 +14902,16 @@ mod tests {
         .expect("failed post-transfer resume must restore the original durable binding");
         assert_eq!(restored.source_sha256(), previous.source_sha256.unwrap());
         drop(restored);
-        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
-            &settings_root,
-            Path::new(&previous.destination),
-            previous.job_id,
-            resumed_generation,
-        )
-        .unwrap()
-        .is_none());
+        assert!(
+            crate::source_binding::SourceBinding::reopen_for_identity(
+                &settings_root,
+                Path::new(&previous.destination),
+                previous.job_id,
+                resumed_generation,
+            )
+            .unwrap()
+            .is_none()
+        );
 
         drop(app);
         crate::source_binding::SourceBinding::reopen_for_identity(
@@ -18959,11 +19001,7 @@ mod tests {
                 Some(execution_root.join("fixtures/fr-long-35m.annotations.json")),
             )
         } else {
-            (
-                "WHISPER_PU_L4_FR_SOURCE",
-                PathBuf::new(),
-                None,
-            )
+            ("WHISPER_PU_L4_FR_SOURCE", PathBuf::new(), None)
         };
         let configured = std::env::var_os(variable)
             .map(PathBuf::from)
@@ -19053,10 +19091,22 @@ mod tests {
             cpu: app_root.join("whisper-worker-cpu.exe"),
             gpu: app_root.join("whisper-worker-gpu.exe"),
         };
-        assert!(workers.cpu.is_file(), "personal Turbo CPU worker is missing");
-        assert!(workers.gpu.is_file(), "personal Turbo GPU worker is missing");
-        assert!(cpu_paths.validate().is_ok(), "personal Parakeet CPU route is invalid");
-        assert!(gpu_paths.validate().is_ok(), "personal Parakeet GPU route is invalid");
+        assert!(
+            workers.cpu.is_file(),
+            "personal Turbo CPU worker is missing"
+        );
+        assert!(
+            workers.gpu.is_file(),
+            "personal Turbo GPU worker is missing"
+        );
+        assert!(
+            cpu_paths.validate().is_ok(),
+            "personal Parakeet CPU route is invalid"
+        );
+        assert!(
+            gpu_paths.validate().is_ok(),
+            "personal Parakeet GPU route is invalid"
+        );
 
         let (source_path, expected_samples, source_sha) =
             native_queued_import_source(&execution_root, long);
@@ -19085,7 +19135,10 @@ mod tests {
             if long { "fr-long" } else { "fr-short" },
             job_id.0
         ));
-        assert!(!archive_root.exists(), "native test archive destination is fresh");
+        assert!(
+            !archive_root.exists(),
+            "native test archive destination is fresh"
+        );
 
         let model_catalog = Some(RuntimeModelCatalog {
             catalog: crate::model_catalog::LocalModelCatalog::new(models_root.clone()),
@@ -19141,10 +19194,7 @@ mod tests {
                 .expect("refresh durable native queue");
             if let Some(entry) = view.queue.iter().find(|entry| {
                 (entry.request.job_id, entry.request.generation) == identity
-                    && matches!(
-                        entry.status,
-                        whisper_core::ports::ImportQueueStatus::Queued
-                    )
+                    && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
             }) {
                 break entry.request.clone();
             }
@@ -19159,19 +19209,14 @@ mod tests {
         assert_eq!(queued.strategy, request.strategy);
         app.dispatch(AppCommand::ProcessQueued { request: queued })
             .expect("ProcessQueued must compose the native route before Prepared");
-        let session_id = whisper_core::parakeet_scheduler::SchedulerSession {
-            job_id,
-            generation,
-        };
+        let session_id = whisper_core::parakeet_scheduler::SchedulerSession { job_id, generation };
         let composed_route = app
             .io
             .runtime
             .native_unified_routes
             .get(&session_id)
             .cloned()
-            .expect(
-            "ProcessQueued must install the qualified native route before StartWorker"
-            );
+            .expect("ProcessQueued must install the qualified native route before StartWorker");
         assert_eq!(composed_route.requested_compute, compute);
         if compute == ComputeChoice::Gpu {
             assert_eq!(composed_route.compute, ComputeChoice::Gpu);
@@ -19209,9 +19254,11 @@ mod tests {
                 .expect("refresh queued native import");
             native_event_drain(&native_events, &mut observed_native_events);
             observed_message = view.message.clone();
-            if let Some(session) = view.unified_parakeet_sessions.iter().find(|session| {
-                (session.job_id, session.generation) == identity
-            }) {
+            if let Some(session) = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| (session.job_id, session.generation) == identity)
+            {
                 observed_phase = format!("{:?}", session.phase);
                 if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
                     panic!(
@@ -19243,7 +19290,10 @@ mod tests {
         assert_eq!(complete.total_samples, Some(expected_samples));
         assert_eq!(complete.captured_samples, expected_samples);
         assert_eq!(complete.durable_samples, expected_samples);
-        assert_eq!(crate::parakeet_import::sha256_file(&source_path).unwrap(), source_sha);
+        assert_eq!(
+            crate::parakeet_import::sha256_file(&source_path).unwrap(),
+            source_sha
+        );
 
         let ready = observed_native_events
             .iter()
@@ -19256,7 +19306,11 @@ mod tests {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(ready.len(), 1, "one native READY must qualify the queued session");
+        assert_eq!(
+            ready.len(),
+            1,
+            "one native READY must qualify the queued session"
+        );
         assert_eq!(ready[0].0, expected_backend);
         assert_eq!(ready[0].1, composed_route.compute == ComputeChoice::Gpu);
         assert!(observed_native_events.iter().any(|event| matches!(
@@ -19272,9 +19326,22 @@ mod tests {
             .expect("queued native app path must publish a complete archive");
         assert_eq!(entry.strategy, request.strategy);
         assert_eq!(entry.source_sha256, source_sha);
-        let basename = entry.export_basename.as_deref().expect("published export basename");
-        assert!(archive_root.join("exports").join(format!("{basename}.txt")).is_file());
-        assert!(archive_root.join("exports").join(format!("{basename}.srt")).is_file());
+        let basename = entry
+            .export_basename
+            .as_deref()
+            .expect("published export basename");
+        assert!(
+            archive_root
+                .join("exports")
+                .join(format!("{basename}.txt"))
+                .is_file()
+        );
+        assert!(
+            archive_root
+                .join("exports")
+                .join(format!("{basename}.srt"))
+                .is_file()
+        );
     }
 
     #[cfg(windows)]
@@ -21257,10 +21324,22 @@ mod tests {
             cpu: app_root.join("whisper-worker-cpu.exe"),
             gpu: app_root.join("whisper-worker-gpu.exe"),
         };
-        assert!(workers.cpu.is_file(), "personal Turbo CPU worker is missing");
-        assert!(workers.gpu.is_file(), "personal Turbo GPU worker is missing");
-        assert!(cpu_paths.validate().is_ok(), "personal Parakeet CPU route is invalid");
-        assert!(gpu_paths.validate().is_ok(), "personal Parakeet GPU route is invalid");
+        assert!(
+            workers.cpu.is_file(),
+            "personal Turbo CPU worker is missing"
+        );
+        assert!(
+            workers.gpu.is_file(),
+            "personal Turbo GPU worker is missing"
+        );
+        assert!(
+            cpu_paths.validate().is_ok(),
+            "personal Parakeet CPU route is invalid"
+        );
+        assert!(
+            gpu_paths.validate().is_ok(),
+            "personal Parakeet GPU route is invalid"
+        );
 
         let (source_path, expected_samples, source_sha) =
             native_queued_import_source(&execution_root, false);
@@ -21272,7 +21351,10 @@ mod tests {
         let previous_generation = Generation::first();
         let resumed_generation = previous_generation.next().unwrap();
         let archive_root = execution_root.join(format!("queued-gpu-resume-{:032x}", job_id.0));
-        assert!(!archive_root.exists(), "native resume archive destination is fresh");
+        assert!(
+            !archive_root.exists(),
+            "native resume archive destination is fresh"
+        );
 
         let mut previous = unified_import_request(&archive_root, &source_path, job_id.0);
         previous.job_id = job_id;
@@ -21292,7 +21374,10 @@ mod tests {
         archive
             .prepare(previous.clone())
             .expect("create the interrupted generation's real archive checkpoint");
-        assert!(expected_samples >= 16_000, "short fixture must contain a checkpoint prefix");
+        assert!(
+            expected_samples >= 16_000,
+            "short fixture must contain a checkpoint prefix"
+        );
         archive
             .persist_segment(&whisper_core::ports::WorkerSegment {
                 job_id,
@@ -21314,8 +21399,7 @@ mod tests {
             )
             .unwrap();
         assert!(queue.entries().iter().any(|entry| {
-            (entry.request.job_id, entry.request.generation)
-                == (job_id, previous_generation)
+            (entry.request.job_id, entry.request.generation) == (job_id, previous_generation)
                 && entry.status == crate::queue_store::QueueStatus::Interrupted
         }));
         drop(queue);
@@ -21398,9 +21482,11 @@ mod tests {
                 .expect("refresh native resumed import");
             native_event_drain(&native_events, &mut observed_native_events);
             observed_message = view.message.clone();
-            if let Some(session) = view.unified_parakeet_sessions.iter().find(|session| {
-                (session.job_id, session.generation) == identity
-            }) {
+            if let Some(session) = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| (session.job_id, session.generation) == identity)
+            {
                 observed_phase = format!("{:?}", session.phase);
                 if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
                     panic!(
@@ -21475,7 +21561,10 @@ mod tests {
             ready_gpu_attested,
         ) = ready[0];
         assert_eq!(ready_backend, &expected_backend);
-        assert!(ready_gpu_attested, "GPU READY must follow current GPU attestation");
+        assert!(
+            ready_gpu_attested,
+            "GPU READY must follow current GPU attestation"
+        );
 
         let expected_profile = whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
         let expected_gpu_key = composed_route
@@ -21483,13 +21572,15 @@ mod tests {
             .gpu_qualification_key(expected_profile)
             .expect("the composed GPU route must retain its validated runtime identity");
         assert_eq!(ready_profile.as_str(), expected_profile);
-        assert!(ready_model_sha256.eq_ignore_ascii_case(
-            whisper_core::model_registry::model(
-                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3
+        assert!(
+            ready_model_sha256.eq_ignore_ascii_case(
+                whisper_core::model_registry::model(
+                    whisper_core::model_catalog::ModelId::ParakeetTdt06BV3
+                )
+                .artifact
+                .sha256
             )
-            .artifact
-            .sha256
-        ));
+        );
         assert_eq!(ready_runtime_sha256, &expected_gpu_key.runtime_build);
         assert_eq!(ready_build_sha256, &expected_gpu_key.worker_build);
         let selected_candidate = composed_route
@@ -21561,22 +21652,29 @@ mod tests {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert!(!sent_calls.is_empty(), "attested worker must receive a correlated request");
+        assert!(
+            !sent_calls.is_empty(),
+            "attested worker must receive a correlated request"
+        );
         let session_request_count = observed_native_events
             .iter()
-            .filter(|event| matches!(
-                &event.kind,
-                NativeQualificationEventKind::RequestSent { session, generation, .. }
-                    if *session == scheduler_session && *generation == resumed_generation
-            ))
+            .filter(|event| {
+                matches!(
+                    &event.kind,
+                    NativeQualificationEventKind::RequestSent { session, generation, .. }
+                        if *session == scheduler_session && *generation == resumed_generation
+                )
+            })
             .count();
         let session_result_count = observed_native_events
             .iter()
-            .filter(|event| matches!(
-                &event.kind,
-                NativeQualificationEventKind::Result { session, generation, .. }
-                    if *session == scheduler_session && *generation == resumed_generation
-            ))
+            .filter(|event| {
+                matches!(
+                    &event.kind,
+                    NativeQualificationEventKind::Result { session, generation, .. }
+                        if *session == scheduler_session && *generation == resumed_generation
+                )
+            })
             .count();
         assert_eq!(session_request_count, sent_calls.len());
         assert_eq!(session_result_count, completed_calls.len());
@@ -21619,22 +21717,26 @@ mod tests {
         assert!(txt.is_file(), "resumed native TXT export must exist");
         assert!(srt.is_file(), "resumed native SRT export must exist");
         assert!(app.io.runtime.source_bindings.is_empty());
-        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
-            &settings_root,
-            &archive_root,
-            job_id,
-            previous_generation,
-        )
-        .unwrap()
-        .is_none());
-        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
-            &settings_root,
-            &archive_root,
-            job_id,
-            resumed_generation,
-        )
-        .unwrap()
-        .is_none());
+        assert!(
+            crate::source_binding::SourceBinding::reopen_for_identity(
+                &settings_root,
+                &archive_root,
+                job_id,
+                previous_generation,
+            )
+            .unwrap()
+            .is_none()
+        );
+        assert!(
+            crate::source_binding::SourceBinding::reopen_for_identity(
+                &settings_root,
+                &archive_root,
+                job_id,
+                resumed_generation,
+            )
+            .unwrap()
+            .is_none()
+        );
 
         println!(
             "PU_L4_NATIVE_RESUME_GPU_COMPLETE job={:032x} previous_generation={} generation={} backend=GPU gpu_attested=true source_sha256={source_sha}",
@@ -26652,10 +26754,7 @@ fn main() {
                 let view = app.dispatch(AppCommand::Refresh).unwrap();
                 if let Some(entry) = view.queue.iter().find(|entry| {
                     (entry.request.job_id, entry.request.generation) == identity
-                        && matches!(
-                            entry.status,
-                            whisper_core::ports::ImportQueueStatus::Queued
-                        )
+                        && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
                 }) {
                     break entry.request.clone();
                 }
@@ -26666,10 +26765,10 @@ fn main() {
             if stale_proof {
                 let mut stale = fake_gpu_candidate();
                 stale.generation = request.generation.get() + 1;
-                app.io.runtime.gpu_candidates.insert(
-                    (request.job_id, request.generation.get()),
-                    Some(stale),
-                );
+                app.io
+                    .runtime
+                    .gpu_candidates
+                    .insert((request.job_id, request.generation.get()), Some(stale));
             }
 
             app.dispatch(AppCommand::ProcessQueued { request: queued })
@@ -26683,22 +26782,19 @@ fn main() {
             let mut refusal = None;
             while Instant::now() < deadline {
                 let view = app.dispatch(AppCommand::Refresh).unwrap();
-                if view
-                    .unified_parakeet_sessions
-                    .iter()
-                    .any(|session| {
-                        (session.job_id, session.generation) == identity
-                            && session.phase
-                                == whisper_core::ports::UnifiedSessionPhase::Recoverable
-                    })
-                {
+                if view.unified_parakeet_sessions.iter().any(|session| {
+                    (session.job_id, session.generation) == identity
+                        && session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
+                }) {
                     refusal = view.message;
                     break;
                 }
                 thread::sleep(Duration::from_millis(2));
             }
             assert!(
-                refusal.as_deref().is_some_and(|message| message.contains(expected)),
+                refusal
+                    .as_deref()
+                    .is_some_and(|message| message.contains(expected)),
                 "queued GPU refusal should be visible before preparation: {refusal:?}"
             );
             assert!(!app.io.runtime.native_unified_routes.contains_key(
@@ -26707,15 +26803,20 @@ fn main() {
                     generation: identity.1,
                 }
             ));
-            assert!(!destination
-                .join("transcriptions")
-                .join(format!("{:032x}", request.job_id.0))
-                .join(request.generation.get().to_string())
-                .join("pending.json")
-                .exists());
+            assert!(
+                !destination
+                    .join("transcriptions")
+                    .join(format!("{:032x}", request.job_id.0))
+                    .join(request.generation.get().to_string())
+                    .join("pending.json")
+                    .exists()
+            );
             let queue = crate::queue_store::QueueStore::open(&destination).unwrap();
             assert_eq!(queue.entries().len(), 1);
-            assert_eq!(queue.entries()[0].status, crate::queue_store::QueueStatus::Queued);
+            assert_eq!(
+                queue.entries()[0].status,
+                crate::queue_store::QueueStatus::Queued
+            );
             assert_eq!(hex_sha256(&source_path), source_sha);
             drop(app);
             std::fs::remove_dir_all(root).unwrap();
@@ -26766,10 +26867,7 @@ fn main() {
             let view = app.dispatch(AppCommand::Refresh).unwrap();
             if let Some(entry) = view.queue.iter().find(|entry| {
                 (entry.request.job_id, entry.request.generation) == identity
-                    && matches!(
-                        entry.status,
-                        whisper_core::ports::ImportQueueStatus::Queued
-                    )
+                    && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
             }) {
                 break entry.request.clone();
             }
@@ -26794,8 +26892,7 @@ fn main() {
         }
         assert!(
             refused.as_deref().is_some_and(|message| {
-                message.contains("ModelNotQualified")
-                    && message.contains("controlled worker")
+                message.contains("ModelNotQualified") && message.contains("controlled worker")
             }),
             "non-candidate refusal should remain visible: {refused:?}"
         );
@@ -26805,15 +26902,20 @@ fn main() {
         };
         assert!(!app.io.runtime.native_unified_routes.contains_key(&session));
         assert!(!app.io.runtime.unified_sessions.contains_key(&session));
-        assert!(!destination
-            .join("transcriptions")
-            .join(format!("{:032x}", request.job_id.0))
-            .join(request.generation.get().to_string())
-            .join("pending.json")
-            .exists());
+        assert!(
+            !destination
+                .join("transcriptions")
+                .join(format!("{:032x}", request.job_id.0))
+                .join(request.generation.get().to_string())
+                .join("pending.json")
+                .exists()
+        );
         let queue = crate::queue_store::QueueStore::open(&destination).unwrap();
         assert_eq!(queue.entries().len(), 1);
-        assert_eq!(queue.entries()[0].status, crate::queue_store::QueueStatus::Queued);
+        assert_eq!(
+            queue.entries()[0].status,
+            crate::queue_store::QueueStatus::Queued
+        );
         assert_eq!(hex_sha256(&source_path), source_sha);
         drop(app);
         std::fs::remove_dir_all(root).unwrap();
@@ -26875,14 +26977,14 @@ fn main() {
             let view = app.dispatch(AppCommand::Refresh).unwrap();
             if let Some(entry) = view.queue.iter().find(|entry| {
                 (entry.request.job_id, entry.request.generation) == identity
-                    && matches!(
-                        entry.status,
-                        whisper_core::ports::ImportQueueStatus::Queued
-                    )
+                    && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
             }) {
                 break entry.request.clone();
             }
-            assert!(Instant::now() < enqueue_deadline, "Enqueue did not become durable");
+            assert!(
+                Instant::now() < enqueue_deadline,
+                "Enqueue did not become durable"
+            );
             thread::sleep(Duration::from_millis(2));
         };
         app.dispatch(AppCommand::ProcessQueued { request: queued })
