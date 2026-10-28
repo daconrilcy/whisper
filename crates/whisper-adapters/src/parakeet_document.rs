@@ -868,16 +868,15 @@ mod tests {
             .unwrap();
         drop(document);
 
-        let checkpoint =
-            ParakeetDocumentStore::latest_resume_checkpoint(
-                &directory,
-                id,
-                generation,
-                source_samples,
-                2,
-            )
-            .unwrap()
-            .unwrap();
+        let checkpoint = ParakeetDocumentStore::latest_resume_checkpoint(
+            &directory,
+            id,
+            generation,
+            source_samples,
+            2,
+        )
+        .unwrap()
+        .unwrap();
         assert_eq!(
             checkpoint,
             ResumeCoverageCheckpoint {
@@ -899,9 +898,10 @@ mod tests {
         let generation = Generation::first();
         let source_samples = WINDOW_MAX_SAMPLES + 16_000;
 
-        let invalid_directory = std::env::temp_dir()
-            .join(format!("whisper-parakeet-short-resume-invalid-{stamp}"));
-        let mut invalid = ParakeetDocumentStore::create(&invalid_directory, id, generation).unwrap();
+        let invalid_directory =
+            std::env::temp_dir().join(format!("whisper-parakeet-short-resume-invalid-{stamp}"));
+        let mut invalid =
+            ParakeetDocumentStore::create(&invalid_directory, id, generation).unwrap();
         let mut short_segment = segment(id, generation, 1);
         short_segment.range = whisper_core::SourceRange::new(0, 8_000, 16_000).unwrap();
         invalid.append_final(short_segment).unwrap();
@@ -921,14 +921,14 @@ mod tests {
             1,
         );
         assert!(
-            invalid
-                .as_ref()
-                .is_err_and(|error| error.contains("resume coverage is not a valid contiguous checkpoint")),
+            invalid.as_ref().is_err_and(
+                |error| error.contains("resume coverage is not a valid contiguous checkpoint")
+            ),
             "a short checkpoint before source EOF must be rejected: {invalid:?}"
         );
 
-        let oversized_directory = std::env::temp_dir()
-            .join(format!("whisper-parakeet-oversized-resume-window-{stamp}"));
+        let oversized_directory =
+            std::env::temp_dir().join(format!("whisper-parakeet-oversized-resume-window-{stamp}"));
         let mut oversized =
             ParakeetDocumentStore::create(&oversized_directory, id, generation).unwrap();
         let mut oversized_segment = segment(id, generation, 1);
@@ -951,14 +951,14 @@ mod tests {
             1,
         );
         assert!(
-            oversized
-                .as_ref()
-                .is_err_and(|error| error.contains("resume coverage is not a valid contiguous checkpoint")),
+            oversized.as_ref().is_err_and(
+                |error| error.contains("resume coverage is not a valid contiguous checkpoint")
+            ),
             "a checkpoint wider than the scheduler's maximum window must be rejected: {oversized:?}"
         );
 
-        let valid_directory = std::env::temp_dir()
-            .join(format!("whisper-parakeet-short-resume-terminal-{stamp}"));
+        let valid_directory =
+            std::env::temp_dir().join(format!("whisper-parakeet-short-resume-terminal-{stamp}"));
         let mut valid = ParakeetDocumentStore::create(&valid_directory, id, generation).unwrap();
         let mut full_window_segment = segment(id, generation, 1);
         full_window_segment.range =
@@ -972,22 +972,14 @@ mod tests {
             })
             .unwrap();
         let mut terminal_segment = segment(id, generation, 2);
-        terminal_segment.range = whisper_core::SourceRange::new(
-            WINDOW_MAX_SAMPLES,
-            source_samples,
-            16_000,
-        )
-        .unwrap();
+        terminal_segment.range =
+            whisper_core::SourceRange::new(WINDOW_MAX_SAMPLES, source_samples, 16_000).unwrap();
         valid.append_final(terminal_segment).unwrap();
         valid
             .record_coverage(ParakeetWindowCoverage {
                 sequence: 2,
-                range: whisper_core::SourceRange::new(
-                    WINDOW_MAX_SAMPLES,
-                    source_samples,
-                    16_000,
-                )
-                .unwrap(),
+                range: whisper_core::SourceRange::new(WINDOW_MAX_SAMPLES, source_samples, 16_000)
+                    .unwrap(),
                 last_segment_sequence: 2,
             })
             .unwrap();
@@ -1045,12 +1037,7 @@ mod tests {
         drop(document);
 
         let mut reader =
-            ParakeetDocumentStore::open_resume_coverage(
-                &directory,
-                id,
-                generation,
-                source_samples,
-            )
+            ParakeetDocumentStore::open_resume_coverage(&directory, id, generation, source_samples)
                 .unwrap()
                 .unwrap();
         let first = reader.read_page(512).unwrap();

@@ -21957,13 +21957,22 @@ mod tests {
         assert_eq!(&wav_header[0..4], b"RIFF");
         assert_eq!(&wav_header[8..12], b"WAVE");
         assert_eq!(&wav_header[36..40], b"data");
-        assert_eq!(u16::from_le_bytes(wav_header[20..22].try_into().unwrap()), 1);
-        assert_eq!(u16::from_le_bytes(wav_header[22..24].try_into().unwrap()), 1);
+        assert_eq!(
+            u16::from_le_bytes(wav_header[20..22].try_into().unwrap()),
+            1
+        );
+        assert_eq!(
+            u16::from_le_bytes(wav_header[22..24].try_into().unwrap()),
+            1
+        );
         assert_eq!(
             u32::from_le_bytes(wav_header[24..28].try_into().unwrap()),
             16_000
         );
-        assert_eq!(u16::from_le_bytes(wav_header[34..36].try_into().unwrap()), 16);
+        assert_eq!(
+            u16::from_le_bytes(wav_header[34..36].try_into().unwrap()),
+            16
+        );
         let data_bytes = u32::from_le_bytes(wav_header[40..44].try_into().unwrap());
         assert_eq!(u64::from(data_bytes / 2), expected_samples);
         assert_eq!(
