@@ -13500,6 +13500,7 @@ mod tests {
         AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
         JobConfig, JobId, JobState, LanguageChoice,
     };
+    use whisper_core::ports::ParakeetDocumentPort;
 
     fn controlled_child_job_bound(
         observations: &[ControlledChildObservation],

@@ -6982,7 +6982,7 @@ fn visit_segments(
     let mut reader = BufReader::new(file);
     let mut index = 0_usize;
     while let Some(line) = read_segment_journal_line(&mut reader)? {
-        let record: SegmentRecord = serde_json::from_str(&line)
+        let record: SegmentRecord = serde_json::from_slice(&line)
             .map_err(|error| format!("StorageCorrupt: segment: {error}"))?;
         visit(index, record)?;
         index = index

@@ -339,9 +339,9 @@ impl ResumeCoverageReader {
                 .seek(SeekFrom::Start(index_offset))
                 .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?;
             let offset = read_u64(&mut self.document_index)
-                .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?;
+                .map_err(|error| format!("StorageCorrupt: resume document index: {error:?}"))?;
             let length = read_u64(&mut self.document_index)
-                .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?;
+                .map_err(|error| format!("StorageCorrupt: resume document index: {error:?}"))?;
             let line_length = usize::try_from(length)
                 .map_err(|_| "StorageCorrupt: resume document record length".to_owned())?;
             if line_length == 0 || line_length > 1_048_576 {
