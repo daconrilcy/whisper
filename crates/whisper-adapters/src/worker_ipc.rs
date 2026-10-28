@@ -19557,6 +19557,24 @@ mod tests {
         archive_root: &Path,
         entry: &crate::archive::ArchiveEntry,
     ) -> (String, String) {
+        #[derive(serde::Deserialize)]
+        struct ManifestArtifact {
+            path: String,
+            sha256: String,
+            bytes: u64,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct CompleteManifest {
+            version: u32,
+            job_id: u128,
+            generation: u64,
+            source_sha256: String,
+            segments: u64,
+            text: ManifestArtifact,
+            srt: ManifestArtifact,
+        }
+
         assert!(entry.complete, "native archive must be complete");
         let generation = archive_root
             .join("transcriptions")
@@ -19566,32 +19584,22 @@ mod tests {
             std::fs::read(generation.join("CURRENT")).expect("read published CURRENT"),
             b"manifest.json\n"
         );
-        let manifest: serde_json::Value = serde_json::from_slice(
+        let manifest: CompleteManifest = serde_json::from_slice(
             &std::fs::read(generation.join("manifest.json")).expect("read complete manifest"),
         )
         .expect("parse complete manifest");
-        assert_eq!(manifest["version"].as_u64(), Some(1));
-        assert_eq!(manifest["job_id"].to_string(), entry.job_id.0.to_string());
-        assert_eq!(
-            manifest["generation"].to_string(),
-            entry.generation.get().to_string()
-        );
-        assert_eq!(
-            manifest["source_sha256"].as_str(),
-            Some(entry.source_sha256.as_str())
-        );
-        assert!(manifest["segments"].as_u64().is_some_and(|count| count > 0));
+        assert_eq!(manifest.version, 1);
+        assert_eq!(manifest.job_id, entry.job_id.0);
+        assert_eq!(manifest.generation, entry.generation.get());
+        assert_eq!(manifest.source_sha256, entry.source_sha256);
+        assert!(manifest.segments > 0);
 
         let generation = generation
             .canonicalize()
             .expect("resolve complete generation directory");
-        let read_artifact = |field: &str, expected_name: &str| {
-            let artifact = &manifest[field];
-            let relative_path = artifact["path"]
-                .as_str()
-                .expect("manifest artifact path must be a string");
-            assert_eq!(relative_path, expected_name);
-            let path = generation.join(relative_path);
+        let read_artifact = |artifact: &ManifestArtifact, expected_name: &str| {
+            assert_eq!(artifact.path, expected_name);
+            let path = generation.join(&artifact.path);
             let canonical = path.canonicalize().expect("resolve manifest artifact");
             assert!(canonical.starts_with(&generation));
             let bytes = std::fs::read(&canonical).expect("read published manifest artifact");
@@ -19600,24 +19608,21 @@ mod tests {
                 "published {expected_name} must not be empty"
             );
             assert_eq!(
-                artifact["bytes"].as_u64(),
-                Some(bytes.len() as u64),
+                artifact.bytes,
+                bytes.len() as u64,
                 "published {expected_name} byte count must match its manifest"
             );
-            let expected_sha = artifact["sha256"]
-                .as_str()
-                .expect("manifest artifact SHA-256 must be a string");
             assert_eq!(
                 crate::parakeet_import::sha256_file(&canonical)
                     .expect("hash published manifest artifact"),
-                expected_sha,
+                artifact.sha256,
                 "published {expected_name} SHA-256 must match its manifest"
             );
             String::from_utf8(bytes).expect("published text artifact must be UTF-8")
         };
         (
-            read_artifact("text", "transcript.txt"),
-            read_artifact("srt", "transcript.srt"),
+            read_artifact(&manifest.text, "transcript.txt"),
+            read_artifact(&manifest.srt, "transcript.srt"),
         )
     }
 
