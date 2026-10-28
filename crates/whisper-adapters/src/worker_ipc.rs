@@ -22508,6 +22508,48 @@ mod tests {
                 .all(|entry| entry.segment.text != prefix_text),
             "the promoted prefix must not be duplicated in the recalculated suffix"
         );
+        let resumed_document_directory = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", job_id.0))
+            .join(resumed_generation.get().to_string())
+            .join("parakeet-unified/document");
+        let mut coverage_reader =
+            crate::parakeet_document::ParakeetDocumentStore::open_resume_coverage(
+                &resumed_document_directory,
+                job_id,
+                resumed_generation,
+                expected_samples,
+            )
+            .expect("read resumed generation audio coverage")
+            .expect("complete resumed generation must have audio coverage");
+        let mut next_window_sequence = 1_u64;
+        let mut covered_samples = 0_u64;
+        let mut first_coverage_end = None;
+        let mut second_coverage_start = None;
+        loop {
+            let page = coverage_reader
+                .read_page(128)
+                .expect("read bounded resumed audio coverage page");
+            if page.is_empty() {
+                break;
+            }
+            for coverage in page {
+                assert_eq!(coverage.sequence, next_window_sequence);
+                assert_eq!(coverage.range.start_sample, covered_samples);
+                if coverage.sequence == 1 {
+                    assert_eq!(coverage.range.start_sample, 0);
+                    assert_eq!(coverage.range.end_sample, checkpoint_samples);
+                    first_coverage_end = Some(coverage.range.end_sample);
+                } else if coverage.sequence == 2 {
+                    second_coverage_start = Some(coverage.range.start_sample);
+                }
+                covered_samples = coverage.range.end_sample;
+                next_window_sequence += 1;
+            }
+        }
+        assert_eq!(first_coverage_end, Some(checkpoint_samples));
+        assert_eq!(second_coverage_start, Some(checkpoint_samples));
+        assert_eq!(covered_samples, expected_samples);
         let (txt, srt) = assert_native_generation_text_artifacts(&archive_root, complete_archive);
         assert_eq!(
             txt.matches(prefix_text).count(),
