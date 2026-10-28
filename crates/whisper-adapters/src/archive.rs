@@ -2118,15 +2118,13 @@ impl ArchiveStore {
         let wav_path = directory.join("parakeet-unified/source.wav");
         let (wav_path, txt_path, srt_path) = if intent.internal_only {
             let canonical_directory = canonical_generation_directory(root, &directory)?;
-            if !valid_internal_publication_intent(
+            validate_internal_publication_intent(
                 root,
                 job_id,
                 generation,
                 &intent,
                 &manifest.source_sha256,
-            ) {
-                return Err("StaleResponse: internal publication intent does not match manifest".into());
-            }
+            )?;
             let txt_path = verify_internal_unified_artifact(
                 &directory,
                 &canonical_directory,
@@ -7542,80 +7540,183 @@ fn canonical_generation_directory(root: &Path, directory: &Path) -> Result<PathB
     Ok(canonical_directory)
 }
 
-fn valid_internal_publication_intent(
+fn validate_internal_publication_intent(
     root: &Path,
     job_id: JobId,
     generation: Generation,
     intent: &PublicationIntent,
     manifest_source_sha256: &str,
-) -> bool {
-    let Ok(canonical_root) = root.canonicalize() else {
-        return false;
-    };
-    let canonical_destination = canonical_root.to_string_lossy();
-    let expected_operation_id = format!("{:032x}-{}", job_id.0, generation.get());
+) -> Result<(), String> {
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|error| format!("PublicationUnavailable: archive root: {error}"))?;
+    let current_pending = read_internal_pending(root, job_id, generation.get())?;
+    if current_pending.version != 4
+        || current_pending.job_id != job_id
+        || current_pending.generation != generation
+        || current_pending.strategy
+            != whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        || current_pending.source_sha256 != manifest_source_sha256
+        || current_pending.source_samples != intent.source_samples
+    {
+        return Err("StaleResponse: internal publication pending identity changed".into());
+    }
+    let bare_operation_id = format!("{:032x}-{}", job_id.0, generation.get());
+    let resumed_operation_id = format!(
+        "{}-{bare_operation_id}",
+        current_pending.strategy.stable_id()
+    );
     if intent.version != 1
-        || intent.operation_id != expected_operation_id
+        || (intent.operation_id != bare_operation_id
+            && intent.operation_id != resumed_operation_id)
         || intent.source_sha256 != manifest_source_sha256
         || intent.export_basename != "transcript"
     {
-        return false;
+        return Err("StaleResponse: internal publication intent identity changed".into());
     }
 
     match &intent.choice {
         DuplicateImportChoice::CreateNew => {
-            intent.cleanup_id.is_none() && intent.cleanup_targets.is_empty()
+            if intent.cleanup_id.is_some() || !intent.cleanup_targets.is_empty() {
+                return Err("StaleResponse: create-only intent has replacement metadata".into());
+            }
         }
         DuplicateImportChoice::ReplaceLatest => {
-            valid_internal_reprocessing_targets(
-                canonical_destination.as_ref(),
+            if intent.cleanup_targets.len() != 1 {
+                return Err("StaleResponse: ReplaceLatest target count changed".into());
+            }
+            validate_internal_reprocessing_provenance(
+                root,
+                &canonical_root,
                 job_id,
                 generation,
+                &current_pending,
                 intent,
-                &expected_operation_id,
-            ) && intent.cleanup_targets.len() == 1
+            )?;
         }
         DuplicateImportChoice::ReplaceAll => {
-            valid_internal_reprocessing_targets(
-                canonical_destination.as_ref(),
+            if intent.cleanup_targets.is_empty() {
+                return Err("StaleResponse: ReplaceAll has no persisted cleanup targets".into());
+            }
+            validate_internal_reprocessing_provenance(
+                root,
+                &canonical_root,
                 job_id,
                 generation,
+                &current_pending,
                 intent,
-                &expected_operation_id,
-            )
+            )?;
         }
         DuplicateImportChoice::ReplaceSelectedPath(selected_path) => {
-            !selected_path.trim().is_empty()
-                && intent.cleanup_targets.len() == 1
-                && valid_internal_reprocessing_targets(
-                    canonical_destination.as_ref(),
-                    job_id,
-                    generation,
-                    intent,
-                    &expected_operation_id,
-                )
+            if selected_path.trim().is_empty() || intent.cleanup_targets.len() != 1 {
+                return Err("StaleResponse: selected replacement target changed".into());
+            }
+            validate_internal_reprocessing_provenance(
+                root,
+                &canonical_root,
+                job_id,
+                generation,
+                &current_pending,
+                intent,
+            )?;
         }
-        DuplicateImportChoice::Replace => false,
+        DuplicateImportChoice::Replace => {
+            return Err("StaleResponse: legacy replacement is not an internal intent".into());
+        }
     }
+    Ok(())
 }
 
-fn valid_internal_reprocessing_targets(
-    canonical_destination: &str,
+fn validate_internal_reprocessing_provenance(
+    root: &Path,
+    canonical_root: &Path,
     job_id: JobId,
     generation: Generation,
+    current_pending: &PendingRecord,
     intent: &PublicationIntent,
-    expected_operation_id: &str,
-) -> bool {
-    intent.cleanup_id.as_deref() == Some(expected_operation_id)
-        && !intent.cleanup_targets.is_empty()
-        && intent.cleanup_targets.iter().enumerate().all(|(index, target)| {
-            target.source_sha256 == intent.source_sha256
-                && target.treatment.destination.as_str() == canonical_destination
-                && (target.treatment.job_id != job_id || target.treatment.generation != generation)
-                && intent.cleanup_targets[..index]
+) -> Result<(), String> {
+    let cleanup_id = intent
+        .cleanup_id
+        .as_deref()
+        .ok_or_else(|| "StaleResponse: reprocessing intent has no cleanup identity".to_owned())?;
+    let origin_generation = parse_cleanup_origin_generation(cleanup_id, job_id, generation)?;
+    let origin_pending = if origin_generation == generation.get() {
+        current_pending.clone()
+    } else {
+        read_internal_pending(root, job_id, origin_generation)?
+    };
+    if origin_pending.version != 4
+        || origin_pending.job_id != job_id
+        || origin_pending.generation.get() != origin_generation
+        || origin_pending.strategy != current_pending.strategy
+        || origin_pending.source_sha256 != intent.source_sha256
+        || origin_pending.source_samples != intent.source_samples
+    {
+        return Err("StaleResponse: cleanup origin does not match persisted source identity".into());
+    }
+
+    let cleanup_plan = read_cleanup_plan(root, cleanup_id)?;
+    if cleanup_plan.version != 1
+        || cleanup_plan.cleanup_id != cleanup_id
+        || cleanup_plan.destination.as_str() != canonical_root.to_string_lossy().as_ref()
+        || cleanup_plan.source_path != current_pending.source_path
+        || cleanup_plan.source_sha256 != intent.source_sha256
+        || cleanup_plan.successor.job_id != job_id
+        || cleanup_plan.successor.generation != generation
+        || !cleanup_plan.published
+        || !cleanup_targets_match_intent(&intent.cleanup_targets, &cleanup_plan.targets)
+        || intent.cleanup_targets.iter().enumerate().any(|(index, target)| {
+            target.source_sha256 != intent.source_sha256
+                || target.treatment.destination.as_str()
+                    != canonical_root.to_string_lossy().as_ref()
+                || (target.treatment.job_id == job_id
+                    && target.treatment.generation == generation)
+                || intent.cleanup_targets[..index]
                     .iter()
-                    .all(|previous| previous.treatment != target.treatment)
+                    .any(|previous| previous.treatment == target.treatment)
         })
+    {
+        return Err("StaleResponse: persisted cleanup provenance does not match reprocessing intent".into());
+    }
+    Ok(())
+}
+
+fn parse_cleanup_origin_generation(
+    cleanup_id: &str,
+    job_id: JobId,
+    current_generation: Generation,
+) -> Result<u64, String> {
+    let prefix = format!("{:032x}-", job_id.0);
+    let generation_text = cleanup_id
+        .strip_prefix(&prefix)
+        .ok_or_else(|| "StaleResponse: cleanup identity belongs to another job".to_owned())?;
+    let origin_generation = generation_text
+        .parse::<u64>()
+        .map_err(|_| "StaleResponse: cleanup generation identity is invalid".to_owned())?;
+    if origin_generation == 0
+        || origin_generation > current_generation.get()
+        || origin_generation.to_string() != generation_text
+    {
+        return Err("StaleResponse: cleanup generation is not a valid prior identity".into());
+    }
+    Ok(origin_generation)
+}
+
+fn read_internal_pending(
+    root: &Path,
+    job_id: JobId,
+    generation: u64,
+) -> Result<PendingRecord, String> {
+    let pending_path = root
+        .join("transcriptions")
+        .join(format!("{:032x}", job_id.0))
+        .join(generation.to_string())
+        .join("pending.json");
+    serde_json::from_slice(
+        &fs::read(&pending_path)
+            .map_err(|error| format!("PublicationUnavailable: pending identity: {error}"))?,
+    )
+    .map_err(|error| format!("StorageCorrupt: pending identity: {error}"))
 }
 
 fn verify_pcm_staging(
@@ -7867,6 +7968,24 @@ mod tests {
             text: verified_artifact(&directory, &directory.join("transcript.txt")).unwrap(),
             srt: verified_artifact(&directory, &directory.join("transcript.srt")).unwrap(),
         };
+        let pending = PendingRecord {
+            version: 4,
+            job_id,
+            generation,
+            source_path: source_path.to_string_lossy().into_owned(),
+            source_sha256: manifest.source_sha256.clone(),
+            source_samples: 16_000,
+            model_path: "unused-model".into(),
+            model_sha256: "00".repeat(32),
+            model_size: 0,
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            qualification: None,
+        };
+        fs::write(
+            directory.join("pending.json"),
+            serde_json::to_vec(&pending).unwrap(),
+        )
+        .unwrap();
         fs::write(
             directory.join("manifest.json"),
             serde_json::to_vec(&manifest).unwrap(),
@@ -7956,6 +8075,20 @@ mod tests {
         assert_eq!(fs::read(exports.join("transcript.srt")).unwrap(), sentinel_srt);
         assert_eq!(fs::read(&reservation_path).unwrap(), reservation_before);
         assert_eq!(fs::read(&index_path).unwrap(), index_before);
+
+        let intent_path = directory.join("r11-publication.json");
+        let valid_intent = fs::read(&intent_path).unwrap();
+        let mut altered_intent = intent.clone();
+        altered_intent.operation_id =
+            format!("untrusted-prefix-{:032x}-{}", job_id.0, generation.get());
+        fs::write(&intent_path, serde_json::to_vec(&altered_intent).unwrap()).unwrap();
+        assert!(
+            ArchiveStore::published_unified_files(&root, job_id, generation)
+                .unwrap_err()
+                .contains("StaleResponse"),
+            "an arbitrary operation prefix must not authorize internal artifacts"
+        );
+        fs::write(&intent_path, valid_intent).unwrap();
 
         let mut corrupt_manifest = manifest.clone();
         corrupt_manifest.text.path = "../exports/transcript.txt".into();

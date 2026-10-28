@@ -14394,6 +14394,85 @@ mod tests {
         assert_eq!(entry.export_basename, None);
     }
 
+    fn enqueue_import_with_choice(
+        app: &mut ImportApplication<RuntimeImportPort>,
+        request: ImportRequest,
+        choice: Option<DuplicateImportChoice>,
+    ) -> ImportRequest {
+        let requested_job = request.job_id;
+        app.dispatch(AppCommand::EnqueueImport { request })
+            .expect("enqueue import through the application");
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let mut choice = choice;
+        loop {
+            let view = app
+                .dispatch(AppCommand::Refresh)
+                .expect("refresh import admission and queue");
+            if let Some(prompt) = view.duplicate_import_prompt.clone() {
+                assert_eq!(prompt.request.job_id, requested_job);
+                app.dispatch(AppCommand::ResolveDuplicateImport {
+                    prompt,
+                    choice: choice
+                        .take()
+                        .expect("duplicate import requires its explicit test choice"),
+                })
+                .expect("resolve duplicate import choice through the application");
+                continue;
+            }
+            if let Some(entry) = view.queue.iter().find(|entry| {
+                entry.request.job_id == requested_job
+                    && matches!(
+                        entry.status,
+                        whisper_core::ports::ImportQueueStatus::Queued
+                    )
+            }) {
+                return entry.request.clone();
+            }
+            assert!(
+                Instant::now() < deadline,
+                "import did not enter the durable queue: view={view:?}"
+            );
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    fn process_queued_import_to_app_view(
+        app: &mut ImportApplication<RuntimeImportPort>,
+        request: ImportRequest,
+        archive_root: &Path,
+    ) -> whisper_core::ports::UnifiedParakeetSessionView {
+        let identity = (request.job_id, request.generation);
+        app.dispatch(AppCommand::ProcessQueued { request })
+            .expect("process the durable import through the application");
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let mut last_message = None;
+        loop {
+            let view = app
+                .dispatch(AppCommand::Refresh)
+                .expect("refresh processed import");
+            last_message = view.message.clone();
+            if let Some(session) = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| (session.job_id, session.generation) == identity)
+            {
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                    panic!("queued import failed: {session:?}; {last_message:?}");
+                }
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                    assert_app_view_internal_publication(session, archive_root);
+                    return session.clone();
+                }
+            }
+            assert!(
+                Instant::now() < deadline,
+                "queued import did not complete: {last_message:?}; view={:?}",
+                app.view()
+            );
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+
     #[test]
     fn import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports() {
         for (index, (seconds, compute)) in [
@@ -15004,6 +15083,203 @@ mod tests {
             .is_none(),
             "completed resumed publication must release the transferred source binding"
         );
+
+        let first_txt_path = PathBuf::from(completed_session.txt_path.as_deref().unwrap());
+        let first_srt_path = PathBuf::from(completed_session.srt_path.as_deref().unwrap());
+        let first_txt_bytes = std::fs::read(&first_txt_path).unwrap();
+        let first_srt_bytes = std::fs::read(&first_srt_path).unwrap();
+        let mut second_request =
+            unified_import_request(&archive_root, &source_path, 0x51_104);
+        second_request.config.compute = ComputeChoice::Cpu;
+        assert_real_unified_model(&second_request);
+        let second_queued = enqueue_import_with_choice(
+            &mut app,
+            second_request,
+            Some(DuplicateImportChoice::CreateNew),
+        );
+        let second = process_queued_import_to_app_view(
+            &mut app,
+            second_queued,
+            &archive_root,
+        );
+        let second_txt_path = PathBuf::from(second.txt_path.as_deref().unwrap());
+        let second_srt_path = PathBuf::from(second.srt_path.as_deref().unwrap());
+        assert!(second_txt_path.is_file());
+        assert!(second_srt_path.is_file());
+
+        let mut reprocessing_request =
+            unified_import_request(&archive_root, &source_path, 0x51_105);
+        reprocessing_request.config.compute = ComputeChoice::Cpu;
+        assert_real_unified_model(&reprocessing_request);
+        let interrupted = enqueue_import_with_choice(
+            &mut app,
+            reprocessing_request,
+            Some(DuplicateImportChoice::ReplaceLatest),
+        );
+        let checkpoint_samples = whisper_core::parakeet_windows::WINDOW_MAX_SAMPLES;
+        let mut interrupted_archive = ArchiveStore::new(&archive_root);
+        interrupted_archive.prepare(interrupted.clone()).unwrap();
+        let confirmed_prefix = whisper_core::ports::WorkerSegment {
+            job_id: interrupted.job_id,
+            generation: interrupted.generation,
+            instance_id: 7,
+            segment_id: whisper_core::SegmentId(1),
+            range: whisper_core::SourceRange::new(
+                checkpoint_samples - 6_400,
+                checkpoint_samples - 3_200,
+                16_000,
+            )
+            .unwrap(),
+            text: "confirmed ReplaceLatest prefix".into(),
+        };
+        interrupted_archive
+            .persist_segment(&confirmed_prefix)
+            .unwrap();
+        let interrupted_directory = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", interrupted.job_id.0))
+            .join(interrupted.generation.get().to_string());
+        let interrupted_document_directory = interrupted_directory
+            .join("parakeet-unified")
+            .join("document");
+        let mut interrupted_document =
+            crate::parakeet_document::ParakeetDocumentStore::create(
+                &interrupted_document_directory,
+                interrupted.job_id,
+                interrupted.generation,
+            )
+            .unwrap();
+        interrupted_document
+            .append_final(confirmed_prefix)
+            .unwrap();
+        interrupted_document
+            .record_coverage(whisper_core::ports::ParakeetWindowCoverage {
+                sequence: 1,
+                range: whisper_core::SourceRange::new(0, checkpoint_samples, 16_000).unwrap(),
+                last_segment_sequence: 1,
+            })
+            .unwrap();
+        drop(interrupted_document);
+        crate::queue_store::QueueStore::open(&archive_root)
+            .unwrap()
+            .set_status(
+                interrupted.job_id,
+                interrupted.generation,
+                crate::queue_store::QueueStatus::Interrupted,
+            )
+            .unwrap();
+
+        let reprocessed_identity = (interrupted.job_id, interrupted.generation.next().unwrap());
+        app.dispatch(AppCommand::ResumeInterrupted {
+            request: interrupted.clone(),
+        })
+        .expect("resume the durable ReplaceLatest request");
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let mut reprocessed = None;
+        let mut resume_message = None;
+        while Instant::now() < deadline {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            resume_message = view.message.clone();
+            if let Some(session) = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| {
+                    (session.job_id, session.generation) == reprocessed_identity
+                })
+            {
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                    panic!("ReplaceLatest resume failed: {session:?}; {resume_message:?}");
+                }
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                    assert_app_view_internal_publication(session, &archive_root);
+                    reprocessed = Some(session.clone());
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        let reprocessed = reprocessed.unwrap_or_else(|| {
+            panic!("ReplaceLatest resume did not complete: {resume_message:?}")
+        });
+        let reprocessed_txt = std::fs::read_to_string(reprocessed.txt_path.as_deref().unwrap())
+            .unwrap();
+        let reprocessed_srt = std::fs::read_to_string(reprocessed.srt_path.as_deref().unwrap())
+            .unwrap();
+        assert_eq!(
+            reprocessed_txt.matches("confirmed ReplaceLatest prefix").count(),
+            1
+        );
+        assert_eq!(
+            reprocessed_srt.matches("confirmed ReplaceLatest prefix").count(),
+            1
+        );
+        assert_eq!(std::fs::read(&first_txt_path).unwrap(), first_txt_bytes);
+        assert_eq!(std::fs::read(&first_srt_path).unwrap(), first_srt_bytes);
+        let first_result = ArchiveStore::published_unified_files(
+            &archive_root,
+            completed_session.job_id,
+            completed_session.generation,
+        )
+        .expect("the earlier unselected result must remain readable");
+        assert_eq!(Path::new(&first_result.txt_path), first_txt_path);
+        assert_eq!(Path::new(&first_result.srt_path), first_srt_path);
+        assert!(
+            !second_txt_path.exists() && !second_srt_path.exists(),
+            "ReplaceLatest must retire its selected prior result while preserving earlier results"
+        );
+
+        let reprocessed_intent_path = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", reprocessed_identity.0.0))
+            .join(reprocessed_identity.1.get().to_string())
+            .join("r11-publication.json");
+        let valid_reprocessed_intent = std::fs::read(&reprocessed_intent_path).unwrap();
+        let mut altered_operation =
+            serde_json::from_slice::<serde_json::Value>(&valid_reprocessed_intent).unwrap();
+        altered_operation["operation_id"] = serde_json::Value::String(format!(
+            "bounded-windows-v1-{:032x}-{}",
+            reprocessed_identity.0.0 + 1,
+            reprocessed_identity.1.get()
+        ));
+        std::fs::write(
+            &reprocessed_intent_path,
+            serde_json::to_vec(&altered_operation).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            ArchiveStore::published_unified_files(
+                &archive_root,
+                reprocessed_identity.0,
+                reprocessed_identity.1
+            )
+            .unwrap_err()
+            .contains("StaleResponse"),
+            "a prefixed operation identity for a foreign job must be rejected"
+        );
+        let mut altered_cleanup =
+            serde_json::from_slice::<serde_json::Value>(&valid_reprocessed_intent).unwrap();
+        altered_cleanup["cleanup_id"] = serde_json::Value::String(format!(
+            "{:032x}-{}",
+            reprocessed_identity.0.0 + 1,
+            interrupted.generation.get()
+        ));
+        std::fs::write(
+            &reprocessed_intent_path,
+            serde_json::to_vec(&altered_cleanup).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            ArchiveStore::published_unified_files(
+                &archive_root,
+                reprocessed_identity.0,
+                reprocessed_identity.1
+            )
+            .unwrap_err()
+            .contains("StaleResponse"),
+            "cleanup provenance for a foreign job must be rejected"
+        );
+        std::fs::write(&reprocessed_intent_path, valid_reprocessed_intent).unwrap();
+        assert_app_view_internal_publication(&reprocessed, &archive_root);
         drop(app);
         std::fs::remove_dir_all(root).unwrap();
     }
