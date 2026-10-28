@@ -818,7 +818,17 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 return Ok(());
             }
             ImportEvent::SourceSnapshotRecoveryInspected(candidates) => {
-                self.view.source_snapshot_recovery = Some(candidates.clone());
+                if candidates.is_empty() {
+                    self.view.source_snapshot_recovery = None;
+                    self.view.message = Some(
+                        "Inspection terminée : aucune copie audio retenue récupérable.".into(),
+                    );
+                } else {
+                    self.view.source_snapshot_recovery = Some(candidates.clone());
+                    self.view.message = Some(
+                        "Inspection terminée : vérifiez les copies conservées avant toute récupération.".into(),
+                    );
+                }
                 return Ok(());
             }
             ImportEvent::SourceSnapshotRecoveryCompleted {
@@ -826,15 +836,55 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 candidates,
                 error,
             } => {
-                self.view.source_snapshot_recovery = Some(candidates.clone());
+                self.view.source_snapshot_recovery = None;
                 self.view.source_snapshot_recovery_available = false;
-                self.view.message = Some(error.clone().unwrap_or_else(|| {
-                    if *freed > 0 {
-                        format!("{freed} copie(s) audio retenue(s) récupérée(s). Vous pouvez relancer l’import.")
-                    } else {
-                        "Aucune réservation abandonnée récupérable. Les éléments protégés sont conservés.".into()
+                let protected_count = candidates
+                    .iter()
+                    .filter(|candidate| !candidate.recoverable)
+                    .count();
+                let protected = candidates
+                    .iter()
+                    .filter(|candidate| !candidate.recoverable)
+                    .take(4)
+                    .map(|candidate| {
+                        candidate.reason.as_deref().map_or_else(
+                            || {
+                                format!(
+                                    "Job {:032x}/génération {} : protégé",
+                                    candidate.job_id.0,
+                                    candidate.generation.get()
+                                )
+                            },
+                            |reason| {
+                                format!(
+                                    "Job {:032x}/génération {} : {reason}",
+                                    candidate.job_id.0,
+                                    candidate.generation.get()
+                                )
+                            },
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let mut message = if let Some(error) = error {
+                    format!("La récupération a échoué : {error}")
+                } else if *freed > 0 {
+                    format!(
+                        "{freed} copie(s) audio retenue(s) récupérée(s). Vous pouvez relancer l’import."
+                    )
+                } else if candidates.is_empty() {
+                    "Aucune copie audio retenue récupérable.".into()
+                } else {
+                    "Aucune copie sûre n’a été libérée.".into()
+                };
+                if !protected.is_empty() {
+                    message.push_str(" Copies protégées conservées : ");
+                    message.push_str(&protected.join(" ; "));
+                    let omitted = protected_count.saturating_sub(protected.len());
+                    if omitted > 0 {
+                        message.push_str(&format!(" ; et {omitted} autre(s) copie(s) protégée(s)"));
                     }
-                }));
+                }
+                self.view.message = Some(message);
                 return Ok(());
             }
             ImportEvent::Queue(queue) => {
@@ -4580,6 +4630,70 @@ mod tests {
         }
         assert!(app.io.effects.is_empty());
         assert!(app.view.close_ready);
+    }
+
+    #[test]
+    fn empty_snapshot_recovery_inspection_closes_dialog_and_reports_result() {
+        let mut io = ScanTestIo::default();
+        io.events
+            .push_back(ImportEvent::SourceSnapshotRecoveryInspected(Vec::new()));
+        let mut app = ImportApplication::new(io);
+
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+
+        assert!(view.source_snapshot_recovery.is_none());
+        assert!(view
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("aucune copie audio retenue récupérable")));
+    }
+
+    #[test]
+    fn snapshot_recovery_completion_closes_dialog_and_keeps_error_and_protected_reason_visible() {
+        let mut io = ScanTestIo::default();
+        io.events
+            .push_back(ImportEvent::SourceSnapshotRecoveryCompleted {
+                freed: 0,
+                candidates: vec![SourceSnapshotRecoveryCandidate {
+                    job_id: JobId(812),
+                    generation: Generation::first(),
+                    destination: "archive/protected".into(),
+                    recoverable: false,
+                    reason: Some("copie liée à une demande active".into()),
+                }],
+                error: Some("registre indisponible".into()),
+            });
+        let mut app = ImportApplication::new(io);
+
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+
+        assert!(view.source_snapshot_recovery.is_none());
+        assert!(!view.source_snapshot_recovery_available);
+        let message = view.message.as_deref().unwrap();
+        assert!(message.contains("registre indisponible"));
+        assert!(message.contains("copie liée à une demande active"));
+        assert!(message.contains("0000000000000000000000000000032c"));
+    }
+
+    #[test]
+    fn successful_snapshot_recovery_completion_closes_dialog_and_reports_recovered_copies() {
+        let mut io = ScanTestIo::default();
+        io.events
+            .push_back(ImportEvent::SourceSnapshotRecoveryCompleted {
+                freed: 2,
+                candidates: Vec::new(),
+                error: None,
+            });
+        let mut app = ImportApplication::new(io);
+
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+
+        assert!(view.source_snapshot_recovery.is_none());
+        assert!(!view.source_snapshot_recovery_available);
+        assert!(view
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("2 copie(s) audio retenue(s) récupérée(s)")));
     }
 
     #[test]

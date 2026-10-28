@@ -2889,6 +2889,9 @@ pub fn source_snapshot_recovery_widget(
         return Some(AppCommand::InspectSourceSnapshotRecovery);
     }
     let candidates = candidates?;
+    if candidates.is_empty() {
+        return None;
+    }
     let mut command = None;
     egui::Modal::new(egui::Id::new("source_snapshot_recovery_confirmation")).show(ui.ctx(), |ui| {
         ui.set_min_width(420.0);
@@ -3893,6 +3896,23 @@ mod tests {
         ImportEffect, ImportRequest, JobConfig, JobId, LanguageChoice, MicrophoneChoice,
         MicrophoneDevice, MicrophonePort,
     };
+
+    #[test]
+    fn empty_snapshot_recovery_result_does_not_render_a_blank_modal() {
+        fn rendered_shape_count(
+            candidates: Option<&[whisper_core::ports::SourceSnapshotRecoveryCandidate]>,
+        ) -> usize {
+            let context = egui::Context::default();
+            let output = context.run(egui::RawInput::default(), |context| {
+                egui::CentralPanel::default().show(context, |ui| {
+                    super::source_snapshot_recovery_widget(ui, false, candidates);
+                });
+            });
+            output.shapes.len()
+        }
+
+        assert_eq!(rendered_shape_count(None), rendered_shape_count(Some(&[])));
+    }
 
     #[test]
     fn parakeet_preserves_the_selected_compute_preference() {

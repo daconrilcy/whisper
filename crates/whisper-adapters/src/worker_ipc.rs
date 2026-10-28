@@ -3958,6 +3958,41 @@ impl ImportRuntime {
         Ok(())
     }
 
+    fn native_route_for_unified_import(
+        &self,
+        request: &ImportRequest,
+        candidate: Option<&whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+    ) -> Result<Option<NativeUnifiedRoute>, String> {
+        if request.strategy
+            != whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        {
+            return Ok(None);
+        }
+        if self.native_unified_candidate_enabled {
+            return native_unified_route(
+                request,
+                self.parakeet_paths.as_ref(),
+                self.gpu_parakeet_paths.as_ref(),
+                candidate,
+            )
+            .map(Some);
+        }
+        #[cfg(test)]
+        {
+            if self.controlled_transcriber.is_none() && self.unified_executor.is_none() {
+                return Err(
+                    "ModelNotQualified: unified strategy requires the injected controlled worker"
+                        .into(),
+                );
+            }
+            Ok(None)
+        }
+        #[cfg(not(test))]
+        {
+            Err("ModelNotQualified: unified Parakeet strategy is not enabled in the native composition".into())
+        }
+    }
+
     fn is_controlled_bounded_test(&self, request: &ImportRequest) -> bool {
         if request.strategy
             != whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
@@ -6990,7 +7025,17 @@ impl ImportRuntime {
                         catalog.known_historical_turbo_path.clone(),
                     )
                 });
-                let result =
+                let result = if request.strategy
+                    == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                    && self.unified_admission_full_for(
+                        whisper_core::parakeet_scheduler::SchedulerSession {
+                            job_id: id.0,
+                            generation: id.1,
+                        },
+                    )
+                {
+                    Err("SchedulerCapacity: two unified sessions are already admitted".into())
+                } else {
                     crate::archive::l04_campaign_assert_archive(Path::new(&request.destination))
                         .and_then(|()| crate::queue_store::QueueStore::open(&request.destination))
                         .and_then(|mut queue| {
@@ -7051,12 +7096,21 @@ impl ImportRuntime {
                                 .get(&(id.0, id.1.get()))
                                 .and_then(Option::as_ref);
                             validate_current_queued_gpu_candidate(&request, gpu_candidate)?;
+                            let native_route = if request.strategy
+                                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                            {
+                                self.native_route_for_unified_import(&request, gpu_candidate)?
+                            } else {
+                                None
+                            };
                             let prevalidated_gpu_executable =
                                 if request_is_parakeet(&request)
                                     && request.config.compute == whisper_core::ComputeChoice::Gpu
                                 {
                                     let executable = self.bind_import_request(&request)?;
-                                    if !self.is_controlled_bounded_test(&request) {
+                                    let unified = request.strategy
+                                        == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
+                                    if !unified {
                                         let qualification = archive_qualification_for_request(
                                             &request,
                                             self.parakeet_paths.as_ref(),
@@ -7069,12 +7123,18 @@ impl ImportRuntime {
                                             qualification.as_ref(),
                                         )?;
                                     }
-                                    crate::parakeet_import::expected_gpu_for_candidate(
-                                gpu_candidate.expect("current manual GPU proof was checked"),
-                            )
-                            .map_err(|error| {
-                                format!("BackendMismatch: GPU identity validation failed: {error}")
-                            })?;
+                                    if !unified || native_route.is_none() {
+                                        crate::parakeet_import::expected_gpu_for_candidate(
+                                            gpu_candidate.expect(
+                                                "current manual GPU proof was checked",
+                                            ),
+                                        )
+                                        .map_err(|error| {
+                                            format!(
+                                                "BackendMismatch: GPU identity validation failed: {error}"
+                                            )
+                                        })?;
+                                    }
                                     Some(executable)
                                 } else {
                                     None
@@ -7083,20 +7143,21 @@ impl ImportRuntime {
                                 .set_pending_compute(&entry.request, request.config.compute)?
                                 .request;
                             if let Some(executable) = prevalidated_gpu_executable {
-                                Ok((durable_request, executable))
+                                Ok((durable_request, executable, native_route))
                             } else if request_is_parakeet(&durable_request) {
                                 self.bind_import_request(&durable_request)
-                                    .map(|executable| (durable_request, executable))
+                                    .map(|executable| (durable_request, executable, native_route))
                             } else if let Some((snapshot, known_path)) = &model_catalog {
                                 queue
                                     .resolve_queued_with_catalog(id.0, id.1, snapshot, known_path)
-                                    .map(|executable| (durable_request, executable))
+                                    .map(|executable| (durable_request, executable, native_route))
                             } else {
-                                Ok((durable_request.clone(), durable_request))
+                                Ok((durable_request.clone(), durable_request, native_route))
                             }
-                        });
+                        })
+                };
                 match result {
-                    Ok((mut durable_request, verified_executable)) => {
+                    Ok((mut durable_request, verified_executable, native_route)) => {
                         let binding_result = self.ensure_source_binding(&mut durable_request);
                         if let Err(error) = binding_result {
                             Err((id.0, id.1, error))
@@ -7146,10 +7207,24 @@ impl ImportRuntime {
                                             });
                                     match queue_result {
                                         Ok(queue) => {
-                                            self.archive = archive;
-                                            events.push_back(ImportEvent::Queue(queue));
-                                            events.push_back(ImportEvent::Prepared(prepared));
-                                            Ok(())
+                                            let route_result = native_route.map_or(Ok(()), |route| {
+                                                self.register_prepared_native_route(
+                                                    whisper_core::parakeet_scheduler::SchedulerSession {
+                                                        job_id: id.0,
+                                                        generation: id.1,
+                                                    },
+                                                    route,
+                                                )
+                                            });
+                                            match route_result {
+                                                Ok(()) => {
+                                                    self.archive = archive;
+                                                    events.push_back(ImportEvent::Queue(queue));
+                                                    events.push_back(ImportEvent::Prepared(prepared));
+                                                    Ok(())
+                                                }
+                                                Err(error) => Err((id.0, id.1, error)),
+                                            }
                                         }
                                         Err(error) => Err((id.0, id.1, error)),
                                     }
@@ -7326,6 +7401,43 @@ impl ImportRuntime {
                 let executable_model_path = model_catalog
                     .as_ref()
                     .map(|_| executable_model_path.as_str());
+                let native_route = if durable_request.strategy
+                    == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                {
+                    let session = whisper_core::parakeet_scheduler::SchedulerSession {
+                        job_id: id.0,
+                        generation: id.1,
+                    };
+                    if self.unified_admission_full_for(session) {
+                        events.push_back(ImportEvent::Failed {
+                            job_id: id.0,
+                            generation: id.1,
+                            message: "SchedulerCapacity: two unified sessions are already admitted".into(),
+                        });
+                        return;
+                    }
+                    let candidate = self
+                        .gpu_candidates
+                        .get(&(id.0, id.1.get()))
+                        .and_then(Option::as_ref);
+                    match validate_current_queued_gpu_candidate(&durable_request, candidate)
+                        .and_then(|()| {
+                            self.native_route_for_unified_import(&durable_request, candidate)
+                        })
+                    {
+                        Ok(route) => route,
+                        Err(message) => {
+                            events.push_back(ImportEvent::Failed {
+                                job_id: id.0,
+                                generation: id.1,
+                                message,
+                            });
+                            return;
+                        }
+                    }
+                } else {
+                    None
+                };
                 let mut archive = ArchiveStore::new(&archive_destination);
                 let result = archive
                     .resume_from_with_qualification(
@@ -7371,6 +7483,22 @@ impl ImportRuntime {
                     });
                 match result {
                     Ok((prepared, prefix, queue)) => {
+                        if let Some(route) = native_route {
+                            if let Err(error) = self.register_prepared_native_route(
+                                whisper_core::parakeet_scheduler::SchedulerSession {
+                                    job_id: id.0,
+                                    generation: id.1,
+                                },
+                                route,
+                            ) {
+                                events.push_back(ImportEvent::Failed {
+                                    job_id: id.0,
+                                    generation: id.1,
+                                    message: error,
+                                });
+                                return;
+                            }
+                        }
                         let confirmed_segments = prefix.len() as u64;
                         let confirmed_offset = if prepared.source_samples.is_some_and(|samples| {
                             samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
@@ -8070,34 +8198,9 @@ impl ImportRuntime {
                     "SchedulerCapacity: two unified sessions are already admitted".into(),
                 ));
             }
-            #[cfg(test)]
-            if self.controlled_transcriber.is_none()
-                && self.unified_executor.is_none()
-                && !self.native_unified_candidate_enabled
-            {
-                return Err((
-                    id.0,
-                    id.1,
-                    "ModelNotQualified: unified strategy requires the injected controlled worker"
-                        .into(),
-                ));
-            }
-            #[cfg(not(test))]
-            if !self.native_unified_candidate_enabled {
-                return Err((id.0, id.1,
-                    "ModelNotQualified: unified Parakeet strategy is not enabled in the native composition".into()));
-            }
-            if self.native_unified_candidate_enabled {
-                native_route = Some(
-                    native_unified_route(
-                        &request,
-                        self.parakeet_paths.as_ref(),
-                        self.gpu_parakeet_paths.as_ref(),
-                        candidate.as_ref(),
-                    )
-                    .map_err(|error| (id.0, id.1, error))?,
-                );
-            }
+            native_route = self
+                .native_route_for_unified_import(&request, candidate.as_ref())
+                .map_err(|error| (id.0, id.1, error))?;
         }
         self.ensure_source_binding(&mut request)
             .map_err(|error| (id.0, id.1, error))?;
@@ -13837,6 +13940,244 @@ mod tests {
     }
 
     #[test]
+    fn import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio() {
+        for (index, (seconds, compute)) in [
+            (3_u64, ComputeChoice::Cpu),
+            (3_u64, ComputeChoice::Gpu),
+            (3_u64, ComputeChoice::Auto),
+            (121_u64, ComputeChoice::Cpu),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let root = test_artifact_root("queued-unified-import").join(format!(
+                "{}-{index}-{}",
+                std::process::id(),
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            std::fs::create_dir_all(&root).unwrap();
+            let source_path = root.join("source.wav");
+            let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+            writer
+                .append(&vec![0_i16; (seconds * 16_000) as usize])
+                .unwrap();
+            writer.finish().unwrap();
+            let source_sha = hex_sha256(&source_path);
+            let mut request = unified_import_request(
+                &root.join("archive"),
+                &source_path,
+                0x44_000 + index as u128,
+            );
+            request.config.compute = compute;
+            assert_real_unified_model(&request);
+
+            let (worker, calls) = controlled_worker();
+            let mut runtime = ImportRuntime::new(
+                WorkerPaths {
+                    cpu: PathBuf::from("unused-cpu"),
+                    gpu: PathBuf::from("unused-gpu"),
+                },
+                Arc::new(PublicationGate::default()),
+            )
+            .with_controlled_transcriber(worker);
+            if compute == ComputeChoice::Gpu {
+                let mut candidate = fake_gpu_candidate();
+                candidate.generation = request.generation.get();
+                runtime
+                    .gpu_candidates
+                    .insert((request.job_id, request.generation.get()), Some(candidate));
+            }
+            let mut app = ImportApplication::new(RuntimeImportPort {
+                runtime,
+                events: VecDeque::new(),
+                capture_progress: None,
+                document_revision: None,
+                unified_stop_submissions: None,
+                controlled_capture_blocks: None,
+            });
+            let identity = (request.job_id, request.generation);
+            app.dispatch(AppCommand::EnqueueImport {
+                request: request.clone(),
+            })
+            .unwrap();
+            let queued_view = app.dispatch(AppCommand::Refresh).unwrap();
+            let queued = queued_view
+                .queue
+                .iter()
+                .find(|entry| {
+                    (entry.request.job_id, entry.request.generation) == identity
+                        && matches!(
+                            entry.status,
+                            whisper_core::ports::ImportQueueStatus::Queued
+                        )
+                })
+                .expect("the application must expose the durable FIFO request after Enqueue")
+                .request
+                .clone();
+            assert_eq!(queued.source_sha256, Some(source_sha));
+            assert_eq!(queued.strategy, request.strategy);
+
+            app.dispatch(AppCommand::ProcessQueued { request: queued })
+                .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(60);
+            let mut phase = "session not visible".to_owned();
+            let mut message = None;
+            let mut complete = false;
+            while Instant::now() < deadline {
+                let view = app.dispatch(AppCommand::Refresh).unwrap();
+                message = view.message.clone();
+                if let Some(session) = view.unified_parakeet_sessions.iter().find(|session| {
+                    (session.job_id, session.generation) == identity
+                }) {
+                    phase = format!("{:?}", session.phase);
+                    if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                        panic!(
+                            "durable queued import failed ({seconds}s, {compute:?}): {phase}; message={message:?}"
+                        );
+                    }
+                    if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                        complete = true;
+                        break;
+                    }
+                }
+                thread::sleep(Duration::from_millis(2));
+            }
+            assert!(
+                complete,
+                "durable queued import did not reach Complete ({seconds}s, {compute:?}): phase={phase}, message={message:?}"
+            );
+            assert!(calls.load(Ordering::Relaxed) > 0);
+            let archive_root = root.join("archive");
+            let entry = ArchiveStore::scan(&archive_root)
+                .unwrap()
+                .into_iter()
+                .find(|entry| {
+                    (entry.job_id, entry.generation) == identity && entry.complete
+                })
+                .expect("the queued import must publish a complete archive");
+            assert_eq!(entry.strategy, request.strategy);
+            assert!(archive_root.join("exports").join(format!(
+                "{}.txt",
+                entry.export_basename.as_deref().unwrap()
+            )).is_file());
+            assert!(archive_root.join("exports").join(format!(
+                "{}.srt",
+                entry.export_basename.as_deref().unwrap()
+            )).is_file());
+            assert_eq!(hex_sha256(&source_path), source_sha);
+            drop(app);
+            std::fs::remove_dir_all(&root).unwrap();
+        }
+    }
+
+    #[test]
+    fn import_application_resumes_a_verified_interrupted_unified_import() {
+        let root = test_artifact_root("queued-unified-resume").join(format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let source_path = root.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let source_sha = hex_sha256(&source_path);
+        let mut previous = unified_import_request(&root.join("archive"), &source_path, 0x44_100);
+        assert_real_unified_model(&previous);
+        ArchiveStore::identify_source(&mut previous).unwrap();
+        assert_eq!(previous.source_sha256, Some(source_sha));
+        let mut archive = ArchiveStore::new(&previous.destination);
+        archive.prepare(previous.clone()).unwrap();
+        archive
+            .persist_segment(&whisper_core::ports::WorkerSegment {
+                job_id: previous.job_id,
+                generation: previous.generation,
+                instance_id: 1,
+                segment_id: whisper_core::SegmentId(1),
+                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                text: "prefix confirmé".into(),
+            })
+            .unwrap();
+        let mut queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
+        queue.enqueue(previous.clone()).unwrap();
+        queue
+            .set_status(
+                previous.job_id,
+                previous.generation,
+                crate::queue_store::QueueStatus::Interrupted,
+            )
+            .unwrap();
+
+        let (worker, calls) = controlled_worker();
+        let runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+        )
+        .with_controlled_transcriber(worker);
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+            controlled_capture_blocks: None,
+        });
+
+        app.dispatch(AppCommand::ResumeInterrupted {
+            request: previous.clone(),
+        })
+        .unwrap();
+        let resumed_identity = (previous.job_id, previous.generation.next().unwrap());
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let mut phase = "session not visible".to_owned();
+        let mut message = None;
+        let mut complete = false;
+        while Instant::now() < deadline {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            message = view.message.clone();
+            if let Some(session) = view.unified_parakeet_sessions.iter().find(|session| {
+                (session.job_id, session.generation) == resumed_identity
+            }) {
+                phase = format!("{:?}", session.phase);
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                    panic!("verified queue resume failed: phase={phase}, message={message:?}");
+                }
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                    complete = true;
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            complete,
+            "verified unified resume did not reach Complete: phase={phase}, message={message:?}"
+        );
+        assert!(calls.load(Ordering::Relaxed) > 0);
+        assert!(
+            ArchiveStore::scan(&root.join("archive")).unwrap().iter().any(|entry| {
+                (entry.job_id, entry.generation) == resumed_identity && entry.complete
+                    && entry.strategy
+                        == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+            }),
+            "the resumed generation must be the completed unified archive"
+        );
+        assert_eq!(hex_sha256(&source_path), source_sha);
+        drop(app);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
     #[cfg(windows)]
     #[ignore = "requires a separately authorized PU-L4 storage campaign and guarded WAV fixture over 1 GiB; uses controlled inference"]
     fn controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts() {
@@ -17894,6 +18235,320 @@ mod tests {
     }
 
     #[cfg(windows)]
+    fn native_queued_import_source(execution_root: &Path, long: bool) -> (PathBuf, u64, String) {
+        let (variable, expected_path, annotation_path) = if long {
+            (
+                "WHISPER_PU_L4_LONG_FR",
+                execution_root.join("fixtures/fr-long-35m.wav"),
+                Some(execution_root.join("fixtures/fr-long-35m.annotations.json")),
+            )
+        } else {
+            (
+                "WHISPER_PU_L4_FR_SOURCE",
+                PathBuf::new(),
+                None,
+            )
+        };
+        let configured = std::env::var_os(variable)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| panic!("{variable} must name the guarded French WAV fixture"));
+        let source = configured
+            .canonicalize()
+            .unwrap_or_else(|error| panic!("canonicalize {variable} fixture: {error}"));
+        assert!(
+            source.starts_with(execution_root),
+            "{variable} must remain under the guarded execution root: {}",
+            source.display()
+        );
+        if long {
+            assert_eq!(
+                source,
+                expected_path
+                    .canonicalize()
+                    .expect("planned long French WAV must be staged before native execution")
+            );
+        }
+        let samples = crate::archive::source_output_samples(&source)
+            .unwrap_or_else(|error| panic!("inspect {variable} source: {error}"));
+        let sha256 = crate::parakeet_import::sha256_file(&source)
+            .unwrap_or_else(|error| panic!("hash {variable} source: {error}"));
+        if long {
+            let annotation_path = annotation_path.expect("long fixture annotation path");
+            let annotation: NativeLongAnnotation = serde_json::from_slice(
+                &fs::read(&annotation_path).expect("read paired long French annotation"),
+            )
+            .expect("parse paired long French annotation");
+            assert_eq!(annotation.schema, "pu-l4-corpus-v1");
+            assert_eq!(annotation.language, "fr");
+            assert_eq!(annotation.sample_rate_hz, 16_000);
+            assert_eq!(annotation.channels, 1);
+            assert_eq!(annotation.source_samples, samples);
+            assert!(annotation.source_sha256.eq_ignore_ascii_case(&sha256));
+            assert!(samples >= 35 * 60 * 16_000);
+            let mut covered_samples = 0_u64;
+            for segment in &annotation.segments {
+                assert_eq!(segment.start_sample, covered_samples);
+                assert!(segment.end_sample > segment.start_sample);
+                assert!(segment.end_sample <= samples);
+                assert!(!segment.reference_text.trim().is_empty());
+                assert!(segment.source_path.starts_with("sound example/"));
+                covered_samples = segment.end_sample;
+            }
+            assert_eq!(covered_samples, samples);
+        } else {
+            assert!(samples > 0);
+            assert!(samples <= whisper_core::parakeet_windows::MAX_NATIVE_SAMPLES);
+        }
+        (source, samples, sha256)
+    }
+
+    #[cfg(windows)]
+    fn run_native_queued_unified_import(
+        compute: ComputeChoice,
+        long: bool,
+        include_current_gpu_candidate: bool,
+    ) {
+        let execution_root = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
+            .map(PathBuf::from)
+            .expect("guarded PU-L4 execution root is required")
+            .canonicalize()
+            .expect("guarded execution root must exist");
+        let local_app_data = std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .expect("isolated LOCALAPPDATA is required")
+            .canonicalize()
+            .expect("isolated LOCALAPPDATA must exist");
+        let whisper = local_app_data.join("Whisper");
+        let app_root = whisper.join("app");
+        let models_root = whisper.join("models");
+        let cpu_paths = crate::parakeet_import::ParakeetWorkerPaths {
+            executable: whisper.join("worker/whisper-worker-parakeet-cpu.exe"),
+            native_dir: whisper.join("native/cpu"),
+            model: models_root.join("parakeet-tdt-0.6b-v3.q8_0.gguf"),
+            runtime_root: whisper.clone(),
+        };
+        let gpu_paths = crate::parakeet_import::ParakeetWorkerPaths {
+            executable: whisper.join("worker/whisper-worker-parakeet-gpu.exe"),
+            native_dir: whisper.join("native/gpu"),
+            model: cpu_paths.model.clone(),
+            runtime_root: whisper.clone(),
+        };
+        let workers = WorkerPaths {
+            cpu: app_root.join("whisper-worker-cpu.exe"),
+            gpu: app_root.join("whisper-worker-gpu.exe"),
+        };
+        assert!(workers.cpu.is_file(), "personal Turbo CPU worker is missing");
+        assert!(workers.gpu.is_file(), "personal Turbo GPU worker is missing");
+        assert!(cpu_paths.validate().is_ok(), "personal Parakeet CPU route is invalid");
+        assert!(gpu_paths.validate().is_ok(), "personal Parakeet GPU route is invalid");
+
+        let (source_path, expected_samples, source_sha) =
+            native_queued_import_source(&execution_root, long);
+        let candidate = if include_current_gpu_candidate {
+            Some(native_personal_gpu_candidate_for_harness(&workers))
+        } else {
+            None
+        };
+        assert!(
+            compute != ComputeChoice::Gpu || candidate.is_some(),
+            "manual GPU queued import requires a current inventory identity"
+        );
+        let run_id = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock is after the epoch")
+            .as_nanos();
+        let job_id = JobId((u128::from(std::process::id()) << 96) | run_id);
+        let generation = Generation::first();
+        let archive_root = execution_root.join(format!(
+            "queued-{}-{}-{:032x}",
+            match compute {
+                ComputeChoice::Cpu => "cpu",
+                ComputeChoice::Gpu => "gpu",
+                ComputeChoice::Auto => "auto",
+            },
+            if long { "fr-long" } else { "fr-short" },
+            job_id.0
+        ));
+        assert!(!archive_root.exists(), "native test archive destination is fresh");
+
+        let model_catalog = Some(RuntimeModelCatalog {
+            catalog: crate::model_catalog::LocalModelCatalog::new(models_root.clone()),
+            known_historical_turbo_path: models_root
+                .join("ggml-large-v3-turbo.bin")
+                .to_string_lossy()
+                .into_owned(),
+            parakeet_paths: Some(cpu_paths.clone()),
+            gpu_parakeet_paths: Some(gpu_paths.clone()),
+        });
+        let snapshot_registry_root = execution_root.join("settings");
+        let (observer, native_events) = NativeQualificationObserver::channel();
+        let mut runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
+            workers,
+            Arc::new(PublicationGate::default()),
+            model_catalog,
+            Some(cpu_paths.clone()),
+            Some(gpu_paths),
+            Some(snapshot_registry_root),
+            true,
+            true,
+        )
+        .with_native_harness_observer(observer);
+        let mut request = unified_import_request(&archive_root, &source_path, job_id.0);
+        request.job_id = job_id;
+        request.generation = generation;
+        request.model_path = cpu_paths.model.to_string_lossy().into_owned();
+        request.config.compute = compute;
+        if let Some(candidate) = candidate {
+            assert_eq!(candidate.generation, generation.get());
+            runtime
+                .gpu_candidates
+                .insert((job_id, generation.get()), Some(candidate));
+        }
+
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+            controlled_capture_blocks: None,
+        });
+        app.dispatch(AppCommand::EnqueueImport {
+            request: request.clone(),
+        })
+        .expect("native queued import must enter the durable application queue");
+        let identity = (job_id, generation);
+        let enqueue_deadline = Instant::now() + Duration::from_secs(30);
+        let queued = loop {
+            let view = app
+                .dispatch(AppCommand::Refresh)
+                .expect("refresh durable native queue");
+            if let Some(entry) = view.queue.iter().find(|entry| {
+                (entry.request.job_id, entry.request.generation) == identity
+                    && matches!(
+                        entry.status,
+                        whisper_core::ports::ImportQueueStatus::Queued
+                    )
+            }) {
+                break entry.request.clone();
+            }
+            assert!(
+                Instant::now() < enqueue_deadline,
+                "native Enqueue did not persist the expected identity; view={view:?}"
+            );
+            thread::sleep(Duration::from_millis(5));
+        };
+        assert_eq!(queued.source_sha256, Some(source_sha));
+        assert_eq!(queued.source_samples, Some(expected_samples));
+        assert_eq!(queued.strategy, request.strategy);
+        app.dispatch(AppCommand::ProcessQueued { request: queued })
+            .expect("ProcessQueued must compose the native route before Prepared");
+        let session_id = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id,
+            generation,
+        };
+        let composed_route = app
+            .io
+            .runtime
+            .native_unified_routes
+            .get(&session_id)
+            .cloned()
+            .expect(
+            "ProcessQueued must install the qualified native route before StartWorker"
+            );
+        assert_eq!(composed_route.requested_compute, compute);
+        if compute == ComputeChoice::Gpu {
+            assert_eq!(composed_route.compute, ComputeChoice::Gpu);
+            assert!(composed_route.candidate.is_some());
+        }
+        if compute == ComputeChoice::Auto && composed_route.compute == ComputeChoice::Cpu {
+            assert!(composed_route.fallback_reason.is_some());
+        }
+        assert_eq!(
+            composed_route.compute == ComputeChoice::Gpu,
+            composed_route.expected_gpu.is_some()
+        );
+        let expected_backend = composed_route.backend_label();
+        let deadline = Instant::now() + Duration::from_secs(3_600);
+        let mut observed_phase = "not visible".to_owned();
+        let mut observed_message = None;
+        let mut complete_view = None;
+        let mut observed_native_events = Vec::with_capacity(128);
+        while Instant::now() < deadline {
+            let view = app
+                .dispatch(AppCommand::Refresh)
+                .expect("refresh queued native import");
+            native_event_drain(&native_events, &mut observed_native_events);
+            observed_message = view.message.clone();
+            if let Some(session) = view.unified_parakeet_sessions.iter().find(|session| {
+                (session.job_id, session.generation) == identity
+            }) {
+                observed_phase = format!("{:?}", session.phase);
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                    panic!(
+                        "native queued import became recoverable: phase={observed_phase}, message={observed_message:?}"
+                    );
+                }
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                    complete_view = Some(session.clone());
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(
+            !app.io
+                .runtime
+                .native_harness_observer
+                .as_ref()
+                .expect("native observer remains attached")
+                .overflowed
+                .load(Ordering::Relaxed),
+            "native event observer overflowed its fixed capacity"
+        );
+        let complete = complete_view.unwrap_or_else(|| {
+            panic!(
+                "native queued import did not complete within its bounded wait: phase={observed_phase}, message={observed_message:?}"
+            )
+        });
+        assert_eq!(complete.total_samples, Some(expected_samples));
+        assert_eq!(complete.captured_samples, expected_samples);
+        assert_eq!(complete.durable_samples, expected_samples);
+        assert_eq!(crate::parakeet_import::sha256_file(&source_path).unwrap(), source_sha);
+
+        let ready = observed_native_events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                NativeQualificationEventKind::Ready {
+                    backend,
+                    gpu_attested,
+                    ..
+                } => Some((backend.as_str(), *gpu_attested)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(ready.len(), 1, "one native READY must qualify the queued session");
+        assert_eq!(ready[0].0, expected_backend);
+        assert_eq!(ready[0].1, composed_route.compute == ComputeChoice::Gpu);
+        assert!(observed_native_events.iter().any(|event| matches!(
+            &event.kind,
+            NativeQualificationEventKind::RequestSent { session, generation: sent_generation, .. }
+                if session.job_id == job_id && *sent_generation == generation
+        )), "the composed route must issue a correlated native transcription request");
+
+        let entry = ArchiveStore::scan(&archive_root)
+            .expect("scan queued native archive")
+            .into_iter()
+            .find(|entry| (entry.job_id, entry.generation) == identity && entry.complete)
+            .expect("queued native app path must publish a complete archive");
+        assert_eq!(entry.strategy, request.strategy);
+        assert_eq!(entry.source_sha256, source_sha);
+        let basename = entry.export_basename.as_deref().expect("published export basename");
+        assert!(archive_root.join("exports").join(format!("{basename}.txt")).is_file());
+        assert!(archive_root.join("exports").join(format!("{basename}.srt")).is_file());
+    }
+
+    #[cfg(windows)]
     fn native_spoken_prefix(execution_root: &Path) -> Vec<f32> {
         let fixture = std::env::var_os("WHISPER_PU_L4_LONG_EN")
             .map(PathBuf::from)
@@ -19824,6 +20479,55 @@ mod tests {
                 "published artifact missing: {path}"
             );
         }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "requires the separately authorized PU-L4 native campaign and guarded short FR fixture"]
+    fn native_queued_cpu_short_import_uses_the_durable_application_path() {
+        run_native_queued_unified_import(ComputeChoice::Cpu, false, false);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded short FR fixture"]
+    fn native_queued_gpu_short_import_uses_current_attestation() {
+        run_native_queued_unified_import(ComputeChoice::Gpu, false, true);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded short FR fixture"]
+    fn native_queued_auto_short_import_prefers_current_gpu_candidate() {
+        run_native_queued_unified_import(ComputeChoice::Auto, false, true);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "requires the separately authorized PU-L4 native campaign and guarded short FR fixture"]
+    fn native_queued_auto_short_import_falls_back_to_cpu_without_candidate() {
+        run_native_queued_unified_import(ComputeChoice::Auto, false, false);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "requires the separately authorized PU-L4 native campaign and guarded 35-minute FR fixture"]
+    fn native_queued_cpu_long_import_uses_the_durable_application_path() {
+        run_native_queued_unified_import(ComputeChoice::Cpu, true, false);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded 35-minute FR fixture"]
+    fn native_queued_gpu_long_import_uses_current_attestation() {
+        run_native_queued_unified_import(ComputeChoice::Gpu, true, true);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded 35-minute FR fixture"]
+    fn native_queued_auto_long_import_prefers_current_gpu_candidate() {
+        run_native_queued_unified_import(ComputeChoice::Auto, true, true);
     }
 
     #[test]
@@ -24742,6 +25446,341 @@ fn main() {
             );
             std::fs::remove_dir_all(root).unwrap();
         }
+    }
+
+    #[test]
+    fn queued_unified_gpu_refusal_preserves_durable_entry_and_source_before_preparation() {
+        for stale_proof in [false, true] {
+            let root = test_artifact_root(if stale_proof {
+                "queued-unified-stale-gpu-proof"
+            } else {
+                "queued-unified-missing-gpu-proof"
+            })
+            .join(format!(
+                "{}-{}",
+                std::process::id(),
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            std::fs::create_dir_all(&root).unwrap();
+            let source_path = root.join("source.wav");
+            let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+            writer.append(&vec![0_i16; 16_000]).unwrap();
+            writer.finish().unwrap();
+            let source_sha = hex_sha256(&source_path);
+            let destination = root.join("archive");
+            let mut request = unified_import_request(
+                &destination,
+                &source_path,
+                if stale_proof { 0x44_201 } else { 0x44_200 },
+            );
+            request.config.compute = ComputeChoice::Gpu;
+            let identity = (request.job_id, request.generation);
+
+            let runtime = ImportRuntime::new(
+                WorkerPaths {
+                    cpu: root.join("unused-cpu.exe"),
+                    gpu: root.join("unused-gpu.exe"),
+                },
+                Arc::new(PublicationGate::default()),
+            );
+            let mut app = ImportApplication::new(RuntimeImportPort {
+                runtime,
+                events: VecDeque::new(),
+                capture_progress: None,
+                document_revision: None,
+                unified_stop_submissions: None,
+                controlled_capture_blocks: None,
+            });
+            app.dispatch(AppCommand::EnqueueImport {
+                request: request.clone(),
+            })
+            .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let queued = loop {
+                let view = app.dispatch(AppCommand::Refresh).unwrap();
+                if let Some(entry) = view.queue.iter().find(|entry| {
+                    (entry.request.job_id, entry.request.generation) == identity
+                        && matches!(
+                            entry.status,
+                            whisper_core::ports::ImportQueueStatus::Queued
+                        )
+                }) {
+                    break entry.request.clone();
+                }
+                assert!(Instant::now() < deadline, "Enqueue did not become durable");
+                thread::sleep(Duration::from_millis(2));
+            };
+            assert_eq!(queued.source_sha256, Some(source_sha));
+            if stale_proof {
+                let mut stale = fake_gpu_candidate();
+                stale.generation = request.generation.get() + 1;
+                app.io.runtime.gpu_candidates.insert(
+                    (request.job_id, request.generation.get()),
+                    Some(stale),
+                );
+            }
+
+            app.dispatch(AppCommand::ProcessQueued { request: queued })
+                .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let expected = if stale_proof {
+                "BackendMismatch: selected GPU identity belongs to a stale generation"
+            } else {
+                "BackendMismatch: selected GPU has no current runtime identity proof"
+            };
+            let mut refusal = None;
+            while Instant::now() < deadline {
+                let view = app.dispatch(AppCommand::Refresh).unwrap();
+                if view
+                    .unified_parakeet_sessions
+                    .iter()
+                    .any(|session| {
+                        (session.job_id, session.generation) == identity
+                            && session.phase
+                                == whisper_core::ports::UnifiedSessionPhase::Recoverable
+                    })
+                {
+                    refusal = view.message;
+                    break;
+                }
+                thread::sleep(Duration::from_millis(2));
+            }
+            assert!(
+                refusal.as_deref().is_some_and(|message| message.contains(expected)),
+                "queued GPU refusal should be visible before preparation: {refusal:?}"
+            );
+            assert!(!app.io.runtime.native_unified_routes.contains_key(
+                &whisper_core::parakeet_scheduler::SchedulerSession {
+                    job_id: identity.0,
+                    generation: identity.1,
+                }
+            ));
+            assert!(!destination
+                .join("transcriptions")
+                .join(format!("{:032x}", request.job_id.0))
+                .join(request.generation.get().to_string())
+                .join("pending.json")
+                .exists());
+            let queue = crate::queue_store::QueueStore::open(&destination).unwrap();
+            assert_eq!(queue.entries().len(), 1);
+            assert_eq!(queue.entries()[0].status, crate::queue_store::QueueStatus::Queued);
+            assert_eq!(hex_sha256(&source_path), source_sha);
+            drop(app);
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
+    fn queued_unified_non_candidate_refusal_does_not_prepare_or_start() {
+        let root = test_artifact_root("queued-unified-non-candidate").join(format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let source_path = root.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 16_000]).unwrap();
+        writer.finish().unwrap();
+        let source_sha = hex_sha256(&source_path);
+        let destination = root.join("archive");
+        let request = unified_import_request(&destination, &source_path, 0x44_300);
+        let identity = (request.job_id, request.generation);
+        let app_runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: root.join("unused-cpu.exe"),
+                gpu: root.join("unused-gpu.exe"),
+            },
+            Arc::new(PublicationGate::default()),
+        );
+        assert!(!app_runtime.native_unified_candidate_enabled);
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime: app_runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+            controlled_capture_blocks: None,
+        });
+        app.dispatch(AppCommand::EnqueueImport {
+            request: request.clone(),
+        })
+        .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let queued = loop {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            if let Some(entry) = view.queue.iter().find(|entry| {
+                (entry.request.job_id, entry.request.generation) == identity
+                    && matches!(
+                        entry.status,
+                        whisper_core::ports::ImportQueueStatus::Queued
+                    )
+            }) {
+                break entry.request.clone();
+            }
+            assert!(Instant::now() < deadline, "Enqueue did not become durable");
+            thread::sleep(Duration::from_millis(2));
+        };
+        app.dispatch(AppCommand::ProcessQueued { request: queued })
+            .unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut refused = None;
+        while Instant::now() < deadline {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            if let Some(session) = view.unified_parakeet_sessions.iter().find(|session| {
+                (session.job_id, session.generation) == identity
+                    && session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
+            }) {
+                refused = session.message.clone().or(view.message);
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            refused.as_deref().is_some_and(|message| {
+                message.contains("ModelNotQualified")
+                    && message.contains("controlled worker")
+            }),
+            "non-candidate refusal should remain visible: {refused:?}"
+        );
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: identity.0,
+            generation: identity.1,
+        };
+        assert!(!app.io.runtime.native_unified_routes.contains_key(&session));
+        assert!(!app.io.runtime.unified_sessions.contains_key(&session));
+        assert!(!destination
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string())
+            .join("pending.json")
+            .exists());
+        let queue = crate::queue_store::QueueStore::open(&destination).unwrap();
+        assert_eq!(queue.entries().len(), 1);
+        assert_eq!(queue.entries()[0].status, crate::queue_store::QueueStatus::Queued);
+        assert_eq!(hex_sha256(&source_path), source_sha);
+        drop(app);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn queued_unified_capacity_refusal_keeps_fifo_entry_without_preparing_route() {
+        let root = test_artifact_root("queued-unified-capacity").join(format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let source_path = root.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 16_000]).unwrap();
+        writer.finish().unwrap();
+        let source_sha = hex_sha256(&source_path);
+        let destination = root.join("archive");
+        let request = unified_import_request(&destination, &source_path, 0x44_400);
+        let identity = (request.job_id, request.generation);
+        let route = controlled_native_route(&root);
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: root.join("unused-cpu.exe"),
+                gpu: root.join("unused-gpu.exe"),
+            },
+            Arc::new(PublicationGate::default()),
+        );
+        runtime.native_unified_candidate_enabled = true;
+        for occupied in [0x44_401, 0x44_402] {
+            runtime
+                .register_prepared_native_route(
+                    whisper_core::parakeet_scheduler::SchedulerSession {
+                        job_id: JobId(occupied),
+                        generation: Generation::first(),
+                    },
+                    route.clone(),
+                )
+                .unwrap();
+        }
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+            controlled_capture_blocks: None,
+        });
+        app.dispatch(AppCommand::EnqueueImport {
+            request: request.clone(),
+        })
+        .unwrap();
+        let enqueue_deadline = Instant::now() + Duration::from_secs(10);
+        let queued = loop {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            if let Some(entry) = view.queue.iter().find(|entry| {
+                (entry.request.job_id, entry.request.generation) == identity
+                    && matches!(
+                        entry.status,
+                        whisper_core::ports::ImportQueueStatus::Queued
+                    )
+            }) {
+                break entry.request.clone();
+            }
+            assert!(Instant::now() < enqueue_deadline, "Enqueue did not become durable");
+            thread::sleep(Duration::from_millis(2));
+        };
+        app.dispatch(AppCommand::ProcessQueued { request: queued })
+            .unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut message = None;
+        while Instant::now() < deadline {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            if let Some(session) = view.unified_parakeet_sessions.iter().find(|session| {
+                (session.job_id, session.generation) == identity
+                    && session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
+            }) {
+                message = session.message.clone().or(view.message);
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            message
+                .as_deref()
+                .is_some_and(|message| message.contains("SchedulerCapacity")),
+            "capacity refusal should remain visible: {message:?}"
+        );
+        assert_eq!(app.io.runtime.native_unified_routes.len(), 2);
+        assert!(!app.io.runtime.native_unified_routes.contains_key(
+            &whisper_core::parakeet_scheduler::SchedulerSession {
+                job_id: identity.0,
+                generation: identity.1,
+            }
+        ));
+        let pending = destination
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string())
+            .join("pending.json");
+        assert!(!pending.exists());
+        assert_eq!(
+            crate::queue_store::QueueStore::open(&destination)
+                .unwrap()
+                .entries()[0]
+                .status,
+            crate::queue_store::QueueStatus::Queued
+        );
+        assert_eq!(hex_sha256(&source_path), source_sha);
+        drop(app);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(feature = "l3-gpu-qualification")]
