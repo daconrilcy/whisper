@@ -14790,12 +14790,16 @@ mod tests {
             rejected_view
                 .message
                 .as_deref()
-                .is_some_and(|message| message.contains("StorageCorrupt")
-                    && message.contains("truncated")),
+                .is_some_and(
+                    |message| message.contains("StorageCorrupt") && message.contains("truncated")
+                ),
             "resume rejection must identify the unterminated journal: {:?}",
             rejected_view.message
         );
-        assert_eq!(std::fs::read(&segment_journal).unwrap(), malformed_segment_journal);
+        assert_eq!(
+            std::fs::read(&segment_journal).unwrap(),
+            malformed_segment_journal
+        );
         assert_eq!(
             std::fs::read(old_document_directory.join("document.jsonl")).unwrap(),
             old_document_bytes
@@ -14837,14 +14841,22 @@ mod tests {
             "failed resume must not leave a generation N+1 binding"
         );
         let failed_resume_binding_maps = source_binding_map_events(&source_binding_events);
-        assert!(failed_resume_binding_maps.iter().any(|(operation, bindings)| {
-            *operation == "resume-transfer"
-                && bindings == &vec![(resumed_identity.0, resumed_identity.1.get())]
-        }));
-        assert!(failed_resume_binding_maps.iter().any(|(operation, bindings)| {
-            *operation == "resume-rollback"
-                && bindings == &vec![(previous.job_id, previous.generation.get())]
-        }));
+        assert!(
+            failed_resume_binding_maps
+                .iter()
+                .any(|(operation, bindings)| {
+                    *operation == "resume-transfer"
+                        && bindings == &vec![(resumed_identity.0, resumed_identity.1.get())]
+                })
+        );
+        assert!(
+            failed_resume_binding_maps
+                .iter()
+                .any(|(operation, bindings)| {
+                    *operation == "resume-rollback"
+                        && bindings == &vec![(previous.job_id, previous.generation.get())]
+                })
+        );
 
         std::fs::write(&segment_journal, &old_segments).unwrap();
         app.dispatch(AppCommand::ResumeInterrupted {

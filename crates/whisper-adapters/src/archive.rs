@@ -6999,8 +6999,8 @@ fn visit_segments_read_only(
     if !path.exists() {
         return Ok(());
     }
-    let file = File::open(path)
-        .map_err(|error| format!("StorageCorrupt: segment journal: {error}"))?;
+    let file =
+        File::open(path).map_err(|error| format!("StorageCorrupt: segment journal: {error}"))?;
     let mut reader = BufReader::new(file);
     let mut index = 0_usize;
     while let Some(line) = read_segment_journal_line(&mut reader)? {
