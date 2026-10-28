@@ -19755,6 +19755,12 @@ mod tests {
             (ComputeChoice::Cpu, None) => "CPU".to_owned(),
             (ComputeChoice::Auto, _) => unreachable!("effective compute is resolved before start"),
         };
+        let expected_ready_backend = match expected_effective_compute {
+            ComputeChoice::Gpu => "CUDA0",
+            ComputeChoice::Cpu => "CPU",
+            ComputeChoice::Auto => unreachable!("effective compute is resolved before start"),
+        };
+        let expected_backend_message = format!("Moteur actif : {expected_backend}");
         let expected_gpu_key = (expected_effective_compute == ComputeChoice::Gpu).then(|| {
             gpu_paths
                 .gpu_qualification_key(
@@ -19810,6 +19816,8 @@ mod tests {
         let deadline = Instant::now() + Duration::from_secs(3_600);
         let mut observed_phase = "not visible".to_owned();
         let mut observed_message = None;
+        let mut observed_backend_message = None;
+        let mut fallback_message_before_audio = false;
         let mut complete_view = None;
         let mut observed_native_events = Vec::with_capacity(128);
         while Instant::now() < deadline {
@@ -19824,6 +19832,26 @@ mod tests {
                 .find(|session| (session.job_id, session.generation) == identity)
             {
                 observed_phase = format!("{:?}", session.phase);
+                if session
+                    .message
+                    .as_deref()
+                    .is_some_and(|message| message.starts_with("Moteur actif : "))
+                {
+                    observed_backend_message = session.message.clone();
+                }
+                if expected_fallback.is_some()
+                    && session.message.as_deref() == Some(expected_backend_message.as_str())
+                    && !observed_native_events.iter().any(|event| matches!(
+                        &event.kind,
+                        NativeQualificationEventKind::RequestSent {
+                            session: sent_session,
+                            generation: sent_generation,
+                            ..
+                        } if sent_session.job_id == job_id && *sent_generation == generation
+                    ))
+                {
+                    fallback_message_before_audio = true;
+                }
                 if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
                     panic!(
                         "native queued import became recoverable: phase={observed_phase}, message={observed_message:?}"
@@ -19880,7 +19908,7 @@ mod tests {
             1,
             "one native READY must qualify the queued session"
         );
-        assert_eq!(ready[0].0, expected_backend);
+        assert_eq!(ready[0].0, expected_ready_backend);
         assert_eq!(
             ready[0].1,
             whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
@@ -19898,6 +19926,28 @@ mod tests {
             assert_eq!(ready[0].4, key.worker_build);
         }
         assert_eq!(ready[0].5, expected_effective_compute == ComputeChoice::Gpu);
+        if expected_fallback.is_some() {
+            assert_eq!(
+                observed_backend_message.as_deref(),
+                Some(expected_backend_message.as_str()),
+                "AppView must display the effective CPU backend and Auto fallback cause"
+            );
+            assert!(
+                fallback_message_before_audio,
+                "AppView must display the Auto fallback before the first RequestSent; backend_message={observed_backend_message:?}, request_events={:?}",
+                observed_native_events.iter().filter_map(|event| match &event.kind {
+                    NativeQualificationEventKind::RequestSent {
+                        session: sent_session,
+                        generation: sent_generation,
+                        request_id,
+                        ..
+                    } if sent_session.job_id == job_id && *sent_generation == generation => {
+                        Some(*request_id)
+                    }
+                    _ => None,
+                }).collect::<Vec<_>>()
+            );
+        }
         let route_evidence = observed_native_events
             .iter()
             .filter_map(|event| match &event.kind {
