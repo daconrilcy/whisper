@@ -19841,14 +19841,16 @@ mod tests {
                 }
                 if expected_fallback.is_some()
                     && session.message.as_deref() == Some(expected_backend_message.as_str())
-                    && !observed_native_events.iter().any(|event| matches!(
-                        &event.kind,
-                        NativeQualificationEventKind::RequestSent {
-                            session: sent_session,
-                            generation: sent_generation,
-                            ..
-                        } if sent_session.job_id == job_id && *sent_generation == generation
-                    ))
+                    && !observed_native_events.iter().any(|event| {
+                        matches!(
+                            &event.kind,
+                            NativeQualificationEventKind::RequestSent {
+                                session: sent_session,
+                                generation: sent_generation,
+                                ..
+                            } if sent_session.job_id == job_id && *sent_generation == generation
+                        )
+                    })
                 {
                     fallback_message_before_audio = true;
                 }
@@ -19935,17 +19937,20 @@ mod tests {
             assert!(
                 fallback_message_before_audio,
                 "AppView must display the Auto fallback before the first RequestSent; backend_message={observed_backend_message:?}, request_events={:?}",
-                observed_native_events.iter().filter_map(|event| match &event.kind {
-                    NativeQualificationEventKind::RequestSent {
-                        session: sent_session,
-                        generation: sent_generation,
-                        request_id,
-                        ..
-                    } if sent_session.job_id == job_id && *sent_generation == generation => {
-                        Some(*request_id)
-                    }
-                    _ => None,
-                }).collect::<Vec<_>>()
+                observed_native_events
+                    .iter()
+                    .filter_map(|event| match &event.kind {
+                        NativeQualificationEventKind::RequestSent {
+                            session: sent_session,
+                            generation: sent_generation,
+                            request_id,
+                            ..
+                        } if sent_session.job_id == job_id && *sent_generation == generation => {
+                            Some(*request_id)
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
             );
         }
         let route_evidence = observed_native_events
