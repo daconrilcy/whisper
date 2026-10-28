@@ -13496,11 +13496,11 @@ mod tests {
     use sha2::{Digest, Sha256};
     use std::io::{Cursor, Read};
     use std::{cell::RefCell, rc::Rc};
+    use whisper_core::ports::ParakeetDocumentPort;
     use whisper_core::{
         AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
         JobConfig, JobId, JobState, LanguageChoice,
     };
-    use whisper_core::ports::ParakeetDocumentPort;
 
     fn controlled_child_job_bound(
         observations: &[ControlledChildObservation],
