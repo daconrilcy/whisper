@@ -14859,10 +14859,18 @@ mod tests {
         );
 
         std::fs::write(&segment_journal, &old_segments).unwrap();
+        let mut valid_unterminated_segments = old_segments.clone();
+        assert_eq!(valid_unterminated_segments.pop(), Some(b'\n'));
+        std::fs::write(&segment_journal, &valid_unterminated_segments).unwrap();
         app.dispatch(AppCommand::ResumeInterrupted {
             request: previous.clone(),
         })
         .unwrap();
+        assert_eq!(
+            std::fs::read(&segment_journal).unwrap(),
+            valid_unterminated_segments,
+            "a complete final JSON record without LF is readable but never repaired"
+        );
         drop(
             crate::source_binding::SourceBinding::reopen_for_identity(
                 &settings_root,
@@ -14901,6 +14909,11 @@ mod tests {
             "verified unified resume did not reach Complete: phase={phase}, message={message:?}"
         );
         assert!(calls.load(Ordering::Relaxed) > 0);
+        assert_eq!(
+            std::fs::read(&segment_journal).unwrap(),
+            valid_unterminated_segments,
+            "resume must leave a valid unterminated final record byte-for-byte intact"
+        );
         let resumed_archive = ArchiveStore::scan(&root.join("archive"))
             .unwrap()
             .into_iter()
@@ -14956,10 +14969,6 @@ mod tests {
         assert_eq!(exported_srt.matches("prefix confirmé").count(), 1);
         assert!(!exported_text.contains("uncovered tail not promoted"));
         assert!(!exported_srt.contains("uncovered tail not promoted"));
-        assert_eq!(
-            std::fs::read(previous_directory.join("segments.jsonl")).unwrap(),
-            old_segments
-        );
         assert_eq!(
             std::fs::read(old_document_directory.join("document.jsonl")).unwrap(),
             old_document_bytes
@@ -21853,7 +21862,7 @@ mod tests {
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires the separately authorized PU-L4 native GPU campaign, current GPU identity, and guarded short FR fixture"]
+    #[ignore = "requires the separately authorized PU-L4 native GPU campaign, current GPU identity, and guarded 35-minute FR fixture"]
     fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot() {
         let execution_root = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
             .map(PathBuf::from)
@@ -21902,7 +21911,7 @@ mod tests {
         );
 
         let (source_path, expected_samples, source_sha) =
-            native_queued_import_source(&execution_root, false);
+            native_queued_import_source(&execution_root, true);
         let run_id = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system clock is after the epoch")
@@ -21933,22 +21942,78 @@ mod tests {
             Some(decode_sha256(&source_sha).expect("native fixture SHA-256 must decode"))
         );
 
+        let checkpoint_native_samples = whisper_core::parakeet_windows::WINDOW_MAX_SAMPLES
+            + whisper_core::parakeet_windows::MARGIN_SAMPLES;
+        assert!(
+            expected_samples > checkpoint_native_samples,
+            "the long source must exceed one complete native window"
+        );
+        let mut source_file = std::fs::File::open(&source_path)
+            .expect("open the guarded long FR WAV read-only for its first window");
+        let mut wav_header = [0_u8; 44];
+        source_file
+            .read_exact(&mut wav_header)
+            .expect("read guarded FR WAV header");
+        assert_eq!(&wav_header[0..4], b"RIFF");
+        assert_eq!(&wav_header[8..12], b"WAVE");
+        assert_eq!(&wav_header[36..40], b"data");
+        assert_eq!(u16::from_le_bytes(wav_header[20..22].try_into().unwrap()), 1);
+        assert_eq!(u16::from_le_bytes(wav_header[22..24].try_into().unwrap()), 1);
+        assert_eq!(
+            u32::from_le_bytes(wav_header[24..28].try_into().unwrap()),
+            16_000
+        );
+        assert_eq!(u16::from_le_bytes(wav_header[34..36].try_into().unwrap()), 16);
+        let data_bytes = u32::from_le_bytes(wav_header[40..44].try_into().unwrap());
+        assert_eq!(u64::from(data_bytes / 2), expected_samples);
+        assert_eq!(
+            std::fs::metadata(&source_path).unwrap().len(),
+            44 + u64::from(data_bytes)
+        );
+        let first_window_bytes = usize::try_from(checkpoint_native_samples * 2)
+            .expect("first native window byte count fits address space");
+        let mut first_window_pcm_bytes = vec![0_u8; first_window_bytes];
+        source_file
+            .read_exact(&mut first_window_pcm_bytes)
+            .expect("read only the bounded first native window and margin");
+        let first_window_pcm = first_window_pcm_bytes
+            .chunks_exact(2)
+            .map(|pair| i16::from_le_bytes([pair[0], pair[1]]))
+            .collect::<Vec<_>>();
+        let mut first_window_cursor = whisper_core::parakeet_session::WindowCursor::default();
+        let first_window = first_window_cursor
+            .next_window(0, &first_window_pcm, expected_samples, false)
+            .expect("plan the first window from the guarded source samples")
+            .expect("the long guarded source must produce a first nonterminal window");
+        let checkpoint_samples = first_window.central_end_sample;
+        assert_eq!(first_window.sequence, 1);
+        assert_eq!(first_window.central_start_sample, 0);
+        assert!(
+            (whisper_core::parakeet_windows::WINDOW_MIN_SAMPLES
+                ..=whisper_core::parakeet_windows::WINDOW_MAX_SAMPLES)
+                .contains(&checkpoint_samples),
+            "checkpoint must match the scheduler's reachable first-window boundary"
+        );
+
+        let prefix_text = "prefix checkpointé avant interruption native";
+        let prefix_range = whisper_core::SourceRange::new(
+            checkpoint_samples - 6_400,
+            checkpoint_samples - 3_200,
+            16_000,
+        )
+        .unwrap();
         let mut archive = ArchiveStore::new(&archive_root);
         archive
             .prepare(previous.clone())
             .expect("create the interrupted generation's real archive checkpoint");
-        assert!(
-            expected_samples >= 16_000,
-            "short fixture must contain a checkpoint prefix"
-        );
         archive
             .persist_segment(&whisper_core::ports::WorkerSegment {
                 job_id,
                 generation: previous_generation,
                 instance_id: 1,
                 segment_id: whisper_core::SegmentId(1),
-                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
-                text: "prefix checkpointé avant interruption native".into(),
+                range: prefix_range,
+                text: prefix_text.into(),
             })
             .expect("write a real resumable prefix checkpoint");
         drop(archive);
@@ -21957,7 +22022,6 @@ mod tests {
             .join(format!("{:032x}", job_id.0))
             .join(previous_generation.get().to_string())
             .join("parakeet-unified/document");
-        let prefix_text = "prefix checkpointé avant interruption native";
         let mut previous_document = crate::parakeet_document::ParakeetDocumentStore::create(
             &previous_document_directory,
             job_id,
@@ -21970,14 +22034,14 @@ mod tests {
                 generation: previous_generation,
                 instance_id: 1,
                 segment_id: whisper_core::SegmentId(1),
-                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                range: prefix_range,
                 text: prefix_text.into(),
             })
             .expect("write the same confirmed prefix into the old document");
         previous_document
             .record_coverage(whisper_core::ports::ParakeetWindowCoverage {
                 sequence: 1,
-                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                range: whisper_core::SourceRange::new(0, checkpoint_samples, 16_000).unwrap(),
                 last_segment_sequence: 1,
             })
             .expect("checkpoint the covered audio prefix in the old document");

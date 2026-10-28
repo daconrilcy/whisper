@@ -3485,7 +3485,7 @@ impl ArchiveStore {
         confirmed_segments: u64,
     ) -> Result<(), String> {
         let mut copied = 0_u64;
-        visit_segments(source_journal, |index, record| {
+        visit_segments_read_only(source_journal, |index, record| {
             let sequence = u64::try_from(index)
                 .ok()
                 .and_then(|value| value.checked_add(1))
@@ -7131,6 +7131,9 @@ fn read_segment_journal_line(reader: &mut BufReader<File>) -> Result<Option<Vec<
         if available.is_empty() {
             if line.is_empty() {
                 return Ok(None);
+            }
+            if serde_json::from_slice::<SegmentRecord>(&line).is_ok() {
+                return Ok(Some(line));
             }
             return Err("StorageCorrupt: truncated resume segment record".into());
         }
