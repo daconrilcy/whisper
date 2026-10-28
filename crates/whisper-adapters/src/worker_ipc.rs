@@ -14879,7 +14879,7 @@ mod tests {
         let watcher_previous_generation = previous.generation;
         let watcher_resumed_generation = resumed_generation;
         let transfer_watcher = thread::spawn(move || {
-            let observation = (|| {
+            let observation: Result<(bool, [u8; 32]), String> = (|| {
                 let (transferred, changed) = &*watcher_gate;
                 let transferred = transferred
                     .lock()
