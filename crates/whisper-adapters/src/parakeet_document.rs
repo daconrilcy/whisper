@@ -111,12 +111,9 @@ impl ParakeetDocumentStore {
         source_samples: u64,
         maximum_confirmed_segments: u64,
     ) -> Result<Option<ResumeCoverageCheckpoint>, String> {
-        let Some(mut reader) = Self::open_resume_coverage(
-            directory,
-            job_id,
-            generation,
-            source_samples,
-        )? else {
+        let Some(mut reader) =
+            Self::open_resume_coverage(directory, job_id, generation, source_samples)?
+        else {
             return Ok(None);
         };
         let mut latest = None;
@@ -177,7 +174,9 @@ impl ResumeCoverageReader {
         let document_revision = (index_size - INDEX_HEADER.len() as u64) / INDEX_ENTRY_BYTES;
         let reader = match File::open(directory.join("coverage.jsonl")) {
             Ok(file) => BufReader::new(file),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound && document_revision == 0 => {
+            Err(error)
+                if error.kind() == std::io::ErrorKind::NotFound && document_revision == 0 =>
+            {
                 return Ok(None);
             }
             Err(error) => {
@@ -205,10 +204,7 @@ impl ResumeCoverageReader {
         }))
     }
 
-    pub fn read_page(
-        &mut self,
-        limit: usize,
-    ) -> Result<Vec<ParakeetWindowCoverage>, String> {
+    pub fn read_page(&mut self, limit: usize) -> Result<Vec<ParakeetWindowCoverage>, String> {
         if limit == 0 {
             return Err("InvalidInput: resume coverage page limit".into());
         }
@@ -228,7 +224,9 @@ impl ResumeCoverageReader {
                 || coverage.last_segment_sequence < self.confirmed_segments
                 || coverage.last_segment_sequence > self.document_revision
             {
-                return Err("StorageCorrupt: resume coverage is not a valid contiguous checkpoint".into());
+                return Err(
+                    "StorageCorrupt: resume coverage is not a valid contiguous checkpoint".into(),
+                );
             }
             self.validate_document_through(coverage)?;
             self.covered_samples = coverage.range.end_sample;
@@ -372,7 +370,9 @@ impl ResumeCoverageReader {
                 || coverage.range.start_sample > midpoint
                 || midpoint >= coverage.range.end_sample
             {
-                return Err("StorageCorrupt: resume coverage does not match its document prefix".into());
+                return Err(
+                    "StorageCorrupt: resume coverage does not match its document prefix".into(),
+                );
             }
             self.next_document_sequence = self
                 .next_document_sequence
@@ -854,15 +854,10 @@ mod tests {
             .unwrap();
         drop(document);
 
-        let checkpoint = ParakeetDocumentStore::latest_resume_checkpoint(
-            &directory,
-            id,
-            generation,
-            400,
-            2,
-        )
-        .unwrap()
-        .unwrap();
+        let checkpoint =
+            ParakeetDocumentStore::latest_resume_checkpoint(&directory, id, generation, 400, 2)
+                .unwrap()
+                .unwrap();
         assert_eq!(
             checkpoint,
             ResumeCoverageCheckpoint {
@@ -915,14 +910,10 @@ mod tests {
         }
         drop(document);
 
-        let mut reader = ParakeetDocumentStore::open_resume_coverage(
-            &directory,
-            id,
-            generation,
-            130 * 16_000,
-        )
-        .unwrap()
-        .unwrap();
+        let mut reader =
+            ParakeetDocumentStore::open_resume_coverage(&directory, id, generation, 130 * 16_000)
+                .unwrap()
+                .unwrap();
         let first = reader.read_page(512).unwrap();
         assert_eq!(first.len(), 128);
         let second = reader.read_page(512).unwrap();

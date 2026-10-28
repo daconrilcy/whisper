@@ -1578,9 +1578,9 @@ fn restore_unified_document_prefix(
                     document
                         .append_final(segment)
                         .map_err(|error| format!("Document: {error:?}"))?;
-                    next_segment = next_segment
-                        .checked_add(1)
-                        .ok_or_else(|| "StorageCorrupt: resume segment sequence exhausted".to_owned())?;
+                    next_segment = next_segment.checked_add(1).ok_or_else(|| {
+                        "StorageCorrupt: resume segment sequence exhausted".to_owned()
+                    })?;
                 }
             }
             document
@@ -4461,10 +4461,9 @@ impl ImportRuntime {
                 request.generation,
                 checkpoint.pipeline,
             )?,
-            None => crate::parakeet_pipeline::ParakeetFinalizer::new(
-                request.job_id,
-                request.generation,
-            ),
+            None => {
+                crate::parakeet_pipeline::ParakeetFinalizer::new(request.job_id, request.generation)
+            }
         };
         self.parakeet_scheduler
             .admit(session)
@@ -14794,7 +14793,10 @@ mod tests {
         assert_eq!(resumed_document.entries[0].segment.text, "prefix confirmé");
         assert_eq!(resumed_document.entries[0].segment.segment_id.0, 1);
         assert_eq!(resumed_document.entries[1].segment.segment_id.0, 2);
-        assert_ne!(resumed_document.entries[1].segment.text, "uncovered tail not promoted");
+        assert_ne!(
+            resumed_document.entries[1].segment.text,
+            "uncovered tail not promoted"
+        );
         assert!(calls.load(Ordering::Relaxed) > 0);
         let export_basename = resumed_archive
             .export_basename

@@ -153,9 +153,7 @@ impl Default for WindowCursor {
 }
 
 impl WindowCursor {
-    pub fn from_checkpoint(
-        checkpoint: WindowCursorCheckpoint,
-    ) -> Result<Self, WindowCursorError> {
+    pub fn from_checkpoint(checkpoint: WindowCursorCheckpoint) -> Result<Self, WindowCursorError> {
         if checkpoint.next_sequence == 0
             || checkpoint.next_sequence == u64::MAX
             || (checkpoint.next_start_sample == 0) != (checkpoint.next_sequence == 1)

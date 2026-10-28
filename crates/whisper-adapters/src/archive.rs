@@ -2537,9 +2537,7 @@ impl ArchiveStore {
         }
     }
 
-    pub fn take_unified_resume_checkpoint(
-        &mut self,
-    ) -> Option<UnifiedArchiveResumeCheckpoint> {
+    pub fn take_unified_resume_checkpoint(&mut self) -> Option<UnifiedArchiveResumeCheckpoint> {
         self.unified_resume_checkpoint.take()
     }
     pub fn root_path(&self) -> PathBuf {
@@ -3261,9 +3259,7 @@ impl ArchiveStore {
                 == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
             {
                 match (&pending.qualification, &qualification) {
-                    (Some(previous), Some(current)) => {
-                        !previous.permits_bounded_resume_to(current)
-                    }
+                    (Some(previous), Some(current)) => !previous.permits_bounded_resume_to(current),
                     (None, _) => false,
                     (Some(_), None) => true,
                 }
@@ -3275,8 +3271,8 @@ impl ArchiveStore {
                 "SourceChanged: resume checkpoint identity differs from the queued request".into(),
             );
         }
-        let bounded_resume =
-            pending.strategy == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
+        let bounded_resume = pending.strategy
+            == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
         let mut resume_checkpoint = None;
         let mut prefix = if bounded_resume {
             let source_samples = pending.source_samples;
@@ -3297,21 +3293,21 @@ impl ArchiveStore {
                 archived_count = sequence;
                 Ok(())
             })?;
-            let previous_document_directory = previous_dir
-                .join("parakeet-unified")
-                .join("document");
-            let checkpoint = crate::parakeet_document::ParakeetDocumentStore::latest_resume_checkpoint(
-                &previous_document_directory,
-                previous.job_id,
-                previous.generation,
-                source_samples,
-                archived_count,
-            )?
-            .unwrap_or(crate::parakeet_document::ResumeCoverageCheckpoint {
-                window_sequence: 0,
-                covered_samples: 0,
-                confirmed_segments: 0,
-            });
+            let previous_document_directory =
+                previous_dir.join("parakeet-unified").join("document");
+            let checkpoint =
+                crate::parakeet_document::ParakeetDocumentStore::latest_resume_checkpoint(
+                    &previous_document_directory,
+                    previous.job_id,
+                    previous.generation,
+                    source_samples,
+                    archived_count,
+                )?
+                .unwrap_or(crate::parakeet_document::ResumeCoverageCheckpoint {
+                    window_sequence: 0,
+                    covered_samples: 0,
+                    confirmed_segments: 0,
+                });
             let join_anchor = validate_unified_resume_prefix(
                 &previous_dir.join("segments.jsonl"),
                 &previous_document_directory,
@@ -3349,15 +3345,17 @@ impl ArchiveStore {
                 "StorageCorrupt: VAD confirmed segment prefix exceeds address space".to_owned()
             })?);
         }
-        if !bounded_resume && prefix.iter().enumerate().any(|(index, segment)| {
-            segment.sequence != index as u64 + 1
-                || segment.range.sample_rate_hz != 16_000
-                || segment.range.start_sample >= segment.range.end_sample
-                || segment.range.end_sample > pending.source_samples
-                || segment.text.trim().is_empty()
-        }) || prefix
-            .windows(2)
-            .any(|pair| pair[1].range.start_sample < pair[0].range.end_sample)
+        if !bounded_resume
+            && prefix.iter().enumerate().any(|(index, segment)| {
+                segment.sequence != index as u64 + 1
+                    || segment.range.sample_rate_hz != 16_000
+                    || segment.range.start_sample >= segment.range.end_sample
+                    || segment.range.end_sample > pending.source_samples
+                    || segment.text.trim().is_empty()
+            })
+            || prefix
+                .windows(2)
+                .any(|pair| pair[1].range.start_sample < pair[0].range.end_sample)
         {
             return Err(
                 "StorageCorrupt: confirmed resume prefix is not a valid ordered checkpoint".into(),
@@ -3421,7 +3419,11 @@ impl ArchiveStore {
             Some(&destination),
         )?;
         if let Some(checkpoint) = &resume_checkpoint {
-            self.copy_unified_resume_prefix(&prepared, &previous_dir.join("segments.jsonl"), checkpoint.pipeline.confirmed_segments)?;
+            self.copy_unified_resume_prefix(
+                &prepared,
+                &previous_dir.join("segments.jsonl"),
+                checkpoint.pipeline.confirmed_segments,
+            )?;
             self.unified_resume_checkpoint = resume_checkpoint;
         } else {
             self.copy_resume_prefix(&prepared, &prefix)?;
@@ -7022,7 +7024,9 @@ fn validate_unified_resume_prefix(
                 if coverage.range.end_sample != checkpoint.covered_samples
                     || coverage.last_segment_sequence != checkpoint.confirmed_segments
                 {
-                    return Err("StorageCorrupt: resume checkpoint changed during validation".into());
+                    return Err(
+                        "StorageCorrupt: resume checkpoint changed during validation".into(),
+                    );
                 }
                 checkpoint_seen = true;
                 break;
@@ -7088,9 +7092,7 @@ fn validate_unified_resume_prefix(
     Ok(anchor)
 }
 
-fn read_segment_journal_line(
-    reader: &mut BufReader<File>,
-) -> Result<Option<Vec<u8>>, String> {
+fn read_segment_journal_line(reader: &mut BufReader<File>) -> Result<Option<Vec<u8>>, String> {
     const MAX_SEGMENT_RECORD_BYTES: usize = 1_048_576;
     let mut line = Vec::new();
     loop {

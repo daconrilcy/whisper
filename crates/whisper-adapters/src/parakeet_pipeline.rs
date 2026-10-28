@@ -350,7 +350,9 @@ impl ParakeetFinalizer {
             let anchor_midpoint =
                 anchor.start_sample + (anchor.end_sample - anchor.start_sample) / 2;
             if anchor_midpoint >= window.central_start_sample {
-                return Err("StorageCorrupt: resume join anchor overlaps the suffix boundary".into());
+                return Err(
+                    "StorageCorrupt: resume join anchor overlaps the suffix boundary".into(),
+                );
             }
         }
         for mut segment in segments {
@@ -860,11 +862,13 @@ mod tests {
         assert_eq!(page.entries[0].segment.text, "confirmed prefix");
         assert_eq!(page.entries[1].segment.segment_id.0, 2);
         assert!(page.entries[1].segment.range.start_sample < WINDOW_MAX_SAMPLES);
-        assert!(page.entries[1].segment.range.start_sample
-            + (page.entries[1].segment.range.end_sample
-                - page.entries[1].segment.range.start_sample)
-                / 2
-            >= WINDOW_MAX_SAMPLES);
+        assert!(
+            page.entries[1].segment.range.start_sample
+                + (page.entries[1].segment.range.end_sample
+                    - page.entries[1].segment.range.start_sample)
+                    / 2
+                >= WINDOW_MAX_SAMPLES
+        );
         let complete = finalizer
             .finish_document(&mut document, total, true)
             .unwrap();
@@ -880,23 +884,22 @@ mod tests {
             confirmed_segments: 1,
             join_anchor: Some(whisper_core::SourceRange::new(16_000, 17_000, 16_000).unwrap()),
         };
-        assert!(ParakeetFinalizer::from_checkpoint(
-            JobId(36),
-            Generation::first(),
-            invalid
-        )
-        .is_err());
-        assert!(ParakeetFinalizer::from_checkpoint(
-            JobId(36),
-            Generation::first(),
-            ParakeetResumeCheckpoint {
-                window_sequence: 0,
-                covered_samples: 1,
-                confirmed_segments: 0,
-                join_anchor: None,
-            }
-        )
-        .is_err());
+        assert!(
+            ParakeetFinalizer::from_checkpoint(JobId(36), Generation::first(), invalid).is_err()
+        );
+        assert!(
+            ParakeetFinalizer::from_checkpoint(
+                JobId(36),
+                Generation::first(),
+                ParakeetResumeCheckpoint {
+                    window_sequence: 0,
+                    covered_samples: 1,
+                    confirmed_segments: 0,
+                    join_anchor: None,
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -916,13 +919,13 @@ mod tests {
         let job_id = JobId(37);
         let generation = Generation::first().next().unwrap();
         let covered = WINDOW_MAX_SAMPLES;
-        let anchor = whisper_core::SourceRange::new(covered - 6_400, covered - 3_200, 16_000)
-            .unwrap();
+        let anchor =
+            whisper_core::SourceRange::new(covered - 6_400, covered - 3_200, 16_000).unwrap();
         let mut suffixes = Vec::new();
 
         for (name, text) in [("cpu", "CPU suffix"), ("gpu", "GPU suffix")] {
-            let mut document = ParakeetDocumentStore::create(root.join(name), job_id, generation)
-                .unwrap();
+            let mut document =
+                ParakeetDocumentStore::create(root.join(name), job_id, generation).unwrap();
             document
                 .append_final(WorkerSegment {
                     job_id,
@@ -961,12 +964,12 @@ mod tests {
                 )
                 .unwrap();
             assert!(matches!(
-                finalizer.finish_document(&mut document, total, true).unwrap(),
+                finalizer
+                    .finish_document(&mut document, total, true)
+                    .unwrap(),
                 FinalizationStep::Complete(_)
             ));
-            let page = document
-                .read_page(job_id, generation, 2, 1, 128)
-                .unwrap();
+            let page = document.read_page(job_id, generation, 2, 1, 128).unwrap();
             assert_eq!(page.entries.len(), 2);
             assert_eq!(page.entries[0].segment.text, "confirmed prefix");
             assert_eq!(page.entries[1].segment.segment_id.0, 2);
