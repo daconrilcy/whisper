@@ -1673,6 +1673,7 @@ impl UnifiedSessionSource {
 
 struct UnifiedSessionState {
     request: ImportRequest,
+    document_drain_start_sequence: u64,
     source: UnifiedSessionSource,
     available_samples: u64,
     durable_samples: u64,
@@ -4445,6 +4446,11 @@ impl ImportRuntime {
         )
         .map_err(|error| format!("Document: {error:?}"))?;
         let resume_checkpoint = self.unified_resume_checkpoints.get(&session).cloned();
+        let document_drain_start_sequence = resume_checkpoint
+            .as_ref()
+            .map_or(0, |checkpoint| checkpoint.pipeline.confirmed_segments)
+            .checked_add(1)
+            .ok_or_else(|| "StorageCorrupt: resume document sequence exhausted".to_owned())?;
         let mut document = document;
         if let Some(checkpoint) = &resume_checkpoint {
             restore_unified_document_prefix(
@@ -4476,6 +4482,7 @@ impl ImportRuntime {
             session,
             UnifiedSessionState {
                 request: request.clone(),
+                document_drain_start_sequence,
                 source: UnifiedSessionSource::Closed(source),
                 available_samples,
                 durable_samples: available_samples,
@@ -4566,6 +4573,7 @@ impl ImportRuntime {
                     destination: request.destination.clone(),
                     config: request.config.clone(),
                 },
+                document_drain_start_sequence: 1,
                 source: UnifiedSessionSource::Capture(capture),
                 available_samples: 0,
                 durable_samples: 0,
@@ -5637,14 +5645,13 @@ impl ImportRuntime {
                 }
             }
             let ready_pending = !state.backend_ready_reported;
-            let next_sequence = state.finalizer.next_segment_sequence();
             self.document_drains.push_back(UnifiedDocumentDrain {
                 document: state.document,
                 job_id: session.job_id,
                 generation: session.generation,
                 revision: result.document_revision,
                 total_samples: result.total_samples,
-                next_sequence,
+                next_sequence: state.document_drain_start_sequence,
                 ready_pending,
                 progress_pending: true,
             });
@@ -18714,6 +18721,7 @@ mod tests {
         .unwrap();
         let mut state = UnifiedSessionState {
             request: request.clone(),
+            document_drain_start_sequence: 1,
             source: UnifiedSessionSource::Closed(source),
             available_samples,
             durable_samples: available_samples,
@@ -18799,6 +18807,7 @@ mod tests {
         .unwrap();
         let manual_state = UnifiedSessionState {
             request: manual_request.clone(),
+            document_drain_start_sequence: 1,
             source: UnifiedSessionSource::Capture(manual_source),
             available_samples: initial_written_samples,
             durable_samples: initial_durable_samples,
