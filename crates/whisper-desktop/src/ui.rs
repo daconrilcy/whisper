@@ -3903,8 +3903,8 @@ mod tests {
             candidates: Option<&[whisper_core::ports::SourceSnapshotRecoveryCandidate]>,
         ) -> usize {
             let context = egui::Context::default();
-            let output = context.run(egui::RawInput::default(), |context| {
-                egui::CentralPanel::default().show(context, |ui| {
+            let output = context.run_ui(egui::RawInput::default(), |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
                     super::source_snapshot_recovery_widget(ui, false, candidates);
                 });
             });
