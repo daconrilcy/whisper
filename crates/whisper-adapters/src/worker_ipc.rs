@@ -1498,6 +1498,8 @@ struct ImportRuntime {
     #[cfg(test)]
     controlled_finish_failure_session: Option<whisper_core::parakeet_scheduler::SchedulerSession>,
     #[cfg(test)]
+    controlled_resume_binding_transfer_gate: Option<Arc<(Mutex<bool>, std::sync::Condvar)>>,
+    #[cfg(test)]
     controlled_hold_reserved_call_once: bool,
     #[cfg(test)]
     controlled_ready_gate: Option<Arc<(Mutex<bool>, std::sync::Condvar)>>,
@@ -4119,6 +4121,8 @@ impl ImportRuntime {
             #[cfg(test)]
             controlled_finish_failure_session: None,
             #[cfg(test)]
+            controlled_resume_binding_transfer_gate: None,
+            #[cfg(test)]
             controlled_hold_reserved_call_once: false,
             #[cfg(test)]
             controlled_ready_gate: None,
@@ -4163,6 +4167,15 @@ impl ImportRuntime {
         session: whisper_core::parakeet_scheduler::SchedulerSession,
     ) -> Self {
         self.controlled_finish_failure_session = Some(session);
+        self
+    }
+
+    #[cfg(test)]
+    fn with_resume_binding_transfer_gate(
+        mut self,
+        gate: Arc<(Mutex<bool>, std::sync::Condvar)>,
+    ) -> Self {
+        self.controlled_resume_binding_transfer_gate = Some(gate);
         self
     }
 
@@ -7665,6 +7678,26 @@ impl ImportRuntime {
                         return;
                     }
                 };
+                #[cfg(test)]
+                if source_binding_transferred
+                    && let Some(gate) = self.controlled_resume_binding_transfer_gate.take()
+                {
+                    let (released, changed) = &*gate;
+                    let mut released = released
+                        .lock()
+                        .expect("resume binding transfer test gate lock");
+                    *released = true;
+                    changed.notify_all();
+                    let (released, timeout) = changed
+                        .wait_timeout_while(released, Duration::from_secs(30), |released| {
+                            *released
+                        })
+                        .expect("resume binding transfer test gate wait");
+                    assert!(
+                        !timeout.timed_out() && !*released,
+                        "test must observe the transferred binding before archive resume continues"
+                    );
+                }
                 let mut archive = ArchiveStore::new(&archive_destination);
                 let result = archive
                     .resume_from_with_qualification(
@@ -14648,6 +14681,211 @@ mod tests {
     }
 
     #[test]
+    fn failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity() {
+        let root = test_artifact_root("queued-unified-resume-after-transfer-failure").join(format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let source_path = root.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let source_sha = hex_sha256(&source_path);
+        let mut previous = unified_import_request(&root.join("archive"), &source_path, 0x44_300);
+        assert_real_unified_model(&previous);
+        ArchiveStore::identify_source(&mut previous).unwrap();
+        let mut archive = ArchiveStore::new(&previous.destination);
+        archive.prepare(previous.clone()).unwrap();
+        archive
+            .persist_segment(&whisper_core::ports::WorkerSegment {
+                job_id: previous.job_id,
+                generation: previous.generation,
+                instance_id: 1,
+                segment_id: whisper_core::SegmentId(1),
+                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                text: "préfixe confirmé avant panne d'archive".into(),
+            })
+            .unwrap();
+        drop(archive);
+
+        let mut queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
+        queue.enqueue(previous.clone()).unwrap();
+        queue
+            .set_status(
+                previous.job_id,
+                previous.generation,
+                crate::queue_store::QueueStatus::Interrupted,
+            )
+            .unwrap();
+        let settings_root = root.join("settings");
+        drop(
+            crate::source_binding::SourceBinding::acquire(&previous, &settings_root).unwrap(),
+        );
+
+        // Keep the durable queue identity valid, but make ArchiveStore's later
+        // prefix read fail after ResumeInterrupted has transferred the binding.
+        let previous_archive_dir = Path::new(&previous.destination)
+            .join("transcriptions")
+            .join(format!("{:032x}", previous.job_id.0))
+            .join(previous.generation.get().to_string());
+        std::fs::write(previous_archive_dir.join("segments.jsonl"), b"{broken checkpoint}\n")
+            .unwrap();
+
+        let transfer_gate = Arc::new((Mutex::new(false), std::sync::Condvar::new()));
+        let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+            None,
+            None,
+            None,
+            Some(settings_root.clone()),
+            true,
+            false,
+        )
+        .with_controlled_transcriber(controlled_worker().0)
+        .with_resume_binding_transfer_gate(Arc::clone(&transfer_gate));
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+            controlled_capture_blocks: None,
+        });
+        let resumed_generation = previous.generation.next().unwrap();
+        let previous_for_dispatch = previous.clone();
+        let (dispatch_tx, dispatch_rx) = mpsc::sync_channel(1);
+        let dispatch_thread = thread::spawn(move || {
+            let mut app = app;
+            let result = app.dispatch(AppCommand::ResumeInterrupted {
+                request: previous_for_dispatch,
+            });
+            let _ = dispatch_tx.send(result);
+            app
+        });
+
+        let (transferred, changed) = &*transfer_gate;
+        let transferred = transferred.lock().unwrap();
+        let (transferred, timeout) = changed
+            .wait_timeout_while(transferred, Duration::from_secs(10), |transferred| {
+                !*transferred
+            })
+            .unwrap();
+        assert!(
+            !timeout.timed_out() && *transferred,
+            "resume must expose the durable N+1 binding before the induced archive failure"
+        );
+        drop(transferred);
+        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            previous.generation,
+        )
+        .unwrap()
+        .is_none());
+        let transferred_binding = crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            resumed_generation,
+        )
+        .unwrap()
+        .expect("the registry must actually move to N+1 before archive resume");
+        assert_eq!(transferred_binding.source_sha256(), previous.source_sha256.unwrap());
+        drop(transferred_binding);
+
+        let (transferred, changed) = &*transfer_gate;
+        *transferred.lock().unwrap() = false;
+        changed.notify_all();
+        dispatch_rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("resume effect must continue after observing the transfer")
+            .unwrap();
+        let mut app = dispatch_thread
+            .join()
+            .expect("resume dispatch thread must return the application");
+        let mut observed_message = None;
+        let mut observed_recoverable = false;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            observed_message = view.message.clone();
+            observed_recoverable = view.unified_parakeet_sessions.iter().any(|session| {
+                (session.job_id, session.generation)
+                    == (previous.job_id, resumed_generation)
+                    && session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
+            });
+            if observed_recoverable {
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            observed_recoverable,
+            "archive failure after binding transfer must be terminal: {observed_message:?}"
+        );
+        assert!(observed_message
+            .as_deref()
+            .is_some_and(|message| message.contains("StorageCorrupt: segment")));
+        assert!(!app.io.runtime.source_bindings.contains_key(&(
+            previous.job_id,
+            resumed_generation.get()
+        )));
+        assert!(app.io.runtime.source_bindings.contains_key(&(
+            previous.job_id,
+            previous.generation.get()
+        )));
+
+        let queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
+        assert!(queue.entries().iter().any(|entry| {
+            (entry.request.job_id, entry.request.generation)
+                == (previous.job_id, previous.generation)
+                && entry.status == crate::queue_store::QueueStatus::Interrupted
+        }));
+        assert_eq!(hex_sha256(&source_path), source_sha);
+        let restored = crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            previous.generation,
+        )
+        .unwrap()
+        .expect("failed post-transfer resume must restore the original durable binding");
+        assert_eq!(restored.source_sha256(), previous.source_sha256.unwrap());
+        drop(restored);
+        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            resumed_generation,
+        )
+        .unwrap()
+        .is_none());
+
+        drop(app);
+        crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            previous.generation,
+        )
+        .unwrap()
+        .expect("restored binding remains available for cleanup")
+        .retire()
+        .unwrap();
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
     #[cfg(windows)]
     #[ignore = "requires a separately authorized PU-L4 storage campaign and guarded WAV fixture over 1 GiB; uses controlled inference"]
     fn controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts() {
@@ -18654,16 +18892,24 @@ mod tests {
     fn native_personal_gpu_candidate_for_harness(
         workers: &WorkerPaths,
     ) -> whisper_core::gpu_inventory::GpuRuntimeIdentity {
+        native_personal_gpu_candidate_for_generation_harness(workers, Generation::first())
+    }
+
+    #[cfg(windows)]
+    fn native_personal_gpu_candidate_for_generation_harness(
+        workers: &WorkerPaths,
+        request_generation: Generation,
+    ) -> whisper_core::gpu_inventory::GpuRuntimeIdentity {
         use whisper_core::gpu_inventory_app::GpuInventoryPort;
 
         let mut inventory = crate::gpu_inventory::WindowsGpuInventoryPort::new(workers.gpu.clone());
         inventory
-            .start(Generation::first().get())
+            .start(request_generation.get())
             .expect("start the real GPU identity inventory worker");
         let deadline = Instant::now() + Duration::from_secs(30);
         loop {
-            if let Some((generation, result)) = inventory.poll_runtime_identities() {
-                assert_eq!(generation, Generation::first().get());
+            if let Some((result_generation, result)) = inventory.poll_runtime_identities() {
+                assert_eq!(result_generation, request_generation.get());
                 return result
                     .expect("real GPU identity inventory must complete")
                     .into_iter()
@@ -20976,6 +21222,292 @@ mod tests {
     #[ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded short FR fixture"]
     fn native_queued_gpu_short_import_uses_current_attestation() {
         run_native_queued_unified_import(ComputeChoice::Gpu, false, true);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "requires the separately authorized PU-L4 native GPU campaign, current GPU identity, and guarded short FR fixture"]
+    fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot() {
+        let execution_root = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
+            .map(PathBuf::from)
+            .expect("guarded PU-L4 execution root is required")
+            .canonicalize()
+            .expect("guarded execution root must exist");
+        let local_app_data = std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .expect("isolated LOCALAPPDATA is required")
+            .canonicalize()
+            .expect("isolated LOCALAPPDATA must exist");
+        let whisper = local_app_data.join("Whisper");
+        let app_root = whisper.join("app");
+        let models_root = whisper.join("models");
+        let cpu_paths = crate::parakeet_import::ParakeetWorkerPaths {
+            executable: whisper.join("worker/whisper-worker-parakeet-cpu.exe"),
+            native_dir: whisper.join("native/cpu"),
+            model: models_root.join("parakeet-tdt-0.6b-v3.q8_0.gguf"),
+            runtime_root: whisper.clone(),
+        };
+        let gpu_paths = crate::parakeet_import::ParakeetWorkerPaths {
+            executable: whisper.join("worker/whisper-worker-parakeet-gpu.exe"),
+            native_dir: whisper.join("native/gpu"),
+            model: cpu_paths.model.clone(),
+            runtime_root: whisper.clone(),
+        };
+        let workers = WorkerPaths {
+            cpu: app_root.join("whisper-worker-cpu.exe"),
+            gpu: app_root.join("whisper-worker-gpu.exe"),
+        };
+        assert!(workers.cpu.is_file(), "personal Turbo CPU worker is missing");
+        assert!(workers.gpu.is_file(), "personal Turbo GPU worker is missing");
+        assert!(cpu_paths.validate().is_ok(), "personal Parakeet CPU route is invalid");
+        assert!(gpu_paths.validate().is_ok(), "personal Parakeet GPU route is invalid");
+
+        let (source_path, expected_samples, source_sha) =
+            native_queued_import_source(&execution_root, false);
+        let run_id = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock is after the epoch")
+            .as_nanos();
+        let job_id = JobId((u128::from(std::process::id()) << 96) | run_id);
+        let previous_generation = Generation::first();
+        let resumed_generation = previous_generation.next().unwrap();
+        let archive_root = execution_root.join(format!("queued-gpu-resume-{:032x}", job_id.0));
+        assert!(!archive_root.exists(), "native resume archive destination is fresh");
+
+        let mut previous = unified_import_request(&archive_root, &source_path, job_id.0);
+        previous.job_id = job_id;
+        previous.generation = previous_generation;
+        previous.model_path = cpu_paths.model.to_string_lossy().into_owned();
+        previous.config.compute = ComputeChoice::Gpu;
+        assert_eq!(
+            previous.strategy,
+            whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        );
+        assert_real_unified_model(&previous);
+        ArchiveStore::identify_source(&mut previous).unwrap();
+        assert_eq!(previous.source_samples, Some(expected_samples));
+        assert_eq!(previous.source_sha256, Some(source_sha.clone()));
+
+        let mut archive = ArchiveStore::new(&archive_root);
+        archive
+            .prepare(previous.clone())
+            .expect("create the interrupted generation's real archive checkpoint");
+        assert!(expected_samples >= 16_000, "short fixture must contain a checkpoint prefix");
+        archive
+            .persist_segment(&whisper_core::ports::WorkerSegment {
+                job_id,
+                generation: previous_generation,
+                instance_id: 1,
+                segment_id: whisper_core::SegmentId(1),
+                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                text: "prefix checkpointé avant interruption native".into(),
+            })
+            .expect("write a real resumable prefix checkpoint");
+        drop(archive);
+        let mut queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
+        queue.enqueue(previous.clone()).unwrap();
+        queue
+            .set_status(
+                job_id,
+                previous_generation,
+                crate::queue_store::QueueStatus::Interrupted,
+            )
+            .unwrap();
+        assert!(queue.entries().iter().any(|entry| {
+            (entry.request.job_id, entry.request.generation)
+                == (job_id, previous_generation)
+                && entry.status == crate::queue_store::QueueStatus::Interrupted
+        }));
+        drop(queue);
+
+        let settings_root = execution_root.join("settings");
+        drop(
+            crate::source_binding::SourceBinding::acquire(&previous, &settings_root)
+                .expect("bind the source to the interrupted generation before restart"),
+        );
+        let candidate =
+            native_personal_gpu_candidate_for_generation_harness(&workers, resumed_generation);
+        assert_eq!(candidate.generation, resumed_generation.get());
+        assert_eq!(
+            candidate.pnp_instance_id,
+            whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID
+        );
+
+        let model_catalog = Some(RuntimeModelCatalog {
+            catalog: crate::model_catalog::LocalModelCatalog::new(models_root.clone()),
+            known_historical_turbo_path: models_root
+                .join("ggml-large-v3-turbo.bin")
+                .to_string_lossy()
+                .into_owned(),
+            parakeet_paths: Some(cpu_paths.clone()),
+            gpu_parakeet_paths: Some(gpu_paths.clone()),
+        });
+        let (observer, native_events) = NativeQualificationObserver::channel();
+        let mut runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
+            workers,
+            Arc::new(PublicationGate::default()),
+            model_catalog,
+            Some(cpu_paths),
+            Some(gpu_paths),
+            Some(settings_root.clone()),
+            true,
+            true,
+        )
+        .with_native_harness_observer(observer);
+        runtime
+            .gpu_candidates
+            .insert((job_id, resumed_generation.get()), Some(candidate));
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+            controlled_capture_blocks: None,
+        });
+        app.dispatch(AppCommand::ResumeInterrupted {
+            request: previous.clone(),
+        })
+        .expect("the real app path must resume the interrupted GPU request");
+
+        let identity = (job_id, resumed_generation);
+        let scheduler_session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id,
+            generation: resumed_generation,
+        };
+        let composed_route = app
+            .io
+            .runtime
+            .native_unified_routes
+            .get(&scheduler_session)
+            .cloned()
+            .expect("ResumeInterrupted must compose the current native route before start");
+        assert_eq!(composed_route.requested_compute, ComputeChoice::Gpu);
+        assert_eq!(composed_route.compute, ComputeChoice::Gpu);
+        assert!(composed_route.candidate.is_some());
+        assert!(composed_route.expected_gpu.is_some());
+        let expected_backend = composed_route.backend_label();
+        let deadline = Instant::now() + Duration::from_secs(3_600);
+        let mut observed_phase = "not visible".to_owned();
+        let mut observed_message = None;
+        let mut complete_view = None;
+        let mut observed_native_events = Vec::with_capacity(128);
+        while Instant::now() < deadline {
+            let view = app
+                .dispatch(AppCommand::Refresh)
+                .expect("refresh native resumed import");
+            native_event_drain(&native_events, &mut observed_native_events);
+            observed_message = view.message.clone();
+            if let Some(session) = view.unified_parakeet_sessions.iter().find(|session| {
+                (session.job_id, session.generation) == identity
+            }) {
+                observed_phase = format!("{:?}", session.phase);
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                    panic!(
+                        "native GPU resume became recoverable: phase={observed_phase}, message={observed_message:?}"
+                    );
+                }
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                    complete_view = Some(session.clone());
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        native_event_drain(&native_events, &mut observed_native_events);
+        assert!(
+            !app.io
+                .runtime
+                .native_harness_observer
+                .as_ref()
+                .expect("native observer remains attached")
+                .overflowed
+                .load(Ordering::Relaxed),
+            "native event observer overflowed its fixed capacity"
+        );
+        let complete = complete_view.unwrap_or_else(|| {
+            panic!(
+                "native GPU resume did not complete: phase={observed_phase}, message={observed_message:?}"
+            )
+        });
+        assert_eq!(complete.total_samples, Some(expected_samples));
+        assert_eq!(complete.captured_samples, expected_samples);
+        assert_eq!(complete.durable_samples, expected_samples);
+        assert_eq!(
+            crate::parakeet_import::sha256_file(&source_path).unwrap(),
+            source_sha
+        );
+
+        let ready = observed_native_events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                NativeQualificationEventKind::Ready {
+                    backend,
+                    gpu_attested,
+                    ..
+                } => Some((backend.as_str(), *gpu_attested)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(ready.len(), 1, "resume must produce one native READY");
+        assert_eq!(ready[0].0, expected_backend);
+        assert!(ready[0].1, "GPU READY must carry current native attestation");
+        assert!(observed_native_events.iter().any(|event| matches!(
+            &event.kind,
+            NativeQualificationEventKind::RequestSent {
+                session,
+                generation: sent_generation,
+                ..
+            } if session.job_id == job_id && *sent_generation == resumed_generation
+        )), "native GPU request must be correlated to resumed generation N+1");
+        assert!(observed_native_events.iter().any(|event| matches!(
+            &event.kind,
+            NativeQualificationEventKind::Result {
+                session,
+                generation: result_generation,
+                ..
+            } if session.job_id == job_id && *result_generation == resumed_generation
+        )), "native GPU result must be correlated to resumed generation N+1");
+
+        let entries = ArchiveStore::scan(&archive_root).expect("scan resumed native archive");
+        let complete_archive = entries
+            .iter()
+            .find(|entry| (entry.job_id, entry.generation) == identity && entry.complete)
+            .expect("resumed generation N+1 must publish a complete archive");
+        assert_eq!(complete_archive.strategy, previous.strategy);
+        assert_eq!(complete_archive.source_sha256, source_sha);
+        let basename = complete_archive
+            .export_basename
+            .as_deref()
+            .expect("resumed archive must have an export basename");
+        let txt = archive_root.join("exports").join(format!("{basename}.txt"));
+        let srt = archive_root.join("exports").join(format!("{basename}.srt"));
+        assert!(txt.is_file(), "resumed native TXT export must exist");
+        assert!(srt.is_file(), "resumed native SRT export must exist");
+        assert!(app.io.runtime.source_bindings.is_empty());
+        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            &archive_root,
+            job_id,
+            previous_generation,
+        )
+        .unwrap()
+        .is_none());
+        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            &archive_root,
+            job_id,
+            resumed_generation,
+        )
+        .unwrap()
+        .is_none());
+
+        println!(
+            "PU_L4_NATIVE_RESUME_GPU_COMPLETE job={:032x} previous_generation={} generation={} backend=GPU gpu_attested=true source_sha256={source_sha}",
+            job_id.0,
+            previous_generation.get(),
+            resumed_generation.get(),
+        );
     }
 
     #[test]
