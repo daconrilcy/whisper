@@ -14597,9 +14597,11 @@ mod tests {
             *operation == "resume-transfer"
                 && bindings == &vec![(resumed_identity.0, resumed_identity.1.get())]
         }));
-        assert!(source_binding_maps
-            .iter()
-            .any(|(operation, bindings)| *operation == "release" && bindings.is_empty()));
+        assert!(
+            source_binding_maps
+                .iter()
+                .any(|(operation, bindings)| *operation == "release" && bindings.is_empty())
+        );
         let mut retained = Vec::new();
         for offset in 0..2 {
             let mut capacity_request = previous.clone();
@@ -14718,11 +14720,14 @@ mod tests {
             "resume conflict must become terminal and visible: {observed_message:?}"
         );
         let source_binding_maps = source_binding_map_events(&source_binding_events);
-        assert!(source_binding_maps.iter().any(|(operation, bindings)| {
-            *operation == "resume-transfer"
-                && bindings.contains(&(previous.job_id, previous.generation.get()))
-                && bindings.contains(&(previous.job_id, resumed_generation.get()))
-        }), "conflict must retain both in-memory identities: {source_binding_maps:?}");
+        assert!(
+            source_binding_maps.iter().any(|(operation, bindings)| {
+                *operation == "resume-transfer"
+                    && bindings.contains(&(previous.job_id, previous.generation.get()))
+                    && bindings.contains(&(previous.job_id, resumed_generation.get()))
+            }),
+            "conflict must retain both in-memory identities: {source_binding_maps:?}"
+        );
         let queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
         assert!(queue.entries().iter().any(|entry| {
             (entry.request.job_id, entry.request.generation)
@@ -14940,7 +14945,10 @@ mod tests {
         transfer_watcher
             .join()
             .expect("registry watcher must finish without moving ImportApplication");
-        assert!(old_binding_absent, "registry must remove N before exposing N+1");
+        assert!(
+            old_binding_absent,
+            "registry must remove N before exposing N+1"
+        );
         assert_eq!(transferred_sha, previous.source_sha256.unwrap());
         let mut observed_message = None;
         let mut observed_recoverable = false;
@@ -14967,14 +14975,20 @@ mod tests {
                 .is_some_and(|message| message.contains("StorageCorrupt: segment"))
         );
         let source_binding_maps = source_binding_map_events(&source_binding_events);
-        assert!(source_binding_maps.iter().any(|(operation, bindings)| {
-            *operation == "resume-transfer"
-                && bindings == &vec![(previous.job_id, resumed_generation.get())]
-        }), "successful transfer must leave only N+1 in memory: {source_binding_maps:?}");
-        assert!(source_binding_maps.iter().any(|(operation, bindings)| {
-            *operation == "resume-rollback"
-                && bindings == &vec![(previous.job_id, previous.generation.get())]
-        }), "rollback must restore only N in memory: {source_binding_maps:?}");
+        assert!(
+            source_binding_maps.iter().any(|(operation, bindings)| {
+                *operation == "resume-transfer"
+                    && bindings == &vec![(previous.job_id, resumed_generation.get())]
+            }),
+            "successful transfer must leave only N+1 in memory: {source_binding_maps:?}"
+        );
+        assert!(
+            source_binding_maps.iter().any(|(operation, bindings)| {
+                *operation == "resume-rollback"
+                    && bindings == &vec![(previous.job_id, previous.generation.get())]
+            }),
+            "rollback must restore only N in memory: {source_binding_maps:?}"
+        );
         let queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
         assert!(queue.entries().iter().any(|entry| {
             (entry.request.job_id, entry.request.generation)
@@ -19438,7 +19452,11 @@ mod tests {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(route_evidence.len(), 1, "the app must compose one native route");
+        assert_eq!(
+            route_evidence.len(),
+            1,
+            "the app must compose one native route"
+        );
         assert_eq!(route_evidence[0].0, compute);
         assert_eq!(route_evidence[0].1, expected_effective_compute);
         assert_eq!(
@@ -26960,11 +26978,14 @@ fn main() {
                 !native_observer.overflowed.load(Ordering::Relaxed),
                 "native refusal observer must remain within its fixed capacity"
             );
-            assert!(!observed_native_events.iter().any(|event| matches!(
-                &event.kind,
-                NativeQualificationEventKind::PreparedRoute { session, .. }
-                    if session.job_id == identity.0 && session.generation == identity.1
-            )), "stale or absent GPU proof must be rejected before route preparation");
+            assert!(
+                !observed_native_events.iter().any(|event| matches!(
+                    &event.kind,
+                    NativeQualificationEventKind::PreparedRoute { session, .. }
+                        if session.job_id == identity.0 && session.generation == identity.1
+                )),
+                "stale or absent GPU proof must be rejected before route preparation"
+            );
             assert!(
                 !destination
                     .join("transcriptions")
@@ -27064,18 +27085,24 @@ fn main() {
         let mut observed_native_events = Vec::new();
         native_event_drain(&native_events, &mut observed_native_events);
         assert!(!native_observer.overflowed.load(Ordering::Relaxed));
-        assert!(!observed_native_events.iter().any(|event| matches!(
-            &event.kind,
-            NativeQualificationEventKind::PreparedRoute { session, .. }
-                if session.job_id == identity.0 && session.generation == identity.1
-        )), "non-candidate admission must not prepare a native route");
-        assert!(!observed_native_events.iter().any(|event| matches!(
-            &event.kind,
-            NativeQualificationEventKind::Starting { .. }
-                | NativeQualificationEventKind::Spawned { .. }
-                | NativeQualificationEventKind::Ready { .. }
-                | NativeQualificationEventKind::RequestSent { .. }
-        )), "non-candidate refusal must not start a native worker");
+        assert!(
+            !observed_native_events.iter().any(|event| matches!(
+                &event.kind,
+                NativeQualificationEventKind::PreparedRoute { session, .. }
+                    if session.job_id == identity.0 && session.generation == identity.1
+            )),
+            "non-candidate admission must not prepare a native route"
+        );
+        assert!(
+            !observed_native_events.iter().any(|event| matches!(
+                &event.kind,
+                NativeQualificationEventKind::Starting { .. }
+                    | NativeQualificationEventKind::Spawned { .. }
+                    | NativeQualificationEventKind::Ready { .. }
+                    | NativeQualificationEventKind::RequestSent { .. }
+            )),
+            "non-candidate refusal must not start a native worker"
+        );
         assert!(
             !destination
                 .join("transcriptions")
@@ -27196,16 +27223,23 @@ fn main() {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(prepared_sessions.len(), 2, "both pre-admitted routes remain present");
+        assert_eq!(
+            prepared_sessions.len(),
+            2,
+            "both pre-admitted routes remain present"
+        );
         assert!(prepared_sessions.iter().any(|session| {
             session.job_id == JobId(0x44_401) && session.generation == Generation::first()
         }));
         assert!(prepared_sessions.iter().any(|session| {
             session.job_id == JobId(0x44_402) && session.generation == Generation::first()
         }));
-        assert!(!prepared_sessions.iter().any(|session| {
-            session.job_id == identity.0 && session.generation == identity.1
-        }), "third refused import must not prepare a route");
+        assert!(
+            !prepared_sessions.iter().any(|session| {
+                session.job_id == identity.0 && session.generation == identity.1
+            }),
+            "third refused import must not prepare a route"
+        );
         let pending = destination
             .join("transcriptions")
             .join(format!("{:032x}", request.job_id.0))
