@@ -2117,14 +2117,16 @@ impl ArchiveStore {
         .map_err(|error| format!("StorageCorrupt: unified export intent: {error}"))?;
         let wav_path = directory.join("parakeet-unified/source.wav");
         let (wav_path, txt_path, srt_path) = if intent.internal_only {
-            if intent.choice != DuplicateImportChoice::CreateNew
-                || manifest.source_sha256 != intent.source_sha256
-            {
+            let canonical_directory = canonical_generation_directory(root, &directory)?;
+            if !valid_internal_publication_intent(
+                root,
+                job_id,
+                generation,
+                &intent,
+                &manifest.source_sha256,
+            ) {
                 return Err("StaleResponse: internal publication intent does not match manifest".into());
             }
-            let canonical_directory = directory
-                .canonicalize()
-                .map_err(|error| format!("PublicationUnavailable: generation directory: {error}"))?;
             let txt_path = verify_internal_unified_artifact(
                 &directory,
                 &canonical_directory,
@@ -7527,6 +7529,95 @@ fn canonical_internal_unified_path(
     Ok(canonical)
 }
 
+fn canonical_generation_directory(root: &Path, directory: &Path) -> Result<PathBuf, String> {
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|error| format!("PublicationUnavailable: archive root: {error}"))?;
+    let canonical_directory = directory
+        .canonicalize()
+        .map_err(|error| format!("PublicationUnavailable: generation directory: {error}"))?;
+    if !canonical_directory.starts_with(&canonical_root) {
+        return Err("StorageCorrupt: generation directory escapes archive root".into());
+    }
+    Ok(canonical_directory)
+}
+
+fn valid_internal_publication_intent(
+    root: &Path,
+    job_id: JobId,
+    generation: Generation,
+    intent: &PublicationIntent,
+    manifest_source_sha256: &str,
+) -> bool {
+    let Ok(canonical_root) = root.canonicalize() else {
+        return false;
+    };
+    let canonical_destination = canonical_root.to_string_lossy();
+    let expected_operation_id = format!("{:032x}-{}", job_id.0, generation.get());
+    if intent.version != 1
+        || intent.operation_id != expected_operation_id
+        || intent.source_sha256 != manifest_source_sha256
+        || intent.export_basename != "transcript"
+    {
+        return false;
+    }
+
+    match &intent.choice {
+        DuplicateImportChoice::CreateNew => {
+            intent.cleanup_id.is_none() && intent.cleanup_targets.is_empty()
+        }
+        DuplicateImportChoice::ReplaceLatest => {
+            valid_internal_reprocessing_targets(
+                canonical_destination.as_ref(),
+                job_id,
+                generation,
+                intent,
+                &expected_operation_id,
+            ) && intent.cleanup_targets.len() == 1
+        }
+        DuplicateImportChoice::ReplaceAll => {
+            valid_internal_reprocessing_targets(
+                canonical_destination.as_ref(),
+                job_id,
+                generation,
+                intent,
+                &expected_operation_id,
+            )
+        }
+        DuplicateImportChoice::ReplaceSelectedPath(selected_path) => {
+            !selected_path.trim().is_empty()
+                && intent.cleanup_targets.len() == 1
+                && valid_internal_reprocessing_targets(
+                    canonical_destination.as_ref(),
+                    job_id,
+                    generation,
+                    intent,
+                    &expected_operation_id,
+                )
+        }
+        DuplicateImportChoice::Replace => false,
+    }
+}
+
+fn valid_internal_reprocessing_targets(
+    canonical_destination: &str,
+    job_id: JobId,
+    generation: Generation,
+    intent: &PublicationIntent,
+    expected_operation_id: &str,
+) -> bool {
+    intent.cleanup_id.as_deref() == Some(expected_operation_id)
+        && !intent.cleanup_targets.is_empty()
+        && intent.cleanup_targets.iter().enumerate().all(|(index, target)| {
+            target.source_sha256 == intent.source_sha256
+                && target.treatment.destination.as_str() == canonical_destination
+                && (target.treatment.job_id != job_id || target.treatment.generation != generation)
+                && intent.cleanup_targets[..index]
+                    .iter()
+                    .all(|previous| previous.treatment != target.treatment)
+        })
+}
+
 fn verify_pcm_staging(
     directory: &Path,
     artifact: &ArtifactRecord,
@@ -7783,7 +7874,7 @@ mod tests {
         .unwrap();
         let intent = PublicationIntent {
             version: 1,
-            operation_id: "create-only-publication-test".into(),
+            operation_id: format!("{:032x}-{}", job_id.0, generation.get()),
             choice: DuplicateImportChoice::CreateNew,
             source_sha256: manifest.source_sha256.clone(),
             source_samples: 16_000,
@@ -7925,6 +8016,44 @@ mod tests {
         assert!(
             ArchiveStore::published_unified_files(&root, JobId(job_id.0 + 3), generation).is_err()
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn canonical_generation_must_be_contained_by_archive_root() {
+        let root = std::env::temp_dir().join(format!(
+            "whisper-generation-containment-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let archive_root = root.join("archive");
+        let inside_generation = archive_root.join("transcriptions/job/1");
+        let outside_generation = root.join("aliased-generation");
+        fs::create_dir_all(&inside_generation).unwrap();
+        fs::create_dir_all(&outside_generation).unwrap();
+
+        let canonical_root = archive_root.canonicalize().unwrap();
+        assert!(
+            canonical_generation_directory(&archive_root, &inside_generation)
+                .unwrap()
+                .starts_with(&canonical_root)
+        );
+        assert!(
+            canonical_generation_directory(&archive_root, &outside_generation)
+                .unwrap_err()
+                .contains("generation directory escapes archive root")
+        );
+        let resolved_alias = inside_generation.join("../../../../aliased-generation");
+        assert!(
+            canonical_generation_directory(&archive_root, &resolved_alias)
+                .unwrap_err()
+                .contains("generation directory escapes archive root"),
+            "a path resolving outside the archive root must fail closed"
+        );
+
         fs::remove_dir_all(root).unwrap();
     }
 

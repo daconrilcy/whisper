@@ -15009,6 +15009,161 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
+    fn reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result() {
+        let root = test_artifact_root("reprocessing-create-only-app-view").join(format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let archive_root = root.join("archive");
+        let settings_root = root.join("settings");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        let source_path = root.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+        writer.finish().unwrap();
+
+        let (worker, calls) = controlled_worker();
+        let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+            None,
+            None,
+            None,
+            Some(settings_root),
+            true,
+            false,
+        )
+        .with_controlled_transcriber(worker);
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+            controlled_capture_blocks: None,
+        });
+
+        let run_queued = |app: &mut ImportApplication<RuntimeImportPort>,
+                          request: ImportRequest,
+                          confirmation: Option<DuplicateImportChoice>| {
+            let requested_job = request.job_id;
+            app.dispatch(AppCommand::EnqueueImport { request })
+                .expect("enqueue create-only or reprocessing import");
+            let deadline = Instant::now() + Duration::from_secs(60);
+            let mut confirmation = confirmation;
+            let queued = loop {
+                let view = app
+                    .dispatch(AppCommand::Refresh)
+                    .expect("refresh import admission and queue");
+                if let Some(prompt) = view.duplicate_import_prompt.clone() {
+                    assert_eq!(prompt.request.job_id, requested_job);
+                    let choice = confirmation
+                        .take()
+                        .expect("only repeated source imports require a choice");
+                    app.dispatch(AppCommand::ResolveDuplicateImport { prompt, choice })
+                        .expect("confirm duplicate or reprocessing choice");
+                    continue;
+                }
+                if let Some(entry) = view.queue.iter().find(|entry| {
+                    entry.request.job_id == requested_job
+                        && matches!(
+                            entry.status,
+                            whisper_core::ports::ImportQueueStatus::Queued
+                        )
+                }) {
+                    break entry.request.clone();
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "import did not enter the durable queue: view={view:?}"
+                );
+                thread::sleep(Duration::from_millis(2));
+            };
+            let identity = (queued.job_id, queued.generation);
+            app.dispatch(AppCommand::ProcessQueued { request: queued })
+                .expect("ProcessQueued must use the real reprocessing route");
+            let deadline = Instant::now() + Duration::from_secs(60);
+            let mut last_message = None;
+            loop {
+                let view = app
+                    .dispatch(AppCommand::Refresh)
+                    .expect("refresh reprocessing session");
+                last_message = view.message.clone();
+                if let Some(session) = view
+                    .unified_parakeet_sessions
+                    .iter()
+                    .find(|session| (session.job_id, session.generation) == identity)
+                {
+                    if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                        panic!("reprocessing import failed: {session:?}; {last_message:?}");
+                    }
+                    if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                        assert_app_view_internal_publication(session, &archive_root);
+                        return session.clone();
+                    }
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "reprocessing import did not complete: {last_message:?}; view={:?}",
+                    app.view()
+                );
+                thread::sleep(Duration::from_millis(2));
+            }
+        };
+
+        let mut first_request = unified_import_request(&archive_root, &source_path, 0x51_111);
+        first_request.config.compute = ComputeChoice::Cpu;
+        assert_real_unified_model(&first_request);
+        let first = run_queued(&mut app, first_request, None);
+        let first_txt = first.txt_path.as_deref().unwrap().to_owned();
+        let first_srt = first.srt_path.as_deref().unwrap().to_owned();
+        let first_txt_bytes = std::fs::read(&first_txt).unwrap();
+        let first_srt_bytes = std::fs::read(&first_srt).unwrap();
+
+        let mut second_request = unified_import_request(&archive_root, &source_path, 0x51_112);
+        second_request.config.compute = ComputeChoice::Cpu;
+        let second = run_queued(
+            &mut app,
+            second_request,
+            Some(DuplicateImportChoice::CreateNew),
+        );
+        let second_txt = second.txt_path.as_deref().unwrap().to_owned();
+        assert!(Path::new(&first_txt).is_file());
+        assert!(Path::new(&second_txt).is_file());
+
+        let mut replacement_request =
+            unified_import_request(&archive_root, &source_path, 0x51_113);
+        replacement_request.config.compute = ComputeChoice::Cpu;
+        let replacement = run_queued(
+            &mut app,
+            replacement_request,
+            Some(DuplicateImportChoice::ReplaceLatest),
+        );
+        assert_app_view_internal_publication(&replacement, &archive_root);
+        assert_eq!(std::fs::read(&first_txt).unwrap(), first_txt_bytes);
+        assert_eq!(std::fs::read(&first_srt).unwrap(), first_srt_bytes);
+        let preserved = ArchiveStore::published_unified_files(
+            &archive_root,
+            first.job_id,
+            first.generation,
+        )
+        .expect("the unselected earlier publication must remain readable");
+        assert_eq!(preserved.txt_path, first_txt);
+        assert_eq!(preserved.srt_path, first_srt);
+        assert!(calls.load(Ordering::Relaxed) >= 3);
+        drop(app);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn import_application_resumes_a_verified_interrupted_unified_import() {
         let root = test_artifact_root("queued-unified-resume").join(format!(
             "{}-{}",
