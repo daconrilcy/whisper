@@ -1,6 +1,6 @@
-Avancée : correctifs en file codés ; candidat 7e8c4e65 compilé dans les deux profils et premier contrôlé court/long réussi ; anciennes preuves/remises conservées.
-Blocage : le test de reprise confirme une divergence fonctionnelle de curseurs ; campagne arrêtée, aucune nouvelle remise ni qualification native du correctif.
-Décision proposée : accepter le périmètre fonctionnel et la politique de checkpoint du §48 avant de poursuivre ; 223 min 1,5 s consommées sur 300 min, sans reset.
+Avancée : §48 accepté et codé ; candidat 532f6c31 compilé dans les deux profils, 19 contrôlés réussis et revue indépendante en cours.
+Blocage : revue fonctionnelle, régression globale et huit natifs encore à terminer avant nouvelle remise ; anciennes remises conservées.
+Décision : poursuivre sous l'accord §48 et la garde existante ; 234 min 44,1 s consommées sur 300 min, sans reset, plafond 28 Gio.
 
 # Plan d'implémentation — transcription Parakeet unifiée
 
@@ -1658,3 +1658,27 @@ Les deux fichiers application.rs et ui.rs restent ouverts uniquement pour les te
 - `whisper-adapters` : `parakeet_pipeline::tests::resume_preserves_prefix_while_backend_suffix_text_can_differ`.
 
 Le témoin applicatif existant `worker_ipc::tests::import_application_resumes_a_verified_interrupted_unified_import` reste exigé, avec vrai checkpoint, préfixe couvert et segments hors couverture conservés dans N. Le lanceur QueuedFormat couvre exactement les sept chemins du §48 et son auto-test refuse les autres chemins Rust et manifestes ; parseur PowerShell à contrôler avant lancement. Aucun nouveau natif ou autre corpus n'est ajouté.
+
+
+**Stabilisation §48 et candidat transmis à la revue.** Auteur unique, périmètre de cinq chemins conservé ; corrections intermédiaires attribuées ci-dessous. Aucun assouplissement des assertions ou des règles de séquence. Les refus ordinaires ont arrêté chaque run, leurs STOP et journaux sont conservés avant reprise explicitement autorisée du §48. Toutes les phases sont fermées ; aucune écriture extérieure attribuée ou modification sensible inexpliquée rapportée, et les 78 fichiers de recette comparés restent identiques.
+
+| Run | Durée (s) | Résultat / correction |
+|---|---:|---|
+| `63c8683bd9064d6fb861698fa4716b05` | 17,6667424 | QueuedFormat PASS ; forme des cinq sources, commise par auteur 7e5660fb |
+| `1a1fea7486fd45cc86a7b706fd133fe9` | 28,2752561 | QueuedControlled FAIL compilation E0308 JSON, E0277 PortError, E0599 trait test ; correction 6ed12f57 |
+| `c4fc47cf619e433c901647f573f591b7` | 12,8116103 | QueuedFormat PASS ; import format-only commis 5140b022 |
+| `8b8793e9a5f34dab97906e3080364cae` | 89,8403473 | Compilations et huit nouveaux exacts PASS ; import neuf FAIL InvalidCommand |
+| `6b482f06ff1e4b7f9da4a64219aecfb4` | 14,6921557 | Trace test-only et format PASS ; auteur 82a6ad55 puis 6c783858 |
+| `106e7a0ce8da4dbe8be53836b4ec2067` | 29,4680905 | Compilation FAIL unique formateur ApplicationError ; corrigé ba1f2887 |
+| `267466f0fe8c482fa383c7c73153b6ca` | 80,3841204 | Compilations et huit nouveaux PASS ; trace import neuf sans Segment avant End ; corrigé 4e009910 |
+| `7b24a304806d4d7fa9844f87dcd502c6` | 13,6172602 | Format PASS source inchangée |
+| `97fb66dcec2a4ab3b68ef76140f938fb` | 97,6553059 | Import neuf PASS ; fixture reprise FAIL InvalidInput, ordre segment/couverture/suffixe corrigé b80a6560 |
+| `0c0484fba80e47dfb6ab6ab9376ddd8c` | 90,1523914 | Reprise FAIL liaison N restaurée après rollback ; diagnostic complémentaire 76e7de87 |
+| `aa26ed2dbe7d402f8e232f95e73043f0` | 14,3770418 | Format diagnostic PASS ; auteur 9b6a12d1 |
+| `a29700a0e4374ad3aece6a87ac45486b` | 86,7195694 | Reprise refusée StorageCorrupt boundary ; validation préfixe lisait aussi tail de page ; corrigé 532f6c31 |
+| `86b1d0c3ceea4e879ebd554883109660` | 13,3191387 | Format PASS source inchangée |
+| `e1afc363e35d479ab68b6a7162eca577` | 113,6079539 | QueuedControlled PASS : fmt, no-run trois crates, no-run personal-install et 19 exacts, aucun ignored ni natif |
+
+Candidat source **532f6c31907318c4695e6de20e079dfaad993093**, suivi propre, seuls models/ et sound example/ non suivis intentionnels. Défauts fermés par l'auteur et prouvés par contrôlés : séquence de départ du drain capturée avant finalisation (1 neuf, M+1 reprise) ; ancre de validation arrêtée au dernier segment confirmé et non au tail non couvert. Le test applicatif confirme désormais reprise, préfixe/tail/exports et identités ; les tests de refus, liaisons mémoire/durables et rollback passent. Ce résultat reste une validation contrôlée, pas un verdict de revue ni une qualification native.
+
+Cumul **14 084,1190629 s (234 min 44,1 s)** sur 18 000 s, sans reset ; espace libre **133 266 296 832 octets** à la clôture. Même reviewer indépendant mandaté via le coordinateur pour la revue fonctionnelle avant tout natif, deux cycles maximum. Ensemble final sur SHA unique à reprendre après dernier changement/revue ; régression, huit natifs, remise-t10-queue et archivage restent NOT RUN sur ce candidat. Aucun traitement des anciennes copies/demandes utilisateur, microphone réel, fenêtre, installation, nettoyage ou push.
