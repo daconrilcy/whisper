@@ -3277,7 +3277,7 @@ impl ArchiveStore {
         let mut prefix = if bounded_resume {
             let source_samples = pending.source_samples;
             let mut archived_count = 0_u64;
-            visit_segments(&previous_dir.join("segments.jsonl"), |index, segment| {
+            visit_segments_read_only(&previous_dir.join("segments.jsonl"), |index, segment| {
                 let sequence = u64::try_from(index)
                     .ok()
                     .and_then(|value| value.checked_add(1))
@@ -6979,6 +6979,28 @@ fn visit_segments(
     repair_uncommitted_segment_tail(&mut file)?;
     file.seek(SeekFrom::Start(0))
         .map_err(|error| format!("StorageCorrupt: segment seek: {error}"))?;
+    let mut reader = BufReader::new(file);
+    let mut index = 0_usize;
+    while let Some(line) = read_segment_journal_line(&mut reader)? {
+        let record: SegmentRecord = serde_json::from_slice(&line)
+            .map_err(|error| format!("StorageCorrupt: segment: {error}"))?;
+        visit(index, record)?;
+        index = index
+            .checked_add(1)
+            .ok_or_else(|| "StorageCorrupt: segment count exceeds address space".to_owned())?;
+    }
+    Ok(())
+}
+
+fn visit_segments_read_only(
+    path: &Path,
+    mut visit: impl FnMut(usize, SegmentRecord) -> Result<(), String>,
+) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let file = File::open(path)
+        .map_err(|error| format!("StorageCorrupt: segment journal: {error}"))?;
     let mut reader = BufReader::new(file);
     let mut index = 0_usize;
     while let Some(line) = read_segment_journal_line(&mut reader)? {

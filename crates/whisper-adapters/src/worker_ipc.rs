@@ -14730,6 +14730,7 @@ mod tests {
             std::fs::read(old_document_directory.join("document.jsonl")).unwrap();
         let old_coverage_bytes =
             std::fs::read(old_document_directory.join("coverage.jsonl")).unwrap();
+        let old_pending_bytes = std::fs::read(previous_directory.join("pending.json")).unwrap();
         let mut queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
         queue.enqueue(previous.clone()).unwrap();
         queue
@@ -14739,6 +14740,8 @@ mod tests {
                 crate::queue_store::QueueStatus::Interrupted,
             )
             .unwrap();
+        let queue_path = Path::new(&previous.destination).join("transcriptions/queue.jsonl");
+        let old_queue_bytes = std::fs::read(&queue_path).unwrap();
         let settings_root = root.join("settings");
         drop(crate::source_binding::SourceBinding::acquire(&previous, &settings_root).unwrap());
 
@@ -14768,11 +14771,45 @@ mod tests {
             controlled_capture_blocks: None,
         });
 
+        let resumed_identity = (previous.job_id, previous.generation.next().unwrap());
+        let segment_journal = previous_directory.join("segments.jsonl");
+        let mut malformed_segment_journal = old_segments.clone();
+        malformed_segment_journal.extend_from_slice(b"{\"sequence\":3");
+        std::fs::write(&segment_journal, &malformed_segment_journal).unwrap();
         app.dispatch(AppCommand::ResumeInterrupted {
             request: previous.clone(),
         })
         .unwrap();
-        let resumed_identity = (previous.job_id, previous.generation.next().unwrap());
+        let rejected_view = app.dispatch(AppCommand::Refresh).unwrap();
+        assert_eq!(
+            rejected_view.active_job,
+            Some((previous.job_id, JobState::Recoverable)),
+            "malformed interrupted journal must be refused after verified binding transfer"
+        );
+        assert!(
+            rejected_view
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("StorageCorrupt")
+                    && message.contains("truncated")),
+            "resume rejection must identify the unterminated journal: {:?}",
+            rejected_view.message
+        );
+        assert_eq!(std::fs::read(&segment_journal).unwrap(), malformed_segment_journal);
+        assert_eq!(
+            std::fs::read(old_document_directory.join("document.jsonl")).unwrap(),
+            old_document_bytes
+        );
+        assert_eq!(
+            std::fs::read(old_document_directory.join("coverage.jsonl")).unwrap(),
+            old_coverage_bytes
+        );
+        assert_eq!(
+            std::fs::read(previous_directory.join("pending.json")).unwrap(),
+            old_pending_bytes
+        );
+        assert_eq!(std::fs::read(&queue_path).unwrap(), old_queue_bytes);
+        assert_eq!(hex_sha256(&source_path), source_sha);
         if let Some(previous_binding) = crate::source_binding::SourceBinding::reopen_for_identity(
             &settings_root,
             Path::new(&previous.destination),
@@ -14788,6 +14825,32 @@ mod tests {
                 view.active_job, view.message
             );
         }
+        assert!(
+            crate::source_binding::SourceBinding::reopen_for_identity(
+                &settings_root,
+                Path::new(&previous.destination),
+                resumed_identity.0,
+                resumed_identity.1,
+            )
+            .unwrap()
+            .is_none(),
+            "failed resume must not leave a generation N+1 binding"
+        );
+        let failed_resume_binding_maps = source_binding_map_events(&source_binding_events);
+        assert!(failed_resume_binding_maps.iter().any(|(operation, bindings)| {
+            *operation == "resume-transfer"
+                && bindings == &vec![(resumed_identity.0, resumed_identity.1.get())]
+        }));
+        assert!(failed_resume_binding_maps.iter().any(|(operation, bindings)| {
+            *operation == "resume-rollback"
+                && bindings == &vec![(previous.job_id, previous.generation.get())]
+        }));
+
+        std::fs::write(&segment_journal, &old_segments).unwrap();
+        app.dispatch(AppCommand::ResumeInterrupted {
+            request: previous.clone(),
+        })
+        .unwrap();
         drop(
             crate::source_binding::SourceBinding::reopen_for_identity(
                 &settings_root,
@@ -21877,6 +21940,36 @@ mod tests {
             })
             .expect("write a real resumable prefix checkpoint");
         drop(archive);
+        let previous_document_directory = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", job_id.0))
+            .join(previous_generation.get().to_string())
+            .join("parakeet-unified/document");
+        let prefix_text = "prefix checkpointé avant interruption native";
+        let mut previous_document = crate::parakeet_document::ParakeetDocumentStore::create(
+            &previous_document_directory,
+            job_id,
+            previous_generation,
+        )
+        .expect("create the interrupted generation's real document checkpoint");
+        previous_document
+            .append_final(whisper_core::ports::WorkerSegment {
+                job_id,
+                generation: previous_generation,
+                instance_id: 1,
+                segment_id: whisper_core::SegmentId(1),
+                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                text: prefix_text.into(),
+            })
+            .expect("write the same confirmed prefix into the old document");
+        previous_document
+            .record_coverage(whisper_core::ports::ParakeetWindowCoverage {
+                sequence: 1,
+                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                last_segment_sequence: 1,
+            })
+            .expect("checkpoint the covered audio prefix in the old document");
+        drop(previous_document);
         let mut queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
         queue.enqueue(previous.clone()).unwrap();
         queue
@@ -22196,6 +22289,38 @@ mod tests {
             .expect("resumed generation N+1 must publish a complete archive");
         assert_eq!(complete_archive.strategy, previous.strategy);
         assert_eq!(complete_archive.source_sha256, source_sha);
+        let resumed_document = ArchiveStore::read_unified_document_page(
+            &archive_root,
+            job_id,
+            resumed_generation,
+            complete.document_revision,
+            1,
+            128,
+        )
+        .expect("read the complete resumed document prefix and suffix");
+        assert!(
+            resumed_document.entries.len() >= 2,
+            "resume must preserve the covered prefix and append a recalculated suffix: {:?}",
+            resumed_document.entries
+        );
+        let prefix = &resumed_document.entries[0].segment;
+        assert_eq!(prefix.segment_id.0, 1);
+        assert_eq!(prefix.range.start_sample, 0);
+        assert_eq!(prefix.range.end_sample, 16_000);
+        assert_eq!(prefix.text, prefix_text);
+        assert!(
+            resumed_document.entries[1..]
+                .iter()
+                .enumerate()
+                .all(|(index, entry)| entry.segment.segment_id.0 == index as u64 + 2),
+            "recomputed suffix must continue from sequence M+1"
+        );
+        assert!(
+            resumed_document.entries[1..]
+                .iter()
+                .all(|entry| entry.segment.text != prefix_text),
+            "the promoted prefix must not be duplicated in the recalculated suffix"
+        );
         let basename = complete_archive
             .export_basename
             .as_deref()
@@ -22204,6 +22329,22 @@ mod tests {
         let srt = archive_root.join("exports").join(format!("{basename}.srt"));
         assert!(txt.is_file(), "resumed native TXT export must exist");
         assert!(srt.is_file(), "resumed native SRT export must exist");
+        assert_eq!(
+            std::fs::read_to_string(&txt)
+                .expect("read resumed native TXT export")
+                .matches(prefix_text)
+                .count(),
+            1,
+            "the confirmed prefix must appear exactly once in TXT"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&srt)
+                .expect("read resumed native SRT export")
+                .matches(prefix_text)
+                .count(),
+            1,
+            "the confirmed prefix must appear exactly once in SRT"
+        );
         assert!(
             crate::source_binding::SourceBinding::reopen_for_identity(
                 &settings_root,
