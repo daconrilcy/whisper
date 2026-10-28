@@ -14698,6 +14698,13 @@ mod tests {
             })
             .unwrap();
         old_document
+            .record_coverage(whisper_core::ports::ParakeetWindowCoverage {
+                sequence: 1,
+                range: whisper_core::SourceRange::new(0, checkpoint_samples, 16_000).unwrap(),
+                last_segment_sequence: 1,
+            })
+            .unwrap();
+        old_document
             .append_final(whisper_core::ports::WorkerSegment {
                 job_id: previous.job_id,
                 generation: previous.generation,
@@ -14710,13 +14717,6 @@ mod tests {
                 )
                 .unwrap(),
                 text: "uncovered tail not promoted".into(),
-            })
-            .unwrap();
-        old_document
-            .record_coverage(whisper_core::ports::ParakeetWindowCoverage {
-                sequence: 1,
-                range: whisper_core::SourceRange::new(0, checkpoint_samples, 16_000).unwrap(),
-                last_segment_sequence: 1,
             })
             .unwrap();
         drop(old_document);
