@@ -1906,6 +1906,10 @@ enum NativeQualificationEventKind {
         has_expected_gpu: bool,
         fallback_reason: Option<String>,
     },
+    SourceBindingMap {
+        operation: &'static str,
+        bindings: Vec<(JobId, u64)>,
+    },
     Starting {
         incarnation: u64,
     },
@@ -4260,6 +4264,19 @@ impl ImportRuntime {
         self
     }
 
+    #[cfg(test)]
+    fn observe_source_binding_map(&self, operation: &'static str) {
+        let Some(observer) = &self.native_harness_observer else {
+            return;
+        };
+        let mut bindings = self.source_bindings.keys().copied().collect::<Vec<_>>();
+        bindings.sort_unstable_by_key(|(job_id, generation)| (job_id.0, *generation));
+        observer.record(NativeQualificationEventKind::SourceBindingMap {
+            operation,
+            bindings,
+        });
+    }
+
     fn start_controlled_unified_import(&mut self, request: &ImportRequest) -> Result<(), String> {
         let session = whisper_core::parakeet_scheduler::SchedulerSession {
             job_id: request.job_id,
@@ -5934,6 +5951,17 @@ impl ImportRuntime {
         previous: &ImportRequest,
         resumed: &ImportRequest,
     ) -> Result<bool, String> {
+        let result = self.transfer_resume_source_binding_inner(previous, resumed);
+        #[cfg(test)]
+        self.observe_source_binding_map("resume-transfer");
+        result
+    }
+
+    fn transfer_resume_source_binding_inner(
+        &mut self,
+        previous: &ImportRequest,
+        resumed: &ImportRequest,
+    ) -> Result<bool, String> {
         let old_key = (previous.job_id, previous.generation.get());
         let new_key = (resumed.job_id, resumed.generation.get());
         if previous.job_id != resumed.job_id
@@ -6082,6 +6110,17 @@ impl ImportRuntime {
         previous: &ImportRequest,
         resumed: &ImportRequest,
     ) -> Result<(), String> {
+        let result = self.restore_resume_source_binding_inner(previous, resumed);
+        #[cfg(test)]
+        self.observe_source_binding_map("resume-rollback");
+        result
+    }
+
+    fn restore_resume_source_binding_inner(
+        &mut self,
+        previous: &ImportRequest,
+        resumed: &ImportRequest,
+    ) -> Result<(), String> {
         let old_key = (previous.job_id, previous.generation.get());
         let new_key = (resumed.job_id, resumed.generation.get());
         let new_binding = match self.source_bindings.remove(&new_key) {
@@ -6132,6 +6171,18 @@ impl ImportRuntime {
     }
 
     fn release_source_binding(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        destination: &Path,
+    ) -> Result<(), String> {
+        let result = self.release_source_binding_inner(job_id, generation, destination);
+        #[cfg(test)]
+        self.observe_source_binding_map("release");
+        result
+    }
+
+    fn release_source_binding_inner(
         &mut self,
         job_id: JobId,
         generation: Generation,
@@ -14429,6 +14480,7 @@ mod tests {
         drop(crate::source_binding::SourceBinding::acquire(&previous, &settings_root).unwrap());
 
         let (worker, calls) = controlled_worker();
+        let (observer, source_binding_events) = NativeQualificationObserver::channel();
         let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
             WorkerPaths {
                 cpu: PathBuf::from("unused-cpu"),
@@ -14442,7 +14494,8 @@ mod tests {
             true,
             false,
         )
-        .with_controlled_transcriber(worker);
+        .with_controlled_transcriber(worker)
+        .with_native_harness_observer(observer);
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
@@ -14539,6 +14592,14 @@ mod tests {
             .unwrap()
             .is_none()
         );
+        let source_binding_maps = source_binding_map_events(&source_binding_events);
+        assert!(source_binding_maps.iter().any(|(operation, bindings)| {
+            *operation == "resume-transfer"
+                && bindings == &vec![(resumed_identity.0, resumed_identity.1.get())]
+        }));
+        assert!(source_binding_maps
+            .iter()
+            .any(|(operation, bindings)| *operation == "release" && bindings.is_empty()));
         let mut retained = Vec::new();
         for offset in 0..2 {
             let mut capacity_request = previous.clone();
@@ -14608,6 +14669,7 @@ mod tests {
                 .unwrap(),
         );
 
+        let (observer, source_binding_events) = NativeQualificationObserver::channel();
         let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
             WorkerPaths {
                 cpu: PathBuf::from("unused-cpu"),
@@ -14621,7 +14683,8 @@ mod tests {
             true,
             false,
         )
-        .with_controlled_transcriber(controlled_worker().0);
+        .with_controlled_transcriber(controlled_worker().0)
+        .with_native_harness_observer(observer);
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
@@ -14654,6 +14717,12 @@ mod tests {
             observed_recoverable,
             "resume conflict must become terminal and visible: {observed_message:?}"
         );
+        let source_binding_maps = source_binding_map_events(&source_binding_events);
+        assert!(source_binding_maps.iter().any(|(operation, bindings)| {
+            *operation == "resume-transfer"
+                && bindings.contains(&(previous.job_id, previous.generation.get()))
+                && bindings.contains(&(previous.job_id, resumed_generation.get()))
+        }), "conflict must retain both in-memory identities: {source_binding_maps:?}");
         let queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
         assert!(queue.entries().iter().any(|entry| {
             (entry.request.job_id, entry.request.generation)
@@ -14771,6 +14840,7 @@ mod tests {
         .unwrap();
 
         let transfer_gate = Arc::new((Mutex::new(false), std::sync::Condvar::new()));
+        let (observer, source_binding_events) = NativeQualificationObserver::channel();
         let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
             WorkerPaths {
                 cpu: PathBuf::from("unused-cpu"),
@@ -14785,7 +14855,8 @@ mod tests {
             false,
         )
         .with_controlled_transcriber(controlled_worker().0)
-        .with_resume_binding_transfer_gate(Arc::clone(&transfer_gate));
+        .with_resume_binding_transfer_gate(Arc::clone(&transfer_gate))
+        .with_native_harness_observer(observer);
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
@@ -14895,6 +14966,15 @@ mod tests {
                 .as_deref()
                 .is_some_and(|message| message.contains("StorageCorrupt: segment"))
         );
+        let source_binding_maps = source_binding_map_events(&source_binding_events);
+        assert!(source_binding_maps.iter().any(|(operation, bindings)| {
+            *operation == "resume-transfer"
+                && bindings == &vec![(previous.job_id, resumed_generation.get())]
+        }), "successful transfer must leave only N+1 in memory: {source_binding_maps:?}");
+        assert!(source_binding_maps.iter().any(|(operation, bindings)| {
+            *operation == "resume-rollback"
+                && bindings == &vec![(previous.job_id, previous.generation.get())]
+        }), "rollback must restore only N in memory: {source_binding_maps:?}");
         let queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
         assert!(queue.entries().iter().any(|entry| {
             (entry.request.job_id, entry.request.generation)
@@ -19489,6 +19569,22 @@ mod tests {
             .chunks_exact(2)
             .map(|pair| f32::from(i16::from_le_bytes([pair[0], pair[1]])) / 32_768.0)
             .collect()
+    }
+
+    fn source_binding_map_events(
+        receiver: &Receiver<NativeQualificationEvent>,
+    ) -> Vec<(&'static str, Vec<(JobId, u64)>)> {
+        let mut bindings = Vec::new();
+        while let Ok(event) = receiver.try_recv() {
+            if let NativeQualificationEventKind::SourceBindingMap {
+                operation,
+                bindings: snapshot,
+            } = event.kind
+            {
+                bindings.push((operation, snapshot));
+            }
+        }
+        bindings
     }
 
     #[cfg(windows)]
