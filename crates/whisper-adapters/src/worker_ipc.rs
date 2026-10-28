@@ -19832,27 +19832,22 @@ mod tests {
                 .find(|session| (session.job_id, session.generation) == identity)
             {
                 observed_phase = format!("{:?}", session.phase);
-                if session
-                    .message
-                    .as_deref()
-                    .is_some_and(|message| message.starts_with("Moteur actif : "))
-                {
-                    observed_backend_message = session.message.clone();
-                }
                 if expected_fallback.is_some()
-                    && session.message.as_deref() == Some(expected_backend_message.as_str())
-                    && !observed_native_events.iter().any(|event| {
-                        matches!(
-                            &event.kind,
-                            NativeQualificationEventKind::RequestSent {
-                                session: sent_session,
-                                generation: sent_generation,
-                                ..
-                            } if sent_session.job_id == job_id && *sent_generation == generation
-                        )
-                    })
+                    && view.message.as_deref() == Some(expected_backend_message.as_str())
                 {
-                    fallback_message_before_audio = true;
+                    observed_backend_message = view.message.clone();
+                    fallback_message_before_audio |=
+                        !observed_native_events.iter().any(|event| {
+                            matches!(
+                                &event.kind,
+                                NativeQualificationEventKind::RequestSent {
+                                    session: sent_session,
+                                    generation: sent_generation,
+                                    ..
+                                } if sent_session.job_id == job_id
+                                    && *sent_generation == generation
+                            )
+                        });
                 }
                 if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
                     panic!(
