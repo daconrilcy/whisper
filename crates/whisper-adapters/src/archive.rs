@@ -8166,7 +8166,10 @@ mod tests {
         assert!(
             ArchiveStore::published_unified_files(&root, JobId(job_id.0 + 3), generation).is_err()
         );
-        eprintln!("Preserved internal publication test artifacts at {}", root.display());
+        eprintln!(
+            "Preserved internal publication test artifacts at {}",
+            root.display()
+        );
     }
 
     #[test]
