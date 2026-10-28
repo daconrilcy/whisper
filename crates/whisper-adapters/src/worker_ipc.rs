@@ -22492,8 +22492,8 @@ mod tests {
         );
         let prefix = &resumed_document.entries[0].segment;
         assert_eq!(prefix.segment_id.0, 1);
-        assert_eq!(prefix.range.start_sample, 0);
-        assert_eq!(prefix.range.end_sample, 16_000);
+        assert_eq!(prefix.range.start_sample, prefix_range.start_sample);
+        assert_eq!(prefix.range.end_sample, prefix_range.end_sample);
         assert_eq!(prefix.text, prefix_text);
         assert!(
             resumed_document.entries[1..]
