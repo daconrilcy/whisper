@@ -2410,12 +2410,12 @@ impl ArchiveStore {
                 source_sha256,
                 request.strategy,
             )?
-                .iter()
-                .map(|item| PublicationIdentity {
-                    job_id: item.job_id,
-                    generation: item.generation,
-                })
-                .collect(),
+            .iter()
+            .map(|item| PublicationIdentity {
+                job_id: item.job_id,
+                generation: item.generation,
+            })
+            .collect(),
             export_basename: "transcript".into(),
             internal_only: true,
             cleanup_id: Some(cleanup_id),
