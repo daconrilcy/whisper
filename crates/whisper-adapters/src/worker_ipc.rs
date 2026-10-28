@@ -5817,7 +5817,8 @@ impl ImportRuntime {
         };
         let key = (request.job_id, request.generation.get());
         if !self.source_bindings.contains_key(&key) {
-            let binding = crate::source_binding::SourceBinding::acquire(request, registry_root)?;
+            let binding =
+                crate::source_binding::SourceBinding::acquire(request, &registry_root)?;
             self.source_bindings.insert(key, binding);
         }
         let binding = self
@@ -14553,7 +14554,8 @@ mod tests {
             Some(settings_root.clone()),
             true,
             false,
-        );
+        )
+        .with_controlled_transcriber(controlled_worker().0);
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
