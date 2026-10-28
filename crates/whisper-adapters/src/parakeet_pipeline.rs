@@ -79,6 +79,14 @@ pub struct PipelineResult {
     pub document_revision: u64,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ParakeetResumeCheckpoint {
+    pub window_sequence: u64,
+    pub covered_samples: u64,
+    pub confirmed_segments: u64,
+    pub join_anchor: Option<whisper_core::SourceRange>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FinalizationStep {
     WaitingForAudio {
@@ -119,6 +127,7 @@ pub struct ParakeetFinalizer {
     document_revision: u64,
     completed: Option<PipelineResult>,
     pending_window: Option<PendingFinalWindow>,
+    join_anchor: Option<whisper_core::SourceRange>,
 }
 
 impl ParakeetFinalizer {
@@ -135,7 +144,56 @@ impl ParakeetFinalizer {
             document_revision: 0,
             completed: None,
             pending_window: None,
+            join_anchor: None,
         }
+    }
+
+    pub fn from_checkpoint(
+        job_id: JobId,
+        generation: Generation,
+        checkpoint: ParakeetResumeCheckpoint,
+    ) -> Result<Self, String> {
+        let next_sequence = checkpoint
+            .window_sequence
+            .checked_add(1)
+            .ok_or_else(|| "StorageCorrupt: resume window sequence exhausted".to_owned())?;
+        let next_segment = checkpoint
+            .confirmed_segments
+            .checked_add(1)
+            .ok_or_else(|| "StorageCorrupt: resume segment sequence exhausted".to_owned())?;
+        if checkpoint.window_sequence == 0 && checkpoint.covered_samples != 0
+            || checkpoint.window_sequence > 0 && checkpoint.covered_samples == 0
+            || checkpoint.join_anchor.is_some_and(|anchor| {
+                anchor.sample_rate_hz != 16_000
+                    || anchor.start_sample >= anchor.end_sample
+                    || anchor.start_sample + (anchor.end_sample - anchor.start_sample) / 2
+                        >= checkpoint.covered_samples
+            })
+            || (checkpoint.confirmed_segments == 0) != checkpoint.join_anchor.is_none()
+        {
+            return Err("StorageCorrupt: invalid Parakeet resume checkpoint".into());
+        }
+        let cursor = whisper_core::parakeet_session::WindowCursor::from_checkpoint(
+            whisper_core::parakeet_session::WindowCursorCheckpoint {
+                next_start_sample: checkpoint.covered_samples,
+                next_sequence,
+            },
+        )
+        .map_err(|error| format!("StorageCorrupt: resume window cursor: {error:?}"))?;
+        Ok(Self {
+            identity: SessionIdentity {
+                job_id,
+                generation,
+                strategy: TranscriptionStrategy::BoundedWindowsV1,
+            },
+            cursor,
+            windows_completed: checkpoint.window_sequence,
+            next_segment,
+            document_revision: checkpoint.confirmed_segments,
+            completed: None,
+            pending_window: None,
+            join_anchor: checkpoint.join_anchor,
+        })
     }
 
     pub fn processed_samples(&self) -> u64 {
@@ -144,6 +202,10 @@ impl ParakeetFinalizer {
 
     pub fn next_window_sequence(&self) -> u64 {
         self.windows_completed.saturating_add(1)
+    }
+
+    pub fn next_segment_sequence(&self) -> u64 {
+        self.next_segment
     }
 
     /// Reads and reserves one final clip without invoking the backend. The
@@ -282,9 +344,17 @@ impl ParakeetFinalizer {
             instance_id,
             self.identity.job_id,
             self.identity.generation,
-            self.next_segment,
+            1,
         )?;
-        for segment in segments {
+        if let Some(anchor) = self.join_anchor.take() {
+            let anchor_midpoint =
+                anchor.start_sample + (anchor.end_sample - anchor.start_sample) / 2;
+            if anchor_midpoint >= window.central_start_sample {
+                return Err("StorageCorrupt: resume join anchor overlaps the suffix boundary".into());
+            }
+        }
+        for mut segment in segments {
+            segment.segment_id = whisper_core::SegmentId(self.next_segment);
             self.document_revision = document.append_final(segment).map_err(port_error)?;
             self.next_segment = self
                 .next_segment
@@ -572,6 +642,44 @@ mod tests {
         }
     }
 
+    struct BoundaryWorker;
+
+    impl WindowTranscriber for BoundaryWorker {
+        fn instance_id(&self) -> u64 {
+            9
+        }
+
+        fn transcribe(
+            &mut self,
+            window: AudioWindow,
+            _: &[i16],
+        ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+            assert_eq!(window.sequence, 2);
+            Ok(vec![word(0, 500)])
+        }
+    }
+
+    struct SuffixWorker(&'static str);
+
+    impl WindowTranscriber for SuffixWorker {
+        fn instance_id(&self) -> u64 {
+            10
+        }
+
+        fn transcribe(
+            &mut self,
+            window: AudioWindow,
+            _: &[i16],
+        ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
+            assert_eq!(window.sequence, 2);
+            Ok(vec![whisper_core::parakeet_ipc::Word {
+                text: self.0.into(),
+                start_ms: 200,
+                end_ms: 300,
+            }])
+        }
+    }
+
     fn word(start_ms: u32, end_ms: u32) -> whisper_core::parakeet_ipc::Word {
         whisper_core::parakeet_ipc::Word {
             text: "last".into(),
@@ -671,6 +779,200 @@ mod tests {
         assert_eq!(result.total_samples, total);
         assert_eq!(result.windows_completed, 2);
         assert_eq!(document.revision(), 2);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn restored_finalizer_keeps_prefix_and_accepts_midpoint_owned_boundary_word() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("whisper-parakeet-resume-pipeline-{stamp}"));
+        fs::create_dir_all(&root).unwrap();
+        let audio_path = root.join("source.wav");
+        let mut writer = PcmPartWriter::create(&audio_path).unwrap();
+        let total = WINDOW_MAX_SAMPLES + 32_000;
+        writer.append(&vec![0_i16; total as usize]).unwrap();
+        writer.finish().unwrap();
+        let source = PcmPartStore::open(&audio_path);
+        let job_id = JobId(35);
+        let new_generation = Generation::first().next().unwrap();
+        let mut document =
+            ParakeetDocumentStore::create(root.join("document"), job_id, new_generation).unwrap();
+        let prefix_range = whisper_core::SourceRange::new(
+            WINDOW_MAX_SAMPLES - 6_400,
+            WINDOW_MAX_SAMPLES - 3_200,
+            16_000,
+        )
+        .unwrap();
+        document
+            .append_final(WorkerSegment {
+                job_id,
+                generation: new_generation,
+                instance_id: 7,
+                segment_id: whisper_core::SegmentId(1),
+                range: prefix_range,
+                text: "confirmed prefix".into(),
+            })
+            .unwrap();
+        document
+            .record_coverage(ParakeetWindowCoverage {
+                sequence: 1,
+                range: whisper_core::SourceRange::new(0, WINDOW_MAX_SAMPLES, 16_000).unwrap(),
+                last_segment_sequence: 1,
+            })
+            .unwrap();
+        let mut finalizer = ParakeetFinalizer::from_checkpoint(
+            job_id,
+            new_generation,
+            ParakeetResumeCheckpoint {
+                window_sequence: 1,
+                covered_samples: WINDOW_MAX_SAMPLES,
+                confirmed_segments: 1,
+                join_anchor: Some(prefix_range),
+            },
+        )
+        .unwrap();
+        assert_eq!(finalizer.next_window_sequence(), 2);
+        assert_eq!(finalizer.next_segment_sequence(), 2);
+        let step = finalizer
+            .step(
+                &mut &source,
+                &mut document,
+                &mut BoundaryWorker,
+                total,
+                true,
+            )
+            .unwrap();
+        assert!(matches!(
+            step,
+            FinalizationStep::WindowProcessed {
+                windows_completed: 2,
+                document_revision: 2,
+                ..
+            }
+        ));
+        let page = document
+            .read_page(job_id, new_generation, 2, 1, 128)
+            .unwrap();
+        assert_eq!(page.entries.len(), 2);
+        assert_eq!(page.entries[0].segment.text, "confirmed prefix");
+        assert_eq!(page.entries[1].segment.segment_id.0, 2);
+        assert!(page.entries[1].segment.range.start_sample < WINDOW_MAX_SAMPLES);
+        assert!(page.entries[1].segment.range.start_sample
+            + (page.entries[1].segment.range.end_sample
+                - page.entries[1].segment.range.start_sample)
+                / 2
+            >= WINDOW_MAX_SAMPLES);
+        let complete = finalizer
+            .finish_document(&mut document, total, true)
+            .unwrap();
+        assert!(matches!(complete, FinalizationStep::Complete(_)));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn finalizer_rejects_a_checkpoint_whose_anchor_is_not_covered() {
+        let invalid = ParakeetResumeCheckpoint {
+            window_sequence: 1,
+            covered_samples: 16_000,
+            confirmed_segments: 1,
+            join_anchor: Some(whisper_core::SourceRange::new(16_000, 17_000, 16_000).unwrap()),
+        };
+        assert!(ParakeetFinalizer::from_checkpoint(
+            JobId(36),
+            Generation::first(),
+            invalid
+        )
+        .is_err());
+        assert!(ParakeetFinalizer::from_checkpoint(
+            JobId(36),
+            Generation::first(),
+            ParakeetResumeCheckpoint {
+                window_sequence: 0,
+                covered_samples: 1,
+                confirmed_segments: 0,
+                join_anchor: None,
+            }
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn resume_preserves_prefix_while_backend_suffix_text_can_differ() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("whisper-parakeet-resume-backends-{stamp}"));
+        fs::create_dir_all(&root).unwrap();
+        let audio_path = root.join("source.wav");
+        let mut writer = PcmPartWriter::create(&audio_path).unwrap();
+        let total = WINDOW_MAX_SAMPLES + 32_000;
+        writer.append(&vec![0_i16; total as usize]).unwrap();
+        writer.finish().unwrap();
+        let source = PcmPartStore::open(&audio_path);
+        let job_id = JobId(37);
+        let generation = Generation::first().next().unwrap();
+        let covered = WINDOW_MAX_SAMPLES;
+        let anchor = whisper_core::SourceRange::new(covered - 6_400, covered - 3_200, 16_000)
+            .unwrap();
+        let mut suffixes = Vec::new();
+
+        for (name, text) in [("cpu", "CPU suffix"), ("gpu", "GPU suffix")] {
+            let mut document = ParakeetDocumentStore::create(root.join(name), job_id, generation)
+                .unwrap();
+            document
+                .append_final(WorkerSegment {
+                    job_id,
+                    generation,
+                    instance_id: 1,
+                    segment_id: whisper_core::SegmentId(1),
+                    range: anchor,
+                    text: "confirmed prefix".into(),
+                })
+                .unwrap();
+            document
+                .record_coverage(ParakeetWindowCoverage {
+                    sequence: 1,
+                    range: whisper_core::SourceRange::new(0, covered, 16_000).unwrap(),
+                    last_segment_sequence: 1,
+                })
+                .unwrap();
+            let mut finalizer = ParakeetFinalizer::from_checkpoint(
+                job_id,
+                generation,
+                ParakeetResumeCheckpoint {
+                    window_sequence: 1,
+                    covered_samples: covered,
+                    confirmed_segments: 1,
+                    join_anchor: Some(anchor),
+                },
+            )
+            .unwrap();
+            finalizer
+                .step(
+                    &mut &source,
+                    &mut document,
+                    &mut SuffixWorker(text),
+                    total,
+                    true,
+                )
+                .unwrap();
+            assert!(matches!(
+                finalizer.finish_document(&mut document, total, true).unwrap(),
+                FinalizationStep::Complete(_)
+            ));
+            let page = document
+                .read_page(job_id, generation, 2, 1, 128)
+                .unwrap();
+            assert_eq!(page.entries.len(), 2);
+            assert_eq!(page.entries[0].segment.text, "confirmed prefix");
+            assert_eq!(page.entries[1].segment.segment_id.0, 2);
+            suffixes.push(page.entries[1].segment.text.clone());
+        }
+        assert_ne!(suffixes[0], suffixes[1]);
         fs::remove_dir_all(root).unwrap();
     }
 

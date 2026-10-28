@@ -1482,6 +1482,10 @@ struct ImportRuntime {
         HashMap<whisper_core::parakeet_scheduler::SchedulerSession, NativeUnifiedRoute>,
     native_executor_route: Option<NativeUnifiedRoute>,
     unified_archives: HashMap<whisper_core::parakeet_scheduler::SchedulerSession, ArchiveStore>,
+    unified_resume_checkpoints: HashMap<
+        whisper_core::parakeet_scheduler::SchedulerSession,
+        crate::archive::UnifiedArchiveResumeCheckpoint,
+    >,
     unified_capture_sessions: HashSet<whisper_core::parakeet_scheduler::SchedulerSession>,
     #[cfg(test)]
     native_harness_observer: Option<Arc<NativeQualificationObserver>>,
@@ -1519,6 +1523,86 @@ struct UnifiedDocumentDrain {
     next_sequence: u64,
     ready_pending: bool,
     progress_pending: bool,
+}
+
+fn restore_unified_document_prefix(
+    document: &mut crate::parakeet_document::ParakeetDocumentStore,
+    checkpoint: &crate::archive::UnifiedArchiveResumeCheckpoint,
+    job_id: JobId,
+    generation: Generation,
+    source_samples: u64,
+) -> Result<(), String> {
+    use whisper_core::ports::ParakeetDocumentPort;
+
+    let saved = checkpoint.pipeline;
+    if saved.confirmed_segments == 0 && saved.window_sequence == 0 && saved.covered_samples == 0 {
+        return Ok(());
+    }
+    let mut reader = crate::parakeet_document::ParakeetDocumentStore::open_resume_coverage(
+        &checkpoint.previous_document_directory,
+        checkpoint.previous_job_id,
+        checkpoint.previous_generation,
+        source_samples,
+    )?
+    .ok_or_else(|| "StorageCorrupt: resume document checkpoint disappeared".to_owned())?;
+    let mut next_segment = 1_u64;
+    let mut last_coverage = None;
+    loop {
+        let page = reader.read_page(128)?;
+        if page.is_empty() {
+            break;
+        }
+        for coverage in page {
+            if coverage.sequence > saved.window_sequence {
+                break;
+            }
+            while next_segment <= coverage.last_segment_sequence {
+                let entries = reader.read_document_page(next_segment, 128)?;
+                if entries.is_empty() {
+                    return Err("StorageCorrupt: resume document prefix ended early".into());
+                }
+                for entry in entries {
+                    if entry.segment.segment_id.0 > coverage.last_segment_sequence
+                        || entry.segment.segment_id.0 > saved.confirmed_segments
+                    {
+                        break;
+                    }
+                    let segment = WorkerSegment {
+                        job_id,
+                        generation,
+                        instance_id: entry.segment.instance_id,
+                        segment_id: entry.segment.segment_id,
+                        range: entry.segment.range,
+                        text: entry.segment.text,
+                    };
+                    document
+                        .append_final(segment)
+                        .map_err(|error| format!("Document: {error:?}"))?;
+                    next_segment = next_segment
+                        .checked_add(1)
+                        .ok_or_else(|| "StorageCorrupt: resume segment sequence exhausted".to_owned())?;
+                }
+            }
+            document
+                .record_coverage(coverage)
+                .map_err(|error| format!("Document: {error:?}"))?;
+            last_coverage = Some(coverage.sequence);
+            if coverage.sequence == saved.window_sequence {
+                break;
+            }
+        }
+        if last_coverage == Some(saved.window_sequence) {
+            break;
+        }
+    }
+    if last_coverage != Some(saved.window_sequence)
+        || next_segment != saved.confirmed_segments.saturating_add(1)
+        || document.revision() != saved.confirmed_segments
+        || saved.covered_samples == 0
+    {
+        return Err("StorageCorrupt: resume checkpoint prefix could not be restored".into());
+    }
+    Ok(())
 }
 
 enum UnifiedSessionSource {
@@ -3885,6 +3969,7 @@ impl ImportRuntime {
         self.document_drains
             .retain(|drain| (drain.job_id, drain.generation) != (job_id, generation));
         self.unified_archives.remove(&session);
+        self.unified_resume_checkpoints.remove(&session);
         self.unified_capture_sessions.remove(&session);
         self.unified_publication_gates.remove(&session);
         self.native_unified_routes.remove(&session);
@@ -3908,6 +3993,7 @@ impl ImportRuntime {
         let mut parent_sessions = std::collections::HashSet::new();
         parent_sessions.extend(self.unified_sessions.keys().copied());
         parent_sessions.extend(self.unified_archives.keys().copied());
+        parent_sessions.extend(self.unified_resume_checkpoints.keys().copied());
         parent_sessions.extend(self.unified_publication_gates.keys().copied());
         parent_sessions.extend(self.native_unified_routes.keys().copied());
         parent_sessions.extend(self.document_drains.iter().map(|drain| {
@@ -3932,6 +4018,12 @@ impl ImportRuntime {
         );
         parent_sessions.extend(
             self.unified_archives
+                .keys()
+                .filter(|session| **session != continuing)
+                .copied(),
+        );
+        parent_sessions.extend(
+            self.unified_resume_checkpoints
                 .keys()
                 .filter(|session| **session != continuing)
                 .copied(),
@@ -4138,6 +4230,7 @@ impl ImportRuntime {
             native_unified_routes: HashMap::new(),
             native_executor_route: None,
             unified_archives: HashMap::new(),
+            unified_resume_checkpoints: HashMap::new(),
             unified_capture_sessions: HashSet::new(),
             #[cfg(test)]
             native_harness_observer: None,
@@ -4351,6 +4444,28 @@ impl ImportRuntime {
             request.generation,
         )
         .map_err(|error| format!("Document: {error:?}"))?;
+        let resume_checkpoint = self.unified_resume_checkpoints.get(&session).cloned();
+        let mut document = document;
+        if let Some(checkpoint) = &resume_checkpoint {
+            restore_unified_document_prefix(
+                &mut document,
+                checkpoint,
+                request.job_id,
+                request.generation,
+                available_samples,
+            )?;
+        }
+        let finalizer = match resume_checkpoint.as_ref() {
+            Some(checkpoint) => crate::parakeet_pipeline::ParakeetFinalizer::from_checkpoint(
+                request.job_id,
+                request.generation,
+                checkpoint.pipeline,
+            )?,
+            None => crate::parakeet_pipeline::ParakeetFinalizer::new(
+                request.job_id,
+                request.generation,
+            ),
+        };
         self.parakeet_scheduler
             .admit(session)
             .map_err(|error| format!("SchedulerAdmission: {error:?}"))?;
@@ -4370,10 +4485,7 @@ impl ImportRuntime {
                 inference_directory: work.join("native-windows"),
                 native_route,
                 backend_ready_reported: false,
-                finalizer: crate::parakeet_pipeline::ParakeetFinalizer::new(
-                    request.job_id,
-                    request.generation,
-                ),
+                finalizer,
                 pending_call: None,
                 pending_prepared: None,
                 preview_sequence: 0,
@@ -4384,6 +4496,7 @@ impl ImportRuntime {
         );
         let archive = std::mem::replace(&mut self.archive, ArchiveStore::new(&request.destination));
         self.unified_archives.insert(session, archive);
+        self.unified_resume_checkpoints.remove(&session);
         Ok(())
     }
 
@@ -5525,13 +5638,14 @@ impl ImportRuntime {
                 }
             }
             let ready_pending = !state.backend_ready_reported;
+            let next_sequence = state.finalizer.next_segment_sequence();
             self.document_drains.push_back(UnifiedDocumentDrain {
                 document: state.document,
                 job_id: session.job_id,
                 generation: session.generation,
                 revision: result.document_revision,
                 total_samples: result.total_samples,
-                next_sequence: 1,
+                next_sequence,
                 ready_pending,
                 progress_pending: true,
             });
@@ -7845,8 +7959,17 @@ impl ImportRuntime {
                                 return;
                             }
                         }
-                        let confirmed_segments = prefix.len() as u64;
-                        let confirmed_offset = if prepared.source_samples.is_some_and(|samples| {
+                        let unified_resume_checkpoint = archive.take_unified_resume_checkpoint();
+                        let confirmed_segments = unified_resume_checkpoint
+                            .as_ref()
+                            .map_or(prefix.len() as u64, |checkpoint| {
+                                checkpoint.pipeline.confirmed_segments
+                            });
+                        let confirmed_offset = if let Some(checkpoint) =
+                            unified_resume_checkpoint.as_ref()
+                        {
+                            checkpoint.pipeline.covered_samples
+                        } else if prepared.source_samples.is_some_and(|samples| {
                             samples > whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
                         }) {
                             archive.confirmed_import_vad_offset().unwrap_or(0)
@@ -7855,6 +7978,15 @@ impl ImportRuntime {
                         };
                         self.archive = archive;
                         self.resume_prefix = prefix.into();
+                        if let Some(checkpoint) = unified_resume_checkpoint {
+                            self.unified_resume_checkpoints.insert(
+                                whisper_core::parakeet_scheduler::SchedulerSession {
+                                    job_id: id.0,
+                                    generation: id.1,
+                                },
+                                checkpoint,
+                            );
+                        }
                         events.push_back(ImportEvent::Queue(queue));
                         events.push_back(ImportEvent::ResumeCheckpoint {
                             job_id: id.0,
@@ -14448,7 +14580,9 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         let source_path = root.join("source.wav");
         let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
-        writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+        let checkpoint_samples = whisper_core::parakeet_windows::WINDOW_MAX_SAMPLES;
+        let total_samples = checkpoint_samples + 32_000;
+        writer.append(&vec![0_i16; total_samples as usize]).unwrap();
         writer.finish().unwrap();
         let source_sha = hex_sha256(&source_path);
         let mut previous = unified_import_request(&root.join("archive"), &source_path, 0x44_100);
@@ -14463,10 +14597,90 @@ mod tests {
                 generation: previous.generation,
                 instance_id: 1,
                 segment_id: whisper_core::SegmentId(1),
-                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                range: whisper_core::SourceRange::new(
+                    checkpoint_samples - 6_400,
+                    checkpoint_samples - 3_200,
+                    16_000,
+                )
+                .unwrap(),
                 text: "prefix confirmé".into(),
             })
             .unwrap();
+        archive
+            .persist_segment(&whisper_core::ports::WorkerSegment {
+                job_id: previous.job_id,
+                generation: previous.generation,
+                instance_id: 1,
+                segment_id: whisper_core::SegmentId(2),
+                range: whisper_core::SourceRange::new(
+                    checkpoint_samples,
+                    checkpoint_samples + 8_000,
+                    16_000,
+                )
+                .unwrap(),
+                text: "uncovered tail not promoted".into(),
+            })
+            .unwrap();
+        let old_document_directory = root
+            .join("archive")
+            .join("transcriptions")
+            .join(format!("{:032x}", previous.job_id.0))
+            .join(previous.generation.get().to_string())
+            .join("parakeet-unified/document");
+        let mut old_document = crate::parakeet_document::ParakeetDocumentStore::create(
+            &old_document_directory,
+            previous.job_id,
+            previous.generation,
+        )
+        .unwrap();
+        old_document
+            .append_final(whisper_core::ports::WorkerSegment {
+                job_id: previous.job_id,
+                generation: previous.generation,
+                instance_id: 1,
+                segment_id: whisper_core::SegmentId(1),
+                range: whisper_core::SourceRange::new(
+                    checkpoint_samples - 6_400,
+                    checkpoint_samples - 3_200,
+                    16_000,
+                )
+                .unwrap(),
+                text: "prefix confirmé".into(),
+            })
+            .unwrap();
+        old_document
+            .append_final(whisper_core::ports::WorkerSegment {
+                job_id: previous.job_id,
+                generation: previous.generation,
+                instance_id: 1,
+                segment_id: whisper_core::SegmentId(2),
+                range: whisper_core::SourceRange::new(
+                    checkpoint_samples,
+                    checkpoint_samples + 8_000,
+                    16_000,
+                )
+                .unwrap(),
+                text: "uncovered tail not promoted".into(),
+            })
+            .unwrap();
+        old_document
+            .record_coverage(whisper_core::ports::ParakeetWindowCoverage {
+                sequence: 1,
+                range: whisper_core::SourceRange::new(0, checkpoint_samples, 16_000).unwrap(),
+                last_segment_sequence: 1,
+            })
+            .unwrap();
+        drop(old_document);
+        let previous_directory = root
+            .join("archive")
+            .join("transcriptions")
+            .join(format!("{:032x}", previous.job_id.0))
+            .join(previous.generation.get().to_string());
+        let old_segments = std::fs::read(previous_directory.join("segments.jsonl")).unwrap();
+        let old_document_bytes =
+            std::fs::read(old_document_directory.join("document.jsonl")).unwrap();
+        let old_coverage_bytes =
+            std::fs::read(old_document_directory.join("coverage.jsonl")).unwrap();
         let mut queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
         queue.enqueue(previous.clone()).unwrap();
         queue
@@ -14567,6 +14781,21 @@ mod tests {
             resumed_archive.strategy,
             whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
         );
+        let resumed_document = crate::archive::ArchiveStore::read_unified_document_page(
+            &root.join("archive"),
+            resumed_identity.0,
+            resumed_identity.1,
+            2,
+            1,
+            128,
+        )
+        .unwrap();
+        assert_eq!(resumed_document.entries.len(), 2);
+        assert_eq!(resumed_document.entries[0].segment.text, "prefix confirmé");
+        assert_eq!(resumed_document.entries[0].segment.segment_id.0, 1);
+        assert_eq!(resumed_document.entries[1].segment.segment_id.0, 2);
+        assert_ne!(resumed_document.entries[1].segment.text, "uncovered tail not promoted");
+        assert!(calls.load(Ordering::Relaxed) > 0);
         let export_basename = resumed_archive
             .export_basename
             .as_deref()
@@ -14580,6 +14809,32 @@ mod tests {
             root.join("archive/exports")
                 .join(format!("{export_basename}.srt"))
                 .is_file()
+        );
+        let exported_text = std::fs::read_to_string(
+            root.join("archive/exports")
+                .join(format!("{export_basename}.txt")),
+        )
+        .unwrap();
+        let exported_srt = std::fs::read_to_string(
+            root.join("archive/exports")
+                .join(format!("{export_basename}.srt")),
+        )
+        .unwrap();
+        assert_eq!(exported_text.matches("prefix confirmé").count(), 1);
+        assert_eq!(exported_srt.matches("prefix confirmé").count(), 1);
+        assert!(!exported_text.contains("uncovered tail not promoted"));
+        assert!(!exported_srt.contains("uncovered tail not promoted"));
+        assert_eq!(
+            std::fs::read(previous_directory.join("segments.jsonl")).unwrap(),
+            old_segments
+        );
+        assert_eq!(
+            std::fs::read(old_document_directory.join("document.jsonl")).unwrap(),
+            old_document_bytes
+        );
+        assert_eq!(
+            std::fs::read(old_document_directory.join("coverage.jsonl")).unwrap(),
+            old_coverage_bytes
         );
         assert_eq!(hex_sha256(&source_path), source_sha);
         assert!(

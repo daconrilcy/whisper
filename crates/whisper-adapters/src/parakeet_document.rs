@@ -13,6 +13,29 @@ use whisper_core::{
     },
 };
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ResumeCoverageCheckpoint {
+    pub window_sequence: u64,
+    pub covered_samples: u64,
+    pub confirmed_segments: u64,
+}
+
+pub struct ResumeCoverageReader {
+    directory: PathBuf,
+    reader: BufReader<File>,
+    document_index: File,
+    document: BufReader<File>,
+    job_id: JobId,
+    generation: Generation,
+    source_samples: u64,
+    document_revision: u64,
+    next_document_sequence: u64,
+    next_window_sequence: u64,
+    covered_samples: u64,
+    confirmed_segments: u64,
+    finished: bool,
+}
+
 const INDEX_HEADER: &[u8; 8] = b"PUDOC001";
 const INDEX_ENTRY_BYTES: u64 = 16;
 const MAX_PAGE_SIZE: usize = 128;
@@ -72,11 +95,325 @@ impl ParakeetDocumentStore {
         self.revision
     }
 
+    pub fn open_resume_coverage(
+        directory: impl AsRef<Path>,
+        job_id: JobId,
+        generation: Generation,
+        source_samples: u64,
+    ) -> Result<Option<ResumeCoverageReader>, String> {
+        ResumeCoverageReader::open(directory.as_ref(), job_id, generation, source_samples)
+    }
+
+    pub fn latest_resume_checkpoint(
+        directory: impl AsRef<Path>,
+        job_id: JobId,
+        generation: Generation,
+        source_samples: u64,
+        maximum_confirmed_segments: u64,
+    ) -> Result<Option<ResumeCoverageCheckpoint>, String> {
+        let Some(mut reader) = Self::open_resume_coverage(
+            directory,
+            job_id,
+            generation,
+            source_samples,
+        )? else {
+            return Ok(None);
+        };
+        let mut latest = None;
+        loop {
+            let page = reader.read_page(MAX_PAGE_SIZE)?;
+            if page.is_empty() {
+                break;
+            }
+            for coverage in page {
+                if coverage.last_segment_sequence <= maximum_confirmed_segments {
+                    latest = Some(ResumeCoverageCheckpoint {
+                        window_sequence: coverage.sequence,
+                        covered_samples: coverage.range.end_sample,
+                        confirmed_segments: coverage.last_segment_sequence,
+                    });
+                }
+            }
+        }
+        reader.validate_document_remainder()?;
+        Ok(latest)
+    }
+
     fn check_identity(&self, job_id: JobId, generation: Generation) -> Result<(), PortError> {
         if self.job_id == job_id && self.generation == generation {
             Ok(())
         } else {
             Err(PortError::StaleResponse)
+        }
+    }
+}
+
+impl ResumeCoverageReader {
+    fn open(
+        directory: &Path,
+        job_id: JobId,
+        generation: Generation,
+        source_samples: u64,
+    ) -> Result<Option<Self>, String> {
+        if !directory.exists() {
+            return Ok(None);
+        }
+        let mut document_index = File::open(directory.join("document.idx"))
+            .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?;
+        let mut header = [0_u8; 8];
+        document_index
+            .read_exact(&mut header)
+            .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?;
+        let index_size = document_index
+            .metadata()
+            .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?
+            .len();
+        if &header != INDEX_HEADER
+            || index_size < INDEX_HEADER.len() as u64
+            || (index_size - INDEX_HEADER.len() as u64) % INDEX_ENTRY_BYTES != 0
+        {
+            return Err("StorageCorrupt: resume document index".into());
+        }
+        let document_revision = (index_size - INDEX_HEADER.len() as u64) / INDEX_ENTRY_BYTES;
+        let reader = match File::open(directory.join("coverage.jsonl")) {
+            Ok(file) => BufReader::new(file),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound && document_revision == 0 => {
+                return Ok(None);
+            }
+            Err(error) => {
+                return Err(format!("StorageCorrupt: resume coverage: {error}"));
+            }
+        };
+        let document = BufReader::new(
+            File::open(directory.join("document.jsonl"))
+                .map_err(|error| format!("StorageCorrupt: resume document: {error}"))?,
+        );
+        Ok(Some(Self {
+            directory: directory.to_path_buf(),
+            reader,
+            document_index,
+            document,
+            job_id,
+            generation,
+            source_samples,
+            document_revision,
+            next_document_sequence: 1,
+            next_window_sequence: 1,
+            covered_samples: 0,
+            confirmed_segments: 0,
+            finished: false,
+        }))
+    }
+
+    pub fn read_page(
+        &mut self,
+        limit: usize,
+    ) -> Result<Vec<ParakeetWindowCoverage>, String> {
+        if limit == 0 {
+            return Err("InvalidInput: resume coverage page limit".into());
+        }
+        let mut page = Vec::with_capacity(limit.min(MAX_PAGE_SIZE));
+        while page.len() < limit.min(MAX_PAGE_SIZE) && !self.finished {
+            let Some(line) = read_bounded_line(&mut self.reader, 64 * 1024)? else {
+                self.finished = true;
+                break;
+            };
+            let coverage: ParakeetWindowCoverage = serde_json::from_slice(&line)
+                .map_err(|error| format!("StorageCorrupt: resume coverage record: {error}"))?;
+            if coverage.sequence != self.next_window_sequence
+                || coverage.range.sample_rate_hz != 16_000
+                || coverage.range.start_sample != self.covered_samples
+                || coverage.range.end_sample <= coverage.range.start_sample
+                || coverage.range.end_sample > self.source_samples
+                || coverage.last_segment_sequence < self.confirmed_segments
+                || coverage.last_segment_sequence > self.document_revision
+            {
+                return Err("StorageCorrupt: resume coverage is not a valid contiguous checkpoint".into());
+            }
+            self.validate_document_through(coverage)?;
+            self.covered_samples = coverage.range.end_sample;
+            self.confirmed_segments = coverage.last_segment_sequence;
+            self.next_window_sequence = self
+                .next_window_sequence
+                .checked_add(1)
+                .ok_or_else(|| "StorageCorrupt: resume window sequence exhausted".to_owned())?;
+            page.push(coverage);
+        }
+        Ok(page)
+    }
+
+    pub fn read_document_page(
+        &self,
+        first_sequence: u64,
+        limit: usize,
+    ) -> Result<Vec<ParakeetDocumentEntry>, String> {
+        if first_sequence == 0 || limit == 0 {
+            return Err("InvalidInput: resume document page".into());
+        }
+        let limit = limit.min(MAX_PAGE_SIZE);
+        let index_path = self.directory.join("document.idx");
+        let mut index = File::open(index_path)
+            .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?;
+        let mut header = [0_u8; 8];
+        index
+            .read_exact(&mut header)
+            .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?;
+        if &header != INDEX_HEADER {
+            return Err("StorageCorrupt: resume document index header".into());
+        }
+        let count = self.document_revision;
+        let mut document = BufReader::new(
+            File::open(self.directory.join("document.jsonl"))
+                .map_err(|error| format!("StorageCorrupt: resume document: {error}"))?,
+        );
+        let mut entries = Vec::with_capacity(limit);
+        let mut sequence = first_sequence;
+        while sequence <= count && entries.len() < limit {
+            let offset = INDEX_HEADER.len() as u64
+                + (sequence - 1)
+                    .checked_mul(INDEX_ENTRY_BYTES)
+                    .ok_or_else(|| "StorageCorrupt: resume document index overflow".to_owned())?;
+            index
+                .seek(SeekFrom::Start(offset))
+                .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?;
+            let record_offset = read_u64(&mut index)
+                .map_err(|error| format!("StorageCorrupt: resume document index: {error:?}"))?;
+            let length = read_u64(&mut index)
+                .map_err(|error| format!("StorageCorrupt: resume document index: {error:?}"))?;
+            let length = usize::try_from(length)
+                .map_err(|_| "StorageCorrupt: resume document record length".to_owned())?;
+            if length == 0 || length > 1_048_576 {
+                return Err("StorageCorrupt: resume document record length".into());
+            }
+            document
+                .seek(SeekFrom::Start(record_offset))
+                .map_err(|error| format!("StorageCorrupt: resume document seek: {error}"))?;
+            let mut line = vec![0; length];
+            document
+                .read_exact(&mut line)
+                .map_err(|error| format!("StorageCorrupt: resume document record: {error}"))?;
+            let entry: ParakeetDocumentEntry = serde_json::from_slice(&line)
+                .map_err(|error| format!("StorageCorrupt: resume document entry: {error}"))?;
+            if entry.segment.job_id != self.job_id
+                || entry.segment.generation != self.generation
+                || entry.segment.segment_id.0 != sequence
+                || entry.revision != sequence
+                || entry.segment.range.sample_rate_hz != 16_000
+                || entry.segment.range.start_sample >= entry.segment.range.end_sample
+                || entry.segment.range.end_sample > self.source_samples
+                || entry.segment.text.trim().is_empty()
+            {
+                return Err("StorageCorrupt: resume document identity or sequence".into());
+            }
+            entries.push(entry);
+            sequence = sequence
+                .checked_add(1)
+                .ok_or_else(|| "StorageCorrupt: resume document sequence exhausted".to_owned())?;
+        }
+        Ok(entries)
+    }
+
+    fn validate_document_remainder(&self) -> Result<(), String> {
+        let mut sequence = self.next_document_sequence;
+        while sequence <= self.document_revision {
+            let page = self.read_document_page(sequence, MAX_PAGE_SIZE)?;
+            if page.is_empty() {
+                return Err("StorageCorrupt: resume document has a missing indexed record".into());
+            }
+            sequence = page
+                .last()
+                .and_then(|entry| entry.segment.segment_id.0.checked_add(1))
+                .ok_or_else(|| "StorageCorrupt: resume document sequence exhausted".to_owned())?;
+        }
+        Ok(())
+    }
+
+    fn validate_document_through(
+        &mut self,
+        coverage: ParakeetWindowCoverage,
+    ) -> Result<(), String> {
+        while self.next_document_sequence <= coverage.last_segment_sequence {
+            let index_offset = INDEX_HEADER.len() as u64
+                + (self.next_document_sequence - 1)
+                    .checked_mul(INDEX_ENTRY_BYTES)
+                    .ok_or_else(|| "StorageCorrupt: resume document index overflow".to_owned())?;
+            self.document_index
+                .seek(SeekFrom::Start(index_offset))
+                .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?;
+            let offset = read_u64(&mut self.document_index)
+                .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?;
+            let length = read_u64(&mut self.document_index)
+                .map_err(|error| format!("StorageCorrupt: resume document index: {error}"))?;
+            let line_length = usize::try_from(length)
+                .map_err(|_| "StorageCorrupt: resume document record length".to_owned())?;
+            if line_length == 0 || line_length > 1_048_576 {
+                return Err("StorageCorrupt: resume document record length".into());
+            }
+            self.document
+                .seek(SeekFrom::Start(offset))
+                .map_err(|error| format!("StorageCorrupt: resume document seek: {error}"))?;
+            let mut line = vec![0; line_length];
+            self.document
+                .read_exact(&mut line)
+                .map_err(|error| format!("StorageCorrupt: resume document record: {error}"))?;
+            let entry: ParakeetDocumentEntry = serde_json::from_slice(&line)
+                .map_err(|error| format!("StorageCorrupt: resume document entry: {error}"))?;
+            let segment = entry.segment;
+            let midpoint = segment.range.start_sample
+                + (segment.range.end_sample - segment.range.start_sample) / 2;
+            if segment.job_id != self.job_id
+                || segment.generation != self.generation
+                || segment.segment_id.0 != self.next_document_sequence
+                || entry.revision != self.next_document_sequence
+                || segment.range.sample_rate_hz != 16_000
+                || segment.range.start_sample >= segment.range.end_sample
+                || segment.range.end_sample > self.source_samples
+                || segment.text.trim().is_empty()
+                || coverage.range.start_sample > midpoint
+                || midpoint >= coverage.range.end_sample
+            {
+                return Err("StorageCorrupt: resume coverage does not match its document prefix".into());
+            }
+            self.next_document_sequence = self
+                .next_document_sequence
+                .checked_add(1)
+                .ok_or_else(|| "StorageCorrupt: resume segment sequence exhausted".to_owned())?;
+        }
+        Ok(())
+    }
+}
+
+fn read_bounded_line(
+    reader: &mut BufReader<File>,
+    maximum: usize,
+) -> Result<Option<Vec<u8>>, String> {
+    let mut line = Vec::new();
+    loop {
+        let available = reader
+            .fill_buf()
+            .map_err(|error| format!("StorageCorrupt: resume coverage read: {error}"))?;
+        if available.is_empty() {
+            if line.is_empty() {
+                return Ok(None);
+            }
+            return Err("StorageCorrupt: truncated resume coverage record".into());
+        }
+        let take = available
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map_or(available.len(), |index| index + 1);
+        if line.len().saturating_add(take) > maximum {
+            return Err("StorageCorrupt: resume coverage record exceeds its bound".into());
+        }
+        let complete = available.get(take - 1) == Some(&b'\n');
+        line.extend_from_slice(&available[..take]);
+        reader.consume(take);
+        if complete {
+            line.pop();
+            if line.last() == Some(&b'\r') {
+                line.pop();
+            }
+            return Ok(Some(line));
         }
     }
 }
@@ -481,6 +818,132 @@ mod tests {
         );
         assert_eq!(document.replace_preview(id, generation, None), Ok(3));
         assert_eq!(document.read_preview(id, generation), Ok(None));
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn resume_coverage_selects_the_last_checkpoint_within_the_archived_prefix() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!("whisper-parakeet-resume-doc-{stamp}"));
+        let id = JobId(25);
+        let generation = Generation::first();
+        let mut document = ParakeetDocumentStore::create(&directory, id, generation).unwrap();
+        for (sequence, start, end) in [(1, 10, 50), (2, 100, 150), (3, 250, 300)] {
+            let mut item = segment(id, generation, sequence);
+            item.range = whisper_core::SourceRange::new(start, end, 16_000).unwrap();
+            document.append_final(item).unwrap();
+            if sequence == 2 {
+                document
+                    .record_coverage(ParakeetWindowCoverage {
+                        sequence: 1,
+                        range: whisper_core::SourceRange::new(0, 200, 16_000).unwrap(),
+                        last_segment_sequence: 2,
+                    })
+                    .unwrap();
+            }
+        }
+        document
+            .record_coverage(ParakeetWindowCoverage {
+                sequence: 2,
+                range: whisper_core::SourceRange::new(200, 400, 16_000).unwrap(),
+                last_segment_sequence: 3,
+            })
+            .unwrap();
+        drop(document);
+
+        let checkpoint = ParakeetDocumentStore::latest_resume_checkpoint(
+            &directory,
+            id,
+            generation,
+            400,
+            2,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            checkpoint,
+            ResumeCoverageCheckpoint {
+                window_sequence: 1,
+                covered_samples: 200,
+                confirmed_segments: 2,
+            }
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn resume_coverage_pages_are_capped_at_128_and_keep_the_global_cursor() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!("whisper-parakeet-resume-pages-{stamp}"));
+        let id = JobId(26);
+        let generation = Generation::first();
+        let mut document = ParakeetDocumentStore::create(&directory, id, generation).unwrap();
+        for sequence in 1..=130_u64 {
+            document
+                .append_final(WorkerSegment {
+                    job_id: id,
+                    generation,
+                    instance_id: 1,
+                    segment_id: whisper_core::SegmentId(sequence),
+                    range: whisper_core::SourceRange::new(
+                        (sequence - 1) * 16_000,
+                        sequence * 16_000,
+                        16_000,
+                    )
+                    .unwrap(),
+                    text: format!("segment-{sequence}"),
+                })
+                .unwrap();
+            document
+                .record_coverage(ParakeetWindowCoverage {
+                    sequence,
+                    range: whisper_core::SourceRange::new(
+                        (sequence - 1) * 16_000,
+                        sequence * 16_000,
+                        16_000,
+                    )
+                    .unwrap(),
+                    last_segment_sequence: sequence,
+                })
+                .unwrap();
+        }
+        drop(document);
+
+        let mut reader = ParakeetDocumentStore::open_resume_coverage(
+            &directory,
+            id,
+            generation,
+            130 * 16_000,
+        )
+        .unwrap()
+        .unwrap();
+        let first = reader.read_page(512).unwrap();
+        assert_eq!(first.len(), 128);
+        let second = reader.read_page(512).unwrap();
+        assert_eq!(second.len(), 2);
+        assert_eq!(second.last().unwrap().sequence, 130);
+        assert_eq!(
+            ParakeetDocumentStore::latest_resume_checkpoint(
+                &directory,
+                id,
+                generation,
+                130 * 16_000,
+                129,
+            )
+            .unwrap(),
+            Some(ResumeCoverageCheckpoint {
+                window_sequence: 129,
+                covered_samples: 129 * 16_000,
+                confirmed_segments: 129,
+            })
+        );
+        drop(reader);
         fs::remove_dir_all(directory).unwrap();
     }
 }

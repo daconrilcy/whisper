@@ -610,6 +610,14 @@ pub struct ArchiveQualificationKey {
 }
 
 impl ArchiveQualificationKey {
+    fn permits_bounded_resume_to(&self, current: &Self) -> bool {
+        self.model == current.model
+            && self.artifact == current.artifact
+            && self.artifact_revision == current.artifact_revision
+            && self.worker_protocol == current.worker_protocol
+            && self.inference_profile == current.inference_profile
+    }
+
     pub fn parakeet_cpu_test() -> Self {
         let record = whisper_core::model_registry::model(
             whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
@@ -955,6 +963,15 @@ pub struct ArchiveStore {
     root: PathBuf,
     current: Option<ActiveArchive>,
     export_hard_linker: Arc<dyn Fn(&Path, &Path) -> io::Result<()> + Send + Sync>,
+    unified_resume_checkpoint: Option<UnifiedArchiveResumeCheckpoint>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnifiedArchiveResumeCheckpoint {
+    pub pipeline: crate::parakeet_pipeline::ParakeetResumeCheckpoint,
+    pub previous_document_directory: PathBuf,
+    pub previous_job_id: JobId,
+    pub previous_generation: Generation,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -2516,7 +2533,14 @@ impl ArchiveStore {
             root: root.into(),
             current: None,
             export_hard_linker: Arc::new(|source, target| fs::hard_link(source, target)),
+            unified_resume_checkpoint: None,
         }
+    }
+
+    pub fn take_unified_resume_checkpoint(
+        &mut self,
+    ) -> Option<UnifiedArchiveResumeCheckpoint> {
+        self.unified_resume_checkpoint.take()
     }
     pub fn root_path(&self) -> PathBuf {
         self.root.clone()
@@ -3233,17 +3257,89 @@ impl ArchiveStore {
             || pending.model_path != previous.model_path
             || pending.model_sha256 != hex(&previous.model_sha256)
             || pending.strategy != previous.strategy
-            || pending.qualification != qualification
+            || (if pending.strategy
+                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+            {
+                match (&pending.qualification, &qualification) {
+                    (Some(previous), Some(current)) => {
+                        !previous.permits_bounded_resume_to(current)
+                    }
+                    (None, _) => false,
+                    (Some(_), None) => true,
+                }
+            } else {
+                pending.qualification != qualification
+            })
         {
             return Err(
                 "SourceChanged: resume checkpoint identity differs from the queued request".into(),
             );
         }
-        let mut prefix = read_segments(&previous_dir.join("segments.jsonl"))?;
-        if pending
-            .qualification
-            .as_ref()
-            .is_some_and(ArchiveQualificationKey::is_parakeet_vad_test)
+        let bounded_resume =
+            pending.strategy == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
+        let mut resume_checkpoint = None;
+        let mut prefix = if bounded_resume {
+            let source_samples = pending.source_samples;
+            let mut archived_count = 0_u64;
+            visit_segments(&previous_dir.join("segments.jsonl"), |index, segment| {
+                let sequence = u64::try_from(index)
+                    .ok()
+                    .and_then(|value| value.checked_add(1))
+                    .ok_or_else(|| "StorageCorrupt: resume sequence overflow".to_owned())?;
+                if segment.sequence != sequence
+                    || segment.range.sample_rate_hz != 16_000
+                    || segment.range.start_sample >= segment.range.end_sample
+                    || segment.range.end_sample > source_samples
+                    || segment.text.trim().is_empty()
+                {
+                    return Err("StorageCorrupt: resume segment journal is invalid".into());
+                }
+                archived_count = sequence;
+                Ok(())
+            })?;
+            let previous_document_directory = previous_dir
+                .join("parakeet-unified")
+                .join("document");
+            let checkpoint = crate::parakeet_document::ParakeetDocumentStore::latest_resume_checkpoint(
+                &previous_document_directory,
+                previous.job_id,
+                previous.generation,
+                source_samples,
+                archived_count,
+            )?
+            .unwrap_or(crate::parakeet_document::ResumeCoverageCheckpoint {
+                window_sequence: 0,
+                covered_samples: 0,
+                confirmed_segments: 0,
+            });
+            let join_anchor = validate_unified_resume_prefix(
+                &previous_dir.join("segments.jsonl"),
+                &previous_document_directory,
+                previous.job_id,
+                previous.generation,
+                source_samples,
+                checkpoint,
+            )?;
+            resume_checkpoint = Some(UnifiedArchiveResumeCheckpoint {
+                pipeline: crate::parakeet_pipeline::ParakeetResumeCheckpoint {
+                    window_sequence: checkpoint.window_sequence,
+                    covered_samples: checkpoint.covered_samples,
+                    confirmed_segments: checkpoint.confirmed_segments,
+                    join_anchor,
+                },
+                previous_document_directory,
+                previous_job_id: previous.job_id,
+                previous_generation: previous.generation,
+            });
+            Vec::new()
+        } else {
+            read_segments(&previous_dir.join("segments.jsonl"))?
+        };
+        if !bounded_resume
+            && pending
+                .qualification
+                .as_ref()
+                .is_some_and(ArchiveQualificationKey::is_parakeet_vad_test)
         {
             let windows = read_import_vad_windows(&previous_dir, &pending)?;
             let confirmed_segments = windows
@@ -3253,7 +3349,7 @@ impl ArchiveStore {
                 "StorageCorrupt: VAD confirmed segment prefix exceeds address space".to_owned()
             })?);
         }
-        if prefix.iter().enumerate().any(|(index, segment)| {
+        if !bounded_resume && prefix.iter().enumerate().any(|(index, segment)| {
             segment.sequence != index as u64 + 1
                 || segment.range.sample_rate_hz != 16_000
                 || segment.range.start_sample >= segment.range.end_sample
@@ -3324,7 +3420,12 @@ impl ArchiveStore {
             qualification,
             Some(&destination),
         )?;
-        self.copy_resume_prefix(&prepared, &prefix)?;
+        if let Some(checkpoint) = &resume_checkpoint {
+            self.copy_unified_resume_prefix(&prepared, &previous_dir.join("segments.jsonl"), checkpoint.pipeline.confirmed_segments)?;
+            self.unified_resume_checkpoint = resume_checkpoint;
+        } else {
+            self.copy_resume_prefix(&prepared, &prefix)?;
+        }
         if pending
             .qualification
             .as_ref()
@@ -3371,6 +3472,41 @@ impl ArchiveStore {
                 range: segment.range,
                 text: segment.text.clone(),
             })?;
+        }
+        Ok(())
+    }
+
+    fn copy_unified_resume_prefix(
+        &mut self,
+        request: &ImportRequest,
+        source_journal: &Path,
+        confirmed_segments: u64,
+    ) -> Result<(), String> {
+        let mut copied = 0_u64;
+        visit_segments(source_journal, |index, record| {
+            let sequence = u64::try_from(index)
+                .ok()
+                .and_then(|value| value.checked_add(1))
+                .ok_or_else(|| "StorageCorrupt: resume sequence overflow".to_owned())?;
+            if sequence > confirmed_segments {
+                return Ok(());
+            }
+            if record.sequence != sequence {
+                return Err("StorageCorrupt: resumed prefix sequence changed".into());
+            }
+            self.persist_segment(&WorkerSegment {
+                job_id: request.job_id,
+                generation: request.generation,
+                instance_id: 0,
+                segment_id: whisper_core::SegmentId(sequence),
+                range: record.range,
+                text: record.text,
+            })?;
+            copied = sequence;
+            Ok(())
+        })?;
+        if copied != confirmed_segments {
+            return Err("StorageCorrupt: confirmed resume prefix is incomplete".into());
         }
         Ok(())
     }
@@ -6841,13 +6977,150 @@ fn visit_segments(
     repair_uncommitted_segment_tail(&mut file)?;
     file.seek(SeekFrom::Start(0))
         .map_err(|error| format!("StorageCorrupt: segment seek: {error}"))?;
-    for (index, line) in BufReader::new(file).lines().enumerate() {
-        let line = line.map_err(|error| format!("StorageCorrupt: segment: {error}"))?;
+    let mut reader = BufReader::new(file);
+    let mut index = 0_usize;
+    while let Some(line) = read_segment_journal_line(&mut reader)? {
         let record: SegmentRecord = serde_json::from_str(&line)
             .map_err(|error| format!("StorageCorrupt: segment: {error}"))?;
         visit(index, record)?;
+        index = index
+            .checked_add(1)
+            .ok_or_else(|| "StorageCorrupt: segment count exceeds address space".to_owned())?;
     }
     Ok(())
+}
+
+fn validate_unified_resume_prefix(
+    segment_journal: &Path,
+    document_directory: &Path,
+    job_id: JobId,
+    generation: Generation,
+    source_samples: u64,
+    checkpoint: crate::parakeet_document::ResumeCoverageCheckpoint,
+) -> Result<Option<SourceRange>, String> {
+    if checkpoint.confirmed_segments == 0 && checkpoint.window_sequence == 0 {
+        if checkpoint.covered_samples != 0 {
+            return Err("StorageCorrupt: empty resume checkpoint has a sample offset".into());
+        }
+        return Ok(None);
+    }
+    let mut document = crate::parakeet_document::ParakeetDocumentStore::open_resume_coverage(
+        document_directory,
+        job_id,
+        generation,
+        source_samples,
+    )?
+    .ok_or_else(|| "StorageCorrupt: resume checkpoint document is absent".to_owned())?;
+    let mut checkpoint_seen = false;
+    loop {
+        let page = document.read_page(128)?;
+        if page.is_empty() {
+            break;
+        }
+        for coverage in page {
+            if coverage.sequence == checkpoint.window_sequence {
+                if coverage.range.end_sample != checkpoint.covered_samples
+                    || coverage.last_segment_sequence != checkpoint.confirmed_segments
+                {
+                    return Err("StorageCorrupt: resume checkpoint changed during validation".into());
+                }
+                checkpoint_seen = true;
+                break;
+            }
+        }
+        if checkpoint_seen {
+            break;
+        }
+    }
+    if !checkpoint_seen {
+        return Err("StorageCorrupt: selected resume checkpoint is missing".into());
+    }
+    if checkpoint.confirmed_segments == 0 {
+        return Ok(None);
+    }
+    let mut document = crate::parakeet_document::ParakeetDocumentStore::open_resume_coverage(
+        document_directory,
+        job_id,
+        generation,
+        source_samples,
+    )?
+    .ok_or_else(|| "StorageCorrupt: resume checkpoint document is absent".to_owned())?;
+    let mut archive = BufReader::new(
+        File::open(segment_journal)
+            .map_err(|error| format!("StorageCorrupt: resume segment journal: {error}"))?,
+    );
+    let mut next_sequence = 1_u64;
+    let mut anchor = None;
+    while next_sequence <= checkpoint.confirmed_segments {
+        let page = document.read_document_page(next_sequence, 128)?;
+        if page.is_empty() {
+            return Err("StorageCorrupt: resume document prefix is incomplete".into());
+        }
+        for entry in page {
+            let Some(line) = read_segment_journal_line(&mut archive)? else {
+                return Err("StorageCorrupt: resume segment prefix is incomplete".into());
+            };
+            let record: SegmentRecord = serde_json::from_slice(&line)
+                .map_err(|error| format!("StorageCorrupt: resume segment record: {error}"))?;
+            if record.sequence != next_sequence
+                || entry.segment.segment_id.0 != next_sequence
+                || entry.segment.range != record.range
+                || entry.segment.text != record.text
+            {
+                return Err("StorageCorrupt: resume archive and document prefixes differ".into());
+            }
+            anchor = Some(record.range);
+            next_sequence = next_sequence
+                .checked_add(1)
+                .ok_or_else(|| "StorageCorrupt: resume segment sequence exhausted".to_owned())?;
+        }
+    }
+    if checkpoint.window_sequence == 0
+        || checkpoint.covered_samples == 0
+        || checkpoint.covered_samples > source_samples
+        || anchor.is_none_or(|range| {
+            range.start_sample + (range.end_sample - range.start_sample) / 2
+                >= checkpoint.covered_samples
+        })
+    {
+        return Err("StorageCorrupt: resume checkpoint boundary is invalid".into());
+    }
+    Ok(anchor)
+}
+
+fn read_segment_journal_line(
+    reader: &mut BufReader<File>,
+) -> Result<Option<Vec<u8>>, String> {
+    const MAX_SEGMENT_RECORD_BYTES: usize = 1_048_576;
+    let mut line = Vec::new();
+    loop {
+        let available = reader
+            .fill_buf()
+            .map_err(|error| format!("StorageCorrupt: resume segment read: {error}"))?;
+        if available.is_empty() {
+            if line.is_empty() {
+                return Ok(None);
+            }
+            return Err("StorageCorrupt: truncated resume segment record".into());
+        }
+        let take = available
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map_or(available.len(), |index| index + 1);
+        if line.len().saturating_add(take) > MAX_SEGMENT_RECORD_BYTES {
+            return Err("StorageCorrupt: resume segment record exceeds its bound".into());
+        }
+        let complete = available.get(take - 1) == Some(&b'\n');
+        line.extend_from_slice(&available[..take]);
+        reader.consume(take);
+        if complete {
+            line.pop();
+            if line.last() == Some(&b'\r') {
+                line.pop();
+            }
+            return Ok(Some(line));
+        }
+    }
 }
 
 fn timestamp_checked(sample: u64) -> Result<String, String> {
@@ -7287,6 +7560,19 @@ fn timestamp(sample: u64) -> String {
 mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn bounded_resume_accepts_a_current_backend_for_the_same_model_profile() {
+        let cpu = ArchiveQualificationKey::parakeet_cpu_test();
+        let gpu = ArchiveQualificationKey::parakeet_gpu_test();
+        assert!(cpu.permits_bounded_resume_to(&gpu));
+        let mut other_profile = gpu.clone();
+        other_profile.inference_profile.push_str("-other");
+        assert!(!cpu.permits_bounded_resume_to(&other_profile));
+        let mut other_model = gpu;
+        other_model.model.push_str("-other");
+        assert!(!cpu.permits_bounded_resume_to(&other_model));
+    }
 
     #[test]
     fn unified_archive_pages_cap_text_and_audio_entries_at_128_with_real_cursors() {

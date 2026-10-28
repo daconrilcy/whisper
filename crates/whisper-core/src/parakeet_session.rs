@@ -137,6 +137,12 @@ pub struct WindowCursor {
     next_sequence: u64,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WindowCursorCheckpoint {
+    pub next_start_sample: u64,
+    pub next_sequence: u64,
+}
+
 impl Default for WindowCursor {
     fn default() -> Self {
         Self {
@@ -147,6 +153,28 @@ impl Default for WindowCursor {
 }
 
 impl WindowCursor {
+    pub fn from_checkpoint(
+        checkpoint: WindowCursorCheckpoint,
+    ) -> Result<Self, WindowCursorError> {
+        if checkpoint.next_sequence == 0
+            || checkpoint.next_sequence == u64::MAX
+            || (checkpoint.next_start_sample == 0) != (checkpoint.next_sequence == 1)
+        {
+            return Err(WindowCursorError::InvalidBuffer);
+        }
+        Ok(Self {
+            next_start: checkpoint.next_start_sample,
+            next_sequence: checkpoint.next_sequence,
+        })
+    }
+
+    pub fn checkpoint(&self) -> WindowCursorCheckpoint {
+        WindowCursorCheckpoint {
+            next_start_sample: self.next_start,
+            next_sequence: self.next_sequence,
+        }
+    }
+
     pub fn next_start(&self) -> u64 {
         self.next_start
     }
@@ -350,5 +378,58 @@ mod tests {
         assert_eq!(revision.finalize(), Some(2));
         assert_eq!(revision.revise(), None);
         assert_eq!(revision.finalize(), Some(2));
+    }
+
+    #[test]
+    fn window_cursor_checkpoint_restores_exact_next_window() {
+        let mut cursor = WindowCursor::default();
+        let first_len = (WINDOW_MAX_SAMPLES + MARGIN_SAMPLES) as usize;
+        let first = cursor
+            .next_window(0, &vec![200_i16; first_len], first_len as u64, false)
+            .unwrap()
+            .unwrap();
+        let checkpoint = cursor.checkpoint();
+        let mut restored = WindowCursor::from_checkpoint(checkpoint).unwrap();
+        let source_end = first.central_end_sample + 31_000;
+        let next = restored
+            .next_window(
+                first.central_end_sample - MARGIN_SAMPLES,
+                &vec![0; (31_000 + MARGIN_SAMPLES) as usize],
+                source_end,
+                true,
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(next.sequence, 2);
+        assert_eq!(next.central_start_sample, first.central_end_sample);
+        assert_eq!(next.central_end_sample, source_end);
+        assert_eq!(restored.checkpoint().next_start_sample, source_end);
+    }
+
+    #[test]
+    fn window_cursor_rejects_inconsistent_checkpoint_indices() {
+        for checkpoint in [
+            WindowCursorCheckpoint {
+                next_start_sample: 0,
+                next_sequence: 2,
+            },
+            WindowCursorCheckpoint {
+                next_start_sample: 1,
+                next_sequence: 1,
+            },
+            WindowCursorCheckpoint {
+                next_start_sample: 1,
+                next_sequence: 0,
+            },
+            WindowCursorCheckpoint {
+                next_start_sample: 1,
+                next_sequence: u64::MAX,
+            },
+        ] {
+            assert_eq!(
+                WindowCursor::from_checkpoint(checkpoint),
+                Err(WindowCursorError::InvalidBuffer)
+            );
+        }
     }
 }
