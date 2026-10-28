@@ -19553,6 +19553,72 @@ mod tests {
     }
 
     #[cfg(windows)]
+    fn assert_native_generation_text_artifacts(
+        archive_root: &Path,
+        entry: &crate::archive::ArchiveEntry,
+    ) -> (String, String) {
+        assert!(entry.complete, "native archive must be complete");
+        let generation = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", entry.job_id.0))
+            .join(entry.generation.get().to_string());
+        assert_eq!(
+            std::fs::read(generation.join("CURRENT")).expect("read published CURRENT"),
+            b"manifest.json\n"
+        );
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(generation.join("manifest.json")).expect("read complete manifest"),
+        )
+        .expect("parse complete manifest");
+        assert_eq!(manifest["version"].as_u64(), Some(1));
+        assert_eq!(manifest["job_id"].to_string(), entry.job_id.0.to_string());
+        assert_eq!(
+            manifest["generation"].to_string(),
+            entry.generation.get().to_string()
+        );
+        assert_eq!(
+            manifest["source_sha256"].as_str(),
+            Some(entry.source_sha256.as_str())
+        );
+        assert!(manifest["segments"].as_u64().is_some_and(|count| count > 0));
+
+        let generation = generation
+            .canonicalize()
+            .expect("resolve complete generation directory");
+        let read_artifact = |field: &str, expected_name: &str| {
+            let artifact = &manifest[field];
+            let relative_path = artifact["path"]
+                .as_str()
+                .expect("manifest artifact path must be a string");
+            assert_eq!(relative_path, expected_name);
+            let path = generation.join(relative_path);
+            let canonical = path.canonicalize().expect("resolve manifest artifact");
+            assert!(canonical.starts_with(&generation));
+            let bytes = std::fs::read(&canonical).expect("read published manifest artifact");
+            assert!(!bytes.is_empty(), "published {expected_name} must not be empty");
+            assert_eq!(
+                artifact["bytes"].as_u64(),
+                Some(bytes.len() as u64),
+                "published {expected_name} byte count must match its manifest"
+            );
+            let expected_sha = artifact["sha256"]
+                .as_str()
+                .expect("manifest artifact SHA-256 must be a string");
+            assert_eq!(
+                crate::parakeet_import::sha256_file(&canonical)
+                    .expect("hash published manifest artifact"),
+                expected_sha,
+                "published {expected_name} SHA-256 must match its manifest"
+            );
+            String::from_utf8(bytes).expect("published text artifact must be UTF-8")
+        };
+        (
+            read_artifact("text", "transcript.txt"),
+            read_artifact("srt", "transcript.srt"),
+        )
+    }
+
+    #[cfg(windows)]
     fn run_native_queued_unified_import(
         compute: ComputeChoice,
         long: bool,
@@ -19873,22 +19939,7 @@ mod tests {
             .expect("queued native app path must publish a complete archive");
         assert_eq!(entry.strategy, request.strategy);
         assert_eq!(entry.source_sha256, source_sha);
-        let basename = entry
-            .export_basename
-            .as_deref()
-            .expect("published export basename");
-        assert!(
-            archive_root
-                .join("exports")
-                .join(format!("{basename}.txt"))
-                .is_file()
-        );
-        assert!(
-            archive_root
-                .join("exports")
-                .join(format!("{basename}.srt"))
-                .is_file()
-        );
+        let _ = assert_native_generation_text_artifacts(&archive_root, &entry);
     }
 
     #[cfg(windows)]
@@ -22400,27 +22451,14 @@ mod tests {
                 .all(|entry| entry.segment.text != prefix_text),
             "the promoted prefix must not be duplicated in the recalculated suffix"
         );
-        let basename = complete_archive
-            .export_basename
-            .as_deref()
-            .expect("resumed archive must have an export basename");
-        let txt = archive_root.join("exports").join(format!("{basename}.txt"));
-        let srt = archive_root.join("exports").join(format!("{basename}.srt"));
-        assert!(txt.is_file(), "resumed native TXT export must exist");
-        assert!(srt.is_file(), "resumed native SRT export must exist");
+        let (txt, srt) = assert_native_generation_text_artifacts(&archive_root, complete_archive);
         assert_eq!(
-            std::fs::read_to_string(&txt)
-                .expect("read resumed native TXT export")
-                .matches(prefix_text)
-                .count(),
+            txt.matches(prefix_text).count(),
             1,
             "the confirmed prefix must appear exactly once in TXT"
         );
         assert_eq!(
-            std::fs::read_to_string(&srt)
-                .expect("read resumed native SRT export")
-                .matches(prefix_text)
-                .count(),
+            srt.matches(prefix_text).count(),
             1,
             "the confirmed prefix must appear exactly once in SRT"
         );
