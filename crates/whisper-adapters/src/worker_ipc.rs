@@ -14899,7 +14899,7 @@ mod tests {
         assert!(!archive_root.join("exports/transcript.txt").exists());
         assert!(!archive_root.join("exports/transcript.srt").exists());
         drop(app);
-        std::fs::remove_dir_all(root).unwrap();
+        eprintln!("Preserved queued publication test artifacts at {}", root.display());
     }
 
     #[test]
@@ -15328,7 +15328,7 @@ mod tests {
         std::fs::write(&reprocessed_intent_path, valid_reprocessed_intent).unwrap();
         assert_app_view_internal_publication(&reprocessed, &archive_root);
         drop(app);
-        std::fs::remove_dir_all(root).unwrap();
+        eprintln!("Preserved resumed publication test artifacts at {}", root.display());
     }
 
     #[test]
@@ -15476,7 +15476,7 @@ mod tests {
         assert_eq!(preserved.srt_path, first_srt);
         assert!(calls.load(Ordering::Relaxed) >= 3);
         drop(app);
-        std::fs::remove_dir_all(root).unwrap();
+        eprintln!("Preserved reprocessing publication test artifacts at {}", root.display());
     }
 
     #[test]
