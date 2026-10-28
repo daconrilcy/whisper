@@ -19595,7 +19595,10 @@ mod tests {
             let canonical = path.canonicalize().expect("resolve manifest artifact");
             assert!(canonical.starts_with(&generation));
             let bytes = std::fs::read(&canonical).expect("read published manifest artifact");
-            assert!(!bytes.is_empty(), "published {expected_name} must not be empty");
+            assert!(
+                !bytes.is_empty(),
+                "published {expected_name} must not be empty"
+            );
             assert_eq!(
                 artifact["bytes"].as_u64(),
                 Some(bytes.len() as u64),
