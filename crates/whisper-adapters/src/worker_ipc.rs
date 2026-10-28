@@ -19836,18 +19836,17 @@ mod tests {
                     && view.message.as_deref() == Some(expected_backend_message.as_str())
                 {
                     observed_backend_message = view.message.clone();
-                    fallback_message_before_audio |=
-                        !observed_native_events.iter().any(|event| {
-                            matches!(
-                                &event.kind,
-                                NativeQualificationEventKind::RequestSent {
-                                    session: sent_session,
-                                    generation: sent_generation,
-                                    ..
-                                } if sent_session.job_id == job_id
-                                    && *sent_generation == generation
-                            )
-                        });
+                    fallback_message_before_audio |= !observed_native_events.iter().any(|event| {
+                        matches!(
+                            &event.kind,
+                            NativeQualificationEventKind::RequestSent {
+                                session: sent_session,
+                                generation: sent_generation,
+                                ..
+                            } if sent_session.job_id == job_id
+                                && *sent_generation == generation
+                        )
+                    });
                 }
                 if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
                     panic!(
