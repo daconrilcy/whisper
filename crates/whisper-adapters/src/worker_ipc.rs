@@ -14442,10 +14442,7 @@ mod tests {
             for component in relative.components() {
                 current.push(component.as_os_str());
                 let metadata = std::fs::symlink_metadata(&current).unwrap_or_else(|error| {
-                    panic!(
-                        "stat publication path {}: {error}",
-                        current.display()
-                    )
+                    panic!("stat publication path {}: {error}", current.display())
                 });
                 assert!(
                     !metadata.file_type().is_symlink(),
@@ -14477,9 +14474,8 @@ mod tests {
         assert_eq!(std::fs::read(&current_path).unwrap(), b"manifest.json\n");
         let manifest_path = generation_directory.join("manifest.json");
         assert_no_reparse(&manifest_path);
-        let manifest: Manifest =
-            serde_json::from_slice(&std::fs::read(&manifest_path).unwrap())
-                .expect("parse the completed external publication manifest");
+        let manifest: Manifest = serde_json::from_slice(&std::fs::read(&manifest_path).unwrap())
+            .expect("parse the completed external publication manifest");
         assert_eq!(manifest.version, 1);
         assert_eq!(manifest.job_id, session.job_id);
         assert_eq!(manifest.generation, session.generation);
@@ -14594,8 +14590,7 @@ mod tests {
         assert_eq!(session.durable_samples, covered);
         assert!(std::fs::metadata(canonical_index).unwrap().is_file());
         assert_eq!(
-            crate::parakeet_import::sha256_file(&wav_index_path.canonicalize().unwrap())
-                .unwrap(),
+            crate::parakeet_import::sha256_file(&wav_index_path.canonicalize().unwrap()).unwrap(),
             index_sha256,
             "WAV parts index must remain unchanged while the external AppView is read"
         );
