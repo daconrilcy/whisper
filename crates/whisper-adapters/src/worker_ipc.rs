@@ -14773,14 +14773,13 @@ mod tests {
         })
         .unwrap();
         let resumed_identity = (previous.job_id, previous.generation.next().unwrap());
-        if let Some(previous_binding) =
-            crate::source_binding::SourceBinding::reopen_for_identity(
-                &settings_root,
-                Path::new(&previous.destination),
-                previous.job_id,
-                previous.generation,
-            )
-            .unwrap()
+        if let Some(previous_binding) = crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            previous.generation,
+        )
+        .unwrap()
         {
             drop(previous_binding);
             let view = app.dispatch(AppCommand::Refresh).unwrap();
