@@ -14356,7 +14356,10 @@ mod tests {
         assert_eq!(Path::new(txt_path), expected_txt);
         assert_eq!(Path::new(srt_path), expected_srt);
         let audio = crate::parakeet_audio::PcmPartStore::open(Path::new(wav_path));
-        assert_eq!(audio.total_samples().unwrap(), session.total_samples.unwrap());
+        assert_eq!(
+            audio.total_samples().unwrap(),
+            session.total_samples.unwrap()
+        );
         let mut offset = 0_u64;
         let mut covered = 0_u64;
         let mut expected_number = 1_u64;
@@ -14385,9 +14388,7 @@ mod tests {
         let entry = ArchiveStore::scan(archive_root)
             .unwrap()
             .into_iter()
-            .find(|entry| {
-                entry.job_id == session.job_id && entry.generation == session.generation
-            })
+            .find(|entry| entry.job_id == session.job_id && entry.generation == session.generation)
             .expect("AppView publication must remain in archive history");
         assert!(entry.complete);
         assert_eq!(entry.source_sha256, manifest.source_sha256);
@@ -14421,10 +14422,7 @@ mod tests {
             }
             if let Some(entry) = view.queue.iter().find(|entry| {
                 entry.request.job_id == requested_job
-                    && matches!(
-                        entry.status,
-                        whisper_core::ports::ImportQueueStatus::Queued
-                    )
+                    && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
             }) {
                 return entry.request.clone();
             }
@@ -14858,10 +14856,7 @@ mod tests {
             .into_iter()
             .find(|entry| {
                 (entry.request.job_id, entry.request.generation) == identity
-                    && matches!(
-                        entry.status,
-                        whisper_core::ports::ImportQueueStatus::Queued
-                    )
+                    && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
             })
             .expect("AppView must expose the exact queued identity")
             .request;
@@ -14972,9 +14967,8 @@ mod tests {
             .join("transcriptions")
             .join(format!("{:032x}", previous.job_id.0))
             .join(previous.generation.get().to_string());
-        let previous_document_directory = previous_directory
-            .join("parakeet-unified")
-            .join("document");
+        let previous_document_directory =
+            previous_directory.join("parakeet-unified").join("document");
         let mut document = crate::parakeet_document::ParakeetDocumentStore::create(
             &previous_document_directory,
             previous.job_id,
@@ -15052,26 +15046,34 @@ mod tests {
             }
             thread::sleep(Duration::from_millis(2));
         }
-        let completed_session = complete.unwrap_or_else(|| {
-            panic!("create-only resume did not complete: {last_message:?}")
-        });
+        let completed_session = complete
+            .unwrap_or_else(|| panic!("create-only resume did not complete: {last_message:?}"));
         assert!(calls.load(Ordering::Relaxed) > 0);
         assert_app_view_internal_publication(&completed_session, &archive_root);
-        let published_text = std::fs::read_to_string(
-            completed_session.txt_path.as_deref().unwrap(),
-        )
-        .unwrap();
-        let published_srt = std::fs::read_to_string(
-            completed_session.srt_path.as_deref().unwrap(),
-        )
-        .unwrap();
-        assert_eq!(published_text.matches("confirmed create-only prefix").count(), 1);
-        assert_eq!(published_srt.matches("confirmed create-only prefix").count(), 1);
+        let published_text =
+            std::fs::read_to_string(completed_session.txt_path.as_deref().unwrap()).unwrap();
+        let published_srt =
+            std::fs::read_to_string(completed_session.srt_path.as_deref().unwrap()).unwrap();
+        assert_eq!(
+            published_text
+                .matches("confirmed create-only prefix")
+                .count(),
+            1
+        );
+        assert_eq!(
+            published_srt
+                .matches("confirmed create-only prefix")
+                .count(),
+            1
+        );
         assert!(!published_text.contains("unconfirmed create-only tail"));
         assert!(!published_srt.contains("unconfirmed create-only tail"));
         assert!(!archive_root.join("exports/transcript.txt").exists());
         assert!(!archive_root.join("exports/transcript.srt").exists());
-        assert_eq!(crate::parakeet_import::sha256_file(&source_path).unwrap(), source_sha);
+        assert_eq!(
+            crate::parakeet_import::sha256_file(&source_path).unwrap(),
+            source_sha
+        );
         assert!(
             crate::source_binding::SourceBinding::reopen_for_identity(
                 &settings_root,
@@ -15088,8 +15090,7 @@ mod tests {
         let first_srt_path = PathBuf::from(completed_session.srt_path.as_deref().unwrap());
         let first_txt_bytes = std::fs::read(&first_txt_path).unwrap();
         let first_srt_bytes = std::fs::read(&first_srt_path).unwrap();
-        let mut second_request =
-            unified_import_request(&archive_root, &source_path, 0x51_104);
+        let mut second_request = unified_import_request(&archive_root, &source_path, 0x51_104);
         second_request.config.compute = ComputeChoice::Cpu;
         assert_real_unified_model(&second_request);
         let second_queued = enqueue_import_with_choice(
@@ -15097,11 +15098,7 @@ mod tests {
             second_request,
             Some(DuplicateImportChoice::CreateNew),
         );
-        let second = process_queued_import_to_app_view(
-            &mut app,
-            second_queued,
-            &archive_root,
-        );
+        let second = process_queued_import_to_app_view(&mut app, second_queued, &archive_root);
         let second_txt_path = PathBuf::from(second.txt_path.as_deref().unwrap());
         let second_srt_path = PathBuf::from(second.srt_path.as_deref().unwrap());
         assert!(second_txt_path.is_file());
@@ -15142,16 +15139,13 @@ mod tests {
         let interrupted_document_directory = interrupted_directory
             .join("parakeet-unified")
             .join("document");
-        let mut interrupted_document =
-            crate::parakeet_document::ParakeetDocumentStore::create(
-                &interrupted_document_directory,
-                interrupted.job_id,
-                interrupted.generation,
-            )
-            .unwrap();
-        interrupted_document
-            .append_final(confirmed_prefix)
-            .unwrap();
+        let mut interrupted_document = crate::parakeet_document::ParakeetDocumentStore::create(
+            &interrupted_document_directory,
+            interrupted.job_id,
+            interrupted.generation,
+        )
+        .unwrap();
+        interrupted_document.append_final(confirmed_prefix).unwrap();
         interrupted_document
             .record_coverage(whisper_core::ports::ParakeetWindowCoverage {
                 sequence: 1,
@@ -15183,9 +15177,7 @@ mod tests {
             if let Some(session) = view
                 .unified_parakeet_sessions
                 .iter()
-                .find(|session| {
-                    (session.job_id, session.generation) == reprocessed_identity
-                })
+                .find(|session| (session.job_id, session.generation) == reprocessed_identity)
             {
                 if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
                     panic!("ReplaceLatest resume failed: {session:?}; {resume_message:?}");
@@ -15198,19 +15190,22 @@ mod tests {
             }
             thread::sleep(Duration::from_millis(2));
         }
-        let reprocessed = reprocessed.unwrap_or_else(|| {
-            panic!("ReplaceLatest resume did not complete: {resume_message:?}")
-        });
-        let reprocessed_txt = std::fs::read_to_string(reprocessed.txt_path.as_deref().unwrap())
-            .unwrap();
-        let reprocessed_srt = std::fs::read_to_string(reprocessed.srt_path.as_deref().unwrap())
-            .unwrap();
+        let reprocessed = reprocessed
+            .unwrap_or_else(|| panic!("ReplaceLatest resume did not complete: {resume_message:?}"));
+        let reprocessed_txt =
+            std::fs::read_to_string(reprocessed.txt_path.as_deref().unwrap()).unwrap();
+        let reprocessed_srt =
+            std::fs::read_to_string(reprocessed.srt_path.as_deref().unwrap()).unwrap();
         assert_eq!(
-            reprocessed_txt.matches("confirmed ReplaceLatest prefix").count(),
+            reprocessed_txt
+                .matches("confirmed ReplaceLatest prefix")
+                .count(),
             1
         );
         assert_eq!(
-            reprocessed_srt.matches("confirmed ReplaceLatest prefix").count(),
+            reprocessed_srt
+                .matches("confirmed ReplaceLatest prefix")
+                .count(),
             1
         );
         assert_eq!(std::fs::read(&first_txt_path).unwrap(), first_txt_bytes);
@@ -15350,10 +15345,7 @@ mod tests {
                 }
                 if let Some(entry) = view.queue.iter().find(|entry| {
                     entry.request.job_id == requested_job
-                        && matches!(
-                            entry.status,
-                            whisper_core::ports::ImportQueueStatus::Queued
-                        )
+                        && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
                 }) {
                     break entry.request.clone();
                 }
@@ -15415,8 +15407,7 @@ mod tests {
         assert!(Path::new(&first_txt).is_file());
         assert!(Path::new(&second_txt).is_file());
 
-        let mut replacement_request =
-            unified_import_request(&archive_root, &source_path, 0x51_113);
+        let mut replacement_request = unified_import_request(&archive_root, &source_path, 0x51_113);
         replacement_request.config.compute = ComputeChoice::Cpu;
         let replacement = run_queued(
             &mut app,
@@ -15426,12 +15417,9 @@ mod tests {
         assert_app_view_internal_publication(&replacement, &archive_root);
         assert_eq!(std::fs::read(&first_txt).unwrap(), first_txt_bytes);
         assert_eq!(std::fs::read(&first_srt).unwrap(), first_srt_bytes);
-        let preserved = ArchiveStore::published_unified_files(
-            &archive_root,
-            first.job_id,
-            first.generation,
-        )
-        .expect("the unselected earlier publication must remain readable");
+        let preserved =
+            ArchiveStore::published_unified_files(&archive_root, first.job_id, first.generation)
+                .expect("the unselected earlier publication must remain readable");
         assert_eq!(preserved.txt_path, first_txt);
         assert_eq!(preserved.srt_path, first_srt);
         assert!(calls.load(Ordering::Relaxed) >= 3);

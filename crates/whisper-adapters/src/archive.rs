@@ -2154,21 +2154,17 @@ impl ArchiveStore {
                 .total_samples()
                 .map_err(|error| format!("AudioPartsUnavailable: {error}"))?;
             if total_samples == 0 || total_samples != intent.source_samples {
-                return Err("StorageCorrupt: internal audio index total does not match publication".into());
+                return Err(
+                    "StorageCorrupt: internal audio index total does not match publication".into(),
+                );
             }
             let mut offset = 0_u64;
             let mut covered = 0_u64;
             let mut expected_number = 1_u64;
             let mut first_page = true;
             loop {
-                let page = Self::read_unified_audio_parts_page(
-                    root,
-                    job_id,
-                    generation,
-                    0,
-                    offset,
-                    128,
-                )?;
+                let page =
+                    Self::read_unified_audio_parts_page(root, job_id, generation, 0, offset, 128)?;
                 if page.entries.is_empty() {
                     break;
                 }
@@ -2178,7 +2174,9 @@ impl ArchiveStore {
                         || part.end_sample <= part.start_sample
                         || part.end_sample > total_samples
                     {
-                        return Err("StorageCorrupt: internal audio parts are not contiguous".into());
+                        return Err(
+                            "StorageCorrupt: internal audio parts are not contiguous".into()
+                        );
                     }
                     let part_path = canonical_internal_unified_path(
                         Path::new(&part.path),
@@ -2190,7 +2188,9 @@ impl ArchiveStore {
                         },
                     )?;
                     if first_page && expected_number == 1 && part_path != wav_path {
-                        return Err("StorageCorrupt: first internal audio part is not source.wav".into());
+                        return Err(
+                            "StorageCorrupt: first internal audio part is not source.wav".into(),
+                        );
                     }
                     first_page = false;
                     covered = part.end_sample;
@@ -2198,13 +2198,17 @@ impl ArchiveStore {
                 }
                 offset = offset
                     .checked_add(page.entries.len() as u64)
-                    .ok_or_else(|| "StorageCorrupt: internal audio page offset overflow".to_owned())?;
+                    .ok_or_else(|| {
+                        "StorageCorrupt: internal audio page offset overflow".to_owned()
+                    })?;
                 if page.next_offset.is_none() {
                     break;
                 }
             }
             if covered != total_samples || sha256_file(&index_path)? != index_before {
-                return Err("SourceChanged: internal audio index changed during publication read".into());
+                return Err(
+                    "SourceChanged: internal audio index changed during publication read".into(),
+                );
             }
             (wav_path, txt_path, srt_path)
         } else {
@@ -7567,8 +7571,7 @@ fn validate_internal_publication_intent(
         current_pending.strategy.stable_id()
     );
     if intent.version != 1
-        || (intent.operation_id != bare_operation_id
-            && intent.operation_id != resumed_operation_id)
+        || (intent.operation_id != bare_operation_id && intent.operation_id != resumed_operation_id)
         || intent.source_sha256 != manifest_source_sha256
         || intent.export_basename != "transcript"
     {
@@ -7652,7 +7655,9 @@ fn validate_internal_reprocessing_provenance(
         || origin_pending.source_sha256 != intent.source_sha256
         || origin_pending.source_samples != intent.source_samples
     {
-        return Err("StaleResponse: cleanup origin does not match persisted source identity".into());
+        return Err(
+            "StaleResponse: cleanup origin does not match persisted source identity".into(),
+        );
     }
 
     let cleanup_plan = read_cleanup_plan(root, cleanup_id)?;
@@ -7665,18 +7670,24 @@ fn validate_internal_reprocessing_provenance(
         || cleanup_plan.successor.generation != generation
         || !cleanup_plan.published
         || !cleanup_targets_match_intent(&intent.cleanup_targets, &cleanup_plan.targets)
-        || intent.cleanup_targets.iter().enumerate().any(|(index, target)| {
-            target.source_sha256 != intent.source_sha256
-                || target.treatment.destination.as_str()
-                    != canonical_root.to_string_lossy().as_ref()
-                || (target.treatment.job_id == job_id
-                    && target.treatment.generation == generation)
-                || intent.cleanup_targets[..index]
-                    .iter()
-                    .any(|previous| previous.treatment == target.treatment)
-        })
+        || intent
+            .cleanup_targets
+            .iter()
+            .enumerate()
+            .any(|(index, target)| {
+                target.source_sha256 != intent.source_sha256
+                    || target.treatment.destination.as_str()
+                        != canonical_root.to_string_lossy().as_ref()
+                    || (target.treatment.job_id == job_id
+                        && target.treatment.generation == generation)
+                    || intent.cleanup_targets[..index]
+                        .iter()
+                        .any(|previous| previous.treatment == target.treatment)
+            })
     {
-        return Err("StaleResponse: persisted cleanup provenance does not match reprocessing intent".into());
+        return Err(
+            "StaleResponse: persisted cleanup provenance does not match reprocessing intent".into(),
+        );
     }
     Ok(())
 }
@@ -7937,7 +7948,7 @@ mod tests {
 
     #[test]
     fn create_only_publication_returns_verified_internal_unified_artifacts_without_external_exports()
-    {
+     {
         let root = std::env::temp_dir().join(format!(
             "whisper-create-only-publication-{}-{}",
             std::process::id(),
@@ -8047,12 +8058,8 @@ mod tests {
                 compute: whisper_core::ComputeChoice::Cpu,
             },
         };
-        ArchiveStore::reserve_create_only_new_import(
-            &root,
-            &reserved_request,
-            &"52".repeat(32),
-        )
-        .unwrap();
+        ArchiveStore::reserve_create_only_new_import(&root, &reserved_request, &"52".repeat(32))
+            .unwrap();
         let reservation_path = publication_reservation_path(
             &root,
             reserved_request.job_id,
@@ -8071,8 +8078,14 @@ mod tests {
         assert_eq!(Path::new(&files.srt_path), expected_srt.as_path());
         assert_eq!(fs::read(&files.txt_path).unwrap(), text);
         assert_eq!(fs::read(&files.srt_path).unwrap(), srt);
-        assert_eq!(fs::read(exports.join("transcript.txt")).unwrap(), sentinel_txt);
-        assert_eq!(fs::read(exports.join("transcript.srt")).unwrap(), sentinel_srt);
+        assert_eq!(
+            fs::read(exports.join("transcript.txt")).unwrap(),
+            sentinel_txt
+        );
+        assert_eq!(
+            fs::read(exports.join("transcript.srt")).unwrap(),
+            sentinel_srt
+        );
         assert_eq!(fs::read(&reservation_path).unwrap(), reservation_before);
         assert_eq!(fs::read(&index_path).unwrap(), index_before);
 
