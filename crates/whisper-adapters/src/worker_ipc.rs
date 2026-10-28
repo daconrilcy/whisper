@@ -13502,6 +13502,21 @@ mod tests {
         JobConfig, JobId, JobState, LanguageChoice,
     };
 
+    thread_local! {
+        static IMPORT_PORT_EVENT_TRACE: RefCell<Option<Arc<Mutex<Vec<String>>>>> = RefCell::new(None);
+    }
+
+    fn record_import_port_event(event: &ImportEvent) {
+        IMPORT_PORT_EVENT_TRACE.with(|trace| {
+            if let Some(trace) = trace.borrow().as_ref() {
+                let mut trace = trace.lock().expect("import event trace lock");
+                if trace.len() < 128 {
+                    trace.push(format!("{event:?}"));
+                }
+            }
+        });
+    }
+
     fn controlled_child_job_bound(
         observations: &[ControlledChildObservation],
     ) -> Result<(), String> {
@@ -13686,6 +13701,7 @@ mod tests {
                 }
             }
             if let Some(event) = self.events.pop_front() {
+                record_import_port_event(&event);
                 return Ok(Some(event));
             }
             if let Some((job_id, progress)) = &self.capture_progress {
@@ -13714,12 +13730,19 @@ mod tests {
                 }
             }
             match self.runtime.poll() {
-                Some(Ok(event)) => Ok(Some(event)),
-                Some(Err((job_id, generation, message))) => Ok(Some(ImportEvent::Failed {
-                    job_id,
-                    generation,
-                    message,
-                })),
+                Some(Ok(event)) => {
+                    record_import_port_event(&event);
+                    Ok(Some(event))
+                }
+                Some(Err((job_id, generation, message))) => {
+                    let event = ImportEvent::Failed {
+                        job_id,
+                        generation,
+                        message,
+                    };
+                    record_import_port_event(&event);
+                    Ok(Some(event))
+                }
                 None => Ok(None),
             }
         }
@@ -14434,6 +14457,10 @@ mod tests {
     #[test]
     fn import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio()
     {
+        let event_trace = Arc::new(Mutex::new(Vec::new()));
+        IMPORT_PORT_EVENT_TRACE.with(|trace| {
+            *trace.borrow_mut() = Some(Arc::clone(&event_trace));
+        });
         for (index, (seconds, compute)) in [
             (3_u64, ComputeChoice::Cpu),
             (3_u64, ComputeChoice::Gpu),
@@ -14517,7 +14544,20 @@ mod tests {
             let mut message = None;
             let mut complete = false;
             while Instant::now() < deadline {
-                let view = app.dispatch(AppCommand::Refresh).unwrap();
+                let view = match app.dispatch(AppCommand::Refresh) {
+                    Ok(view) => view,
+                    Err(error) => {
+                        let trace = event_trace.lock().expect("import event trace lock");
+                        IMPORT_PORT_EVENT_TRACE.with(|trace| *trace.borrow_mut() = None);
+                        panic!(
+                            "durable queued import Refresh failed ({seconds}s, {compute:?}, identity={identity:?}): {error}; session={:?}; events={trace:?}",
+                            app.view()
+                                .unified_parakeet_sessions
+                                .iter()
+                                .find(|session| (session.job_id, session.generation) == identity)
+                        );
+                    }
+                };
                 message = view.message.clone();
                 if let Some(session) = view
                     .unified_parakeet_sessions
@@ -14565,6 +14605,7 @@ mod tests {
             drop(app);
             std::fs::remove_dir_all(&root).unwrap();
         }
+        IMPORT_PORT_EVENT_TRACE.with(|trace| *trace.borrow_mut() = None);
     }
 
     #[test]
