@@ -1898,6 +1898,14 @@ struct NativeParakeetWindowTranscriber {
 #[cfg(test)]
 #[derive(Debug)]
 enum NativeQualificationEventKind {
+    PreparedRoute {
+        session: whisper_core::parakeet_scheduler::SchedulerSession,
+        requested_compute: ComputeChoice,
+        compute: ComputeChoice,
+        has_candidate: bool,
+        has_expected_gpu: bool,
+        fallback_reason: Option<String>,
+    },
     Starting {
         incarnation: u64,
     },
@@ -3956,7 +3964,28 @@ impl ImportRuntime {
         if !self.native_unified_routes.contains_key(&session) && self.unified_admission_full() {
             return Err("SchedulerCapacity: two unified sessions are already admitted".into());
         }
+        #[cfg(test)]
+        let route_observation = (
+            route.requested_compute,
+            route.compute,
+            route.candidate.is_some(),
+            route.expected_gpu.is_some(),
+            route.fallback_reason.clone(),
+        );
         self.native_unified_routes.insert(session, route);
+        #[cfg(test)]
+        if let Some(observer) = &self.native_harness_observer {
+            let (requested_compute, compute, has_candidate, has_expected_gpu, fallback_reason) =
+                route_observation;
+            observer.record(NativeQualificationEventKind::PreparedRoute {
+                session,
+                requested_compute,
+                compute,
+                has_candidate,
+                has_expected_gpu,
+                fallback_reason,
+            });
+        }
         Ok(())
     }
 
@@ -14429,18 +14458,6 @@ mod tests {
         .unwrap();
         let resumed_identity = (previous.job_id, previous.generation.next().unwrap());
         assert!(
-            app.io
-                .runtime
-                .source_bindings
-                .contains_key(&(resumed_identity.0, resumed_identity.1.get()))
-        );
-        assert!(
-            !app.io
-                .runtime
-                .source_bindings
-                .contains_key(&(previous.job_id, previous.generation.get()))
-        );
-        assert!(
             crate::source_binding::SourceBinding::reopen_for_identity(
                 &settings_root,
                 Path::new(&previous.destination),
@@ -14512,7 +14529,6 @@ mod tests {
                 .is_file()
         );
         assert_eq!(hex_sha256(&source_path), source_sha);
-        assert!(app.io.runtime.source_bindings.is_empty());
         assert!(
             crate::source_binding::SourceBinding::reopen_for_identity(
                 &settings_root,
@@ -14644,18 +14660,6 @@ mod tests {
                 == (previous.job_id, previous.generation)
                 && entry.status == crate::queue_store::QueueStatus::Interrupted
         }));
-        assert!(
-            app.io
-                .runtime
-                .source_bindings
-                .contains_key(&(previous.job_id, previous.generation.get()))
-        );
-        assert!(
-            app.io
-                .runtime
-                .source_bindings
-                .contains_key(&(previous.job_id, resumed_generation.get()))
-        );
         let old_binding = crate::source_binding::SourceBinding::reopen_for_identity(
             &settings_root,
             Path::new(&previous.destination),
@@ -14791,63 +14795,82 @@ mod tests {
             controlled_capture_blocks: None,
         });
         let resumed_generation = previous.generation.next().unwrap();
-        let previous_for_dispatch = previous.clone();
-        let (dispatch_tx, dispatch_rx) = mpsc::sync_channel(1);
-        let dispatch_thread = thread::spawn(move || {
-            let mut app = app;
-            let result = app.dispatch(AppCommand::ResumeInterrupted {
-                request: previous_for_dispatch,
-            });
-            let _ = dispatch_tx.send(result);
-            app
+        let (transfer_observed_tx, transfer_observed_rx) = mpsc::sync_channel(1);
+        let watcher_gate = Arc::clone(&transfer_gate);
+        let watcher_settings_root = settings_root.clone();
+        let watcher_destination = previous.destination.clone();
+        let watcher_job_id = previous.job_id;
+        let watcher_previous_generation = previous.generation;
+        let watcher_resumed_generation = resumed_generation;
+        let transfer_watcher = thread::spawn(move || {
+            let observation = (|| {
+                let (transferred, changed) = &*watcher_gate;
+                let transferred = transferred
+                    .lock()
+                    .map_err(|_| "transfer gate poisoned before registry observation".to_owned())?;
+                let (transferred, timeout) = changed
+                    .wait_timeout_while(transferred, Duration::from_secs(10), |transferred| {
+                        !*transferred
+                    })
+                    .map_err(|_| "transfer gate wait poisoned".to_owned())?;
+                if timeout.timed_out() || !*transferred {
+                    return Err(
+                        "resume did not expose the transferred binding before timeout".into(),
+                    );
+                }
+                drop(transferred);
+
+                let old_binding = crate::source_binding::SourceBinding::reopen_for_identity(
+                    &watcher_settings_root,
+                    Path::new(&watcher_destination),
+                    watcher_job_id,
+                    watcher_previous_generation,
+                )
+                .map_err(|error| format!("read interrupted binding during transfer: {error}"))?;
+                let new_binding = crate::source_binding::SourceBinding::reopen_for_identity(
+                    &watcher_settings_root,
+                    Path::new(&watcher_destination),
+                    watcher_job_id,
+                    watcher_resumed_generation,
+                )
+                .map_err(|error| format!("read resumed binding during transfer: {error}"))?
+                .ok_or_else(|| "registry did not contain the transferred N+1 binding".to_owned())?;
+                let old_absent = old_binding.is_none();
+                let new_sha = new_binding.source_sha256();
+                drop(old_binding);
+                drop(new_binding);
+
+                let (transferred, changed) = &*watcher_gate;
+                *transferred
+                    .lock()
+                    .map_err(|_| "transfer gate poisoned while releasing dispatch".to_owned())? =
+                    false;
+                changed.notify_all();
+                Ok((old_absent, new_sha))
+            })();
+            // Ensure a failed observation cannot leave the dispatch blocked on the gate.
+            if observation.is_err() {
+                let (transferred, changed) = &*watcher_gate;
+                if let Ok(mut transferred) = transferred.lock() {
+                    *transferred = false;
+                    changed.notify_all();
+                }
+            }
+            let _ = transfer_observed_tx.send(observation);
         });
-
-        let (transferred, changed) = &*transfer_gate;
-        let transferred = transferred.lock().unwrap();
-        let (transferred, timeout) = changed
-            .wait_timeout_while(transferred, Duration::from_secs(10), |transferred| {
-                !*transferred
-            })
-            .unwrap();
-        assert!(
-            !timeout.timed_out() && *transferred,
-            "resume must expose the durable N+1 binding before the induced archive failure"
-        );
-        drop(transferred);
-        assert!(
-            crate::source_binding::SourceBinding::reopen_for_identity(
-                &settings_root,
-                Path::new(&previous.destination),
-                previous.job_id,
-                previous.generation,
-            )
-            .unwrap()
-            .is_none()
-        );
-        let transferred_binding = crate::source_binding::SourceBinding::reopen_for_identity(
-            &settings_root,
-            Path::new(&previous.destination),
-            previous.job_id,
-            resumed_generation,
-        )
-        .unwrap()
-        .expect("the registry must actually move to N+1 before archive resume");
-        assert_eq!(
-            transferred_binding.source_sha256(),
-            previous.source_sha256.unwrap()
-        );
-        drop(transferred_binding);
-
-        let (transferred, changed) = &*transfer_gate;
-        *transferred.lock().unwrap() = false;
-        changed.notify_all();
-        dispatch_rx
-            .recv_timeout(Duration::from_secs(10))
-            .expect("resume effect must continue after observing the transfer")
-            .unwrap();
-        let mut app = dispatch_thread
+        app.dispatch(AppCommand::ResumeInterrupted {
+            request: previous.clone(),
+        })
+        .unwrap();
+        let (old_binding_absent, transferred_sha) = transfer_observed_rx
+            .recv_timeout(Duration::from_secs(12))
+            .expect("watcher must observe the durable transfer before dispatch resumes")
+            .unwrap_or_else(|error| panic!("durable binding transfer observation failed: {error}"));
+        transfer_watcher
             .join()
-            .expect("resume dispatch thread must return the application");
+            .expect("registry watcher must finish without moving ImportApplication");
+        assert!(old_binding_absent, "registry must remove N before exposing N+1");
+        assert_eq!(transferred_sha, previous.source_sha256.unwrap());
         let mut observed_message = None;
         let mut observed_recoverable = false;
         let deadline = Instant::now() + Duration::from_secs(10);
@@ -14872,19 +14895,6 @@ mod tests {
                 .as_deref()
                 .is_some_and(|message| message.contains("StorageCorrupt: segment"))
         );
-        assert!(
-            !app.io
-                .runtime
-                .source_bindings
-                .contains_key(&(previous.job_id, resumed_generation.get()))
-        );
-        assert!(
-            app.io
-                .runtime
-                .source_bindings
-                .contains_key(&(previous.job_id, previous.generation.get()))
-        );
-
         let queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
         assert!(queue.entries().iter().any(|entry| {
             (entry.request.job_id, entry.request.generation)
@@ -19151,12 +19161,13 @@ mod tests {
         });
         let snapshot_registry_root = execution_root.join("settings");
         let (observer, native_events) = NativeQualificationObserver::channel();
+        let native_observer = Arc::clone(&observer);
         let mut runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
             workers,
             Arc::new(PublicationGate::default()),
             model_catalog,
             Some(cpu_paths.clone()),
-            Some(gpu_paths),
+            Some(gpu_paths.clone()),
             Some(snapshot_registry_root),
             true,
             true,
@@ -19167,11 +19178,35 @@ mod tests {
         request.generation = generation;
         request.model_path = cpu_paths.model.to_string_lossy().into_owned();
         request.config.compute = compute;
-        if let Some(candidate) = candidate {
+        let expected_effective_compute = match compute {
+            ComputeChoice::Cpu => ComputeChoice::Cpu,
+            ComputeChoice::Gpu => ComputeChoice::Gpu,
+            ComputeChoice::Auto if candidate.is_some() => ComputeChoice::Gpu,
+            ComputeChoice::Auto => ComputeChoice::Cpu,
+        };
+        let expected_fallback = (compute == ComputeChoice::Auto
+            && expected_effective_compute == ComputeChoice::Cpu)
+            .then_some("No current GPU candidate was available before audio");
+        let expected_backend = match (expected_effective_compute, expected_fallback) {
+            (ComputeChoice::Gpu, _) => "CUDA0".to_owned(),
+            (ComputeChoice::Cpu, Some(reason)) => {
+                format!("CPU (Auto fallback before audio: {reason})")
+            }
+            (ComputeChoice::Cpu, None) => "CPU".to_owned(),
+            (ComputeChoice::Auto, _) => unreachable!("effective compute is resolved before start"),
+        };
+        let expected_gpu_key = (expected_effective_compute == ComputeChoice::Gpu).then(|| {
+            gpu_paths
+                .gpu_qualification_key(
+                    whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS,
+                )
+                .expect("effective GPU route must have a qualification key")
+        });
+        if let Some(candidate) = candidate.as_ref() {
             assert_eq!(candidate.generation, generation.get());
             runtime
                 .gpu_candidates
-                .insert((job_id, generation.get()), Some(candidate));
+                .insert((job_id, generation.get()), Some(candidate.clone()));
         }
 
         let mut app = ImportApplication::new(RuntimeImportPort {
@@ -19204,45 +19239,14 @@ mod tests {
             );
             thread::sleep(Duration::from_millis(5));
         };
-        assert_eq!(queued.source_sha256, Some(source_sha));
+        assert_eq!(
+            queued.source_sha256,
+            Some(decode_sha256(&source_sha).expect("native fixture SHA-256 must decode"))
+        );
         assert_eq!(queued.source_samples, Some(expected_samples));
         assert_eq!(queued.strategy, request.strategy);
         app.dispatch(AppCommand::ProcessQueued { request: queued })
             .expect("ProcessQueued must compose the native route before Prepared");
-        let session_id = whisper_core::parakeet_scheduler::SchedulerSession { job_id, generation };
-        let composed_route = app
-            .io
-            .runtime
-            .native_unified_routes
-            .get(&session_id)
-            .cloned()
-            .expect("ProcessQueued must install the qualified native route before StartWorker");
-        assert_eq!(composed_route.requested_compute, compute);
-        if compute == ComputeChoice::Gpu {
-            assert_eq!(composed_route.compute, ComputeChoice::Gpu);
-            assert!(composed_route.candidate.is_some());
-        }
-        if compute == ComputeChoice::Auto && include_current_gpu_candidate {
-            assert_eq!(
-                composed_route.compute,
-                ComputeChoice::Gpu,
-                "Auto must prefer the current eligible GPU candidate; fallback={:?}",
-                composed_route.fallback_reason
-            );
-            assert!(composed_route.candidate.is_some());
-        }
-        if compute == ComputeChoice::Auto && !include_current_gpu_candidate {
-            assert_eq!(composed_route.compute, ComputeChoice::Cpu);
-            assert_eq!(
-                composed_route.fallback_reason.as_deref(),
-                Some("No current GPU candidate was available before audio")
-            );
-        }
-        assert_eq!(
-            composed_route.compute == ComputeChoice::Gpu,
-            composed_route.expected_gpu.is_some()
-        );
-        let expected_backend = composed_route.backend_label();
         let deadline = Instant::now() + Duration::from_secs(3_600);
         let mut observed_phase = "not visible".to_owned();
         let mut observed_message = None;
@@ -19273,13 +19277,7 @@ mod tests {
             thread::sleep(Duration::from_millis(10));
         }
         assert!(
-            !app.io
-                .runtime
-                .native_harness_observer
-                .as_ref()
-                .expect("native observer remains attached")
-                .overflowed
-                .load(Ordering::Relaxed),
+            !native_observer.overflowed.load(Ordering::Relaxed),
             "native event observer overflowed its fixed capacity"
         );
         let complete = complete_view.unwrap_or_else(|| {
@@ -19300,9 +19298,20 @@ mod tests {
             .filter_map(|event| match &event.kind {
                 NativeQualificationEventKind::Ready {
                     backend,
+                    profile,
+                    model_sha256,
+                    runtime_sha256,
+                    build_sha256,
                     gpu_attested,
                     ..
-                } => Some((backend.as_str(), *gpu_attested)),
+                } => Some((
+                    backend.as_str(),
+                    profile.as_str(),
+                    model_sha256.as_str(),
+                    runtime_sha256.as_str(),
+                    build_sha256.as_str(),
+                    *gpu_attested,
+                )),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -19312,7 +19321,55 @@ mod tests {
             "one native READY must qualify the queued session"
         );
         assert_eq!(ready[0].0, expected_backend);
-        assert_eq!(ready[0].1, composed_route.compute == ComputeChoice::Gpu);
+        assert_eq!(
+            ready[0].1,
+            whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+        );
+        assert_eq!(
+            ready[0].2,
+            whisper_core::model_registry::model(
+                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3
+            )
+            .artifact
+            .sha256
+        );
+        if let Some(key) = expected_gpu_key.as_ref() {
+            assert_eq!(ready[0].3, key.runtime_build);
+            assert_eq!(ready[0].4, key.worker_build);
+        }
+        assert_eq!(ready[0].5, expected_effective_compute == ComputeChoice::Gpu);
+        let route_evidence = observed_native_events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                NativeQualificationEventKind::PreparedRoute {
+                    session,
+                    requested_compute,
+                    compute: effective_compute,
+                    has_candidate,
+                    has_expected_gpu,
+                    fallback_reason,
+                } if session.job_id == job_id && session.generation == generation => Some((
+                    *requested_compute,
+                    *effective_compute,
+                    *has_candidate,
+                    *has_expected_gpu,
+                    fallback_reason.as_deref(),
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(route_evidence.len(), 1, "the app must compose one native route");
+        assert_eq!(route_evidence[0].0, compute);
+        assert_eq!(route_evidence[0].1, expected_effective_compute);
+        assert_eq!(
+            route_evidence[0].2,
+            expected_effective_compute == ComputeChoice::Gpu
+        );
+        assert_eq!(
+            route_evidence[0].3,
+            expected_effective_compute == ComputeChoice::Gpu
+        );
+        assert_eq!(route_evidence[0].4, expected_fallback);
         assert!(observed_native_events.iter().any(|event| matches!(
             &event.kind,
             NativeQualificationEventKind::RequestSent { session, generation: sent_generation, .. }
@@ -21368,7 +21425,10 @@ mod tests {
         assert_real_unified_model(&previous);
         ArchiveStore::identify_source(&mut previous).unwrap();
         assert_eq!(previous.source_samples, Some(expected_samples));
-        assert_eq!(previous.source_sha256, Some(source_sha.clone()));
+        assert_eq!(
+            previous.source_sha256,
+            Some(decode_sha256(&source_sha).expect("native fixture SHA-256 must decode"))
+        );
 
         let mut archive = ArchiveStore::new(&archive_root);
         archive
@@ -21427,12 +21487,17 @@ mod tests {
             gpu_parakeet_paths: Some(gpu_paths.clone()),
         });
         let (observer, native_events) = NativeQualificationObserver::channel();
+        let native_observer = Arc::clone(&observer);
+        let expected_profile = whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
+        let expected_gpu_key = gpu_paths
+            .gpu_qualification_key(expected_profile)
+            .expect("current personal GPU route must expose its qualification key");
         let mut runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
             workers,
             Arc::new(PublicationGate::default()),
             model_catalog,
             Some(cpu_paths),
-            Some(gpu_paths),
+            Some(gpu_paths.clone()),
             Some(settings_root.clone()),
             true,
             true,
@@ -21440,7 +21505,7 @@ mod tests {
         .with_native_harness_observer(observer);
         runtime
             .gpu_candidates
-            .insert((job_id, resumed_generation.get()), Some(candidate));
+            .insert((job_id, resumed_generation.get()), Some(candidate.clone()));
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
@@ -21459,18 +21524,7 @@ mod tests {
             job_id,
             generation: resumed_generation,
         };
-        let composed_route = app
-            .io
-            .runtime
-            .native_unified_routes
-            .get(&scheduler_session)
-            .cloned()
-            .expect("ResumeInterrupted must compose the current native route before start");
-        assert_eq!(composed_route.requested_compute, ComputeChoice::Gpu);
-        assert_eq!(composed_route.compute, ComputeChoice::Gpu);
-        assert!(composed_route.candidate.is_some());
-        assert!(composed_route.expected_gpu.is_some());
-        let expected_backend = composed_route.backend_label();
+        let expected_backend = "CUDA0";
         let deadline = Instant::now() + Duration::from_secs(3_600);
         let mut observed_phase = "not visible".to_owned();
         let mut observed_message = None;
@@ -21502,15 +21556,34 @@ mod tests {
         }
         native_event_drain(&native_events, &mut observed_native_events);
         assert!(
-            !app.io
-                .runtime
-                .native_harness_observer
-                .as_ref()
-                .expect("native observer remains attached")
-                .overflowed
-                .load(Ordering::Relaxed),
+            !native_observer.overflowed.load(Ordering::Relaxed),
             "native event observer overflowed its fixed capacity"
         );
+        let route_evidence = observed_native_events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                NativeQualificationEventKind::PreparedRoute {
+                    session,
+                    requested_compute,
+                    compute,
+                    has_candidate,
+                    has_expected_gpu,
+                    fallback_reason,
+                } if *session == scheduler_session => Some((
+                    *requested_compute,
+                    *compute,
+                    *has_candidate,
+                    *has_expected_gpu,
+                    fallback_reason.as_deref(),
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(route_evidence.len(), 1, "resume must compose one GPU route");
+        assert_eq!(route_evidence[0].0, ComputeChoice::Gpu);
+        assert_eq!(route_evidence[0].1, ComputeChoice::Gpu);
+        assert!(route_evidence[0].2 && route_evidence[0].3);
+        assert_eq!(route_evidence[0].4, None);
         let complete = complete_view.unwrap_or_else(|| {
             panic!(
                 "native GPU resume did not complete: phase={observed_phase}, message={observed_message:?}"
@@ -21566,11 +21639,6 @@ mod tests {
             "GPU READY must follow current GPU attestation"
         );
 
-        let expected_profile = whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
-        let expected_gpu_key = composed_route
-            .paths
-            .gpu_qualification_key(expected_profile)
-            .expect("the composed GPU route must retain its validated runtime identity");
         assert_eq!(ready_profile.as_str(), expected_profile);
         assert!(
             ready_model_sha256.eq_ignore_ascii_case(
@@ -21583,30 +21651,22 @@ mod tests {
         );
         assert_eq!(ready_runtime_sha256, &expected_gpu_key.runtime_build);
         assert_eq!(ready_build_sha256, &expected_gpu_key.worker_build);
-        let selected_candidate = composed_route
-            .candidate
-            .as_ref()
-            .expect("the resumed route must retain the current inventory candidate");
-        assert_eq!(selected_candidate.generation, resumed_generation.get());
+        assert_eq!(candidate.generation, resumed_generation.get());
         assert_eq!(
-            selected_candidate.pnp_instance_id,
+            candidate.pnp_instance_id,
             whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID
         );
-        let expected_gpu = composed_route
-            .expected_gpu
-            .as_ref()
-            .expect("attested GPU route must retain the selected device identity");
         assert_eq!(
             expected_gpu_key.gpu_pnp_instance_id.as_deref(),
             Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID)
         );
         assert_eq!(
             expected_gpu_key.gpu_pci_bus_id.as_deref(),
-            Some(expected_gpu.pci_bus_id.as_str())
+            Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PCI_BUS_ID)
         );
         assert_eq!(
             expected_gpu_key.gpu_uuid.as_deref(),
-            Some(expected_gpu.uuid.as_str())
+            Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_UUID)
         );
 
         let sent_calls = observed_native_events
@@ -21716,7 +21776,6 @@ mod tests {
         let srt = archive_root.join("exports").join(format!("{basename}.srt"));
         assert!(txt.is_file(), "resumed native TXT export must exist");
         assert!(srt.is_file(), "resumed native SRT export must exist");
-        assert!(app.io.runtime.source_bindings.is_empty());
         assert!(
             crate::source_binding::SourceBinding::reopen_for_identity(
                 &settings_root,
@@ -26730,13 +26789,23 @@ fn main() {
             request.config.compute = ComputeChoice::Gpu;
             let identity = (request.job_id, request.generation);
 
-            let runtime = ImportRuntime::new(
+            let (observer, native_events) = NativeQualificationObserver::channel();
+            let native_observer = Arc::clone(&observer);
+            let mut runtime = ImportRuntime::new(
                 WorkerPaths {
                     cpu: root.join("unused-cpu.exe"),
                     gpu: root.join("unused-gpu.exe"),
                 },
                 Arc::new(PublicationGate::default()),
-            );
+            )
+            .with_native_harness_observer(observer);
+            if stale_proof {
+                let mut stale = fake_gpu_candidate();
+                stale.generation = request.generation.get() + 1;
+                runtime
+                    .gpu_candidates
+                    .insert((request.job_id, request.generation.get()), Some(stale));
+            }
             let mut app = ImportApplication::new(RuntimeImportPort {
                 runtime,
                 events: VecDeque::new(),
@@ -26762,14 +26831,6 @@ fn main() {
                 thread::sleep(Duration::from_millis(2));
             };
             assert_eq!(queued.source_sha256, Some(source_sha));
-            if stale_proof {
-                let mut stale = fake_gpu_candidate();
-                stale.generation = request.generation.get() + 1;
-                app.io
-                    .runtime
-                    .gpu_candidates
-                    .insert((request.job_id, request.generation.get()), Some(stale));
-            }
 
             app.dispatch(AppCommand::ProcessQueued { request: queued })
                 .unwrap();
@@ -26797,12 +26858,17 @@ fn main() {
                     .is_some_and(|message| message.contains(expected)),
                 "queued GPU refusal should be visible before preparation: {refusal:?}"
             );
-            assert!(!app.io.runtime.native_unified_routes.contains_key(
-                &whisper_core::parakeet_scheduler::SchedulerSession {
-                    job_id: identity.0,
-                    generation: identity.1,
-                }
-            ));
+            let mut observed_native_events = Vec::new();
+            native_event_drain(&native_events, &mut observed_native_events);
+            assert!(
+                !native_observer.overflowed.load(Ordering::Relaxed),
+                "native refusal observer must remain within its fixed capacity"
+            );
+            assert!(!observed_native_events.iter().any(|event| matches!(
+                &event.kind,
+                NativeQualificationEventKind::PreparedRoute { session, .. }
+                    if session.job_id == identity.0 && session.generation == identity.1
+            )), "stale or absent GPU proof must be rejected before route preparation");
             assert!(
                 !destination
                     .join("transcriptions")
@@ -26842,13 +26908,16 @@ fn main() {
         let destination = root.join("archive");
         let request = unified_import_request(&destination, &source_path, 0x44_300);
         let identity = (request.job_id, request.generation);
+        let (observer, native_events) = NativeQualificationObserver::channel();
+        let native_observer = Arc::clone(&observer);
         let app_runtime = ImportRuntime::new(
             WorkerPaths {
                 cpu: root.join("unused-cpu.exe"),
                 gpu: root.join("unused-gpu.exe"),
             },
             Arc::new(PublicationGate::default()),
-        );
+        )
+        .with_native_harness_observer(observer);
         assert!(!app_runtime.native_unified_candidate_enabled);
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime: app_runtime,
@@ -26896,12 +26965,21 @@ fn main() {
             }),
             "non-candidate refusal should remain visible: {refused:?}"
         );
-        let session = whisper_core::parakeet_scheduler::SchedulerSession {
-            job_id: identity.0,
-            generation: identity.1,
-        };
-        assert!(!app.io.runtime.native_unified_routes.contains_key(&session));
-        assert!(!app.io.runtime.unified_sessions.contains_key(&session));
+        let mut observed_native_events = Vec::new();
+        native_event_drain(&native_events, &mut observed_native_events);
+        assert!(!native_observer.overflowed.load(Ordering::Relaxed));
+        assert!(!observed_native_events.iter().any(|event| matches!(
+            &event.kind,
+            NativeQualificationEventKind::PreparedRoute { session, .. }
+                if session.job_id == identity.0 && session.generation == identity.1
+        )), "non-candidate admission must not prepare a native route");
+        assert!(!observed_native_events.iter().any(|event| matches!(
+            &event.kind,
+            NativeQualificationEventKind::Starting { .. }
+                | NativeQualificationEventKind::Spawned { .. }
+                | NativeQualificationEventKind::Ready { .. }
+                | NativeQualificationEventKind::RequestSent { .. }
+        )), "non-candidate refusal must not start a native worker");
         assert!(
             !destination
                 .join("transcriptions")
@@ -26941,13 +27019,16 @@ fn main() {
         let request = unified_import_request(&destination, &source_path, 0x44_400);
         let identity = (request.job_id, request.generation);
         let route = controlled_native_route(&root);
+        let (observer, native_events) = NativeQualificationObserver::channel();
+        let native_observer = Arc::clone(&observer);
         let mut runtime = ImportRuntime::new(
             WorkerPaths {
                 cpu: root.join("unused-cpu.exe"),
                 gpu: root.join("unused-gpu.exe"),
             },
             Arc::new(PublicationGate::default()),
-        );
+        )
+        .with_native_harness_observer(observer);
         runtime.native_unified_candidate_enabled = true;
         for occupied in [0x44_401, 0x44_402] {
             runtime
@@ -27009,13 +27090,26 @@ fn main() {
                 .is_some_and(|message| message.contains("SchedulerCapacity")),
             "capacity refusal should remain visible: {message:?}"
         );
-        assert_eq!(app.io.runtime.native_unified_routes.len(), 2);
-        assert!(!app.io.runtime.native_unified_routes.contains_key(
-            &whisper_core::parakeet_scheduler::SchedulerSession {
-                job_id: identity.0,
-                generation: identity.1,
-            }
-        ));
+        let mut observed_native_events = Vec::new();
+        native_event_drain(&native_events, &mut observed_native_events);
+        assert!(!native_observer.overflowed.load(Ordering::Relaxed));
+        let prepared_sessions = observed_native_events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                NativeQualificationEventKind::PreparedRoute { session, .. } => Some(*session),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(prepared_sessions.len(), 2, "both pre-admitted routes remain present");
+        assert!(prepared_sessions.iter().any(|session| {
+            session.job_id == JobId(0x44_401) && session.generation == Generation::first()
+        }));
+        assert!(prepared_sessions.iter().any(|session| {
+            session.job_id == JobId(0x44_402) && session.generation == Generation::first()
+        }));
+        assert!(!prepared_sessions.iter().any(|session| {
+            session.job_id == identity.0 && session.generation == identity.1
+        }), "third refused import must not prepare a route");
         let pending = destination
             .join("transcriptions")
             .join(format!("{:032x}", request.job_id.0))
