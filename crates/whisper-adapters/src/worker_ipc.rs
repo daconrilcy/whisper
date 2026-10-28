@@ -15072,7 +15072,7 @@ mod tests {
         assert!(!archive_root.join("exports/transcript.srt").exists());
         assert_eq!(
             crate::parakeet_import::sha256_file(&source_path).unwrap(),
-            source_sha
+            format_sha256(&source_sha)
         );
         assert!(
             crate::source_binding::SourceBinding::reopen_for_identity(
