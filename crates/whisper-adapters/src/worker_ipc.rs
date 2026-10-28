@@ -21442,32 +21442,166 @@ mod tests {
             .iter()
             .filter_map(|event| match &event.kind {
                 NativeQualificationEventKind::Ready {
+                    incarnation,
+                    pid,
                     backend,
+                    profile,
+                    model_sha256,
+                    runtime_sha256,
+                    build_sha256,
                     gpu_attested,
-                    ..
-                } => Some((backend.as_str(), *gpu_attested)),
+                } => Some((
+                    *incarnation,
+                    *pid,
+                    backend,
+                    profile,
+                    model_sha256,
+                    runtime_sha256,
+                    build_sha256,
+                    *gpu_attested,
+                )),
                 _ => None,
             })
             .collect::<Vec<_>>();
         assert_eq!(ready.len(), 1, "resume must produce one native READY");
-        assert_eq!(ready[0].0, expected_backend);
-        assert!(ready[0].1, "GPU READY must carry current native attestation");
-        assert!(observed_native_events.iter().any(|event| matches!(
-            &event.kind,
-            NativeQualificationEventKind::RequestSent {
-                session,
-                generation: sent_generation,
-                ..
-            } if session.job_id == job_id && *sent_generation == resumed_generation
-        )), "native GPU request must be correlated to resumed generation N+1");
-        assert!(observed_native_events.iter().any(|event| matches!(
-            &event.kind,
-            NativeQualificationEventKind::Result {
-                session,
-                generation: result_generation,
-                ..
-            } if session.job_id == job_id && *result_generation == resumed_generation
-        )), "native GPU result must be correlated to resumed generation N+1");
+        let (
+            ready_incarnation,
+            ready_pid,
+            ready_backend,
+            ready_profile,
+            ready_model_sha256,
+            ready_runtime_sha256,
+            ready_build_sha256,
+            ready_gpu_attested,
+        ) = ready[0];
+        assert_eq!(ready_backend, &expected_backend);
+        assert!(ready_gpu_attested, "GPU READY must follow current GPU attestation");
+
+        let expected_profile = whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
+        let expected_gpu_key = composed_route
+            .paths
+            .gpu_qualification_key(expected_profile)
+            .expect("the composed GPU route must retain its validated runtime identity");
+        assert_eq!(ready_profile.as_str(), expected_profile);
+        assert!(ready_model_sha256.eq_ignore_ascii_case(
+            whisper_core::model_registry::model(
+                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3
+            )
+            .artifact
+            .sha256
+        ));
+        assert_eq!(ready_runtime_sha256, &expected_gpu_key.runtime_build);
+        assert_eq!(ready_build_sha256, &expected_gpu_key.worker_build);
+        let selected_candidate = composed_route
+            .candidate
+            .as_ref()
+            .expect("the resumed route must retain the current inventory candidate");
+        assert_eq!(selected_candidate.generation, resumed_generation.get());
+        assert_eq!(
+            selected_candidate.pnp_instance_id,
+            whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID
+        );
+        let expected_gpu = composed_route
+            .expected_gpu
+            .as_ref()
+            .expect("attested GPU route must retain the selected device identity");
+        assert_eq!(
+            expected_gpu_key.gpu_pnp_instance_id.as_deref(),
+            Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID)
+        );
+        assert_eq!(
+            expected_gpu_key.gpu_pci_bus_id.as_deref(),
+            Some(expected_gpu.pci_bus_id.as_str())
+        );
+        assert_eq!(
+            expected_gpu_key.gpu_uuid.as_deref(),
+            Some(expected_gpu.uuid.as_str())
+        );
+
+        let sent_calls = observed_native_events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                NativeQualificationEventKind::RequestSent {
+                    incarnation,
+                    pid,
+                    session,
+                    generation,
+                    attempt,
+                    request_id,
+                    work,
+                } if *incarnation == ready_incarnation
+                    && *pid == ready_pid
+                    && *session == scheduler_session
+                    && *generation == resumed_generation =>
+                {
+                    Some((*request_id, *attempt, *work))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let completed_calls = observed_native_events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                NativeQualificationEventKind::Result {
+                    incarnation,
+                    pid,
+                    session,
+                    generation,
+                    attempt,
+                    request_id,
+                    work,
+                    ..
+                } if *incarnation == ready_incarnation
+                    && *pid == ready_pid
+                    && *session == scheduler_session
+                    && *generation == resumed_generation =>
+                {
+                    Some((*request_id, *attempt, *work))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(!sent_calls.is_empty(), "attested worker must receive a correlated request");
+        let session_request_count = observed_native_events
+            .iter()
+            .filter(|event| matches!(
+                &event.kind,
+                NativeQualificationEventKind::RequestSent { session, generation, .. }
+                    if *session == scheduler_session && *generation == resumed_generation
+            ))
+            .count();
+        let session_result_count = observed_native_events
+            .iter()
+            .filter(|event| matches!(
+                &event.kind,
+                NativeQualificationEventKind::Result { session, generation, .. }
+                    if *session == scheduler_session && *generation == resumed_generation
+            ))
+            .count();
+        assert_eq!(session_request_count, sent_calls.len());
+        assert_eq!(session_result_count, completed_calls.len());
+        assert_eq!(
+            sent_calls.len(),
+            completed_calls.len(),
+            "each request on the attested GPU incarnation must have one result"
+        );
+        for (request_id, attempt, work) in &sent_calls {
+            assert!(*request_id > 0 && *attempt > 0);
+            assert!(matches!(work, NativeQualificationWork::Final(_)));
+            assert_eq!(
+                completed_calls
+                    .iter()
+                    .filter(|completed| {
+                        let (completed_request_id, completed_attempt, completed_work) = **completed;
+                        completed_request_id == *request_id
+                            && completed_attempt == *attempt
+                            && completed_work == *work
+                    })
+                    .count(),
+                1,
+                "result must match the READY incarnation, PID, session, request ID, attempt, and work"
+            );
+        }
 
         let entries = ArchiveStore::scan(&archive_root).expect("scan resumed native archive");
         let complete_archive = entries
