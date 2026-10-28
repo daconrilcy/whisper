@@ -2405,7 +2405,11 @@ impl ArchiveStore {
             choice,
             source_sha256: source_sha256.to_owned(),
             source_samples,
-            expected_active: Self::published_imports(&destination, source_sha256)?
+            expected_active: Self::published_imports_for_strategy(
+                &destination,
+                source_sha256,
+                request.strategy,
+            )?
                 .iter()
                 .map(|item| PublicationIdentity {
                     job_id: item.job_id,
@@ -8161,6 +8165,227 @@ mod tests {
         fs::write(&index, valid_index).unwrap();
         assert!(
             ArchiveStore::published_unified_files(&root, JobId(job_id.0 + 3), generation).is_err()
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn reprocessing_reservation_tracks_only_current_strategy_publications_for_resume() {
+        let root = std::env::temp_dir().join(format!(
+            "whisper-reprocessing-strategy-reservation-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let source_path = root.join("shared-source.wav");
+        fs::write(&source_path, b"test source identity").unwrap();
+        let source_sha256 = "ab".repeat(32);
+        let generation = Generation::first();
+        let bounded_job = JobId(0x5301);
+        let legacy_job = JobId(0x5302);
+        let mut index_records = Vec::new();
+
+        for (job_id, strategy) in [
+            (
+                bounded_job,
+                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            ),
+            (
+                legacy_job,
+                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+            ),
+        ] {
+            let directory = generation_path(&root, job_id, generation);
+            fs::create_dir_all(&directory).unwrap();
+            let text = format!("strategy-specific result for {}", job_id.0);
+            let srt = format!("1\n00:00:00,000 --> 00:00:01,000\n{text}\n");
+            fs::write(directory.join("transcript.txt"), text.as_bytes()).unwrap();
+            fs::write(directory.join("transcript.srt"), srt.as_bytes()).unwrap();
+            let mut segments = serde_json::to_vec(&SegmentRecord {
+                sequence: 1,
+                range: SourceRange::new(0, 16_000, 16_000).unwrap(),
+                text: text.clone(),
+            })
+            .unwrap();
+            segments.push(b'\n');
+            fs::write(directory.join("segments.jsonl"), segments).unwrap();
+
+            let model_id = if strategy
+                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+            {
+                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3
+            } else {
+                whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo
+            };
+            let model = whisper_core::model_registry::model(model_id).artifact;
+            let pending = PendingRecord {
+                version: if strategy
+                    == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+                {
+                    4
+                } else {
+                    1
+                },
+                job_id,
+                generation,
+                source_path: source_path.to_string_lossy().into_owned(),
+                source_sha256: source_sha256.clone(),
+                source_samples: 16_000,
+                model_path: model.file_name.into(),
+                model_sha256: model.sha256.into(),
+                model_size: model.size_bytes,
+                strategy,
+                qualification: None,
+            };
+            fs::write(
+                directory.join("pending.json"),
+                serde_json::to_vec(&pending).unwrap(),
+            )
+            .unwrap();
+            let manifest = CompleteRecord {
+                version: 1,
+                job_id,
+                generation,
+                source_sha256: source_sha256.clone(),
+                segments: 1,
+                text: verified_artifact(&directory, &directory.join("transcript.txt")).unwrap(),
+                srt: verified_artifact(&directory, &directory.join("transcript.srt")).unwrap(),
+            };
+            fs::write(
+                directory.join("manifest.json"),
+                serde_json::to_vec(&manifest).unwrap(),
+            )
+            .unwrap();
+            fs::write(directory.join("CURRENT"), b"manifest.json\n").unwrap();
+            let success_ordinal = index_records.len() as u64 + 1;
+            index_records.push(PublicationRecord {
+                job_id,
+                generation,
+                source_sha256: source_sha256.clone(),
+                export_basename: Some(format!("result-{}", job_id.0)),
+                active: true,
+                success_ordinal: Some(success_ordinal),
+            });
+        }
+        write_publication_index(
+            &root,
+            &PublicationIndex {
+                version: 1,
+                records: index_records,
+            },
+        )
+        .unwrap();
+
+        let catalog = ArchiveStore::reprocessing_catalog(&root, &source_sha256).unwrap();
+        assert_eq!(catalog.len(), 2);
+        let canonical_destination = root.canonicalize().unwrap().to_string_lossy().into_owned();
+        for (job_id, strategy, request_job) in [
+            (
+                bounded_job,
+                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+                JobId(0x5303),
+            ),
+            (
+                legacy_job,
+                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+                JobId(0x5304),
+            ),
+        ] {
+            let selected = TreatmentIdentity {
+                destination: canonical_destination.clone(),
+                job_id,
+                generation,
+            };
+            let request = ImportRequest {
+                strategy,
+                job_id: request_job,
+                generation,
+                source_path: source_path.to_string_lossy().into_owned(),
+                source_sha256: Some([0xab; 32]),
+                source_samples: Some(16_000),
+                model_path: "test-model".into(),
+                model_sha256: [0; 32],
+                destination: canonical_destination.clone(),
+                config: whisper_core::JobConfig {
+                    language: whisper_core::LanguageChoice::Automatic,
+                    compute: whisper_core::ComputeChoice::Cpu,
+                },
+            };
+            ArchiveStore::reserve_reprocessing_import(
+                &root,
+                &request,
+                &source_sha256,
+                16_000,
+                &catalog,
+                std::slice::from_ref(&selected),
+                DuplicateImportChoice::ReplaceLatest,
+            )
+            .unwrap();
+            let intent: PublicationIntent = serde_json::from_slice(
+                &fs::read(publication_reservation_path(&root, request_job, generation)).unwrap(),
+            )
+            .unwrap();
+            let expected = if strategy
+                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+            {
+                bounded_job
+            } else {
+                legacy_job
+            };
+            assert_eq!(
+                intent.expected_active,
+                vec![PublicationIdentity {
+                    job_id: expected,
+                    generation,
+                }],
+                "reprocessing reservations must snapshot only publications of their strategy"
+            );
+        }
+
+        let mut changed_index = read_publication_index(&root).unwrap();
+        changed_index
+            .records
+            .iter_mut()
+            .find(|record| record.job_id == bounded_job)
+            .unwrap()
+            .active = false;
+        write_publication_index(&root, &changed_index).unwrap();
+        let changed_request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            job_id: JobId(0x5305),
+            generation,
+            source_path: source_path.to_string_lossy().into_owned(),
+            source_sha256: Some([0xab; 32]),
+            source_samples: Some(16_000),
+            model_path: "test-model".into(),
+            model_sha256: [0; 32],
+            destination: canonical_destination,
+            config: whisper_core::JobConfig {
+                language: whisper_core::LanguageChoice::Automatic,
+                compute: whisper_core::ComputeChoice::Cpu,
+            },
+        };
+        assert!(
+            ArchiveStore::reserve_reprocessing_import(
+                &root,
+                &changed_request,
+                &source_sha256,
+                16_000,
+                &catalog,
+                &[TreatmentIdentity {
+                    destination: root.canonicalize().unwrap().to_string_lossy().into_owned(),
+                    job_id: bounded_job,
+                    generation,
+                }],
+                DuplicateImportChoice::ReplaceLatest,
+            )
+            .unwrap_err()
+            .contains("DuplicateStateChanged"),
+            "a changed publication catalog must still be refused"
         );
         fs::remove_dir_all(root).unwrap();
     }
