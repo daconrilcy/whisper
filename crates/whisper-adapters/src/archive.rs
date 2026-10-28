@@ -7056,7 +7056,14 @@ fn validate_unified_resume_prefix(
     let mut next_sequence = 1_u64;
     let mut anchor = None;
     while next_sequence <= checkpoint.confirmed_segments {
-        let page = document.read_document_page(next_sequence, 128)?;
+        let remaining = checkpoint
+            .confirmed_segments
+            .checked_sub(next_sequence)
+            .and_then(|count| count.checked_add(1))
+            .ok_or_else(|| "StorageCorrupt: resume prefix sequence underflow".to_owned())?;
+        let page_limit = usize::try_from(remaining.min(128))
+            .map_err(|_| "StorageCorrupt: resume prefix page limit".to_owned())?;
+        let page = document.read_document_page(next_sequence, page_limit)?;
         if page.is_empty() {
             return Err("StorageCorrupt: resume document prefix is incomplete".into());
         }
