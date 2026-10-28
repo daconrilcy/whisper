@@ -15238,7 +15238,10 @@ mod tests {
         let selected = publication_for(second.job_id, second.generation);
         let current = publication_for(reprocessed.job_id, reprocessed.generation);
         assert!(earlier.active && earlier.verified_present, "{catalog:?}");
-        assert!(!selected.active, "selected prior result remains active: {catalog:?}");
+        assert!(
+            !selected.active,
+            "selected prior result remains active: {catalog:?}"
+        );
         assert!(current.active && current.verified_present, "{catalog:?}");
         assert_eq!(
             catalog.iter().filter(|entry| entry.active).count(),
