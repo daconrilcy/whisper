@@ -70,4 +70,27 @@ Les vérifications attendues couvrent la syntaxe/format des seuls Rust touchés,
 
 ## État de livraison
 
-Plan accepté et implémentation autorisée ; candidat et résultats à compléter après handoff/revue. Aucun verdict de livraison anticipé.
+**Candidat implémenté, validation bloquée.** Le candidat working-tree repose sur le plan commité `df28cfc7e8b85dd0e97ed894a9816dfcdd97aa22`. Le même implémenteur a modifié les quatre manifestes adapters/CPU/GPU/desktop, les sources adapters `archive`, `parakeet_import`, `staging`, `supervisor`, `worker_ipc`, les deux `main.rs` Turbo, et ajouté `scripts/recette-build.rs` et `.github/workflows/recette-hooks.yml` : treize fichiers de code/configuration. Aucun fichier de la cartographie, modèle ou audio préexistant modifié. Aucun commit du candidat ni push.
+
+La feature est explicitement opt-in sur les trois crates porteuses, avec relais desktop. Le garde partagé refuse le profil Cargo release quand elle est active ; les corps et états d’injection sont exclus quand elle est absente. Les tests comportementaux focalisés sont dans les sources adapters autorisées ; aucun nouveau fichier de test n’a été nécessaire. Le workflow se nomme **Recette hooks policy** et contient des contrôles Cargo positifs/négatifs, ainsi que des sondes reprenant les blocs L04 réels des workers sans nécessiter d’inférence CUDA.
+
+| Contrôle réellement effectué | Résultat | Portée |
+| --- | --- | --- |
+| rustfmt ciblé, huit fichiers Rust et extraction des blocs L04 | PASS | Syntaxe/format, pas de compilation/type-check |
+| Lecture des quatre manifestes par tomllib | PASS | Déclarations de features, defaults, relais, chemin du garde |
+| Analyse syntaxique YAML et PowerShell du workflow | PASS | Syntaxe, sans exécution des étapes |
+| git diff --check, auteur puis reviewer | PASS | Intégrité textuelle du diff |
+| Cargo/rustc, tests recette_policy_, sondes workers | NOT RUN | Aucune garde autorisée applicable à cette racine |
+| Exécution GitHub Actions distante | NOT RUN | Aucun push ni lancement distant autorisé |
+
+**Revue indépendante : `BLOCKED`, aucun défaut source actionnable.** Un reviewer, une passe, zéro correction, candidat figé epoch 0. Le coordinateur et le reviewer n’ont modifié aucun fichier. La revue source couvre notamment les conditions de compilation et la conservation des contrôles d’identité produit ; elle ne remplace pas les compilations. Aucun verdict CLEAN n’est prononcé.
+
+Preuves matérielles ouvertes : **G1** CA1/CA2, tests adapters avec variables historiques définies et feature absente/présente hors release ; **G2** CA3, refus release pour adapters, CPU, GPU et relais desktop, assertions debug désactivées puis forcées ; **G3** CA4, exécution des sondes des blocs L04 et des contrôles du workflow. La CI distante pourra rester non exécutée tant que la publication n’est pas demandée, sans être présentée comme verte.
+
+## Décision d’exécution restante — proposition, non autorisée à ce stade
+
+Les gardes existantes `target/parakeet-tests/parakeet-unified/lot-04/validate-pu-l4.ps1` et `target/parakeet-tests/r11/guard-campaign.ps1` sont liées à leurs racines, modes et autorisations historiques. Elles n’ont été ni exécutées ni modifiées pour ce lot.
+
+**Action précise proposée** : autoriser un unique lanceur PowerShell `target/parakeet-tests/recette-hooks/validate-recette-hooks.ps1`, écrit par le même implémenteur, pour exécuter seulement les contrôles G1–G3. Il préparerait CARGO_HOME/TEMP/TMP et les caches nécessaires sous `target/parakeet-tests/recette-hooks/`, conserverait CARGO_TARGET_DIR sur `target/parakeet-tests/cargo-shared/`, vérifierait canoniquement les racines et les refus de chemins avant commande, surveillerait les écritures pendant commande et conserverait les sorties en cas d’échec. Aucune réutilisation de dérogation, aucune installation, suppression, exécution audio/micro/GPU, nouvelle recette native ou écriture volontaire hors de ces deux racines. La surveillance ne serait pas annoncée comme un confinement préventif du compte Windows ; toute violation imposerait arrêt et arbitrage selon AGENTS.md.
+
+La matrice reprend les tests `recette_policy_` avec variables historiques fixées, les builds/checks positifs et les refus attribués explicitement au garde, puis les sondes L04 du workflow. Elle est hors ligne/locked pour les commandes Cargo du workspace. Les dépendances natives installées peuvent être lues ; les caches hors des racines ne sont pas ouverts en écriture. L’espace libre est contrôlé avant et après ; aucun nettoyage des anciens lots ni de cargo-shared. La création de ce lanceur et l’exécution attendent l’accord précis de l’utilisateur, car elles élargissent les supports d’exécution du lot. Le candidat produit reste en attente de cette validation.
