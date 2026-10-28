@@ -5809,7 +5809,7 @@ impl ImportRuntime {
     }
 
     fn ensure_source_binding(&mut self, request: &mut ImportRequest) -> Result<(), String> {
-        let Some(registry_root) = self.snapshot_registry_root.as_deref() else {
+        let Some(registry_root) = self.snapshot_registry_root.clone() else {
             if self.require_snapshot_registry {
                 return Err("SourceSnapshotRegistryUnavailable: application settings root is not configured".into());
             }
@@ -5864,6 +5864,219 @@ impl ImportRuntime {
         let binding = binding.rebind(new.0, new.1)?;
         self.source_bindings.insert((new.0, new.1.get()), binding);
         Ok(())
+    }
+
+    fn source_binding_matches_resume(
+        binding: &crate::source_binding::SourceBinding,
+        previous: &ImportRequest,
+    ) -> Result<(), String> {
+        if binding.original_path() != previous.source_path
+            || binding.strategy() != previous.strategy
+            || previous
+                .source_sha256
+                .is_some_and(|sha| sha != binding.source_sha256())
+            || previous
+                .source_samples
+                .is_some_and(|samples| samples != binding.source_samples())
+        {
+            return Err(
+                "SourceSnapshotMismatch: durable resume binding differs from the interrupted request"
+                    .into(),
+            );
+        }
+        Ok(())
+    }
+
+    fn transfer_resume_source_binding(
+        &mut self,
+        previous: &ImportRequest,
+        resumed: &ImportRequest,
+    ) -> Result<bool, String> {
+        let old_key = (previous.job_id, previous.generation.get());
+        let new_key = (resumed.job_id, resumed.generation.get());
+        if previous.job_id != resumed.job_id
+            || previous.generation.next() != Some(resumed.generation)
+            || previous.destination != resumed.destination
+            || previous.source_path != resumed.source_path
+            || previous.source_sha256 != resumed.source_sha256
+            || previous.source_samples != resumed.source_samples
+            || previous.strategy != resumed.strategy
+        {
+            return Err(
+                "SourceSnapshotMismatch: resumed request changed the interrupted source identity"
+                    .into(),
+            );
+        }
+        if old_key == new_key {
+            return Ok(false);
+        }
+
+        let old_memory_binding = self.source_bindings.remove(&old_key);
+        let new_memory_binding = self.source_bindings.remove(&new_key);
+        let Some(registry_root) = self.snapshot_registry_root.clone() else {
+            if let Some(binding) = old_memory_binding {
+                self.source_bindings.insert(old_key, binding);
+            }
+            if let Some(binding) = new_memory_binding {
+                self.source_bindings.insert(new_key, binding);
+            }
+            if self.source_bindings.contains_key(&old_key)
+                || self.source_bindings.contains_key(&new_key)
+            {
+                return Err(
+                    "SourceSnapshotRegistryUnavailable: cannot transfer a resume binding without its configured registry root".into(),
+                );
+            }
+            return if self.require_snapshot_registry {
+                Err("SourceSnapshotRegistryUnavailable: resume settings root is not configured".into())
+            } else {
+                Ok(false)
+            };
+        };
+
+        let old_binding = match old_memory_binding {
+            Some(binding) => Some(binding),
+            None => match crate::source_binding::SourceBinding::reopen_for_identity(
+                &registry_root,
+                Path::new(&previous.destination),
+                previous.job_id,
+                previous.generation,
+            ) {
+                Ok(binding) => binding,
+                Err(error) => {
+                    if let Some(binding) = new_memory_binding {
+                        self.source_bindings.insert(new_key, binding);
+                    }
+                    return Err(error);
+                }
+            },
+        };
+        let new_binding = match new_memory_binding {
+            Some(binding) => Some(binding),
+            None => match crate::source_binding::SourceBinding::reopen_for_identity(
+                &registry_root,
+                Path::new(&resumed.destination),
+                resumed.job_id,
+                resumed.generation,
+            ) {
+                Ok(binding) => binding,
+                Err(error) => {
+                    if let Some(binding) = old_binding {
+                        self.source_bindings.insert(old_key, binding);
+                    }
+                    return Err(error);
+                }
+            },
+        };
+        match (old_binding, new_binding) {
+            (Some(old_binding), Some(new_binding)) => {
+                self.source_bindings.insert(old_key, old_binding);
+                self.source_bindings.insert(new_key, new_binding);
+                Err("SourceSnapshotMismatch: interrupted and resumed identities are both durably bound".into())
+            }
+            (Some(binding), None) => {
+                if let Err(error) = Self::source_binding_matches_resume(&binding, previous) {
+                    self.source_bindings.insert(old_key, binding);
+                    return Err(error);
+                }
+                match binding.rebind(resumed.job_id, resumed.generation) {
+                    Ok(binding) => {
+                        self.source_bindings.insert(new_key, binding);
+                        Ok(true)
+                    }
+                    Err(error) => {
+                        if let Some(binding) = crate::source_binding::SourceBinding::reopen_for_identity(
+                            &registry_root,
+                            Path::new(&previous.destination),
+                            previous.job_id,
+                            previous.generation,
+                        )? {
+                            self.source_bindings.insert(old_key, binding);
+                            return Err(error);
+                        }
+                        if let Some(binding) = crate::source_binding::SourceBinding::reopen_for_identity(
+                            &registry_root,
+                            Path::new(&resumed.destination),
+                            resumed.job_id,
+                            resumed.generation,
+                        )? {
+                            Self::source_binding_matches_resume(&binding, previous)?;
+                            self.source_bindings.insert(new_key, binding);
+                            return Err(format!(
+                                "{error}; source binding now belongs to the resumed identity and remains retained"
+                            ));
+                        }
+                        Err(format!(
+                            "{error}; SourceSnapshotUnavailable: neither interrupted nor resumed binding could be reopened"
+                        ))
+                    }
+                }
+            }
+            (None, Some(binding)) => {
+                Self::source_binding_matches_resume(&binding, previous)?;
+                self.source_bindings.insert(new_key, binding);
+                // A prior interrupted attempt may have moved the durable binding
+                // before failing to advance the queue. Restore it if this attempt
+                // also fails before the queue transition commits.
+                Ok(true)
+            }
+            (None, None) if self.require_snapshot_registry => Err(
+                "SourceSnapshotUnavailable: interrupted request has no durable source binding".into(),
+            ),
+            (None, None) => Ok(false),
+        }
+    }
+
+    fn restore_resume_source_binding(
+        &mut self,
+        previous: &ImportRequest,
+        resumed: &ImportRequest,
+    ) -> Result<(), String> {
+        let old_key = (previous.job_id, previous.generation.get());
+        let new_key = (resumed.job_id, resumed.generation.get());
+        let new_binding = match self.source_bindings.remove(&new_key) {
+            Some(binding) => binding,
+            None => {
+                let Some(registry_root) = self.snapshot_registry_root.clone() else {
+                    return if self.require_snapshot_registry {
+                        Err("SourceSnapshotRegistryUnavailable: resume settings root is not configured".into())
+                    } else {
+                        Ok(())
+                    };
+                };
+                crate::source_binding::SourceBinding::reopen_for_identity(
+                    &registry_root,
+                    Path::new(&resumed.destination),
+                    resumed.job_id,
+                    resumed.generation,
+                )?
+                .ok_or_else(|| {
+                    "SourceSnapshotUnavailable: resumed source binding is missing during rollback".to_owned()
+                })?
+            }
+        };
+        match new_binding.rebind(previous.job_id, previous.generation) {
+            Ok(binding) => {
+                Self::source_binding_matches_resume(&binding, previous)?;
+                self.source_bindings.insert(old_key, binding);
+                Ok(())
+            }
+            Err(error) => {
+                if let Some(registry_root) = self.snapshot_registry_root.clone()
+                    && let Some(binding) = crate::source_binding::SourceBinding::reopen_for_identity(
+                        &registry_root,
+                        Path::new(&resumed.destination),
+                        resumed.job_id,
+                        resumed.generation,
+                    )?
+                {
+                    self.source_bindings.insert(new_key, binding);
+                }
+                Err(format!(
+                    "{error}; resumed source binding remains retained if its durable identity could be reopened"
+                ))
+            }
+        }
     }
 
     fn release_source_binding(
@@ -7438,6 +7651,19 @@ impl ImportRuntime {
                 } else {
                     None
                 };
+                let source_binding_transferred = match self
+                    .transfer_resume_source_binding(&previous, &durable_request)
+                {
+                    Ok(transferred) => transferred,
+                    Err(message) => {
+                        events.push_back(ImportEvent::Failed {
+                            job_id: id.0,
+                            generation: id.1,
+                            message,
+                        });
+                        return;
+                    }
+                };
                 let mut archive = ArchiveStore::new(&archive_destination);
                 let result = archive
                     .resume_from_with_qualification(
@@ -7519,7 +7745,22 @@ impl ImportRuntime {
                         events.push_back(ImportEvent::Prepared(prepared));
                         Ok(())
                     }
-                    Err(error) => Err((id.0, id.1, error)),
+                    Err(error) => {
+                        let error = if source_binding_transferred {
+                            match self.restore_resume_source_binding(
+                                &previous,
+                                &durable_request,
+                            ) {
+                                Ok(()) => error,
+                                Err(rollback_error) => {
+                                    format!("{error}; rollback source binding failed: {rollback_error}")
+                                }
+                            }
+                        } else {
+                            error
+                        };
+                        Err((id.0, id.1, error))
+                    }
                 }
             }
             ImportEffect::ScanQueue { destination } => {
@@ -14114,14 +14355,25 @@ mod tests {
                 crate::queue_store::QueueStatus::Interrupted,
             )
             .unwrap();
+        let settings_root = root.join("settings");
+        drop(crate::source_binding::SourceBinding::acquire(
+            &previous,
+            &settings_root,
+        ).unwrap());
 
         let (worker, calls) = controlled_worker();
-        let runtime = ImportRuntime::new(
+        let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
             WorkerPaths {
                 cpu: PathBuf::from("unused-cpu"),
                 gpu: PathBuf::from("unused-gpu"),
             },
             Arc::new(PublicationGate::default()),
+            None,
+            None,
+            None,
+            Some(settings_root.clone()),
+            true,
+            false,
         )
         .with_controlled_transcriber(worker);
         let mut app = ImportApplication::new(RuntimeImportPort {
@@ -14138,6 +14390,30 @@ mod tests {
         })
         .unwrap();
         let resumed_identity = (previous.job_id, previous.generation.next().unwrap());
+        assert!(app.io.runtime.source_bindings.contains_key(&(
+            resumed_identity.0,
+            resumed_identity.1.get()
+        )));
+        assert!(!app.io.runtime.source_bindings.contains_key(&(
+            previous.job_id,
+            previous.generation.get()
+        )));
+        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            previous.generation,
+        )
+        .unwrap()
+        .is_none());
+        drop(crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            resumed_identity.0,
+            resumed_identity.1,
+        )
+        .unwrap()
+        .expect("the durable source binding must follow the resumed generation"));
         let deadline = Instant::now() + Duration::from_secs(60);
         let mut phase = "session not visible".to_owned();
         let mut message = None;
@@ -14164,16 +14440,208 @@ mod tests {
             "verified unified resume did not reach Complete: phase={phase}, message={message:?}"
         );
         assert!(calls.load(Ordering::Relaxed) > 0);
-        assert!(
-            ArchiveStore::scan(&root.join("archive")).unwrap().iter().any(|entry| {
+        let resumed_archive = ArchiveStore::scan(&root.join("archive"))
+            .unwrap()
+            .into_iter()
+            .find(|entry| {
                 (entry.job_id, entry.generation) == resumed_identity && entry.complete
-                    && entry.strategy
-                        == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
-            }),
-            "the resumed generation must be the completed unified archive"
+            })
+            .expect("the resumed generation must be the completed unified archive");
+        assert_eq!(
+            resumed_archive.strategy,
+            whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
         );
+        let export_basename = resumed_archive
+            .export_basename
+            .as_deref()
+            .expect("completed resumed import must expose its export basename");
+        assert!(root.join("archive/exports").join(format!("{export_basename}.txt")).is_file());
+        assert!(root.join("archive/exports").join(format!("{export_basename}.srt")).is_file());
         assert_eq!(hex_sha256(&source_path), source_sha);
+        assert!(app.io.runtime.source_bindings.is_empty());
+        assert!(crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            resumed_identity.0,
+            resumed_identity.1,
+        )
+        .unwrap()
+        .is_none());
+        let mut retained = Vec::new();
+        for offset in 0..2 {
+            let mut capacity_request = previous.clone();
+            capacity_request.job_id = JobId(previous.job_id.0 + 10 + offset);
+            capacity_request.generation = Generation::first();
+            retained.push(
+                crate::source_binding::SourceBinding::acquire(&capacity_request, &settings_root)
+                    .expect("both slots must be reusable after successful resumed publication"),
+            );
+        }
+        let mut third_request = previous.clone();
+        third_request.job_id = JobId(previous.job_id.0 + 12);
+        third_request.generation = Generation::first();
+        let capacity_error = match crate::source_binding::SourceBinding::acquire(
+            &third_request,
+            &settings_root,
+        ) {
+            Err(error) => error,
+            Ok(binding) => {
+                binding.retire().unwrap();
+                panic!("a third retained source snapshot must be refused")
+            }
+        };
+        assert!(capacity_error.contains("SourceSnapshotCapacity"));
+        for binding in retained {
+            binding.retire().unwrap();
+        }
         drop(app);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity() {
+        let root = test_artifact_root("queued-unified-resume-refused").join(format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let source_path = root.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let source_sha = hex_sha256(&source_path);
+        let mut previous = unified_import_request(&root.join("archive"), &source_path, 0x44_200);
+        assert_real_unified_model(&previous);
+        ArchiveStore::identify_source(&mut previous).unwrap();
+        let mut archive = ArchiveStore::new(&previous.destination);
+        archive.prepare(previous.clone()).unwrap();
+        let mut queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
+        queue.enqueue(previous.clone()).unwrap();
+        queue
+            .set_status(
+                previous.job_id,
+                previous.generation,
+                crate::queue_store::QueueStatus::Interrupted,
+            )
+            .unwrap();
+        let settings_root = root.join("settings");
+        drop(crate::source_binding::SourceBinding::acquire(
+            &previous,
+            &settings_root,
+        ).unwrap());
+        let resumed_generation = previous.generation.next().unwrap();
+        let mut conflicting_resumed = previous.clone();
+        conflicting_resumed.generation = resumed_generation;
+        drop(crate::source_binding::SourceBinding::acquire(
+            &conflicting_resumed,
+            &settings_root,
+        ).unwrap());
+
+        let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+            None,
+            None,
+            None,
+            Some(settings_root.clone()),
+            true,
+            false,
+        );
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+            controlled_capture_blocks: None,
+        });
+
+        app.dispatch(AppCommand::ResumeInterrupted {
+            request: previous.clone(),
+        })
+        .unwrap();
+        let mut observed_message = None;
+        let mut observed_recoverable = false;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            observed_message = view.message.clone();
+            observed_recoverable = view.unified_parakeet_sessions.iter().any(|session| {
+                (session.job_id, session.generation)
+                    == (previous.job_id, resumed_generation)
+                    && session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
+            });
+            if observed_recoverable {
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(observed_recoverable, "resume conflict must become terminal and visible: {observed_message:?}");
+        let queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
+        assert!(queue.entries().iter().any(|entry| {
+            (entry.request.job_id, entry.request.generation)
+                == (previous.job_id, previous.generation)
+                && entry.status == crate::queue_store::QueueStatus::Interrupted
+        }));
+        assert!(app.io.runtime.source_bindings.contains_key(&(
+            previous.job_id,
+            previous.generation.get()
+        )));
+        assert!(app.io.runtime.source_bindings.contains_key(&(
+            previous.job_id,
+            resumed_generation.get()
+        )));
+        let old_binding = crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            previous.generation,
+        )
+        .unwrap()
+        .expect("failed resume must keep the original durable binding");
+        assert_eq!(old_binding.source_sha256(), previous.source_sha256.unwrap());
+        drop(old_binding);
+        let conflicting_binding = crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            resumed_generation,
+        )
+        .unwrap()
+        .expect("an ambiguous resumed binding must not be silently removed");
+        assert_eq!(conflicting_binding.source_sha256(), previous.source_sha256.unwrap());
+        drop(conflicting_binding);
+        assert_eq!(hex_sha256(&source_path), source_sha);
+        assert!(observed_message
+            .as_deref()
+            .is_some_and(|message| message.contains("SourceSnapshotMismatch")));
+        drop(app);
+        let retained = crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            previous.generation,
+        )
+        .unwrap()
+        .expect("the original binding remains available after the refusal");
+        retained.retire().unwrap();
+        crate::source_binding::SourceBinding::reopen_for_identity(
+            &settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            resumed_generation,
+        )
+        .unwrap()
+        .expect("conflicting resumed binding remains available for explicit recovery")
+        .retire()
+        .unwrap();
         std::fs::remove_dir_all(&root).unwrap();
     }
 
@@ -18461,8 +18929,21 @@ mod tests {
             assert_eq!(composed_route.compute, ComputeChoice::Gpu);
             assert!(composed_route.candidate.is_some());
         }
-        if compute == ComputeChoice::Auto && composed_route.compute == ComputeChoice::Cpu {
-            assert!(composed_route.fallback_reason.is_some());
+        if compute == ComputeChoice::Auto && include_current_gpu_candidate {
+            assert_eq!(
+                composed_route.compute,
+                ComputeChoice::Gpu,
+                "Auto must prefer the current eligible GPU candidate; fallback={:?}",
+                composed_route.fallback_reason
+            );
+            assert!(composed_route.candidate.is_some());
+        }
+        if compute == ComputeChoice::Auto && !include_current_gpu_candidate {
+            assert_eq!(composed_route.compute, ComputeChoice::Cpu);
+            assert_eq!(
+                composed_route.fallback_reason.as_deref(),
+                Some("No current GPU candidate was available before audio")
+            );
         }
         assert_eq!(
             composed_route.compute == ComputeChoice::Gpu,
