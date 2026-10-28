@@ -14773,7 +14773,7 @@ mod tests {
         })
         .unwrap();
         let resumed_identity = (previous.job_id, previous.generation.next().unwrap());
-        assert!(
+        if let Some(previous_binding) =
             crate::source_binding::SourceBinding::reopen_for_identity(
                 &settings_root,
                 Path::new(&previous.destination),
@@ -14781,8 +14781,14 @@ mod tests {
                 previous.generation,
             )
             .unwrap()
-            .is_none()
-        );
+        {
+            drop(previous_binding);
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            panic!(
+                "resume retained the interrupted source binding: active_job={:?}, message={:?}",
+                view.active_job, view.message
+            );
+        }
         drop(
             crate::source_binding::SourceBinding::reopen_for_identity(
                 &settings_root,
