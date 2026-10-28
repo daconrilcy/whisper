@@ -14551,10 +14551,11 @@ mod tests {
                         IMPORT_PORT_EVENT_TRACE.with(|trace| *trace.borrow_mut() = None);
                         panic!(
                             "durable queued import Refresh failed ({seconds}s, {compute:?}, identity={identity:?}): {error}; session={:?}; events={trace:?}",
-                            app.view()
-                                .unified_parakeet_sessions
-                                .iter()
-                                .find(|session| (session.job_id, session.generation) == identity)
+                            app.view().unified_parakeet_sessions.iter().find(|session| (
+                                session.job_id,
+                                session.generation
+                            )
+                                == identity)
                         );
                     }
                 };
