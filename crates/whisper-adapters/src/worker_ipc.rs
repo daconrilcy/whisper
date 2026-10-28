@@ -14395,6 +14395,222 @@ mod tests {
         assert_eq!(entry.export_basename, None);
     }
 
+    fn assert_app_view_external_publication(
+        session: &whisper_core::ports::UnifiedParakeetSessionView,
+        archive_root: &Path,
+        expected_basename: &str,
+        expected_source_sha256: &str,
+        expected_samples: u64,
+    ) {
+        #[derive(serde::Deserialize)]
+        struct Artifact {
+            path: String,
+            sha256: String,
+            bytes: u64,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct Manifest {
+            version: u32,
+            job_id: JobId,
+            generation: Generation,
+            source_sha256: String,
+            segments: u64,
+            text: Artifact,
+            srt: Artifact,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct PublicationIntent {
+            version: u32,
+            choice: DuplicateImportChoice,
+            source_sha256: String,
+            source_samples: u64,
+            export_basename: String,
+            internal_only: bool,
+        }
+
+        let assert_no_reparse = |path: &Path| {
+            let relative = path.strip_prefix(archive_root).unwrap_or_else(|_| {
+                panic!(
+                    "publication path escaped archive root {}: {}",
+                    archive_root.display(),
+                    path.display()
+                )
+            });
+            let mut current = archive_root.to_path_buf();
+            for component in relative.components() {
+                current.push(component.as_os_str());
+                let metadata = std::fs::symlink_metadata(&current).unwrap_or_else(|error| {
+                    panic!(
+                        "stat publication path {}: {error}",
+                        current.display()
+                    )
+                });
+                assert!(
+                    !metadata.file_type().is_symlink(),
+                    "publication path must not contain a reparse link: {}",
+                    current.display()
+                );
+            }
+        };
+
+        assert_eq!(
+            session.phase,
+            whisper_core::ports::UnifiedSessionPhase::Complete
+        );
+        let canonical_root = archive_root.canonicalize().unwrap();
+        assert_eq!(
+            Path::new(&session.destination).canonicalize().unwrap(),
+            canonical_root
+        );
+        let generation_directory = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", session.job_id.0))
+            .join(session.generation.get().to_string());
+        let canonical_generation = generation_directory.canonicalize().unwrap();
+        assert!(canonical_generation.starts_with(&canonical_root));
+        assert_no_reparse(&generation_directory);
+
+        let current_path = generation_directory.join("CURRENT");
+        assert_no_reparse(&current_path);
+        assert_eq!(std::fs::read(&current_path).unwrap(), b"manifest.json\n");
+        let manifest_path = generation_directory.join("manifest.json");
+        assert_no_reparse(&manifest_path);
+        let manifest: Manifest =
+            serde_json::from_slice(&std::fs::read(&manifest_path).unwrap())
+                .expect("parse the completed external publication manifest");
+        assert_eq!(manifest.version, 1);
+        assert_eq!(manifest.job_id, session.job_id);
+        assert_eq!(manifest.generation, session.generation);
+        assert!(manifest.segments > 0);
+        assert_eq!(manifest.source_sha256, expected_source_sha256);
+
+        let intent_path = generation_directory.join("r11-publication.json");
+        assert_no_reparse(&intent_path);
+        let intent: PublicationIntent =
+            serde_json::from_slice(&std::fs::read(&intent_path).unwrap())
+                .expect("parse the external publication intent");
+        assert_eq!(intent.version, 1);
+        assert_eq!(intent.choice, DuplicateImportChoice::CreateNew);
+        assert!(!intent.internal_only);
+        assert_eq!(intent.export_basename, expected_basename);
+        assert_eq!(intent.source_sha256, manifest.source_sha256);
+        assert_eq!(intent.source_samples, expected_samples);
+        assert_eq!(session.total_samples, Some(expected_samples));
+
+        let internal_artifact = |artifact: &Artifact, expected_name: &str| {
+            assert_eq!(artifact.path, expected_name);
+            let path = generation_directory.join(&artifact.path);
+            assert_no_reparse(&path);
+            let canonical = path.canonicalize().unwrap();
+            assert!(canonical.starts_with(&canonical_generation));
+            assert!(std::fs::metadata(&canonical).unwrap().is_file());
+            assert_eq!(std::fs::metadata(&canonical).unwrap().len(), artifact.bytes);
+            assert_eq!(
+                crate::parakeet_import::sha256_file(&canonical).unwrap(),
+                artifact.sha256
+            );
+        };
+        internal_artifact(&manifest.text, "transcript.txt");
+        internal_artifact(&manifest.srt, "transcript.srt");
+
+        let exports_directory = archive_root.join("exports");
+        assert_no_reparse(&exports_directory);
+        let canonical_exports = exports_directory.canonicalize().unwrap();
+        assert!(canonical_exports.starts_with(&canonical_root));
+        let external_artifact = |path: &Path, artifact: &Artifact| {
+            assert_no_reparse(path);
+            let canonical = path.canonicalize().unwrap();
+            assert_eq!(canonical.parent(), Some(canonical_exports.as_path()));
+            assert!(std::fs::metadata(&canonical).unwrap().is_file());
+            assert_eq!(std::fs::metadata(&canonical).unwrap().len(), artifact.bytes);
+            assert_eq!(
+                crate::parakeet_import::sha256_file(&canonical).unwrap(),
+                artifact.sha256
+            );
+            canonical
+        };
+        let expected_txt = external_artifact(
+            &exports_directory.join(format!("{expected_basename}.txt")),
+            &manifest.text,
+        );
+        let expected_srt = external_artifact(
+            &exports_directory.join(format!("{expected_basename}.srt")),
+            &manifest.srt,
+        );
+        let wav_path = generation_directory.join("parakeet-unified/source.wav");
+        assert_no_reparse(&wav_path);
+        let canonical_wav = wav_path.canonicalize().unwrap();
+        assert!(canonical_wav.starts_with(&canonical_generation));
+        let wav_index_path = wav_path.with_extension("parts.idx");
+        assert_no_reparse(&wav_index_path);
+        let canonical_index = wav_index_path.canonicalize().unwrap();
+        assert!(canonical_index.starts_with(&canonical_generation));
+        let index_sha256 = crate::parakeet_import::sha256_file(&canonical_index).unwrap();
+
+        let app_wav = session.wav_path.as_deref().expect("AppView WAV reference");
+        let app_txt = session
+            .txt_path
+            .as_deref()
+            .expect("AppView external TXT reference");
+        let app_srt = session
+            .srt_path
+            .as_deref()
+            .expect("AppView external SRT reference");
+        assert_eq!(Path::new(app_wav).canonicalize().unwrap(), canonical_wav);
+        assert_eq!(Path::new(app_txt).canonicalize().unwrap(), expected_txt);
+        assert_eq!(Path::new(app_srt).canonicalize().unwrap(), expected_srt);
+
+        let audio = crate::parakeet_audio::PcmPartStore::open(&canonical_wav);
+        let total_samples = audio.total_samples().unwrap();
+        assert_eq!(Some(total_samples), session.total_samples);
+        assert_eq!(total_samples, expected_samples);
+        let mut offset = 0_u64;
+        let mut covered = 0_u64;
+        let mut expected_number = 1_u64;
+        loop {
+            let page = audio.read_page(offset, 128).unwrap();
+            if page.is_empty() {
+                break;
+            }
+            for part in &page {
+                assert_eq!(part.number, expected_number);
+                assert_eq!(part.start_sample, covered);
+                assert!(part.end_sample > part.start_sample);
+                let canonical_part = part.path.canonicalize().unwrap();
+                assert!(canonical_part.starts_with(&canonical_generation));
+                assert_no_reparse(&part.path);
+                if expected_number == 1 {
+                    assert_eq!(canonical_part, canonical_wav);
+                }
+                covered = part.end_sample;
+                expected_number += 1;
+            }
+            offset += page.len() as u64;
+        }
+        assert_eq!(covered, total_samples);
+        assert_eq!(session.captured_samples, covered);
+        assert_eq!(session.durable_samples, covered);
+        assert!(std::fs::metadata(canonical_index).unwrap().is_file());
+        assert_eq!(
+            crate::parakeet_import::sha256_file(&wav_index_path.canonicalize().unwrap())
+                .unwrap(),
+            index_sha256,
+            "WAV parts index must remain unchanged while the external AppView is read"
+        );
+
+        let entry = ArchiveStore::scan(archive_root)
+            .unwrap()
+            .into_iter()
+            .find(|entry| entry.job_id == session.job_id && entry.generation == session.generation)
+            .expect("external AppView publication must remain in archive history");
+        assert!(entry.complete);
+        assert_eq!(entry.source_sha256, manifest.source_sha256);
+        assert_eq!(entry.source_sha256, expected_source_sha256);
+        assert_eq!(entry.export_basename.as_deref(), Some(expected_basename));
+    }
+
     fn enqueue_import_with_choice(
         app: &mut ImportApplication<RuntimeImportPort>,
         request: ImportRequest,
@@ -23173,7 +23389,13 @@ mod tests {
         assert_eq!(complete.total_samples, Some(expected_samples));
         assert_eq!(complete.captured_samples, expected_samples);
         assert_eq!(complete.durable_samples, expected_samples);
-        assert_app_view_internal_publication(&complete, &archive_root);
+        assert_app_view_external_publication(
+            &complete,
+            &archive_root,
+            "fr-long-35m",
+            &source_sha,
+            expected_samples,
+        );
         assert_eq!(
             crate::parakeet_import::sha256_file(&source_path).unwrap(),
             source_sha
