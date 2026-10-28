@@ -2115,26 +2115,117 @@ impl ArchiveStore {
                 .map_err(|error| format!("PublicationUnavailable: export intent: {error}"))?,
         )
         .map_err(|error| format!("StorageCorrupt: unified export intent: {error}"))?;
-        if intent.internal_only {
-            return Err("PublicationUnavailable: unified exports are internal only".into());
-        }
         let wav_path = directory.join("parakeet-unified/source.wav");
-        let txt_path = root
-            .join("exports")
-            .join(format!("{}.txt", intent.export_basename));
-        let srt_path = root
-            .join("exports")
-            .join(format!("{}.srt", intent.export_basename));
-        verify_artifact(&directory, &manifest.text)?;
-        verify_artifact(&directory, &manifest.srt)?;
-        if !wav_path.with_extension("parts.idx").is_file()
-            || !txt_path.is_file()
-            || !srt_path.is_file()
-        {
-            return Err(
-                "PublicationUnavailable: unified audio or TXT/SRT reference is missing".into(),
-            );
-        }
+        let (wav_path, txt_path, srt_path) = if intent.internal_only {
+            if intent.choice != DuplicateImportChoice::CreateNew
+                || manifest.source_sha256 != intent.source_sha256
+            {
+                return Err("StaleResponse: internal publication intent does not match manifest".into());
+            }
+            let canonical_directory = directory
+                .canonicalize()
+                .map_err(|error| format!("PublicationUnavailable: generation directory: {error}"))?;
+            let txt_path = verify_internal_unified_artifact(
+                &directory,
+                &canonical_directory,
+                &manifest.text,
+                "transcript.txt",
+            )?;
+            let srt_path = verify_internal_unified_artifact(
+                &directory,
+                &canonical_directory,
+                &manifest.srt,
+                "transcript.srt",
+            )?;
+            let wav_path = canonical_internal_unified_path(
+                &wav_path,
+                &canonical_directory,
+                "parakeet-unified/source.wav",
+            )?;
+            let index_path = canonical_internal_unified_path(
+                &wav_path.with_extension("parts.idx"),
+                &canonical_directory,
+                "parakeet-unified/source.parts.idx",
+            )?;
+            let index_before = sha256_file(&index_path)
+                .map_err(|error| format!("AudioPartsUnavailable: {error}"))?;
+            let audio = crate::parakeet_audio::PcmPartStore::open(&wav_path);
+            let total_samples = audio
+                .total_samples()
+                .map_err(|error| format!("AudioPartsUnavailable: {error}"))?;
+            if total_samples == 0 || total_samples != intent.source_samples {
+                return Err("StorageCorrupt: internal audio index total does not match publication".into());
+            }
+            let mut offset = 0_u64;
+            let mut covered = 0_u64;
+            let mut expected_number = 1_u64;
+            let mut first_page = true;
+            loop {
+                let page = Self::read_unified_audio_parts_page(
+                    root,
+                    job_id,
+                    generation,
+                    0,
+                    offset,
+                    128,
+                )?;
+                if page.entries.is_empty() {
+                    break;
+                }
+                for part in &page.entries {
+                    if part.number != expected_number
+                        || part.start_sample != covered
+                        || part.end_sample <= part.start_sample
+                        || part.end_sample > total_samples
+                    {
+                        return Err("StorageCorrupt: internal audio parts are not contiguous".into());
+                    }
+                    let part_path = canonical_internal_unified_path(
+                        Path::new(&part.path),
+                        &canonical_directory,
+                        if expected_number == 1 {
+                            "parakeet-unified/source.wav"
+                        } else {
+                            "parakeet-unified/source part"
+                        },
+                    )?;
+                    if first_page && expected_number == 1 && part_path != wav_path {
+                        return Err("StorageCorrupt: first internal audio part is not source.wav".into());
+                    }
+                    first_page = false;
+                    covered = part.end_sample;
+                    expected_number = expected_number.saturating_add(1);
+                }
+                offset = offset
+                    .checked_add(page.entries.len() as u64)
+                    .ok_or_else(|| "StorageCorrupt: internal audio page offset overflow".to_owned())?;
+                if page.next_offset.is_none() {
+                    break;
+                }
+            }
+            if covered != total_samples || sha256_file(&index_path)? != index_before {
+                return Err("SourceChanged: internal audio index changed during publication read".into());
+            }
+            (wav_path, txt_path, srt_path)
+        } else {
+            let txt_path = root
+                .join("exports")
+                .join(format!("{}.txt", intent.export_basename));
+            let srt_path = root
+                .join("exports")
+                .join(format!("{}.srt", intent.export_basename));
+            verify_artifact(&directory, &manifest.text)?;
+            verify_artifact(&directory, &manifest.srt)?;
+            if !wav_path.with_extension("parts.idx").is_file()
+                || !txt_path.is_file()
+                || !srt_path.is_file()
+            {
+                return Err(
+                    "PublicationUnavailable: unified audio or TXT/SRT reference is missing".into(),
+                );
+            }
+            (wav_path, txt_path, srt_path)
+        };
         Ok(whisper_core::ports::UnifiedPublicationFiles {
             wav_path: wav_path.to_string_lossy().into_owned(),
             txt_path: txt_path.to_string_lossy().into_owned(),
@@ -7392,6 +7483,50 @@ fn verify_artifact(directory: &Path, artifact: &ArtifactRecord) -> Result<(), St
     }
     Ok(())
 }
+
+fn verify_internal_unified_artifact(
+    directory: &Path,
+    canonical_directory: &Path,
+    artifact: &ArtifactRecord,
+    expected_name: &str,
+) -> Result<PathBuf, String> {
+    if artifact.path != expected_name {
+        return Err(format!(
+            "StorageCorrupt: unexpected internal publication path: {}",
+            artifact.path
+        ));
+    }
+    let path = canonical_internal_unified_path(
+        &directory.join(&artifact.path),
+        canonical_directory,
+        expected_name,
+    )?;
+    let metadata = fs::metadata(&path)
+        .map_err(|error| format!("StorageCorrupt: {}: {error}", artifact.path))?;
+    if metadata.len() != artifact.bytes || hex(&sha256_file(&path)?) != artifact.sha256 {
+        return Err(format!(
+            "StorageCorrupt: artifact verification failed: {}",
+            artifact.path
+        ));
+    }
+    Ok(path)
+}
+
+fn canonical_internal_unified_path(
+    path: &Path,
+    canonical_directory: &Path,
+    description: &str,
+) -> Result<PathBuf, String> {
+    let canonical = fs::canonicalize(path)
+        .map_err(|error| format!("PublicationUnavailable: {description}: {error}"))?;
+    if !canonical.starts_with(canonical_directory) {
+        return Err(format!(
+            "StorageCorrupt: internal publication path escapes generation: {description}"
+        ));
+    }
+    Ok(canonical)
+}
+
 fn verify_pcm_staging(
     directory: &Path,
     artifact: &ArtifactRecord,
@@ -7606,6 +7741,191 @@ mod tests {
         let mut other_model = gpu;
         other_model.model.push_str("-other");
         assert!(!cpu.permits_bounded_resume_to(&other_model));
+    }
+
+    #[test]
+    fn create_only_publication_returns_verified_internal_unified_artifacts_without_external_exports()
+    {
+        let root = std::env::temp_dir().join(format!(
+            "whisper-create-only-publication-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let job_id = JobId(0x51_001);
+        let generation = Generation::first();
+        let directory = generation_path(&root, job_id, generation);
+        let source_path = directory.join("parakeet-unified/source.wav");
+        fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 16_000]).unwrap();
+        assert_eq!(writer.finish().unwrap(), 16_000);
+
+        let text = b"verified internal transcript";
+        let srt = b"1\n00:00:00,000 --> 00:00:01,000\nverified internal transcript\n";
+        fs::write(directory.join("transcript.txt"), text).unwrap();
+        fs::write(directory.join("transcript.srt"), srt).unwrap();
+        let manifest = CompleteRecord {
+            version: 1,
+            job_id,
+            generation,
+            source_sha256: "51".repeat(32),
+            segments: 1,
+            text: verified_artifact(&directory, &directory.join("transcript.txt")).unwrap(),
+            srt: verified_artifact(&directory, &directory.join("transcript.srt")).unwrap(),
+        };
+        fs::write(
+            directory.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+        let intent = PublicationIntent {
+            version: 1,
+            operation_id: "create-only-publication-test".into(),
+            choice: DuplicateImportChoice::CreateNew,
+            source_sha256: manifest.source_sha256.clone(),
+            source_samples: 16_000,
+            expected_active: Vec::new(),
+            export_basename: "transcript".into(),
+            internal_only: true,
+            cleanup_id: None,
+            cleanup_targets: Vec::new(),
+        };
+        fs::write(
+            directory.join("r11-publication.json"),
+            serde_json::to_vec(&intent).unwrap(),
+        )
+        .unwrap();
+        fs::write(directory.join("CURRENT"), b"manifest.json\n").unwrap();
+        write_publication_index(
+            &root,
+            &PublicationIndex {
+                version: 1,
+                records: vec![PublicationRecord {
+                    job_id,
+                    generation,
+                    source_sha256: manifest.source_sha256.clone(),
+                    export_basename: None,
+                    active: true,
+                    success_ordinal: Some(1),
+                }],
+            },
+        )
+        .unwrap();
+
+        let exports = root.join("exports");
+        fs::create_dir_all(&exports).unwrap();
+        let sentinel_txt = b"pre-existing external TXT";
+        let sentinel_srt = b"pre-existing external SRT";
+        fs::write(exports.join("transcript.txt"), sentinel_txt).unwrap();
+        fs::write(exports.join("transcript.srt"), sentinel_srt).unwrap();
+
+        let reserved_request = ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            job_id: JobId(job_id.0 + 1),
+            generation,
+            source_path: source_path.to_string_lossy().into_owned(),
+            source_sha256: Some([0x52; 32]),
+            source_samples: Some(16_000),
+            model_path: "unused-model".into(),
+            model_sha256: [0; 32],
+            destination: root.to_string_lossy().into_owned(),
+            config: whisper_core::JobConfig {
+                language: whisper_core::LanguageChoice::Automatic,
+                compute: whisper_core::ComputeChoice::Cpu,
+            },
+        };
+        ArchiveStore::reserve_create_only_new_import(
+            &root,
+            &reserved_request,
+            &"52".repeat(32),
+        )
+        .unwrap();
+        let reservation_path = publication_reservation_path(
+            &root,
+            reserved_request.job_id,
+            reserved_request.generation,
+        );
+        let reservation_before = fs::read(&reservation_path).unwrap();
+        let index_path = publication_index_path(&root);
+        let index_before = fs::read(&index_path).unwrap();
+
+        let files = ArchiveStore::published_unified_files(&root, job_id, generation).unwrap();
+        let expected_wav = source_path.canonicalize().unwrap();
+        let expected_txt = directory.join("transcript.txt").canonicalize().unwrap();
+        let expected_srt = directory.join("transcript.srt").canonicalize().unwrap();
+        assert_eq!(Path::new(&files.wav_path), expected_wav.as_path());
+        assert_eq!(Path::new(&files.txt_path), expected_txt.as_path());
+        assert_eq!(Path::new(&files.srt_path), expected_srt.as_path());
+        assert_eq!(fs::read(&files.txt_path).unwrap(), text);
+        assert_eq!(fs::read(&files.srt_path).unwrap(), srt);
+        assert_eq!(fs::read(exports.join("transcript.txt")).unwrap(), sentinel_txt);
+        assert_eq!(fs::read(exports.join("transcript.srt")).unwrap(), sentinel_srt);
+        assert_eq!(fs::read(&reservation_path).unwrap(), reservation_before);
+        assert_eq!(fs::read(&index_path).unwrap(), index_before);
+
+        let mut corrupt_manifest = manifest.clone();
+        corrupt_manifest.text.path = "../exports/transcript.txt".into();
+        fs::write(
+            directory.join("manifest.json"),
+            serde_json::to_vec(&corrupt_manifest).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            ArchiveStore::published_unified_files(&root, job_id, generation)
+                .unwrap_err()
+                .contains("unexpected internal publication path")
+        );
+
+        fs::write(
+            directory.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+        fs::write(directory.join("transcript.txt"), b"altered transcript").unwrap();
+        assert!(
+            ArchiveStore::published_unified_files(&root, job_id, generation)
+                .unwrap_err()
+                .contains("artifact verification failed")
+        );
+        fs::write(directory.join("transcript.txt"), text).unwrap();
+
+        fs::remove_file(directory.join("transcript.srt")).unwrap();
+        assert!(
+            ArchiveStore::published_unified_files(&root, job_id, generation).is_err(),
+            "a missing internal SRT must remain unavailable"
+        );
+        fs::write(directory.join("transcript.srt"), srt).unwrap();
+
+        let mut mismatched_manifest = manifest.clone();
+        mismatched_manifest.job_id = JobId(job_id.0 + 2);
+        fs::write(
+            directory.join("manifest.json"),
+            serde_json::to_vec(&mismatched_manifest).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            ArchiveStore::published_unified_files(&root, job_id, generation)
+                .unwrap_err()
+                .contains("StaleResponse")
+        );
+        fs::write(
+            directory.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        let index = source_path.with_extension("parts.idx");
+        let valid_index = fs::read(&index).unwrap();
+        fs::write(&index, [valid_index.as_slice(), b"x"].concat()).unwrap();
+        assert!(ArchiveStore::published_unified_files(&root, job_id, generation).is_err());
+        fs::write(&index, valid_index).unwrap();
+        assert!(
+            ArchiveStore::published_unified_files(&root, JobId(job_id.0 + 3), generation).is_err()
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

@@ -14286,6 +14286,114 @@ mod tests {
         );
     }
 
+    fn assert_app_view_internal_publication(
+        session: &whisper_core::ports::UnifiedParakeetSessionView,
+        archive_root: &Path,
+    ) {
+        #[derive(serde::Deserialize)]
+        struct Artifact {
+            path: String,
+            sha256: String,
+            bytes: u64,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct Manifest {
+            version: u32,
+            job_id: JobId,
+            generation: Generation,
+            source_sha256: String,
+            segments: u64,
+            text: Artifact,
+            srt: Artifact,
+        }
+
+        assert_eq!(
+            session.phase,
+            whisper_core::ports::UnifiedSessionPhase::Complete
+        );
+        let generation_directory = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", session.job_id.0))
+            .join(session.generation.get().to_string());
+        assert_eq!(
+            std::fs::read(generation_directory.join("CURRENT")).unwrap(),
+            b"manifest.json\n"
+        );
+        let manifest: Manifest = serde_json::from_slice(
+            &std::fs::read(generation_directory.join("manifest.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(manifest.version, 1);
+        assert_eq!(manifest.job_id, session.job_id);
+        assert_eq!(manifest.generation, session.generation);
+        assert!(manifest.segments > 0);
+        let canonical_generation = generation_directory.canonicalize().unwrap();
+        let expected_artifact = |artifact: &Artifact, expected_name: &str| {
+            assert_eq!(artifact.path, expected_name);
+            let path = generation_directory.join(&artifact.path);
+            let canonical = path.canonicalize().unwrap();
+            assert!(canonical.starts_with(&canonical_generation));
+            let metadata = std::fs::metadata(&canonical).unwrap();
+            assert_eq!(metadata.len(), artifact.bytes);
+            assert_eq!(
+                crate::parakeet_import::sha256_file(&canonical).unwrap(),
+                artifact.sha256
+            );
+            canonical
+        };
+        let expected_txt = expected_artifact(&manifest.text, "transcript.txt");
+        let expected_srt = expected_artifact(&manifest.srt, "transcript.srt");
+        let expected_wav = generation_directory
+            .join("parakeet-unified/source.wav")
+            .canonicalize()
+            .unwrap();
+        assert!(expected_wav.starts_with(&canonical_generation));
+        let wav_path = session.wav_path.as_deref().expect("AppView WAV reference");
+        let txt_path = session.txt_path.as_deref().expect("AppView TXT reference");
+        let srt_path = session.srt_path.as_deref().expect("AppView SRT reference");
+        assert_eq!(Path::new(wav_path), expected_wav);
+        assert_eq!(Path::new(txt_path), expected_txt);
+        assert_eq!(Path::new(srt_path), expected_srt);
+        let audio = crate::parakeet_audio::PcmPartStore::open(Path::new(wav_path));
+        assert_eq!(audio.total_samples().unwrap(), session.total_samples.unwrap());
+        let mut offset = 0_u64;
+        let mut covered = 0_u64;
+        let mut expected_number = 1_u64;
+        loop {
+            let page = audio.read_page(offset, 128).unwrap();
+            if page.is_empty() {
+                break;
+            }
+            for part in &page {
+                assert_eq!(part.number, expected_number);
+                assert_eq!(part.start_sample, covered);
+                assert!(part.end_sample > part.start_sample);
+                let canonical_part = part.path.canonicalize().unwrap();
+                assert!(canonical_part.starts_with(&canonical_generation));
+                if expected_number == 1 {
+                    assert_eq!(canonical_part, expected_wav);
+                }
+                covered = part.end_sample;
+                expected_number += 1;
+            }
+            offset += page.len() as u64;
+        }
+        assert_eq!(covered, session.total_samples.unwrap());
+        assert_eq!(session.captured_samples, covered);
+        assert_eq!(session.durable_samples, covered);
+        let entry = ArchiveStore::scan(archive_root)
+            .unwrap()
+            .into_iter()
+            .find(|entry| {
+                entry.job_id == session.job_id && entry.generation == session.generation
+            })
+            .expect("AppView publication must remain in archive history");
+        assert!(entry.complete);
+        assert_eq!(entry.source_sha256, manifest.source_sha256);
+        assert_eq!(entry.export_basename, None);
+    }
+
     #[test]
     fn import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports() {
         for (index, (seconds, compute)) in [
@@ -14614,6 +14722,290 @@ mod tests {
             std::fs::remove_dir_all(&root).unwrap();
         }
         IMPORT_PORT_EVENT_TRACE.with(|trace| *trace.borrow_mut() = None);
+    }
+
+    #[test]
+    fn queued_create_only_publication_paths_reach_app_view() {
+        let root = test_artifact_root("queued-create-only-app-view").join(format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let archive_root = root.join("archive");
+        let settings_root = root.join("settings");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        let source_path = root.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
+        writer.finish().unwrap();
+        let mut request = unified_import_request(&archive_root, &source_path, 0x51_101);
+        request.config.compute = ComputeChoice::Cpu;
+        assert_real_unified_model(&request);
+        let (worker, calls) = controlled_worker();
+        let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+            None,
+            None,
+            None,
+            Some(settings_root),
+            true,
+            false,
+        )
+        .with_controlled_transcriber(worker);
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+            controlled_capture_blocks: None,
+        });
+        let identity = (request.job_id, request.generation);
+        app.dispatch(AppCommand::EnqueueImport {
+            request: request.clone(),
+        })
+        .expect("application must durably enqueue the create-only import");
+        let queued = app
+            .dispatch(AppCommand::Refresh)
+            .unwrap()
+            .queue
+            .into_iter()
+            .find(|entry| {
+                (entry.request.job_id, entry.request.generation) == identity
+                    && matches!(
+                        entry.status,
+                        whisper_core::ports::ImportQueueStatus::Queued
+                    )
+            })
+            .expect("AppView must expose the exact queued identity")
+            .request;
+        assert_eq!(queued.strategy, request.strategy);
+        app.dispatch(AppCommand::ProcessQueued { request: queued })
+            .expect("ProcessQueued must prepare the real create-only route");
+
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut observed = None;
+        let mut last_message = None;
+        while Instant::now() < deadline {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            last_message = view.message.clone();
+            if let Some(session) = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| (session.job_id, session.generation) == identity)
+            {
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                    panic!("create-only queued import failed: {session:?}; {last_message:?}");
+                }
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                    observed = Some(session.clone());
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        let complete = observed.unwrap_or_else(|| {
+            panic!("create-only queued import did not complete: {last_message:?}")
+        });
+        assert!(calls.load(Ordering::Relaxed) > 0);
+        assert_app_view_internal_publication(&complete, &archive_root);
+        assert!(
+            last_message
+                .as_deref()
+                .is_none_or(|message| !message.contains("PublicationUnavailable")),
+            "AppView must not expose the former internal-exports refusal: {last_message:?}"
+        );
+        assert!(!archive_root.join("exports/transcript.txt").exists());
+        assert!(!archive_root.join("exports/transcript.srt").exists());
+        drop(app);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn resumed_create_only_publication_paths_reach_app_view() {
+        let root = test_artifact_root("resumed-create-only-app-view").join(format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let archive_root = root.join("archive");
+        let settings_root = root.join("settings");
+        std::fs::create_dir_all(&archive_root).unwrap();
+        let source_path = root.join("source.wav");
+        let checkpoint_samples = whisper_core::parakeet_windows::WINDOW_MAX_SAMPLES;
+        let total_samples = checkpoint_samples + 32_000;
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+        writer.append(&vec![0_i16; total_samples as usize]).unwrap();
+        writer.finish().unwrap();
+        let mut previous = unified_import_request(&archive_root, &source_path, 0x51_102);
+        previous.config.compute = ComputeChoice::Cpu;
+        assert_real_unified_model(&previous);
+        ArchiveStore::identify_source(&mut previous).unwrap();
+        let source_sha = previous.source_sha256.unwrap();
+        ArchiveStore::reserve_create_only_new_import(
+            &archive_root,
+            &previous,
+            &format_sha256(&source_sha),
+        )
+        .unwrap();
+
+        let mut archive = ArchiveStore::new(&archive_root);
+        archive.prepare(previous.clone()).unwrap();
+        let prefix = whisper_core::ports::WorkerSegment {
+            job_id: previous.job_id,
+            generation: previous.generation,
+            instance_id: 1,
+            segment_id: whisper_core::SegmentId(1),
+            range: whisper_core::SourceRange::new(
+                checkpoint_samples - 6_400,
+                checkpoint_samples - 3_200,
+                16_000,
+            )
+            .unwrap(),
+            text: "confirmed create-only prefix".into(),
+        };
+        let unconfirmed = whisper_core::ports::WorkerSegment {
+            job_id: previous.job_id,
+            generation: previous.generation,
+            instance_id: 1,
+            segment_id: whisper_core::SegmentId(2),
+            range: whisper_core::SourceRange::new(
+                checkpoint_samples,
+                checkpoint_samples + 8_000,
+                16_000,
+            )
+            .unwrap(),
+            text: "unconfirmed create-only tail".into(),
+        };
+        archive.persist_segment(&prefix).unwrap();
+        archive.persist_segment(&unconfirmed).unwrap();
+        let previous_directory = archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", previous.job_id.0))
+            .join(previous.generation.get().to_string());
+        let previous_document_directory = previous_directory
+            .join("parakeet-unified")
+            .join("document");
+        let mut document = crate::parakeet_document::ParakeetDocumentStore::create(
+            &previous_document_directory,
+            previous.job_id,
+            previous.generation,
+        )
+        .unwrap();
+        document.append_final(prefix).unwrap();
+        document
+            .record_coverage(whisper_core::ports::ParakeetWindowCoverage {
+                sequence: 1,
+                range: whisper_core::SourceRange::new(0, checkpoint_samples, 16_000).unwrap(),
+                last_segment_sequence: 1,
+            })
+            .unwrap();
+        document.append_final(unconfirmed).unwrap();
+        drop(document);
+
+        let mut queue = crate::queue_store::QueueStore::open(&archive_root).unwrap();
+        queue.enqueue(previous.clone()).unwrap();
+        queue
+            .set_status(
+                previous.job_id,
+                previous.generation,
+                crate::queue_store::QueueStatus::Interrupted,
+            )
+            .unwrap();
+        drop(crate::source_binding::SourceBinding::acquire(&previous, &settings_root).unwrap());
+
+        let (worker, calls) = controlled_worker();
+        let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
+            WorkerPaths {
+                cpu: PathBuf::from("unused-cpu"),
+                gpu: PathBuf::from("unused-gpu"),
+            },
+            Arc::new(PublicationGate::default()),
+            None,
+            None,
+            None,
+            Some(settings_root.clone()),
+            true,
+            false,
+        )
+        .with_controlled_transcriber(worker);
+        let mut app = ImportApplication::new(RuntimeImportPort {
+            runtime,
+            events: VecDeque::new(),
+            capture_progress: None,
+            document_revision: None,
+            unified_stop_submissions: None,
+            controlled_capture_blocks: None,
+        });
+        let identity = (previous.job_id, previous.generation.next().unwrap());
+        app.dispatch(AppCommand::ResumeInterrupted {
+            request: previous.clone(),
+        })
+        .expect("application must resume the durable interrupted request");
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let mut complete = None;
+        let mut last_message = None;
+        while Instant::now() < deadline {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            last_message = view.message.clone();
+            if let Some(session) = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| (session.job_id, session.generation) == identity)
+            {
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                    panic!("create-only resume failed: {session:?}; {last_message:?}");
+                }
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                    complete = Some(session.clone());
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        let completed_session = complete.unwrap_or_else(|| {
+            panic!("create-only resume did not complete: {last_message:?}")
+        });
+        assert!(calls.load(Ordering::Relaxed) > 0);
+        assert_app_view_internal_publication(&completed_session, &archive_root);
+        let published_text = std::fs::read_to_string(
+            completed_session.txt_path.as_deref().unwrap(),
+        )
+        .unwrap();
+        let published_srt = std::fs::read_to_string(
+            completed_session.srt_path.as_deref().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(published_text.matches("confirmed create-only prefix").count(), 1);
+        assert_eq!(published_srt.matches("confirmed create-only prefix").count(), 1);
+        assert!(!published_text.contains("unconfirmed create-only tail"));
+        assert!(!published_srt.contains("unconfirmed create-only tail"));
+        assert!(!archive_root.join("exports/transcript.txt").exists());
+        assert!(!archive_root.join("exports/transcript.srt").exists());
+        assert_eq!(crate::parakeet_import::sha256_file(&source_path).unwrap(), source_sha);
+        assert!(
+            crate::source_binding::SourceBinding::reopen_for_identity(
+                &settings_root,
+                &archive_root,
+                identity.0,
+                identity.1,
+            )
+            .unwrap()
+            .is_none(),
+            "completed resumed publication must release the transferred source binding"
+        );
+        drop(app);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -19872,6 +20264,7 @@ mod tests {
         assert_eq!(complete.total_samples, Some(expected_samples));
         assert_eq!(complete.captured_samples, expected_samples);
         assert_eq!(complete.durable_samples, expected_samples);
+        assert_app_view_internal_publication(&complete, &archive_root);
         assert_eq!(
             crate::parakeet_import::sha256_file(&source_path).unwrap(),
             source_sha
@@ -22300,6 +22693,7 @@ mod tests {
         assert_eq!(complete.total_samples, Some(expected_samples));
         assert_eq!(complete.captured_samples, expected_samples);
         assert_eq!(complete.durable_samples, expected_samples);
+        assert_app_view_internal_publication(&complete, &archive_root);
         assert_eq!(
             crate::parakeet_import::sha256_file(&source_path).unwrap(),
             source_sha
