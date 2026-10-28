@@ -15218,10 +15218,6 @@ mod tests {
         .expect("the earlier unselected result must remain readable");
         assert_eq!(Path::new(&first_result.txt_path), first_txt_path);
         assert_eq!(Path::new(&first_result.srt_path), first_srt_path);
-        assert!(
-            !second_txt_path.exists() && !second_srt_path.exists(),
-            "ReplaceLatest must retire its selected prior result while preserving earlier results"
-        );
 
         let reprocessed_intent_path = archive_root
             .join("transcriptions")
@@ -15229,6 +15225,59 @@ mod tests {
             .join(reprocessed_identity.1.get().to_string())
             .join("r11-publication.json");
         let valid_reprocessed_intent = std::fs::read(&reprocessed_intent_path).unwrap();
+        let source_sha256_hex = format_sha256(&source_sha);
+        let catalog =
+            ArchiveStore::reprocessing_catalog(&archive_root, &source_sha256_hex).unwrap();
+        let publication_for = |job_id, generation| {
+            catalog
+                .iter()
+                .find(|entry| entry.job_id == job_id && entry.generation == generation)
+                .unwrap_or_else(|| panic!("published treatment missing from catalog: {catalog:?}"))
+        };
+        let earlier = publication_for(completed_session.job_id, completed_session.generation);
+        let selected = publication_for(second.job_id, second.generation);
+        let current = publication_for(reprocessed.job_id, reprocessed.generation);
+        assert!(earlier.active && earlier.verified_present, "{catalog:?}");
+        assert!(!selected.active, "selected prior result remains active: {catalog:?}");
+        assert!(current.active && current.verified_present, "{catalog:?}");
+        assert_eq!(
+            catalog.iter().filter(|entry| entry.active).count(),
+            2,
+            "ReplaceLatest must deactivate only its selected prior result: {catalog:?}"
+        );
+
+        let intent_value: serde_json::Value =
+            serde_json::from_slice(&valid_reprocessed_intent).unwrap();
+        let cleanup_id = intent_value["cleanup_id"].as_str().unwrap();
+        let cleanup_plan_path = archive_root
+            .join(".whisper-publications")
+            .join("replacement-cleanups")
+            .join(format!("{cleanup_id}.json"));
+        let cleanup_plan: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&cleanup_plan_path).unwrap()).unwrap();
+        let targets = cleanup_plan["targets"].as_array().unwrap();
+        assert_eq!(cleanup_plan["published"], true, "{cleanup_plan}");
+        assert_eq!(
+            cleanup_plan["successor"]["job_id"],
+            serde_json::json!(reprocessed.job_id.0),
+            "{cleanup_plan}"
+        );
+        assert_eq!(
+            cleanup_plan["successor"]["generation"],
+            serde_json::json!(reprocessed.generation.get()),
+            "{cleanup_plan}"
+        );
+        assert_eq!(targets.len(), 1, "{cleanup_plan}");
+        assert_eq!(
+            targets[0]["treatment"]["job_id"],
+            serde_json::json!(second.job_id.0),
+            "cleanup must target only the selected prior publication: {cleanup_plan}"
+        );
+        assert_eq!(
+            targets[0]["treatment"]["generation"],
+            serde_json::json!(second.generation.get()),
+            "cleanup must target only the selected prior publication: {cleanup_plan}"
+        );
         let mut altered_operation =
             serde_json::from_slice::<serde_json::Value>(&valid_reprocessed_intent).unwrap();
         altered_operation["operation_id"] = serde_json::Value::String(format!(
