@@ -1644,3 +1644,17 @@ Les deux fichiers application.rs et ui.rs restent ouverts uniquement pour les te
 **Revue documentaire §48 avant soumission.** Même reviewer : CLEAN documentaire, périmètre de cinq fichiers fonctionnels justifié (curseur core et quatre adaptateurs), aucun port/application fonctionnel ajouté ; sept chemins de formatage par union avec le §47 et sept tâches. Preuves attendues : préfixe/couverture/jointure/cohérence d'état, erreurs et préservation, pagination multi-pages, revue fonctionnelle avant huit natifs puis qualification sur SHA unique. La politique de segments au-delà du checkpoint reste une décision produit explicite : préfixe couvert canonique promu, suffixe recalculé, ancienne génération intacte ; alternative refus de toute reprise partielle. Code et tests du §48 NOT RUN ; aucune autorisation implicite d'implémenter.
 
 **Accord précis §48 reçu.** L'utilisateur confirme « Oui, §48 avec préfixe conservé et suite recalculée (recommandé) ». Les cinq chemins fonctionnels, la politique du préfixe couvert canonique avec ancienne génération intacte et suffixe recalculé, l'adaptation ciblée du lanceur, les contrôles, la revue indépendante avant natifs et la reprise campagne/remise sont autorisés. Même auteur et reviewer ; les fichiers application.rs/ui.rs restent tests/fixtures seulement sous §47. Racines, garde et plafonds inchangés : 300 min /28 Gio cumulés, 223 min 1,5 s consommées, sans remise à zéro. Aucun microphone réel, fenêtre, installation, nettoyage, manipulation manuelle des données utilisateur ou push. Auteur mandaté en IMPLEMENT ; la principale ne modifie pas la source Rust. Contrôle initial : suivi propre, seuls models/ et sound example/ non suivis intentionnels, volume C disponible au-dessus de 30 Gio.
+
+
+**Exacts §48 figés avant premier Cargo.** Huit tests unitaires complémentaires sont ajoutés aux onze contrôlés §45, sans retrait ni renommage des scénarios précédents. Tous restent NOT RUN à ce stade. Commande de chacun : `cargo test --offline --locked -p <crate> --lib <nom> -- --exact --test-threads=1`, exclusivement via QueuedControlled du lanceur gardé. Liste crate/nom :
+
+- `whisper-core` : `parakeet_session::tests::window_cursor_checkpoint_restores_exact_next_window`.
+- `whisper-core` : `parakeet_session::tests::window_cursor_rejects_inconsistent_checkpoint_indices`.
+- `whisper-adapters` : `archive::tests::bounded_resume_accepts_a_current_backend_for_the_same_model_profile`.
+- `whisper-adapters` : `parakeet_document::tests::resume_coverage_selects_the_last_checkpoint_within_the_archived_prefix`.
+- `whisper-adapters` : `parakeet_document::tests::resume_coverage_pages_are_capped_at_128_and_keep_the_global_cursor`.
+- `whisper-adapters` : `parakeet_pipeline::tests::restored_finalizer_keeps_prefix_and_accepts_midpoint_owned_boundary_word`.
+- `whisper-adapters` : `parakeet_pipeline::tests::finalizer_rejects_a_checkpoint_whose_anchor_is_not_covered`.
+- `whisper-adapters` : `parakeet_pipeline::tests::resume_preserves_prefix_while_backend_suffix_text_can_differ`.
+
+Le témoin applicatif existant `worker_ipc::tests::import_application_resumes_a_verified_interrupted_unified_import` reste exigé, avec vrai checkpoint, préfixe couvert et segments hors couverture conservés dans N. Le lanceur QueuedFormat couvre exactement les sept chemins du §48 et son auto-test refuse les autres chemins Rust et manifestes ; parseur PowerShell à contrôler avant lancement. Aucun nouveau natif ou autre corpus n'est ajouté.
