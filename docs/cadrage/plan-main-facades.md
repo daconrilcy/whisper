@@ -1,6 +1,6 @@
-Avancée : garde et cache privé préparés, auto-tests réussis ; T1 commencé, aucune extraction produit.
-Blocage : reprise conditionnée à l'adaptation de la garde et à la réussite renouvelée de ses auto-tests.
-Décision : reprise autorisée avec dérogation limitée aux événements Temp utilisateur sans attribution démontrée.
+Avancée : format de référence réussi ; compilation CPU de référence commencée, aucune extraction produit.
+Blocage : événement hors racine observé dans .git/objects/pack, origine indéterminée.
+Décision : nouvel arrêt conservé ; dérogation Temp respectée, arbitrage requis pour cet autre chemin.
 
 # Whisper — Plan de refactorisation des points d'entrée
 
@@ -282,3 +282,11 @@ Après présentation de l'interruption et de la dérogation précise, l'utilisat
 Toute écriture attribuée à la campagne hors de `main-facades/` et `cargo-shared/`, toute modification inexpliquée des autres emplacements sensibles, tout défaut du préflight ou de surveillance, et tout échec d'une commande censée réussir continuent d'imposer l'arrêt. La surveillance ne constitue pas un confinement préventif. Cette dérogation est exclusive au présent lot et ne couvre aucun autre chemin ou lot.
 
 L'adaptation de la garde inclut des auto-tests renouvelés pour la classification `UNATTRIBUTED` et le maintien des refus obligatoires. Préserver l'ancien `STOP.json` par archivage sous la même racine avant levée de ce seul arrêt, sans effacer les preuves. Reprendre T1 et ses références ; aucun saut de prérequis ni extraction avant leurs résultats applicables. État de reprise : HEAD `a5f9df432457b287d6108bc8b31fc029c401de7d`, seul diff suivi du worker sur `tests/reusable_imports.rs`, environ 103 Gio libres.
+
+### Nouvel arrêt de T1 — stockage Git interne
+
+Ancien arrêt préservé sous `target/parakeet-tests/main-facades/STOP-20261029T090326.json`. Auto-tests renouvelés : PASS, code 0 ; classification Temp sans attribution, refus chemins extérieurs et défaut de surveillance. `cargo fmt --all -- --check` via garde : **PASS**, code 0, le 29 octobre à 09:08:27 +01:00.
+
+Compilation CPU de référence démarrée à 09:08:32 et interrompue à 09:08:51, durant `whisper-rs-sys`, après événement observé à **09:08:50.959 +01:00** sur `C:\dev\whisper\.git\objects\pack\tmp_pack_Ykzlxg`. Origine indéterminée ; aucun processus Git actif au relevé ciblé ultérieur, attribution impossible. Ce chemin ne relève pas de la dérogation Temp. Nouveau `STOP.json` conservé, captures `target/parakeet-tests/main-facades/logs/15c17f56fbee46bd90190b011c11db04.stdout.txt` et `.stderr.txt`. Compilation **INCOMPLÈTE**, aucun code propre de Cargo disponible, aucun binaire de référence préservé. Aucune reprise ni suppression/restauration effectuée.
+
+Diff suivi de l'implémenteur inchangé : seul `crates/whisper-worker-cpu/tests/reusable_imports.rs`, 18 ajouts et 5 suppressions ; `git diff --check` PASS. Espace final : **110 588 682 240 octets**. T1 reste interrompue et T2–T8 non commencées. L'observation ne prouve ni modification des sources ni écriture de Cargo dans Git ; décision requise sur ce nouveau chemin avant reprise.
