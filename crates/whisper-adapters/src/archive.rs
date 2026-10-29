@@ -33,6 +33,7 @@ fn is_registered_model(hash: &str, size: u64) -> bool {
     })
 }
 const PCM_STAGING_HEADER: &[u8] = b"WHISPCM1\0\x80\x3e\0\0\x01\0";
+#[cfg(feature = "recette-hooks")]
 static L04_CAMPAIGN_OCCURRENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 #[cfg(test)]
@@ -88,6 +89,7 @@ fn publication_copy_fault_after(root: &Path, extension: &str) -> Result<(), Stri
     Ok(())
 }
 
+#[cfg(feature = "recette-hooks")]
 fn l04_campaign_after(before: &str) -> Option<&'static str> {
     match before {
         "attempt.before_record" => Some("attempt.after_sync"),
@@ -108,6 +110,7 @@ fn l04_campaign_after(before: &str) -> Option<&'static str> {
     }
 }
 
+#[cfg(feature = "recette-hooks")]
 fn l04_campaign_is_after(hook: &str) -> bool {
     matches!(
         hook,
@@ -128,6 +131,7 @@ fn l04_campaign_is_after(hook: &str) -> bool {
     )
 }
 
+#[cfg(feature = "recette-hooks")]
 pub(crate) fn l04_campaign_assert_archive(root: &Path) -> Result<(), String> {
     if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {
         return Ok(());
@@ -160,6 +164,12 @@ pub(crate) fn l04_campaign_assert_archive(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(not(feature = "recette-hooks"))]
+pub(crate) fn l04_campaign_assert_archive(_root: &Path) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(feature = "recette-hooks")]
 fn l04_campaign_write_marker(path: &Path, value: &serde_json::Value) -> Result<(), String> {
     let mut file = OpenOptions::new()
         .write(true)
@@ -172,6 +182,7 @@ fn l04_campaign_write_marker(path: &Path, value: &serde_json::Value) -> Result<(
         .map_err(|error| format!("CampaignGuard: marker sync: {error}"))
 }
 
+#[cfg(feature = "recette-hooks")]
 fn l04_campaign_snapshot(run: &Path) -> Result<Vec<serde_json::Value>, String> {
     let archive = run
         .join("archive")
@@ -229,6 +240,7 @@ fn l04_campaign_snapshot(run: &Path) -> Result<Vec<serde_json::Value>, String> {
     Ok(records)
 }
 
+#[cfg(feature = "recette-hooks")]
 pub(crate) fn l04_campaign_operation_result<T, E: std::fmt::Display>(
     before: &str,
     job_id: u128,
@@ -312,9 +324,20 @@ pub(crate) fn l04_campaign_operation_result<T, E: std::fmt::Display>(
     )
 }
 
-/// A build-local, one-shot barrier for isolated L04 fault campaigns. The
-/// release build contains no usable gate unless the campaign build variable
-/// was present when rustc compiled this crate.
+#[cfg(not(feature = "recette-hooks"))]
+pub(crate) fn l04_campaign_operation_result<T, E: std::fmt::Display>(
+    _hook: &str,
+    _job_id: u128,
+    _generation: u64,
+    _instance_id: u64,
+    _result: &Result<T, E>,
+    _path: Option<&Path>,
+) -> Result<(), String> {
+    Ok(())
+}
+
+/// A build-local, one-shot barrier for explicitly enabled L04 fault campaigns.
+#[cfg(feature = "recette-hooks")]
 pub(crate) fn l04_campaign_gate(
     hook: &str,
     job_id: u128,
@@ -530,6 +553,16 @@ pub(crate) fn l04_campaign_gate(
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
     Err("CampaignGuard: decision timeout".into())
+}
+
+#[cfg(not(feature = "recette-hooks"))]
+pub(crate) fn l04_campaign_gate(
+    _hook: &str,
+    _job_id: u128,
+    _generation: u64,
+    _instance_id: u64,
+) -> Result<(), String> {
+    Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -7938,6 +7971,18 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
+    #[ignore = "requires the CI legacy build and runtime variables"]
+    fn recette_policy_l04_requires_the_feature() {
+        assert_eq!(option_env!("WHISPER_L04_CAMPAIGN_BUILD"), Some("1"));
+        assert!(std::env::var_os("WHISPER_L04_CAMPAIGN_RUN").is_some());
+        let result = l04_campaign_gate("not-a-campaign-hook", 1, 1, 0);
+        #[cfg(feature = "recette-hooks")]
+        assert!(result.unwrap_err().starts_with("CampaignGuard:"));
+        #[cfg(not(feature = "recette-hooks"))]
+        assert!(result.is_ok());
+    }
+
+    #[test]
     fn bounded_resume_accepts_a_current_backend_for_the_same_model_profile() {
         let cpu = ArchiveQualificationKey::parakeet_cpu_test();
         let gpu = ArchiveQualificationKey::parakeet_gpu_test();
@@ -8611,6 +8656,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "recette-hooks")]
     #[test]
     fn campaign_snapshot_skips_an_active_writer_lock() {
         let root = std::env::temp_dir().join(format!(
@@ -9483,6 +9529,7 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    #[cfg(feature = "recette-hooks")]
     #[test]
     fn l04_campaign_gate_rejects_escape_and_duplicate_trigger() {
         if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {

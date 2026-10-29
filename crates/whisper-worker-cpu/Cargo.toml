@@ -4,9 +4,11 @@ version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+build = "../../scripts/recette-build.rs"
 
 [features]
 default = []
+recette-hooks = []
 l01-memory-qualification = []
 
 [dependencies]

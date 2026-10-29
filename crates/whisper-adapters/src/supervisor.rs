@@ -134,6 +134,7 @@ pub struct DiagnosticRecord {
     detail: Option<String>,
 }
 
+#[cfg(feature = "recette-hooks")]
 #[derive(serde::Deserialize)]
 struct CampaignDiagnosticIdentity {
     job_id: u128,
@@ -268,6 +269,7 @@ fn append_rotating(directory: &Path, line: &[u8]) -> Result<(), std::io::Error> 
         std::io::Error::other("CampaignGuard: diagnostic directory has no parent")
     })?)
     .map_err(std::io::Error::other)?;
+    #[cfg(feature = "recette-hooks")]
     let identity: Option<CampaignDiagnosticIdentity> = if option_env!("WHISPER_L04_CAMPAIGN_BUILD")
         .is_some()
         && std::env::var_os("WHISPER_L04_CAMPAIGN_RUN").is_some()
@@ -276,8 +278,12 @@ fn append_rotating(directory: &Path, line: &[u8]) -> Result<(), std::io::Error> 
     } else {
         None
     };
-    let job_id = identity.as_ref().map_or(0, |value| value.job_id);
-    let generation = identity.as_ref().map_or(0, |value| value.generation);
+    #[cfg(feature = "recette-hooks")]
+    let (job_id, generation) = identity
+        .as_ref()
+        .map_or((0, 0), |value| (value.job_id, value.generation));
+    #[cfg(not(feature = "recette-hooks"))]
+    let (job_id, generation) = (0, 0);
     let gate = |hook| {
         crate::archive::l04_campaign_gate(hook, job_id, generation, 0)
             .map_err(std::io::Error::other)
@@ -458,6 +464,7 @@ impl ProgressSupervisor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "recette-hooks")]
     use sha2::Digest;
     use std::{
         fs::FileTimes,
@@ -613,6 +620,7 @@ mod tests {
         panic!("diagnostic writer did not report its I/O failure");
     }
 
+    #[cfg(feature = "recette-hooks")]
     #[test]
     fn campaign_startup_purge_can_fail_before_deleting_old_diagnostics() {
         if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {

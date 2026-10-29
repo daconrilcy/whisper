@@ -35,6 +35,7 @@ pub struct PcmStaging {
     samples_written: u64,
     durable_samples: u64,
     checksum: Sha256,
+    #[cfg(feature = "recette-hooks")]
     campaign_identity: Option<(u128, u64)>,
 }
 
@@ -72,6 +73,7 @@ impl PcmStaging {
             samples_written: 0,
             durable_samples: 0,
             checksum: Sha256::new(),
+            #[cfg(feature = "recette-hooks")]
             campaign_identity: None,
         };
         staging.persist_checkpoint()?;
@@ -126,11 +128,13 @@ impl PcmStaging {
     }
 
     pub fn sync(&mut self) -> io::Result<()> {
+        #[cfg(feature = "recette-hooks")]
         if let Some((job_id, generation)) = self.campaign_identity {
             crate::archive::l04_campaign_gate("pcm.before_sync_data", job_id, generation, 0)
                 .map_err(io::Error::other)?;
         }
         let sync_result = self.file.sync_data();
+        #[cfg(feature = "recette-hooks")]
         if let Some((job_id, generation)) = self.campaign_identity {
             crate::archive::l04_campaign_operation_result(
                 "pcm.before_sync_data",
@@ -143,17 +147,20 @@ impl PcmStaging {
             .map_err(io::Error::other)?;
         }
         sync_result?;
+        #[cfg(feature = "recette-hooks")]
         if let Some((job_id, generation)) = self.campaign_identity {
             crate::archive::l04_campaign_gate("pcm.after_sync_data", job_id, generation, 0)
                 .map_err(io::Error::other)?;
         }
         self.frames_since_sync = 0;
         self.durable_samples = self.samples_written;
+        #[cfg(feature = "recette-hooks")]
         if let Some((job_id, generation)) = self.campaign_identity {
             crate::archive::l04_campaign_gate("pcm.before_checkpoint", job_id, generation, 0)
                 .map_err(io::Error::other)?;
         }
         let checkpoint_result = self.persist_checkpoint();
+        #[cfg(feature = "recette-hooks")]
         if let Some((job_id, generation)) = self.campaign_identity {
             crate::archive::l04_campaign_operation_result(
                 "pcm.before_checkpoint",
@@ -166,14 +173,20 @@ impl PcmStaging {
             .map_err(io::Error::other)?;
         }
         checkpoint_result?;
+        #[cfg(feature = "recette-hooks")]
         if let Some((job_id, generation)) = self.campaign_identity {
             crate::archive::l04_campaign_gate("pcm.after_checkpoint", job_id, generation, 0)
                 .map_err(io::Error::other)?;
         }
         Ok(())
     }
+    #[cfg(feature = "recette-hooks")]
     pub fn with_campaign_identity(mut self, job_id: u128, generation: u64) -> Self {
         self.campaign_identity = Some((job_id, generation));
+        self
+    }
+    #[cfg(not(feature = "recette-hooks"))]
+    pub fn with_campaign_identity(self, _job_id: u128, _generation: u64) -> Self {
         self
     }
     pub fn drain(&mut self) -> io::Result<u64> {
@@ -444,7 +457,7 @@ fn checkpoint_path(path: &Path) -> PathBuf {
     path.with_file_name(format!("{name}.state.json"))
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "recette-hooks"))]
 mod campaign_tests {
     use super::*;
 

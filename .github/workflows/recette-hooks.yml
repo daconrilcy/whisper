@@ -1,0 +1,157 @@
+name: recette-hooks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  recette-policy:
+    name: Recette hooks policy
+    runs-on: windows-latest
+    env:
+      PARAKEET_L2_ACCEPTANCE_TEST_BUILD: '1'
+      WHISPER_L04_CAMPAIGN_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install project Rust toolchain
+        shell: pwsh
+        run: rustup toolchain install 1.98.1 --profile minimal
+      - name: Check feature behavior and release exclusion
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $env:WHISPER_L04_CAMPAIGN_RUN = Join-Path $env:RUNNER_TEMP 'recette-policy-no-such-run'
+          if (Test-Path -LiteralPath $env:WHISPER_L04_CAMPAIGN_RUN) {
+            throw 'The negative-test runtime path must not already exist'
+          }
+
+          function Invoke-BehaviorCheck([string[]] $cargoArgs) {
+            $output = (& cargo @cargoArgs 2>&1 | Out-String)
+            $code = $LASTEXITCODE
+            Write-Host $output
+            if ($code -ne 0 -or $output -notmatch '2 passed; 0 failed; 0 ignored') {
+              throw 'Both targeted hook behavior tests must actually pass'
+            }
+          }
+          # The two ignored tests deliberately require the legacy variables set above.
+          # Their assertions distinguish feature-disabled from feature-enabled behavior.
+          Invoke-BehaviorCheck @('test','--locked','-p','whisper-adapters','--lib','recette_policy_','--','--ignored')
+          Invoke-BehaviorCheck @('test','--locked','-p','whisper-adapters','--lib','--features','recette-hooks','recette_policy_','--','--ignored')
+          Invoke-BehaviorCheck @('test','--locked','--release','-p','whisper-adapters','--lib','recette_policy_','--','--ignored')
+
+          # Cargo reads the real workspace manifests. Verify each affected package
+          # uses the exact guard exercised by the small dependency-free probes below.
+          $metadataText = & cargo metadata --locked --format-version 1 --no-deps
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to read actual workspace metadata' }
+          $metadata = $metadataText | ConvertFrom-Json
+          $guard = (Resolve-Path -LiteralPath 'scripts/recette-build.rs').Path
+          $packages = @('whisper-adapters','whisper-worker-cpu','whisper-worker-gpu')
+          foreach ($name in $packages) {
+            $pkg = @($metadata.packages | Where-Object { $_.name -eq $name })
+            if ($pkg.Count -ne 1) { throw "Package missing or ambiguous: $name" }
+            $buildTarget = @($pkg[0].targets | Where-Object { $_.kind -contains 'custom-build' })
+            if ($buildTarget.Count -ne 1 -or (Resolve-Path -LiteralPath $buildTarget[0].src_path).Path -ne $guard) {
+              throw "The release guard is not wired into $name"
+            }
+            if ($null -eq $pkg[0].features.'recette-hooks' -or $pkg[0].features.default -contains 'recette-hooks') {
+              throw "The opt-in feature is missing or enabled by default in $name"
+            }
+          }
+          $desktop = @($metadata.packages | Where-Object { $_.name -eq 'whisper-desktop' })
+          if ($desktop.Count -ne 1 -or $desktop[0].features.'recette-hooks' -notcontains 'whisper-adapters/recette-hooks') {
+            throw 'Desktop does not propagate recette-hooks to adapters'
+          }
+
+          # Also exercise the real adapter package and its real desktop relay.
+          foreach ($assertions in @('false','true')) {
+            $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS = $assertions
+            foreach ($name in @('whisper-adapters','whisper-desktop')) {
+              $output = (& cargo check --locked --release -p $name --features recette-hooks 2>&1 | Out-String)
+              $code = $LASTEXITCODE
+              Write-Host $output
+              if ($code -eq 0 -or $output -notmatch 'recette-hooks is forbidden in Cargo release profiles') {
+                throw "Expected the explicit real-package release-policy rejection for $name (debug assertions $assertions)"
+              }
+            }
+          }
+          Remove-Item Env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS -ErrorAction SilentlyContinue
+
+          # Compile Cargo probes with the same build script, feature name and
+          # package names. Worker probes include the actual L04 source block, with
+          # only its ordinary serde_json/sha2 dependencies; no CUDA SDK is needed.
+          # Metadata above checks that these probes exercise the guard used in situ.
+          $guardToml = $guard.Replace('\', '/')
+          foreach ($name in $packages) {
+            $probe = Join-Path $env:RUNNER_TEMP "recette-policy-$name"
+            New-Item -ItemType Directory -Path (Join-Path $probe 'src') -Force | Out-Null
+            $extraDependencies = ''
+            $probeSource = 'pub fn probe() {}'
+            if ($name -ne 'whisper-adapters') {
+              $sourcePath = if ($name -eq 'whisper-worker-cpu') {
+                'crates/whisper-worker-cpu/src/main.rs'
+              } else {
+                'crates/whisper-worker-gpu/src/main.rs'
+              }
+              $source = Get-Content -LiteralPath $sourcePath -Raw
+              $pattern = '(?s)#\[cfg\(feature = "recette-hooks"\)\]\s*static L04_CAMPAIGN_OCCURRENCE:.*?(?=#\[cfg\(feature = "l01-memory-qualification"\)\]\s*mod memory_qualification)'
+              $actualHooks = [regex]::Match($source, $pattern)
+              if (-not $actualHooks.Success) { throw "Unable to isolate real L04 worker code in $name" }
+              $extraDependencies = "`n[dependencies]`nserde_json = '=1.0.145'`nsha2 = '=0.10.9'`n"
+              $probeSource = @'
+          #[cfg(feature = "recette-hooks")]
+          use sha2::{Digest, Sha256};
+          '@ + "`n" + $actualHooks.Value + @'
+
+          #[test]
+          fn recette_policy_worker() {
+              assert_eq!(option_env!("WHISPER_L04_CAMPAIGN_BUILD"), Some("1"));
+              assert!(std::env::var_os("WHISPER_L04_CAMPAIGN_RUN").is_some());
+              let result = l04_campaign_gate("not-a-campaign-hook", 1, 1, 0);
+              #[cfg(feature = "recette-hooks")]
+              assert!(result.unwrap_err().starts_with("CampaignGuard:"));
+              #[cfg(not(feature = "recette-hooks"))]
+              assert!(result.is_ok());
+          }
+          '@
+            }
+            $manifest = @"
+          [package]
+          name = "$name"
+          version = "0.0.0"
+          edition = "2024"
+          build = "$guardToml"
+
+          [features]
+          default = []
+          recette-hooks = []
+          "@
+            $manifest += $extraDependencies
+            Set-Content -LiteralPath (Join-Path $probe 'Cargo.toml') -Value $manifest -Encoding utf8
+            Set-Content -LiteralPath (Join-Path $probe 'src/lib.rs') -Value $probeSource -Encoding utf8
+            $manifestPath = Join-Path $probe 'Cargo.toml'
+            & cargo check --offline --manifest-path $manifestPath --features recette-hooks
+            if ($LASTEXITCODE -ne 0) { throw "Debug opt-in must compile for $name" }
+            & cargo check --offline --manifest-path $manifestPath --release
+            if ($LASTEXITCODE -ne 0) { throw "Release without opt-in must compile for $name" }
+            if ($name -ne 'whisper-adapters') {
+              foreach ($workerArgs in @(@('test','--offline','--manifest-path',$manifestPath,'--features','recette-hooks','recette_policy_worker'), @('test','--offline','--manifest-path',$manifestPath,'--release','recette_policy_worker'))) {
+                $output = (& cargo @workerArgs 2>&1 | Out-String)
+                $code = $LASTEXITCODE
+                Write-Host $output
+                if ($code -ne 0 -or $output -notmatch '1 passed; 0 failed; 0 ignored') {
+                  throw "The real L04 hook block did not pass its feature behavior test for $name"
+                }
+              }
+            }
+            foreach ($assertions in @('false','true')) {
+              $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS = $assertions
+              $output = (& cargo check --offline --manifest-path $manifestPath --release --features recette-hooks 2>&1 | Out-String)
+              $code = $LASTEXITCODE
+              Write-Host $output
+              if ($code -eq 0 -or $output -notmatch 'recette-hooks is forbidden in Cargo release profiles') {
+                throw "Expected the explicit release-policy rejection for $name (debug assertions $assertions)"
+              }
+            }
+            Remove-Item Env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS -ErrorAction SilentlyContinue
+          }

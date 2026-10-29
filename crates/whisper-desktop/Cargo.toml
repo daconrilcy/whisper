@@ -12,6 +12,7 @@ eframe = { version = "=0.35.0", default-features = false, features = ["accesskit
 
 [features]
 default = []
+recette-hooks = ["whisper-adapters/recette-hooks"]
 personal-install = []
 
 [lints]

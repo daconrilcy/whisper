@@ -646,8 +646,10 @@ mod ipc {
 }
 mod gpu_attestation;
 mod native_engine;
+#[cfg(feature = "recette-hooks")]
 static L04_CAMPAIGN_OCCURRENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+#[cfg(feature = "recette-hooks")]
 fn l04_campaign_worker_result<T, E: std::fmt::Display>(
     hook: &str,
     job_id: u128,
@@ -713,6 +715,18 @@ fn l04_campaign_worker_result<T, E: std::fmt::Display>(
         .map_err(|error| format!("CampaignGuard: result sync: {error}"))
 }
 
+#[cfg(not(feature = "recette-hooks"))]
+fn l04_campaign_worker_result<T, E: std::fmt::Display>(
+    _hook: &str,
+    _job_id: u128,
+    _generation: u64,
+    _instance_id: u64,
+    _result: &Result<T, E>,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(feature = "recette-hooks")]
 fn l04_campaign_gate(
     hook: &str,
     job_id: u128,
@@ -925,6 +939,16 @@ fn l04_campaign_gate(
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
     Err("CampaignGuard: decision timeout".into())
+}
+
+#[cfg(not(feature = "recette-hooks"))]
+fn l04_campaign_gate(
+    _hook: &str,
+    _job_id: u128,
+    _generation: u64,
+    _instance_id: u64,
+) -> Result<(), String> {
+    Ok(())
 }
 
 #[cfg(feature = "l01-memory-qualification")]

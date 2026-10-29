@@ -396,6 +396,7 @@ const GATE_COMMITTED: u8 = 4;
 
 /// Deterministic process-level barriers used only by the acceptance-test build.
 /// Their root is checked against the isolated L2a-2 runtime before touching disk.
+#[cfg(feature = "recette-hooks")]
 fn l2a2_acceptance_barrier(phase: &str, destination: &Path) -> Result<(), String> {
     if option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_none() {
         return Ok(());
@@ -434,6 +435,12 @@ fn l2a2_acceptance_barrier(phase: &str, destination: &Path) -> Result<(), String
     Ok(())
 }
 
+#[cfg(not(feature = "recette-hooks"))]
+fn l2a2_acceptance_barrier(_phase: &str, _destination: &Path) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(feature = "recette-hooks")]
 fn l2a2_acceptance_take_worker_fault(
     destination: &Path,
     worker_ready: bool,
@@ -486,6 +493,7 @@ fn l2a2_acceptance_take_worker_fault(
     Ok(None)
 }
 
+#[cfg(feature = "recette-hooks")]
 fn canonical_l3_acceptance_root(l3c: Option<PathBuf>, l3d: Option<PathBuf>) -> Option<PathBuf> {
     let (configured, lot) = match (l3c, l3d) {
         (Some(path), None) => (path, "l3c"),
@@ -3778,9 +3786,11 @@ fn native_cpu_route(
 }
 
 fn l3_gpu_candidate_allowed(key: &crate::archive::ArchiveQualificationKey) -> bool {
+    #[cfg(feature = "recette-hooks")]
     let test_injection = cfg!(feature = "l3-gpu-qualification")
         && option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_some()
         && key == &crate::archive::ArchiveQualificationKey::parakeet_gpu_test();
+    #[cfg(feature = "recette-hooks")]
     if test_injection {
         return true;
     }
@@ -10736,11 +10746,13 @@ impl ImportRuntime {
     }
 
     fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
+        #[cfg(feature = "recette-hooks")]
         let destination = self
             .active
             .as_ref()
             .and_then(|active| active.import_request.as_ref())
             .map(|request| PathBuf::from(&request.destination));
+        #[cfg(feature = "recette-hooks")]
         if let Some(destination) = destination {
             match l2a2_acceptance_take_worker_fault(&destination, self.parakeet_native_call_started)
             {
@@ -10977,6 +10989,7 @@ impl ImportRuntime {
                     }
                     return Some(Err(PortError::Failed(error)));
                 }
+                #[cfg(feature = "recette-hooks")]
                 match l2a2_acceptance_take_worker_fault(Path::new(&request.destination), true) {
                     Ok(Some(message)) if message.starts_with("IpcDecode:") => {
                         if let Err(error) = self
@@ -13508,6 +13521,20 @@ mod tests {
         AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
         JobConfig, JobId, JobState, LanguageChoice,
     };
+
+    #[test]
+    #[ignore = "requires the CI legacy build variables"]
+    fn recette_policy_l2a2_requires_the_feature() {
+        assert_eq!(option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD"), Some("1"));
+        let result = l2a2_acceptance_barrier("not-an-acceptance-phase", Path::new("."));
+        #[cfg(feature = "recette-hooks")]
+        assert_eq!(
+            result.unwrap_err(),
+            "InvalidInput: unknown L2a-2 acceptance barrier"
+        );
+        #[cfg(not(feature = "recette-hooks"))]
+        assert!(result.is_ok());
+    }
 
     thread_local! {
         static IMPORT_PORT_EVENT_TRACE: RefCell<Option<Arc<Mutex<Vec<String>>>>> = RefCell::new(None);
@@ -29020,7 +29047,7 @@ fn main() {
         std::fs::remove_dir_all(root).unwrap();
     }
 
-    #[cfg(feature = "l3-gpu-qualification")]
+    #[cfg(all(feature = "l3-gpu-qualification", feature = "recette-hooks"))]
     #[test]
     fn l3c_acceptance_fault_is_confined_to_its_canonical_execution_root() {
         assert!(option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_some());

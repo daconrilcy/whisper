@@ -1,16 +1,17 @@
 //! Isolated process client for the qualified Parakeet import worker.
 
 use sha2::{Digest, Sha256};
+#[cfg(feature = "recette-hooks")]
+use std::sync::mpsc::SyncSender;
 use std::{
     fs::OpenOptions,
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver, SyncSender, TryRecvError},
+    sync::mpsc::{self, Receiver, TryRecvError},
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-
 use whisper_core::parakeet_ipc::{
     Command as WorkerCommand, Envelope, Event, PARAKEET_IPC_VERSION, PARAKEET_MAX_FRAME_BYTES,
     PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity,
@@ -164,6 +165,7 @@ impl ParakeetWorkerPaths {
             .is_some_and(|path| path == canonical)
     }
 
+    #[cfg(feature = "recette-hooks")]
     fn is_canonical_l3c_test_artifact(&self, canonical: &Path) -> bool {
         if !cfg!(feature = "l3-gpu-qualification")
             || option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_none()
@@ -174,6 +176,11 @@ impl ParakeetWorkerPaths {
             return false;
         };
         canonical.starts_with(root)
+    }
+
+    #[cfg(not(feature = "recette-hooks"))]
+    fn is_canonical_l3c_test_artifact(&self, _canonical: &Path) -> bool {
+        false
     }
 
     pub fn verify_qualification(
@@ -421,6 +428,7 @@ fn personal_runtime_path_is_allowed(root: &Path, personal_root: &Path) -> bool {
             && root.file_name().is_some_and(|name| !name.is_empty()))
 }
 
+#[cfg(feature = "recette-hooks")]
 fn l3_acceptance_execution_root() -> Option<PathBuf> {
     let l3c = std::env::var_os("PARAKEET_L3C_EXEC_ROOT").map(PathBuf::from);
     let l3d = std::env::var_os("PARAKEET_L3D_EXEC_ROOT").map(PathBuf::from);
@@ -496,8 +504,11 @@ pub struct ParakeetProcess {
     child: Child,
     input: ChildStdin,
     events: Receiver<Result<Event, String>>,
+    #[cfg(feature = "recette-hooks")]
     acceptance_events: Receiver<Result<Event, String>>,
+    #[cfg(feature = "recette-hooks")]
     acceptance_sender: SyncSender<Result<Event, String>>,
+    #[cfg(feature = "recette-hooks")]
     runtime_root: PathBuf,
     identity: Option<WorkerIdentity>,
     expected_profile: String,
@@ -622,6 +633,7 @@ impl ParakeetProcess {
             .take()
             .ok_or_else(|| "WorkerStart: stdout unavailable".to_owned())?;
         let (sender, events) = mpsc::sync_channel(2);
+        #[cfg(feature = "recette-hooks")]
         let (acceptance_sender, acceptance_events) = mpsc::sync_channel(1);
         thread::spawn(move || {
             let mut reader = BufReader::new(output);
@@ -652,15 +664,20 @@ impl ParakeetProcess {
                 }
             }
         });
+        // Preserve the runtime-root validation even when the test seam is absent.
+        let _validated_runtime_root = paths.runtime_root.canonicalize().map_err(|error| {
+            format!("MissingRuntime: unable to resolve worker runtime: {error}")
+        })?;
         Ok(Self {
             child,
             input,
             events,
+            #[cfg(feature = "recette-hooks")]
             acceptance_events,
+            #[cfg(feature = "recette-hooks")]
             acceptance_sender,
-            runtime_root: paths.runtime_root.canonicalize().map_err(|error| {
-                format!("MissingRuntime: unable to resolve worker runtime: {error}")
-            })?,
+            #[cfg(feature = "recette-hooks")]
+            runtime_root: _validated_runtime_root,
             identity: None,
             expected_profile: profile.to_owned(),
             request_id: 0,
@@ -671,6 +688,7 @@ impl ParakeetProcess {
     }
 
     pub fn poll(&mut self) -> Result<Option<Event>, String> {
+        #[cfg(feature = "recette-hooks")]
         match self.acceptance_events.try_recv() {
             Ok(event) => return Ok(Some(event?)),
             Err(TryRecvError::Empty | TryRecvError::Disconnected) => {}
@@ -808,6 +826,7 @@ impl ParakeetProcess {
         self.child.id()
     }
 
+    #[cfg(feature = "recette-hooks")]
     pub(crate) fn inject_incomplete_result_for_acceptance(&self) -> Result<(), String> {
         if option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_none() {
             return Err("InvalidInput: acceptance transport seam is disabled".into());
