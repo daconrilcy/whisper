@@ -1,6 +1,6 @@
-Avancée : format de référence réussi ; compilation CPU de référence commencée, aucune extraction produit.
-Blocage : adaptation de la garde et auto-tests renouvelés requis avant reprise.
-Décision : reprise autorisée avec consignation des événements non attribués dans .git/objects/, contrôles sources/index/références maintenus.
+Avancée : façades CPU/GPU/Parakeet extraites, références et principaux contrats vérifiés ; T7/T8 en cours.
+Blocage : garde à adapter pour les seuls journaux CUDA expressément autorisés avant leur lancement.
+Décision : terminer la validation native puis soumettre le candidat à la revue indépendante ; aucun push.
 
 # Whisper — Plan de refactorisation des points d'entrée
 
@@ -308,3 +308,15 @@ Lecture ultérieure : `pack-cf5f8a6c7e5b055802b7a15f072b1fb7ac611c3e.pack` prés
 L'utilisateur répond « oui je t'autorise » à la proposition explicite suivante : pour ce lot, consigner sans arrêt les événements non attribués dans `.git/objects/`, dossiers compris, tout en maintenant l'arrêt sur changement inexpliqué des sources, de l'index ou des références Git, et sur toute écriture hors racines attribuée à la campagne. Cet accord remplace la restriction précédente aux seuls fichiers tmp_pack pour cette classification ; il ne concerne aucun autre emplacement Git. L'exception Temp reste inchangée. Aucune destination volontaire d'écriture de campagne n'est ajoutée dans Git.
 
 Adapter la garde existante, renouveler les auto-tests de classification et de refus (autres chemins Git, sources, index, références, erreurs de surveillance), conserver sous la même racine le STOP précédent puis lever ce seul arrêt autorisé et reprendre T1–T8 selon leurs prérequis. Conserver sous la racine du lot les états nécessaires au contrôle sources/index/références avant/après, y compris en cas d'exception : ils appartiennent aux captures de campagne déjà prévues, aucun nouveau rapport ou manifeste de qualification. Aucune suppression/restauration, isolation Windows ou publication supplémentaire n'est autorisée.
+
+### Accord nominatif pour les journaux Parakeet CUDA
+
+Le contrôle existant `gpu_identity::build_gpu_evidence` exige un journal frais `PARAKEET_L3_ASR_LOG` dont le parent canonique se trouve sous le runtime ; un chemin sous la campagne est refusé `GpuLogPath`. En profil personnel, le runtime est `C:/Users/cyril/AppData/Local/Whisper`. Aucun journal ancien n'a été substitué et aucun lancement CUDA dépendant n'a été fait avant accord.
+
+À la question précise sur la création de journaux frais `main-facades-*.log` uniquement dans `C:/Users/cyril/AppData/Local/Whisper/settings/logs/`, modèles et DLL en lecture seule, conservation des journaux et adaptation de la garde à cette seule exception, l'utilisateur a répondu **« Autoriser ces journaux CUDA »** dans la session. Cette écriture nominative devient une exception aux deux racines de campagne pour S-12 CUDA référence/candidat uniquement. Aucun autre fichier de l'installation, écriture volontaire dans Git, suppression ou restauration n'est autorisé. La garde existante doit vérifier ce chemin canonique et ce motif de noms, tester les refus des chemins voisins, surveiller les autres emplacements sensibles et conserver les captures de cette exécution sous main-facades/. Aucun service, compte, ACL ou nouvelle surveillance n'est ajouté.
+
+### Point d'avancement avant comparaison native CUDA
+
+Références préservées : quatre configurations Turbo CPU, quatre Turbo GPU, huit Parakeet compilées et tests Parakeet inventoriés. CPU : contrôle natif deux imports même processus avec cache load/hit réussi avant et après extraction ; tests binaires candidat 9 par configuration ; contrat inactif/refus et comparaison live Stop/Shutdown avec événements et paquets MP3 réussis. GPU : tests binaires candidat 20 par configuration, sonde et refus identité, deux imports CUDA load/hit et comparaison live référence/candidat réussis ; contrôle unitaire de l'attestation sur cache hit et éviction sur échec ajouté. Le sous-scénario historique MP3 gapless sans fixture ne vaut pas preuve : NOT RUN.
+
+Parakeet : huit suites binaires réussies après extraction et correction test-only autorisée des deux tests de racines ; lecture 60 minutes et refus dépassement exécutés avec fixtures sous campagne. Contrat decode-only référence/candidat réussi (PCM/résumé JSON et refus d'écrasement). Refus successifs et consommation des compteurs vérifiés sur référence/candidat ; contrôle JSON/version/framing/EOF/Shutdown réussi sur les deux, code 0. Transcription native et contrôles finaux encore à terminer, aucune revue CLEAN revendiquée. Les erreurs locales d'import et de harness rencontrées ont été conservées avec leurs STOP puis corrigées dans les chemins autorisés avant relance ciblée ; ces échecs initiaux ne sont pas reclassés PASS. Les références/candidats et captures détaillées restent sous la racine de campagne ; le bilan final précisera commandes, nombres et limites.
