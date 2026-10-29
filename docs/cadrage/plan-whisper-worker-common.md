@@ -1,6 +1,6 @@
-Avancée : T1–T9 closes ; complément décodeur implémenté et relu statiquement, validation en attente.
-Blocage : complément V2/V3/V9C et V8 Cargo non exécutés ; garde existante incompatible sans adaptation autorisée.
-Décision : candidat complémentaire en commit local sans push ; arbitrage garde nécessaire, bilan §11.
+Avancée : complément décodeur en commit local ; garde stricte adaptée, auto-tests et V8 réussis.
+Blocage : V2 interrompu sur événement Temp hors racines ; V3/V9C non lancés, attribution indéterminée.
+Décision : campagne arrêtée et traces conservées ; arbitrage requis avant reprise, aucun push.
 
 # Plan d'implémentation — whisper-worker-common
 
@@ -230,3 +230,13 @@ Le complément autorise désormais uniquement la modification ciblée de target/
 Le même implémenteur réalise l'adaptation puis SelfTest, V8, V2, V3, V9C séquentiellement. Toute détection réelle hors racines ou échec impose l'arrêt et la conservation des traces avant arbitrage ; les refus synthétiques attendus des auto-tests ne sont pas des fuites réelles. La session principale suspend ses écritures et opérations Git pendant la surveillance. Revue reprise ensuite par le même coordinateur et le même reviewer sur le candidat source 1e8e3944 et les nouvelles preuves ; aucun nouveau cycle de correction engagé sans finding.
 
 Espace libre avant reprise : 123 701 194 752 octets (environ 115,2 Gio).
+
+### Résultat de la reprise — arrêt conservatoire
+
+Garde locale adaptée par le même implémenteur : suppression de Get-TempEventClassification et de la branche de poursuite UNATTRIBUTED ; remplacement de l'auto-test de poursuite du Temp inconnu par un refus synthétique avec arrêt du processus. La garde demeure locale sous target et n'est pas ajoutée à Git. Aucun code Rust ni oracle modifié depuis 1e8e3944.
+
+SelfTest PASS (sortie 0) : variables absentes/hors racines/jonctions refusées, écriture autorisée admise, événements synthétiques hors racines et Temp suspect/inconnu arrêtés sans créer les fichiers interdits. V8 PASS (sortie 0), cargo fmt --all -- --check via garde ; logs V8-20261029T152706205-e6bdb224.
+
+V2 FAIL (sortie lanceur 1) : processus interrompu par la garde après début de compilation, aucun résultat de test exploitable. Événement Changed sur C:\Users\cyril\AppData\Local\Temp\NGL\NGLClient_CoreSync17.8.10.1.log, event_at 2026-10-29T15:27:10.4742973+01:00, detected_at 2026-10-29T15:27:10.5165829+01:00. Origine et attribution indéterminées ; ce constat ne prouve pas une écriture Cargo. Arrêt obligatoire respecté, aucune reprise, V3/V9C NOT RUN. Traces conservées dans target/parakeet-tests/worker-common/logs/guard-events.jsonl et V2-20261029T152710219-3631573a.{stderr,stdout}.log. Aucun nettoyage ni archive de clôture créé après arrêt ; aucun fichier externe effacé/restauré.
+
+Le verdict de revue global reste BLOCKED faute des vérifications V2/V3/V9C ; la revue statique précédente demeure sans finding concret, aucun nouveau cycle de correction. Une reprise nécessite un nouvel arbitrage selon AGENTS. Espace libre après arrêt : 123 447 803 904 octets (environ 115,0 Gio). Aucun push.
