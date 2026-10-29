@@ -1,6 +1,6 @@
 Avancée : format de référence réussi ; compilation CPU de référence commencée, aucune extraction produit.
-Blocage : événement hors racine observé dans .git/objects/pack, origine indéterminée.
-Décision : nouvel arrêt conservé ; dérogation Temp respectée, arbitrage requis pour cet autre chemin.
+Blocage : adaptation et auto-tests de la garde requis avant reprise.
+Décision : reprise autorisée avec dérogations ciblées Temp et fichiers Git tmp_pack_* sans attribution démontrée.
 
 # Whisper — Plan de refactorisation des points d'entrée
 
@@ -290,3 +290,9 @@ Ancien arrêt préservé sous `target/parakeet-tests/main-facades/STOP-20261029T
 Compilation CPU de référence démarrée à 09:08:32 et interrompue à 09:08:51, durant `whisper-rs-sys`, après événement observé à **09:08:50.959 +01:00** sur `C:\dev\whisper\.git\objects\pack\tmp_pack_Ykzlxg`. Origine indéterminée ; aucun processus Git actif au relevé ciblé ultérieur, attribution impossible. Ce chemin ne relève pas de la dérogation Temp. Nouveau `STOP.json` conservé, captures `target/parakeet-tests/main-facades/logs/15c17f56fbee46bd90190b011c11db04.stdout.txt` et `.stderr.txt`. Compilation **INCOMPLÈTE**, aucun code propre de Cargo disponible, aucun binaire de référence préservé. Aucune reprise ni suppression/restauration effectuée.
 
 Diff suivi de l'implémenteur inchangé : seul `crates/whisper-worker-cpu/tests/reusable_imports.rs`, 18 ajouts et 5 suppressions ; `git diff --check` PASS. Espace final : **110 588 682 240 octets**. T1 reste interrompue et T2–T8 non commencées. L'observation ne prouve ni modification des sources ni écriture de Cargo dans Git ; décision requise sur ce nouveau chemin avant reprise.
+
+### Reprise autorisée — fichiers temporaires de stockage Git
+
+L'utilisateur a répondu « oui je t'autorise » à la proposition précise de consigner sans arrêt, pour ce lot uniquement, les événements non attribués sur les seuls fichiers `.git/objects/pack/tmp_pack_*`, en maintenant le contrôle des sources et références Git. Cette dérogation autorise l'adaptation de la garde, le renouvellement de ses auto-tests et la reprise de T1 puis T2–T8 selon leurs prérequis. Préserver le second arrêt et ses captures sous la racine du lot avant levée de cet arrêt.
+
+La classification sans arrêt ne concerne que les fichiers directs dont le nom commence par `tmp_pack_` sous `C:/dev/whisper/.git/objects/pack/`, avec chemin et heure consignés et attribution indéterminée. Aucun autre fichier Git, aucune référence, aucun fichier source ou emplacement sensible supplémentaire n'est couvert. Aucun processus de campagne n'est autorisé à écrire volontairement dans Git ; toute écriture attribuée à la campagne hors racines reste un motif d'arrêt. Contrôler les sources et références Git avant et après les commandes ; préserver les différences légitimes déjà identifiées, arrêter en cas de changement inexpliqué. Aucun nettoyage, restauration ou nouvelle surveillance n'est ajouté. L'exception Temp précédemment accordée reste inchangée.
