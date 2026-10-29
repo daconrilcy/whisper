@@ -6,7 +6,7 @@ Décision : proposition de design soumise à revue indépendante puis validation
 
 ## 1. Identité, mandat et sources
 
-Design **D-MAIN-FACADES-01**, version 1, 29 octobre 2026. Auteur des documents : session Codex principale. Base de code : `301fbbeaaba8cede4ce079828125ba271c9928af`, branche `evo-startup-perf`. Statut initial : **DRAFT — revue documentaire à effectuer**. Ce document regroupe brief, exigences, domaine, architecture, acceptation, risques et esquisse future ; aucune nouvelle fonctionnalité ne justifie des documents séparés.
+Design **D-MAIN-FACADES-01**, version 1, 29 octobre 2026. Auteur des documents : session Codex principale. Base de code : `301fbbeaaba8cede4ce079828125ba271c9928af`, branche `evo-startup-perf`. Statut : **CLEAN — design relu, en attente de validation utilisateur**. Ce document regroupe brief, exigences, domaine, architecture, acceptation, risques et esquisse future ; aucune nouvelle fonctionnalité ne justifie des documents séparés.
 
 Source produit : expression de besoin « Whisper — Des fichiers main.rs limités au rôle de façade », pièce jointe `Texte collé.txt` de la demande du 29 octobre 2026. La qualification fournie porte le verdict PASS ; elle n'a pas été refaite. Demande de cette session : « fais le cadrage de ce besoin avec les agents necessaires ». Le mandat couvre le cadrage, les contributions en lecture seule, sa revue et son enregistrement avec commit local conformément à AGENTS ; ni implémentation, ni Cargo, ni campagne, ni push.
 
@@ -223,4 +223,6 @@ Arrêt futur sur divergence inexpliquée, nécessité de contrat/manifestes/hors
 
 Vérifications réalisées : lectures et recherches statiques, inventaire et état Git. Cargo, compilation, tests, modèles, applications et recette Windows : NOT RUN. Un seul document de cadrage créé ; aucun code produit, manifeste, lockfile, ressource ou dossier non suivi préexistant modifié.
 
-Revue indépendante : en attente sur le candidat Git. La version, le verdict et les éventuels constats seront consignés ici après retour du reviewer. Les décisions de périmètre acquises ne sont pas rouvertes ; la validation utilisateur du design et l'autorisation de la suite restent distinctes.
+Revue indépendante du 29 octobre 2026 : `rust_design_reviewer`, `/root/revue_design`, sans participation à la rédaction ou aux corrections. Objet lu : D-MAIN-FACADES-01 au commit `a6e6031e195361fc9b1e463bba7de36e6dca5c6c`, base technique ci-dessus. Verdict brut restitué dans la session : **CLEAN — DESIGN prêt à être soumis à l'acceptation utilisateur**. Aucun constat REQUIRED ou ADVISORY retenu. Couverture bidirectionnelle des CA-01 à05 vérifiée ; sources, manifestes, conditions et branches sensibles confrontés en lecture seule. Aucun cycle de correction nécessaire. La présente clôture ajoute le résultat de revue et actualise le statut, sans modifier le design examiné.
+
+Validation utilisateur du design : **EN ATTENTE**. Plan détaillé : **NON PRODUIT**. Implémentation, campagnes, recette et push : **NON AUTORISÉS**. Les décisions de périmètre acquises ne sont pas rouvertes ; la validation du design et l'autorisation de la suite restent distinctes.
