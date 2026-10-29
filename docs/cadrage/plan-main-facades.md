@@ -1,6 +1,6 @@
 Avancée : garde et cache privé préparés, auto-tests réussis ; T1 commencé, aucune extraction produit.
-Blocage : événement hors racine observé pendant le contrôle de format, attribution indéterminée.
-Décision : campagne arrêtée, preuves conservées ; arbitrage utilisateur requis avant reprise.
+Blocage : reprise conditionnée à l'adaptation de la garde et à la réussite renouvelée de ses auto-tests.
+Décision : reprise autorisée avec dérogation limitée aux événements Temp utilisateur sans attribution démontrée.
 
 # Whisper — Plan de refactorisation des points d'entrée
 
@@ -274,3 +274,11 @@ Implémenteur délégué : `rust_implementer`, `/root/implementation_facades`, b
 Première commande : `guard-main-facades.ps1 -Mode Run -CargoArguments @('fmt','--all','--','--check')`. Pendant son exécution, création observée de `C:\Users\cyril\AppData\Local\Temp\etilqs_qqHDyh1IVWPTziI` à **09:03:26.625 +01:00**. Origine non attribuée : ce constat ne prouve pas une écriture de Cargo ou de rustfmt. La garde a demandé l'arrêt, terminé avec code 1 et conservé `target/parakeet-tests/main-facades/STOP.json`, `logs/guard-events.jsonl` et les captures sous cette même racine. Stdout/stderr vides ; contrôle de format **INCOMPLET**, statut propre de Cargo indisponible. Aucun Cargo/rustfmt/rustc visible au contrôle ultérieur. Le fichier temporaire n'était alors plus visible ; aucune suppression ou restauration effectuée par l'implémenteur.
 
 Seul changement suivi de l'implémenteur : `crates/whisper-worker-cpu/tests/reusable_imports.rs`, adaptation T1 vers une racine explicite canonisée, sous-répertoire unique et conservation des fichiers. `git diff --check` : PASS, code 0. Aucun binaire de référence construit, aucune extraction produit ; T1 BLOCKED, T2–T8 non commencées, builds/tests/scénarios natifs NOT RUN. Aucun candidat complet à soumettre à la revue indépendante à ce stade. Espace final : **110 606 336 000 octets** (environ 103 Gio). Aucune reprise, suppression ni application d'une ancienne dérogation ; décision utilisateur nécessaire sur cet événement avant reprise de T1.
+
+### Reprise autorisée — dérogation Temp limitée à ce lot
+
+Après présentation de l'interruption et de la dérogation précise, l'utilisateur a répondu dans la même session : « oui je t'autorise ». La garde peut être adaptée puis la campagne T1–T8 reprise : les événements observés uniquement sous `%LOCALAPPDATA%\Temp` sans attribution démontrée à la campagne sont consignés `UNATTRIBUTED`, avec chemin et horodatage, sans imposer à eux seuls l'arrêt. Leur origine demeure indéterminée ; ils ne constituent ni des écritures Cargo prouvées ni des écritures autorisées. Aucune destination volontaire n'est ajoutée dans le Temp utilisateur.
+
+Toute écriture attribuée à la campagne hors de `main-facades/` et `cargo-shared/`, toute modification inexpliquée des autres emplacements sensibles, tout défaut du préflight ou de surveillance, et tout échec d'une commande censée réussir continuent d'imposer l'arrêt. La surveillance ne constitue pas un confinement préventif. Cette dérogation est exclusive au présent lot et ne couvre aucun autre chemin ou lot.
+
+L'adaptation de la garde inclut des auto-tests renouvelés pour la classification `UNATTRIBUTED` et le maintien des refus obligatoires. Préserver l'ancien `STOP.json` par archivage sous la même racine avant levée de ce seul arrêt, sans effacer les preuves. Reprendre T1 et ses références ; aucun saut de prérequis ni extraction avant leurs résultats applicables. État de reprise : HEAD `a5f9df432457b287d6108bc8b31fc029c401de7d`, seul diff suivi du worker sur `tests/reusable_imports.rs`, environ 103 Gio libres.
