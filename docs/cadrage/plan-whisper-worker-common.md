@@ -1,5 +1,5 @@
 Avancée : refactoring en commit local 1e8e3944 ; format et revue statique sans anomalie ; garde adaptée et auto-tests réussis.
-Blocage : nouvelle interruption de V2 sur fichier temporaire hors racines non couvert ; V3/V9C non lancés.
+Blocage : nouvelle reprise arrêtée pendant SelfTest sur un autre fichier Temp hors racines ; V2/V3/V9C non lancés.
 Décision : validation suspendue, traces conservées, aucune extension des exceptions ni push.
 
 # Plan d'implémentation — whisper-worker-common
@@ -258,3 +258,5 @@ Le candidat source 1e8e3944 est inchangé : décomposition effectuée, format PA
 ### Nouvelle demande de terminer les vérifications
 
 L'utilisateur demande dans la session courante : « termines les tests pour etre sur que tout soit fonctionnel ». Cette instruction autorise la reprise explicite de V2/V3/V9C sur le même candidat et sous la garde actuelle, avec l'unique exception au journal exact déjà accordée. Elle n'est pas interprétée comme une dérogation générale au Temp ni comme autorisation d'ignorer un nouvel incident. Même implémenteur, aucune modification produit ou garde supplémentaire. L'arrêt antérieur et ses traces restent conservés ; toute nouvelle détection non couverte impose à nouveau l'arrêt selon AGENTS. Libre avant reprise : 123 561 951 232 octets. Main suspend ses écritures/Git pendant la surveillance.
+
+Résultat de cette nouvelle reprise : SelfTest FAIL (sortie 1), arrêté pendant SelfTest-in-root-write avant tout Cargo sur Created C:\Users\cyril\AppData\Local\Temp\etilqs_lauj6VyV9gr5HkE, event_at 2026-10-29T15:46:47.7177841+01:00, detected_at 2026-10-29T15:46:47.7585509+01:00. Origine et attribution indéterminées. V2/V3/V9C non lancés, aucune relance spontanée, aucune modification par l'implémenteur, trace conservée dans logs/guard-events.jsonl, aucun nettoyage ni archive après arrêt. Libre : 124 137 869 312 octets. L'exception au journal exact ne résout pas les événements Temp récurrents d'autres noms. Poursuite requiert un arbitrage sur cette classe d'événements, sans les assimiler à des écritures Cargo prouvées ni aux destinations applicatives autorisées.
