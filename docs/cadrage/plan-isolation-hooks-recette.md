@@ -1,6 +1,6 @@
-Avancée : lot d’isolation L2a2/L04 validé par l’utilisateur dans cette session.
-Blocage : exécution Cargo locale conditionnée à la garde permanente ; CI distante non exécutée avant publication.
-Décision : implémenter une feature de recette opt-in et interdire cette feature dans le profil release.
+Avancée : isolation L2a2/L04 implémentée, contrôles locaux terminés et revue indépendante CLEAN.
+Blocage : aucun pour ce delta ; CI distante et compilation complète des workers non exécutées.
+Décision : clore la politique recette-hooks validée localement, sans publication ni qualification native/UI.
 
 # PLAN-HOOKS-RECETTE-01 — lot unique
 
@@ -221,3 +221,25 @@ Plusieurs répertoires distincts de ProgramData ont maintenant produit des notif
 Cette option réduit explicitement le caractère bloquant des notifications non attribuées du reste de ProgramData pour cette seule matrice, sans prouver leur innocuité ni leur origine, sans autoriser de destination d’écriture applicative et sans modifier/arrêter un logiciel ou une protection système. Ce risque résiduel nécessite une décision précise de l’utilisateur et ne vaut pour aucun autre lot. **Alternative** : garder la garde actuelle et autoriser seulement une nouvelle reprise ciblée après stabilité, ou clore avec les réserves de validation restante. Les trois PASS G2 et G1 sont conservés si le candidat reste inchangé. Aucune adaptation ni exécution nouvelle avant arbitrage.
 
 **Accord précis reçu le 29 octobre 2026 : « Je t’autorise ».** En réponse à cette option et à la demande explicite de consignation du reste de ProgramData, l’utilisateur autorise ce traitement pour terminer la dernière variante G2 et G3. Les sous-arbres `C:\ProgramData\Whisper\` et `C:\ProgramData\chocolatey\` restent protégés et fatals hors destinations permises ; toutes les autres protections hors ProgramData, la règle des deux racines et les arrêts pour écritures attribuées à la campagne restent inchangés. Les notifications non attribuées du reste de ProgramData sont conservées `UNATTRIBUTED_SYSTEM` sans arrêt à elles seules, sans origine/innocuité garantie ni destination applicative ajoutée. Même auteur pour le seul lanceur, candidat Rust/CI figé, stabilité Git et préflight avant reprise, anciens PASS/traces/caches conservés. Aucun réglage ou processus système modifié, aucun push ni nettoyage.
+
+## Clôture du 29 octobre 2026 — CLEAN limité au delta recette
+
+**Contrôles locaux terminés, Run final code 0.** Préflight, auto-tests, marqueur et stabilité Git (connectivité, deux relevés cohérents et 30 secondes sans notification Git) ont passé. Les résultats acquis sur le candidat source inchangé ont été conservés sans compter les commandes interrompues ni rejouer les PASS sans motif.
+
+| Groupe | Preuve réellement démontrée | Répertoire de traces sous target/parakeet-tests/recette-hooks/logs/ |
+| --- | --- | --- |
+| G1 | Trois commandes Cargo réelles adapters ; six tests exécutés et réussis, zéro ignoré : sans feature dev, avec feature dev, release sans feature ; variables historiques définies | `reprise-20261029-env/` |
+| G2 adapters assertions false | Refus réel Cargo exit 101, diagnostic spécifique recette-hooks interdit en release | `reprise-20261029-stable-preflight/` |
+| G2 desktop assertions false et adapters assertions true | Deux refus réels Cargo exit 101 avec le même diagnostic spécifique | `reprise-20261029-system/` |
+| G2 desktop assertions true | Dernier refus réel Cargo exit 101 avec diagnostic spécifique, non interrompu | `reprise-20261029-programdata/` |
+| G3 | Métadonnées du workspace réel, trois sondes exécutant la garde commune, six refus spécifiques, quatre tests réussis des vrais blocs L04 CPU/GPU (deux par worker), checks dev avec feature et release sans feature réussis | `reprise-20261029-programdata/` |
+
+Les commandes, sorties stdout/stderr et fichiers `completed-before-stop.txt`/`result.txt` correspondants constituent les traces de ces résultats. Les sondes reprennent la garde et les blocs réels, mais **ne constituent pas une compilation intégrale des crates workers CPU/GPU**. Le câblage de ces porteurs est vérifié par composition des manifestes Cargo réels, des métadonnées et de la garde commune exécutée dans les sondes. Aucun résultat de tests natifs/audio/GPU ou de fenêtre Windows n’est revendiqué.
+
+Espace final : 115 196 669 952 octets au préflight, 115 826 053 120 avant Run final et 115 577 393 152 après. Les valeurs sont des relevés du volume, pas une mesure attribuée de la seule campagne. Dernière reprise : 129 notifications UNATTRIBUTED_PROFILE, 12 UNATTRIBUTED et 6 UNATTRIBUTED_SYSTEM, conservées avec chemins/heures ; leur origine et innocuité restent indéterminées et ne sont pas des destinations autorisées. Les arrêts et traces antérieurs restent préservés, sans suppression ni restauration. Aucun Cargo/rustc actif constaté après clôture.
+
+**Revue indépendante finale : CLEAN.** Même reviewer, deux passes de revue, zéro correction, candidat working-tree source inchangé epoch 0 depuis la base `df28cfc7e8b85dd0e97ed894a9816dfcdd97aa22`. Aucun constat ouvert, aucune requête ou lacune matérielle restante pour ce delta selon le reviewer ; G1/G2/G3 CLOSED. Le reviewer a vérifié les sorties et leur correspondance au workflow, les branchements de compilation et le câblage Cargo, ainsi que `git diff --check` (PASS), sans modifier de fichier ni lancer Cargo/rustc. Le coordinateur n’a pas modifié le produit.
+
+**Limites de livraison** : CLEAN concerne l’isolation des hooks et la politique de compilation/CI, pas la qualification d’exécutables natifs complets. La CI GitHub Actions distante n’a pas été exécutée ; le workflow a été revu et sa matrice contrôlée localement. Builds complets workers, audio/natif/GPU, recette manuelle Windows, installation et publication restent non exécutés. Les exceptions de surveillance acceptées par l’utilisateur ne valent que pour ces vérifications locales et ne changent aucune règle générale d’un autre lot.
+
+Les treize fichiers du candidat restent disponibles en diff local (dont `scripts/recette-build.rs` et `.github/workflows/recette-hooks.yml` nouveaux), sans commit du code ni push dans ce lot. Le plan et ses bilans sont commités localement par la principale. Les non-suivis préexistants `docs/architecture/`, `models/`, `sound example/` sont préservés. Aucune relance ou vérification supplémentaire n’est nécessaire à la clôture de ce delta après le verdict reçu.
