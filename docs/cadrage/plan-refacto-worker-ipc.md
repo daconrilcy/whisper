@@ -1,6 +1,6 @@
-Avancée : lots A/3a, B/3b et C/3c clos après vérifications et revue CLEAN ; bilan C au §18.
-Blocage : aucun dans le périmètre C autorisé.
-Décision : lot C clos sans réserve dans ce périmètre ; aucun lot D1 démarré.
+Avancée : lots A à D1 clos après vérifications et revue CLEAN ; bilan D1 au §20.
+Blocage : aucun dans le périmètre D1 autorisé.
+Décision : lot D1 clos sans réserve dans ce périmètre ; aucun lot D2 démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -645,3 +645,48 @@ Décision : exécuter uniquement D1, revue indépendante puis commit local sans 
 Accord écrit de la session : « Passe au lot D1 selon le plan. Je t’autorise l’implémentation, les vérifications et le commit local, sans push. Clôture-le sans réserve après revue indépendante. » Périmètre : `worker_ipc.rs`, `worker_ipc/runtime/mod.rs` et `worker_ipc/runtime/queue.rs`, avec tests directement correspondants. Déplacer le propriétaire ImportRuntime, ses constructeurs et injections existantes sans changer son état ; déléguer les seuls bras Enqueue, RemoveQueued, ProcessQueued et ScanQueue. Conserver identités, validations, FIFO, refus avant préparation, préambule/épilogue et retours précoces du dispatcher. ConfirmDuplicateImport reste pour D2. Aucune nouvelle API, dépendance, feature ou modification de manifeste.
 
 Campagne sous `target/parakeet-tests/refacto-worker-ipc-d1/` et cible Cargo partagée canonique ; copie adaptée de la garde existante, cache, fixture, temporaires et sorties sous D1. Préflight, auto-tests, surveillance et commandes offline/locked obligatoires, sans nouvelle surveillance ou isolation. La consigne de session de consigner sans arrêt les événements sur fichiers extérieurs sans lien démontré avec le projet reste applicable, ainsi que l'accord `.git/objects/` pour tous les lots. Elle n'autorise aucune destination applicative volontaire hors racines ni écriture attribuée à la campagne ; sources, index/HEAD/références/configuration, modèles, corpus, cache Cargo et ressources Whisper restent protégés. La disposition de l'incident index C est ponctuelle, sans exception générale ; aucune lecture Git concurrente d'une commande gardée. Les dispositions hors périmètre D2 natif/l3c et D4 hardlink restent explicites, sans nouveau skip ni campagne native/Windows implicite. Espace libre initial : 120 403 664 896 octets (environ 112,1 Gio). Non suivis préexistants préservés.
+## 20. Clôture du lot D1 — 29 octobre 2026
+
+Avancée : état ImportRuntime et quatre traitements de file extraits, vérifications réussies et revue indépendante CLEAN.
+Blocage : aucun dans le périmètre D1/REQ-03/04.
+Décision : lot D1 clos sans réserve dans son périmètre autorisé ; commit local sans push, aucun lot D2 démarré.
+
+### Delta et invariants
+
+Base Git exacte : `07554be8caf7c0e7a609b9dceafc33784c691775`, après C clos. Implémentation déléguée à `rust_implementer`, revue par le coordinateur et le même reviewer indépendant en lecture seule. La session principale n'a pas modifié le code en parallèle.
+
+Trois fichiers production : façade `worker_ipc.rs`, nouveaux `worker_ipc/runtime/mod.rs` (325 lignes physiques) et `worker_ipc/runtime/queue.rs` (449). Un seul ImportRuntime avec le même état, ses constructeurs et injections existants ; alias privé dans la façade pour les impls non encore extraits. Champs et méthodes partagés limités à worker_ipc, aucun nouvel export externe. Les quatre bras Enqueue, RemoveQueued, ProcessQueued et ScanQueue délèguent aux méthodes de file sur cet état unique. ConfirmDuplicateImport reste dans la façade pour D2.
+
+Le reviewer a comparé les quatre corps, constructeurs et injections à la base : mutations, FIFO, identités, validations, refus avant préparation et source binding préservés. Les retours demeurent dans les mêmes closures ; préambule, sorties précoces et épilogue de `effect` inchangés. Aucun changement d'algorithme métier, dépendance, feature, manifeste ou Cargo.lock. Les deux nouveaux modules respectent le plafond de 1 500 lignes.
+
+### Caractérisation et résultats exécutés
+
+L'inventaire ne montrait pas de témoin direct des effets RemoveQueued et ScanQueue dans les tests worker_ipc existants. Une caractérisation privée séparée a donc été ajoutée dans `tests/queue_characterization.rs`, déclarée par une ligne dans `tests.rs`. Le test `queue_effect_scan_and_remove_preserve_remaining_fifo_entry` exerce lecture, retrait et nouvelle lecture persistée en vérifiant l'entrée FIFO restante. Exécution avant extraction PASS (`Run-20261029T191356043-7456a453`), puis après extraction PASS (`Run-20261029T191506713-c8288643`).
+
+Témoins complémentaires existants : les deux refus GPU/capacité du plan, `pending_compute_change_persists_only_the_choice_and_keeps_fifo` et `pending_compute_change_cannot_skip_the_fifo_head`, tous exécutés et réussis avant/après. Les cinq témoins ciblés passent. Découverte : exactement un test de caractérisation supplémentaire, sans renommage ou perte de scénario existant.
+
+Baseline et candidat : format, contrôle workspace et cinq suites séquentielles PASS via garde, `git diff --check` PASS. Les cinq suites du candidat rapportent :
+
+| Configuration séquentielle | Réussis baseline | Réussis candidat | Échoués | Ignorés | Filtrés autorisés |
+| --- | --- | --- | --- | --- | --- |
+| défaut | 268 | 269 | 0 | 16 | 1 D2 |
+| recette-hooks | 272 | 273 | 0 | 16 | 1 D2 |
+| l01-memory-qualification | 268 | 269 | 0 | 16 | 1 D2 |
+| personal-qualification | 268 | 269 | 0 | 16 | 1 D2 |
+| recette-hooks,l3-gpu-qualification | 272 | 273 | 0 | 16 | 2 D2/l3c |
+
+Clippy réussit avec 144 avertissements contre 142 en baseline. Les deux nouveaux diagnostics `too_many_lines` sont les handlers Enqueue (178 lignes) et ProcessQueued (217), corps hérités déplacés à l'identique. Aucun `allow` ajouté. Le plan autorise l'attribution des longs corps déplacés comme dette héritée ; le reviewer a confirmé cette équivalence et n'en fait pas un constat actionnable de D1. Les cibles de taille des fonctions ne sont donc pas revendiquées atteintes pour ces deux corps, et aucune refonte fonctionnelle n'est ajoutée à ce lot.
+
+Trois contrôles conditionnels non natifs isolés ont été exécutés avec variables bornées et réussissent : `paths_reject_a_worker_outside_the_runtime_root`, `injected_catalog_guards_all_worker_effect_routes_including_checkpoint_resume` et `over_limit_parakeet_import_is_refused_before_pending_creation` (journaux `Run-20261029T192330813-31d5e419`, `Run-20261029T192331980-892e0485`, `Run-20261029T192333124-b6436116`). Le scénario de reprise D4 impliquant un hardlink sur le modèle extérieur reste NOT RUN, hors critères D1. Les 16 tests ignorés, les exclusions D2 natif/l3c déjà convenues et les essais natifs/Windows ne sont pas revendiqués exécutés ; aucun nouveau skip ajouté.
+
+Journaux des cinq suites finales : `Run-20261029T191619097-5b34454c`, `Run-20261029T191748391-e91156f3`, `Run-20261029T191914219-77655504`, `Run-20261029T192043003-eac93aa3`, `Run-20261029T192211622-3029e9f4`, sous `target/parakeet-tests/refacto-worker-ipc-d1/logs/` avec stdout/stderr et index `guard.jsonl`.
+
+### Garde, revue et conservation
+
+Campagne sous la racine D1, cache/fixture/temporaires et sorties bornés, unique cible Cargo partagée canonique, préflight et auto-tests de refus avant Cargo, commandes offline/locked et surveillance existante. Un événement Created Temp `etilqs_y8iri21xqko1SJH` à 19:03:58 a d'abord interrompu un témoin ; ce résultat reste non acquis et sa trace est conservée, sans attribution à la campagne ni suppression/restauration. La session principale a ensuite appliqué la directive utilisateur générale de cette même session de ne pas interrompre pour les fichiers Downloads ou autres extérieurs sans lien démontré avec le projet : ces événements non attribués sont consignés sans arrêt à eux seuls. Les auto-tests ont confirmé le maintien de l'arrêt pour les fichiers suspects ou attribués à la campagne et les ressources du projet. Aucune destination applicative volontaire hors racines n'est autorisée. Les protections sources, index/HEAD/références/configuration, modèles, corpus, ressources Whisper et cache Cargo restent actives ; aucune lecture Git pendant les commandes gardées. Aucun mécanisme de surveillance ou d'isolation supplémentaire créé.
+
+Le reviewer indépendant rend **CLEAN** sur le candidat working tree, epoch 0 : une passe de revue, zéro correction, aucun constat ouvert, aucune vérification requise manquante ni blocage dans D1. La dette héritée des deux longs corps est attribuée explicitement ci-dessus conformément au plan ; la clôture ne prétend ni la supprimer ni valider le produit nativement ou dans Windows.
+
+Archive : `target/parakeet-tests/refacto-worker-ipc-d1/archive/closure-20261029/proofs.zip`, 88 entrées uniques, 313 468 octets. Arborescence relative conservée, compte/unicité et SHA-256 de chaque entrée vérifiés contre les sources. SHA-256 du ZIP : `A0700399C3CE39AD22853559CEB5CBCE0063BA5306CCB179494E785284B22442`. Aucun cache/build/modèle/WAV inclus, aucun manifeste créé, aucune suppression ni nettoyage sans manifeste de suppression approuvé ; cargo-shared conservé.
+
+Espace libre final : 119 496 704 000 octets (environ 111,3 Gio). Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Sources relues et bilan conservés dans le commit local de clôture ; aucun push. Aucun lot D2 n'est autorisé par cette clôture.
