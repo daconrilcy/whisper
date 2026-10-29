@@ -110,7 +110,7 @@ Documentation du lot : présent plan pour suivi/résultats/réserves et cadrage 
 | T3 — Façade CPU | CODE T2 et EXECUTION contrôles utiles T2. P-CPU lancement/boucle/cache/admission/import/live/decode/control/intégrité/diagnostics. Déplacer arrêt, ajouter cas manquants. | Première façade complète, refus modèle/arrêt inactif ; import réutilisable/live sous autorisation. |
 | T4 — Modules GPU | CODE/EXECUTION T3. P-GPU decoder/encoder/ipc, tests inline et instrumentation ; aucun report mécanique CPU. | Modules externes/tests actifs, décodage/framing préservés. |
 | T5 — Façade GPU | CODE/EXECUTION T4. P-GPU lancement/boucle/cache/sessions/commandes/diagnostics ; préserver attestation hit et corrélations. | Façade GPU, sonde distinguée de l'inférence ; refus/réutilisation couverts. |
-| T6 — Contrôles Parakeet | CODE/EXECUTION T5. P-PARAKEET args/racines/GPU/intégrité/IPC/timing/decode-only/référence/tests. Aucune racine produit élargie. | Contrôles/profils, résumé decode-only et création exclusive conservés. |
+| T6 — Contrôles Parakeet | CODE/EXECUTION T5 et Q-EXEC-02 résolue avec stratégie de couverture autorisée. P-PARAKEET args/racines/GPU/intégrité/IPC/timing/decode-only/référence/tests. Aucune racine produit élargie. | Tests déplacés sans changement implicite d'assertion/cfg, résultats/limites par configuration ; contrôles/profils, résumé decode-only et création exclusive conservés. |
 | T7 — Façade Parakeet | CODE/EXECUTION T6. P-PARAKEET lancement/session/transcription ; ordre compteurs/refus/callbacks/arrêts conservé. | Façade Parakeet ; refus puis requête suivante, EOF/Shutdown distingués. |
 | T8 — Vérifier et faire revoir | CODE T3/5/7 et EXECUTION contrôles utiles acquis. Vérifications croisées manquantes/affectées seulement, cinq façades/diff, revue indépendante et corrections bornées. | Bilan par scénario/configuration, verdict indépendant, réserves explicites. |
 
@@ -162,7 +162,28 @@ Dernière commande : WHISPER_TEST_REUSE_MODEL et nouvelle racine explicite aprè
 
 ### Parakeet
 
-Trois features indépendantes, huit ensembles de builds/tests binaires distincts : défaut ; parakeet-cuda ; parakeet-qualification-reference ; parakeet-personal ; CUDA+référence ; CUDA+personnel ; référence+personnel ; CUDA+référence+personnel (utiliser noms complets dans --features). Aucun --all-features remplaçant la matrice. Compiler ces branches ne prouve pas l'admission de chaque profil runtime.
+Trois features indépendantes, huit ensembles obligatoires de compilation des branches affectées et d'inventaire des tests : défaut ; parakeet-cuda ; parakeet-qualification-reference ; parakeet-personal ; CUDA+référence ; CUDA+personnel ; référence+personnel ; CUDA+référence+personnel (utiliser noms complets dans --features). Aucun --all-features remplaçant la matrice. Ces ensembles ne sont pas présentés comme huit suites de tests entièrement vertes. Compiler ne prouve pas l'admission de chaque profil runtime.
+
+**Incompatibilités préexistantes identifiées statiquement (PL-MF-01).** Abréviations C=parakeet-cuda, R=parakeet-qualification-reference, P=parakeet-personal ; L2=accepts_only_the_two_canonical_l2_test_roots, QUAL=qualification_profiles_are_confined_to_l2b.
+
+| Configuration | Écart relevé dans ces deux tests existants |
+|---|---|
+| Défaut | Aucune incompatibilité identifiée dans ces deux tests |
+| C | Aucune identifiée ; L2/QUAL inactifs |
+| R | L2 rejette L2b alors que R l'ajoute aux racines |
+| P | L2 attend L2a alors que la liste Test est vide en personnel |
+| C,R | QUAL attend single-pass L2a admissible alors que C admet L3 |
+| C,P | Aucune identifiée dans ces deux tests, tous deux inactifs |
+| R,P | L2 et QUAL attendent des racines Test alors que la liste est vide |
+| C,R,P | QUAL attend single-pass L2a admissible alors que la liste Test est vide |
+
+Sources : main.rs Parakeet:758–784,837–865 et fonctions appelées:880–902 à la base produit. Ce ne sont pas des résultats de test : **NOT RUN — incompatibilité préexistante identifiée**. Déplacer ces tests avec assertions/cfg d'origine ; relier explicitement leurs noms qualifiés avant/après extraction. Aucune correction de ces assertions ou cfg autorisée par ce plan.
+
+À T1, après résolution de Q-EXEC-01 seulement, compiler les tests de chaque ensemble avec `cargo test --offline --locked -p whisper-worker-parakeet-cpu --bin whisper-worker-parakeet-cpu [--features <ensemble>] --no-run`, puis inventorier avec la même commande sans --no-run, terminée par `-- --list`. Garder inventaires/diagnostics ; aucune de ces commandes ne prouve une assertion réussie. Avant de lancer les commandes de tests binaires génériques §7 dans une configuration affectée, appliquer cette stratégie, pas une suite complète aveugle.
+
+Fixer avant lancement la sélection et ses exclusions, avec noms exacts issus de l'inventaire : framing, parser CUDA, racines personnelles et décodeur de référence si fixtures disponibles. Aucun --skip global ni nouveau #[ignore] pour masquer ces écarts ; la sélection n'est pas la suite entière. Si une suite complète autorisée échoue, arrêter selon AGENTS et garder les résultats ; distinguer défaut préalable/régression sans reclasser l'échec PASS ou l'absorber pour poursuivre.
+
+**Q-EXEC-02 — entrée de T6 et clôture S-09 :** coordinateur responsable, présenter les incohérences et la stratégie précise de couverture à l'utilisateur avant la tâche dépendante. Corriger assertions/cfg historiques demande un périmètre test-only explicitement autorisé et un plan mis à jour ; cela ne découle pas de l'extraction. Une sélection limitée acceptée reste PARTIAL pour configurations non couvertes et ne clôt pas S-09 entièrement. Sans résolution, arrêter avant T6 ; préserver les preuves déjà acquises. À T8, comparer inventaires et résultats référence/candidat par configuration ; nouvelle régression = arrêt, incompatibilités historiques visibles, jamais déclarées résolues par déplacement.
 
 Sans personnel : CPU admet racines L2a actuelles ; référence ajoute L2b ; CUDA admet L3a/L3b. Profils de qualification exigent L2b : CUDA+référence compilable ne promet pas profil de qualification exécutable. Avec personnel : runtime publié ou enfant direct .staging, single-pass seulement ; feature référence n'autorise pas profils privés dans ce runtime.
 
@@ -184,7 +205,7 @@ Les noms de tests ci-dessous sont des cibles nouvelles à créer dans worker_con
 | S-06 GPU identité/sonde | T5 ; AC-03/04 | diagnostics/tests, engine_cache/tests, gpu_selection_native, worker_contract ; native_ffi lu | gpu_identity_contract : refus typé/corrélé, bonne cible, sonde distincte inférence ; cache comparé selon critères réels |
 | S-07 Parakeet refus suivant | T7 ; AC-03/04 | worker_contract ; session/ipc/transcription/native_engine ; F-01/03,R-PARA/NATIVE | parakeet_refusal_order_contract : identité invalide consomme request_id au même point, SourceHashMismatch réserve tentative ; requête suivante reproduit refus/acceptation |
 | S-08 Parakeet erreurs/arrêt | T6/7 ; AC-03/04 | ipc/tests, worker_contract ; startup/session ; ressources si Ready requis | parakeet_errors_and_shutdown_contract : JSON/version→Failed/poursuite, framing→fatal/code2, Shutdown→Stopped, EOF sans Stopped |
-| S-09 Racines/profils | T6 ; AC-04 | runtime_paths/tests, personal_tests, gpu_identity/tests, args/startup | Tests binaires, chemins synthétiques et racines lues : mêmes admissions/refus/profils/parser NVIDIA |
+| S-09 Racines/profils | T6 ; AC-04/06 ; Q-EXEC-02 | runtime_paths/tests, personal_tests, gpu_identity/tests, args/startup | NOT RUN ; couverture complète conditionnée à Q-EXEC-02. Compilations/inventaires/tests ciblés ne ferment que sous-cas réellement vérifiés ; mêmes admissions/refus/profils/parser NVIDIA |
 | S-10 Decode-only | T6 ; AC-03/04 | worker_contract ; decode_only/runtime_paths/decoder ; F-03 | parakeet_decode_only_contract : même PCM/résumé JSON, création exclusive refuse sortie existante sans écrasement |
 | S-11 Référence/décodage | T4/6 ; AC-03/04 | decoder/tests, reference_decoder/tests ; F-03/04 | Tests binaires, fenêtres contiguës/bornées, parité courte,60min admises et dépassement refusé |
 | S-12 Native Parakeet | T7 ; AC-03/04/06 | worker_contract ; transcription/native_engine/native_ffi ; F-03,R-PARA/NATIVE | parakeet_native_transcription_contract : backend CPU/CUDA effectif, identités/résultats, InvalidTimestamp distinct et callback CUDA au bon point |
@@ -230,4 +251,6 @@ Recette Windows non requise pour la seule extraction structurelle ; si retenue p
 
 Lectures et analyse statique réalisées pour rédaction. Toute compilation, test, natif, création fixture et recette reste **NOT RUN**.
 
-Revue PLANS : **À EFFECTUER**. Acceptation plan : **EN ATTENTE**. Q-EXEC-01 garde : **À RÉSOUDRE avant toute campagne**. Implémentation/campagnes/recette/push : **NON AUTORISÉS**. Aucun DESIGN_CHANGE_REQUIRED identifié. Le verdict documentaire ne lève pas les conditions d'exécution.
+Revue PLANS initiale sur d2a243c3 : **FINDINGS**, PL-MF-01 IMPORTANT/REQUIRED, traitement des tests de racines préexistants dans la matrice Parakeet. Correction documentaire proposée par rust_plan_writer, intégrée ci-dessus sans modifier design/code ; fermeture réservée au reviewer.
+
+Acceptation plan : **EN ATTENTE**. Q-EXEC-01 garde : **À RÉSOUDRE avant toute campagne**. Q-EXEC-02 tests racines : **À RÉSOUDRE avant T6 et clôture S-09**. Implémentation/campagnes/recette/push : **NON AUTORISÉS**. Aucun DESIGN_CHANGE_REQUIRED identifié. Le verdict documentaire ne lève pas les conditions d'exécution.
