@@ -1,6 +1,6 @@
-Avancée : plan documentaire proposé sur le design Git revu.
-Blocage : code/campagnes non autorisés ; garde compatible non établie.
-Décision : soumettre un lot séquentiel de neuf tâches à la revue PLANS.
+Avancée : T1–T9 réalisées ; revue indépendante CLEAN après une correction.
+Blocage : aucun constat ouvert ; MP3 gapless non exécuté faute de corpus.
+Décision : livraison du candidat de travail sans push ; limites détaillées au §10.
 
 # Plan d'implémentation — whisper-worker-common
 
@@ -8,7 +8,7 @@ Décision : soumettre un lot séquentiel de neuf tâches à la revue PLANS.
 
 Design parent : D-WCOMMON-01 v1, [whisper-worker-common.md](whisper-worker-common.md), contenu revu au commit `087af34797e91269b0614f95cd5e6c62cbe0a428`. Revue DESIGN CLEAN / DESIGN READY documentaire : [revue-whisper-worker-common.md](revue-whisper-worker-common.md), suivie au HEAD `466c756a5e26338117c3b86d9d7a8b8959ba4403`. Base code `7a4d20b2a115fc6dd57e3b40faa75731b35c1832`, branche evo-startup-perf.
 
-Accord exact de session : « Je valide cette qualification. Lance le cadrage de whisper-worker-common et prépare le plan d’implémentation, sans modifier le code. » Le plan est autorisé ; son exécution ne l'est pas. Les choix/liste fermée restent à accepter avant code. Aucun Cargo, test, build ou moteur exécuté pendant la rédaction.
+Accord initial de rédaction : « Je valide cette qualification. Lance le cadrage de whisper-worker-common et prépare le plan d’implémentation, sans modifier le code. » Les statuts d'entrée et de remise documentaire ci-dessous décrivent cet état initial. Les accords ultérieurs de réalisation et les résultats courants sont consignés au §10 ; aucun moteur natif ni fenêtre Windows n'a été exécuté dans ce lot.
 
 ## 1. Résultat et responsabilités
 
@@ -74,14 +74,14 @@ MP3 interne : séquence i16 déterministe, par exemple `((i * 997) % 60_001) - 3
 
 IPC : comparer writers actifs, pas helper CPU historique ; compléter refus/limites manquants. Les fixtures utilisent exclusivement TEMP validé ; logs ordinaires du lanceur et attentes des tests suffisent. Aucun outil ni manifeste d'empreintes de qualification supplémentaire.
 
-## 6. Commandes envisagées, toutes NOT RUN
+## 6. Commandes prévues — résultats d'exécution au §10
 
 Commandes **internes** à transmettre à la garde compatible future ; jamais autorisation de lancement direct. Cwd C:/dev/whisper, shell PowerShell, cible déclarée x86_64-pc-windows-msvc. CPU/GPU dans des invocations distinctes, pour éviter l'unification CUDA d'une commande groupée. L'invocation du lanceur, sa racine et les variables concrètes restent à établir avant exécution, pas des commandes actuellement disponibles.
 
 | ID | Commande interne proposée | Moment et résultat attendu |
 | --- | --- | --- |
 | V0 | `cargo test --offline --locked -p whisper-worker-cpu --bin whisper-worker-cpu -- --nocapture --test-threads=1` | T1 ancien code : tests et témoins avant extraction, logs capturés |
-| V1 | `cargo check --offline -p whisper-worker-common` | T2 seule cohérence locale nouveau package/lock, futur mandat doit couvrir l'absence de locked ; contrôler immédiatement diff local |
+| V1 | `cargo check --offline --locked -p whisper-worker-common` | T2 cohérence locale ; lockfile préparé et vérifié hors campagne avant contrôle, ajustement explicitement validé dans cette session |
 | V2 | `cargo test --offline --locked -p whisper-worker-common --lib` | Après T3 puis fin : contrats communs défaut |
 | V3 | `cargo test --offline --locked -p whisper-worker-common --lib --features l01-memory-qualification` | Hooks Some/None et contrats sous feature |
 | V4-P | `cargo test --offline --locked -p whisper-worker-cpu --bin whisper-worker-cpu` | Unitaire/raccordement CPU ; pas de modèle requis par cette sélection |
@@ -98,7 +98,7 @@ Commandes **internes** à transmettre à la garde compatible future ; jamais aut
 | V9-G | `cargo clippy --offline --locked -p whisper-worker-gpu --bin whisper-worker-gpu -- -W clippy::too_many_lines -W clippy::cognitive_complexity -W clippy::too_many_arguments -W clippy::type_complexity` | Lints GPU séparés |
 | V10 | `git diff --check` et lectures Git noms/diff manifestes-lock | Statique portée et dépendances, sans campagne |
 
-V0 avant T2 sur lock existant ; V1 seul contrôle sans locked, puis tous les contrôles qui l'acceptent offline/locked. Aucun téléchargement/mise à jour externe. Les contrôles sont échelonnés : V2/V4 après raccordements utiles, matrice finale T8 ; répéter seulement si nouveau changement/échec/inquiétude le justifie.
+V0 avant T2 sur lock existant ; tous les contrôles qui l'acceptent sont désormais offline/locked, y compris V1 après arbitrage utilisateur. Les éditions de Cargo.lock se font hors campagne ; aucune commande Cargo n'est autorisée à le modifier. Aucun téléchargement/mise à jour externe. Les contrôles sont échelonnés : V2/V4 après raccordements utiles, matrice finale T8 ; répéter seulement si nouveau changement/échec/inquiétude le justifie.
 
 Refus release recette-hooks : contrôle statique de scripts/recette-build.rs et liens build des deux workers inchangés. Essai Cargo volontairement négatif NOT RUN ; aucun échec artificiel ni dérogation ajouté. Les variables historiques L01/L02/L04 et sorties traces ne sont pas activées automatiquement. Le test gapless ne vaut preuve que sur corpus autorisé avec délai/padding vérifiés ; son retour anticipé ne vaut pas PASS audio.
 
@@ -133,3 +133,61 @@ Clôture T9 : relever espace libre ; archiver petites preuves selon AGENTS avec 
 Découpage/chemins/dépendances/scénarios/commandes proposés ; revue PLANS à effectuer. Aucun propre CLEAN/READY déclaré par le plan writer. Après verdict indépendant, le suivi courant sera dans revue-plan-whisper-worker-common.md sans modifier les exigences du plan revu.
 
 Restent avant réalisation : acceptation utilisateur liste/design/plan, accord précis d'implémentation/manifestes/lockfile/campagne, résolution concrète G-EXEC. Tous les tests/builds/native/fenêtre : NOT RUN. Aucun code modifié.
+
+## 10. Bilan de réalisation — 29 octobre 2026
+
+Auteur du bilan : session principale. Base du candidat : `7d06cd0fa0a284248ad837585dd618c4a71e0951`, branche `evo-startup-perf`, modifications de travail non committées. Les quatre rapports prévus sont conservés ; aucun rapport supplémentaire créé. Le présent bilan et l'ajustement V1 remplacent les statuts historiques d'attente des sections précédentes pour cette réalisation.
+
+### Accords et exécution
+
+L'utilisateur a demandé la mise en œuvre de ce plan, puis autorisé précisément l'adaptation de la garde PowerShell et V0–V10 avec `target/parakeet-tests/worker-common/` pour les sorties/cache/temporaire et `target/parakeet-tests/cargo-shared/` pour la compilation. Il a ensuite accepté la consignation `UNATTRIBUTED` des événements sans attribution sous `%LOCALAPPDATA%/Temp`, sans destination volontaire supplémentaire et avec arrêt conservé pour les écritures attribuées hors racines. Aucune dérogation historique n'est héritée.
+
+Les incidents Temp puis `.git/objects/pack/tmp_pack_gbctSt` ont provoqué des arrêts et leurs traces ont été conservées. L'investigation a relié l'activité Git observée aux captures de différences de l'application desktop ; reprise dans Codex CLI indépendant, desktop fermé. Avant reprise, aucune activité Git ni changement des packs n'a été observé pendant environ 39 secondes ; cela ne prouve pas une inactivité future. L'extension VS Code était encore chargée. Les auto-tests de garde ont ensuite réussi et la surveillance est restée active pendant les commandes.
+
+La première tentative V1 sans locked a été arrêtée après un événement sur Cargo.lock. L'ajustement accepté explicitement est : « Je valide la préparation du lockfile hors campagne, V1 avec --locked, puis la reprise du plan et de la revue indépendante, sans push ». Seule la commande V1 attendue de la garde a été verrouillée ; aucune destination supplémentaire n'a été ouverte. La comparaison statique finale confirme les mêmes 440 packages externes, versions, sources et checksums ; les changements du lockfile portent sur les liens locaux et l'ordre normalisé de rubato/rustfft.
+
+### Fichiers et comportement livrés
+
+- Nouvelle crate `crates/whisper-worker-common/` : Cargo.toml, lib.rs, decoder.rs, encoder.rs, ipc.rs, integrity.rs, observation.rs et les cinq fichiers de tests séparés prévus.
+- Cargo.toml et Cargo.lock racine ; manifestes CPU/GPU pour les liens locaux, le transfert des dépendances de décodage/encodage et le forwarding de feature.
+- Façades CPU : decoder.rs, encoder.rs, ipc.rs, ipc_output.rs, integrity.rs et les trois nouveaux fichiers decoder/tests.rs, encoder/tests.rs, ipc/tests.rs.
+- Façades GPU : decoder.rs, encoder.rs, ipc.rs, integrity.rs et adaptation de decoder/tests.rs.
+- Garde et sorties dans la racine autorisée ignorée par Git ; aucun changement des autres crates, moteurs, schémas core ou interface.
+
+Les signatures et appelants des façades sont conservés. Le writer CPU actif passe `None` à l'observation ; le GPU utilise son recorder sous feature. Les signatures communes restent stables avec/sans instrumentation. `sha2` reste une dépendance directe de production des deux workers pour recette-hooks. Les éléments préexistants non suivis `docs/architecture/`, `models/` et `sound example/` ont été préservés.
+
+### Inventaire de conservation des tests
+
+| Scénario ou test initial | Destination et preuve conservées | Critère |
+| --- | --- | --- |
+| CPU/GPU `long_source_is_streamed_as_bounded_contiguous_windows` | Test commun : 25 fenêtres de 80 000 puis 123 ; façades raccordées | WC02 |
+| CPU/GPU `lame_gapless_delay_and_padding_are_trimmed_once` | Test commun conservé, NOT RUN sans corpus | WC02 |
+| CPU/GPU `rejects_oversized_and_incomplete_frames_before_deserialization` | Tests locaux conservés et common `frames_and_limits_are_preserved` | WC04 |
+| CPU `rejects_serialized_frames_over_one_mibibyte` et GPU `writer_accepts_limit_and_rejects_limit_plus_one` | Tests locaux et commun ; limite LF inclus | WC04 |
+| CPU actif `writer_accepts_limit_and_rejects_limit_plus_one_without_growing_past_it` | Test local ipc_output conservé | WC04 |
+| Témoins T1 sur anciens algorithmes | Common `capture_non_silent_pcm_baseline` et `packet_sequence_matches_original_encoder` ; valeurs PCM et 57 paquets MP3 figés selon résultats observés | WC02/03 |
+| Cas ajoutés après revue | Source 16 échantillons, plage [12,20) : Some, longueur 4, PCM attendu ; source existante invalide : UnsupportedFormat | WC02 |
+
+### Vérifications réellement exécutées
+
+Toutes les commandes Cargo ont utilisé la garde et les racines du lot ; CPU/GPU séparés, variables privées et réglages de compilation conservés. Les commandes exactes, dates, codes et chemins stdout/stderr sont dans `target/parakeet-tests/worker-common/logs/guard.jsonl`.
+
+| Contrôle | Résultat et portée |
+| --- | --- |
+| V0 ancien code | PASS, 11 tests ; témoin `V0-20261029T145304123-373fd4ed.stdout.log` avant extraction |
+| V1 corrigé avec locked | PASS sur la crate initiale T2 ; les contrôles ultérieurs couvrent le candidat final |
+| V2/V3 common défaut/instrumenté | PASS, 12 tests par configuration après correction ; runs `20261029T151258767-8511b76d` et `20261029T151302802-fdd0f3f9` |
+| V4/V5 CPU et GPU défaut/instrumentés | PASS, 9 tests CPU et 19 tests GPU par configuration |
+| V6 CPU/GPU recette-hooks dev | PASS ; refus release contrôlé statiquement dans scripts/recette-build.rs, aucun échec artificiel lancé |
+| V7 builds release CPU/GPU | PASS ; changements postérieurs limités aux tests communs, sans changement du code de production |
+| V8 format | PASS sur candidat corrigé, run `20261029T151308112-91fca393` |
+| V9 Clippy common/CPU/GPU | PASS avec avertissements ; dernier delta après ces commandes limité à deux tests decoder communs, validés par V2/V3/V8 |
+| V10 Git/lockfile | git diff --check PASS ; comparaison externe lockfile identique, portée vérifiée |
+
+### Revue indépendante et clôture
+
+Le coordinateur `common_review_loop` a mandaté un `rust_reviewer` indépendant en lecture seule. Deux passes de revue, une correction confiée au même implémenteur ; aucun code concurrent par la session principale. Le finding IMPORTANT `R-WC-01` portait sur deux scénarios manquants de WC02, sans défaut fonctionnel établi : source lisible invalide et plage chevauchant EOF. Seul decoder/tests.rs commun a été modifié pour cette correction. Le même reviewer a fermé le finding et rendu **CLEAN sur le candidat de travail epoch 1**, sans demande de vérification ouverte.
+
+Limites conservées : MP3 gapless NOT RUN sans corpus ; aucune exécution audio native ni validation dans la fenêtre Windows ; decode_wav_windows reste volumineuse (271 lignes signalées par Clippy), sans défaut nouveau établi par la revue. Aucun paquet ni installation préparé dans ce mandat.
+
+Petites preuves copiées en préservant l'arborescence vers `target/parakeet-tests/worker-common/archive/20261029-worker-common/logs/` : 83 fichiers, 156 597 octets ; nombre identique et SHA-256 de chaque copie vérifié contre sa source, sans manifeste supplémentaire. Journaux d'origine et traces des incidents conservés ; aucun WAV/cache/copieur temporaire supprimé, cargo-shared intact. Espace libre final relevé : 122 242 064 384 octets (environ 113,8 Gio). Aucun push ; candidat source non committé, bilan documentaire destiné au commit local prévu par AGENTS.
