@@ -1,6 +1,6 @@
-Avancée : plan proposé en treize lots bornés, suivant l'ordre 3a–3f demandé.
-Blocage : aucune exécution autorisée ; l'acceptation du cadrage et l'accord précis du lot restent requis.
-Décision : une seule famille d'effets par lot ; aucun changement de comportement entre les extractions.
+Avancée : candidat du lot A/3a implémenté et revu ; bilan d'exécution au §12.
+Blocage : suite recette-hooks seule en échec sur le test de spectre ; lot A non clos.
+Décision : disposition utilisateur requise sur cette réserve ; aucun lot suivant démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -431,3 +431,50 @@ Revue du 29 octobre 2026 : cycle 1 sur `4daa59a71feff5d8d58014ae135f338beb55782f
 À utiliser uniquement après acceptation et GO écrit précis :
 
 « Mode IMPLEMENT. Exécuter uniquement A/3a du plan `docs/cadrage/plan-refacto-worker-ipc.md` et du cadrage `docs/cadrage/refacto-worker-ipc.md` dans leurs versions Git acceptées. Relire AGENTS racine/adapters, état Git actuel et sources. Vous n'êtes pas seul dans le dépôt : préserver changements suivis/non suivis, coordonner les responsabilités et ne pas annuler les modifications des autres. Autorité limitée aux quatre fichiers production et tests correspondants du lot A ; aucun autre lot. Avant code, établir les prérequis et témoins réels ; avant toute commande Cargo, disposer de l'accord de campagne, d'une garde compatible, des racines/env canoniques, auto-tests et espace libre requis. Exécuter M1–M3, V1–V6 et T-A à travers le lanceur autorisé pour Cargo. Stop si baseline en échec, garde non conforme, critère partiel, conflit ou élargissement requis. Conserver contrat/public API, bornes, ordre Stop, framing et identités. Rapporter diff, contrôles réellement exécutés et limites ; ne pas déclarer CLEAN. La session principale soumettra ensuite le candidat au rust_review_coordinator ; deux cycles maximum, validation Windows distincte. Aucun push. »
+## 12. Exécution du lot A — 29 octobre 2026
+
+Avancée : candidat A/3a implémenté et revu ; aucun défaut de code actionnable relevé.
+Blocage : suite recette-hooks seule en échec sur le test de spectre ; lot A non clos.
+Décision : disposition utilisateur requise sur cette réserve ; aucun lot suivant autorisé ni démarré.
+
+### Autorité et périmètre effectifs
+
+Dans la session d'exécution, l'utilisateur a demandé la refactorisation selon ces deux documents puis autorisé précisément le démarrage du seul lot A, sa campagne, l'adaptation d'une copie de la garde existante et les commits locaux, sans push. Base Git : `fa4772c26a66ad7f4347c095ae13260c55ce216b`. Les autres lots restent conditionnés à leurs autorisations et à la clôture des prérequis ; cet enregistrement ne vaut pas GO global.
+
+Accords complémentaires de cette même session :
+
+- Helper de fixtures `worker_ipc/tests/microphone_and_finalization.rs` : racine obtenue par `std::env::temp_dir()` au lieu de `CARGO_TARGET_DIR`, avec TEMP sous la racine du lot.
+- Exclusion du seul scénario natif `direct_live::d2_corpus::d2_corpus_real_cpu_turbo_and_parakeet`, puis du seul témoin historique `l3c_acceptance_fault_is_confined_to_its_canonical_execution_root` qui exige des écritures dans l3c/l3d. Ils restent NOT RUN ; aucune destination volontaire l3c/l3d autorisée.
+- Pour A uniquement, événements Temp utilisateur sans attribution démontrée consignés `UNATTRIBUTED` sans arrêt à eux seuls. Aucune destination volontaire supplémentaire autorisée.
+- Pour tous les lots, événements non attribués dans `.git/objects/` consignés sans arrêt à eux seuls. HEAD, références, index, configuration, sources et toute écriture hors racine attribuée à la campagne restent soumis à l'arrêt.
+- Reproductions de tous les échecs autorisées. Aucun accord de correction fonctionnelle ou d'exclusion supplémentaire n'en découle.
+
+### Candidat et vérifications
+
+Implémentation déléguée à `rust_implementer` ; la session principale n'a pas modifié le code en parallèle. Transport et lecture/admission déplacés vers `ipc/mod.rs` (398 lignes physiques), framing et limite vers `ipc/framing.rs` (106), diagnostics et compteurs partagés vers `support.rs` (41). Façade publique conservée avec réexports et liaisons internes transitoires ; helpers live laissés dans la racine pour les lots prévus. Seul ajustement hors transport : helper de fixtures explicitement autorisé ci-dessus. Aucun manifeste, dépendance ou Cargo.lock modifié.
+
+Racine d'exécution : `target/parakeet-tests/refacto-worker-ipc-a/`, garde `guard.ps1`, journaux sous `logs/` ; compilation sous `target/parakeet-tests/cargo-shared/`. Cache existant copié sous la racine A, sans téléchargement. La fixture MP3 existante exigée par un test a été copiée sous A et son SHA-256 vérifié. Les arrêts initiaux sur événement Temp et objet Git sont conservés ; leur origine n'est pas démontrée. Les auto-tests de la garde ont réussi après les dérogations écrites. Les sources, modèles, corpus et dossiers tiers ont été préservés.
+
+| Vérification du candidat | Résultat réellement observé |
+| --- | --- |
+| `git diff --check`, format gardé | PASS |
+| `check --offline --locked --workspace` gardé | PASS |
+| Cinq témoins T-A gardés | 5/5 exécutés et réussis |
+| Suite par défaut séquentielle | PASS |
+| Découverte et suites l01-memory / personal séquentielles | PASS : chacune 282 découverts, 265 réussis, 16 ignorés, 1 D2 filtré |
+| Découverte et suite recette-hooks,l3-gpu séquentielle | PASS : 287 découverts, 269 réussis, 16 ignorés, 2 filtrés autorisés |
+| Suite recette-hooks seule séquentielle | FAIL deux fois : 268 réussis, 1 échec, 16 ignorés, 1 filtré ; test de spectre isolé PASS |
+| Clippy avec les quatre lints structurels du plan | PASS commande ; 143 avertissements, contre 142 en baseline ; nouvel import inutilisé `process::Command` |
+| Natifs et fenêtre Windows | NOT RUN |
+
+Les cinq configurations avaient obtenu une baseline séquentielle réussie avant extraction, après reproduction d'échecs. `microphone_probe::tests::retry_epoch_discards_audio_acquired_before_the_retry_barrier` a échoué avant extraction dans d'autres configurations et deux fois après extraction dans recette-hooks seule : `fresh retry spectrum did not arrive`. Le succès isolé et celui de la combinaison de features ne ferment pas le contrôle recette-hooks seule ; cause et lien éventuel avec le candidat non établis. Aucun code microphone corrigé. L'échec initial de configuration MP3 et les autres échecs de baseline restent consignés, sans être convertis en succès.
+
+Les 16 tests ignorés ne sont pas des tests exécutés. Quatre corps conditionnels natifs avaient signalé NOT RUN en baseline ; les sorties capturées des suites complémentaires ne permettent pas de les identifier individuellement sur le candidat. Aucun succès natif implicite revendiqué.
+
+### Revue et état de sortie
+
+Revue par `rust_review_coordinator` et un même `rust_reviewer` indépendant en lecture seule : deux passes, zéro correction, une passe de vérification complémentaire, candidat working tree à base fa4772c2. Demandes WIPC-A-V1/V2 exécutées puis appréciées par le reviewer. Verdict final **BLOCKED**, aucun constat de code actionnable ouvert, aucune déclaration CLEAN. Les corps déplacés ont été comparés à la baseline par le reviewer ; compteurs uniques, chemins publics et témoins transport préservés. Le nouvel avertissement d'import reste signalé comme limite de propreté.
+
+Le candidat est conservé en commit local avec ce bilan ; cette conservation ne clôt pas A et n'autorise pas B. Une disposition utilisateur sur le contrôle recette-hooks en échec, ou une preuve nouvelle obtenue dans des conditions matériellement différentes, reste nécessaire. Aucune recette Windows ni publication distante effectuée. L'archivage de clôture n'est pas déclaré réalisé : lot non clos ; aucun nettoyage de campagne ou cargo-shared effectué.
+
+Espace libre : relevé initial implémenteur 122 922 348 544 octets ; relevé après candidat et revue 122 279 821 312 octets (environ 113,9 Gio). Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit.

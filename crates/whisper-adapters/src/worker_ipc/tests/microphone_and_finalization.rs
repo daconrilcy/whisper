@@ -708,7 +708,7 @@
     }
 
     fn automatic_final_test_root(label: &str) -> PathBuf {
-        PathBuf::from(std::env::var_os("CARGO_TARGET_DIR").expect("guarded target dir")).join(
+        std::env::temp_dir().join(
             format!(
                 "whisper-auto-final-{label}-{}-{}",
                 std::process::id(),
