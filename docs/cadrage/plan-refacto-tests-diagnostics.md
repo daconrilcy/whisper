@@ -1,10 +1,42 @@
-Avancée : plan de neuf tâches relu indépendamment, CLEAN — PLANS READY documentaire.
-Blocage : exécution future bloquée tant que le mandat et un lanceur conforme ne sont pas établis.
-Décision : plan documentaire prêt ; aucune autorisation de coder ou de lancer une campagne n'est conférée.
+Avancée : refactor implémenté et vérifié ; revue indépendante du candidat CLEAN.
+Blocage : aucun constat requis ouvert dans le périmètre ; limites d'exécution précisées au bilan §12.
+Décision : publication du lot autorisée par la demande « commit et push » ; conserver les données, caches et preuves.
 
 # Plan de refactorisation — tests séparés et diagnostics
 
 ## Header
+
+### Amendement de session — autorisation et garde (v1.1)
+
+Sources d'autorité : après la remise du plan, l'utilisateur a écrit « tu as mon accord pour implementer », puis « oui je t'autorise » en réponse aux deux arbitrages explicites : adaptation de la garde sous target/parakeet-tests/refacto-tests-diagnostics/ sans ses anciennes dérogations, et implémentation exceptionnelle par la session principale si rust_implementer reste indisponible. Le runtime a refusé sa création avec « agent thread limit reached », y compris après tentative de libération des anciennes sessions. La session principale est donc responsable du code ; aucune implémentation concurrente déléguée.
+
+CHANGE-AUTH-01 : G-CODE levé pour le lot. Extension autorisée G0 (une tâche préalable, portant le total à dix) : adaptation de target/parakeet-tests/main-facades/guard-main-facades.ps1 en target/parakeet-tests/refacto-tests-diagnostics/guard-refacto-tests-diagnostics.ps1. Racine d'exécution unique target/parakeet-tests/refacto-tests-diagnostics/, cible Cargo inchangée target/parakeet-tests/cargo-shared/. Pas de nouvelle surveillance : reprise des emplacements déjà surveillés, aucune exception Temp/Git objects/CUDA héritée. Tout événement hors racines arrête ; surveillance observatrice, pas confinement préventif. Aucun service, ACL, élévation ou nouvelle dépendance. La garde d'origine est préservée.
+
+G0 : zéro production modifiée ; un script de campagne dans la racine autorisée, préflight, auto-tests synthétiques de refus hors racine/variables absentes/erreur watcher/état Git changé et observation réelle d'un fichier dans la racine. Auto-tests PASS avant Cargo. CARGO_HOME/TEMP/TMP fixés sous racine, CARGO_TARGET_DIR sur cible partagée, CARGO_INCREMENTAL=0 et CARGO_PROFILE_DEV_DEBUG=line-tables-only. Cache hors ligne copié en lecture seule depuis le cache historique sous la nouvelle racine ; aucune utilisation du cache utilisateur en écriture. Les petits contrôles de garde restent dans target et ne constituent pas un manifeste de qualification du produit.
+
+Invocation effective (PowerShell, cwd dépôt) : `& ./target/parakeet-tests/refacto-tests-diagnostics/guard-refacto-tests-diagnostics.ps1 -Mode SelfTest`, puis le même script avec `-Mode Run -CargoArguments @('test','--offline','--locked',...)` pour chaque commande V6/V7/V8 autorisée. Aucun Cargo direct. G-EXEC levé uniquement après auto-tests, cache privé disponible et préflight de chaque invocation ; T1 reste requis avant T2. Arrêt sur toute violation/erreur, conservation des traces et arbitrage avant reprise. G-HIST inchangé. Le statut CLEAN précédent porte sur v1.0 ; cet amendement enregistre l'accord de session sans lui attribuer de nouvelle revue indépendante.
+
+Le reste du plan v1.0 ci-dessous décrit les neuf tâches produit, inchangées. Aucun push/commit produit ou qualification Windows déduit de l'accord.
+
+### Résultat de la première tentative d'exécution
+
+G0 : garde adaptée, syntaxe vérifiée, auto-tests PASS (refus variables absentes/hors racines, observation réelle dans racine, événements synthétiques Temp/Git/erreur watcher refusés). Cache privé copié depuis main-facades/cargo-home, sans écriture dans sa source. Espace avant environ98,7Gio, après copie/arrêt environ97,6Gio.
+T1 : première commande interne `cargo test --offline --locked -p whisper-core --lib -- --list` lancée par la garde puis interrompue. La compilation des dépendances avait commencé ; aucune liste de tests ni résultat de témoin n'a été produit. À 2026-10-29T11:34:47.1162980+01:00, le watcher a observé Created sur `C:\Users\cyril\AppData\Local\Temp\etilqs_YEpsdpwIe6Klco3`. Absence de PID : origine et attribution indéterminées, ni écriture Cargo démontrée ni écriture autorisée. La garde stricte a arrêté la commande et enregistré STOP.json. Aucun contournement, reprise, nettoyage ou modification de ce fichier.
+Traces conservées dans target/parakeet-tests/refacto-tests-diagnostics/ : STOP.json, logs/guard-events.jsonl et logs/8437fdf69f0040d793800165d1459ded.{stdout,stderr,git-before,git-after}.txt. Les événements synthétiques des auto-tests sont distincts de l'événement réel de la commande ; ils ne prouvent aucune écriture externe.
+T1 non clos, T2 àT9 NOT RUN, sources Rust inchangées. G-EXEC de nouveau bloquant : arbitrage de l'utilisateur nécessaire avant toute reprise conformément AGENTS et G0. Revue indépendante encore non exécutée, capacité d'agents indisponible ; aucun CLEAN de code revendiqué.
+
+### Arbitrage de reprise — dérogation Temp limitée à ce lot
+
+Après ce constat, l'utilisateur a répondu « oui je t'autorise » à la demande explicite de consigner les événements du seul Temp Windows sans attribution démontrée comme UNATTRIBUTED, sans arrêt automatique pour ce seul motif. Cette dérogation de session est propre à ce lot ; elle n'autorise aucune destination volontaire hors racines. Toute écriture extérieure attribuée à la campagne ou modification sensible inexpliquée impose toujours l'arrêt. Le watcher sans PID laisse origine/nature indéterminées ; ses observations ne prouvent ni autorisation ni attribution Cargo, et la surveillance n'est pas un confinement.
+La garde conserve STOP.json et autorise uniquement la reprise du constat exact ci-dessus (chemin/type/date), pas un acquittement global des futurs arrêts. Auto-tests mis à jour avant reprise : Temp synthétique consigné, Git objects/autres chemins/erreurs watcher refusés. Aucun autre assouplissement.
+
+Deuxième arrêt : cœur défaut découvert avec succès (80 tests du harness), puis baseline adapters interrompue le 29 octobre à 11:37:43.1529194+01:00 sur Changed de .git/objects/pack/tmp_pack_yLcAWX. États Git avant/après strictement identiques ; aucune attribution de processus démontrée. L'utilisateur a ensuite accepté « Oui, avec ces limites » à la dérogation explicite : événements non attribués du seul .git/objects consignés sans arrêt automatique, sous réserve de conservation des références/index/sources/statut. Toute autre modification sensible ou écriture extérieure attribuée à la campagne impose toujours arrêt. Cette autorisation propre au lot ne transfère pas une ancienne dérogation. Trace de l'arrêt préservée, auto-tests actualisés pour cette classification ; refs/index/état Git restent à refus fermé.
+
+Baseline suivante : adapters défaut282, recette-hooks286, hooks+l3-gpu287 tests découverts. l01-memory-qualification échoue avant refactor avec trois E0252 (Mutex/SystemTime/UNIX_EPOCH importés deux fois dans worker_ipc.rs). Journal d7c9ef14ff9649d987716fc6d40b009b.stderr.txt conservé, arrêt de la campagne. Accord explicite de l'utilisateur « Oui, corriger puis poursuivre » à la suppression de ces trois imports redondants et reprise. Correction préalable bornée dans la tâche T1 (mêmes types déjà importés sans condition, aucun changement de logique), pas de tâche produit supplémentaire ; baseline de cette configuration à rétablir après correction. Les autres configurations n'activent pas cet import conditionnel.
+
+T1 ensuite fermé : neuf configurations découvertes (core80 ; adapters282/hooks286/hooks+gpu287/memory282/personal282 ; desktop44 pour défaut/hooks/personal) et quatorze exécutions de témoins ciblés PASS, chaque test exécuté une fois sans ignored. T2 application44, T3 UI40 et T4 archive22 extraits ; listes et témoins de leurs configurations identiques à la baseline. T5 IPC129 extrait avec supports, aucun #[test] dans les quatre racines ; défaut/hooks/gpu/memory après extraction PASS. Dernière configuration personal interrompue sur Created de .git/index.lock à 11:53:12.2212725+01:00 : état Git avant/après strictement identique, verrou disparu. Un préflight concurrent de l'agent avait lancé git status sans --no-optional-locks et est une origine possible (pas de PID dans le watcher). Arbitrage de reprise demandé ; pas d'exception index.lock proposée. Désormais aucune lecture Git concurrente aux commandes gardées et lectures git --no-optional-locks. Capacité d'agents libérée en clôturant les missions documentaires terminées ; rust_implementer /root/refactor_remaining reprend T6–T9 après clôture T5, main cesse toute édition Rust parallèle.
+
+Arbitrage index.lock : l'utilisateur a accepté « Oui, reprendre ainsi » après constat d'identité Git et disparition du verrou. Reprise limitée à cet arrêt exact acquitté dans la garde, aucun assouplissement pour de futurs événements index.lock ; auto-tests réexécutés. Les lectures Git concurrentes sont interdites entre intervenants pendant les commandes gardées.
 
 - ID : P-REF-TESTS-DIAG, v1.0, PLANS READY documentaire.
 - Revue : revue-plan-refacto-tests-diagnostics.md, CLEAN sur `05f82cc9a536350fde5360010bb8e011cb78295c` ; ajout de statut/référence = EVIDENCE_ONLY, tâches et contenu technique inchangés.
@@ -376,3 +408,71 @@ Auto-contrôle de proposition ; reviewer seul verdict. Toutes validations produi
 ## 11. Implementation Agent Prompt
 
 Après accord écrit précis utilisateur,agir IMPLEMENT dans C:\dev\whisper pour P-REF-TESTS-DIAG selon ce plan/design/revues Git. T1 seulement au départ : sources/Git/responsabilités concurrentes/espace/périmètre/prérequis campagne. Aucun Cargo/processus test avant G-EXEC/invocation réelle lanceur ; T2 seulement si baseline T1 complète/réussie. Puis T2→T9,tranches fermées,V0àV8/budgets exacts. Préserver autrui/non-suivis,235tests/noms/cfg/assertions/contrats. Renommages seulement trente DEC-T03. Aucune API/dépendance/logique/garde/campagne native/fenêtre automatisée nouvelle. Arrêt si partiel/perte/duplication/logique/contrat/conflit/écriture interdite. Rendre diff/résultats/NOT RUN ; main mandate revue indépendante AGENTS. Ce prompt/plan/verdicts ne valent accord implémentation/publication.
+
+## 12. Bilan d'implémentation et revue du candidat
+
+Date : 29 octobre 2026. Candidat : arbre de travail sur evo-startup-perf, base c355414c1096c1669639dc926bc0257a8ce14a40. Le bilan initial précédait la publication. La correction EOF décrite ci-dessous a fait l'objet d'une confirmation indépendante ; aucun changement Rust depuis ce dernier verdict.
+Responsabilités : session principale pour G0/T1 et les extractions T2–T5 sous exception de responsabilité autorisée ; rust_implementer /root/refactor_remaining pour T6–T8 et contrôles finaux T9, sans édition Rust parallèle. L'agent était de nouveau disponible après clôture des missions documentaires terminées.
+
+| Tâche | Résultat et preuve |
+| --- | --- |
+| G0 | Garde adaptée et auto-tests PASS, avec seuls arbitrages de session ci-dessus ; aucune suppression de STOP historique ni transfert implicite de dérogation |
+| T1 | Baselines neuf configurations et quatorze exécutions de témoins PASS ; correction préalable des trois imports redondants autorisée et isolée |
+| T2 | 44 tests application déplacés, listes et témoin conservés |
+| T3 | 40 tests UI et helper racine déplacés, trois variantes conservées |
+| T4 | 22 tests archive et supports de publication déplacés, filtres --exact inchangés |
+| T5 | 129 tests IPC et supports déplacés, dont module stopped_ack à portée constante ; cinq variantes conservées |
+| T6 | Fonction/contexte/TLS/garde/Drop/horloge dans diagnostics privé ; consommateurs raccordés, aucun relais IPC ni API publique ajouté |
+| T7 | Dix-huit correspondances internes IPC/application/supports, sans remplacement des littéraux ou noms de tests |
+| T8 | Huit correspondances archive et raccordements atomiques dans les consommateurs prévus |
+| T9 | Format/build/Clippy et comparaisons finales PASS ; revue indépendante CLEAN, aucun correctif demandé |
+
+### Fichiers et conservation
+
+37 fichiers Rust du plan : neuf fichiers suivis modifiés et 28 nouveaux (diagnostics.rs et 27 fichiers de tests/supports/agrégateurs). Le seul document modifié est ce plan/bilan. Cargo.toml, Cargo.lock, AGENTS et autres fonctions hors lot sont préservés. Les non-suivis préexistants docs/architecture/, models/ et sound example/ restent présents.
+
+| Fichier | Lignes avant | Lignes après |
+| --- | ---: | ---: |
+| crates/whisper-core/src/application.rs | 7 550 | 4 517 |
+| crates/whisper-desktop/src/ui.rs | 6 195 | 3 869 |
+| crates/whisper-adapters/src/archive.rs | 10 092 | 7 914 |
+| crates/whisper-adapters/src/worker_ipc.rs | 29 509 | 13 214 |
+
+Il s'agit des tailles des fichiers, pas d'une mesure de performance. Les 235 attributs de test sont dans les fichiers dédiés, zéro dans les quatre racines. Les éléments cfg(test) enchâssés dans des types/impls mixtes restent intentionnellement en place. Les fragments conservent la portée logique et les chaînes brutes des faux workers.
+Le reviewer a reconstruit les quatre modules et comparé leurs tokens Rust au baseline après inversion des seuls renommages DEC-T03 : 44 application, 40 UI, 22 archive, 128 IPC principal et un stopped_ack. Il a aussi confirmé les supports et les 6 308 littéraux identiques sur les racines/consommateurs/diagnostic. Contexte, garde, restauration, fonction et horloge de diagnostic conservés ; un PROCESS_START, 17 appels qualifiés, aucun ancien symbole Rust ciblé. Les noms historiques préservés ne sont pas des reliquats à renommer.
+
+### Vérifications finales réellement exécutées
+
+PowerShell, cwd C:\dev\whisper, toolchain 1.98.1-x86_64-pc-windows-msvc. Toutes les commandes Cargo ont été exécutées par la garde adaptée, avec cache/TEMP/TMP privés, cible partagée, --offline --locked quand accepté, incremental=0 et debug=line-tables-only.
+
+| Contrôle | Résultat | Journal sous target/parakeet-tests/refacto-tests-diagnostics/logs/ |
+| --- | --- | --- |
+| cargo fmt --all -- --check | Exit 0 ; seules quatre sorties de fichiers du lot avaient été appliquées avant le contrôle, aucune correction globale hors périmètre | 0bf73376fa874ec39d135808324528ea |
+| cargo build --offline --locked -p whisper-core -p whisper-adapters -p whisper-desktop --lib | Exit 0, bibliothèques compilées | 68feef963a2348daaf0e79358d5a1065 |
+| cargo clippy --offline --locked -p whisper-core -p whisper-adapters -p whisper-desktop --lib avec les quatre lints structurels du §7 | Exit 0 avec avertissements | 35a2853fa74d4ee682090633bb0383e3 |
+| Listes compilées finales | Neuf listes strictement identiques aux baselines : core80, adapters282/hooks286/hooks+gpu287/memory282/personal282, desktop44 dans chacune des trois variantes | baseline-*.txt, after-*.txt et journaux stdout correspondants |
+| Témoins W-C/W-U/W-A/W-I | Quatre tests distincts, quatorze invocations selon configuration ; chacune 1 passed, zéro ignored | Journaux stdout des commandes exactes |
+| git --no-optional-locks diff --check | PASS | Contrôle local final |
+
+Clippy résume 23 avertissements core, 142 adapters et 17 desktop, soit 182 (185 lignes warning avec les trois synthèses). Aucune baseline Clippy comparable ne permet d'affirmer leur antériorité complète. Aucun avertissement diagnostics.rs repéré. Ils ne sont pas masqués et ne déclenchent aucune refonte hors lot.
+
+### Revue indépendante — résultat brut utile
+
+Coordinateur : rust_review_coordinator /root/review_refactor, sans édition ni revue du code par lui-même. Reviewer : rust_reviewer /root/review_refactor/independent_review, indépendant des auteurs, en lecture seule. Une revue, zéro correction, zéro demande VERIFY supplémentaire. Le reviewer n'a lancé aucun Cargo.
+
+Verdict : CLEAN. Objet : arbre de travail sur evo-startup-perf, base c355414c1096c1669639dc926bc0257a8ce14a40, P-REF-TESTS-DIAG union T2–T8 (37 fichiers Rust). Findings : aucun. Constats ouverts : aucun. Demandes de vérification et gaps requis : aucun. Blocage : aucun.
+Il confirme modules/supports/cfg/harness, transfert du diagnostic, conservation des littéraux, neuf listes identiques, quatorze témoins réussis, rapprochement des preuves format/build/Clippy/diff-check avec le candidat, y compris les nouveaux fichiers.
+
+### Limites, preuves et clôture
+
+NOT RUN : autres tests au-delà des témoins ciblés, recettes historiques supplémentaires, qualifications natives et fenêtre Windows. Aucun EXE ou dossier de recette livré ; la compilation vérifiée porte sur les bibliothèques. Ce bilan ne revendique ni campagne native ni validation fonctionnelle Windows.
+La garde consigne 1 350 événements Temp (auto-tests inclus), sans PID ni attribution démontrée ; les trois événements du journal .git/objects sont synthétiques. Ces observations ne prouvent aucune écriture Cargo et ne deviennent pas des destinations autorisées. Les seuls incidents ayant imposé arrêt/reprise et leurs arbitrages sont conservés ci-dessus et dans les journaux.
+
+Petites preuves archivées sans supprimer les originaux, caches ou copies : target/parakeet-tests/refacto-tests-diagnostics/archives/refacto-tests-diagnostics-evidence-20261029.zip. Arborescence conservée, 305 entrées vérifiées par nombre et SHA-256 de chacune contre l'original, sans manifeste séparé. SHA-256 de l'archive : DD58BBA259E9F8CF855056BBC79A621B0AAB0B43B1CEC15239E97C0B8F1A12B2. Les gros snapshots Git et sorties dépassant 2 Mio restent disponibles dans la racine brute sans duplication dans cette archive.
+Espace libre avant : environ98,7Gio ; après clôture/archivage : 101882564608 octets, environ94,9Gio, au-dessus du seuil30Gio. Aucun nettoyage cargo-shared, modèle, corpus, WAV ou fichier temporaire externe effectué.
+
+### Préparation du commit et du push
+
+L'utilisateur a ensuite demandé explicitement « commit et push ». Périmètre de publication : 37 fichiers Rust et ce bilan, sur evo-startup-perf ; les six commits documentaires locaux du cadrage/plan font aussi partie de cette publication. Les non-suivis préexistants docs/architecture/, models/ et sound example/ sont exclus.
+Le contrôle complet de l'index a signalé EOF-GIT-CHECK : quinze nouveaux fragments avaient un LF superflu à EOF, non couvert par le précédent diff-check des seuls fichiers suivis. rust_implementer /root/refactor_remaining a retiré uniquement ce dernier LF de chacun des quinze fichiers, sans modifier le préfixe ni l'index. Aucun Cargo relancé pour cette correction sans changement de tokens.
+Le même reviewer /root/review_refactor/independent_review a confirmé indépendamment working_tree == index[:-1] == index.rstrip(CR/LF)+LF pour les quinze chemins, a fermé EOF-GIT-CHECK et maintenu CLEAN. Les conclusions structurelles et les 6 308 littéraux sont inchangés ; les vérifications fonctionnelles antérieures restent applicables. Bilan de revue final : deux passages, une correction, zéro demande VERIFY, aucun finding ouvert. L'archive de preuves ci-dessus précède cette correction de présentation, sans changement de sa valeur fonctionnelle. Le contrôle de l'index est à répéter après réindexation avant commit, puis synchronisation locale/suivi/distant à vérifier après push.

@@ -486,7 +486,7 @@ pub(crate) fn sha256_file(path: &Path) -> Result<String, String> {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
-    crate::worker_ipc::record_r7_timing(
+    crate::diagnostics::record_stage_timing(
         "sha256",
         started.elapsed(),
         serde_json::json!({
@@ -617,7 +617,7 @@ impl ParakeetProcess {
             .spawn()
             .map_err(|error| format!("WorkerStart: {error}"))?;
         let spawn_elapsed = spawn_started.elapsed();
-        crate::worker_ipc::record_r7_timing(
+        crate::diagnostics::record_stage_timing(
             "worker_spawn",
             spawn_elapsed,
             serde_json::json!({
@@ -700,7 +700,7 @@ impl ParakeetProcess {
                     Event::Ready {
                         identity, backend, ..
                     } => {
-                        crate::worker_ipc::record_r7_timing(
+                        crate::diagnostics::record_stage_timing(
                             "worker_start_to_ready",
                             self.spawned_at.elapsed(),
                             serde_json::json!({
@@ -712,7 +712,7 @@ impl ParakeetProcess {
                     }
                     Event::Result { request_id, .. } => {
                         if let Some(started) = self.request_started_at.take() {
-                            crate::worker_ipc::record_r7_timing(
+                            crate::diagnostics::record_stage_timing(
                                 "worker_request_to_result",
                                 started.elapsed(),
                                 serde_json::json!({ "request_id": request_id }),
@@ -809,7 +809,7 @@ impl ParakeetProcess {
         if identity.profile != self.expected_profile {
             return Err("ProfileMismatch".into());
         }
-        crate::worker_ipc::record_r7_timing(
+        crate::diagnostics::record_stage_timing(
             "worker_ready_identity_validation",
             started.elapsed(),
             serde_json::json!({ "profile": identity.profile, "worker_sha256": identity.build_sha256 }),

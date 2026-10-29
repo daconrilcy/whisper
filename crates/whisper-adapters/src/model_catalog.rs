@@ -169,7 +169,7 @@ fn cached_file_sha256(
     let result = cache.sha256(path);
     drop(cache);
     let full_read = result.as_ref().is_ok_and(|(_, _, full_read)| *full_read);
-    crate::worker_ipc::record_r7_timing(
+    crate::diagnostics::record_stage_timing(
         timing_stage,
         started.elapsed(),
         serde_json::json!({

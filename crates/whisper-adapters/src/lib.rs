@@ -1,6 +1,7 @@
 pub mod archive;
 pub mod capture;
 pub mod decoder;
+mod diagnostics;
 mod direct_live;
 pub mod gpu_inventory;
 pub mod journal;

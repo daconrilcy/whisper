@@ -150,13 +150,13 @@ pub struct DiagnosticSink {
 
 impl DiagnosticSink {
     pub fn start(destination: &Path) -> Result<Self, std::io::Error> {
-        crate::archive::l04_campaign_assert_archive(destination).map_err(std::io::Error::other)?;
+        crate::archive::assert_campaign_archive(destination).map_err(std::io::Error::other)?;
         let directory = destination.join(".whisper-diagnostics");
         fs::create_dir_all(&directory)?;
-        crate::archive::l04_campaign_gate("diagnostic.before_startup_purge", 0, 0, 0)
+        crate::archive::campaign_gate("diagnostic.before_startup_purge", 0, 0, 0)
             .map_err(std::io::Error::other)?;
         let purge_result = expire_old_diagnostics(&directory, SystemTime::now());
-        crate::archive::l04_campaign_operation_result(
+        crate::archive::record_campaign_operation_result(
             "diagnostic.before_startup_purge",
             0,
             0,
@@ -265,7 +265,7 @@ impl DiagnosticRecord {
 }
 
 fn append_rotating(directory: &Path, line: &[u8]) -> Result<(), std::io::Error> {
-    crate::archive::l04_campaign_assert_archive(directory.parent().ok_or_else(|| {
+    crate::archive::assert_campaign_archive(directory.parent().ok_or_else(|| {
         std::io::Error::other("CampaignGuard: diagnostic directory has no parent")
     })?)
     .map_err(std::io::Error::other)?;
@@ -285,13 +285,12 @@ fn append_rotating(directory: &Path, line: &[u8]) -> Result<(), std::io::Error> 
     #[cfg(not(feature = "recette-hooks"))]
     let (job_id, generation) = (0, 0);
     let gate = |hook| {
-        crate::archive::l04_campaign_gate(hook, job_id, generation, 0)
-            .map_err(std::io::Error::other)
+        crate::archive::campaign_gate(hook, job_id, generation, 0).map_err(std::io::Error::other)
     };
     gate("diagnostic.before_purge")?;
     let now = SystemTime::now();
     let purge_result = expire_old_diagnostics(directory, now);
-    crate::archive::l04_campaign_operation_result(
+    crate::archive::record_campaign_operation_result(
         "diagnostic.before_purge",
         job_id,
         generation,
@@ -318,7 +317,7 @@ fn append_rotating(directory: &Path, line: &[u8]) -> Result<(), std::io::Error> 
             }
             Ok(())
         })();
-        crate::archive::l04_campaign_operation_result(
+        crate::archive::record_campaign_operation_result(
             "diagnostic.before_rotate",
             job_id,
             generation,
@@ -335,7 +334,7 @@ fn append_rotating(directory: &Path, line: &[u8]) -> Result<(), std::io::Error> 
         file.write_all(line)?;
         file.flush()
     })();
-    crate::archive::l04_campaign_operation_result(
+    crate::archive::record_campaign_operation_result(
         "diagnostic.before_append",
         job_id,
         generation,
