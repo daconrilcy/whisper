@@ -3788,8 +3788,8 @@ dependencies = [
  "cpal",
  "rfd",
  "rtrb",
- "rustfft",
  "rubato",
+ "rustfft",
  "same-file",
  "serde",
  "serde_json",
@@ -3848,7 +3848,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "whisper-worker-cpu"
+name = "whisper-worker-common"
 version = "0.1.0"
 dependencies = [
  "rusty_mp3",
@@ -3857,20 +3857,30 @@ dependencies = [
  "sha2",
  "symphonia",
  "whisper-core",
+]
+
+[[package]]
+name = "whisper-worker-cpu"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+ "whisper-core",
  "whisper-rs",
+ "whisper-worker-common",
 ]
 
 [[package]]
 name = "whisper-worker-gpu"
 version = "0.1.0"
 dependencies = [
- "rusty_mp3",
  "serde",
  "serde_json",
  "sha2",
- "symphonia",
  "whisper-core",
  "whisper-rs",
+ "whisper-worker-common",
  "windows",
 ]
 
