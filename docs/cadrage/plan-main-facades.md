@@ -1,6 +1,6 @@
-Avancée : candidat complet relu indépendamment ; deux constats importants en correction au premier cycle.
-Blocage : aucun arbitrage restant pour ces corrections, fichier de tests complémentaire autorisé.
-Décision : corriger MF-R1/MF-R2 puis faire vérifier leur fermeture par le même reviewer ; aucun push.
+Avancée : refactorisation et vérifications terminées, revue indépendante CLEAN après un cycle de correction.
+Blocage : aucun constat de revue ni contrôle requis ouvert ; limites natives explicites conservées.
+Décision : lot livré dans l'arbre de travail, bilan ci-dessous ; aucune publication ni validation fenêtre revendiquée.
 
 # Whisper — Plan de refactorisation des points d'entrée
 
@@ -334,3 +334,33 @@ Revue indépendante T8 coordonnée par `/root/review_facades`, reviewer `/root/r
 ### Accord nominatif de chemin pour MF-R1
 
 À la question explicite sur l'ajout du seul fichier `crates/whisper-worker-parakeet-cpu/src/transcription/tests.rs` pour couvrir la frontière extraite InvalidTimestamp/NativeCallStarted sans modifier moteur ni FFI, l'utilisateur a répondu **« Autoriser ce fichier de tests »**. Ce fichier est ajouté au périmètre P-PARAKEET du §4 ; déclaration cfg(test) et helper privé dans transcription.rs déjà autorisé, aucun autre chemin ni comportement produit ajouté. L'erreur provoquée par le moteur natif reste NOT RUN. MF-R2 reste dans les chemins de harness déjà autorisés. Vérifications utiles invalidées à renouveler, puis relecture du même reviewer ; deux cycles maximum au total.
+
+## 13. Clôture de réalisation — CLEAN
+
+Lot T1–T8 terminé dans l'arbre de travail, trois workers refactorisés en modules privés selon le §4 ; façades desktop/bootstrap conservées. Manifestes, Cargo.lock, protocoles core, UI/adapters, moteurs et FFI inchangés. Fichiers suivis modifiés : `whisper-worker-cpu/src/main.rs`, `src/ipc.rs`, `tests/reusable_imports.rs`, `whisper-worker-gpu/src/main.rs` et `whisper-worker-parakeet-cpu/src/main.rs` (préfixe commun crates/). Nouveaux modules et tests sous les trois workers, dont les trois `tests/support/worker.rs` déjà prévus et le seul fichier supplémentaire autorisé `src/transcription/tests.rs` Parakeet. Les fichiers nouveaux restent non suivis ; aucun commit produit ni push effectué. Les modifications documentaires sont commitées localement par la session principale, sans inclure code ni assets tiers.
+
+### Revue et fermeture
+
+Coordinateur `rust_review_coordinator`, `/root/review_facades` ; reviewer indépendant `rust_reviewer`, `/root/review_facades/reviewer_facades` ; auteur et correcteur unique `rust_implementer`, `/root/implementation_facades`. Deux lectures du même reviewer, un cycle de correction, aucune extension du nombre de cycles. Candidat relu : working-tree sur HEAD documentaire `0582140f5575e854d475fa56f21caae22f7018be`, comparé à la base produit et aux preuves initiales. **Verdict final CLEAN**, **MF-R1 CLOSED**, **MF-R2 CLOSED**, aucun finding, demande de vérification ou manque matériel requis restant ouvert. La clôture documentaire ne modifie pas ce candidat Rust.
+
+MF-R1 : helper privé `classify_native_error`, réellement appelé par transcribe_one, avec test des classifications InvalidTimestamp, NativeCallStarted vers IpcWrite, et erreur ordinaire, messages conservés ; un test exact exécuté dans chacun des huit ensembles Parakeet. Le reviewer juge ce témoin de frontière conforme au repli prévu au §8 ; il ne prouve pas une erreur injectée dans le moteur natif.
+
+MF-R2 : échéance globale depuis le lancement des enfants possédés par les harness, watchdog d'arrêt, récupération par try_wait, lectures et attentes bornées, conservation des sorties au dépassement. CPU/GPU import/live et Parakeet decode-only/processus réutilisent ces helpers ; aucun délai produit modifié. Dans les trois crates, témoins contrôlés réussis pour enfant émettant puis restant vivant (arrêt et récupération vers trois secondes) et sortie conservée au dépassement. Contrats réels affectés réexécutés avec succès.
+
+### Vérifications finales et preuves
+
+Toutes les commandes Cargo ci-dessous exécutées dans `C:/dev/whisper` via `target/parakeet-tests/main-facades/guard-main-facades.ps1`, après préflight/auto-tests et avec les variables privées consignées au §12. Rust 1.98.1, CUDA 12.9, MSVC 2022 ; CARGO_INCREMENTAL=0 et CARGO_PROFILE_DEV_DEBUG=line-tables-only. Aucun téléchargement ni modification de dépendance.
+
+- Format final `cargo fmt --all -- --check` : code 0, capture `137605f6f8714615b86b92b10db313f4`. `git diff --check` : code 0.
+- Builds et suites binaires de la matrice §7 : quatre configurations par Turbo et huit Parakeet, code 0. Les résultats initiaux et les tests ciblés après correction sont distingués ci-dessus ; aucun test ignoré n'est compté comme exécuté.
+- Clippy initial `cargo clippy --offline --locked -p <worker> --all-targets [--features <ensemble>] -- -W clippy::too_many_lines -W clippy::cognitive_complexity -W clippy::too_many_arguments -W clippy::type_complexity` : code 0 dans les seize configurations. Après correction : mêmes lints, trois workers par défaut et Parakeet personnel+CUDA, captures `dcb269...`, `cc2818...`, `e52e92...`, `aa6f1e...`, code 0 ; tests de classification exécutés dans les huit ensembles. Avertissements historiques de longueur et complexité conservés, absence d'avertissement non revendiquée.
+- Release avec recette-hooks CPU/GPU : refus attendu et diagnostic exact vérifié, code Cargo 101 et garde 0. Builds natifs sans hooks et exécutables de référence/candidat préservés par configuration ; aucun binaire hooks livré.
+- Contrats après MF-R2 : live CPU `1f0e46...`, GPU `a196f1...`, imports CPU `c321ca...`, GPU `de0122...`, test CPU existant de réutilisation `f3e9a7...`, decode-only `a3e5a3...`, Parakeet CPU trois tests `65d096...`, CUDA trois tests `c74261...` : code 0, référence/candidat comparés. Les identifiants renvoient aux captures nommées dans logs/ ; les arguments, environnements et états Git avant/après y sont conservés.
+
+Couverture finale : S-01 validé par revue ; S-02 à S-11 exécutés selon les données/configurations déclarées ; S-12 transcriptions CPU/CUDA et corrélations exécutées, témoin contrôlé de classification complété, sous-branche native InvalidTimestamp non provoquée ; S-13 couvert par ce bilan et la revue. Aucun succès global de tests sans modèle ne remplace ces parcours réels. Les deux assertions de racines corrigées restent des corrections test-only explicitement autorisées, aucune racine produit élargie.
+
+Captures initiales et échecs intermédiaires conservés ; archive initiale et archive après correction distinctes. `target/parakeet-tests/main-facades/evidence-correct-1.zip` : **946 entrées**, **55 199 486 octets**, arborescence et SHA-256 vérifiés par l'implémenteur. Espace de clôture relevé par l'implémenteur : **106 838 040 576 octets**, environ 99,5 Gio. Aucun nettoyage du cache partagé, des fixtures ou des journaux CUDA ; aucune suppression/restauration. Les dossiers préexistants non suivis docs/architecture/, models/ et sound example/ sont préservés.
+
+### Limites de remise
+
+Injection native InvalidTimestamp : **NOT RUN**, témoin de frontière exécuté conformément au §8. Test historique MP3 gapless sans WHISPER_L02_GAPLESS_MP3 : **NOT RUN**, aucune réussite déduite de sa sortie sans fixture ; les comparaisons live MP3 du lot ont bien été exécutées. Avertissements historiques de structure conservés. Aucune validation dans la fenêtre Windows ni recette de paquet demandée ou effectuée. Le verdict CLEAN porte sur la revue de la refactorisation bornée et ses preuves déclarées, pas sur ces scénarios non réalisés ni sur une publication.
