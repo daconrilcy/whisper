@@ -1,5 +1,10 @@
 mod ipc;
+mod publication;
 mod support;
+
+use publication::PublicationGate;
+#[cfg(test)]
+use publication::{GATE_ACTIVE, GATE_CANCELLED, GATE_COMMITTED};
 
 pub use ipc::ChildWorkerTransport;
 use ipc::{EnqueueError, MAX_FRAME_BYTES, serialize_frame};
@@ -31,7 +36,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU8, AtomicU64, Ordering},
+        atomic::{AtomicU64, Ordering},
         mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
     },
     thread,
@@ -305,11 +310,6 @@ fn append_single_pass_parakeet_word_group(
     Ok(())
 }
 const EVENTS_PER_STAGE: usize = 21;
-const GATE_IDLE: u8 = 0;
-const GATE_ACTIVE: u8 = 1;
-const GATE_CANCELLED: u8 = 2;
-const GATE_COMMITTING: u8 = 3;
-const GATE_COMMITTED: u8 = 4;
 
 /// Deterministic process-level barriers used only by the acceptance-test build.
 /// Their root is checked against the isolated L2a-2 runtime before touching disk.
@@ -498,65 +498,6 @@ fn scan_archive_history(root: &Path) -> Vec<ArchiveHistoryItem> {
                 .cloned(),
         })
         .collect()
-}
-
-#[derive(Default)]
-struct PublicationGate(AtomicU8);
-
-impl PublicationGate {
-    fn activate(&self) {
-        self.0.store(GATE_ACTIVE, Ordering::Release);
-    }
-
-    fn is_cancelled(&self) -> bool {
-        self.0.load(Ordering::Acquire) == GATE_CANCELLED
-    }
-
-    fn request_stop(&self) -> Result<bool, PortError> {
-        match self.0.compare_exchange(
-            GATE_ACTIVE,
-            GATE_CANCELLED,
-            Ordering::AcqRel,
-            Ordering::Acquire,
-        ) {
-            Ok(_) => Ok(true),
-            Err(GATE_CANCELLED) => Ok(false),
-            Err(GATE_COMMITTING | GATE_COMMITTED) => Err(PortError::Committing),
-            Err(GATE_IDLE) => Err(PortError::Unavailable),
-            Err(_) => Err(PortError::Unavailable),
-        }
-    }
-
-    fn rollback_stop(&self) {
-        let _ = self.0.compare_exchange(
-            GATE_CANCELLED,
-            GATE_ACTIVE,
-            Ordering::AcqRel,
-            Ordering::Acquire,
-        );
-    }
-
-    fn commit<T>(&self, commit: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
-        match self.0.compare_exchange(
-            GATE_ACTIVE,
-            GATE_COMMITTING,
-            Ordering::AcqRel,
-            Ordering::Acquire,
-        ) {
-            Ok(_) => {
-                let result = commit();
-                if result.is_ok() {
-                    self.0.store(GATE_COMMITTED, Ordering::Release);
-                }
-                result
-            }
-            Err(GATE_CANCELLED) => Err("Cancelled: publication invalidated by Stop".into()),
-            Err(GATE_COMMITTING | GATE_COMMITTED) => {
-                Err("Publication: commit is already in progress".into())
-            }
-            Err(_) => Err("Publication: generation is not active".into()),
-        }
-    }
 }
 
 /// Check the shipped CUDA backend without loading or discarding the model.

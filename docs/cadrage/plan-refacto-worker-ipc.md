@@ -1,6 +1,6 @@
-Avancée : lot A/3a corrigé, vérifié et revu CLEAN ; clôture au §14.
-Blocage : aucun dans le périmètre A et sa reprise corrective autorisée.
-Décision : lot A clos sans réserve dans ce périmètre ; aucun lot suivant démarré.
+Avancée : lots A/3a et B/3b clos après vérifications et revue CLEAN ; bilan B au §16.
+Blocage : aucun dans le périmètre B autorisé.
+Décision : lot B clos sans réserve dans ce périmètre ; aucun lot C démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -537,3 +537,42 @@ Décision : exécuter B seul, vérifier et faire relire indépendamment avant cl
 Accord écrit de la session : « Passe au lot B selon le plan. Je t’autorise l’implémentation, les vérifications et le commit local, sans push. Clôture-le sans réserve après revue indépendante. » Périmètre : `worker_ipc.rs`, `worker_ipc/publication/mod.rs` et tests directement correspondants, notamment `publication/tests.rs` pour l'état après erreur si nécessaire. Une seule machine PublicationGate et ses cinq constantes, sous publication, sans changement de transitions, atomiques, messages ou API publique. L'implémentation est déléguée au profil prévu, la revue au coordinateur et reviewer indépendants.
 
 Racine de campagne B : `target/parakeet-tests/refacto-worker-ipc-b/`, copie adaptée de la garde existante, cache et temporaires sous cette racine ; cible Cargo partagée inchangée. Aucun mécanisme supplémentaire de surveillance ou d'isolation. Préflight, résolutions canoniques, auto-tests et surveillance obligatoires. La dérogation `.git/objects/` explicitement donnée pour tous les lots reste applicable ; la dérogation Temp donnée pour A uniquement ne l'est pas pour B. Les deux scénarios natif D2 et historique l3c restent hors des vérifications non natives de cette extraction comme précédemment accepté ; aucune nouvelle exclusion, campagne native ou recette Windows implicite. Tous les échecs peuvent être reproduits selon l'accord de session ; une violation non couverte impose arrêt et arbitrage. Espace libre initial B : 121 781 956 608 octets (environ 113,4 Gio). Les non suivis préexistants restent préservés.
+## 16. Clôture du lot B — 29 octobre 2026
+
+Avancée : PublicationGate extraite, vérifications réussies et revue indépendante CLEAN.
+Blocage : aucun dans le périmètre B/REQ-02.
+Décision : lot B clos sans réserve dans son périmètre autorisé ; commit local sans push, aucun lot C démarré.
+
+### Autorité, campagne et delta
+
+Base Git relue et testée : `2d523240a96836124830afa6045e1ba42027f374`, après clôture A. La session principale a délégué l'implémentation à `rust_implementer` puis la revue à `rust_review_coordinator` avec le même reviewer indépendant ; elle n'a pas modifié le code en parallèle. Trois fichiers du candidat : `worker_ipc.rs`, nouveau `worker_ipc/publication/mod.rs` (73 lignes physiques) et nouveau `worker_ipc/publication/tests.rs` (29).
+
+Une seule définition de PublicationGate et de ses cinq constantes se trouve désormais sous publication. Les transitions, ordres mémoire, résultats et messages sont identiques ; réexport interne et visibilités limitées aux appelants et tests existants, sans nouvelle API publique. Les deux tests séparés ajoutés couvrent le maintien COMMITTING après une erreur de commit, l'absence de réactivation par rollback dans cet état et le rollback d'une annulation. Aucune fonction de publication d'archive déplacée ; aucun manifeste, Cargo.lock, feature, dépendance ou code unsafe modifié.
+
+La campagne B utilise `target/parakeet-tests/refacto-worker-ipc-b/` et la cible Cargo partagée canonique. Cache et fixture MP3 copiés sous B ; variables et chemins canoniques vérifiés, auto-tests de refus et surveillance existante appliqués. Une première découverte a été interrompue par un événement `Created` sur `C:\Users\cyril\AppData\Local\Temp\etilqs_0WQsUTun2fV2LiE` à 17:30:58.001 +01:00, d'origine indéterminée, sans attribution à Cargo. La trace est conservée, aucun effacement ou restauration. L'utilisateur a ensuite autorisé explicitement pour B la même dérogation Temp que A : consignation UNATTRIBUTED sans arrêt à elle seule pour les événements sans attribution démontrée, aucune destination volontaire supplémentaire ; toute écriture attribuée à la campagne ou autre violation impose l'arrêt. Les auto-tests ont été repris et réussis avant la baseline. L'accord `.git/objects/` pour tous les lots reste inchangé.
+
+### Résultats réellement exécutés
+
+Baseline puis candidat : format, contrôle workspace, Clippy avec les quatre lints de structure, découverte et cinq suites séquentielles PASS via la garde. Clippy : 142 avertissements en baseline comme sur le candidat, aucun avertissement nouveau introduit par B. `git diff --check` PASS.
+
+T-B : `stop_before_commit_atomically_prevents_publication` et `stop_during_blocked_commit_returns_promptly_and_reports_finalizing` exécutés et réussis avant/après. Les deux nouveaux tests privés sont également exécutés et réussis. Les découvertes du candidat ont exactement deux tests de plus que la baseline.
+
+| Configuration séquentielle | Réussis baseline | Réussis candidat | Ignorés | Filtrés autorisés | Résultat |
+| --- | --- | --- | --- | --- | --- |
+| défaut | 266 | 268 | 16 | 1 D2 | PASS |
+| recette-hooks | 270 | 272 | 16 | 1 D2 | PASS |
+| l01-memory-qualification | 266 | 268 | 16 | 1 D2 | PASS |
+| personal-qualification | 266 | 268 | 16 | 1 D2 | PASS |
+| recette-hooks,l3-gpu-qualification | 270 | 272 | 16 | 2 D2/l3c | PASS |
+
+Trois contrôles conditionnels non natifs ont été exécutés isolément avec variables et ressources bornées et réussissent : `paths_reject_a_worker_outside_the_runtime_root`, `over_limit_parakeet_import_is_refused_before_pending_creation` et `injected_catalog_guards_all_worker_effect_routes_including_checkpoint_resume`. L'index des commandes/résultats est `target/parakeet-tests/refacto-worker-ipc-b/logs/guard.jsonl`, avec les journaux stdout/stderr associés.
+
+Les 16 tests ignorés, les exclusions D2/l3c déjà acceptées et les campagnes natives/Windows ne sont pas revendiqués exécutés. Le test `resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution` reste NOT RUN car il créerait un lien physique vers le modèle hors racine autorisée ; le reviewer l'a jugé sans lacune matérielle pour B/REQ-02. Aucun nouveau skip ajouté pour obtenir le résultat ; cette clôture structurelle ne vaut pas qualification native ou recette Windows.
+
+### Revue et archivage
+
+Le reviewer indépendant rend **CLEAN** sur le candidat working tree, epoch 0, après comparaison avec la base exacte : une passe de revue, zéro correction et zéro demande de vérification complémentaire. Aucun constat ouvert, aucune lacune requise ni blocage dans le périmètre du lot. La machine, les cinq constantes, les transitions atomiques et les témoins ont été vérifiés ; les limites hors périmètre sont conservées ci-dessus.
+
+Archive : `target/parakeet-tests/refacto-worker-ipc-b/archive/closure-20261029/proofs.zip`, 75 entrées, 296 006 octets. Arborescence relative préservée ; nombre et unicité vérifiés, SHA-256 de chaque entrée comparé à sa source. SHA-256 du ZIP : `7DBAE43DDA0C74C47FF08AE746BFB5550A0991B1987ECCCFED95435B82B2690A`. Aucun manifeste créé, aucun cache/build/WAV/modèle archivé, aucune suppression ni nettoyage (absence de manifeste de suppression approuvé), cargo-shared conservé.
+
+Espace libre final : 120 848 478 208 octets (environ 112,6 Gio). Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Sources relues et bilan conservés dans le commit local de clôture ; aucun push. B est clos ; C nécessite sa propre autorisation.
