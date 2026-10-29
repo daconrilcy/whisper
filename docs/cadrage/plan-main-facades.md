@@ -1,6 +1,6 @@
 Avancée : plan de refactorisation des trois workers détaillé à partir du cadrage relu.
 Blocage : exécution conditionnée à une garde applicable et à un accord précis pour le lot et ses racines.
-Décision : candidat DRAFT pour revue indépendante ; aucun code, build, test ou push autorisé.
+Décision : plan relu CLEAN, soumis à validation utilisateur ; aucun code, build, test ou push autorisé.
 
 # Whisper — Plan de refactorisation des points d'entrée
 
@@ -10,7 +10,7 @@ Décision : candidat DRAFT pour revue indépendante ; aucun code, build, test ou
 
 **Design parent : D-MAIN-FACADES-01**, `docs/cadrage/evo-main-facades.md`, décision de planification versionnée au commit `e58bfa2fc2118c15cf815656d3d3fbec0af42a1c`. Revue du contenu de design : CLEAN sur `a6e6031e`, clôture documentaire `2bd9fced`.
 
-**Base produit :** `301fbbeaaba8cede4ce079828125ba271c9928af`, branche `evo-startup-perf`. **Statut : DRAFT — revue PLANS à effectuer.**
+**Base produit :** `301fbbeaaba8cede4ce079828125ba271c9928af`, branche `evo-startup-perf`. **Statut : CLEAN — PLANS documentaire, en attente de validation utilisateur et des prérequis d'exécution.**
 
 La demande « redige le plan de refacto a partir de ce cadrage » autorise sa rédaction à partir du design relu. Elle n'autorise ni implémentation, ni campagne, ni modification de garde, ni push. L'auteur principal écrit et commite localement ce document. Contribution : `rust_plan_writer`, `/root/plan_facades`, P-MAIN-FACADES-01-v1, base documentaire ci-dessus ; apport brut restitué dans la session avant intégration. La présente intégration ne revendique pas une copie littérale de cet apport. Le reviewer indépendant juge les constats et le statut du plan.
 
@@ -251,6 +251,8 @@ Recette Windows non requise pour la seule extraction structurelle ; si retenue p
 
 Lectures et analyse statique réalisées pour rédaction. Toute compilation, test, natif, création fixture et recette reste **NOT RUN**.
 
-Revue PLANS initiale sur d2a243c3 : **FINDINGS**, PL-MF-01 IMPORTANT/REQUIRED, traitement des tests de racines préexistants dans la matrice Parakeet. Correction documentaire proposée par rust_plan_writer, intégrée ci-dessus sans modifier design/code ; fermeture réservée au reviewer.
+Revue PLANS initiale sur d2a243c3 : **FINDINGS**, PL-MF-01 IMPORTANT/REQUIRED, traitement des tests de racines préexistants dans la matrice Parakeet. Correction documentaire proposée par rust_plan_writer, intégrée sans modifier design/code.
+
+Revue de fermeture du 29 octobre 2026 : `rust_design_reviewer`, `/root/revue_design`, indépendant de rédaction/correction, a relu le diff et le candidat final au commit `1af669161a713e3de566e6ba3c0847b767ef0970`, parent `e58bfa2fc2118c15cf815656d3d3fbec0af42a1c`. Verdict **CLEAN — PLANS documentaire**, **PL-MF-01 CLOSED**, aucun autre constat requis. Un cycle de correction utilisé. Le résultat brut est restitué dans la session ; la présente clôture ne change que le suivi et le statut du plan examiné.
 
 Acceptation plan : **EN ATTENTE**. Q-EXEC-01 garde : **À RÉSOUDRE avant toute campagne**. Q-EXEC-02 tests racines : **À RÉSOUDRE avant T6 et clôture S-09**. Implémentation/campagnes/recette/push : **NON AUTORISÉS**. Aucun DESIGN_CHANGE_REQUIRED identifié. Le verdict documentaire ne lève pas les conditions d'exécution.
