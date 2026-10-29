@@ -1,6 +1,6 @@
-Avancée : plan de refactorisation des trois workers détaillé à partir du cadrage relu.
-Blocage : exécution conditionnée à une garde applicable et à un accord précis pour le lot et ses racines.
-Décision : plan relu CLEAN, soumis à validation utilisateur ; aucun code, build, test ou push autorisé.
+Avancée : plan accepté et réalisation des huit tâches autorisée le 29 octobre 2026.
+Blocage : garde à préparer et à vérifier avant toute commande Cargo.
+Décision : implémentation déléguée, campagnes bornées et correction limitée des tests Parakeet autorisées ; aucun push.
 
 # Whisper — Plan de refactorisation des points d'entrée
 
@@ -256,3 +256,13 @@ Revue PLANS initiale sur d2a243c3 : **FINDINGS**, PL-MF-01 IMPORTANT/REQUIRED, t
 Revue de fermeture du 29 octobre 2026 : `rust_design_reviewer`, `/root/revue_design`, indépendant de rédaction/correction, a relu le diff et le candidat final au commit `1af669161a713e3de566e6ba3c0847b767ef0970`, parent `e58bfa2fc2118c15cf815656d3d3fbec0af42a1c`. Verdict **CLEAN — PLANS documentaire**, **PL-MF-01 CLOSED**, aucun autre constat requis. Un cycle de correction utilisé. Le résultat brut est restitué dans la session ; la présente clôture ne change que le suivi et le statut du plan examiné.
 
 Acceptation plan : **EN ATTENTE**. Q-EXEC-01 garde : **À RÉSOUDRE avant toute campagne**. Q-EXEC-02 tests racines : **À RÉSOUDRE avant T6 et clôture S-09**. Implémentation/campagnes/recette/push : **NON AUTORISÉS**. Aucun DESIGN_CHANGE_REQUIRED identifié. Le verdict documentaire ne lève pas les conditions d'exécution.
+
+## 12. Accord d'exécution du 29 octobre 2026 — avenant prioritaire
+
+L'utilisateur a écrit dans la session : « Oui, j’autorise la garde PowerShell, les huit tâches et leurs tests dans main-facades/ et cargo-shared/, ainsi que la correction limitée des tests Parakeet avec mise à jour du plan. Lance la refacto. » Cet accord accepte le lot T1–T8 et les chemins du §4, avec les amendements suivants ; les mentions historiques d'attente ou d'absence d'autorisation ci-dessus sont remplacées pour ce périmètre.
+
+- Q-EXEC-01 : création autorisée de `target/parakeet-tests/main-facades/guard-main-facades.ps1`, garde PowerShell propre à ce lot, avec préflight canonique, auto-tests de refus et surveillance. Aucune commande Cargo avant réussite de ces prérequis. Cette autorisation ne constitue pas une preuve de confinement et ne reprend aucune dérogation historique. Racines de campagne exclusives : `target/parakeet-tests/main-facades/` et `target/parakeet-tests/cargo-shared/` ; aucun nouveau service, compte, ACL ou tâche planifiée.
+- Q-EXEC-02 : correction test-only autorisée des assertions et conditions de compilation des deux tests historiques `accepts_only_the_two_canonical_l2_test_roots` et `qualification_profiles_are_confined_to_l2b`, dans leur emplacement source puis dans les fichiers de tests déplacés prévus au §4. Leur oracle doit refléter les règles produit existantes pour chacun des huit ensembles de features. Aucun élargissement des racines produit, changement de politique runtime, masquage par `ignore` ou exclusion globale. Les interdictions antérieures de corriger ces deux tests sont levées dans cette seule limite. Comparer explicitement les résultats historiques et les corrections, sans attribuer les défauts préexistants à l'extraction.
+- L'implémenteur possède le code, les tests et la garde ; la session principale possède ce document et son suivi. Revue indépendante selon T8, deux cycles maximum. La validation Windows reste celle de l'utilisateur si elle est ultérieurement demandée ; aucune recette ni publication ajoutée.
+
+Préflight de lecture : HEAD `5317588669edec83db981c1b4517294e5b1d1f7a`, branche `evo-startup-perf`, aucun changement suivi avant cet avenant ; `docs/architecture/`, `models/` et `sound example/` non suivis à préserver. Environ 103 Gio libres avant préparation. Aucun Cargo exécuté à ce stade.
