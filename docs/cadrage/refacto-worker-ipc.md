@@ -69,10 +69,11 @@ Tous les chemins suivants sont sous `crates/whisper-adapters/src/worker_ipc/`.
 | Polling | poll et aides capture/VAD, poll_unified_sessions/document | `runtime/poll.rs`, `runtime/poll_unified.rs` ; mêmes propriétaires d'état et handlers, sans nouvelle machine d'états |
 | Choix et démarrage moteur | RuntimeModelCatalog, routes, preuves GPU, worker réutilisable et tentatives | `backends/mod.rs`, `backends/native.rs` ; core, catalogue/supervisor et transport ; aucune dépendance vers service |
 | Exécution Parakeet unifiée | sources, drain, exécuteur, transcripteur, sessions | `parakeet_unified/mod.rs`, `parakeet_unified/executor.rs`, `parakeet_unified/native.rs` ; core, transport et modules Parakeet existants ; aucune dépendance vers service |
+| Helpers techniques transversaux | memory_trace/MEMORY_REPORT, conversion SHA et compteurs NEXT_IMPORT_JOB_ID/NEXT_INSTANCE partagés | `support.rs` ; std et serde_json existants seulement ; aucune dépendance runtime/service/archive ; imports internes explicites, unicité des compteurs conservée |
 | Helpers du runtime | identité de source, journal, WAV, diagnostics et helpers de préparation | `runtime/source_binding.rs`, `runtime/support.rs` ; adaptateurs existants et core ; pas de nouveau domaine métier |
 | Tests | tests.rs et fragments existants | conservés à portée privée ; nouveaux petits tests privés dans fichiers séparés ; nouveaux scénarios publics dans `crates/whisper-adapters/tests/worker_ipc_*.rs` si réellement nécessaires |
 
-Les `impl ImportRuntime` de démarrage/admission restent dans `runtime/` et appellent les primitives extraites de `backends/` ou `parakeet_unified/`. Ne pas créer un cycle en déplaçant une méthode d'orchestration dans un module technique. Le service compose le runtime ; le runtime peut implémenter le contrat ServiceRuntime existant sans que les modules techniques importent le service. Dépendances inter-crates inchangées : adapters → core, desktop → adapters + core. Les politiques restent dans core.
+Les `impl ImportRuntime` de démarrage/admission restent dans `runtime/` et appellent les primitives extraites de `backends/` ou `parakeet_unified/`. `retry_native_gpu_startup_on_cpu`, `NativeAutoCpuRetry`, `FailedManualGpuPeer` et `manual_gpu_failure_event` appartiennent à `runtime/poll_unified.rs` : ils orchestrent scheduler, sessions, archives et exécuteur, et ne sont pas des primitives de backend. Seul le prédicat pur `can_retry_native_auto_on_cpu` peut rejoindre backends. Ne pas créer un cycle en déplaçant une méthode d'orchestration dans un module technique. Le service compose le runtime ; le runtime peut implémenter le contrat ServiceRuntime existant sans que les modules techniques importent le service. Dépendances inter-crates inchangées : adapters → core, desktop → adapters + core. Les politiques restent dans core.
 
 ## 5. Exigences, parcours et acceptation
 
@@ -90,7 +91,7 @@ Les exigences héritées portent sur la préservation du comportement réellemen
 
 ## 6. États et contrats critiques à conserver
 
-PublicationGate : IDLE → ACTIVE par activate ; ACTIVE → CANCELLED par request_stop ; rollback_stop ne fait que CANCELLED → ACTIVE ; ACTIVE → COMMITTING par commit, puis COMMITTED si succès. Un commit en erreur ne réactive pas automatiquement la gate. Conserver exactement les ordres mémoire Release/Acquire/AcqRel et les messages d'erreur existants ; ne pas « réparer » cet état à l'occasion du déplacement.
+PublicationGate : activate effectue un store inconditionnel vers ACTIVE (usuellement depuis IDLE), sans vérification de l'état précédent ; ACTIVE → CANCELLED par request_stop ; rollback_stop ne fait que CANCELLED → ACTIVE ; ACTIVE → COMMITTING par commit, puis COMMITTED si succès. Un commit en erreur ne réactive pas automatiquement la gate. Conserver exactement les ordres mémoire Release/Acquire/AcqRel et les messages d'erreur existants ; ne pas « réparer » cet état à l'occasion du déplacement.
 
 Effets : entrée consommée une seule fois, mutations du même ImportRuntime, événements ajoutés dans la même VecDeque ; captures d'identité calculées au même moment. Le compteur de persistance live, la confirmation différée et la centralisation des échecs doivent s'exécuter sur les mêmes chemins qu'avant. Les sorties précoces du dispatcher restent précoces.
 

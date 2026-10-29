@@ -108,15 +108,15 @@ Les champs ci-dessous complètent ce contrat commun, qui s'applique à chacune d
 ### A — Extraire le transport (lot 3a)
 
 - Source finding / rationale : 3a, REQ-01/03 ; isoler la frontière enfant avant le runtime.
-- Target files/modules : racine, `ipc/mod.rs`, `ipc/framing.rs` ; tests existants `tests/reprocessing_and_transport.rs`.
+- Target files/modules : racine, `ipc/mod.rs`, `ipc/framing.rs`, `support.rs` ; tests existants `tests/reprocessing_and_transport.rs`.
 - Ownership bucket : infra/adapters transport.
-- Scope budget : 3 fichiers production, tests directement correspondants ; aucun changement lib.rs.
+- Scope budget : 4 fichiers production, tests directement correspondants ; exception justifiée par memory_trace partagé entre transport, framing et service, à extraire atomiquement pour préserver la configuration memory sans dépendance transport vers runtime ; aucun changement lib.rs.
 - Closed invariant : transport complet possédé par ipc, chemins publics conservés par réexport.
 - Before metrics : 1 ChildWorkerTransport et corps framing/lecture/commandes dans racine ; cible ipc absente.
 - Target metrics : zéro définition correspondante dans racine ; exactement une définition par symbole dans ipc ; framing sans dépendance runtime/service/archive.
 - Metric commands / Stop conditions : contrat commun ; rechercher `ChildWorkerTransport|read_events|read_frame|write_frame|serialize_frame|BoundedFrameWriter|WorkerReaderMessage` dans M1.
 - Dependencies : aucune.
-- Implementation outline : extraire le struct, ExpectedGpuSession, impls request/receive/Drop, admission de commandes et lecture des événements dans ipc/mod.rs ; framing et MAX_FRAME_BYTES dans framing.rs ; conserver helpers de tentative live dans racine jusqu'à D3/F1 ; préserver filtres et attestations.
+- Implementation outline : extraire le struct, ExpectedGpuSession, impls request/receive/Drop, admission de commandes et lecture des événements dans ipc/mod.rs ; framing et MAX_FRAME_BYTES dans framing.rs ; déplacer memory_trace et MEMORY_REPORT avec leurs imports cfg dans support.rs, module privé std/serde_json sans runtime/service/archive. Les compteurs partagés NEXT_IMPORT_JOB_ID et NEXT_INSTANCE rejoignent ce même propriétaire transversal, sans duplication ni changement des ordres atomiques. Les appelants encore dans racine utilisent une liaison interne transitoire. Conserver helpers de tentative live dans racine jusqu'à D3/F1 ; préserver filtres et attestations.
 - Tests to add or update : T-A ; conserver noms/logique de tests, imports privés explicites ; caractériser seulement une branche non couverte découverte par inventaire.
 - Verification commands : V1–V6, T-A ; provenance §7.
 - Acceptance criteria : framing à limite identique, version/EOF/attestation identiques, Stop retenu en saturation, aucune duplication de corps ni élargissement public ; façade encore épaisse intentionnellement.
@@ -150,7 +150,7 @@ Les champs ci-dessous complètent ce contrat commun, qui s'applique à chacune d
 - Target metrics : 0 corps service dans racine ; un exemplaire dans service ; réexport public AsyncImportIo inchangé.
 - Metric commands / Stop conditions : M1 `AsyncImportIo|ServiceRuntime|service_loop|automatic_final|effect_event_reservation` ; contrat commun.
 - Dependencies : B.
-- Implementation outline : déplacer façade et boucle dans mod.rs ; helpers queue finale/exports/status/stages/cleanup et NEXT_IMPORT_JOB_ID/NEXT_AUTO_EXPORT_STAGE dans automatic_final.rs ; garder l'impl ServiceRuntime sur le runtime via un câblage minimal ; conserver utilitaires de réservation/identité avec leur appelant. Adapter seulement visibilité interne des fonctions finales encore utilisées par le runtime.
+- Implementation outline : déplacer façade et boucle dans mod.rs ; helpers queue finale/exports/status/stages/cleanup et NEXT_AUTO_EXPORT_STAGE dans automatic_final.rs ; importer NEXT_IMPORT_JOB_ID depuis support.rs pour conserver son partage avec collision_free_job_id, sans copie du compteur ; garder l'impl ServiceRuntime sur le runtime via un câblage minimal ; conserver utilitaires de réservation/identité avec leur appelant. Adapter seulement visibilité interne des fonctions finales encore utilisées par le runtime.
 - Tests to add or update : T-C ; pas de réécriture de fixtures concurrentes.
 - Verification commands : V1–V6, T-C ; provenance §7.
 - Acceptance criteria : capacités et réservations constantes (EVENTS_PER_STAGE = 21 à cette base), Start/Stop/déconnexion et attente 5 ms identiques ; aucune publication automatique contournée ; modules ≤1 500 lignes chacun.
@@ -269,7 +269,7 @@ Les champs ci-dessous complètent ce contrat commun, qui s'applique à chacune d
 - Target metrics : 0 définition dans racine, un exemplaire dans poll_unified ; séquencement inchangé.
 - Metric commands / Stop conditions : M1 `poll_unified_sessions|poll_unified_document` ; contrat commun.
 - Dependencies : E1.
-- Implementation outline : déplacer les deux méthodes et helpers de libération/admission directement requis dans runtime ; garder les types source/exécuteur côté racine jusqu'à F2.
+- Implementation outline : déplacer les deux méthodes et helpers de libération/admission directement requis dans runtime ; attribuer explicitement à poll_unified.rs l'orchestration `retry_native_gpu_startup_on_cpu` et ses types `NativeAutoCpuRetry`, `FailedManualGpuPeer` et `manual_gpu_failure_event`, qui manipulent scheduler/sessions/archives/exécuteur. Le prédicat pur can_retry_native_auto_on_cpu reste provisoirement racine puis backends F1 ; garder les types source/exécuteur côté racine jusqu'à F2. Utiliser document.rs si ce regroupement dépasse 1 500 lignes.
 - Tests to add or update : T-E ; deux sessions, publication finale pendant autre capture, fermeture globale, événements document périmés et drain final.
 - Verification commands : V1–V6, T-E ; provenance §7.
 - Acceptance criteria : aucun ACK perdu, libération aux mêmes points, aucune limite ou concurrence modifiée.
@@ -278,15 +278,15 @@ Les champs ci-dessous complètent ce contrat commun, qui s'applique à chacune d
 ### F1 — Extraire les backends (lot 3f-backends)
 
 - Source finding / rationale : 3f, REQ-06 ; primitives de sélection en dernier.
-- Target files/modules : racine, `backends/mod.rs`, `backends/native.rs` ; runtime/import/worker_start.rs si déjà créé en D5.
+- Target files/modules : racine, `backends/mod.rs`, `backends/native.rs`, support.rs ; runtime/import/worker_start.rs si déjà créé en D5.
 - Ownership bucket : infra/adapters sélection et lancement ; orchestration reste runtime.
-- Scope budget : 4 production + tests correspondants ; le quatrième est l'appelant moteur existant, pas une famille d'effets supplémentaire.
+- Scope budget : 5 production + tests correspondants ; exception pour le helper SHA transversal et l'appelant moteur existant, sans famille d'effets supplémentaire.
 - Closed invariant : catalogue, routes et primitives moteur sans dépendance service/runtime.
 - Before metrics : RuntimeModelCatalog, IdleWorker, routes et attestations dans racine.
 - Target metrics : 0 corps de ces primitives dans racine ; backends n'importe ni service ni ImportRuntime.
 - Metric commands / Stop conditions : M1 `RuntimeModelCatalog|IdleWorker|native_unified_route|native_cpu_route|gpu_evidence_matches|qualify_gpu_worker|probe_cuda_worker` ; contrat commun.
 - Dependencies : E2.
-- Implementation outline : catalogue/bindings et sélection dans mod.rs, routes/preuves/primitives de retry dans native.rs ; conserver méthodes start_worker*, start_parakeet_worker et handle_worker_failure sur ImportRuntime dans runtime ; déplacer uniquement leurs aides techniques, pas la politique. Réexports historiques des probes et gpu_evidence_matches conservés.
+- Implementation outline : catalogue/bindings et sélection dans mod.rs, routes/preuves et prédicat pur can_retry_native_auto_on_cpu dans native.rs ; decode_sha256 et format_sha256 dans support.rs avec imports explicites des consommateurs, sans dépendance backend vers runtime. Conserver méthodes start_worker*, start_parakeet_worker et handle_worker_failure sur ImportRuntime dans runtime ; retry_native_gpu_startup_on_cpu et sa gestion des pairs restent runtime/poll_unified.rs. Déplacer uniquement les aides techniques, pas la politique. Réexports historiques des probes et gpu_evidence_matches conservés.
 - Tests to add or update : T-F, worker_control et gpu_qualification_transport publics existants ; Auto sans GPU, panne pré-audio, GPU manuel, Stop empêchant retry, cache worker conservé.
 - Verification commands : V1–V6, T-F ; provenance §7.
 - Acceptance criteria : mêmes preuves/identités/repli et limites ; aucun nouveau fallback ou recalcul, pas de dépendance inverse.
@@ -312,7 +312,7 @@ Les champs ci-dessous complètent ce contrat commun, qui s'applique à chacune d
 ### F3 — Fermer la façade et les helpers résiduels (lot 3f-clôture)
 
 - Source finding / rationale : fermeture de l'étrangleur, REQ-07 ; ne pas laisser une seconde orchestration dans racine.
-- Target files/modules : racine, runtime/mod.rs, `runtime/support.rs`, runtime/live.rs, runtime/import.rs et leurs subdivisions déjà créées.
+- Target files/modules : racine, runtime/mod.rs, `runtime/support.rs`, support.rs, runtime/live.rs, runtime/import.rs et leurs subdivisions déjà créées.
 - Ownership bucket : runtime/application et helpers techniques à responsabilité explicite.
 - Scope budget : au plus 8 production, exceptionnel pour le câblage final des propriétaires déjà créés et la suppression des imports/reexports transitoires ; aucun nouveau fichier hors `worker_ipc/`.
 - Closed invariant : racine façade seule, sans corps algorithmique ni responsabilité résiduelle non attribuée.
@@ -320,7 +320,7 @@ Les champs ci-dessous complètent ce contrat commun, qui s'applique à chacune d
 - Target metrics : 0 corps algorithmique racine, zéro `#[path]` ordinaire ajouté, réexports publics identiques ; runtime/mod.rs = état, constructeurs et déclarations seulement, helpers répartis.
 - Metric commands / Stop conditions : M1/M2/M3 sur tout sous-arbre et revue exhaustive des symboles racine ; contrat commun.
 - Dependencies : F2.
-- Implementation outline : affecter helpers WAV/SHA/temps/diagnostics/hooks et validations audio à runtime/support.rs ou responsabilité déjà nommée ; helpers live/VAD vers live/poll, méthodes start/run/admission unifiées restantes vers runtime/import ou live selon appelant. Maintenir les features et tests sans exposer l'API. Retirer imports transitoires inutiles et vérifier la façade depuis ses consommateurs.
+- Implementation outline : affecter helpers WAV/temps/hooks et validations audio au propriétaire runtime/support.rs ou responsabilité déjà nommée ; helpers techniques transversaux restent dans support.rs (memory_trace et SHA déjà déplacés en A/F1), avec zéro dépendance vers runtime/service/archive. Helpers live/VAD vers live/poll, méthodes start/run/admission unifiées restantes vers runtime/import ou live selon appelant. Maintenir les features et tests sans exposer l'API. Retirer imports transitoires inutiles et vérifier la façade depuis ses consommateurs.
 - Tests to add or update : mêmes scénarios, V4/V5 sur toutes configurations prévues ; aucun test de simple déplacement de lignes.
 - Verification commands : V0–V6, T-A à T-F et M1–M3 ; provenance §7.
 - Acceptance criteria : tous les propriétaires de la carte D §4 ont leurs symboles, pas de logique perdue dans façade, pas de fichier monolithique recréé, bilan des réserves héritées ; tests/default/features et compilation consommateurs clos avant livraison structurelle.
@@ -335,11 +335,25 @@ Les champs ci-dessous complètent ce contrat commun, qui s'applique à chacune d
 | ID / zone | Commande ou contrôle | Provenance | Résultat attendu | Tâches |
 | --- | --- | --- | --- | --- |
 | V0 état | `git --no-optional-locks status --short` ; `git rev-parse HEAD` ; `Get-PSDrive C` | Observed (équivalents sans optional-locks pour le relevé initial) | changements attribués, base connue, ≥30 Gio avant campagne | toutes |
-| M1 symboles | `rg -n '^(pub.*\|struct\|enum\|impl\|fn\|mod\|const\|static)\|^    (pub.*fn\|fn )' crates/whisper-adapters/src/worker_ipc.rs crates/whisper-adapters/src/worker_ipc` | Source inferred ; adapter le motif ciblé de chaque tâche | symboles uniques, propriétaire attendu, appelants vérifiés | toutes |
-| M2 taille | `Get-ChildItem crates/whisper-adapters/src/worker_ipc -Recurse -Filter *.rs \| ForEach-Object { [pscustomobject]@{Path=$_.FullName; Lines=(Get-Content -LiteralPath $_.FullName).Count} }` | Source inferred | tri par fichier puis distinguer production/tests/commentaires ; >1 500 physiques déclenche comptage production relu | toutes |
+| M1 symboles | bloc M1 ci-dessous, puis motif ciblé de chaque tâche | Source inferred | symboles uniques, propriétaire attendu, appelants vérifiés | toutes |
+| M2 taille | bloc M2 ci-dessous | Source inferred | tri par fichier puis distinguer production/tests/commentaires ; >1 500 physiques déclenche comptage production relu | toutes |
 | M3 diff | `git diff --check` ; `git diff --stat` ; `git diff -- crates/whisper-adapters/src/worker_ipc.rs crates/whisper-adapters/src/worker_ipc` | Source inferred | pas d'espace invalide ; déplacement et câblage seuls ; visibilité/direction revues manuellement | toutes |
 
-Les `\|` dans les cellules Markdown représentent les pipes littéraux à utiliser dans PowerShell/regex ; retirer l'échappement Markdown lors de la copie. Le comptage physique ne remplace pas le comptage des lignes de production. Aucun nouveau script de métriques ou manifeste n'est requis.
+M1 (PowerShell, lecture seule) :
+
+```powershell
+rg -n '^(pub.*|struct|enum|impl|fn|mod|const|static)|^    (pub.*fn|fn )' crates/whisper-adapters/src/worker_ipc.rs crates/whisper-adapters/src/worker_ipc
+```
+
+M2 (PowerShell, lecture seule) :
+
+```powershell
+Get-ChildItem crates/whisper-adapters/src/worker_ipc -Recurse -Filter *.rs | ForEach-Object {
+    [pscustomobject]@{Path=$_.FullName; Lines=(Get-Content -LiteralPath $_.FullName).Count}
+}
+```
+
+Le comptage physique ne remplace pas le comptage des lignes de production. Aucun nouveau script de métriques ou manifeste n'est requis.
 
 ### Commandes internes futures, exclusivement via garde autorisée
 
@@ -414,4 +428,4 @@ Ne pas faire : correction fonctionnelle découverte en route, refonte du domaine
 
 À utiliser uniquement après acceptation et GO écrit précis :
 
-« Mode IMPLEMENT. Exécuter uniquement A/3a du plan `docs/cadrage/plan-refacto-worker-ipc.md` et du cadrage `docs/cadrage/refacto-worker-ipc.md` dans leurs versions Git acceptées. Relire AGENTS racine/adapters, état Git actuel et sources. Vous n'êtes pas seul dans le dépôt : préserver changements suivis/non suivis, coordonner les responsabilités et ne pas annuler les modifications des autres. Autorité limitée aux trois fichiers production et tests correspondants du lot A ; aucun autre lot. Avant code, établir les prérequis et témoins réels ; avant toute commande Cargo, disposer de l'accord de campagne, d'une garde compatible, des racines/env canoniques, auto-tests et espace libre requis. Exécuter M1–M3, V1–V6 et T-A à travers le lanceur autorisé pour Cargo. Stop si baseline en échec, garde non conforme, critère partiel, conflit ou élargissement requis. Conserver contrat/public API, bornes, ordre Stop, framing et identités. Rapporter diff, contrôles réellement exécutés et limites ; ne pas déclarer CLEAN. La session principale soumettra ensuite le candidat au rust_review_coordinator ; deux cycles maximum, validation Windows distincte. Aucun push. »
+« Mode IMPLEMENT. Exécuter uniquement A/3a du plan `docs/cadrage/plan-refacto-worker-ipc.md` et du cadrage `docs/cadrage/refacto-worker-ipc.md` dans leurs versions Git acceptées. Relire AGENTS racine/adapters, état Git actuel et sources. Vous n'êtes pas seul dans le dépôt : préserver changements suivis/non suivis, coordonner les responsabilités et ne pas annuler les modifications des autres. Autorité limitée aux quatre fichiers production et tests correspondants du lot A ; aucun autre lot. Avant code, établir les prérequis et témoins réels ; avant toute commande Cargo, disposer de l'accord de campagne, d'une garde compatible, des racines/env canoniques, auto-tests et espace libre requis. Exécuter M1–M3, V1–V6 et T-A à travers le lanceur autorisé pour Cargo. Stop si baseline en échec, garde non conforme, critère partiel, conflit ou élargissement requis. Conserver contrat/public API, bornes, ordre Stop, framing et identités. Rapporter diff, contrôles réellement exécutés et limites ; ne pas déclarer CLEAN. La session principale soumettra ensuite le candidat au rust_review_coordinator ; deux cycles maximum, validation Windows distincte. Aucun push. »
