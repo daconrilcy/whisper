@@ -191,3 +191,22 @@ Le coordinateur `common_review_loop` a mandaté un `rust_reviewer` indépendant 
 Limites conservées : MP3 gapless NOT RUN sans corpus ; aucune exécution audio native ni validation dans la fenêtre Windows ; decode_wav_windows reste volumineuse (271 lignes signalées par Clippy), sans défaut nouveau établi par la revue. Aucun paquet ni installation préparé dans ce mandat.
 
 Petites preuves copiées en préservant l'arborescence vers `target/parakeet-tests/worker-common/archive/20261029-worker-common/logs/` : 83 fichiers, 156 597 octets ; nombre identique et SHA-256 de chaque copie vérifié contre sa source, sans manifeste supplémentaire. Journaux d'origine et traces des incidents conservés ; aucun WAV/cache/copieur temporaire supprimé, cargo-shared intact. Espace libre final relevé : 122 242 064 384 octets (environ 113,8 Gio). Aucun push ; candidat source non committé, bilan documentaire destiné au commit local prévu par AGENTS.
+
+## 11. Complément accepté — réduction de decode_wav_windows (29 octobre 2026)
+
+Avancée : complément précisément autorisé dans la session courante par « oui j'autorise ce complement » après présentation du périmètre.
+Blocage : aucun pour le code ; campagne conditionnée à la compatibilité de la garde existante avec les règles courantes.
+Décision : lot complémentaire autonome de quatre tâches, commits locaux autorisés, aucun push.
+
+Objectif produit : faciliter la maintenance du décodage commun WAV/MP3 sans modifier la transcription ni les contrats WC02/WC08. Base source : 2d9c3fe8, branche evo-startup-perf ; seuls docs/architecture/, models/ et sound example/ sont non suivis avant ce complément et restent préservés.
+
+Chemins autorisés : crates/whisper-worker-common/src/decoder.rs et src/decoder/tests.rs ; présent plan écrit par la session principale. Aucune dépendance, manifeste, Cargo.lock, façade worker ou autre module modifié. Helpers privés dans decoder.rs ; aucun nouveau fichier de production requis.
+
+1. Préparer les extractions privées et conserver les invariants ; implémentation par rust_implementer en mode IMPLEMENT.
+2. Vérifier sous la garde existante uniquement : V8 format, V2 tests communs par défaut, V3 avec l01-memory-qualification, V9C Clippy structure ; git diff --check hors campagne. Tests complémentaires seulement si nécessaires à la préservation des contrats.
+3. Revue par rust_review_coordinator avec reviewer indépendant et corrections par le même implémenteur, au maximum deux cycles.
+4. Bilan dans cette section et commits locaux circonscrits ; pas de push, installation, paquet ou fenêtre Windows.
+
+Acceptation : decode_wav_windows et les helpers nouveaux restent sous 100 lignes selon Clippy, sans allow/expect du lint ; signatures publiques, profils WAV/MP3 admis/refusés, valeurs PCM et interpolation, bornes/positions des fenêtres, compteurs/EOF, erreurs et arrêt immédiat callback inchangés ; observations mémoire (stages/champs/ordre/Some/None et durées de vie pertinentes) conservées. Pas de changement d'oracles pour masquer une différence.
+
+Campagne autorisée dans les racines existantes target/parakeet-tests/worker-common/ (cache, TEMP/TMP, sorties) et target/parakeet-tests/cargo-shared/ (Cargo). Réutiliser guard-worker-common.ps1 sans modification ni surveillance supplémentaire. Préflight >=30 Gio, chemins canoniques, cache privé, réglages AGENTS, auto-tests et surveillance obligatoires avant Cargo ; offline/locked. Aucun accord nouveau de dérogation aux écritures hors racines : si la garde exige une exception historique, ne pas la réutiliser implicitement ; arrêter la campagne et rapporter le besoin précis. Ne pas effacer de traces ni de temporaires non approuvés. MP3 gapless sans corpus attesté et validation Windows restent NOT RUN.
