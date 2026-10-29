@@ -72,6 +72,9 @@ pub fn write_frame<T: Serialize>(output: &mut impl Write, value: &T) -> io::Resu
     output.flush()
 }
 
+pub(crate) type Incoming =
+    Result<whisper_core::ipc::IpcEnvelope<whisper_core::ipc::WorkerCommand>, String>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
