@@ -1,6 +1,6 @@
-Avancée : lots A/3a et B/3b clos après vérifications et revue CLEAN ; bilan B au §16.
-Blocage : aucun dans le périmètre B autorisé.
-Décision : lot B clos sans réserve dans ce périmètre ; aucun lot C démarré.
+Avancée : lots A/3a, B/3b et C/3c clos après vérifications et revue CLEAN ; bilan C au §18.
+Blocage : aucun dans le périmètre C autorisé.
+Décision : lot C clos sans réserve dans ce périmètre ; aucun lot D1 démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -585,3 +585,54 @@ Décision : exécuter C seul, revue indépendante puis commit local sans push si
 Accord écrit de la session : « Passe au lot C selon le plan. Je t’autorise l’implémentation, les vérifications et le commit local, sans push. Clôture-le sans réserve après revue indépendante. » Périmètre production : `worker_ipc.rs`, `worker_ipc/service/mod.rs`, `worker_ipc/service/automatic_final.rs` ; tests directement correspondants. Extraire AsyncImportIo, le contrat ServiceRuntime, service_loop et les helpers d'export automatique selon C, en conservant le câblage minimal de l'impl ServiceRuntime sur ImportRuntime, les compteurs partagés uniques et le chemin public AsyncImportIo. Aucun nouveau comportement, changement d'admission/bornes/attente/Start/Stop, dépendance, feature ou manifeste.
 
 Racine de campagne C : `target/parakeet-tests/refacto-worker-ipc-c/`, copie adaptée de la garde existante avec cache, temporaires et sorties sous C ; cible Cargo partagée inchangée. Préflight, auto-tests et surveillance existante obligatoires, sans nouvelle isolation ou surveillance. La seule dérogation généralisée aux lots est celle des événements non attribués dans `.git/objects/` ; les dérogations Temp limitées à A et B ne s'étendent pas à C. Les scénarios natif D2 et historique l3c restent hors de la campagne non native déjà délimitée ; aucun nouveau skip ni campagne native/Windows implicite. Autorisation de reproduire les échecs conservée, sans contourner une violation hors racine non couverte. Espace libre initial : 120 439 889 920 octets (environ 112,2 Gio). Non suivis préexistants préservés.
+## 18. Clôture du lot C — 29 octobre 2026
+
+Avancée : service asynchrone et helpers d'export final extraits, vérifications réussies et revue indépendante CLEAN.
+Blocage : aucun dans le périmètre C/REQ-02/03 après disposition explicite de l'incident de garde.
+Décision : lot C clos sans réserve dans son périmètre autorisé ; commit local sans push, aucun lot D1 démarré.
+
+### Delta et préservation des contrats
+
+Base de la revue et de la campagne : `31ff24fe2820acfce72afae079ec3b740884f725`, après B clos. Implémentation déléguée à `rust_implementer`, revue par `rust_review_coordinator` et le même reviewer indépendant en lecture seule ; la session principale n'a pas modifié le code en parallèle.
+
+Trois fichiers production : façade `worker_ipc.rs`, nouveaux `worker_ipc/service/mod.rs` (833 lignes physiques) et `worker_ipc/service/automatic_final.rs` (320). AsyncImportIo, impl ImportIoPort, contrat ServiceRuntime et service_loop appartiennent au service ; exports/status/stages/nettoyage de fin automatique et NEXT_AUTO_EXPORT_STAGE à automatic_final. L'impl ServiceRuntime sur ImportRuntime reste câblée minimalement. Le chemin public AsyncImportIo est conservé par réexport, les visibilités internes restent limitées et NEXT_IMPORT_JOB_ID vient du propriétaire support unique.
+
+Le reviewer a comparé les corps déplacés à la base : réservations, bornes, Start/Stop, déconnexion, ACK et chemin de publication conservés ; `EVENTS_PER_STAGE` reste 21 et l'attente 5 ms. Aucun compteur dupliqué, canal bloquant ajouté, changement fonctionnel, dépendance, feature, manifeste ou Cargo.lock modifié. Les nouveaux modules restent sous la limite de 1 500 lignes ; noms et nombre de tests inchangés.
+
+### Campagne et dispositions des incidents
+
+Garde existante adaptée et utilisée sous `target/parakeet-tests/refacto-worker-ipc-c/`, cache, fixture et temporaires sous C, compilation sous la seule cible Cargo partagée canonique. Préflight, auto-tests et surveillance ont été exécutés ; commandes offline/locked, aucun téléchargement. Les premiers arrêts n'ont pas été convertis en succès :
+
+- Événement Temp créé à 17:54:38.060 +01:00 : origine indéterminée, garde initialement stricte, arrêt avant extraction. L'utilisateur a ensuite autorisé explicitement la dérogation Temp pour C, les événements non attribués étant consignés sans arrêt à eux seuls. Aucune destination volontaire hors racine ni écriture attribuée à la campagne autorisée.
+- Événement Downloads supprimé à 18:22:15.501 +01:00 : fichier `~$Business Case Profit Recovery - Leonardo EN.pptx`, origine indéterminée. Après arrêt, l'utilisateur a autorisé la reprise et demandé de ne pas interrompre pour les fichiers extérieurs sans lien projet. La garde consigne les documents personnels concernés `UNATTRIBUTED_EXTERNAL`, avec auto-tests de refus maintenus pour les fichiers Whisper, modèles, cache Cargo, index et renommages entre zones.
+- Événement `.git/index.lock` créé à 18:46:22.025 +01:00, après réussite des vérifications prévues, pendant un contrôle conditionnel supplémentaire. L'implémenteur avait lancé un `git status --short` concurrent de cette commande gardée, contrairement à la règle de coordination ; son lien exact avec l'événement n'est pas démontré. Arrêt immédiat, index sans diff, verrou absent et aucun Cargo actif aux contrôles suivants. L'utilisateur a autorisé précisément la reprise et la clôture après cet incident, trace conservée et protection de l'index inchangée. Cette disposition ne crée aucune dérogation générale de l'index et ne permet aucune lecture Git concurrente d'une campagne future.
+
+Les journaux des événements sont conservés sous `logs/guard-events.jsonl` et les résultats sous `logs/guard.jsonl`. Aucun fichier détecté n'a été effacé ou restauré par cette intervention. La dérogation antérieure `.git/objects/` pour les événements sans attribution démontrée reste distincte de l'incident d'index.
+
+### Résultats effectivement obtenus
+
+Baseline puis candidat : format, découverte, cinq témoins T-C exécutés individuellement, cinq suites séquentielles, contrôle workspace et Clippy PASS via la garde. `git diff --check` PASS. Clippy : 142 avertissements en baseline comme sur le candidat, aucun nouvel avertissement introduit.
+
+Les cinq témoins T-C couvrent les bornes de file et de persistance, la distinction saturation/déconnexion, l'admission Stop sous saturation, l'ordre Start/Stop et l'absence de démarrage tardif d'un travail arrêté.
+
+| Configuration séquentielle du candidat | Réussis | Échoués | Ignorés | Filtrés autorisés | Résultat |
+| --- | --- | --- | --- | --- | --- |
+| défaut | 268 | 0 | 16 | 1 D2 | PASS |
+| recette-hooks | 272 | 0 | 16 | 1 D2 | PASS |
+| l01-memory-qualification | 268 | 0 | 16 | 1 D2 | PASS |
+| personal-qualification | 268 | 0 | 16 | 1 D2 | PASS |
+| recette-hooks,l3-gpu-qualification | 272 | 0 | 16 | 2 D2/l3c | PASS |
+
+Journaux des cinq suites finales : `Run-20261029T183842365-c1d9aa08`, `Run-20261029T184009314-d5ee7651`, `Run-20261029T184139902-f06557ba`, `Run-20261029T184307154-926871cd`, `Run-20261029T184434384-7aaee56d` sous `target/parakeet-tests/refacto-worker-ipc-c/logs/` (stdout/stderr associés).
+
+Deux contrôles conditionnels complémentaires ont été exécutés isolément et réussis : `paths_reject_a_worker_outside_the_runtime_root` et `injected_catalog_guards_all_worker_effect_routes_including_checkpoint_resume` (ce dernier : `Run-20261029T184549092-d8de94e1`, code 0). Le contrôle `over_limit_parakeet_import_is_refused_before_pending_creation` a été interrompu par la garde (`Run-20261029T184550198-5220fa3b`, code 1) : il n'est pas déclaré PASS. Le reviewer a établi qu'il exerce RuntimeModelCatalog::bind_import inchangé et ne crée pas de lacune matérielle pour C/REQ-02/03 ; aucune répétition inutile demandée après disposition de l'incident.
+
+Le test D4 de reprise qui créerait un lien physique vers un modèle hors racine reste NOT RUN et hors critère C. Les 16 tests ignorés, les exclusions D2/l3c déjà convenues, les campagnes natives et les essais dans la fenêtre Windows ne sont pas revendiqués exécutés. Aucun nouveau skip n'a été ajouté pour obtenir la clôture. Celle-ci porte sur le périmètre structurel C et ne vaut pas qualification native/Windows.
+
+### Revue finale et conservation
+
+Premier paquet de revue : aucun défaut de code actionnable, blocage uniquement sur la disposition de l'incident d'index. Après l'accord utilisateur précis et sans nouvelle mutation du candidat, le même reviewer rend **CLEAN** : aucun constat ouvert, aucune vérification requise manquante et aucun blocage dans C. Aucun cycle correctif nécessaire ; le changement reste un déplacement littéral avec adaptation du câblage interne.
+
+Archive : `target/parakeet-tests/refacto-worker-ipc-c/archive/closure-20261029/proofs.zip`, 112 entrées uniques, 356 565 octets. Arborescence relative conservée ; nombre, unicité et SHA-256 de chaque entrée comparés aux sources. SHA-256 du ZIP : `B511112F54E3891A02DFF70A4E5A596727699948F5A183B687A25B81203FC821`. Aucun cache/build/modèle/WAV inclus et aucun manifeste d'empreintes créé. Aucun nettoyage ni suppression sans manifeste de suppression approuvé ; cargo-shared et entrées préexistantes conservés.
+
+Espace libre final : 119 998 652 416 octets (environ 111,8 Gio). Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Sources relues et bilan conservés dans le commit local de clôture, aucun push. C est clos ; aucun lot suivant n'est autorisé par cette clôture.
