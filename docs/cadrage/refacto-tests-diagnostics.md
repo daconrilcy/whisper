@@ -275,7 +275,7 @@ Pas de SPIKE demandé. Pas de nouveau railguard ; AGENTS existants demeurent app
 
 Scope, use_cases, errors, domain, dependencies, platform, acceptance, risks couverts et soumis à revue. Persistence/concurrency : conservation des effets/gardes/ordres existants. Nouveaux états, migration, packaging et nouveau railguard : non applicables sans demande correspondante.
 Arrêt futur : test perdu/dupliqué/filtre non résolu ; logique/cfg/littéral imprévu ; API publique élargie pour fixture ; consommateur nouveau étendant périmètre ; validation préalable manquante/échouée ; conflit concurrent. Conserver diff et arrêter tranche dépendante.
-Terminé : quatre contributions, traçabilité, layout/nomenclature, revue indépendante CLEAN. Restant : plan puis revue PLANS. Ce statut ne vaut pas autorisation d'implémenter.
+Terminé : quatre contributions, traçabilité, layout/nomenclature, revue indépendante CLEAN, plan et revue PLANS CLEAN (`plan-refacto-tests-diagnostics.md`, `revue-plan-refacto-tests-diagnostics.md`). Ce statut ne vaut pas autorisation d'implémenter.
 
 ## 7. Validation et remise
 

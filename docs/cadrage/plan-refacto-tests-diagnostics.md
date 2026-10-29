@@ -1,12 +1,13 @@
-Avancée : plan DRAFT établi à partir du design Git relu CLEAN ; neuf tâches séquentielles.
+Avancée : plan de neuf tâches relu indépendamment, CLEAN — PLANS READY documentaire.
 Blocage : exécution future bloquée tant que le mandat et un lanceur conforme ne sont pas établis.
-Décision : soumettre ce plan à la revue indépendante ; aucune autorisation de coder n'est conférée.
+Décision : plan documentaire prêt ; aucune autorisation de coder ou de lancer une campagne n'est conférée.
 
 # Plan de refactorisation — tests séparés et diagnostics
 
 ## Header
 
-- ID : P-REF-TESTS-DIAG, v1.0, DRAFT pour revue.
+- ID : P-REF-TESTS-DIAG, v1.0, PLANS READY documentaire.
+- Revue : revue-plan-refacto-tests-diagnostics.md, CLEAN sur `05f82cc9a536350fde5360010bb8e011cb78295c` ; ajout de statut/référence = EVIDENCE_ONLY, tâches et contenu technique inchangés.
 - Source audit : observations/analyse ciblée de `refacto-tests-diagnostics.md`, D-REF-TESTS-DIAGv1.0 ; aucun audit global revendiqué.
 - Design parent : `d7f35143c5a4329513ba592efa0d03c3c038aa21`.
 - Revue parent : `revue-refacto-tests-diagnostics.md`, CLEAN sur `197d821ef98ea8c239d62f11cd40bfe9fdb1c74e` ; commit suivant limité au statut et résultat de revue.
@@ -15,7 +16,7 @@ Décision : soumettre ce plan à la revue indépendante ; aucune autorisation de
 - Target workspace : C:\dev\whisper, PowerShell, Windows.
 - Planning mode : plan only, no code changes.
 - Confidence : medium — destinations et consommateurs vérifiés, mais aucun lanceur compatible ni résultat Cargo de cette tranche établi.
-- Plan quality check : auto-contrôle §10 effectué ; verdict indépendant attendu.
+- Plan quality check : auto-contrôle §10 effectué ; revue indépendante CLEAN, aucun REQUIRED ouvert.
 - Auteur de proposition : rust_plan_writer, /root/plan_refacto ; écriture documentaire réservée à la session principale.
 - Autorité : « fais le cadrage puis le plan de refacto avec les agents dediés » ; code, campagne et push non autorisés.
 
