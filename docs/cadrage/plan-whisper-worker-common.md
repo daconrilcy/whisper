@@ -1,6 +1,6 @@
-Avancée : T1–T9 réalisées ; revue indépendante CLEAN après une correction.
-Blocage : aucun constat ouvert ; MP3 gapless non exécuté faute de corpus.
-Décision : livraison du candidat de travail sans push ; limites détaillées au §10.
+Avancée : T1–T9 closes ; complément décodeur implémenté et relu statiquement, validation en attente.
+Blocage : complément V2/V3/V9C et V8 Cargo non exécutés ; garde existante incompatible sans adaptation autorisée.
+Décision : candidat complémentaire en commit local sans push ; arbitrage garde nécessaire, bilan §11.
 
 # Plan d'implémentation — whisper-worker-common
 
@@ -210,3 +210,13 @@ Chemins autorisés : crates/whisper-worker-common/src/decoder.rs et src/decoder/
 Acceptation : decode_wav_windows et les helpers nouveaux restent sous 100 lignes selon Clippy, sans allow/expect du lint ; signatures publiques, profils WAV/MP3 admis/refusés, valeurs PCM et interpolation, bornes/positions des fenêtres, compteurs/EOF, erreurs et arrêt immédiat callback inchangés ; observations mémoire (stages/champs/ordre/Some/None et durées de vie pertinentes) conservées. Pas de changement d'oracles pour masquer une différence.
 
 Campagne autorisée dans les racines existantes target/parakeet-tests/worker-common/ (cache, TEMP/TMP, sorties) et target/parakeet-tests/cargo-shared/ (Cargo). Réutiliser guard-worker-common.ps1 sans modification ni surveillance supplémentaire. Préflight >=30 Gio, chemins canoniques, cache privé, réglages AGENTS, auto-tests et surveillance obligatoires avant Cargo ; offline/locked. Aucun accord nouveau de dérogation aux écritures hors racines : si la garde exige une exception historique, ne pas la réutiliser implicitement ; arrêter la campagne et rapporter le besoin précis. Ne pas effacer de traces ni de temporaires non approuvés. MP3 gapless sans corpus attesté et validation Windows restent NOT RUN.
+
+### Bilan intermédiaire du complément
+
+Implémentation confiée à rust_implementer (decoder_implement), revue confiée à rust_review_coordinator (decoder_review_loop), avec un rust_reviewer indépendant. Un seul fichier source modifié : crates/whisper-worker-common/src/decoder.rs ; tests existants et leurs oracles conservés. Signatures publiques inchangées, extractions privées de la préparation, de la lecture/conversion et de l'émission. Corps principal : 75 lignes physiques ; helpers : 22 à 62 lignes physiques selon l'implémenteur ; ces mesures ne remplacent pas Clippy.
+
+Contrôles réellement exécutés : rustfmt ciblé --edition 2024 --config skip_children=true --check PASS ; git diff --check ciblé PASS. Revue indépendante statique : aucune anomalie concrète identifiée sur PCM/interpolation/compteurs/erreurs/callback/observations mémoire (stages, champs, ordre et durées de vie). Verdict global BLOCKED, aucun finding de code ouvert, un passage et zéro correction ; aucun CLEAN global annoncé.
+
+V8 via Cargo, V2, V3 et V9C NOT RUN : guard-worker-common.ps1 lignes 180–205 laisse poursuivre les événements Temp utilisateur UNATTRIBUTED selon une exception d'une ancienne session, non héritée par §11. Aucun Cargo, auto-test de garde, adaptation de garde ou surveillance supplémentaire lancé pour ce complément. La poursuite proposée exige un accord précis pour adapter cette garde existante à l'arrêt sur toute détection hors racines, avec auto-tests, puis exécuter V8/V2/V3/V9C. Corpus MP3 gapless et fenêtre Windows NOT RUN. Aucun nettoyage ni archive de campagne nouvelle : aucune campagne lancée. Les non-suivis restent préservés. Candidat consigné localement, sans push ; objectif complet encore en attente des vérifications.
+
+Espace libre final de cette étape : 124 057 853 952 octets (environ 115,5 Gio).
