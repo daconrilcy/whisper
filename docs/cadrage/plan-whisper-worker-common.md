@@ -220,3 +220,13 @@ Contrôles réellement exécutés : rustfmt ciblé --edition 2024 --config skip_
 V8 via Cargo, V2, V3 et V9C NOT RUN : guard-worker-common.ps1 lignes 180–205 laisse poursuivre les événements Temp utilisateur UNATTRIBUTED selon une exception d'une ancienne session, non héritée par §11. Aucun Cargo, auto-test de garde, adaptation de garde ou surveillance supplémentaire lancé pour ce complément. La poursuite proposée exige un accord précis pour adapter cette garde existante à l'arrêt sur toute détection hors racines, avec auto-tests, puis exécuter V8/V2/V3/V9C. Corpus MP3 gapless et fenêtre Windows NOT RUN. Aucun nettoyage ni archive de campagne nouvelle : aucune campagne lancée. Les non-suivis restent préservés. Candidat consigné localement, sans push ; objectif complet encore en attente des vérifications.
 
 Espace libre final de cette étape : 124 057 853 952 octets (environ 115,5 Gio).
+
+### Reprise autorisée — garde stricte
+
+Accord courant reçu après proposition précise d'adaptation de la garde existante à l'arrêt sur toute détection hors racines, puis auto-tests et vérifications prévues : « Oui je t'autorise l'adaptation ».
+
+Le complément autorise désormais uniquement la modification ciblée de target/parakeet-tests/worker-common/guard-worker-common.ps1 : supprimer la poursuite UNATTRIBUTED et adapter son auto-test au refus, conserver les protections existantes et les deux racines autorisées. Aucun nouveau mécanisme de surveillance, aucune écriture volontaire hors racines, aucune dérogation Temp ni installation. Les événements synthétiques des auto-tests ne créent pas les chemins interdits représentés. Garde locale ignorée par Git ; son adaptation et ses résultats sont consignés dans le présent plan, sans nouvel artefact de gouvernance.
+
+Le même implémenteur réalise l'adaptation puis SelfTest, V8, V2, V3, V9C séquentiellement. Toute détection réelle hors racines ou échec impose l'arrêt et la conservation des traces avant arbitrage ; les refus synthétiques attendus des auto-tests ne sont pas des fuites réelles. La session principale suspend ses écritures et opérations Git pendant la surveillance. Revue reprise ensuite par le même coordinateur et le même reviewer sur le candidat source 1e8e3944 et les nouvelles preuves ; aucun nouveau cycle de correction engagé sans finding.
+
+Espace libre avant reprise : 123 701 194 752 octets (environ 115,2 Gio).
