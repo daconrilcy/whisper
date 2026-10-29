@@ -1,10 +1,11 @@
-Avancée : brief, exigences, domaine et architecture établis ; revue indépendante attendue.
+Avancée : cadrage complet relu indépendamment, CLEAN — DESIGN READY pour la planification.
 Blocage : aucun pour le cadrage ; exécution Cargo et tests non autorisée.
 Décision : préparer le refactor à logique constante, sans migration des contrats historiques.
 
 # Cadrage — séparation des tests et diagnostics
 
-ID : D-REF-TESTS-DIAG. Version : 1.0, 29 octobre 2026. Statut : DESIGN CANDIDATE.
+ID : D-REF-TESTS-DIAG. Version : 1.0, 29 octobre 2026. Statut : DESIGN READY pour la planification.
+Revue : `revue-refacto-tests-diagnostics.md`, verdict CLEAN sur la conception du commit `197d821ef98ea8c239d62f11cd40bfe9fdb1c74e` ; ajout de ce statut = EVIDENCE_ONLY, contenu technique inchangé.
 Base produit : `f82063ae63b2cc075eaff54693eb62ea36a18c65`, branche `evo-startup-perf`.
 Auteur documentaire : session Codex principale. Contributions proposées attribuées ci-dessous.
 
@@ -274,7 +275,7 @@ Pas de SPIKE demandé. Pas de nouveau railguard ; AGENTS existants demeurent app
 
 Scope, use_cases, errors, domain, dependencies, platform, acceptance, risks couverts et soumis à revue. Persistence/concurrency : conservation des effets/gardes/ordres existants. Nouveaux états, migration, packaging et nouveau railguard : non applicables sans demande correspondante.
 Arrêt futur : test perdu/dupliqué/filtre non résolu ; logique/cfg/littéral imprévu ; API publique élargie pour fixture ; consommateur nouveau étendant périmètre ; validation préalable manquante/échouée ; conflit concurrent. Conserver diff et arrêter tranche dépendante.
-Terminé : quatre contributions, traçabilité, layout/nomenclature. Restant : revue indépendante de cette version Git puis plan.
+Terminé : quatre contributions, traçabilité, layout/nomenclature, revue indépendante CLEAN. Restant : plan puis revue PLANS. Ce statut ne vaut pas autorisation d'implémenter.
 
 ## 7. Validation et remise
 
