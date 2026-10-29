@@ -313,7 +313,7 @@ Témoins réellement lus,identités conservées :
 | ID | Package / nom complet pour V8 | Données,observation,effets du corps |
 | --- | --- | --- |
 | W-C | whisper-core / application::tests::repeated_start_is_identifiable_and_stale_stop_does_not_target_new_generation | Commandes/identités mémoire,start égal et refus génération ancienne,pas I/O corps |
-| W-U | whisper-desktop / ui::tests::auto_stop_is_disabled_by_default_and_uses_speech_sample_clock_when_enabled | bool/minutes,None/1920000/9600000,calcul pur,pas fenêtre |
+| W-U | whisper-desktop / ui::tests::auto_stop_is_disabled_by_default_and_uses_speech_sample_clock_when_enabled | bool/minutes,None/1_920_000/960_000,calcul pur,pas fenêtre |
 | W-A | whisper-adapters / archive::tests::bounded_resume_accepts_a_current_backend_for_the_same_model_profile | Clés CPU/GPU mémoire,même modèle/profil accepté,altérations refusées,pas I/O corps |
 | W-I | whisper-adapters / worker_ipc::parakeet_stopped_ack_tests::stopped_ack_waits_for_exit_then_allows_completion | None/Some(true)/Some(false)→Wait/Success/Failure,calcul pur |
 
