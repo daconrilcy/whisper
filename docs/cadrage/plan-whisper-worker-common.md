@@ -1,6 +1,6 @@
-Avancée : complément décodeur en commit local ; garde stricte adaptée, auto-tests et V8 réussis.
-Blocage : V2 interrompu sur événement Temp hors racines ; V3/V9C non lancés, attribution indéterminée.
-Décision : campagne arrêtée et traces conservées ; arbitrage requis avant reprise, aucun push.
+Avancée : refactoring en commit local 1e8e3944 ; format et revue statique sans anomalie ; garde adaptée et auto-tests réussis.
+Blocage : nouvelle interruption de V2 sur fichier temporaire hors racines non couvert ; V3/V9C non lancés.
+Décision : validation suspendue, traces conservées, aucune extension des exceptions ni push.
 
 # Plan d'implémentation — whisper-worker-common
 
@@ -246,3 +246,11 @@ Le verdict de revue global reste BLOCKED faute des vérifications V2/V3/V9C ; la
 Accord courant « oui je t'autorise » en réponse à la proposition explicite : exception limitée au journal C:\Users\cyril\AppData\Local\Temp\NGL\NGLClient_CoreSync17.8.10.1.log, événements consignés sans arrêt, afin de reprendre les tests et Clippy. Autorisation limitée à cette campagne ; aucune conclusion sur l'origine de ce journal, aucune destination volontaire supplémentaire pour Cargo ni exception du dossier NGL/Temp en général.
 
 Le même implémenteur adapte la garde locale existante par comparaison canonique exacte de ce chemin (sans préfixe/glob ; renommage vers/depuis autre chemin reste refusé), consigne les événements concernés et conserve l'arrêt pour tout autre événement hors racines et toute erreur du watcher. Auto-tests synthétiques : journal exact consigné sans arrêt ; fichier voisin/autre chemin et Temp inconnu refusés. Puis SelfTest et V2/V3/V9C séquentiels ; V8 déjà PASS sur source inchangée. Tout autre incident impose arrêt/conservation/arbitrage, sans relance automatique. Aucun changement Rust prévu. Main suspend écritures/Git durant la surveillance. Espace libre avant reprise : 123 944 775 680 octets (environ 115,4 Gio).
+
+### Résultat de la reprise avec exception exacte
+
+Le même implémenteur a adapté la garde locale pour le seul journal NGLClient_CoreSync17.8.10.1.log accepté, avec comparaison exacte, contrôle des jonctions, journalisation et refus des voisins/renommages vers ou depuis un autre chemin. SelfTest PASS (sortie 0) : exception exacte et refus synthétiques, sans création des chemins interdits. L'origine des événements du journal n'est pas établie par cette exception.
+
+V2 à nouveau interrompu (sortie lanceur 1), aucune validation de test acquise : événement Created sur C:\Users\cyril\AppData\Local\Temp\dbcb27b0-fe1d-4d90-8046-93252bd41a22.tmp à 2026-10-29T15:40:51.1785040+01:00, détecté à 2026-10-29T15:40:51.2212108+01:00. Origine et attribution indéterminées, sans conclusion d'écriture Cargo. Ce chemin n'appartient pas à l'exception acceptée. Arrêt/conservation respectés ; V3 et V9C NOT RUN, aucune relance. Logs conservés dans target/parakeet-tests/worker-common/logs/guard-events.jsonl et V2-20261029T154050944-e0a5a2eb.{stdout,stderr}.log. Aucun nettoyage ni archivage de clôture après cet arrêt. Espace libre final : 124 146 872 320 octets (environ 115,6 Gio).
+
+Le candidat source 1e8e3944 est inchangé : décomposition effectuée, format PASS et revue statique indépendante sans finding, mais critère Clippy et tests non confirmés. Le verdict global reste BLOCKED. Pas de nouvelle passe de revue ou de correction en l'absence de nouveau candidat ou de résultat de validation. L'exception n'est pas élargie aux fichiers Temp aléatoires ni au dossier Temp. Validation suspendue selon AGENTS ; reprise soumise à arbitrage avant nouvelle campagne. Aucun push.
