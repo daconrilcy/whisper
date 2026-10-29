@@ -121,4 +121,10 @@ Deux fichiers suivis uniquement : ce cadrage et le plan associé. Les retours de
 
 Le plan est proposé dans la même remise parce que l'utilisateur l'a demandé explicitement ; cela ne transforme pas le design proposé en design accepté. Avant implémentation : acceptation écrite des documents versionnés, lot et chemins précis autorisés, responsable `rust_implementer`, prérequis et campagne explicitement autorisés. Revue du candidat par `rust_review_coordinator`, fermeture des constats par reviewer indépendant, deux cycles maximum. Validation dans la fenêtre Windows réservée à l'utilisateur lorsqu'une recette sera autorisée.
 
-Couverture documentaire : brief §1/3 ; exigences/parcours/acceptation §5 ; domaine et états §6 ; architecture et contrats §3/4/6 ; risques/contraintes §2/7 ; readiness §8. Aucun SPIKE ni architecture inter-crates requis : extraction interne à comportement constant. Statut proposé, revue indépendante à consigner après examen de cette version Git.
+Couverture documentaire : brief §1/3 ; exigences/parcours/acceptation §5 ; domaine et états §6 ; architecture et contrats §3/4/6 ; risques/contraintes §2/7 ; readiness §8. Aucun SPIKE ni architecture inter-crates requis : extraction interne à comportement constant. Statut proposé, revue indépendante consignée ci-dessous.
+
+## 9. Revue documentaire indépendante
+
+Le 29 octobre 2026, rust_design_reviewer a examiné le cadrage et le plan versionnés. Cycle 1 sur `4daa59a71feff5d8d58014ae135f338beb55782f` : deux constats REQUIRED IMPORTANT, aucun BLOQUANT. WIPC-R01 demandait un propriétaire technique transversal pour diagnostics/SHA ; WIPC-R02 demandait l'attribution explicite de la reprise native multi-session au runtime. Deux suggestions mineures concernaient les commandes copiables et la description du store activate.
+
+Corrections par la session principale dans `704cb179775979d7217024bbdfeba5539308c0d7`. Cycle 2 par le même reviewer : **CLEAN documentaire**, WIPC-R01/R02 fermés, suggestions traitées. Aucun constat requis ouvert. Le reviewer est resté en lecture seule ; aucune commande Cargo. Cet enregistrement est EVIDENCE_ONLY, sans changement technique après le candidat relu. Le verdict ne vaut ni acceptation utilisateur du cadrage, ni autorisation de code/campagne/push, ni validation Windows.

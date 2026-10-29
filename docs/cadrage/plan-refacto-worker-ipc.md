@@ -13,7 +13,7 @@ Décision : une seule famille d'effets par lot ; aucun changement de comportemen
 - Base produit : `939468382dacfff1c119c8acd79f08b3b7385392`.
 - Planning mode : plan only, no code changes.
 - Confidence : medium — responsabilités et tests repérés ; compilation, conditions de fixtures et faisabilité d'une campagne stricte non vérifiées.
-- Plan quality check : autocontrôle documentaire effectué ; revue indépendante à consigner, sans assimilation à l'acceptation utilisateur.
+- Plan quality check : passed documentaire ; revue indépendante CLEAN sur `704cb179775979d7217024bbdfeba5539308c0d7`, sans assimilation à l'acceptation utilisateur.
 - Owner : auteur documentaire = session principale ; implémentation future = `rust_implementer` ; revue de candidat = `rust_review_coordinator` et reviewer indépendant.
 
 ## 1. Audit Digest
@@ -421,8 +421,10 @@ Ne pas faire : correction fonctionnelle découverte en route, refonte du domaine
 | Carte d'architecture et tests sans API artificielle | Pass documentaire | cadrage §4 ; tests historiques conservés |
 | Commandes, provenance et contrôles manquants distingués | Pass documentaire | garde non établie ; aucune commande exécutée |
 | Conditions de départ explicites | Pass documentaire | §8 |
-| Revue indépendante | En attente | à consigner après revue de la version Git |
+| Revue indépendante | CLEAN documentaire | même reviewer, cycle 2 sur 704cb179 ; aucun REQUIRED ouvert |
 | Acceptation et code | Non acquis | aucun accord implicite |
+
+Revue du 29 octobre 2026 : cycle 1 sur `4daa59a71feff5d8d58014ae135f338beb55782f`, deux REQUIRED IMPORTANT, aucun BLOQUANT ; corrections par l'auteur principal et cycle 2 sur `704cb179775979d7217024bbdfeba5539308c0d7`, WIPC-R01 (helpers partagés) et WIPC-R02 (orchestration de reprise native) fermés par rust_design_reviewer. Commandes copiables et description d'activate également vérifiées. Verdict CLEAN sur les deux propositions documentaires ; aucune exécution produit. L'ajout de ce résultat est EVIDENCE_ONLY. Détail de fermeture : cadrage §9. Le plan reste proposé et non exécutable sans acceptation/GO et conditions §8.
 
 ## 11. Implementation Agent Prompt
 
