@@ -1,6 +1,6 @@
-Avancée : refactoring en commit local 1e8e3944 ; format et revue statique sans anomalie ; garde adaptée et auto-tests réussis.
-Blocage : nouvelle reprise arrêtée pendant SelfTest sur un autre fichier Temp hors racines ; V2/V3/V9C non lancés.
-Décision : validation suspendue, traces conservées, aucune extension des exceptions ni push.
+Avancée : complément décodeur validé par tests, format et Clippy ; seconde revue indépendante CLEAN sur 1e8e3944.
+Blocage : aucun pour ce complément ; MP3 gapless et validation Windows non exécutés.
+Décision : complément clos en commits locaux sans push ; réserves et preuves au bilan final §11.
 
 # Plan d'implémentation — whisper-worker-common
 
@@ -268,3 +268,24 @@ Accord écrit courant « je t'autorise » répondant précisément à : consigna
 Le même implémenteur peut adapter la classification de la garde locale existante et ses auto-tests, puis SelfTest/V2/V3/V9C. Les événements Temp sans attribution sont consignés UNATTRIBUTED avec chemins/horodatages, leur origine reste indéterminée ; la garde sans PID ne devient pas un confinement préventif ni une preuve d'absence de fuite. Les indices explicites Cargo/rustc/Whisper/Parakeet sous Temp restent traités conservatoirement comme suspects et bloquants, et toute attribution établie à la campagne impose arrêt. Les erreurs de surveillance et événements hors des autres racines autorisées/protégées restent bloquants. Renommages impliquant une autre zone non autorisée, ou indices suspects à l'une des extrémités, restent bloquants. Auto-tests synthétiques sans écriture réelle aux chemins interdits : Temp inconnu consigné, Temp suspect et chemins externes refusés, variables/racines/jonctions toujours contrôlées. Aucun changement de source Rust prévu, aucun nouveau watcher/outil/service/installation.
 
 Préflight et surveillance existants, réglages Cargo/cache privé/racines inchangés ; main suspend écritures/Git pendant les commandes. Au succès conserver et archiver les petites preuves sans manifeste nouveau, vérifier nombre et SHA-256 ; aucune suppression. Espace libre avant reprise : 123 904 319 488 octets. Revue des nouvelles preuves par même coordinateur/reviewer, pas d'auto-déclaration CLEAN par l'implémenteur.
+
+### Bilan final du complément — vérifications terminées
+
+Le candidat Rust reste exactement 1e8e3944 ; aucune correction Rust ni modification d'oracle pendant les reprises. Seuls decoder.rs pour le produit, le présent plan pour le suivi et la garde locale ignorée pour l'exécution ont été modifiés dans ce complément. La fonction initialement signalée à 271 lignes a été décomposée ; corps principal mesuré à 75 lignes physiques par l'implémenteur, helpers entre 22 et 62. Ces mesures ne sont pas le comptage Clippy, mais V9C confirme l'absence d'alerte too_many_lines ou d'autre lint de structure pour le décodeur commun sans suppression de lint.
+
+Résultats réellement exécutés et relus :
+
+| Contrôle | Résultat et preuve |
+| --- | --- |
+| SelfTest garde adaptée | PASS sortie 0 : Temp inconnu consigné UNATTRIBUTED, suspects et chemins interdits refusés, renommages/variables/jonctions contrôlés ; aucune création réelle aux chemins synthétiques interdits |
+| V8 format | PASS sortie 0, V8-20261029T152706205-e6bdb224, même candidat Rust |
+| V2 tests défaut | PASS sortie 0, 12 tests déclarés réussis, V2-20261029T154946097-5a06df39 ; scénario audio gapless non exercé |
+| V3 tests feature mémoire | PASS sortie 0, 12 tests déclarés réussis, V3-20261029T154950374-87c8a569 ; même réserve gapless |
+| V9C Clippy structure | PASS sortie 0, V9C-20261029T154954956-5e3438bc ; aucune alerte structure du décodeur commun ; 23 avertissements existants dans whisper-core, non corrigés hors périmètre |
+| Git | git diff --check PASS ; non-suivis docs/architecture/, models/ et sound example/ préservés |
+
+Le même coordinateur decoder_review_loop a repris le même reviewer indépendant. Seconde passe de revue, zéro cycle de correction : verdict CLEAN pour le refactoring et ses vérifications, aucun finding, demande de vérification ou blocage restant. Les états BLOCKED intermédiaires ci-dessus décrivent les arrêts historiques et sont remplacés pour la clôture par ce résultat.
+
+Réserves conservées : lame_gapless_delay_and_padding_are_trimmed_once retourne tôt faute de corpus attesté ; ses lignes « ok » dans les deux suites ne prouvent pas l'audio MP3 gapless (NOT RUN). Pas de moteur natif, paquet, installation ou validation produit dans la fenêtre Windows pour ce complément. Deux événements Temp non attribués, notamment un UUID pendant V3 et le journal NGL, ont été consignés selon la dérogation courante : origine indéterminée, aucune affirmation de confinement ou d'absence exhaustive de fuite.
+
+Petites preuves conservées et archivées sous target/parakeet-tests/worker-common/archive/decoder-reprise-20261029-1549/ : 12 fichiers, nombre et SHA-256 de chaque copie vérifiés contre les originaux, sans nouveau manifeste. Garde adaptée incluse dans l'archive. Originaux et incidents précédents conservés ; aucune suppression ou nettoyage de cargo-shared. Espace libre final relevé : 124 135 411 712 octets (environ 115,6 Gio). Livraison en commits locaux uniquement, aucun push.
