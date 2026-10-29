@@ -1,6 +1,6 @@
-Avancée : candidat du lot A/3a implémenté et revu ; bilan d'exécution au §12.
-Blocage : suite recette-hooks seule en échec sur le test de spectre ; lot A non clos.
-Décision : disposition utilisateur requise sur cette réserve ; aucun lot suivant démarré.
+Avancée : lot A/3a corrigé, vérifié et revu CLEAN ; clôture au §14.
+Blocage : aucun dans le périmètre A et sa reprise corrective autorisée.
+Décision : lot A clos sans réserve dans ce périmètre ; aucun lot suivant démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -489,3 +489,42 @@ Demande écrite de la même session : « non je souhaite que qu el lot A soit cl
 L'implémenteur doit établir la cause observable, préserver les assertions sur le rejet des anciens blocs audio et la publication d'un spectre frais, et privilégier une synchronisation déterministe du test si le défaut est dans son ordonnancement. Augmenter simplement un délai, ignorer le test ou répéter jusqu'au succès ne constitue pas une correction suffisante. Toute correction de production doit être justifiée par le défaut démontré et accompagnée du témoin pertinent. Les profils de revue restent indépendants ; les deux passes précédentes sans correction ne valent pas deux cycles revue/correction accomplis. Deux cycles correctifs maximum pour cette reprise autorisée.
 
 Vérifications attendues : reproduction discriminante du défaut et contrôle après correction, cinq témoins T-A, suites des cinq configurations à paramètres identiques et sorties permettant d'identifier les retours NOT RUN, format, compatibilité workspace et Clippy sans nouvel avertissement introduit par A. Le reviewer décide de la fermeture des constats. Les exclusions natives D2/l3c déjà acceptées demeurent hors de cette clôture structurelle ; aucun succès natif ni Windows implicite. À clôture effective seulement : archivage des petites preuves sous la racine autorisée avec contrôle de nombre et SHA-256, aucun nettoyage sans manifeste de suppression approuvé, relevé final de l'espace libre et bilan actualisé par la session principale. Commit local uniquement, aucun push.
+## 14. Clôture corrective du lot A — 29 octobre 2026
+
+Avancée : lot A/3a corrigé, vérifié et revu CLEAN ; petites preuves archivées.
+Blocage : aucun dans le périmètre structurel A et sa reprise corrective autorisée.
+Décision : lot A clos sans réserve dans ce périmètre ; aucun lot suivant démarré ou autorisé.
+
+### Corrections et preuve du défaut de témoin
+
+Reprise sur `fca4b8339ab5a98bf148f6ad586599cbe62ffdf7`, candidat A précédent `f7b0cd38ff9e2e9e9b44e5afe566f436882136c3`. L'implémenteur a modifié seulement `microphone_probe.rs`, ajouté `microphone_probe/retry_epoch_regression.rs` et ajusté l'import `Command` de `worker_ipc.rs` pour les tests. Aucun changement de logique produit, de protocole, dépendance, feature ou manifeste.
+
+Le test de barrière de reprise construisait ses horodatages par deux lectures rapprochées de l'horloge ; leur égalité pouvait faire admettre le bloc supposé ancien. Ses 4 800 échantillons deviennent cinq fragments pour une file de quatre places : une saturation avance alors l'époque et invalide le préfixe de spectre. Une reproduction instrumentée a observé l'époque 2 au lieu de 1 avant le flux frais, avec une perte et aucun bloc traité. Le nouveau test séparé impose l'égalité temporelle et reproduit déterministement saturation et changement d'époque, puis vérifie le spectre après un flux frais. Cette preuve ne permet pas d'attribuer individuellement chaque ancien échec au même mécanisme.
+
+Le test existant fournit désormais une acquisition strictement antérieure à la barrière (`Instant::now() - 1 ms`), attend le compteur de traitement de chaque bloc et contrôle l'absence de perte. Les assertions de rejet de l'audio ancien, d'identité d'époque et de production d'un spectre frais sont maintenues. Il n'est ni ignoré ni rendu passant par simple augmentation du délai. L'échec intermédiaire précédant ce dernier changement et les cinq suites finales qui le suivent restent distingués dans les preuves.
+
+### Vérifications du candidat final
+
+Toutes les commandes Cargo ont utilisé la garde et les racines autorisées, sans téléchargement. Format, `git diff --check`, compilation workspace, cinq témoins T-A et témoin déterministe : PASS. Clippy : PASS commande, 142 avertissements, identiques au nombre de baseline ; avertissement d'import nouveau supprimé.
+
+| Configuration séquentielle finale | Tests réussis | Ignorés | Filtrés autorisés | Résultat |
+| --- | --- | --- | --- | --- |
+| défaut | 266 | 16 | 1 D2 | PASS |
+| recette-hooks | 270 | 16 | 1 D2 | PASS |
+| l01-memory-qualification | 266 | 16 | 1 D2 | PASS |
+| personal-qualification | 266 | 16 | 1 D2 | PASS |
+| recette-hooks,l3-gpu-qualification | 270 | 16 | 2 D2/l3c | PASS |
+
+Les sorties visibles identifient les retours anticipés. Trois scénarios auparavant NOT RUN ont en outre été exécutés isolément avec variables bornées, sans lancement natif, et réussissent : `paths_reject_a_worker_outside_the_runtime_root`, `over_limit_parakeet_import_is_refused_before_pending_creation` et `injected_catalog_guards_all_worker_effect_routes_including_checkpoint_resume`.
+
+Le scénario `resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution` demeure NOT RUN : il créerait un lien physique vers le modèle installé hors racine A. Le reviewer l'a jugé hors du critère de clôture A/T-A (reprise D4). Les 16 tests ignorés, les exclusions D2/l3c précisément acceptées, les campagnes natives et la fenêtre Windows ne sont pas revendiqués exécutés ; ils ne constituent pas une validation implicite du produit. Aucun nouveau test exclu pour obtenir cette clôture.
+
+Journaux des cinq suites finales sous `target/parakeet-tests/refacto-worker-ipc-a/logs/` : `Run-20261029T171800388-ad4c1ef7`, `Run-20261029T171906452-7c360fea`, `Run-20261029T172019253-81a7a7b0`, `Run-20261029T172131191-8f4427d1`, `Run-20261029T172243038-d471a92d` (fichiers stdout/stderr associés).
+
+### Revue indépendante et conservation
+
+Le même `rust_review_coordinator` a réactivé le même `rust_reviewer` indépendant sur le candidat correctif, epoch 1. Après examen du diff, des résultats et clarification en lecture seule de la chronologie du journal intermédiaire, le reviewer rend **CLEAN** : aucun constat ouvert, aucune vérification requise manquante et aucun blocage dans le périmètre A corrigé. Les exclusions et limites hors périmètre ci-dessus restent explicites ; le verdict ne vaut pas recette native ni validation Windows. La session principale n'a pas modifié le code et consigne seule ce bilan.
+
+Archive des petites preuves : `target/parakeet-tests/refacto-worker-ipc-a/archive/closure-20261029/proofs.zip`, 175 entrées, 644 586 octets. Arborescence relative préservée ; compte et unicité contrôlés, SHA-256 de chaque entrée comparé à sa source. SHA-256 du ZIP : `BECD1690904BB351D8A9C4F7E532AB02478E99FC18CFF5C8AD2791B953A2CE05`. Aucun cache, modèle, build ou WAV ajouté à cette archive, aucun manifeste d'empreintes créé. Aucun nettoyage ni suppression effectué faute de manifeste de suppression approuvé ; cargo-shared et entrées préexistantes conservés.
+
+Espace libre final : 121 987 014 656 octets (environ 113,6 Gio). Le code relu et ce bilan sont conservés dans un commit local de clôture, sans push. Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés. Cette clôture remplace le blocage du premier candidat décrit au §12 ; elle ne donne aucune autorisation de commencer B.

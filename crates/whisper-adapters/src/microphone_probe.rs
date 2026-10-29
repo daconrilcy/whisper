@@ -20,6 +20,9 @@ use whisper_core::{
 
 use crate::capture::ProbeAudioBlock;
 
+#[cfg(test)]
+mod retry_epoch_regression;
+
 const PROBE_QUEUE_BLOCKS: usize = 4;
 const MAX_BLOCK_DURATION_MS: u64 = 20;
 const RMS_WINDOW_MS: u64 = 100;
@@ -881,7 +884,9 @@ mod tests {
             Generation::first(),
         )
         .unwrap();
-        let acquired_before_retry = Instant::now();
+        // Windows can report the same clock tick for consecutive reads. Ensure
+        // the simulated capture predates the retry barrier even in that case.
+        let acquired_before_retry = Instant::now() - Duration::from_millis(1);
         let (epoch, barrier_ms) = probe.advance_epoch();
         assert_eq!(epoch, 1);
         let block = |first_frame, acquired_at| {
@@ -909,10 +914,22 @@ mod tests {
         old_block.limiter_mask.resize(4_800, false);
         probe.submit(old_block);
         assert!(probe.latest_spectrum_at(Instant::now()).is_none());
+        assert_eq!(probe.dropped_updates(), 1, "old audio must be rejected");
+        assert_eq!(probe.processed_chunks(), 0);
+        assert_eq!(probe.epoch(), epoch);
 
-        for frame in [0, 600, 1_200, 1_800, 2_400, 3_000, 3_600, 4_200] {
+        for (index, frame) in [0, 600, 1_200, 1_800, 2_400, 3_000, 3_600, 4_200]
+            .into_iter()
+            .enumerate()
+        {
             probe.submit(block(frame, Instant::now()));
-            thread::sleep(Duration::from_millis(10));
+            let deadline = Instant::now() + Duration::from_secs(2);
+            while probe.processed_chunks() < (index + 1) as u64 {
+                assert!(Instant::now() < deadline, "fresh audio was not processed");
+                thread::yield_now();
+            }
+            assert_eq!(probe.epoch(), epoch, "fresh audio must not be dropped");
+            assert_eq!(probe.dropped_updates(), 1);
         }
         let deadline = Instant::now() + Duration::from_secs(2);
         let spectrum = loop {
@@ -921,7 +938,19 @@ mod tests {
             }
             assert!(
                 Instant::now() < deadline,
-                "fresh retry spectrum did not arrive"
+                "fresh retry spectrum did not arrive: epoch={}, dropped={}, processed={}, valid={}, latest={:?}",
+                probe.epoch(),
+                probe.dropped_updates(),
+                probe.processed_chunks(),
+                probe.valid.load(Ordering::Acquire),
+                probe.latest.read().unwrap().as_ref().map(|snapshot| (
+                    snapshot.epoch,
+                    snapshot.last_frame,
+                    snapshot
+                        .spectrum
+                        .as_ref()
+                        .map(|spectrum| spectrum.captured_at.elapsed())
+                ))
             );
             thread::sleep(Duration::from_millis(2));
         };

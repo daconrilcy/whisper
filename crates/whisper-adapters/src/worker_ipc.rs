@@ -24,14 +24,11 @@ use crate::{
     },
     vad::VoiceActivity,
 };
-#[cfg(test)]
-use std::io::BufReader;
 use std::{
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
-    process::Command,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU8, AtomicU64, Ordering},
@@ -40,6 +37,8 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+#[cfg(test)]
+use std::{io::BufReader, process::Command};
 #[cfg(test)]
 use whisper_core::ipc::IpcEnvelope;
 use whisper_core::{
