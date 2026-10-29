@@ -1,6 +1,6 @@
-Avancée : plan accepté et réalisation des huit tâches autorisée le 29 octobre 2026.
-Blocage : garde à préparer et à vérifier avant toute commande Cargo.
-Décision : implémentation déléguée, campagnes bornées et correction limitée des tests Parakeet autorisées ; aucun push.
+Avancée : garde et cache privé préparés, auto-tests réussis ; T1 commencé, aucune extraction produit.
+Blocage : événement hors racine observé pendant le contrôle de format, attribution indéterminée.
+Décision : campagne arrêtée, preuves conservées ; arbitrage utilisateur requis avant reprise.
 
 # Whisper — Plan de refactorisation des points d'entrée
 
@@ -266,3 +266,11 @@ L'utilisateur a écrit dans la session : « Oui, j’autorise la garde PowerShel
 - L'implémenteur possède le code, les tests et la garde ; la session principale possède ce document et son suivi. Revue indépendante selon T8, deux cycles maximum. La validation Windows reste celle de l'utilisateur si elle est ultérieurement demandée ; aucune recette ni publication ajoutée.
 
 Préflight de lecture : HEAD `5317588669edec83db981c1b4517294e5b1d1f7a`, branche `evo-startup-perf`, aucun changement suivi avant cet avenant ; `docs/architecture/`, `models/` et `sound example/` non suivis à préserver. Environ 103 Gio libres avant préparation. Aucun Cargo exécuté à ce stade.
+
+### Interruption de T1 — 29 octobre 2026
+
+Implémenteur délégué : `rust_implementer`, `/root/implementation_facades`, base documentaire `6d19d4d4985a688efd709534d7f5c54c1c202818`. Garde créée sous la racine autorisée et cache Cargo privé préparé. Auto-tests `guard-main-facades.ps1 -Mode SelfTest` : PASS, code 0 ; refus des variables absentes/hors racine, observation d'un événement réel et refus d'une violation simulée. Ces contrôles ne prouvent pas un confinement du compte.
+
+Première commande : `guard-main-facades.ps1 -Mode Run -CargoArguments @('fmt','--all','--','--check')`. Pendant son exécution, création observée de `C:\Users\cyril\AppData\Local\Temp\etilqs_qqHDyh1IVWPTziI` à **09:03:26.625 +01:00**. Origine non attribuée : ce constat ne prouve pas une écriture de Cargo ou de rustfmt. La garde a demandé l'arrêt, terminé avec code 1 et conservé `target/parakeet-tests/main-facades/STOP.json`, `logs/guard-events.jsonl` et les captures sous cette même racine. Stdout/stderr vides ; contrôle de format **INCOMPLET**, statut propre de Cargo indisponible. Aucun Cargo/rustfmt/rustc visible au contrôle ultérieur. Le fichier temporaire n'était alors plus visible ; aucune suppression ou restauration effectuée par l'implémenteur.
+
+Seul changement suivi de l'implémenteur : `crates/whisper-worker-cpu/tests/reusable_imports.rs`, adaptation T1 vers une racine explicite canonisée, sous-répertoire unique et conservation des fichiers. `git diff --check` : PASS, code 0. Aucun binaire de référence construit, aucune extraction produit ; T1 BLOCKED, T2–T8 non commencées, builds/tests/scénarios natifs NOT RUN. Aucun candidat complet à soumettre à la revue indépendante à ce stade. Espace final : **110 606 336 000 octets** (environ 103 Gio). Aucune reprise, suppression ni application d'une ancienne dérogation ; décision utilisateur nécessaire sur cet événement avant reprise de T1.
