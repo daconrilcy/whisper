@@ -40,3 +40,46 @@ Cette dérogation accepte le risque résiduel d’écritures techniques de Windo
 - Adapter le dossier de remise au **profil réellement compilé**. Pour le profil personnel, placer uniquement `whisper-worker-cpu.exe` et `whisper-worker-gpu.exe` à côté de l'EXE desktop : il charge les deux workers Parakeet depuis `%LOCALAPPDATA%\Whisper\worker\`, leurs cinq/neuf DLL depuis `native/cpu/` et `native/gpu/`, et ses deux modèles depuis `models/` dans cette installation stable. Vérifier la présence et les SHA-256 de ces ressources installées avant remise, ainsi que les deux workers Turbo livrés. Ne pas ajouter au dossier de recette des copies Parakeet ou DLL que ce profil n'ouvrira pas.
 - Pour un binaire de profil Test, relever les chemins effectifs de tous les workers et runtimes. Si des variables d'environnement sont requises, remettre un lanceur dans le même dossier que l'EXE et vérifier ses chemins sans ouvrir la fenêtre. Ne pas annoncer un dossier autonome si le profil utilise des ressources canoniques hors du dossier. Une recette de paquet autonome exige une qualification de ce routage avant remise.
 - La validation dans la fenêtre Windows reste celle de l'utilisateur ; indiquer ce qui a été construit et vérifié automatiquement et ce qui reste à observer manuellement.
+
+## Consignes de développement et portée des fichiers locaux
+
+Les `AGENTS.md` des sept crates complètent ce fichier pour leur sous-arborescence. Lire celui de la crate avant de la modifier. Ils ne créent aucune dérogation aux autorisations, à la délégation Rust, à la garde permanente des campagnes ou à la recette Windows ci-dessus. En cas de contradiction sur ces sujets, arrêter l'action concernée et demander l'arbitrage de l'utilisateur. Une instruction locale n'est pas un confinement technique.
+
+### Préparation et architecture
+
+- Relever l'état Git et préserver les changements des autres tâches, y compris les fichiers non suivis. Une branche ou un état Git propre ne prouve pas l'absence d'un autre agent actif ; coordonner les responsabilités avant des modifications concurrentes.
+- Lire la carte `docs/architecture/ARCHITECTURE.md` et la fiche de la crate dans `docs/architecture/crates/` si elles sont présentes. Ces documents sont des relevés statiques à confronter aux sources et aux manifestes actuels ; ils ne valent ni plan de refonte ni autorisation. S'ils manquent, consulter les sources sans recréer une campagne documentaire.
+- Le cœur porte le domaine, les politiques et les effets ; les adaptateurs exécutent les entrées/sorties ; le desktop compose et affiche ; les workers exécutent les commandes IPC du parent ; bootstrap reste minimal.
+- Dépendances internes actuelles : `desktop → adapters + core`, `adapters → core`, `worker-* → core`, `bootstrap → adapters + core`. Le cœur ne dépend actuellement que de `serde`. Toute nouvelle crate ou dépendance, interne ou externe, doit appartenir au plan et être explicitement validée avant modification du manifeste.
+- Identifier le module cible avant de coder. Les découpages suggérés dans les fichiers locaux sont des pistes pour un plan accepté, pas une obligation de refondre lors d'un correctif limité.
+
+### Structure, nommage et tests
+
+| Règle | Cible pour le code nouveau |
+|---|---|
+| Taille d'un fichier de production | 1 500 lignes de production maximum |
+| Taille d'une fonction | 100 lignes selon `clippy::too_many_lines` |
+| Complexité cognitive | 25 selon `clippy::cognitive_complexity` |
+| Nombre d'arguments | 7 selon `clippy::too_many_arguments` |
+| Complexité des types | 250 selon `clippy::type_complexity` |
+
+- Ces cibles guident la revue locale. `clippy.toml` règle les seuils mais n'active pas les lints et ne bloque pas seul les dépassements. Il n'existe actuellement ni `ci/clippy-baseline.txt` ni `ci/check-structure` ; ne pas annoncer ces contrôles comme disponibles et ne pas les créer pour cette tâche. Aucun contrôle CI distant (GitHub ou autre) n'est demandé ou autorisé par ces consignes.
+- Ne pas aggraver sans justification les gros fichiers ou fonctions existants. Préférer une extraction limitée lorsqu'elle sert le changement accepté. Si elle dépasse les chemins ou le lot autorisés, exposer l'écart et demander uniquement l'arbitrage nécessaire ; ne pas étendre le refactoring automatiquement.
+- Nommer le nouveau code selon sa responsabilité produit, sans identifiant de lot ou de campagne. Préserver les identifiants historiques qui font partie d'un contrat existant (protocole, variable d'environnement, trace ou script) tant que leur migration n'est pas autorisée.
+- Placer les nouveaux tests unitaires dans un fichier séparé du code de production, par exemple `src/<module>/tests.rs` déclaré par `#[cfg(test)] mod tests;`. Placer les tests d'intégration dans `tests/`. Les faux workers et fixtures partagés vont dans les supports de tests adaptés à leur visibilité ; un `tests/support/` n'est pas automatiquement accessible aux tests unitaires.
+- Éviter les ajouts aux gros blocs de tests inline existants. Ne pas ajouter de champs ou branches de production uniquement pour les tests si un helper ou une injection simple suffit ; ne pas imposer un nouveau trait à chaque test.
+- Les hooks de recette nouveaux restent explicitement activables, inactifs par défaut et absents du produit livré. Préserver les gardes `recette-hooks` existantes et leur refus en release par `scripts/recette-build.rs`. Cette feature n'existe pas dans toutes les crates ; les features de qualification existantes restent distinctes et ne sont pas migrées implicitement.
+- Signaler les écarts concrets et leur risque dans le compte rendu ou le document du lot déjà prévu. Ne pas créer systématiquement `docs/debt.md`, des marqueurs `DEBT-*` ou un nouveau livrable hors plan.
+
+### Sécurité et vérifications locales
+
+- Respecter les niveaux `unsafe_code` réellement déclarés par chaque crate. Un commentaire `SAFETY` ne lève jamais un `forbid` ou un `deny`. Tout nouveau bloc unsafe dans un périmètre FFI autorisé justifie ses invariants ; aucun élargissement de ce périmètre sans accord précis.
+- Aucun accès réseau ajouté au produit. Ne pas modifier `Cargo.lock` hors d'une tâche qui l'autorise explicitement.
+- Lecture, analyse statique et `git diff --check` ne lancent pas de campagne. Pour un changement limité aux consignes et à `clippy.toml`, vérifier les chemins, le contenu, la fusion et la syntaxe sans lancer Cargo.
+- Toute commande Cargo locale, même `metadata`, `check`, `clippy`, compilation ou test sans modèle, reste soumise à la règle permanente des campagnes et aux autorisations du lot. Aucune catégorie « compilation simple » ne dispense du préflight, de la garde ou de ses auto-tests. Utiliser `--offline --locked` lorsque la commande les accepte ; ne pas utiliser `--fix` ni télécharger des dépendances sans accord précis.
+- Pour du Rust, effectuer les vérifications utiles prévues au lot : format, tests concernés, build et lints applicables. Les lints de structure peuvent être demandés explicitement à Clippy (`-W clippy::too_many_lines -W clippy::cognitive_complexity -W clippy::too_many_arguments -W clippy::type_complexity`) dans la campagne autorisée. Ne pas confondre une analyse relue, un test ignoré, un contrôle réussi et une validation native ou dans la fenêtre Windows.
+- Ne pas créer d'isolation Windows, de compte, de service, de tâche planifiée ou de surveillance supplémentaire à partir de ces consignes. Respecter la garde existante et la portée exacte de ses dérogations ; un outil manquant ne justifie pas son contournement.
+
+### Compte rendu
+
+Commencer les rapports par trois lignes : `Avancée : ...`, `Blocage : ...`, `Décision : ...`. Préciser les fichiers changés, les vérifications réellement exécutées et les limites restantes. Regrouper les décisions de produit ou de périmètre avec options et recommandation ; aucune limite à une seule question ne dispense de demander un accord devenu nécessaire. Ne pas pousser sans accord précis.

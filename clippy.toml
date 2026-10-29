@@ -1,0 +1,6 @@
+# Seuils pour les lints activés lors des vérifications locales autorisées.
+# Ce fichier n'active pas les lints et ne configure aucune CI distante.
+too-many-lines-threshold = 100
+cognitive-complexity-threshold = 25
+too-many-arguments-threshold = 7
+type-complexity-threshold = 250
