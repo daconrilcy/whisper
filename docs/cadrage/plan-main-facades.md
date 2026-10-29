@@ -1,6 +1,6 @@
 Avancée : format de référence réussi ; compilation CPU de référence commencée, aucune extraction produit.
-Blocage : notification inexpliquée du dossier .git/objects/pack, hors exceptions accordées.
-Décision : arrêt maintenu avant Cargo, traces conservées ; aucun élargissement implicite de la dérogation Git.
+Blocage : adaptation de la garde et auto-tests renouvelés requis avant reprise.
+Décision : reprise autorisée avec consignation des événements non attribués dans .git/objects/, contrôles sources/index/références maintenus.
 
 # Whisper — Plan de refactorisation des points d'entrée
 
@@ -302,3 +302,9 @@ La classification sans arrêt ne concerne que les fichiers directs dont le nom c
 Auto-tests renouvelés PASS : exception tmp_pack limitée, refus autres chemins Git et changement d'état Git, contrôles Temp et surveillance. Second STOP archivé sous `main-facades/STOP-20261029T090850.json`. Lors du contrôle préalable, notification `Changed` sur le dossier `C:/dev/whisper/.git/objects/pack` à **09:11:52.572 +01:00**, détectée à 09:11:52.721 ; aucun événement enfant réel conservé permettant de la relier à un tmp_pack autorisé. La garde a arrêté avant Start-Process : **aucune nouvelle commande Cargo**. Événement préservé dans `logs/guard-events.jsonl` et `STOP.json` sous la racine du lot.
 
 Lecture ultérieure : `pack-cf5f8a6c7e5b055802b7a15f072b1fb7ac611c3e.pack` présente LastWriteTime 09:12:09.558, après arrêt ; origine et signification indéterminées, aucun événement capturé correspondant ne permet une attribution. HEAD `6d7c1475`, index sans diff, seul diff suivi du worker sur reusable_imports.rs ; `git diff --check` PASS. La comparaison exhaustive des références avant/après n'est pas démontrable, état préalable seulement en mémoire perdu lors de l'exception. Espace libre relevé : **108 852 076 544 octets**. Aucune reprise, suppression ni restauration. Les exceptions existantes ne couvrent pas cet événement ; T1 demeure interrompue, T2–T8 non commencées.
+
+### Reprise autorisée — événements non attribués du stockage d'objets Git
+
+L'utilisateur répond « oui je t'autorise » à la proposition explicite suivante : pour ce lot, consigner sans arrêt les événements non attribués dans `.git/objects/`, dossiers compris, tout en maintenant l'arrêt sur changement inexpliqué des sources, de l'index ou des références Git, et sur toute écriture hors racines attribuée à la campagne. Cet accord remplace la restriction précédente aux seuls fichiers tmp_pack pour cette classification ; il ne concerne aucun autre emplacement Git. L'exception Temp reste inchangée. Aucune destination volontaire d'écriture de campagne n'est ajoutée dans Git.
+
+Adapter la garde existante, renouveler les auto-tests de classification et de refus (autres chemins Git, sources, index, références, erreurs de surveillance), conserver sous la même racine le STOP précédent puis lever ce seul arrêt autorisé et reprendre T1–T8 selon leurs prérequis. Conserver sous la racine du lot les états nécessaires au contrôle sources/index/références avant/après, y compris en cas d'exception : ils appartiennent aux captures de campagne déjà prévues, aucun nouveau rapport ou manifeste de qualification. Aucune suppression/restauration, isolation Windows ou publication supplémentaire n'est autorisée.
