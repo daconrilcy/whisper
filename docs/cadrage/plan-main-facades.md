@@ -1,6 +1,6 @@
 Avancée : format de référence réussi ; compilation CPU de référence commencée, aucune extraction produit.
-Blocage : adaptation et auto-tests de la garde requis avant reprise.
-Décision : reprise autorisée avec dérogations ciblées Temp et fichiers Git tmp_pack_* sans attribution démontrée.
+Blocage : notification inexpliquée du dossier .git/objects/pack, hors exceptions accordées.
+Décision : arrêt maintenu avant Cargo, traces conservées ; aucun élargissement implicite de la dérogation Git.
 
 # Whisper — Plan de refactorisation des points d'entrée
 
@@ -296,3 +296,9 @@ Diff suivi de l'implémenteur inchangé : seul `crates/whisper-worker-cpu/tests/
 L'utilisateur a répondu « oui je t'autorise » à la proposition précise de consigner sans arrêt, pour ce lot uniquement, les événements non attribués sur les seuls fichiers `.git/objects/pack/tmp_pack_*`, en maintenant le contrôle des sources et références Git. Cette dérogation autorise l'adaptation de la garde, le renouvellement de ses auto-tests et la reprise de T1 puis T2–T8 selon leurs prérequis. Préserver le second arrêt et ses captures sous la racine du lot avant levée de cet arrêt.
 
 La classification sans arrêt ne concerne que les fichiers directs dont le nom commence par `tmp_pack_` sous `C:/dev/whisper/.git/objects/pack/`, avec chemin et heure consignés et attribution indéterminée. Aucun autre fichier Git, aucune référence, aucun fichier source ou emplacement sensible supplémentaire n'est couvert. Aucun processus de campagne n'est autorisé à écrire volontairement dans Git ; toute écriture attribuée à la campagne hors racines reste un motif d'arrêt. Contrôler les sources et références Git avant et après les commandes ; préserver les différences légitimes déjà identifiées, arrêter en cas de changement inexpliqué. Aucun nettoyage, restauration ou nouvelle surveillance n'est ajouté. L'exception Temp précédemment accordée reste inchangée.
+
+### Arrêt pré-lancement après cette adaptation
+
+Auto-tests renouvelés PASS : exception tmp_pack limitée, refus autres chemins Git et changement d'état Git, contrôles Temp et surveillance. Second STOP archivé sous `main-facades/STOP-20261029T090850.json`. Lors du contrôle préalable, notification `Changed` sur le dossier `C:/dev/whisper/.git/objects/pack` à **09:11:52.572 +01:00**, détectée à 09:11:52.721 ; aucun événement enfant réel conservé permettant de la relier à un tmp_pack autorisé. La garde a arrêté avant Start-Process : **aucune nouvelle commande Cargo**. Événement préservé dans `logs/guard-events.jsonl` et `STOP.json` sous la racine du lot.
+
+Lecture ultérieure : `pack-cf5f8a6c7e5b055802b7a15f072b1fb7ac611c3e.pack` présente LastWriteTime 09:12:09.558, après arrêt ; origine et signification indéterminées, aucun événement capturé correspondant ne permet une attribution. HEAD `6d7c1475`, index sans diff, seul diff suivi du worker sur reusable_imports.rs ; `git diff --check` PASS. La comparaison exhaustive des références avant/après n'est pas démontrable, état préalable seulement en mémoire perdu lors de l'exception. Espace libre relevé : **108 852 076 544 octets**. Aucune reprise, suppression ni restauration. Les exceptions existantes ne couvrent pas cet événement ; T1 demeure interrompue, T2–T8 non commencées.
