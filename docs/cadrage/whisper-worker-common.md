@@ -203,11 +203,13 @@ Les deux façades decoder transmettent le recorder local sous feature locale, si
 | Production common | Les sept fichiers de package/module listés §7.2 |
 | Façades workers | Dans CPU/GPU : `src/decoder.rs`, `src/encoder.rs`, `src/ipc.rs`, `src/integrity.rs` ; en plus CPU `src/ipc_output.rs` |
 | Tests common | Les cinq fichiers séparés listés §7.2, selon scénarios associés |
-| Tests locaux | CPU `src/ipc_output/tests.rs`, et nouveaux `src/decoder/tests.rs`, `src/ipc/tests.rs` ; GPU `src/decoder/tests.rs`, `src/ipc/tests.rs` ; inventaire avant suppression de redondances |
+| Tests locaux | CPU `src/ipc_output/tests.rs`, et nouveaux `src/decoder/tests.rs`, `src/ipc/tests.rs`, `src/encoder/tests.rs` ; GPU `src/decoder/tests.rs`, `src/ipc/tests.rs` ; inventaire avant suppression de redondances |
 
 Appelants indirects contrôlés sans modification prévue : CPU/GPU startup.rs, diagnostics.rs, session/mod.rs, session/decode.rs, session/import.rs, session/live.rs ; GPU gpu_commands.rs et diagnostics/tests.rs. Main conserve ses déclarations ; memory_qualification.rs, qualification.rs, native_engine.rs/native_ffi.rs/attestation ne changent pas. Si un chemin supplémentaire devient nécessaire, exposer le PLAN_CHANGE plutôt qu'élargir automatiquement.
 
 Tests : migrer l'union utile des tests CPU inline decoder/ipc, CPU ipc_output/tests et GPU decoder/tests/ipc/tests ; conserver séparément des tests de raccordement et de hooks dans les façades. Un fichier de tests devenu redondant n'est retiré qu'après table test→destination→AC. Pas d'ajout aux gros blocs inline existants.
+
+Précision de caractérisation `ARCH-WCOMMON-01 v1.2`, owner architecte, DETAIL dans AC-WC-03 : avant substitution des façades, ajouter un test séparé CPU `src/encoder/tests.rs` et sa déclaration cfg(test) dans encoder.rs, sans changer l'algorithme. Les copies encodeur CPU/GPU initiales sont contrôlées identiques statiquement ; la capture peut donc utiliser le CPU. Sous G-EXEC uniquement, utiliser des PCM déterministes non silencieux et un découpage fixé ; observer pour chaque cas/appel/paquet sa position, longueur et SHA-256, puis les résultats de finish répété/refus post-finalisation. Les journaux ordinaires du lanceur suffisent : aucun manifeste d'empreintes de qualification n'est créé. Les valeurs réellement observées sont ensuite figées comme attentes dans les tests common ; elles ne sont jamais recalculées par la nouvelle implémentation ni auto-régénérées. Une autre baseline source invalide ces attentes et demande un réexamen attribué. L'usage de SHA-256 ici compare des octets de paquets (AC03), sans prétendre qualifier le produit. Même principe de résultats déterministes avant/après pour PCM et IPC selon leurs AC, avec algorithmes d'origine encore en place. Aucune nouvelle dépendance ni outil.
 
 ## 8. Preuves, risques techniques et exécution future
 
