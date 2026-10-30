@@ -1,6 +1,6 @@
-Avancée : T1–T5 validées, revues indépendantes CLEAN ; baseline avant extraction établie.
-Blocage : aucun pour commencer T6 dans le périmètre prévu.
-Décision : engager la première extraction T6, sans push.
+Avancée : T1–T6 validées, revues indépendantes CLEAN ; première extraction terminée.
+Blocage : aucun pour T7 ; échec optionnel recette-hooks préexistant consigné.
+Décision : engager l’extraction reprise/journaux T7, sans push.
 
 # Plan de refactorisation d’archive.rs
 
@@ -325,3 +325,13 @@ Base `a7c2690f`, ajout U/cleanup_characterization.rs et inclusion UT, complémen
 `git diff --check` PASS. V-L et neuf V-K T4 restent attribuables au même code produit et aux mêmes tests, inchangés. Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune, une revue/aucune correction ; contrôle inverse des PF01–21 et des lacunes obligatoires T2–T5 : aucune lacune caractérisable obligatoire identifiée avant T6. C5/E5 acquis. Limites maintenues : sync_all non injectable, journal de tentatives non relu par recovery caractérisé, états reconstruits/faux MP3, pas kill/powerfail/natif/fenêtre Windows. Aucune extraction antérieure à cette validation.
 
 Correspondance inverse PF→preuves baseline : PF01/02/12–18 §T4 (tests reprise, scan sain/corrompu, refus inter-destination, schémas/stratégie et neuf V-K) ; PF03–05/08–09/21 §T2 ; PF06–07/10–11 §T3 avec R7 ; PF19–20 §T5 avec huit V-R. Chaque groupe relie tests/assertions et limites ; aucun exit 0 sans scénario exercé ne ferme une famille.
+
+### T6 validée — Publication et supports
+
+Base `620e26a0`, A et sept modules prévus déplacés, tests/assertions inchangés. Imports nommés, visibilité interne minimale VIS-01, types/états et responsabilités T7–T9 conservés dans A. Préflight 66,60 Gio, final 66,59 Gio. Lignes physiques relevées après extraction (pas décompte de production Clippy) : A 4 321 ; campaign 484 ; storage 75 ; import 529 ; live 714 ; publication 305 ; publication/catalog 989 ; publication/exports 619. Façade intermédiaire encore volumineuse avant T7–T9.
+
+Contrôles gardés : V-U `20261030T205239329-04773b13` **38 réussis, un ignoré L04** ; V-L `20261030T205304174-4a04c265` **12 réussis** ; V-R `20261030T205320031-1b14dca1` **8 réussis** ; V-C `20261030T205356166-f351d9f6` **2 réussis** ; neuf V-K exacts chacun un réussi/zéro ignoré/aucun NOT RUN après extraction et avant derniers changements d’imports uniquement. V-B `20261030T205430673-fee00f35`, V-S `20261030T205446074-6ff169ad`, V-F final `20261030T205557356-67aeeba2` et diff --check **PASS**. Un V-U intermédiaire après imports nommés avait échoué sur quatre imports dupliqués ; corrigés puis contrôles rafraîchis. Avertissements normaux revenus à la baseline, imports tests sous cfg(test) ; dernier delta seulement retrait de trois imports inutilisés sous recette-hooks, format final rafraîchi.
+
+Contrôle distinct optionnel `check --offline --locked -p whisper-adapters --features recette-hooks`, run `20261030T205454890-37383c39` : **FAIL**, exit 101, `thread` et `Duration` non résolus dans worker_ipc/runtime/support.rs:90. Fichiers support.rs, worker_ipc.rs et runtime/mod.rs inchangés depuis baseline, anomalie hors périmètre non corrigée. Aucun succès de cette configuration revendiqué ; pas de campagne L04.
+
+Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune, une revue/aucune correction reviewer. Comparaison de 194 corps de fonctions après normalisation espaces/commentaires : inchangés ; six différences de signatures dues aux virgules finales rustfmt seulement. Types/statics/attributs/API/réexports/cfg, ordre des effets et visibilités VIS-01 préservés. Échec optionnel recette-hooks jugé préexistant par preuve statique des fichiers et chaînes d’imports inchangés, non attribuable à T6. Candidat stable campaign SHA-256 `D24F4EE65AA886DF24B5DB07DB64896472FE71EF9296B1F02E4AAAB6CB001EE6`. C6/E6 acquis ; T7 peut commencer. Fonctions longues historiques conservées ; aucune validation native/Windows/kill/powerfail déduite.
