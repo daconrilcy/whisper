@@ -1,6 +1,6 @@
-Avancée : T1–T6 validées, revues indépendantes CLEAN ; première extraction terminée.
-Blocage : aucun pour T7 ; échec optionnel recette-hooks préexistant consigné.
-Décision : engager l’extraction reprise/journaux T7, sans push.
+Avancée : T1–T7 validées, revues indépendantes CLEAN ; deux extractions terminées.
+Blocage : aucun pour T8 ; échec optionnel recette-hooks préexistant consigné.
+Décision : engager l’extraction identité/sources T8, sans push.
 
 # Plan de refactorisation d’archive.rs
 
@@ -335,3 +335,13 @@ Contrôles gardés : V-U `20261030T205239329-04773b13` **38 réussis, un ignoré
 Contrôle distinct optionnel `check --offline --locked -p whisper-adapters --features recette-hooks`, run `20261030T205454890-37383c39` : **FAIL**, exit 101, `thread` et `Duration` non résolus dans worker_ipc/runtime/support.rs:90. Fichiers support.rs, worker_ipc.rs et runtime/mod.rs inchangés depuis baseline, anomalie hors périmètre non corrigée. Aucun succès de cette configuration revendiqué ; pas de campagne L04.
 
 Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune, une revue/aucune correction reviewer. Comparaison de 194 corps de fonctions après normalisation espaces/commentaires : inchangés ; six différences de signatures dues aux virgules finales rustfmt seulement. Types/statics/attributs/API/réexports/cfg, ordre des effets et visibilités VIS-01 préservés. Échec optionnel recette-hooks jugé préexistant par preuve statique des fichiers et chaînes d’imports inchangés, non attribuable à T6. Candidat stable campaign SHA-256 `D24F4EE65AA886DF24B5DB07DB64896472FE71EF9296B1F02E4AAAB6CB001EE6`. C6/E6 acquis ; T7 peut commencer. Fonctions longues historiques conservées ; aucune validation native/Windows/kill/powerfail déduite.
+
+### T7 validée — Reprise et journaux
+
+Base `0f5dedc9`, A et trois modules journal.rs/recovery.rs/recovery/live.rs seulement ; tests et modules T6 inchangés. Imports explicites, réexport public scan_live_recoveries conservé, load_or_migrate_publication_index reste façade. Préflight 66,59 Gio, final 66,57 Gio. Lignes non vides rapportées (autre métrique que les lignes physiques T6) : A 2 778 ; journal 306 ; recovery 748 ; recovery/live 398.
+
+V-U `20261030T210126452-88453588` : **38 réussis, un ignoré L04 historique** ; V-L `20261030T210145045-bea8ec0d` : **12 réussis** ; V-R `20261030T210203595-da992c3e` : **8 réussis** (rejoué car le scan déplacé peut servir cleanup). V-F `20261030T210418640-bbb9bb45`, V-B `20261030T210423919-2481db8e`, V-S `20261030T210439375-e0768d2d`, diff --check **PASS**. Avertissements build adapters 16/desktop 5 ; Clippy 260 test/136 doublons, historiques. Premier V-U réussi avec import inutile ensuite retiré ; les preuves ci-dessus portent sur le candidat stabilisé.
+
+Neuf V-K exacts chacun **un réussi, zéro ignoré, aucun NOT RUN**, dans l’ordre §5 : `20261030T210241113-6e248540`, `20261030T210251807-63ec59db`, `20261030T210301285-945f64d8`, `20261030T210315268-a48d50f8`, `20261030T210324358-d14e5449`, `20261030T210333512-066d9b11`, `20261030T210349557-7aa23821`, `20261030T210358487-019567c2`, `20261030T210407948-ca72a49b`.
+
+Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune ; une revue/aucune correction. 103 corps identiques après normalisation lexicale espaces/commentaires ; types/attributs conservés, quatre différences de virgules finales de signatures seulement ; VIS-01 et réparations/ordre préservés. C7/E7 acquis ; T8 peut commencer. recette-hooks non requalifié (échec préexistant T6), pas natif/UI/kill/powerfail.
