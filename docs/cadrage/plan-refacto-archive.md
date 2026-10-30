@@ -1,6 +1,6 @@
-Avancée : reprise T1–T10 autorisée avec dérogation aux changements du Temp utilisateur.
-Blocage : témoin T1 toujours à valider après adaptation de la garde.
-Décision : consigner les changements internes au Temp sans arrêt ; préserver les autres contrôles.
+Avancée : T1 validée, revue indépendante CLEAN ; E0 acquis.
+Blocage : caractérisation T2–T5 à exécuter avant toute extraction.
+Décision : engager T2 dans le périmètre autorisé, sans push.
 
 # Plan de refactorisation d’archive.rs
 
@@ -257,3 +257,9 @@ Accord utilisateur dans cette session : « Ne t'arrete plus a cause de modif/cre
 Première traduction trop étroite de « modifications » en Created/Changed seulement : auto-tests réussis, témoin interrompu sur `Deleted C:/Users/cyril/AppData/Local/Temp/_MEI770962/api-ms-win-core-console-l1-1-0.dll` à `2026-10-30T20:19:45.6912782+01:00` (détection `20:19:45.7482398`). Run `20261030T201939048-abd71749`, sortie 1 ; compilation de dépendances commencée, aucun test attesté. 67,32 Gio libres. Preuves conservées dans R/logs/ ; événements Temp admis consignés dans allowed-temp-events.jsonl, attribution UNKNOWN.
 
 La principale rectifie son interprétation pour appliquer l’intention explicite de ne plus s’arrêter sur les modifications du Temp : créations, changements, suppressions et renommages entièrement internes au Temp utilisateur sont consignés sans arrêt. Un renommage dont l’autre extrémité sort du Temp reste contrôlé normalement. Cette précision remplace la restriction Created/Changed du paragraphe précédent ; aucune nouvelle destination volontaire ni tolérance hors Temp, erreur de surveillance ou variable incorrecte n’est accordée. L’implémenteur adapte les auto-tests avant reprise du témoin.
+
+### T1 validée — E0 acquis
+
+Préflight sur `0d88375b` : 67,31 Gio libres. SelfTest **PASS**, sortie 0 ; les quatre catégories de changements internes Temp sont consignées sans arrêt, les traversées et autres événements externes simulés sont refusés. Témoin nominal exact ci-dessus **PASS**, sortie 0, un test exécuté/réussi, zéro ignoré, 288 filtrés ; commande 44 s. Run `20261030T202052854-d4c76281` dans R/logs/guard.jsonl, stdout/stderr associés conservés. 26 avertissements de compilation rapportés, pas de succès de suite entière déduit du témoin. Garde SHA-256 `16750A3D5E39609330364AE25F1416B6D037687BF7AC62F923F4B78B26CA00DF` ; espace final 67,22 Gio. Git suivi intact, `git diff --check` réussi.
+
+Revue indépendante routée par `/root/review_archive` (`rust_review_coordinator`) à un `rust_reviewer` en lecture seule : **CLEAN**, zéro constat, demande de vérification ou lacune matérielle ; une revue, aucune correction. Cible : base `7fdd329b`, candidat `0d88375b` et garde identifiée ci-dessus, scope T1. Comparaison G/F3, racines, retrait des tolérances historiques, dérogation Temp et preuves E0 revus. Limites conservées : surveillance sans confinement préventif, origine des événements Temp inconnue. T1 seule validée ; T2–T5 restent préalables aux extractions, T2 peut commencer. Aucun fichier Rust modifié à ce stade.
