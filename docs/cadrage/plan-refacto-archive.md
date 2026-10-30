@@ -1,6 +1,6 @@
-Avancée : T1–T4 validées, revues indépendantes CLEAN.
-Blocage : caractérisation retrait T5 à exécuter avant toute extraction.
-Décision : engager T5 dans le périmètre autorisé, sans push.
+Avancée : T1–T5 validées, revues indépendantes CLEAN ; baseline avant extraction établie.
+Blocage : aucun pour commencer T6 dans le périmètre prévu.
+Décision : engager la première extraction T6, sans push.
 
 # Plan de refactorisation d’archive.rs
 
@@ -306,3 +306,22 @@ Base `48976cfa`, trois nouveaux tests U/recovery_characterization.rs et quatre n
 | 18 | live_current_manifest_and_snapshot_corruption_are_stable : CURRENT/manifeste/snapshots invalides diagnostiqués sur deux scans |
 
 V-U run `20261030T203305213-6fc3f066` : **37 réussis, un ignoré L04 historique** ; V-L run `20261030T203325181-1df36b16` : **12 réussis, zéro ignoré** ; neuf V-K et V-F run `20261030T203536116-f492f82b` **PASS**. Journaux détaillés par commande dans R/logs/guard.jsonl ; `git diff --check` réussi. Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune, une revue/aucune correction, sur candidat worktree base ci-dessus et fichiers de tests identifiés. Limites : états reconstruits, faux MP3 sans qualification encodage, pas moteur natif/kill/powerfail. C4/E4 acquis ; T5 peut commencer.
+
+V-K T4, références des neuf runs dans l’ordre §5 : `20261030T203357199-0cf23557`, `20261030T203406324-66122c0c`, `20261030T203415420-e0b59153`, `20261030T203431925-7c6a0021`, `20261030T203441019-cf85b129`, `20261030T203449919-1db5b42d`, `20261030T203506809-67dedd90`, `20261030T203516006-43171a8a`, `20261030T203525034-de85e41c`.
+
+### T5 validée — Retrait et témoin complet avant extraction
+
+Base `a7c2690f`, ajout U/cleanup_characterization.rs et inclusion UT, compléments I/reprocessing_cleanup.rs ; production toujours inchangée. Préflight 66,76 Gio, final 66,60 Gio. Modèle Turbo taille/SHA conformes au registre ; faux workers/fixtures sous R/t5, rustc enfant gardé. PF19/20 : plan tronqué refusé en découverte/reprise deux fois sans altérer les preuves ; `archive_characterization_cleanup_missing_object_before_progress_is_adopted` et `archive_characterization_cleanup_recorded_removed_but_present_is_preserved` caractérisent les deux sens fichier/progrès. Les six tests cleanup existants exercent découverte réparant index/preuves sans retrait, preuve successeur/index divergente, SourceChanged, reprise explicite, tiers/inconnus/conteneurs/legacy préservés.
+
+| Contrôle | Run / résultat |
+| --- | --- |
+| V-U | `20261030T203835728-b838ce9c` : 38 réussis, zéro échec, un ignoré L04 historique |
+| V-R | `20261030T203854600-f4960520` : huit réussis, zéro ignoré |
+| V-C | `20261030T203939361-1b394ca9` : deux réussis, zéro ignoré |
+| V-F | `20261030T204008397-20fcdd7b` : PASS |
+| V-B | `20261030T204012923-fc578477` : adapters et desktop compilés, PASS |
+| V-S | `20261030T204052504-bb5f7b2e` : PASS avec avertissements historiques ; notamment run_cleanup_plan_locked 500 lignes/complexité 33, type archive.rs:943 ; production inchangée, aucun lint nouveau T5 constaté |
+
+`git diff --check` PASS. V-L et neuf V-K T4 restent attribuables au même code produit et aux mêmes tests, inchangés. Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune, une revue/aucune correction ; contrôle inverse des PF01–21 et des lacunes obligatoires T2–T5 : aucune lacune caractérisable obligatoire identifiée avant T6. C5/E5 acquis. Limites maintenues : sync_all non injectable, journal de tentatives non relu par recovery caractérisé, états reconstruits/faux MP3, pas kill/powerfail/natif/fenêtre Windows. Aucune extraction antérieure à cette validation.
+
+Correspondance inverse PF→preuves baseline : PF01/02/12–18 §T4 (tests reprise, scan sain/corrompu, refus inter-destination, schémas/stratégie et neuf V-K) ; PF03–05/08–09/21 §T2 ; PF06–07/10–11 §T3 avec R7 ; PF19–20 §T5 avec huit V-R. Chaque groupe relie tests/assertions et limites ; aucun exit 0 sans scénario exercé ne ferme une famille.

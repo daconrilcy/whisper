@@ -615,6 +615,112 @@ fn durable_legacy_cleanup_replay_keeps_empty_parent_without_container_proof() {
     fs::remove_dir_all(fixture.root).unwrap();
 }
 
+fn characterization_restore_cleanup_fixture(fixture: &FailedCleanupFixture) -> PathBuf {
+    fs::remove_file(fixture.old_container.join("replacement-note.txt")).unwrap();
+    fs::remove_dir(&fixture.old_container).unwrap();
+    fs::rename(&fixture.held_container, &fixture.old_container).unwrap();
+    fixture
+        .destination
+        .join(".whisper-publications/replacement-cleanups")
+        .join(format!("{}.json", fixture.cleanup_id))
+}
+
+#[test]
+fn archive_characterization_cleanup_missing_object_before_progress_is_adopted() {
+    let fixture = create_failed_cleanup_fixture(
+        "missing-before-progress",
+        ContainerMutation::ReplaceIdentity,
+    );
+    let plan_path = characterization_restore_cleanup_fixture(&fixture);
+    let old_text = fixture.old_container.join("1/transcript.txt");
+    let initial: serde_json::Value =
+        serde_json::from_slice(&fs::read(&plan_path).unwrap()).unwrap();
+    let object = initial["targets"][0]["objects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|object| {
+            object["relative_path"]
+                .as_str()
+                .unwrap()
+                .ends_with("transcript.txt")
+        })
+        .unwrap();
+    assert_eq!(object["removed"], false);
+    assert!(old_text.is_file());
+    let successor_text = fixture.successor_generation.join("transcript.txt");
+    let successor_bytes = fs::read(&successor_text).unwrap();
+    fs::remove_file(&old_text).unwrap();
+    ArchiveStore::resume_replacement_cleanup(&fixture.destination, &fixture.cleanup_id).unwrap();
+    let completed: serde_json::Value =
+        serde_json::from_slice(&fs::read(&plan_path).unwrap()).unwrap();
+    let object = completed["targets"][0]["objects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|object| {
+            object["relative_path"]
+                .as_str()
+                .unwrap()
+                .ends_with("transcript.txt")
+        })
+        .unwrap();
+    assert_eq!(object["removed"], true);
+    assert!(!old_text.exists());
+    assert_eq!(fs::read(&successor_text).unwrap(), successor_bytes);
+    ArchiveStore::resume_replacement_cleanup(&fixture.destination, &fixture.cleanup_id).unwrap();
+    assert_eq!(fs::read(&successor_text).unwrap(), successor_bytes);
+}
+
+#[test]
+fn archive_characterization_cleanup_recorded_removed_but_present_is_preserved() {
+    let fixture = create_failed_cleanup_fixture(
+        "progress-before-removal",
+        ContainerMutation::ReplaceIdentity,
+    );
+    let plan_path = characterization_restore_cleanup_fixture(&fixture);
+    let old_text = fixture.old_container.join("1/transcript.txt");
+    let old_bytes = fs::read(&old_text).unwrap();
+    let old_identity = persisted_identity(&old_text);
+    let successor_text = fixture.successor_generation.join("transcript.txt");
+    let successor_bytes = fs::read(&successor_text).unwrap();
+    let mut plan: serde_json::Value =
+        serde_json::from_slice(&fs::read(&plan_path).unwrap()).unwrap();
+    let object = plan["targets"][0]["objects"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|object| {
+            object["relative_path"]
+                .as_str()
+                .unwrap()
+                .ends_with("transcript.txt")
+        })
+        .unwrap();
+    assert_eq!(object["removed"], false);
+    object["removed"] = serde_json::json!(true);
+    fs::write(&plan_path, serde_json::to_vec(&plan).unwrap()).unwrap();
+    let error = ArchiveStore::resume_replacement_cleanup(&fixture.destination, &fixture.cleanup_id)
+        .unwrap_err();
+    assert!(!error.is_empty());
+    assert_eq!(fs::read(&old_text).unwrap(), old_bytes);
+    assert_eq!(persisted_identity(&old_text), old_identity);
+    assert_eq!(fs::read(&successor_text).unwrap(), successor_bytes);
+    let after: serde_json::Value = serde_json::from_slice(&fs::read(&plan_path).unwrap()).unwrap();
+    let object = after["targets"][0]["objects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|object| {
+            object["relative_path"]
+                .as_str()
+                .unwrap()
+                .ends_with("transcript.txt")
+        })
+        .unwrap();
+    assert_eq!(object["removed"], true);
+}
+
 #[test]
 fn replacement_reservation_ignores_historical_rows_without_treatments() {
     let cases = [
