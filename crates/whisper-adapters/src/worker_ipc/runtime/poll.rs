@@ -2,6 +2,133 @@ use super::*;
 
 mod capture;
 mod parakeet;
+pub(in crate::worker_ipc) use parakeet::ParakeetVadRun;
+#[cfg(test)]
+pub(in crate::worker_ipc) use parakeet::{
+    ParakeetStoppedExit, TDT_FRAME_OVERLAP_SAMPLES, append_single_pass_parakeet_word_group,
+    append_vad_parakeet_word_group, parakeet_stopped_exit, parakeet_vad_segments,
+    vad_word_overlap_within_one_tdt_frame, validate_single_pass_parakeet_words,
+};
+
+pub(in crate::worker_ipc) fn take_ready_live_stop(
+    pending_persistence: usize,
+    deferred: &mut Option<WorkerEvent>,
+) -> Option<WorkerEvent> {
+    (pending_persistence == 0)
+        .then(|| deferred.take())
+        .flatten()
+}
+
+pub(in crate::worker_ipc) fn bind_unidentified_startup_failure(
+    event: WorkerEvent,
+    attempt: (JobId, Generation, u64),
+    startup_ready: bool,
+) -> WorkerEvent {
+    if startup_ready {
+        return event;
+    }
+    match event {
+        WorkerEvent::Failed {
+            job_id: None,
+            generation: None,
+            instance_id: None,
+            code,
+            message,
+        } => WorkerEvent::Failed {
+            job_id: Some(attempt.0),
+            generation: Some(attempt.1),
+            instance_id: Some(attempt.2),
+            code,
+            message,
+        },
+        event => event,
+    }
+}
+
+pub(in crate::worker_ipc) fn worker_event_identity(
+    event: &WorkerEvent,
+) -> Option<(JobId, Generation, u64)> {
+    match event {
+        WorkerEvent::Ready {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        }
+        | WorkerEvent::ImportStarted {
+            job_id,
+            generation,
+            instance_id,
+        }
+        | WorkerEvent::LiveMp3Packet {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        }
+        | WorkerEvent::WindowFinished {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        }
+        | WorkerEvent::Stopped {
+            job_id,
+            generation,
+            instance_id,
+        }
+        | WorkerEvent::Progress {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        }
+        | WorkerEvent::End {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        } => Some((*job_id, *generation, *instance_id)),
+        WorkerEvent::GpuSessionAttested {
+            job_id,
+            generation,
+            instance_id,
+            ..
+        } => Some((*job_id, *generation, *instance_id)),
+        WorkerEvent::Segment(segment) => {
+            Some((segment.job_id, segment.generation, segment.instance_id))
+        }
+        WorkerEvent::Failed {
+            job_id: Some(job_id),
+            generation: Some(generation),
+            instance_id: Some(instance_id),
+            ..
+        } => Some((*job_id, *generation, *instance_id)),
+        WorkerEvent::Failed { .. }
+        | WorkerEvent::DecodedBlock { .. }
+        | WorkerEvent::CudaAvailable
+        | WorkerEvent::GpuCandidateAttested { .. }
+        | WorkerEvent::GpusQualified { .. } => None,
+    }
+}
+
+pub(in crate::worker_ipc) fn worker_event_is_stale(
+    event: &WorkerEvent,
+    attempt: (JobId, Generation, u64),
+) -> bool {
+    worker_event_identity(event).is_some_and(|identity| identity != attempt)
+}
+
+pub(in crate::worker_ipc) fn map_attempt_sequence(
+    base: u64,
+    replay_prefix: u64,
+    attempt_sequence: u64,
+) -> Option<u64> {
+    attempt_sequence
+        .checked_sub(replay_prefix)?
+        .checked_sub(1)?
+        .checked_add(base)
+}
 
 impl ImportRuntime {
     pub(in crate::worker_ipc) fn poll(

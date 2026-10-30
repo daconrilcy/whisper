@@ -1016,3 +1016,429 @@ impl ImportRuntime {
         }
     }
 }
+
+impl ImportRuntime {
+    pub(in crate::worker_ipc) fn register_prepared_native_route(
+        &mut self,
+        session: whisper_core::parakeet_scheduler::SchedulerSession,
+        route: NativeUnifiedRoute,
+    ) -> Result<(), String> {
+        if !self.native_unified_routes.contains_key(&session) && self.unified_admission_full() {
+            return Err("SchedulerCapacity: two unified sessions are already admitted".into());
+        }
+        #[cfg(test)]
+        let route_observation = (
+            route.requested_compute,
+            route.compute,
+            route.candidate.is_some(),
+            route.expected_gpu.is_some(),
+            route.fallback_reason.clone(),
+        );
+        self.native_unified_routes.insert(session, route);
+        #[cfg(test)]
+        if let Some(observer) = &self.native_harness_observer {
+            let (requested_compute, compute, has_candidate, has_expected_gpu, fallback_reason) =
+                route_observation;
+            observer.record(NativeQualificationEventKind::PreparedRoute {
+                session,
+                requested_compute,
+                compute,
+                has_candidate,
+                has_expected_gpu,
+                fallback_reason,
+            });
+        }
+        Ok(())
+    }
+
+    pub(in crate::worker_ipc) fn native_route_for_unified_import(
+        &self,
+        request: &ImportRequest,
+        candidate: Option<&whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+    ) -> Result<Option<NativeUnifiedRoute>, String> {
+        if request.strategy
+            != whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        {
+            return Ok(None);
+        }
+        if self.native_unified_candidate_enabled {
+            return native_unified_route(
+                request,
+                self.parakeet_paths.as_ref(),
+                self.gpu_parakeet_paths.as_ref(),
+                candidate,
+            )
+            .map(Some);
+        }
+        #[cfg(test)]
+        {
+            if self.controlled_transcriber.is_none() && self.unified_executor.is_none() {
+                return Err(
+                    "ModelNotQualified: unified strategy requires the injected controlled worker"
+                        .into(),
+                );
+            }
+            Ok(None)
+        }
+        #[cfg(not(test))]
+        {
+            Err("ModelNotQualified: unified Parakeet strategy is not enabled in the native composition".into())
+        }
+    }
+
+    pub(in crate::worker_ipc) fn is_controlled_bounded_test(
+        &self,
+        request: &ImportRequest,
+    ) -> bool {
+        if request.strategy
+            != whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        {
+            return false;
+        }
+        #[cfg(test)]
+        {
+            self.controlled_transcriber.is_some()
+        }
+        #[cfg(not(test))]
+        {
+            false
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::worker_ipc) fn observe_source_binding_map(&self, operation: &'static str) {
+        let Some(observer) = &self.native_harness_observer else {
+            return;
+        };
+        let mut bindings = self.source_bindings.keys().copied().collect::<Vec<_>>();
+        bindings.sort_unstable_by_key(|(job_id, generation)| (job_id.0, *generation));
+        observer.record(NativeQualificationEventKind::SourceBindingMap {
+            operation,
+            bindings,
+        });
+    }
+
+    pub(in crate::worker_ipc) fn start_controlled_unified_import(
+        &mut self,
+        request: &ImportRequest,
+    ) -> Result<(), String> {
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request.job_id,
+            generation: request.generation,
+        };
+        if self.unified_admission_full_for(session) {
+            return Err("SchedulerCapacity: two unified sessions are already admitted".into());
+        }
+        let native_route = self.native_unified_routes.remove(&session);
+        let executor_available = self
+            .unified_executor
+            .as_ref()
+            .is_some_and(UnifiedInferenceExecutor::is_available);
+        #[cfg(test)]
+        let controlled_worker_available = self.controlled_transcriber.is_some();
+        #[cfg(not(test))]
+        let controlled_worker_available = false;
+        if !controlled_worker_available && !executor_available && native_route.is_none() {
+            return Err("ModelNotQualified: controlled worker injection is required".into());
+        }
+        if self.native_unified_candidate_enabled
+            && native_route.is_none()
+            && !controlled_worker_available
+        {
+            return Err(
+                "NativeCandidateUnavailable: the session has no validated fixed backend route"
+                    .into(),
+            );
+        }
+        let executor_incarnation_live = self
+            .unified_executor
+            .as_ref()
+            .is_some_and(|executor| executor.thread.is_some() || executor.in_flight);
+        if let (Some(current), Some(next)) = (&self.native_executor_route, &native_route)
+            && !current.same_worker(next)
+            && (executor_incarnation_live || self.parakeet_scheduler.active_sessions() > 0)
+        {
+            return Err("NativeRouteBusy: all sessions in one executor incarnation must use the same fixed backend candidate".into());
+        }
+        if let Some(next) = &native_route
+            && self
+                .unified_sessions
+                .values()
+                .filter_map(|state| state.native_route.as_ref())
+                .any(|current| !current.same_worker(next))
+        {
+            return Err(
+                "NativeRouteBusy: admitted sessions must share one fixed backend candidate".into(),
+            );
+        }
+        let work = PathBuf::from(&request.destination)
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string())
+            .join("parakeet-unified");
+        fs::create_dir_all(&work)
+            .map_err(|error| format!("StorageUnavailable: unified workspace: {error}"))?;
+        let source_path = work.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path)
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        crate::parakeet_audio::decode_file_to_parts(&request.source_path, &mut writer)?;
+        writer
+            .finish()
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        let source = crate::parakeet_audio::PcmPartStore::open(&source_path);
+        let available_samples = source
+            .total_samples()
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        let document = crate::parakeet_document::ParakeetDocumentStore::create(
+            work.join("document"),
+            request.job_id,
+            request.generation,
+        )
+        .map_err(|error| format!("Document: {error:?}"))?;
+        let resume_checkpoint = self.unified_resume_checkpoints.get(&session).cloned();
+        let document_drain_start_sequence = resume_checkpoint
+            .as_ref()
+            .map_or(0, |checkpoint| checkpoint.pipeline.confirmed_segments)
+            .checked_add(1)
+            .ok_or_else(|| "StorageCorrupt: resume document sequence exhausted".to_owned())?;
+        let mut document = document;
+        if let Some(checkpoint) = &resume_checkpoint {
+            restore_unified_document_prefix(
+                &mut document,
+                checkpoint,
+                request.job_id,
+                request.generation,
+                available_samples,
+            )?;
+        }
+        let finalizer = match resume_checkpoint.as_ref() {
+            Some(checkpoint) => crate::parakeet_pipeline::ParakeetFinalizer::from_checkpoint(
+                request.job_id,
+                request.generation,
+                checkpoint.pipeline,
+            )?,
+            None => {
+                crate::parakeet_pipeline::ParakeetFinalizer::new(request.job_id, request.generation)
+            }
+        };
+        self.parakeet_scheduler
+            .admit(session)
+            .map_err(|error| format!("SchedulerAdmission: {error:?}"))?;
+        let publication_gate = Arc::new(PublicationGate::default());
+        publication_gate.activate();
+        self.unified_publication_gates
+            .insert(session, Arc::clone(&publication_gate));
+        self.unified_sessions.insert(
+            session,
+            UnifiedSessionState {
+                request: request.clone(),
+                document_drain_start_sequence,
+                source: UnifiedSessionSource::Closed(source),
+                available_samples,
+                durable_samples: available_samples,
+                source_closed: true,
+                document,
+                inference_directory: work.join("native-windows"),
+                native_route,
+                backend_ready_reported: false,
+                finalizer,
+                pending_call: None,
+                pending_prepared: None,
+                preview_sequence: 0,
+                pending_window: None,
+                pending_available_samples: None,
+                failure: None,
+            },
+        );
+        let archive = std::mem::replace(&mut self.archive, ArchiveStore::new(&request.destination));
+        self.unified_archives.insert(session, archive);
+        self.unified_resume_checkpoints.remove(&session);
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(in crate::worker_ipc) fn run_controlled_unified_import(
+        &mut self,
+        request: &ImportRequest,
+    ) -> Result<(), String> {
+        let mut transcriber = self.controlled_transcriber.take().ok_or_else(|| {
+            "ModelNotQualified: controlled worker injection is required".to_owned()
+        })?;
+        let work = PathBuf::from(&request.destination)
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string())
+            .join("parakeet-unified");
+        fs::create_dir_all(&work)
+            .map_err(|error| format!("StorageUnavailable: unified workspace: {error}"))?;
+        let source_path = work.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path)
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        crate::parakeet_audio::decode_file_to_parts(&request.source_path, &mut writer)?;
+        writer
+            .finish()
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        let source = crate::parakeet_audio::PcmPartStore::open(&source_path);
+        let mut document = crate::parakeet_document::ParakeetDocumentStore::create(
+            work.join("document"),
+            request.job_id,
+            request.generation,
+        )
+        .map_err(|error| format!("Document: {error:?}"))?;
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request.job_id,
+            generation: request.generation,
+        };
+        self.parakeet_scheduler
+            .admit(session)
+            .map_err(|error| format!("SchedulerAdmission: {error:?}"))?;
+        let total_samples = source
+            .total_samples()
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        let mut finalizer =
+            crate::parakeet_pipeline::ParakeetFinalizer::new(request.job_id, request.generation);
+        let result = loop {
+            if finalizer.processed_samples() < total_samples {
+                if let Err(error) = self
+                    .parakeet_scheduler
+                    .queue_final(session, finalizer.next_window_sequence())
+                {
+                    self.parakeet_scheduler
+                        .abort_session(session)
+                        .map_err(|cleanup| format!("SchedulerQueue: {error:?}; {cleanup:?}"))?;
+                    self.parakeet_scheduler
+                        .confirm_child_exited()
+                        .map_err(|cleanup| format!("SchedulerQueue: {error:?}; {cleanup:?}"))?;
+                    return Err(format!("SchedulerQueue: {error:?}"));
+                }
+                let call = match self.parakeet_scheduler.next_call() {
+                    Ok(Some(call)) => call,
+                    Ok(None) => {
+                        self.parakeet_scheduler
+                            .abort_session(session)
+                            .map_err(|error| format!("SchedulerReady: {error:?}"))?;
+                        self.parakeet_scheduler
+                            .confirm_child_exited()
+                            .map_err(|error| format!("SchedulerReap: {error:?}"))?;
+                        return Err("SchedulerReady: final range was not selected".into());
+                    }
+                    Err(error) => {
+                        self.parakeet_scheduler
+                            .abort_session(session)
+                            .map_err(|cleanup| {
+                                format!("SchedulerSelect: {error:?}; {cleanup:?}")
+                            })?;
+                        self.parakeet_scheduler
+                            .confirm_child_exited()
+                            .map_err(|cleanup| {
+                                format!("SchedulerSelect: {error:?}; {cleanup:?}")
+                            })?;
+                        return Err(format!("SchedulerSelect: {error:?}"));
+                    }
+                };
+                let step = {
+                    let mut scheduled = ScheduledWindowTranscriber {
+                        scheduler: &mut self.parakeet_scheduler,
+                        call,
+                        transcriber: transcriber.as_mut(),
+                    };
+                    finalizer.step(
+                        &mut &source,
+                        &mut document,
+                        &mut scheduled,
+                        total_samples,
+                        true,
+                    )
+                };
+                match step {
+                    Ok(crate::parakeet_pipeline::FinalizationStep::WindowProcessed { .. }) => {
+                        self.parakeet_scheduler
+                            .complete(call)
+                            .map_err(|error| format!("SchedulerComplete: {error:?}"))?;
+                    }
+                    Ok(crate::parakeet_pipeline::FinalizationStep::Complete(result)) => {
+                        self.parakeet_scheduler
+                            .fail_call(call)
+                            .map_err(|error| format!("SchedulerComplete: {error:?}"))?;
+                        self.parakeet_scheduler
+                            .abort_session(session)
+                            .map_err(|error| format!("SchedulerTerminal: {error:?}"))?;
+                        self.parakeet_scheduler
+                            .confirm_child_exited()
+                            .map_err(|error| format!("SchedulerReap: {error:?}"))?;
+                        return Err(format!(
+                            "SchedulerSource: completed without a final call ({})",
+                            result.windows_completed
+                        ));
+                    }
+                    Ok(crate::parakeet_pipeline::FinalizationStep::WaitingForAudio { .. }) => {
+                        self.parakeet_scheduler
+                            .fail_call(call)
+                            .map_err(|error| format!("SchedulerComplete: {error:?}"))?;
+                        self.parakeet_scheduler
+                            .abort_session(session)
+                            .map_err(|error| format!("SchedulerTerminal: {error:?}"))?;
+                        self.parakeet_scheduler
+                            .confirm_child_exited()
+                            .map_err(|error| format!("SchedulerReap: {error:?}"))?;
+                        return Err(
+                            "SchedulerSource: closed unified audio unexpectedly waits".into()
+                        );
+                    }
+                    Err(error) => {
+                        self.parakeet_scheduler
+                            .fail_call(call)
+                            .map_err(|scheduler_error| {
+                                format!("{error}; SchedulerFailure: {scheduler_error:?}")
+                            })?;
+                        self.parakeet_scheduler.mark_terminal(session).map_err(
+                            |scheduler_error| {
+                                format!("{error}; SchedulerTerminal: {scheduler_error:?}")
+                            },
+                        )?;
+                        let _ = self.parakeet_scheduler.confirm_child_exited();
+                        return Err(error);
+                    }
+                }
+            } else {
+                match finalizer.step(
+                    &mut &source,
+                    &mut document,
+                    transcriber.as_mut(),
+                    total_samples,
+                    true,
+                )? {
+                    crate::parakeet_pipeline::FinalizationStep::Complete(result) => break result,
+                    _ => return Err("SchedulerSource: final document did not complete".into()),
+                }
+            }
+        };
+        self.parakeet_scheduler
+            .mark_terminal(session)
+            .map_err(|error| format!("SchedulerTerminal: {error:?}"))?;
+        self.parakeet_scheduler
+            .confirm_child_exited()
+            .map_err(|error| format!("SchedulerReap: {error:?}"))?;
+        self.document_drains.push_back(UnifiedDocumentDrain {
+            document,
+            job_id: request.job_id,
+            generation: request.generation,
+            revision: result.document_revision,
+            total_samples: result.total_samples,
+            next_sequence: 1,
+            ready_pending: true,
+            progress_pending: true,
+        });
+        Ok(())
+    }
+
+    pub(in crate::worker_ipc) fn bind_import_request(
+        &self,
+        request: &whisper_core::ports::ImportRequest,
+    ) -> Result<whisper_core::ports::ImportRequest, String> {
+        self.model_catalog.as_ref().map_or_else(
+            || Ok(request.clone()),
+            |catalog| catalog.bind_import(request),
+        )
+    }
+}

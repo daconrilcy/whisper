@@ -1,5 +1,182 @@
 use super::*;
 
+pub(in crate::worker_ipc) const TDT_FRAME_OVERLAP_SAMPLES: u64 = 80 * 16;
+pub(in crate::worker_ipc) fn vad_word_overlap_within_one_tdt_frame(
+    start_sample: u64,
+    previous_end_sample: u64,
+) -> bool {
+    start_sample.saturating_add(TDT_FRAME_OVERLAP_SAMPLES) >= previous_end_sample
+}
+
+pub(in crate::worker_ipc) fn append_vad_parakeet_word_group(
+    groups: &mut Vec<(u64, u64, Vec<String>)>,
+    start_sample: u64,
+    end_sample: u64,
+    token: &str,
+) -> Result<(), String> {
+    if start_sample >= end_sample {
+        return Err("InvalidTimestamp: Parakeet word range is empty".into());
+    }
+    let boundary = groups.last().is_some_and(|(_, _, tokens)| {
+        tokens
+            .last()
+            .is_some_and(|last| last.ends_with('.') || last.ends_with('!') || last.ends_with('?'))
+    });
+    if groups.is_empty() || (boundary && start_sample >= groups.last().unwrap().1) {
+        groups.push((start_sample, end_sample, vec![token.to_owned()]));
+    } else if let Some((group_start, group_end, tokens)) = groups.last_mut() {
+        *group_start = (*group_start).min(start_sample);
+        *group_end = (*group_end).max(end_sample);
+        tokens.push(token.to_owned());
+    }
+    Ok(())
+}
+
+pub(in crate::worker_ipc) fn validate_single_pass_parakeet_words(
+    words: &[whisper_core::parakeet_ipc::Word],
+    duration_samples: u64,
+) -> Result<Vec<(u64, u64, String)>, String> {
+    let mut validated = Vec::with_capacity(words.len());
+    let mut previous_end = 0_u64;
+    for (index, word) in words.iter().enumerate() {
+        let start = u64::from(word.start_ms) * 16;
+        let end = u64::from(word.end_ms) * 16;
+        let text = word.text.trim();
+        if text.is_empty() || start >= end || end > duration_samples {
+            return Err(format!(
+                "InvalidTimestamp: Parakeet word {index} is empty or outside the audio duration"
+            ));
+        }
+        if index > 0 && start < previous_end {
+            return Err(format!(
+                "InvalidTimestamp: Parakeet word {index} overlaps or is unordered"
+            ));
+        }
+        previous_end = end;
+        validated.push((start, end, text.to_owned()));
+    }
+    Ok(validated)
+}
+
+pub(in crate::worker_ipc) fn append_single_pass_parakeet_word_group(
+    groups: &mut Vec<(u64, u64, Vec<String>)>,
+    start_sample: u64,
+    end_sample: u64,
+    token: &str,
+) -> Result<(), String> {
+    let boundary = groups.last().is_some_and(|(_, _, tokens)| {
+        tokens
+            .last()
+            .is_some_and(|last| last.ends_with('.') || last.ends_with('!') || last.ends_with('?'))
+    });
+    if start_sample >= end_sample {
+        return Err("InvalidTimestamp: sentence boundary leaves an empty word range".into());
+    }
+    if groups.is_empty() || boundary {
+        groups.push((start_sample, end_sample, vec![token.to_owned()]));
+    } else if let Some((_, group_end, tokens)) = groups.last_mut() {
+        *group_end = end_sample;
+        tokens.push(token.to_owned());
+    }
+    Ok(())
+}
+pub(in crate::worker_ipc) struct ParakeetVadRun {
+    pub(in crate::worker_ipc) request: ImportRequest,
+    pub(in crate::worker_ipc) decoder: Option<crate::decoder::DecoderProxy<ChildWorkerTransport>>,
+    pub(in crate::worker_ipc) decode_offset: u64,
+    pub(in crate::worker_ipc) total_samples: u64,
+    pub(in crate::worker_ipc) source_sha256: String,
+    pub(in crate::worker_ipc) pcm: Vec<i16>,
+    pub(in crate::worker_ipc) windows: Vec<whisper_core::parakeet_windows::Window>,
+    pub(in crate::worker_ipc) next_window: usize,
+    pub(in crate::worker_ipc) next_segment_sequence: u64,
+    pub(in crate::worker_ipc) request_count: u64,
+    pub(in crate::worker_ipc) current_attempt: u64,
+    pub(in crate::worker_ipc) current_path: Option<PathBuf>,
+    pub(in crate::worker_ipc) current_source_sha256: Option<String>,
+    pub(in crate::worker_ipc) pending_confirmation:
+        Option<(whisper_core::parakeet_windows::Window, u64)>,
+    pub(in crate::worker_ipc) worker_ready: bool,
+    pub(in crate::worker_ipc) ready_event_sent: bool,
+}
+
+impl Drop for ParakeetVadRun {
+    fn drop(&mut self) {
+        if let Some(path) = self.current_path.take() {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::worker_ipc) enum ParakeetStoppedExit {
+    Wait,
+    Success,
+    Failure,
+}
+
+pub(in crate::worker_ipc) fn parakeet_stopped_exit(status: Option<bool>) -> ParakeetStoppedExit {
+    match status {
+        None => ParakeetStoppedExit::Wait,
+        Some(true) => ParakeetStoppedExit::Success,
+        Some(false) => ParakeetStoppedExit::Failure,
+    }
+}
+
+pub(in crate::worker_ipc) fn parakeet_vad_segments(
+    words: &[whisper_core::parakeet_ipc::Word],
+    window: whisper_core::parakeet_windows::Window,
+    total_samples: u64,
+    job_id: JobId,
+    generation: Generation,
+    instance_id: u64,
+    first_sequence: u64,
+) -> Result<Vec<whisper_core::ipc::WorkerSegmentDto>, String> {
+    let absolute =
+        whisper_core::parakeet_windows::absolute_word_samples(&window, total_samples, words)
+            .map_err(|error| format!("InvalidTimestamp: {error}"))?;
+    let mut groups: Vec<(u64, u64, Vec<String>)> = Vec::new();
+    let mut previous_end = 0_u64;
+    for (word, time) in words.iter().zip(absolute) {
+        let token = word.text.trim();
+        if token.is_empty()
+            || !vad_word_overlap_within_one_tdt_frame(time.start_sample, previous_end)
+            || time.start_sample >= time.end_sample
+        {
+            return Err("InvalidTimestamp: Parakeet VAD word is empty or unordered".into());
+        }
+        previous_end = previous_end.max(time.end_sample);
+        if !whisper_core::parakeet_windows::word_belongs_to_central_range(
+            time.start_sample,
+            time.end_sample,
+            window.central_start_sample,
+            window.central_end_sample,
+        ) {
+            continue;
+        }
+        append_vad_parakeet_word_group(&mut groups, time.start_sample, time.end_sample, token)?;
+    }
+    groups
+        .into_iter()
+        .enumerate()
+        .map(|(index, (start, end, tokens))| {
+            let sequence = first_sequence
+                .checked_add(index as u64)
+                .ok_or_else(|| "InvalidInput: Parakeet segment sequence exhausted".to_owned())?;
+            let range = whisper_core::SourceRange::new(start, end, 16_000)
+                .ok_or_else(|| "InvalidTimestamp: VAD segment range is invalid".to_owned())?;
+            Ok(whisper_core::ipc::WorkerSegmentDto {
+                job_id,
+                generation,
+                instance_id,
+                segment_id: whisper_core::SegmentId(sequence),
+                range,
+                text: tokens.join(" "),
+            })
+        })
+        .collect()
+}
+
 impl ImportRuntime {
     pub(super) fn advance_parakeet_vad_decode(
         &mut self,

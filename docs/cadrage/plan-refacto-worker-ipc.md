@@ -1,6 +1,6 @@
-Avancée : lots A à F2 clos après vérifications et revue CLEAN ; bilan F2 au §36.
-Blocage : aucun dans le périmètre F2 autorisé.
-Décision : lot F2 clos sans réserve dans ce périmètre ; aucun lot F3 démarré.
+Avancée : lots A à F3 clos après vérifications et revue CLEAN ; clôture structurelle et bilan final au §38.
+Blocage : aucun dans le périmètre de refactorisation autorisé.
+Décision : F3 et le plan de refactorisation clos sans réserve dans ce périmètre ; commits locaux sans push.
 
 # Plan de refactorisation — worker_ipc
 
@@ -1221,3 +1221,89 @@ Campagne sous `target/parakeet-tests/refacto-worker-ipc-f3/`, garde F2 adaptée 
 V0–V6, T-A à T-F et M1–M3 sur tout le sous-arbre avant/après, revue exhaustive des symboles résiduels racine et runtime/mod. Cinq configurations séquentielles, mêmes données et legacy réellement actif et borné ; témoins unifiés/Ready/ACK/reprise et intégrations publiques pertinents. Corps conditionnels examinés et exécutés avec ressources bornées lorsque requis ; pas de succès déduit d'un retour anticipé. Seules exclusions D2 corpus natif/l3c historiques, 16 ignorés distingués ; aucune nouvelle exclusion. Modèles originaux lecture seule, copies/liens bornés et état pré/post contrôlé. UTF-8 explicite, comparaison exacte des messages et des corps, aucun réencodage global. Archivage des petites preuves avec compte et SHA-256 à la clôture, aucun nettoyage sans manifeste approuvé.
 
 Espace libre initial : 93 876 150 272 octets (environ 87,4 Gio). Suivi propre avant démarrage ; `docs/architecture/`, `models/`, `sound example/` préservés et exclus des commits. Même rust_implementer pour l'implémentation, coordinateur et même reviewer indépendant pour la revue ; deux cycles maximum. Session principale auteur du bilan et des commits locaux, aucun push.
+## 38. Clôture du lot F3 et bilan structurel final — 30 octobre 2026
+
+Avancée : façade fine, responsabilités attribuées et revue indépendante finale CLEAN après correction de frontière WAV.
+Blocage : aucun constat ouvert ni vérification requise manquante dans le périmètre autorisé.
+Décision : F3 et le plan de refactorisation clos sans réserve dans ce périmètre ; commit local sans push.
+
+### Delta final et carte des propriétaires
+
+Base Git exacte : `c36d6380a3c48386d60fe452e9e44e0349b9796e`, après le démarrage du §37. Implémentation par le même rust_implementer, revue par rust_review_coordinator et le même rust_reviewer indépendant en lecture seule. La session principale n'a pas modifié le code en parallèle. Huit fichiers production, budget respecté ; aucun test, manifeste, Cargo.lock, dépendance ou feature modifié.
+
+| Fichier touché sous worker_ipc | Lignes physiques finales | Responsabilité |
+| --- | --- | --- |
+| façade `worker_ipc.rs` | 130 | déclarations, imports et réexports ciblés ; deux includes exclusivement test préexistants |
+| `runtime/mod.rs` | 264 | état, quatre constructeurs et déclarations |
+| nouveau `runtime/support.rs` | 458 | hooks recette, temps, préflight/collision, scan historique, identités unifiées, diagnostics, injections de tests et impl du contrat ServiceRuntime |
+| `support.rs` | 94 | aides techniques transversales : SHA, compteurs/capacités et writer WAV pur |
+| `runtime/live.rs` | 1 386 | état/capture/admission live, démarrage/arrêt unifié, binding et confirmation de fenêtre |
+| `runtime/import.rs` | 1 444 | routes/admission/démarrage import, traitement contrôlé et binding import |
+| `runtime/poll.rs` | 1 234 | polling principal et filtrage identité/tentative/arrêt |
+| `runtime/poll/parakeet.rs` | 996 | polling Parakeet, état et aides de validation/VAD |
+
+Les aides live/VAD rejoignent live/poll selon l'outline F3 ; aucune subdivision supplémentaire créée en dehors de runtime/support prévu. Chaque fichier touché est sous 1 500 lignes physiques, donc aussi sous le plafond de lignes de production. runtime/mod ne porte plus les injections de tests ou les helpers algorithmiques. La façade passe de 1 607 à 130 lignes physiques et ne contient aucun fn/struct/enum/impl/const de production ; ses includes historiques restent exclusivement sous cfg(test), sans nouveau #[path] ordinaire.
+
+Carte finale de l'ensemble de la refactorisation :
+
+| Responsabilité | Propriétaire final |
+| --- | --- |
+| Transport enfant et framing | `ipc/mod.rs`, `ipc/framing.rs` |
+| Interverrou atomique PublicationGate | `publication/mod.rs` |
+| Service asynchrone, admission et finale automatique | `service/mod.rs`, `service/automatic_final.rs` |
+| État et constructeurs runtime | `runtime/mod.rs` |
+| Dispatch et préambule/épilogue uniques | `runtime/effects.rs` |
+| File, doublons, reprise et identité de source | `runtime/queue.rs`, `duplicates.rs`, `recovery.rs`, `source_binding.rs` |
+| Capture/direct, import et démarrage worker | `runtime/live.rs`, `runtime/import.rs`, `runtime/import/worker_start.rs` |
+| Polling principal, capture, Parakeet et sessions unifiées | `runtime/poll.rs` et ses enfants, `runtime/poll_unified.rs` |
+| Catalogue, bindings, sélection, cache et preuves/routes moteur | `backends/mod.rs`, `backends/native.rs` |
+| Sources/état/drain, exécuteur et transcripteur unifiés | `parakeet_unified/mod.rs`, `executor.rs`, `native.rs` |
+| Aides runtime et techniques transversales | `runtime/support.rs` et `support.rs`, avec frontières distinctes |
+
+Le reviewer a confirmé l'identité de 105 corps de fonctions et de leurs conditions de compilation, et la façade fine. La comparaison mécanique de 42 noms de fonctions racine retrouve les corps de la base en normalisant seulement espaces et virgules finales de présentation ; aucun mismatch. Les 22 littéraux non ASCII conservent exactement leurs valeurs. Tous littéraux : 379 vers 381, seuls deux recette-hooks ajoutés dans des attributs de réexport, aucun message supprimé ou modifié. API/réexports publics, identités, ordre, ACK, publication, atomiques, bornes et politique de repli inchangés. EVENTS_PER_STAGE reste 21, anti-famine 2 et capacité unifiée 2 ; aucune pool, planification ou dépendance nouvelle. support transversal ne dépend ni de runtime, ni de service, ni d'archive.
+
+### Campagne et preuves complètes — époque 0
+
+Préflight canonique, variables, auto-tests et garde F3 réussis avant Cargo ; cache/fixtures/modèles copiés/temporaires/sorties sous `target/parakeet-tests/refacto-worker-ipc-f3/`, seule cible de compilation partagée `target/parakeet-tests/cargo-shared/`. Offline/locked, CARGO_INCREMENTAL=0 et CARGO_PROFILE_DEV_DEBUG=line-tables-only. Refus fmt sans --check et --fix conservés ; aucune inspection Git/recherche concurrente à la campagne. Dispositions de session sur événements extérieurs sans lien projet et objets Git maintenues sans lever les protections des sources, ressources, index/HEAD/refs/config ou écritures suspectes/attribuées. Aucune violation de garde F3.
+
+Les premiers essais d'extraction ont signalé une accolade, des visibilités/imports et des conditions cfg à corriger, puis des accès privés de supports tests : checks `20261030T152440293-2eda68db`, `152455985-1c52fac3`, découverte `152541904-1761fe39`, en erreur et conservés dans les preuves. Les retouches ont précédé la validation aboutie. Les fmt --check en erreur de présentation ont été suivis de corrections manuelles hors commande gardée, avant les contrôles réussis ; aucune commande de formatage Cargo en écriture. Ces essais intermédiaires ne sont pas présentés comme PASS.
+
+36 filtres T-A à T-F du §7, chacun non nul, réellement exécutés et réussis avant/après extraction. Intégrations publiques worker_control (5 tests) et gpu_qualification_transport (1) PASS avant/après. Les huit témoins unifiés F2 de panique, déconnexion, Ready/reap, recyclage, drain, reprise et publication concurrente sont réellement PASS dans les dix suites. Format --check, workspace, diff check et Clippy de l'époque 0 PASS.
+
+| Configuration | Réussis baseline et candidat époque 0 | Échoués | Ignorés | Filtrés autorisés | Legacy réel |
+| --- | --- | --- | --- | --- | --- |
+| défaut | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| recette-hooks | 276 | 0 | 16 | 1 D2 corpus natif | oui |
+| l01-memory-qualification | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| personal-qualification | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| recette-hooks,l3-gpu-qualification | 276 | 0 | 16 | 2 D2 corpus natif/l3c | oui |
+
+Journaux des cinq suites candidat époque 0 : `Run-20261030T153335468-886122d9`, `Run-20261030T153641826-91373de9`, `Run-20261030T153934616-ec915d8c`, `Run-20261030T154236358-7ebec17f`, `Run-20261030T154511158-33280d28`, sous F3/logs avec stdout/stderr et index guard.jsonl.
+
+Deux conditionnels réellement exécutés isolément avant/après extraction avec ressources bornées F3 : paths_reject_a_worker_outside_the_runtime_root (avant `20261030T152321058-6d90fd1c`, après `20261030T154753291-557023e3`) et over_limit_parakeet_import_is_refused_before_pending_creation (avant `20261030T152322204-b9a9db22`, après `20261030T154754483-f6e0b5bc`). Tous PASS ; pas de déduction de l'exécution du corps à partir du seul compte libtest. Le refus anticipé ne lance aucun worker natif.
+
+### Constat de revue, correction et preuve finale — époque 1
+
+Première revue : WIPC-F3-R01 MINEUR. write_pcm16_wav avait été affecté à runtime/support, alors que le transcripteur natif de parakeet_unified le consommait via l'alias racine. Malgré l'identité fonctionnelle et les tests réussis, cette résolution introduisait une dépendance de la primitive native vers runtime, contraire à la frontière F2. Le reviewer a demandé son affectation au support technique transversal, avec corps/signature/messages et alias interne inchangés.
+
+Le même implémenteur a déplacé ce writer pur dans support.rs, ajusté l'alias façade et retiré son réexport runtime. native.rs reste inchangé. Le même reviewer a vérifié l'unicité, la résolution vers support, l'absence de définition/réexport runtime et l'identité du corps, de la signature et des messages avec la base, puis fermé lui-même WIPC-F3-R01.
+
+Contrôles après correction, sous garde : format --check `20261030T160547953-2827a9e7`, test réellement exécuté native_window_wav_is_short_pcm16_mono_16khz_riff `20261030T160549733-2a34de77`, workspace `20261030T160613585-c62820f1`, check adapters avec l01-memory-qualification `20261030T160617695-1a0a9347`, Clippy `20261030T160621168-dac84796` et git diff --check : tous PASS.
+
+Les cinq suites, les 36 filtres, les intégrations et les conditionnels restent des preuves de l'époque 0 ; ils n'ont PAS été relancés après ce déplacement pur. Le reviewer a expressément jugé suffisante la comparaison du writer et les contrôles ciblés demandés. La preuve de clôture est composée, et ne revendique pas cinq suites sur le commit final.
+
+### Dette héritée, verdict et limites de qualification
+
+Clippy final : 23 diagnostics core et 146 adapters, soit 169 hors résumés ; mêmes libellés en multiensemble que la baseline. Aucun nouveau diagnostic final ni suppression de lint. Les fonctions longues/complexes et signatures au-delà des cibles, déjà présentes et déplacées littéralement, constituent la dette héritée conservée : cette extraction ne revendique pas la conformité globale aux seuils fonctions/complexité/arguments/types. Les bilans précédents attribuent notamment les handlers de reprise, le polling principal et unifié, les helpers de capture et les signatures VAD/repli. Aucune correction métier ou campagne de réduction globale de cette dette n'a été ajoutée à F3.
+
+Verdict indépendant final **CLEAN**, époque 1 : deux passes de revue, un cycle de correction, WIPC-F3-R01 fermé, aucun constat ouvert, aucune demande de vérification requise ni gap matériel restant. Le plan de treize lots A, B, C, D1–D5, E1–E2, F1–F3 est structurellement clos dans le périmètre autorisé, avec bilans et preuves propres à chaque lot. Les incidents et dispositions antérieurs restent historiques ; cette clôture ne transforme pas les preuves composées des lots précédents en suites rétrospectivement rejouées.
+
+Les 16 tests ignorés et exclusions historiques D2 corpus natif/l3c ne sont pas revendiqués exécutés ; aucun nouveau skip. Qualification native CPU/GPU/Auto, qualité/vitesse d'inférence et validation dans la fenêtre Windows non réalisées par cette refactorisation. CLEAN porte sur le périmètre structurel relu et ses preuves automatisées, sans validation produit implicite.
+
+### Conservation et état final
+
+Modèles originaux et copies F3 contrôlés, tailles/dates/SHA-256 identiques pré/post : Turbo 1 624 555 275 octets, `1FC70F774D38EB169993AC391EEA357EF47C88757EF72EE5943879B7E8E2BC69` ; Parakeet 713 975 456 octets, `E3880D0AAAAF2C308EA2C35016B2B895C423EB3FDA924C1B463D1C19B7F4D32E`. Originaux en lecture seule, copies et liens bornés conservés.
+
+Archive `target/parakeet-tests/refacto-worker-ipc-f3/archive/closure-20261030/proofs.zip` : 262 entrées uniques, 667 622 octets, arborescence relative conservée ; SHA-256 de chaque entrée comparé en mémoire à sa source. SHA-256 ZIP : `94500FC481E916C88BA9ED8AB450985CAB65609FAAED85D58CEFD69BA4825FF4`. Preuves des deux époques distinctes. Aucun modèle/cache/build/corpus/WAV archivé, aucun manifeste nouveau ni nettoyage/suppression/restauration. Cargo-shared conservé.
+
+Espace libre final : 90 242 392 064 octets (environ 84,0 Gio), supérieur au seuil de 30 Gio. Aucun processus Cargo/rustc/rustfmt actif. Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Huit fichiers production relus et présent bilan réunis dans le commit local de clôture, aucun push.

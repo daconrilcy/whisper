@@ -9,6 +9,29 @@ mod poll_unified;
 mod queue;
 mod recovery;
 mod source_binding;
+mod support;
+pub(super) use live::{
+    FinishedLiveWindow, ImportRequestState, LiveCaptureState, LiveRecoveryState, PendingLiveState,
+    live_capture_poll_allowed,
+};
+#[cfg(test)]
+pub(super) use live::{LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL, campaign_reserve_attempt};
+pub(super) use poll::ParakeetVadRun;
+#[cfg(test)]
+pub(super) use poll::{
+    ParakeetStoppedExit, TDT_FRAME_OVERLAP_SAMPLES, append_single_pass_parakeet_word_group,
+    append_vad_parakeet_word_group, bind_unidentified_startup_failure, map_attempt_sequence,
+    parakeet_stopped_exit, parakeet_vad_segments, take_ready_live_stop,
+    vad_word_overlap_within_one_tdt_frame, validate_single_pass_parakeet_words,
+    worker_event_identity, worker_event_is_stale,
+};
+pub(super) use support::{
+    PreflightResult, acceptance_barrier, collision_free_job_id, pending_unified_event_identity,
+    queued_request_identity_matches, recovery_stop_counters, scan_archive_history, unix_time_ms,
+};
+#[cfg(feature = "recette-hooks")]
+pub(super) use support::{canonical_extended_acceptance_root, take_acceptance_worker_fault};
+
 pub(super) use live::{LiveEffect, MicrophoneTestCapture};
 #[cfg(test)]
 pub(super) use poll_unified::{manual_gpu_failure_event, retry_native_gpu_startup_on_cpu};
@@ -237,105 +260,5 @@ impl ImportRuntime {
             controlled_skip_child_recycle: false,
             document_drains: VecDeque::new(),
         }
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_controlled_transcriber(
-        mut self,
-        transcriber: Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
-    ) -> Self {
-        self.controlled_transcriber = Some(transcriber);
-        self
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_disconnected_result_for(
-        mut self,
-        session: whisper_core::parakeet_scheduler::SchedulerSession,
-    ) -> Self {
-        self.controlled_disconnect_session = Some(session);
-        self
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_panicking_transcriber_for(
-        mut self,
-        session: whisper_core::parakeet_scheduler::SchedulerSession,
-    ) -> Self {
-        self.controlled_panic_session = Some(session);
-        self
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_finish_document_failure_for(
-        mut self,
-        session: whisper_core::parakeet_scheduler::SchedulerSession,
-    ) -> Self {
-        self.controlled_finish_failure_session = Some(session);
-        self
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_resume_binding_transfer_gate(
-        mut self,
-        gate: Arc<(Mutex<bool>, std::sync::Condvar)>,
-    ) -> Self {
-        self.controlled_resume_binding_transfer_gate = Some(gate);
-        self
-    }
-
-    #[cfg(test)]
-    pub(super) fn hold_next_reserved_call_once(&mut self) {
-        self.controlled_hold_reserved_call_once = true;
-    }
-
-    #[cfg(test)]
-    pub(super) fn hold_next_child_ready(&mut self) -> Arc<(Mutex<bool>, std::sync::Condvar)> {
-        let gate = Arc::new((Mutex::new(false), std::sync::Condvar::new()));
-        self.controlled_ready_gate = Some(Arc::clone(&gate));
-        gate
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_child_observer(
-        mut self,
-        observer: Arc<Mutex<Vec<ControlledChildObservation>>>,
-    ) -> Self {
-        self.controlled_child_observer = Some(observer);
-        self
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_unrecycled_child_mutant(
-        mut self,
-        observer: Arc<Mutex<Vec<ControlledChildObservation>>>,
-    ) -> Self {
-        self.controlled_child_observer = Some(observer);
-        self.controlled_skip_child_recycle = true;
-        self
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_controlled_capture(
-        mut self,
-        capture: CaptureStream,
-        part_limit_bytes: Option<u64>,
-    ) -> Self {
-        if self.controlled_captures.len() < 3 {
-            self.controlled_captures.push_back(capture);
-        }
-        if self.controlled_part_limits.len() < 3 {
-            self.controlled_part_limits.push_back(part_limit_bytes);
-        }
-        self
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_native_harness_observer(
-        mut self,
-        observer: Arc<NativeQualificationObserver>,
-    ) -> Self {
-        self.native_harness_observer = Some(observer);
-        self
     }
 }
