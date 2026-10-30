@@ -39,3 +39,19 @@ pub(super) fn memory_trace(stage: &str, details: serde_json::Value) {
         let _ = output.flush();
     }
 }
+
+pub(super) fn decode_sha256(value: &str) -> Result<[u8; 32], String> {
+    if value.len() != 64 {
+        return Err("ModelHashMismatch: SHA-256 invalide".into());
+    }
+    let mut output = [0; 32];
+    for (index, byte) in output.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16)
+            .map_err(|_| "ModelHashMismatch: SHA-256 invalide".to_owned())?;
+    }
+    Ok(output)
+}
+
+pub(super) fn format_sha256(value: &[u8; 32]) -> String {
+    value.iter().map(|byte| format!("{byte:02x}")).collect()
+}

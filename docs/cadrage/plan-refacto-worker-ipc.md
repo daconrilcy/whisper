@@ -1,6 +1,6 @@
-Avancée : lots A à E2 clos après vérifications et revue CLEAN ; bilan E2 au §32.
-Blocage : aucun dans le périmètre E2 autorisé.
-Décision : lot E2 clos sans réserve dans ce périmètre ; aucun lot F1 démarré.
+Avancée : lots A à F1 clos après vérifications et revue CLEAN ; bilan F1 au §34.
+Blocage : aucun dans le périmètre F1 autorisé.
+Décision : lot F1 clos sans réserve dans ce périmètre ; aucun lot F2 démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -1059,3 +1059,67 @@ Périmètre production exact : `worker_ipc.rs`, `backends/mod.rs`, `backends/nat
 Campagne sous `target/parakeet-tests/refacto-worker-ipc-f1/`, garde existante adaptée, cache/fixture/modèle copié/temporaires et sorties bornés, cible Cargo partagée canonique. Préflight, auto-tests, seuil ≥30 Gio, surveillance, offline/locked et absence de Git concurrent obligatoires ; refus fmt sans --check et --fix maintenu. Legacy borné réellement actif, état du modèle installé contrôlé en lecture seule. Consignes extérieurs sans lien projet et objets Git maintenues sans lever les protections des ressources ou écritures suspectes/attribuées. Vérifications T-F et intégrations publiques worker_control/gpu_qualification_transport ; les corps conditionnels de catalogue/routes pertinents à F1 doivent être examinés et exécutés avec ressources bornées si nécessaires, sans campagne native implicite ni nouveau skip. Seules exclusions D2 corpus natif/l3c convenues ; pas de qualification native/Windows implicite.
 
 Lecture/écriture UTF-8 explicite, sans conversion globale aveugle ; comparaison des littéraux/messages restants et déplacés avec la base pour prévenir la régression corrigée en E2. Espace libre initial : 102 804 127 744 octets (environ 95,7 Gio). Non suivis préexistants préservés.
+
+## 34. Clôture du lot F1 — 30 octobre 2026
+
+Avancée : primitives backend et démarrage runtime extraits, vérifications réussies et revue indépendante CLEAN.
+Blocage : aucun dans le périmètre F1 autorisé.
+Décision : F1 clos sans réserve dans ce périmètre ; commit local sans push, aucun lot F2 démarré.
+
+### Delta et invariants
+
+Base Git exacte : `d89d534be90422ba950617fe587d225e9c645a65`, après le démarrage ajusté du §33. Implémentation déléguée à rust_implementer ; revue confiée à rust_review_coordinator et au même rust_reviewer indépendant en lecture seule. La session principale n'a pas modifié le code en parallèle.
+
+Six fichiers production, conformément à l'ajustement explicitement accepté : `worker_ipc.rs`, `support.rs`, `runtime/import.rs` (seule déclaration du sous-module), nouveaux `backends/mod.rs` (468 lignes physiques), `backends/native.rs` (215) et `runtime/import/worker_start.rs` (665). Le parent import passe de 1 016 à 1 018 lignes physiques, sans ajout de corps. Aucun test, manifeste, Cargo.lock, dépendance ou feature modifié.
+
+Catalogue et bindings, cache IdleWorker, probes et primitives de sélection sont sous backends ; routes, attestations et prédicat pur can_retry_native_auto_on_cpu sous backends/native. Les backends ne dépendent ni du service ni d'ImportRuntime et n'utilisent aucun import wildcard. decode_sha256 et format_sha256 rejoignent support. Les sept méthodes start_worker_with_candidate, start_worker_with_cpu_override, start_worker_with_candidate_override, start_parakeet_worker, replace_parakeet_pending_with_cpu_key, fallback_parakeet_to_cpu et handle_worker_failure restent des méthodes ImportRuntime, désormais dans runtime/import/worker_start. L'orchestration retry GPU reste poll_unified ; sources et exécuteur restent à la racine pour F2.
+
+Le reviewer a confirmé l'équivalence de 31 corps déplacés, les structures et signatures, les visibilités internes adaptées, la direction des imports et les réexports publics historiques probe_cuda_worker, qualify_gpu_worker et gpu_evidence_matches. Politique CPU/GPU/Auto, identités, preuves, limites de repli et réutilisation du cache conservées ; aucun nouveau fallback, recalcul de hash ou changement d'API. Comparaison explicite UTF-8 du multiensemble des 19 littéraux non ASCII avant/après : aucune valeur ajoutée ou retirée, messages exacts préservés.
+
+### Campagne, incidents et reprises
+
+Préflight et auto-tests sous `target/parakeet-tests/refacto-worker-ipc-f1/`, cache Cargo, modèles copiés, fixtures, sorties et temporaires bornés sous F1 ; seule cible de compilation partagée `target/parakeet-tests/cargo-shared/`. Variables canoniques, absence de jonction sortante, CARGO_INCREMENTAL=0, CARGO_PROFILE_DEV_DEBUG=line-tables-only et commandes offline/locked contrôlés. Refus fmt sans --check et --fix maintenu. Consignes de session sur événements extérieurs sans lien projet et objets Git maintenues sans lever les protections des ressources projet, index/HEAD/refs/config ou des écritures suspectes/attribuées.
+
+Le premier T-F de baseline a été interrompu avant son exécution : run `20261030T130615204-c8fe63ed`, code 1. La garde a observé deux événements Changed sous l'ancien lot C : `target/parakeet-tests/refacto-worker-ipc-c/tmp/worker-ipc-tests` à 13:06:33.8058670 et `target/parakeet-tests/refacto-worker-ipc-c/tmp/r10-queue-store-tests` à 13:06:33.9057987. Auteur non établi, aucun résultat PASS revendiqué. L'implémenteur avait lancé simultanément une recherche récursive dans les anciennes racines ; cette corrélation temporelle ne prouve pas l'origine des événements. Aucun effacement ni restauration ; sources/index inchangés, arrêt des processus constaté. L'utilisateur a précisément autorisé la reprise avec garde inchangée et sans inspection concurrente. Le témoin a ensuite réussi et aucun nouvel incident de garde n'a été signalé. Les événements de refus synthétiques SelfTest restent distingués des événements Run. Cette disposition ne crée aucune exception générale pour les anciens lots.
+
+Le premier check d'extraction `20261030T132935357-dbf879a7` a échoué sur des visibilités internes de réexports ; elles ont été ajustées avant le check réussi `20261030T132954171-f9526134` et les vérifications finales. Cette erreur de compilation intermédiaire reste dans les preuves.
+
+Premier essai l01 du candidat `20261030T133805564-627a2f6d` : 271 réussis et un échec de r7_restart_resume_integrates_copy_crash_dialog_queue_and_publication, le linker ne pouvant ouvrir l'EXE du faux worker (LNK1104). La reproduction isolée puis une relance intégrale l01 ont réussi sans modification du candidat. L'échec initial est conservé ; aucune cause extérieure précise n'est inférée et aucun nouveau skip n'a été ajouté.
+
+### Résultats réellement exécutés
+
+Sept témoins T-F exécutés individuellement et réussis avant/après :
+
+- auto_without_gpu_starts_cpu_with_normalized_compute_and_same_identity ;
+- auto_gpu_ready_is_attested_and_explicitly_admitted ;
+- auto_import_gpu_exit_after_ready_before_begin_retries_once_on_cpu ;
+- forced_gpu_initialization_failure_waits_for_explicit_cpu_choice ;
+- stop_latched_after_gpu_failure_prevents_cpu_worker_launch ;
+- retained_worker_reads_two_correlated_import_sessions_and_hits_model_cache ;
+- prepared_native_routes_without_start_are_bounded_and_stop_releases_identity.
+
+Intégrations publiques réellement exécutées avant/après : worker_control, 5 tests PASS ; gpu_qualification_transport, 1 test PASS. Format --check, git diff --check, check workspace et Clippy PASS avant/après. Check workspace final `20261030T133203952-49f41521`, Clippy final `20261030T133208289-e3309d7a` avec les quatre lints de structure prévus. Clippy : 23 diagnostics core et 146 adapters avant/après, soit 169 hors lignes de résumé. Dette héritée déplacée conservée sans nouveau diagnostic ni suppression de lint ; les cibles globales de structure ne sont pas revendiquées atteintes.
+
+Cinq suites séquentielles complètes avant/après, sur le candidat final sans correction de revue. Catalogue injecté et legacy réellement RUN/PASS dans les dix suites abouties :
+
+| Configuration | Réussis baseline et candidat abouti | Échoués dans ces exécutions | Ignorés | Filtrés autorisés | Legacy réel |
+| --- | --- | --- | --- | --- | --- |
+| défaut | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| recette-hooks | 276 | 0 | 16 | 1 D2 corpus natif | oui |
+| l01-memory-qualification | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| personal-qualification | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| recette-hooks,l3-gpu-qualification | 276 | 0 | 16 | 2 D2 corpus natif/l3c | oui |
+
+Journaux candidat aboutis : `Run-20261030T133213563-3a79ab38`, `Run-20261030T133510521-091b4249`, `Run-20261030T134139642-b2cc3ff3` (relance l01), `Run-20261030T134435193-235b989e`, `Run-20261030T134730997-a6173c46`. L'essai l01 initial en échec est distinct de ce tableau.
+
+Les deux contrôles conditionnels ont cette fois été exécutés réellement, en sessions isolées avec ressources bornées sous F1, avant et après extraction : paths_reject_a_worker_outside_the_runtime_root (avant `20261030T132833724-8c2d0eb2`, après `20261030T135008156-b5042aae`) et over_limit_parakeet_import_is_refused_before_pending_creation (avant `20261030T132834917-8ddb60f1`, après `20261030T135009364-c625adb9`). Tous PASS ; leur exécution est prouvée par ces sessions, pas déduite des seuls comptes libtest des suites générales. Le test de refus anticipé utilise le modèle réel mais ne lance aucun worker natif. Les 16 ignorés et exclusions historiques D2/l3c ne sont pas revendiqués exécutés. Qualification native CPU/GPU et fenêtre Windows non réalisées ; aucune qualification produit implicite.
+
+### Revue et conservation
+
+Verdict indépendant **CLEAN**, époque 0 : une passe de revue, zéro correction, aucun constat ouvert, aucune vérification requise manquante ni blocage dans F1. Les incidents et dispositions ci-dessus ont été examinés par le reviewer ; aucune causalité non démontrée n'est revendiquée. Cette clôture ne démarre ni n'autorise F2.
+
+Modèles originaux et copies F1 contrôlés, originaux inchangés par rapport au préflight de copie : Turbo 1 624 555 275 octets, SHA-256 `1FC70F774D38EB169993AC391EEA357EF47C88757EF72EE5943879B7E8E2BC69` ; Parakeet 713 975 456 octets, SHA-256 `E3880D0AAAAF2C308EA2C35016B2B895C423EB3FDA924C1B463D1C19B7F4D32E`.
+
+Archive `target/parakeet-tests/refacto-worker-ipc-f1/archive/closure-20261030/proofs.zip` : 114 entrées uniques, 376 174 octets, arborescence relative préservée, SHA-256 de chaque entrée comparé en mémoire à sa source. SHA-256 ZIP : `97ECB2C68F27A4DEEA0082D50488984626FA70B64AF96A0055E3EDA959486D51`. Aucun modèle/cache/build/corpus/WAV inclus, aucun nouveau manifeste, aucune suppression ni restauration. Copies modèles/liens et cargo-shared conservés.
+
+Espace libre final : 99 491 045 376 octets (environ 92,7 Gio), au-dessus du seuil de 30 Gio. Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Code relu et présent bilan réunis dans le commit local de clôture, sans push.

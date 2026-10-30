@@ -1,5 +1,7 @@
 use super::*;
 
+mod worker_start;
+
 impl ImportRuntime {
     pub(in crate::worker_ipc) fn prepare(
         &mut self,
