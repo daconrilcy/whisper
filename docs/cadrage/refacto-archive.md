@@ -175,7 +175,7 @@ Fonctions historiques longues déplacées d’abord sans transformation de contr
 
 ### Dépendances, visibilité et concurrence
 
-Types/records dans parent ; enfants accèdent aux champs privés. Helpers partagés pub(super) au besoin, imports explicites. Conserver API/signatures/chemins : ArchiveStore, LiveArchive, ArchiveQualificationKey, SegmentRecord, ArchiveEntry, PublicationLock, UnifiedArchiveResumeCheckpoint, scan_live_recoveries, sha256_file. Conserver visibilité actuelle des réexports campaign_gate, record_campaign_operation_result, assert_campaign_archive, source_output_samples et réexport SegmentRecord par journal.rs de la crate.
+Types/records dans parent ; enfants accèdent aux champs privés. Helpers partagés pub(super) au besoin pour un parent immédiat ; pour les helpers imbriqués nécessaires à la façade, aux tests ou aux frères, pub(in crate::archive) au maximum, chemin accessible par module intermédiaire ou réexport explicite. Imports explicites ; aucun champ élargi ni API nouvelle hors archive. Conserver API/signatures/chemins : ArchiveStore, LiveArchive, ArchiveQualificationKey, SegmentRecord, ArchiveEntry, PublicationLock, UnifiedArchiveResumeCheckpoint, scan_live_recoveries, sha256_file. Conserver visibilité actuelle des réexports campaign_gate, record_campaign_operation_result, assert_campaign_archive, source_output_samples et réexport SegmentRecord par journal.rs de la crate.
 
 Tests inclus depuis archive/tests.rs restent archive::tests avec imports parent ; publication_support.rs garde accès cfg(test). Nouveaux tests séparés, pas d’API produit rendue publique. Feuilles stockage/source/journal sans orchestration workers. Aucun archive→worker_ipc/desktop/UI ; aucun verrou/thread/canal/runtime/unsafe/dépendance nouveau.
 
@@ -257,3 +257,5 @@ Contrôles rendus : couverture CAP→REQ/UC/AC→domaine/invariants→modules/PF
 ADVISORY D-ARCH-A01, MINEUR : la formulation «16 enfants» comptait la façade parmi les enfants. Rectification de décompte ci-dessus, sans changer aucun chemin, contrat ou décision technique. Aucun autre constat. Le présent ajout consigne le résultat et le statut ; l’objet technique revu reste celui de `6263391c`.
 
 Le coordinateur établit DESIGN READY sur cette preuve et la délégation technique de la mission. La demande utilisateur autorise déjà la rédaction du plan dans la même session. Aucun GO code ne découle du verdict.
+
+Précision de planification VIS-01 : l’architecte auteur confirme DETAIL_WITHIN_ACCEPTED_CONTRACT pour la portée minimale des helpers imbriqués décrite au §6. Elle corrige la formulation pub(super), sans changement de frontière ou d’API hors archive. Confirmation ciblée du reviewer demandée avant revue finale PLANS.
