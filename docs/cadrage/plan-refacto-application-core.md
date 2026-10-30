@@ -1,4 +1,4 @@
-Avancée : T1–T3 implémentées, vérifiées et revues CLEAN ; T4–T10 restent à réaliser.
+Avancée : T1–T4 implémentées, vérifiées et revues CLEAN ; T5–T10 restent à réaliser.
 Blocage : aucun ; E0 satisfait après arbitrage utilisateur consigné ci-dessous.
 Décision : poursuivre séquentiellement, sans push et sans validation native/Windows revendiquée.
 
@@ -285,3 +285,10 @@ Après l’arrêt ci-dessus, l’utilisateur a explicitement autorisé la repris
 - Fichiers : `application.rs`, `runtime/mod.rs`, nouveau `runtime/microphone.rs` (370 lignes physiques) ; état privé inchangé. Racine : 3 518 → 3 242 lignes ; M1/M3 conformes. Aucun nouveau test ni changement de manifeste.
 - Garde/cache/temp/TMP T3, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1/V3/V4/V5/V6 de section 5 via `t3/guard.ps1`, cwd dépôt : PASS ; premier format corrigé, aucun avertissement Clippy dans `microphone.rs`, héritage `SAMPLE_RATE` hors périmètre. Baseline/candidat : 175 tests chacun, zéro ignoré. Cinq témoins S3 et gain unifié tardif réussis avant/après ; filtres supplémentaires `microphone_test_` (3), gain actif (1), spectre (1).
 - Preuves : `target/parakeet-tests/refacto-application-core/t3/archive/t3-20261030/logs/`, 23 fichiers, nombre/SHA-256 vérifiés ; baseline `Run-20261030T184024456-dba3299b`, candidat `Run-20261030T184345568-f3097cfa`. Reviewer a lu les résultats et confirmé les témoins. Espace final : 83 646 423 040 octets ; non suivis préservés, aucun nettoyage/push/validation native ou Windows.
+
+### T4 — live et direct
+
+- Base : `54df2b4d28e1eb8a2aecd1136dd8b494da7e8544`. Même implémenteur et reviewer ; CLEAN première passe, zéro correction/constat/demande ouvert. Revue : gardes, phases, diagnostics, récupération CPU explicite, refus ancien `StartLive`, branches et helper de final automatique préservés (instructions/littéraux comparés).
+- Fichiers : `application.rs`, `runtime/mod.rs`, nouveau `runtime/live.rs` (720 lignes physiques). Racine : 3 242 → 2 731 lignes ; état privé conservé, M1/M3 conformes. Deux fonctions découpées après observation Clippy, sans avertissement dans `live.rs` au contrôle final.
+- Garde/cache/temp/TMP T4, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1/V3/V4/V5/V6 via `t4/guard.ps1`, cwd dépôt : PASS après corrections de format intermédiaires. Baseline/candidat : 175 tests chacun, zéro ignoré ; S4/S1 avant/après. Filtres : `live_stop` (3), direct avant Ready (1), `live_contract` (6), refus ancien StartLive (1). Avertissement hérité `SAMPLE_RATE` hors périmètre.
+- Preuves : `target/parakeet-tests/refacto-application-core/t4/archive/t4-20261030/logs/`, 33 fichiers, nombre/SHA-256 vérifiés ; baseline `Run-20261030T184801551-1dc512b5`, candidat `Run-20261030T185044103-661c1a3c`. Résultats relus par reviewer ; espace final 82 734 182 400 octets. Non suivis préservés ; aucun nettoyage, push ou validation native/Windows.
