@@ -1,4 +1,4 @@
-Avancée : T1–T8 implémentées, vérifiées et revues CLEAN ; T9–T10 restent à réaliser.
+Avancée : T1–T9 implémentées, vérifiées et revues CLEAN ; T10 reste à réaliser.
 Blocage : aucun ; E0 satisfait après arbitrage utilisateur consigné ci-dessous.
 Décision : poursuivre séquentiellement, sans push et sans validation native/Windows revendiquée.
 
@@ -320,3 +320,10 @@ Après l’arrêt ci-dessus, l’utilisateur a explicitement autorisé la repris
 - Fichiers : `application.rs`, `runtime/mod.rs`, nouveau `runtime/automatic_final.rs` (385 lignes physiques). Racine : 948 → 620 lignes ; sept définitions uniques, M1/M3 conformes.
 - Garde/cache/temp/TMP T8, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1/V3/V4/V5/V6 via `t8/guard.ps1`, cwd dépôt : PASS. Baseline/candidat : 175 tests chacun, zéro ignoré ; deux témoins S8A avant/après et filtre `automatic_` (deux tests). Format intermédiaire corrigé ; aucun avertissement Clippy `automatic_final.rs`, formatage seul ensuite ; héritage `SAMPLE_RATE` hors périmètre. Saturation/reprise/accusés/fin/publication/erreurs également comparés statiquement.
 - Preuves : `target/parakeet-tests/refacto-application-core/t8/archive/t8-20261030/logs/`, 19 fichiers, nombre/SHA-256 vérifiés ; baseline `Run-20261030T191221900-b7680173`, candidat `Run-20261030T191400800-fd75f2e1`. Résultats relus par reviewer ; espace final 77 766 619 136 octets. Non suivis préservés ; aucun nettoyage, push ou validation native/Windows.
+
+### T9 — fermeture, poll et dispatchers
+
+- Base : `2a56aa9b6091a3918071c2db6214a51f70941c3f`. Même implémenteur et reviewer ; CLEAN première passe, zéro correction/constat/demande ouvert. Comparaison indépendante conforme du poll/readiness/retraits/refus modèle/routage ; gardes en amont, dispositions des commandes, deux réentrées RequestClose via dispatch, retours et cas Committing conservés.
+- Fichiers : `application.rs`, `runtime/mod.rs`, nouveaux `closing.rs`, `poll.rs`, `commands.rs`, `events.rs`. Racine : 620 → 143 lignes ; un seul impl Application, pas de `#[path]`, nouveau module public ou corps métier réintroduit dans les dispatchers. M1–M4 conformes. Dispatchers découpés pour respecter Clippy.
+- Garde/cache/temp/TMP T9, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1/V3/V4/V5/V6 via `t9/guard.ps1`, cwd dépôt : PASS. Baseline/candidat : 175 tests chacun, zéro ignoré ; S1/S5/S7 avant/après ; filtres `close_` (4), `import_contract` (12), admission modèle (1). Format intermédiaire corrigé ; aucun avertissement Clippy des quatre nouveaux modules, formatage seul ensuite ; héritage `SAMPLE_RATE` hors périmètre.
+- Preuves : `target/parakeet-tests/refacto-application-core/t9/archive/t9-20261030/logs/`, 25 fichiers, nombre/SHA-256 vérifiés ; baseline `Run-20261030T191736589-27b4748f`, candidat `Run-20261030T192031429-cdf9ed23`. Résultats relus par reviewer ; espace final 76 600 778 752 octets. Non suivis préservés ; aucun nettoyage, push ou validation native/Windows.

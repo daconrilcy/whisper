@@ -1,7 +1,11 @@
 mod automatic_final;
+mod closing;
+mod commands;
+mod events;
 mod import;
 mod live;
 mod microphone;
 mod parakeet_views;
+mod poll;
 mod queue;
 mod unified;
