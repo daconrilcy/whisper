@@ -1,6 +1,6 @@
-Avancée : T1–T7 validées, revues indépendantes CLEAN ; deux extractions terminées.
-Blocage : aucun pour T8 ; échec optionnel recette-hooks préexistant consigné.
-Décision : engager l’extraction identité/sources T8, sans push.
+Avancée : T1–T8 validées, revues indépendantes CLEAN ; trois extractions terminées.
+Blocage : aucun pour T9 ; échec optionnel recette-hooks préexistant consigné.
+Décision : engager l’extraction retrait T9, sans push.
 
 # Plan de refactorisation d’archive.rs
 
@@ -345,3 +345,13 @@ V-U `20261030T210126452-88453588` : **38 réussis, un ignoré L04 historique** ;
 Neuf V-K exacts chacun **un réussi, zéro ignoré, aucun NOT RUN**, dans l’ordre §5 : `20261030T210241113-6e248540`, `20261030T210251807-63ec59db`, `20261030T210301285-945f64d8`, `20261030T210315268-a48d50f8`, `20261030T210324358-d14e5449`, `20261030T210333512-066d9b11`, `20261030T210349557-7aa23821`, `20261030T210358487-019567c2`, `20261030T210407948-ca72a49b`.
 
 Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune ; une revue/aucune correction. 103 corps identiques après normalisation lexicale espaces/commentaires ; types/attributs conservés, quatre différences de virgules finales de signatures seulement ; VIS-01 et réparations/ordre préservés. C7/E7 acquis ; T8 peut commencer. recette-hooks non requalifié (échec préexistant T6), pas natif/UI/kill/powerfail.
+
+### T8 validée — Identité et sources
+
+Base `fd0e066c`, A et identity.rs/source.rs seulement ; types/constantes restent parent, réexports SHA/probe et samples préservés, imports nommés et trois méthodes de qualification pub(super) pour accès interne. Tests et modules T6/T7 inchangés. Préflight 66,58 Gio, final 66,57 Gio. Lignes non vides : A 1 758 ; identity 837 ; source 212.
+
+V-U initial `20261030T210821169-34359782` échoué (BufRead manquant) ; import ajouté puis import réservé aux tests placé sous cfg(test), aucune modification de corps. Campagne finale : V-U `20261030T210940231-8d6a7bab` **38 réussis, un ignoré L04 historique** ; V-L `20261030T211000126-4049d1c1` **12 réussis** ; V-R `20261030T211017040-78047bc6` **8 réussis**. V-F `20261030T211238339-494c01b5`, V-B `20261030T211244452-66fbaf90`, V-S `20261030T211300263-5f3b5f14` et diff --check **PASS** ; avertissements adapters 16/desktop 5, Clippy 260/136 doublons, baseline.
+
+Neuf V-K exacts chacun **un réussi, zéro ignoré, aucun NOT RUN**, dans l’ordre §5 : `20261030T211056244-f78b9491`, `20261030T211106578-7ac3f46d`, `20261030T211115546-d3647fd5`, `20261030T211130868-4edf2f79`, `20261030T211139975-57e52b61`, `20261030T211149047-8b6eb7b8`, `20261030T211207412-e3c46888`, `20261030T211216449-4421b377`, `20261030T211225438-d62cfd15`.
+
+Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune, une revue/aucune correction. 75 corps lexiquement identiques hors espaces/commentaires, une virgule finale de signature seulement ; API/réexports/visibilité/VIS-01/ordre de refus, hash/cache, chemins et provenance préservés. C8/E8 acquis ; T9 peut commencer. Échec recette-hooks T6 hors périmètre toujours non qualifié, pas natif/UI/kill/powerfail.
