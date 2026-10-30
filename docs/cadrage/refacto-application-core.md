@@ -1,11 +1,11 @@
 Avancée : cadrage du découpage de `application.rs` établi sur les sources actuelles.
-Blocage : aucun pour la revue documentaire ; implémentation et campagnes non autorisées.
+Blocage : aucun pour la planification ; implémentation et campagnes non autorisées.
 Décision : extraction progressive par responsabilités, contrats inchangés et propriétaire d’état unique.
 
 # Cadrage — refactorisation de l’application du cœur
 
 - ID : D-REF-APP-CORE, version 1.0, 30 octobre 2026.
-- Statut : CANDIDAT POUR REVUE DESIGN ; acceptation finale et autorisation d’implémentation distinctes.
+- Statut : DESIGN READY — revue indépendante CLEAN ; base technique retenue pour la planification déjà demandée, acceptation finale utilisateur et autorisation d’implémentation distinctes.
 - Auteur des documents : session Codex principale.
 - Contributions : `rust_product_framer` — BF-APP-CORE v1 ; `rust_requirements_analyst` — RA-APP-CORE v1 ; `rust_domain_architect` — DOM-APP-CORE v1 ; `rust_architect` — ARCH-APP-CORE v1. Contributions proposées en lecture seule, sur la même base Git, assemblées par l’auteur principal ; cette synthèse ne prétend pas en être une copie exacte.
 - Base inspectée : `30632da12a1eb0cf7b50465ee8ec30cd8174fa3f`, branche `evo-startup-perf`.
@@ -180,3 +180,11 @@ La garde observée `target/parakeet-tests/refacto-worker-ipc-f3/guard.ps1` est l
 Avant tout Cargo futur : espace ≥30 Gio, racines canoniques et environnement requis, self-tests et surveillance conformément à AGENTS. Aucune invocation directe ni dérogation importée. Ce prérequis EXECUTION non satisfait bloque les campagnes, pas la revue documentaire.
 
 Aucun railguard supplémentaire, manifeste G1 ou journal de qualification n’est proposé. Aucune question produit nouvelle bloquante. Le reviewer est seul propriétaire du verdict DESIGN ; CLEAN ne vaut ni autorisation de coder ni validation produit.
+
+## 9. Revue indépendante et passage au plan
+
+Le 30 octobre 2026, `rust_design_reviewer` (`/root/revue_design_plan`), distinct des quatre contributeurs et de l’auteur, a revu le document au commit `b258b1c44efc5e36467e287c1a3791215749c20a`, comparé à la base source `30632da12a1eb0cf7b50465ee8ec30cd8174fa3f`. Verdict DESIGN : CLEAN ; zéro constat REQUIRED, zéro suggestion ADVISORY ; aucune correction requise (première revue).
+
+Le reviewer a contrôlé indépendamment la couverture BF/REQ/UC/AC, les invariants et propriétaires, l’attribution des déclarations, les neuf exports, les chaînes des deux dispatchers et de poll, les tests descendants et les 44 déclarations statiques, ainsi que la limite d’exécution de la garde F3. Aucun fichier modifié, Cargo, build ou test exécuté par lui. La session principale consigne ce résultat sans s’attribuer le verdict.
+
+Le design est prêt pour le plan documentaire déjà autorisé par la demande de cette session. Cette mise à jour de statut et de preuve ne modifie pas son contenu technique ; aucune acceptation finale ou permission d’implémenter n’est déduite du silence de l’utilisateur.
