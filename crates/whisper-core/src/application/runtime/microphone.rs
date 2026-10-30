@@ -1,7 +1,7 @@
-use super::super::*;
+use super::*;
 
 impl<P: ImportIoPort> ImportApplication<P> {
-    pub(in crate::application) fn invalidate_microphone_acquisition(
+    pub(super) fn invalidate_microphone_acquisition(
         &mut self,
         event: &ImportEvent,
         identity: CommandIdentity,
@@ -26,7 +26,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         }
     }
 
-    pub(in crate::application) fn handle_microphone_event(
+    pub(super) fn handle_microphone_event(
         &mut self,
         event: ImportEvent,
         identity: CommandIdentity,
@@ -165,7 +165,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(())
     }
 
-    pub(in crate::application) fn handle_unified_microphone_event(
+    pub(super) fn handle_unified_microphone_event(
         &mut self,
         event: ImportEvent,
         key: (JobId, Generation),
@@ -239,7 +239,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(())
     }
 
-    pub(in crate::application) fn handle_microphone_test_command(
+    pub(super) fn handle_microphone_test_command(
         &mut self,
         command: AppCommand,
     ) -> Result<AppView, ApplicationError> {
@@ -303,7 +303,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(self.view.clone())
     }
 
-    pub(in crate::application) fn handle_microphone_gain_command(
+    pub(super) fn handle_microphone_gain_command(
         &mut self,
         command: AppCommand,
     ) -> Result<AppView, ApplicationError> {

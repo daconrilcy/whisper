@@ -1,4 +1,4 @@
-use super::super::*;
+use super::*;
 
 impl<P: ImportIoPort> ImportApplication<P> {
     fn refuse_model_command(&mut self, reason: &str) -> AppView {

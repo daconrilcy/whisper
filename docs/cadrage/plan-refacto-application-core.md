@@ -1,11 +1,11 @@
-Avancée : T1–T9 implémentées, vérifiées et revues CLEAN ; T10 reste à réaliser.
+Avancée : T1–T10 implémentées, vérifiées et revues CLEAN ; façade déclarative terminée.
 Blocage : aucun ; E0 satisfait après arbitrage utilisateur consigné ci-dessous.
-Décision : poursuivre séquentiellement, sans push et sans validation native/Windows revendiquée.
+Décision : livrer en commits locaux, sans push et sans validation native/Windows revendiquée.
 
 # Plan — refactorisation de l’application du cœur
 
 - ID : P-REF-APP-CORE, version 1.0, 30 octobre 2026.
-- Statut : PLANS READY — revue indépendante CLEAN ; acceptation finale utilisateur et autorisation d’exécuter distinctes.
+- Statut : EXÉCUTÉ — T1–T10 revues indépendamment CLEAN ; autorisations et preuves d’exécution consignées aux sections 10–11. Le statut initial PLANS READY et les commandes proposées ci-dessous décrivent la préparation historique.
 - Auteur du document : session Codex principale ; contribution de planification : `rust_plan_writer`, PLAN-APP-CORE v1.
 - Design parent : [refacto-application-core.md](refacto-application-core.md), D-REF-APP-CORE, Git `682e09e7d8260f9e454441f50b11dc9d848895bb`.
 - Preuve de passage : DESIGN CLEAN indépendant sur `b258b1c44efc5e36467e287c1a3791215749c20a`, zéro REQUIRED/ADVISORY ; statut et preuve ajoutés sans modification technique dans `682e09e7`.
@@ -327,3 +327,14 @@ Après l’arrêt ci-dessus, l’utilisateur a explicitement autorisé la repris
 - Fichiers : `application.rs`, `runtime/mod.rs`, nouveaux `closing.rs`, `poll.rs`, `commands.rs`, `events.rs`. Racine : 620 → 143 lignes ; un seul impl Application, pas de `#[path]`, nouveau module public ou corps métier réintroduit dans les dispatchers. M1–M4 conformes. Dispatchers découpés pour respecter Clippy.
 - Garde/cache/temp/TMP T9, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1/V3/V4/V5/V6 via `t9/guard.ps1`, cwd dépôt : PASS. Baseline/candidat : 175 tests chacun, zéro ignoré ; S1/S5/S7 avant/après ; filtres `close_` (4), `import_contract` (12), admission modèle (1). Format intermédiaire corrigé ; aucun avertissement Clippy des quatre nouveaux modules, formatage seul ensuite ; héritage `SAMPLE_RATE` hors périmètre.
 - Preuves : `target/parakeet-tests/refacto-application-core/t9/archive/t9-20261030/logs/`, 25 fichiers, nombre/SHA-256 vérifiés ; baseline `Run-20261030T191736589-27b4748f`, candidat `Run-20261030T192031429-cdf9ed23`. Résultats relus par reviewer ; espace final 76 600 778 752 octets. Non suivis préservés ; aucun nettoyage, push ou validation native/Windows.
+
+### T10 — état, tests privés et façade finale
+
+- Base : `ae9c86ce38db11bc01bd4c859706308bd027eae4`. Même implémenteur et reviewer ; CLEAN première passe, zéro correction/constat/demande ouvert. Le reviewer confirme que les résultats CLEAN T1–T9 restent applicables : dix revues, une par tâche, aucune correction demandée et aucun constat ouvert.
+- Fichiers : `application.rs`, les douze fichiers runtime prévus et migration exacte des cinq fichiers de tests (sources disparues, destinations présentes). Trois structs, quatre bornes, constructeurs et `fail` transférés dans `runtime/mod.rs`, sans changement des corps selon comparaison indépendante. Onze modules runtime inchangés après normalisation des imports/visibilités/format. Méthodes restreintes au runtime, champs et modules privés, neuf exports historiques, un propriétaire d’état, 30 variants et deux réentrées via dispatch conservés ; aucun `#[path]` ni corps algorithmique dans la façade. M1–M5 conformes.
+- Garde/cache/temp/TMP T10, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1–V7 de section 5 via `t10/guard.ps1`, cwd dépôt : PASS. V2 avant/après : 175 identités équivalentes après normalisation de `application::tests` vers `application::runtime::tests`. V3 : 175 tests réussis avant/après, zéro ignoré ; V4 séparés : 44 tests privés historiques et deux caractérisations T1. Cinq fichiers de tests déplacés textuellement identiques. V5 build, V6 Clippy structure et V7 workspace huit crates réussis ; format intermédiaire corrigé. Exceptions héritées : diagnostic 153 lignes Clippy, identité 108, avertissements historiques `AppCommand`/tests, `SAMPLE_RATE` et desktop ; aucun avertissement introduit dans les nouveaux handlers.
+- Preuves : `target/parakeet-tests/refacto-application-core/t10/archive/t10-20261030/logs/`, 27 fichiers, nombre/SHA-256 vérifiés. V2 baseline `Run-20261030T192532944-b6c6ff27`, candidat `Run-20261030T192648876-669e9de5` ; V3 baseline `Run-20261030T192552563-95f6c140`, candidat `Run-20261030T192734222-470e5f6a`. Résultats lus et acceptés par le reviewer. Espace final rapporté : 75 645 419 520 octets.
+
+Métriques finales physiques (distinctes des mesures Clippy) : façade `application.rs` 10 lignes contre 4 517 au départ ; runtime : `mod.rs` 151, `automatic_final.rs` 381, `closing.rs` 184, `commands.rs` 152, `events.rs` 130, `import.rs` 521, `live.rs` 720, `microphone.rs` 370, `parakeet_views.rs` 572, `poll.rs` 46, `queue.rs` 476, `unified.rs` 1 057. Aucun nouveau fichier de production ne dépasse 1 500 lignes.
+
+Clôture : les dix tâches et leurs critères de refactorisation sont satisfaits sur le candidat final revu. Les états et contrats produit sont préservés par comparaisons indépendantes et tests mémoire ; ces preuves ne qualifient ni moteurs natifs ni écritures physiques TXT/SRT/WAV ni fenêtre Windows. Aucune nouvelle dépendance, modification de manifeste/lockfile, remise d’EXE, nettoyage des caches, validation native/Windows ou push. Les petits journaux de chaque tâche restent archivés dans leurs racines, sans nouveau manifeste d’empreintes ; les caches et temporaires restent conservés faute d’autorisation de suppression. Les non suivis préexistants sont préservés. Le bilan est intégré à ce plan, sans rapport supplémentaire.

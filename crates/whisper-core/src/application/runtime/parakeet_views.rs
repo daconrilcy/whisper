@@ -1,8 +1,8 @@
-use super::super::*;
+use super::*;
 use crate::ports::{ParakeetCaptureIdentity, ParakeetCaptureView, ParakeetCaptureViewState};
 
 impl<P: ImportIoPort> ImportApplication<P> {
-    pub(in crate::application) fn track_parakeet_capture_event(&mut self, event: &ImportEvent) {
+    pub(super) fn track_parakeet_capture_event(&mut self, event: &ImportEvent) {
         match event {
             ImportEvent::ParakeetLiveStarted { .. }
             | ImportEvent::ParakeetInferenceReady { .. } => self.track_capture_start(event),
@@ -514,7 +514,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         }
     }
 
-    pub(in crate::application) fn append_parakeet_confirmed(
+    pub(super) fn append_parakeet_confirmed(
         &mut self,
         session_id: u64,
         segment: crate::ports::WorkerSegment,

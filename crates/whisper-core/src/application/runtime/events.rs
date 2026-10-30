@@ -1,10 +1,7 @@
-use super::super::*;
+use super::*;
 
 impl<P: ImportIoPort> ImportApplication<P> {
-    pub(in crate::application) fn handle_event(
-        &mut self,
-        event: ImportEvent,
-    ) -> Result<(), ApplicationError> {
+    pub(super) fn handle_event(&mut self, event: ImportEvent) -> Result<(), ApplicationError> {
         let event_identity = event.identity();
         if matches!(
             &event,

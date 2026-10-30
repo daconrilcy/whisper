@@ -1,7 +1,7 @@
-use super::super::*;
+use super::*;
 
 impl<P: ImportIoPort> ImportApplication<P> {
-    pub(in crate::application) fn handle_live_event(
+    pub(super) fn handle_live_event(
         &mut self,
         event: ImportEvent,
         identity: CommandIdentity,
@@ -567,7 +567,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(())
     }
 
-    pub(in crate::application) fn start_live_command(
+    pub(super) fn start_live_command(
         &mut self,
         command: AppCommand,
         admitted_model: Option<crate::model_catalog::ModelId>,
@@ -692,7 +692,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         });
     }
 
-    pub(in crate::application) fn finish_live_cpu_command(
+    pub(super) fn finish_live_cpu_command(
         &mut self,
         command: AppCommand,
     ) -> Result<AppView, ApplicationError> {

@@ -1,4 +1,4 @@
-use super::super::*;
+use super::*;
 
 impl<P: ImportIoPort> ImportApplication<P> {
     fn track_automatic_final_event(&mut self, event: &ImportEvent, identity: CommandIdentity) {
@@ -33,7 +33,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         }
     }
 
-    pub(in crate::application) fn set_capture_automatic_final_status(
+    pub(super) fn set_capture_automatic_final_status(
         &mut self,
         identity: CommandIdentity,
         status: crate::ports::AutomaticFinalTranscriptionStatus,
@@ -52,7 +52,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         }
     }
 
-    pub(in crate::application) fn mark_automatic_final_failed(
+    pub(super) fn mark_automatic_final_failed(
         &mut self,
         identity: CommandIdentity,
         message: String,
@@ -70,9 +70,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         }
     }
 
-    pub(in crate::application) fn start_next_automatic_final(
-        &mut self,
-    ) -> Result<(), ApplicationError> {
+    pub(super) fn start_next_automatic_final(&mut self) -> Result<(), ApplicationError> {
         if self.automatic_final_identity.is_some() {
             return Ok(());
         }
@@ -103,9 +101,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(())
     }
 
-    pub(in crate::application) fn retry_automatic_final_segment(
-        &mut self,
-    ) -> Result<bool, ApplicationError> {
+    pub(super) fn retry_automatic_final_segment(&mut self) -> Result<bool, ApplicationError> {
         let Some(segment) = self
             .automatic_final_state
             .as_ref()
@@ -148,7 +144,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(true)
     }
 
-    pub(in crate::application) fn handle_automatic_final_event(
+    pub(super) fn handle_automatic_final_event(
         &mut self,
         event: ImportEvent,
         identity: CommandIdentity,

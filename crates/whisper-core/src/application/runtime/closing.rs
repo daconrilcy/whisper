@@ -1,7 +1,7 @@
-use super::super::*;
+use super::*;
 
 impl<P: ImportIoPort> ImportApplication<P> {
-    pub(in crate::application) fn update_close_ready(&mut self) {
+    pub(super) fn update_close_ready(&mut self) {
         self.view.close_ready = self.view.close_requested
             && self.active.is_none()
             && self.unified_captures.is_empty()
@@ -18,9 +18,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
             && !self.view.queue_scan_pending;
     }
 
-    pub(in crate::application) fn drive_close_queue_removals(
-        &mut self,
-    ) -> Result<(), ApplicationError> {
+    pub(super) fn drive_close_queue_removals(&mut self) -> Result<(), ApplicationError> {
         if !self.view.close_requested {
             return Ok(());
         }
@@ -51,7 +49,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(())
     }
 
-    pub(in crate::application) fn request_close(&mut self) -> Result<AppView, ApplicationError> {
+    pub(super) fn request_close(&mut self) -> Result<AppView, ApplicationError> {
         self.view.close_requested = true;
         if self.view.duplicate_import_prompt.is_some() {
             self.dispatch(AppCommand::CancelDuplicateImport)?;
@@ -104,7 +102,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(self.view.clone())
     }
 
-    pub(in crate::application) fn stop_or_quit(
+    pub(super) fn stop_or_quit(
         &mut self,
         job_id: JobId,
         generation: Generation,

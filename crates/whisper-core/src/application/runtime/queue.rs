@@ -1,7 +1,7 @@
-use super::super::*;
+use super::*;
 
 impl<P: ImportIoPort> ImportApplication<P> {
-    pub(in crate::application) fn handle_queue_event(
+    pub(super) fn handle_queue_event(
         &mut self,
         event: &ImportEvent,
     ) -> Result<bool, ApplicationError> {
@@ -240,7 +240,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(false)
     }
 
-    pub(in crate::application) fn handle_queue_command(
+    pub(super) fn handle_queue_command(
         &mut self,
         command: AppCommand,
     ) -> Result<AppView, ApplicationError> {

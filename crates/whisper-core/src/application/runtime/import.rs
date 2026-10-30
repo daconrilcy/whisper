@@ -1,7 +1,7 @@
-use super::super::*;
+use super::*;
 
 impl<P: ImportIoPort> ImportApplication<P> {
-    pub(in crate::application) fn handle_import_event(
+    pub(super) fn handle_import_event(
         &mut self,
         event: ImportEvent,
         identity: CommandIdentity,
@@ -303,7 +303,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(())
     }
 
-    pub(in crate::application) fn maybe_publish(
+    pub(super) fn maybe_publish(
         &mut self,
         job_id: JobId,
         generation: Generation,
@@ -324,7 +324,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(())
     }
 
-    pub(in crate::application) fn accept_segment(
+    pub(super) fn accept_segment(
         &mut self,
         segment: crate::ports::WorkerSegment,
         _job_id: crate::domain::JobId,
@@ -348,9 +348,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
 
     /// Try one bounded persistence submission. The event remains owned by the application
     /// until the adapter confirms that the effect entered its bounded queue.
-    pub(in crate::application) fn retry_pending_segment(
-        &mut self,
-    ) -> Result<bool, ApplicationError> {
+    pub(super) fn retry_pending_segment(&mut self) -> Result<bool, ApplicationError> {
         let Some(segment) = self.pending_segments.front() else {
             return Ok(true);
         };
@@ -375,7 +373,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         self.pending_persistence += 1;
         Ok(true)
     }
-    pub(in crate::application) fn handle_start_import_command(
+    pub(super) fn handle_start_import_command(
         &mut self,
         command: AppCommand,
     ) -> Result<AppView, ApplicationError> {
@@ -428,7 +426,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(self.view.clone())
     }
 
-    pub(in crate::application) fn handle_resume_import_command(
+    pub(super) fn handle_resume_import_command(
         &mut self,
         command: AppCommand,
     ) -> Result<AppView, ApplicationError> {

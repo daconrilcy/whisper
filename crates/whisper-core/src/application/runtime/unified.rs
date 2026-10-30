@@ -1,7 +1,7 @@
-use super::super::*;
+use super::*;
 
 impl<P: ImportIoPort> ImportApplication<P> {
-    pub(in crate::application) fn add_unified_session_card(
+    pub(super) fn add_unified_session_card(
         &mut self,
         job_id: JobId,
         generation: Generation,
@@ -76,7 +76,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         self.current_unified_audio_request = None;
     }
 
-    pub(in crate::application) fn project_unified_import_event(
+    pub(super) fn project_unified_import_event(
         &mut self,
         event: &ImportEvent,
         identity: CommandIdentity,
@@ -161,7 +161,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         }
     }
 
-    pub(in crate::application) fn handle_unified_capture_event(
+    pub(super) fn handle_unified_capture_event(
         &mut self,
         event: ImportEvent,
     ) -> Result<(), ApplicationError> {
@@ -709,7 +709,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(())
     }
 
-    pub(in crate::application) fn retry_pending_unified_capture_segments(
+    pub(super) fn retry_pending_unified_capture_segments(
         &mut self,
     ) -> Result<(), ApplicationError> {
         let keys = self.unified_captures.keys().copied().collect::<Vec<_>>();
@@ -781,7 +781,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(())
     }
 
-    pub(in crate::application) fn handle_unified_selection_command(
+    pub(super) fn handle_unified_selection_command(
         &mut self,
         command: AppCommand,
     ) -> Result<AppView, ApplicationError> {
@@ -924,7 +924,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(self.view.clone())
     }
 
-    pub(in crate::application) fn start_unified_live_command(
+    pub(super) fn start_unified_live_command(
         &mut self,
         command: AppCommand,
     ) -> Result<AppView, ApplicationError> {
@@ -1029,7 +1029,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
         Ok(self.view.clone())
     }
 
-    pub(in crate::application) fn stop_unified_live_command(
+    pub(super) fn stop_unified_live_command(
         &mut self,
         command: AppCommand,
     ) -> Result<AppView, ApplicationError> {

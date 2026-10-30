@@ -1,7 +1,7 @@
-use super::super::*;
+use super::*;
 
 impl<P: ImportIoPort> ImportApplication<P> {
-    pub(in crate::application) fn poll_once(&mut self) -> Result<(), ApplicationError> {
+    pub(super) fn poll_once(&mut self) -> Result<(), ApplicationError> {
         self.retry_pending_unified_capture_segments()?;
         if !self.retry_pending_segment()? {
             self.update_close_ready();
