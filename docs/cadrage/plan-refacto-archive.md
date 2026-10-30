@@ -1,6 +1,6 @@
-Avancée : T1–T9 validées, revues indépendantes CLEAN ; quatre extractions terminées.
-Blocage : aucun pour T10 ; limites de qualification consignées.
-Décision : engager vérification cumulée et clôture T10, sans push.
+Avancée : T1–T10 terminées ; revue cumulée indépendante CLEAN sur le code 53642633.
+Blocage : aucun constat ouvert ; limites des contrôles et qualifications ci-dessous.
+Décision : livrer en commits locaux, sans push ni validation Windows revendiquée.
 
 # Plan de refactorisation d’archive.rs
 
@@ -367,3 +367,30 @@ Revue indépendante, même reviewer : ARCH-T9-R1 IMPORTANT, réexports non-Windo
 Après cycle 1 : V-U `20261030T212039844-470a4a80` **38 réussis/un ignoré L04** ; V-R `20261030T212054436-e4832f25` **8 réussis** ; V-F `20261030T212133585-6b288f20`, V-B `20261030T212135245-51799aec`, V-S `20261030T212147293-9ede4f6b` **PASS**. Après cycle 2 (import seul) : V-U `20261030T212318630-4dba82a4` **38 réussis/un ignoré L04** ; V-F `20261030T212333155-1d71d877`, V-B `20261030T212334813-036a090b`, V-S `20261030T212346797-ac8f3085`, diff --check **PASS**, V-R/V-C antérieurs retenus car delta import seul.
 
 Verdict final indépendant **CLEAN**, R1 et R2 fermés explicitement, zéro constat/demande/lacune ; trois passages de revue/deux cycles correction, pas de troisième correction. Candidat A SHA-256 `6D790B81674509F274FF8780D5FCED9D9093752737F630D979239DBD2B41C104`, proofs SHA-256 `672EC5AF76C19D244804F77A9BCC04B0C4DFAF7C3D9DAAF89A9D7A9F92B84829`. Fallbacks et réexports non-Windows vérifiés statiquement seulement, compilation non-Windows NOT RUN. C9/E9 acquis ; T10 peut commencer. Échec optionnel recette-hooks hors périmètre et limites natif/UI/kill/powerfail maintenus.
+
+### T10 terminée — Vérification finale, revue cumulée et clôture
+
+Code final `53642633dce57de1d3436ac5a396c967d0a1da40`, baseline `7fdd329b`. T10 n’a modifié aucune source ; seuls résultats/preuves internes R et présent bilan principal. Préflight 66,23 Gio ; final 66,32 Gio. Outils natifs présents, modèles Turbo/Parakeet tailles et SHA-256 conformes au registre, WAV synthétique 64 044 octets ; destinations R/t10 distinctes. Suite complète sur ce même candidat :
+
+| Contrôle | Référence finale / résultat |
+| --- | --- |
+| V-U | `20261030T212530666-ce7f7cfc` : 38 réussis, zéro échec, un ignoré historique L04 exclu du plan |
+| V-L | `20261030T212533033-f50b06ea` : 12 réussis, zéro ignoré |
+| V-K 1–9 | `20261030T212544306-7f6d61d6`, `20261030T212554048-33c72f60`, `20261030T212602559-2b064097`, `20261030T212611029-1898b3a6`, `20261030T212619541-74880961`, `20261030T212627953-1eda901a`, `20261030T212636257-0e027eea`, `20261030T212644798-305b9182`, `20261030T212653290-02f12a45` : chacun un réussi, zéro ignoré, aucun NOT RUN |
+| V-R | `20261030T212701884-f99e3933` : huit réussis, zéro ignoré |
+| V-C | `20261030T212732563-be6b157b` : deux réussis, zéro ignoré |
+| V-F | `20261030T212759485-9f8e5320` : PASS |
+| V-B | `20261030T212801097-f193b3b5` : PASS adapters et desktop |
+| V-S | `20261030T212802245-3f84105e` : PASS, avertissements historiques build16/5, Clippy lib146/test260/136 doublons |
+
+Soit 69 tests réussis et un ignoré historique dans les suites finales. Tests/assertions T5→final inchangés (`git diff --quiet` sortie 0). Delta cumulé avant présent bilan : 24 fichiers, +8 920/-7 436, y compris P et tests de caractérisation. Aucun Cargo.toml/Cargo.lock modifié. Carte finale : publication et supports T6, journaux/reprise T7, sources/identité T8, retrait/preuves/exécution T9 ; API/réexports/cfg/formats/littéraux et ordre des effets préservés. Fonctions longues historiques conservées sans refonte implicite.
+
+Tailles finales physiques (borne supérieure aux lignes de production) : façade A **571** ; campaign484, storage75, import529, live714, publication305, publication/catalog989, publication/exports619, journal314, recovery762, recovery/live405, identity868, source218, cleanup220, cleanup/proofs569, cleanup/execution561. Quinze enfants et façade, chacun sous 1 500 lignes physiques ; la fonction longue run_cleanup_plan_locked reste un écart historique connu.
+
+**Contrôle de diff historique brut FAIL** : `git diff --check 7fdd329b 53642633`, sortie 2, signale 779 fins CRLF dans campaign.rs (484), cleanup.rs (220) et storage.rs (75). Les anciens contrôles worktree vides ne démontraient pas ce contrôle cumulé. Diagnostic `git -c core.whitespace=cr-at-eol diff --check 7fdd329b 53642633` : PASS ; il isole les CRLF et ne remplace pas le résultat brut. Reviewer : aucun CR isolé, pas de politique LF déclarée, format réussi ; aucune normalisation ni modification de configuration nécessaire au livrable. Résultat brut maintenu explicitement en échec, sans correction furtive.
+
+Archivage des petites preuves sous `target/parakeet-tests/refacto-archive/t10/archive/` : garde et logs, arborescence conservée, **254 fichiers / 2 975 423 octets**, chaque SHA-256 source/copie vérifié. Agrégat chemins+hash rapporté : `2E4694D81F62F7A0D8E156213F76D15AFC9FCDCAE1F1A45A100E565EC9042F87`. Aucun manifeste de qualification supplémentaire ; originaux, caches, fixtures/WAV et cargo-shared conservés, aucun nettoyage non approuvé.
+
+Revue cumulée indépendante du même reviewer, via `/root/review_archive` : **CLEAN** sur le code exact `53642633`, zéro constat/demande/lacune, un passage sans correction T10. 194 corps de fonctions comparés inchangés après normalisation ; AC/PF et obligations de caractérisation vérifiés, aucun manque obligatoire trouvé ; API/cfg/ordre/visibilités préservés. ARCH-T9-R1 et R2 restent fermés. Le contrôle brut CRLF en échec est une limite explicitée, pas un PASS synthétisé.
+
+**T1–T10 terminées** avec commits locaux, sans push. Qualifications non réalisées : compilation non-Windows (statique seulement), moteur natif, encodage MP3 réel, fenêtre Windows, kill/powerfail. Configuration recette-hooks non qualifiée : erreur préexistante hors périmètre worker_ipc/runtime/support.rs:90 consignée en T6 et non corrigée. Surveillance sans confinement préventif ; activités Temp d’origine inconnue consignées et admises par dérogation utilisateur. Non suivis initiaux docs/architecture/, models/, sound example/ préservés. Aucun binaire de recette remis.
