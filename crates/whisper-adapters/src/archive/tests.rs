@@ -4,3 +4,4 @@ include!("tests/campaign.rs");
 include!("tests/replacement_and_segmented.rs");
 include!("tests/publication_characterization.rs");
 include!("tests/export_ownership_characterization.rs");
+include!("tests/recovery_characterization.rs");

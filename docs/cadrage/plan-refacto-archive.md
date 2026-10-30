@@ -1,6 +1,6 @@
-Avancée : T1–T3 validées, revues indépendantes CLEAN.
-Blocage : caractérisation T4–T5 à exécuter avant toute extraction.
-Décision : engager T4 dans le périmètre autorisé, sans push.
+Avancée : T1–T4 validées, revues indépendantes CLEAN.
+Blocage : caractérisation retrait T5 à exécuter avant toute extraction.
+Décision : engager T5 dans le périmètre autorisé, sans push.
 
 # Plan de refactorisation d’archive.rs
 
@@ -290,3 +290,19 @@ Base `ca958a7b`, six tests U/export_ownership_characterization.rs et inclusion U
 | 11 | residual_reservation_cleanup_refusal_and_retry : refus puis suppression et répétition, index/CURRENT inchangés ; second_external_resolution_preserves_committed_publication : deuxième résolution baseline refuse DuplicateStateChanged, données préservées |
 
 Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune ; une revue, aucune correction. Candidat nouveau fichier SHA-256 `1490EAFFE12C8489F093E5DA73CE3150303E499B7F645556690A63B5839A64F5` sur base ci-dessus. Coupures reconstruites/simulation, pas kill/powerfail. C3/E3 acquis ; T4 peut commencer.
+
+### T4 validée — Reprise, journaux, micro et identité
+
+Base `48976cfa`, trois nouveaux tests U/recovery_characterization.rs et quatre nouveaux I/live_archive.rs, inclusion UT ; production inchangée. Préflight 66,83 Gio, final 66,76 Gio. Modèles : tailles/SHA-256 conformes au registre ; WAV synthétique PCM mono 16 kHz, 32 000 échantillons, 64 044 octets. Neuf racines V-K distinctes internes R/t4/r6/vk1 à vk9, aucun routage de test Parakeet modifié.
+
+| PF | Tests archive_characterization_* (suffixes) / observations |
+| --- | --- |
+| 01 | pending_absent_truncated_and_divergent : états pending et refus conservés |
+| 02 | segment_journal_repairs_initial_and_large_partial_tail ; complete_corrupt_middle_segment_is_not_repaired : fragments initiaux, queue >8 Kio, ligne complète corrompue, réparations/refus et préfixe |
+| 12–14 | Tests existants scan de corruption, refus inter-destinations, copie/reprise préfixe exercés avec V-U |
+| 15 | Neuf noms V-K de §5 exercés chacun exactement : **1 réussi, zéro ignoré**, aucun NOT RUN ; modèles/WAV/préconditions contrôlés |
+| 16 | attempt_journal_corruption_is_not_read_by_recovery : checksum et ordre écrits vérifiés, puis corruption ; deux scans identiques sans mutation. Limite baseline explicite : le parcours recovery ne lit pas le journal attempts.jsonl, aucune correction introduite |
+| 17 | live_coverage_checksum_and_order_are_refused ; live_segment_before_coverage_stays_unconfirmed : coverage invalide refusée, segment durable non confirmé sans coverage |
+| 18 | live_current_manifest_and_snapshot_corruption_are_stable : CURRENT/manifeste/snapshots invalides diagnostiqués sur deux scans |
+
+V-U run `20261030T203305213-6fc3f066` : **37 réussis, un ignoré L04 historique** ; V-L run `20261030T203325181-1df36b16` : **12 réussis, zéro ignoré** ; neuf V-K et V-F run `20261030T203536116-f492f82b` **PASS**. Journaux détaillés par commande dans R/logs/guard.jsonl ; `git diff --check` réussi. Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune, une revue/aucune correction, sur candidat worktree base ci-dessus et fichiers de tests identifiés. Limites : états reconstruits, faux MP3 sans qualification encodage, pas moteur natif/kill/powerfail. C4/E4 acquis ; T5 peut commencer.

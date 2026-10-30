@@ -618,3 +618,230 @@ fn recovery_adopts_a_synced_silent_window_commit_without_a_durable_ack() {
     let recoveries = whisper_adapters::archive::scan_live_recoveries(&root).unwrap();
     assert_eq!(recoveries[0].confirmed_samples, 8_000);
 }
+
+fn characterization_live_request(root: &std::path::Path, job: JobId) -> LiveRequest {
+    LiveRequest {
+        job_id: job,
+        generation: Generation::first(),
+        model_path: "model.bin".into(),
+        model_sha256: [7; 32],
+        destination: root.to_string_lossy().into_owned(),
+        group_offset_samples: 0,
+        auto_stop_after_speech_samples: None,
+        microphone: Default::default(),
+        microphone_gain_db: 0,
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    }
+}
+
+fn characterization_live_dir(root: &std::path::Path, job: JobId) -> std::path::PathBuf {
+    root.join("transcriptions")
+        .join(format!("{:032x}", job.0))
+        .join("live")
+}
+
+#[test]
+fn archive_characterization_attempt_journal_corruption_is_not_read_by_recovery() {
+    let root = test_root();
+    let job = JobId(0x5402);
+    let request = characterization_live_request(&root, job);
+    let mut archive = LiveArchive::prepare(&root, request.clone()).unwrap();
+    let dir = characterization_live_dir(&root, job);
+    let mut staging = PcmStaging::create(dir.join("passage-1.pcm")).unwrap();
+    for _ in 0..25 {
+        staging.append_frame(&[0; 320]).unwrap();
+    }
+    let attempt = archive.reserve_attempt().unwrap();
+    archive.mark_attempt_started(attempt).unwrap();
+    archive.retire_attempt(attempt).unwrap();
+    drop(staging);
+    drop(archive);
+    let path = dir.join("passage-1.attempts.jsonl");
+    let original = std::fs::read_to_string(&path).unwrap();
+    let lines: Vec<_> = original.lines().collect();
+    assert_eq!(lines.len(), 3);
+    for (index, line) in lines.iter().enumerate() {
+        use sha2::{Digest, Sha256};
+        let value: serde_json::Value = serde_json::from_str(line).unwrap();
+        assert_eq!(value["payload"]["journal_sequence"], (index + 1) as u64);
+        let payload = line
+            .strip_prefix("{\"payload\":")
+            .unwrap()
+            .split_once(",\"sha256\":")
+            .unwrap()
+            .0;
+        assert_eq!(
+            value["sha256"].as_str().unwrap(),
+            format!("{:x}", Sha256::digest(payload.as_bytes()))
+        );
+    }
+    let mut first: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+    first["sha256"] = serde_json::json!("00".repeat(32));
+    let corrupt = format!(
+        "{}\n{}\n{}\n",
+        lines[2],
+        serde_json::to_string(&first).unwrap(),
+        lines[1]
+    );
+    std::fs::write(&path, corrupt.as_bytes()).unwrap();
+    let first = whisper_adapters::archive::scan_live_recoveries(&root).unwrap();
+    let second = whisper_adapters::archive::scan_live_recoveries(&root).unwrap();
+    assert_eq!(first, second);
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0].request, request);
+    assert_eq!(first[0].durable_samples, 8_000);
+    assert_eq!(first[0].confirmed_samples, 0);
+    assert_eq!(std::fs::read(&path).unwrap(), corrupt.as_bytes());
+}
+
+#[test]
+fn archive_characterization_live_coverage_checksum_and_order_are_refused() {
+    let root = test_root();
+    let job = JobId(0x5403);
+    let request = characterization_live_request(&root, job);
+    let mut archive = LiveArchive::prepare(&root, request).unwrap();
+    let dir = characterization_live_dir(&root, job);
+    let mut staging = PcmStaging::create(dir.join("passage-1.pcm")).unwrap();
+    for _ in 0..25 {
+        staging.append_frame(&[0; 320]).unwrap();
+    }
+    archive
+        .persist_window_finished(1, SourceRange::new(0, 8_000, 16_000).unwrap(), 0, 8_000)
+        .unwrap();
+    drop(staging);
+    drop(archive);
+    let path = dir.join("passage-1.coverage.jsonl");
+    let original = std::fs::read(&path).unwrap();
+    let mut record: serde_json::Value = serde_json::from_slice(&original).unwrap();
+    record["sha256"] = serde_json::json!("00".repeat(32));
+    let corrupt = [serde_json::to_vec(&record).unwrap(), vec![b'\n']].concat();
+    std::fs::write(&path, &corrupt).unwrap();
+    for _ in 0..2 {
+        let error = whisper_adapters::archive::scan_live_recoveries(&root).unwrap_err();
+        assert!(
+            error.contains("live coverage journal is not a verified contiguous prefix"),
+            "{error}"
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), corrupt);
+    }
+    let out_of_order = [original.as_slice(), original.as_slice()].concat();
+    std::fs::write(&path, &out_of_order).unwrap();
+    for _ in 0..2 {
+        let error = whisper_adapters::archive::scan_live_recoveries(&root).unwrap_err();
+        assert!(
+            error.contains("live coverage journal is not a verified contiguous prefix"),
+            "{error}"
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), out_of_order);
+    }
+    std::fs::write(&path, &original).unwrap();
+    let recovered = whisper_adapters::archive::scan_live_recoveries(&root).unwrap();
+    assert_eq!(recovered[0].confirmed_samples, 8_000);
+}
+
+#[test]
+fn archive_characterization_live_segment_before_coverage_stays_unconfirmed() {
+    let root = test_root();
+    let job = JobId(0x5404);
+    let request = characterization_live_request(&root, job);
+    let mut archive = LiveArchive::prepare(&root, request.clone()).unwrap();
+    let dir = characterization_live_dir(&root, job);
+    let mut staging = PcmStaging::create(dir.join("passage-1.pcm")).unwrap();
+    for _ in 0..25 {
+        staging.append_frame(&[0; 320]).unwrap();
+    }
+    archive
+        .persist_segment(
+            &WorkerSegment {
+                job_id: job,
+                generation: Generation::first(),
+                instance_id: 1,
+                segment_id: SegmentId(1),
+                range: SourceRange::new(0, 320, 16_000).unwrap(),
+                text: "not confirmed".into(),
+            },
+            8_000,
+        )
+        .unwrap();
+    let segment = std::fs::read(dir.join("passage-1.segments.jsonl")).unwrap();
+    drop(staging);
+    drop(archive);
+    let first = whisper_adapters::archive::scan_live_recoveries(&root).unwrap();
+    let second = whisper_adapters::archive::scan_live_recoveries(&root).unwrap();
+    assert_eq!(first, second);
+    assert_eq!(first[0].request, request);
+    assert_eq!(first[0].durable_samples, 8_000);
+    assert_eq!(first[0].confirmed_samples, 0);
+    assert!(!first[0].publication_ready);
+    assert_eq!(
+        std::fs::read(dir.join("passage-1.segments.jsonl")).unwrap(),
+        segment
+    );
+    assert!(!dir.join("passage-1.coverage.jsonl").exists());
+}
+
+#[test]
+fn archive_characterization_live_current_manifest_and_snapshot_corruption_are_stable() {
+    let root = test_root();
+    let job = JobId(0x5405);
+    let request = characterization_live_request(&root, job);
+    let mut archive = LiveArchive::prepare(&root, request).unwrap();
+    archive.capture_started().unwrap();
+    let dir = characterization_live_dir(&root, job);
+    let mut staging = PcmStaging::create(dir.join("passage-1.pcm")).unwrap();
+    for _ in 0..25 {
+        staging.append_frame(&[0; 320]).unwrap();
+    }
+    archive.append_mp3_packet(b"fixture mp3").unwrap();
+    archive
+        .persist_window_finished(1, SourceRange::new(0, 8_000, 16_000).unwrap(), 0, 8_000)
+        .unwrap();
+    archive.publish(8_000, 8_000, staging.checksum()).unwrap();
+    drop(staging);
+    drop(archive);
+    let cases = [
+        ("CURRENT", b"../bad\n".as_slice()),
+        ("manifest-1.json", b"{truncated".as_slice()),
+        ("transcript-1.txt", b"changed snapshot".as_slice()),
+    ];
+    for (name, damaged) in cases {
+        let path = dir.join(name);
+        let original = std::fs::read(&path).unwrap();
+        std::fs::write(&path, damaged).unwrap();
+        let first = whisper_adapters::archive::ArchiveStore::scan(&root).unwrap();
+        let second = whisper_adapters::archive::ArchiveStore::scan(&root).unwrap();
+        assert_eq!(first, second);
+        assert!(
+            first.iter().any(|entry| entry.job_id == job
+                && entry
+                    .diagnostic
+                    .as_deref()
+                    .is_some_and(|text| text.contains("StorageCorrupt"))),
+            "{name}: {first:?}"
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), damaged);
+        std::fs::write(&path, original).unwrap();
+    }
+    let srt_path = dir.join("transcript-1.srt");
+    let srt = std::fs::read(&srt_path).unwrap();
+    std::fs::remove_file(&srt_path).unwrap();
+    let first = whisper_adapters::archive::ArchiveStore::scan(&root).unwrap();
+    let second = whisper_adapters::archive::ArchiveStore::scan(&root).unwrap();
+    assert_eq!(first, second);
+    assert!(
+        first
+            .iter()
+            .any(|entry| entry.job_id == job && entry.diagnostic.is_some())
+    );
+    assert!(!srt_path.exists());
+    std::fs::write(&srt_path, srt).unwrap();
+    let healthy = whisper_adapters::archive::ArchiveStore::scan(&root).unwrap();
+    assert!(
+        healthy
+            .iter()
+            .any(|entry| entry.job_id == job && entry.complete)
+    );
+}
