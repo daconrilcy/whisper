@@ -1,6 +1,6 @@
-Avancée : plan de dix tâches revu indépendamment CLEAN ; PLANS READY.
-Blocage : aucun documentaire ; garde et caractérisation baseline non exécutées.
-Décision : livrer les documents en commits locaux ; aucun GO d’exécution.
+Avancée : T1 préparée ; garde adaptée, modèles vérifiés, aucun Cargo lancé.
+Blocage : auto-test de garde échoué sur événement externe non attribué ; T1 non validée.
+Décision : arrêt et conservation des preuves ; arbitrage utilisateur requis avant reprise.
 
 # Plan de refactorisation d’archive.rs
 
@@ -217,3 +217,17 @@ Reviewer indépendant rust_design_reviewer `/root/revue_design_archive`, sans pa
 Contrôles rendus : neuf CAP/REQ et 21 familles PF reliées aux tâches/chemins/observations ; couverture inverse, graphe sans cycle, baseline T2–T5 avant T6, quinze modules attribués et VIS-01 ; huit tests live, six cleanup et neuf noms V-K recoupés ; fallback r6, racines cleanup/create et faux workers internes confirmés ; lecture seule modèles ; garde source à adapter et absence de transfert de dérogations ; contrats sensibles observables et arrêt/retour arrière/permissions conformes. Lecture/comparaison statique et git diff --check réussis ; aucun test ni Cargo exécuté.
 
 Le coordinateur consigne PLANS READY sur cette preuve. Le présent ajout et le statut consignent le verdict sans modifier les tâches revues. Adaptation de garde, ressources, témoins baseline, comparaisons après extraction et validation produit restent NOT RUN. Aucun push réalisé.
+
+## 11. Exécution autorisée le 30 octobre 2026
+
+Accord utilisateur dans la session d’exécution : « GO T1–T10 selon le plan, avec les chemins Rust/tests prévus, l’adaptation PowerShell de la garde, les campagnes sous les deux racines indiquées, la caractérisation avant extraction, les revues et les commits locaux, sans push. » Cet accord remplace l’absence de GO documentaire mentionnée dans les sections historiques ; les prérequis et conditions d’arrêt restent applicables.
+
+Base de départ : `7fdd329b`, branche `evo-startup-perf`. Aucun fichier suivi modifié ; non suivis `docs/architecture/`, `models/`, `sound example/` conservés. Espace initial relevé par la principale : 68,45 Gio. Responsabilités : `/root/implementation_archive` (`rust_implementer`, IMPLEMENT) propriétaire unique des sources/tests et de la garde prévus ; session principale auteur du présent bilan. Aucune modification source concurrente par la principale. T1 seule engagée initialement ; aucune extraction avant caractérisation T2–T5 et gates prévus. Résultats d’exécution à consigner après réception des preuves.
+
+### T1 — Arrêt sur événement externe
+
+Préflight de l’implémenteur : HEAD `7fdd329b`, branche inchangée, 67,49 Gio libres ; rustc/MSVC/CMake/CUDA et LIBCLANG_PATH présents. Tailles et SHA-256 des deux modèles conformes au registre. Garde adaptée dans G : racine R substituée, tolérances F3 Temp/Downloads/objets Git retirées, renommages entre racines dans les deux sens contrôlés ; syntaxe PowerShell validée par Parser.ParseFile. Cache local copié sous R, aucune dépendance téléchargée.
+
+Premier `G -Mode SelfTest` : **FAIL**, sortie 1. Événement réel `Changed` sur `C:/Users/cyril/AppData/Local/Temp/NGL/NGLClient_CoreSync17.8.10.1.log` à `2026-10-30T20:07:42.6464160+01:00`, détecté à `20:07:42.7017951+01:00`. Origine non attribuée ; ni écriture de campagne prouvée ni destination autorisée. Journal conservé : `target/parakeet-tests/refacto-archive/logs/guard-events.jsonl`. Aucun transfert de tolérance historique, aucune relance après l’échec.
+
+Conformément aux §§4/8, arrêt et arbitrage avant reprise. Surveillance terminée. La jonction temporaire de l’auto-test a été retirée par son nettoyage prévu ; cache, garde, répertoires selftest et preuves conservés. Aucun fichier Rust modifié. Espace final rapporté : 67,80 Gio. Témoin T1, T2–T10, campagnes Cargo et revue d’implémentation : **NOT RUN**. E0 non acquis ; aucune extraction autorisée à démarrer en cet état. Aucun push. Reprise seulement après décision utilisateur puis auto-tests conformes et témoin T1.
