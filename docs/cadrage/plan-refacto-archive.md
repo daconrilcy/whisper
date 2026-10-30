@@ -1,6 +1,6 @@
-Avancée : T1 préflight et auto-tests réussis ; témoin Cargo lancé puis interrompu.
-Blocage : nouvel événement externe non attribué pendant le témoin ; T1 non validée.
-Décision : arrêt et conservation des preuves ; arbitrage utilisateur requis avant reprise.
+Avancée : reprise T1–T10 autorisée avec dérogation Temp utilisateur le 30 octobre 2026.
+Blocage : adaptation ciblée de la garde et témoin T1 restent à valider.
+Décision : consigner les créations/modifications Temp sans arrêt ; préserver les autres contrôles.
 
 # Plan de refactorisation d’archive.rs
 
@@ -249,3 +249,7 @@ Préflight sur `8cf827a6` : 67,08 Gio libres, outils et syntaxe présents. Garde
 Témoin lancé par G : `test --offline --locked -p whisper-adapters --lib archive::tests::create_only_publication_returns_verified_internal_unified_artifacts_without_external_exports -- --exact --nocapture --test-threads=1`. Garde **FAIL**, sortie 1 : création de `C:/Users/cyril/AppData/Local/Temp/etilqs_0nJY2ZTRJ16D26D` à `2026-10-30T20:15:18.8651898+01:00`, détection à `20:15:18.9572266+01:00`. Attribution inconnue ; ne pas conclure à une fuite Cargo ou à une activité extérieure prouvée. Commande interrompue, stdout/stderr vides ; témoin non démontré. Run `20261030T201516416-624f193a`, preuves dans R/logs/guard.jsonl et guard-events.jsonl. Aucun effacement, aucune relance.
 
 Espace final : 67,40 Gio ; `git diff --check` réussi. Aucune source Rust modifiée, non suivis initiaux préservés. T1 reste non validée, T2–T10 et revue d’implémentation NOT RUN. Reprise soumise à arbitrage conformément au plan ; aucune tolérance ajoutée et aucun push.
+
+### Dérogation Temp autorisée pour la reprise
+
+Accord utilisateur dans cette session : « Ne t'arrete plus a cause de modif/creation dans temp/ Je t'autorise la reprise T1–T10 ». Pour cette campagne archive uniquement, cet accord remplace la règle d’arrêt sur les événements `Created`/`Changed` sous `C:/Users/cyril/AppData/Local/Temp/`, y compris les cas précédemment non attribués. Ces événements restent consignés avec chemin/heure sans interrompre la campagne ; leur origine ne devient pas prouvée. L’accord ne crée aucune destination volontaire de campagne hors R/C : CARGO_HOME/TEMP/TMP restent internes, préflight canonique, auto-tests et surveillance maintenus. Aucun transfert aux autres projets/campagnes. Les autres événements et contrôles, dont racines sensibles, variables hors racine, erreurs de surveillance et échecs de commande, conservent leur traitement prévu. Les auto-tests doivent distinguer créations/modifications Temp consignées sans arrêt des refus toujours applicables. Reprise par le même implémenteur ; aucun push.
