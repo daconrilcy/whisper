@@ -17,6 +17,7 @@ const MAX_EVENTS_PER_REFRESH: usize = 4;
 mod contracts;
 mod diagnostics;
 mod event_metadata;
+mod runtime;
 
 pub use contracts::{
     AppCommand, AppFacade, AppView, Application, ApplicationError, CommandIdentity,
@@ -323,208 +324,19 @@ impl<P: ImportIoPort> ImportApplication<P> {
             return self.handle_unified_capture_event(event);
         }
         self.track_parakeet_capture_event(&event);
-        match &event {
-            ImportEvent::History(history) => {
-                self.view.history = history.clone();
-                self.view.history_scan_pending = false;
-                return Ok(());
-            }
-            ImportEvent::ReplacementCleanups(cleanups) => {
-                self.view.replacement_cleanups = cleanups.clone();
-                return Ok(());
-            }
-            ImportEvent::SourceSnapshotRecoveryInspected(candidates) => {
-                if candidates.is_empty() {
-                    self.view.source_snapshot_recovery = None;
-                    self.view.message = Some(
-                        "Inspection terminée : aucune copie audio retenue récupérable.".into(),
-                    );
-                } else {
-                    self.view.source_snapshot_recovery = Some(candidates.clone());
-                    self.view.message = Some(
-                        "Inspection terminée : vérifiez les copies conservées avant toute récupération.".into(),
-                    );
-                }
-                return Ok(());
-            }
-            ImportEvent::SourceSnapshotRecoveryCompleted {
-                freed,
-                candidates,
-                error,
-            } => {
-                self.view.source_snapshot_recovery = None;
-                self.view.source_snapshot_recovery_available = false;
-                let protected_count = candidates
-                    .iter()
-                    .filter(|candidate| !candidate.recoverable)
-                    .count();
-                let protected = candidates
-                    .iter()
-                    .filter(|candidate| !candidate.recoverable)
-                    .take(4)
-                    .map(|candidate| {
-                        candidate.reason.as_deref().map_or_else(
-                            || {
-                                format!(
-                                    "Job {:032x}/génération {} : protégé",
-                                    candidate.job_id.0,
-                                    candidate.generation.get()
-                                )
-                            },
-                            |reason| {
-                                format!(
-                                    "Job {:032x}/génération {} : {reason}",
-                                    candidate.job_id.0,
-                                    candidate.generation.get()
-                                )
-                            },
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let mut message = if let Some(error) = error {
-                    format!("La récupération a échoué : {error}")
-                } else if *freed > 0 {
-                    format!(
-                        "{freed} copie(s) audio retenue(s) récupérée(s). Vous pouvez relancer l’import."
-                    )
-                } else if candidates.is_empty() {
-                    "Aucune copie audio retenue récupérable.".into()
-                } else {
-                    "Aucune copie sûre n’a été libérée.".into()
-                };
-                if !protected.is_empty() {
-                    message.push_str(" Copies protégées conservées : ");
-                    message.push_str(&protected.join(" ; "));
-                    let omitted = protected_count.saturating_sub(protected.len());
-                    if omitted > 0 {
-                        message.push_str(&format!(" ; et {omitted} autre(s) copie(s) protégée(s)"));
-                    }
-                }
-                self.view.message = Some(message);
-                return Ok(());
-            }
-            ImportEvent::Queue(queue) => {
-                self.view.queue_scan_pending = false;
-                let acknowledged = self
-                    .pending_enqueues
-                    .iter()
-                    .filter(|identity| {
-                        queue.iter().any(|entry| {
-                            entry.request.job_id == identity.job_id
-                                && entry.request.generation == identity.generation
-                        })
-                    })
-                    .count();
-                self.pending_enqueues.retain(|identity| {
-                    !queue.iter().any(|entry| {
-                        entry.request.job_id == identity.job_id
-                            && entry.request.generation == identity.generation
-                    })
-                });
-                if acknowledged > 0 {
-                    self.view.message = Some(format!(
-                        "{acknowledged} import(s) ajouté(s) à la file durable. Choisissez Traiter pour les démarrer."
-                    ));
-                }
-                self.view.queued_jobs = queue.len();
-                self.view.queue = queue.clone();
-                self.close_queue_removals.retain(|identity| {
-                    queue.iter().any(|entry| {
-                        (entry.request.job_id, entry.request.generation)
-                            == (identity.job_id, identity.generation)
-                    })
-                });
-                self.drive_close_queue_removals()?;
-                return Ok(());
-            }
-            ImportEvent::QueueAdmission {
-                submitted_job_id,
-                submitted_generation,
-                queue,
-            } => {
-                self.view.queue_scan_pending = false;
-                let submitted = CommandIdentity {
-                    job_id: *submitted_job_id,
-                    generation: *submitted_generation,
-                };
-                let acknowledged = self.pending_enqueues.contains(&submitted);
-                self.pending_enqueues
-                    .retain(|identity| *identity != submitted);
-                if acknowledged {
-                    self.view.message = Some(
-                        "Import ajouté à la file durable avec un nouvel identifiant disponible. Choisissez Traiter pour le démarrer.".into(),
-                    );
-                }
-                self.view.queued_jobs = queue.len();
-                self.view.queue = queue.clone();
-                self.close_queue_removals.retain(|identity| {
-                    queue.iter().any(|entry| {
-                        (entry.request.job_id, entry.request.generation)
-                            == (identity.job_id, identity.generation)
-                    })
-                });
-                self.drive_close_queue_removals()?;
-                return Ok(());
-            }
-            ImportEvent::DuplicateImportFound(prompt) => {
-                if let Some(identity) = self.automatic_final_identity
-                    && identity.job_id == prompt.request.job_id
-                    && identity.generation == prompt.request.generation
-                {
-                    self.mark_automatic_final_failed(
-                        identity,
-                        "Import final automatique déjà présent ; aucune sortie n'a été écrasée"
-                            .into(),
-                    );
-                    return Ok(());
-                }
-                self.pending_enqueues.retain(|identity| {
-                    *identity
-                        != CommandIdentity {
-                            job_id: prompt.request.job_id,
-                            generation: prompt.request.generation,
-                        }
-                });
-                if prompt.resume_from.is_some() {
-                    self.active = None;
-                    self.request = None;
-                    self.stopping = None;
-                    self.view.active_job = None;
-                    self.view.active_generation = None;
-                    self.view.progress = None;
-                }
-                self.view.duplicate_import_prompt = Some(prompt.clone());
-                self.view.message = None;
-                return Ok(());
-            }
-            ImportEvent::Failed {
-                job_id, message, ..
-            } if *job_id == JobId(0) && self.view.queue_scan_pending => {
-                self.view.queue_scan_pending = false;
-                self.view.message = Some(format!("File durable indisponible : {message}"));
-                return Ok(());
-            }
-            ImportEvent::Failed {
-                job_id,
-                generation,
-                message,
-            } => {
-                let identity = CommandIdentity {
-                    job_id: *job_id,
-                    generation: *generation,
-                };
-                if self.close_queue_removals.contains(&identity) {
-                    self.close_queue_removals
-                        .retain(|pending| *pending != identity);
-                    self.view.message = Some(format!(
-                        "Retrait de l’import {} impossible : {message}. La file est conservée.",
-                        job_id.0
-                    ));
-                    self.update_close_ready();
-                    return Ok(());
-                }
-            }
-            _ => {}
+        if let ImportEvent::DuplicateImportFound(prompt) = &event
+            && let Some(identity) = self.automatic_final_identity
+            && identity.job_id == prompt.request.job_id
+            && identity.generation == prompt.request.generation
+        {
+            self.mark_automatic_final_failed(
+                identity,
+                "Import final automatique déjà présent ; aucune sortie n'a été écrasée".into(),
+            );
+            return Ok(());
+        }
+        if self.handle_queue_event(&event)? {
+            return Ok(());
         }
         let (job_id, generation) = event.identity();
         let identity = CommandIdentity { job_id, generation };
@@ -3193,81 +3005,12 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.microphone_spectrum = None;
                 self.view.message = Some("Arrêt du test microphone…".into());
             }
-            AppCommand::ScanHistory { destination } => {
-                self.io
-                    .submit(ImportEffect::ScanHistory {
-                        destination: destination.clone(),
-                    })
-                    .map_err(|e| self.fail(e))?;
-                self.io
-                    .submit(ImportEffect::ScanQueue { destination })
-                    .map_err(|e| self.fail(e))?;
-                self.view.history_scan_pending = true;
-                self.view.queue_scan_pending = true;
-            }
-            AppCommand::InspectSourceSnapshotRecovery => {
-                self.io
-                    .submit(ImportEffect::InspectSourceSnapshotRecovery)
-                    .map_err(|error| self.fail(error))?;
-                self.view.source_snapshot_recovery = None;
-            }
-            AppCommand::ConfirmSourceSnapshotRecovery => {
-                if self
-                    .view
-                    .source_snapshot_recovery
-                    .as_ref()
-                    .is_none_or(|candidates| {
-                        !candidates.iter().any(|candidate| candidate.recoverable)
-                    })
-                {
-                    return Err(ApplicationError::InvalidCommand);
-                }
-                self.io
-                    .submit(ImportEffect::ConfirmSourceSnapshotRecovery)
-                    .map_err(|error| self.fail(error))?;
-                self.view.source_snapshot_recovery = None;
-                self.view.message =
-                    Some("Nouvelle vérification de sécurité avant récupération…".into());
-            }
-            AppCommand::CancelSourceSnapshotRecovery => {
-                self.view.source_snapshot_recovery = None;
-            }
-            AppCommand::ResolveLivePublication { request } => {
-                if self.active.is_some() || request.destination.trim().is_empty() {
-                    return Err(ApplicationError::InvalidCommand);
-                }
-                self.io
-                    .submit(ImportEffect::ResolveLivePublication(request))
-                    .map_err(|error| self.fail(error))?;
-                self.view.history_scan_pending = true;
-                self.view.message = Some(
-                    "Vérification du passage récupérable et résolution explicite en cours…".into(),
-                );
-            }
-            AppCommand::RemoveQueued { job_id, generation } => {
-                self.io
-                    .submit(ImportEffect::RemoveQueued {
-                        job_id,
-                        generation,
-                        destination: self
-                            .view
-                            .queue
-                            .iter()
-                            .find(|item| {
-                                item.request.job_id == job_id
-                                    && item.request.generation == generation
-                            })
-                            .map(|item| item.request.destination.clone())
-                            .ok_or(ApplicationError::InvalidCommand)?,
-                    })
-                    .map_err(|e| self.fail(e))?;
-                if self.view.close_requested {
-                    let identity = CommandIdentity { job_id, generation };
-                    if !self.close_queue_removals.contains(&identity) {
-                        self.close_queue_removals.push(identity);
-                    }
-                }
-            }
+            command @ (AppCommand::ScanHistory { .. }
+            | AppCommand::InspectSourceSnapshotRecovery
+            | AppCommand::ConfirmSourceSnapshotRecovery
+            | AppCommand::CancelSourceSnapshotRecovery
+            | AppCommand::ResolveLivePublication { .. }
+            | AppCommand::RemoveQueued { .. }) => return self.handle_queue_command(command),
             AppCommand::StartUnifiedLiveConfigured { request } => {
                 let import_can_share = self.active.is_some()
                     && self.request.as_ref().is_some_and(|active| {
@@ -3577,106 +3320,12 @@ impl<P: ImportIoPort> Application for ImportApplication<P> {
                 self.view.active_generation = Some(identity.generation);
                 self.view.message = Some("Vérification de la source et du modèle…".into());
             }
-            AppCommand::EnqueueImport { request } => {
-                if self.direct_live && self.active.is_some() {
-                    return Err(ApplicationError::InvalidCommand);
-                }
-                let identity = CommandIdentity {
-                    job_id: request.job_id,
-                    generation: request.generation,
-                };
-                self.io
-                    .submit(ImportEffect::Enqueue(request))
-                    .map_err(|e| self.fail(e))?;
-                self.pending_enqueues.push(identity);
-                self.view.message =
-                    Some("Vérification de la source et ajout à la file durable en cours…".into());
-            }
-            AppCommand::ResolveDuplicateImport { prompt, choice } => {
-                if self.active.is_some() {
-                    return Err(ApplicationError::InvalidCommand);
-                }
-                let identity = CommandIdentity {
-                    job_id: prompt.request.job_id,
-                    generation: prompt.request.generation,
-                };
-                if self.view.duplicate_import_prompt.as_ref() != Some(&prompt) {
-                    return Err(ApplicationError::InvalidCommand);
-                }
-                let is_resume_confirmation = prompt.resume_from.is_some();
-                let confirmed_request = prompt.request.clone();
-                self.io
-                    .submit(ImportEffect::ConfirmDuplicateImport { prompt, choice })
-                    .map_err(|e| self.fail(e))?;
-                if is_resume_confirmation {
-                    self.request = Some(confirmed_request);
-                    self.active = Some(identity);
-                    self.stopping = None;
-                    self.next_sequence = 1;
-                    self.pending_persistence = 0;
-                    self.ended_at = None;
-                    self.max_segment_offset = 0;
-                    self.final_source_samples = None;
-                    self.view.active_job = Some((identity.job_id, JobState::Queued));
-                    self.view.active_generation = Some(identity.generation);
-                    self.view.progress = None;
-                } else {
-                    self.pending_enqueues.push(identity);
-                }
-                self.view.duplicate_import_prompt = None;
-                self.view.message = Some(if is_resume_confirmation {
-                    "Confirmation de reprise en cours…".into()
-                } else {
-                    "Confirmation en cours…".into()
-                });
-            }
-            AppCommand::CancelDuplicateImport => {
-                if let Some(prompt) = self.view.duplicate_import_prompt.clone() {
-                    self.io
-                        .submit(ImportEffect::ReleaseSourceBinding {
-                            job_id: prompt.request.job_id,
-                            generation: prompt.request.generation,
-                            destination: prompt.request.destination.clone(),
-                        })
-                        .map_err(|error| self.fail(error))?;
-                    self.view.duplicate_import_prompt = None;
-                }
-                self.view.message = Some("Nouvelle transcription annulée.".into());
-            }
-            AppCommand::ResolveImportPublication {
-                destination,
-                job_id,
-                generation,
-            } => {
-                if self.active.is_some() || destination.trim().is_empty() {
-                    return Err(ApplicationError::InvalidCommand);
-                }
-                self.io
-                    .submit(ImportEffect::ResolveImportPublication {
-                        destination,
-                        job_id,
-                        generation,
-                    })
-                    .map_err(|error| self.fail(error))?;
-                self.view.history_scan_pending = true;
-                self.view.message =
-                    Some("Vérification et récupération de la publication interrompue…".into());
-            }
-            AppCommand::ResumeReplacementCleanup {
-                destination,
-                cleanup_id,
-            } => {
-                if self.active.is_some() || destination.trim().is_empty() || cleanup_id.is_empty() {
-                    return Err(ApplicationError::InvalidCommand);
-                }
-                self.io
-                    .submit(ImportEffect::ResumeReplacementCleanup {
-                        destination,
-                        cleanup_id,
-                    })
-                    .map_err(|error| self.fail(error))?;
-                self.view.message =
-                    Some("Vérification des éléments restants et reprise demandée…".into());
+            command @ (AppCommand::EnqueueImport { .. }
+            | AppCommand::ResolveDuplicateImport { .. }
+            | AppCommand::CancelDuplicateImport
+            | AppCommand::ResolveImportPublication { .. }
+            | AppCommand::ResumeReplacementCleanup { .. }) => {
+                return self.handle_queue_command(command);
             }
             AppCommand::ProcessQueued { request } => {
                 if self.active.is_some() {

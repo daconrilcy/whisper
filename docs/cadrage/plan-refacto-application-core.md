@@ -1,4 +1,4 @@
-Avancée : T1 implémentée, vérifiée et revue CLEAN ; T2–T10 restent à réaliser.
+Avancée : T1–T2 implémentées, vérifiées et revues CLEAN ; T3–T10 restent à réaliser.
 Blocage : aucun ; E0 satisfait après arbitrage utilisateur consigné ci-dessous.
 Décision : poursuivre séquentiellement, sans push et sans validation native/Windows revendiquée.
 
@@ -271,3 +271,10 @@ Après l’arrêt ci-dessus, l’utilisateur a explicitement autorisé la repris
 - V2/V3 baseline : 173 tests ; V3 candidat : 175 tests, zéro échec/ignoré. S1/S7 exécutés avant/après ; les deux caractérisations T1 sont exécutées aussi individuellement (un test par filtre). V1 format final, V5 build, V6 Clippy et V7 workspace : PASS. Un premier V1 a révélé des écarts de format corrigés avant les contrôles finaux. Avertissements hérités : `AppCommand`, diagnostic 153 lignes Clippy et `ImportEvent::identity` 108, corps inchangés ; avertissements existants du desktop lors de V7.
 - M1/M2 : diff sans erreur, chemins conformes et définitions uniques. Preuves : `target/parakeet-tests/refacto-application-core/t1/archive/t1-20261030/logs/`, 25 fichiers archivés, nombre et SHA-256 des copies vérifiés. V2 `Run-20261030T182038358-8696456f`, V3 baseline `Run-20261030T182109559-0a977abd`, candidat `Run-20261030T182401598-3aa6441b`. Le reviewer a lu les résultats V1–V7 et confirmé les témoins.
 - Espace final rapporté : 85 523 660 800 octets. Aucun nettoyage du cache partagé, aucune modification des non suivis préexistants. Natif, fenêtre Windows et push : non exécutés.
+
+### T2 — file, historique et transverses
+
+- Base : `def3ca7e9a6f21d190912eba619c08e07ec864fe`. Même implémenteur et même reviewer indépendant via le coordinateur ; CLEAN à la première passe, zéro correction/constat/demande de vérification ouvert.
+- Fichiers : `application.rs`, nouveaux `runtime/mod.rs` privé déclaratif et `runtime/queue.rs` (476 lignes physiques). Onze commandes et transverses extraits ; consommé/poursuite explicites, état toujours dans A. Racine : 3 869 → 3 518 lignes. Le reviewer confirme les onze corps de commandes identiques, la position des transverses avant le filtre actif, les retours et erreurs, ainsi que les propriétaires inchangés du doublon de final automatique et des réentrées.
+- Garde/cache/temp/TMP sous T2, cible partagée et environnement prescrit ; auto-tests PASS avec la décision utilisateur de reprise. V3 baseline/candidat : 175 tests chacun, zéro ignoré ; onze témoins S2/S6/S7 avant/après. V1 final, V4 trois filtres (historique sans actif, retrait durable et accusé de file, un test chacun), V5 et V6 : PASS. Aucun avertissement Clippy dans `queue.rs` ; héritage ailleurs, dont `SAMPLE_RATE`. Premier format corrigé avant contrôles finaux. V2 hérité de T1 ; V7 réservé T1/T10 conformément au plan.
+- M1/M3 conformes. Arguments Cargo de section 5 via `t2/guard.ps1` uniquement, cwd dépôt. Preuves : `target/parakeet-tests/refacto-application-core/t2/archive/t2-20261030/logs/`, 31 fichiers, nombre/SHA-256 vérifiés. Baseline `Run-20261030T183125759-dd7223f9`, candidat `Run-20261030T183541579-c219ab41`, logs relus par le reviewer. Espace final : 84 547 846 144 octets. Aucun nettoyage, push ou validation native/Windows.
