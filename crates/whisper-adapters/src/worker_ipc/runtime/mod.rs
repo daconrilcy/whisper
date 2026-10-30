@@ -4,6 +4,7 @@ mod duplicates;
 mod effects;
 mod import;
 mod live;
+mod poll;
 mod queue;
 mod recovery;
 mod source_binding;

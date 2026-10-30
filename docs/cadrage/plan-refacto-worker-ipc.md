@@ -1,6 +1,6 @@
-Avancée : lots A à D5 clos après vérifications et revue CLEAN ; bilan D5 au §28.
-Blocage : aucun dans le périmètre D5 autorisé.
-Décision : lot D5 clos sans réserve dans ce périmètre ; aucun lot E1 démarré.
+Avancée : lots A à E1 clos après vérifications et revue CLEAN ; bilan E1 au §30.
+Blocage : aucun dans le périmètre E1 autorisé.
+Décision : lot E1 clos sans réserve dans ce périmètre ; aucun lot E2 démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -933,3 +933,56 @@ Décision : exécuter uniquement E1, revue indépendante puis commit local sans 
 Accord écrit de la session : « Passe au lot E1 selon le plan. Je t’autorise l’implémentation, les vérifications et le commit local, sans push. Clôture-le sans réserve après revue indépendante. » Périmètre : `worker_ipc.rs`, `runtime/mod.rs`, `runtime/poll.rs`, `runtime/poll/capture.rs`, `runtime/poll/parakeet.rs`, cinq fichiers production maximum et tests directement correspondants. Déplacer poll, poll_live_capture, pump_live_windows, progression/résultat VAD, poll_parakeet_worker et télémétrie dans poll et ses enfants, sans réordonner capture, worker, ACK ou événements différés. Les aides de gestion d'échec suivent leur propriétaire runtime prévu sans nouvelle politique ; pas de transfert anticipé de backends F1 ni de polling unifié E2. Préserver retours Option/Result, identités, règles d'arrêt et seuil LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL, sans nouvelle boucle active. Aucun nouveau comportement, API, dépendance, feature ou manifeste.
 
 Campagne sous `target/parakeet-tests/refacto-worker-ipc-e1/`, copie adaptée de la garde existante, cache/fixture/modèle copié/temporaires et sorties bornés sous E1, cible Cargo partagée canonique. Préflight, auto-tests, espace ≥30 Gio, surveillance, offline/locked et absence de Git concurrent obligatoires. Test legacy borné réellement activé dans les suites, copie et liens physiques sous E1 seulement, état du modèle installé contrôlé en lecture seule. Consignes de session sur événements extérieurs non attribués sans lien projet et `.git/objects/` maintenues sans lever les protections des ressources projet ou des écritures suspectes/attribuées. Seules exclusions D2 corpus natif/l3c déjà convenues, aucun nouveau skip ni qualification native/Windows implicite. Espace libre initial : 109 666 598 912 octets (environ 102,1 Gio). Non suivis préexistants préservés.
+## 30. Clôture du lot E1 — 30 octobre 2026
+
+Avancée : polling principal et auxiliaires extraits, vérifications réussies et revue indépendante CLEAN.
+Blocage : aucun dans le périmètre E1 autorisé.
+Décision : E1 clos sans réserve dans ce périmètre ; commit local sans push, aucun lot E2 démarré.
+
+### Delta et invariants
+
+Base Git exacte : `e6e9fe68c823f80f78241f5981ac37d059dba45a`, après D5 clos. Implémentation déléguée au profil prévu ; revue par le coordinateur et le même reviewer indépendant en lecture seule. La session principale n'a pas modifié le code en parallèle.
+
+Cinq fichiers production : `worker_ipc.rs`, déclaration dans `runtime/mod.rs`, nouveaux `runtime/poll.rs` (1 107 lignes physiques), `runtime/poll/capture.rs` (254) et `runtime/poll/parakeet.rs` (819). Neuf méthodes déplacées, aucun corps correspondant restant à la racine ; aucun test, manifeste, Cargo.lock, dépendance ou feature modifié. Les corps sont identiques à la base hors fins de ligne, signatures et visibilités internes adaptées sans nouvelle API publique.
+
+Le reviewer a confirmé l'ordre des phases : sessions/document unifiés ; événements Parakeet différés ; micro/direct/Parakeet live ; reprises et diagnostics ; télémétrie/capture ; attente ACK ; VAD ; worker Parakeet ou transport ; événements et arrêts différés. Les méthodes de polling unifié et primitives moteur restent à leur place pour E2/F1/F2 ; seuls leurs appels dans le cycle sont préservés. Retours Option/Result, identités job/génération/instance/tentative, Ready/Failed/Stop, ACK et événements différés inchangés, aucune nouvelle boucle active ou politique de repli.
+
+La constante `LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL` vaut **2**, identique à la base. Le témoin `microphone_legacy_capture_budget_forces_worker_poll_within_four_ui_events` garantit une borne de **quatre événements UI** : ce 4 ne désigne pas la constante. Un compte rendu intermédiaire avait confondu les deux ; il a été corrigé explicitement sans changement de code.
+
+### Incident de formatage et reprise autorisée
+
+Après les cinq suites de baseline réussies et un check d'extraction réussi, l'implémenteur a lancé par erreur `cargo fmt --all` en écriture sous garde (`Run-20261030T112658530-cfb3e212`). La garde a détecté une modification source de `runtime/poll/capture.rs` à 11:26:59 et arrêté le processus, code 1. Les trois nouveaux fichiers polling portaient cet horodatage et ont pu être formatés. C'est une écriture de campagne hors racines, attribuée et non couverte par les dérogations extérieures ; ni le résultat ni l'incident n'ont été présentés comme un contrôle réussi. Aucun fichier restauré ou supprimé, candidat conservé et aucun processus restant actif.
+
+La session principale a demandé la reprise sur cet état pour revue, format uniquement --check et sans lever la protection des sources. L'utilisateur a répondu précisément : « je t'autorise la reprise sur le candidat conservé ». La garde existante E1 a été renforcée pour refuser avant Cargo tout fmt sans --check et tout --fix ; auto-tests synthétiques de ces refus et auto-tests existants PASS, sans nouvelle surveillance ou isolation. Une ligne vide signalée par fmt --check a été corrigée manuellement entre commandes, puis les contrôles finaux ont été exécutés sur le candidat conservé. Le reviewer confirme l'absence de changement parasite et l'équivalence des neuf corps après reprise. La protection des sources reste inchangée, sans permission générale de formatage Cargo en écriture.
+
+Le premier check d'extraction avait auparavant signalé une accolade déplacée ; elle avait été corrigée avant le check réussi qui précédait l'incident de formatage. Les premières commandes en erreur restent dans les preuves et sont distinguées de la validation finale.
+
+### Résultats exécutés
+
+Préflight, auto-tests et surveillance sous `target/parakeet-tests/refacto-worker-ipc-e1/`, cache/fixture/modèle copié/temporaires et sorties bornés sous E1, cible Cargo partagée canonique, commandes offline/locked, absence de Git concurrent. Consignes de session sur fichiers extérieurs non attribués sans lien projet et `.git/objects/` maintenues sans lever les protections des ressources projet ou des écritures suspectes/attribuées.
+
+Quatre témoins T-E nommés du plan et trois témoins Ready/ACK/anti-famine réellement exécutés et réussis avant/après. Format --check, diff check, workspace et cinq suites séquentielles baseline/candidat PASS. Tous les résultats candidat ci-dessous sont postérieurs à la reprise autorisée :
+
+| Configuration séquentielle | Réussis rapportés baseline et candidat | Échoués | Ignorés | Filtrés autorisés | Legacy réel |
+| --- | --- | --- | --- | --- | --- |
+| défaut | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| recette-hooks | 276 | 0 | 16 | 1 D2 corpus natif | oui |
+| l01-memory-qualification | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| personal-qualification | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| recette-hooks,l3-gpu-qualification | 276 | 0 | 16 | 2 D2 corpus natif/l3c | oui |
+
+La baseline E1 porte sur les sources D5 finales et constitue une nouvelle exécution complète ; elle ne transforme pas rétrospectivement les seules preuves ciblées de l'époque 1 D5 en suites anciennes relancées. Les noms et comptes de tests E1 avant/après sont inchangés.
+
+Clippy PASS, diagnostics identiques par crate et multiensemble des en-têtes identique : **146 diagnostics adapters et 23 core** avant/après, soit 169 diagnostics réels. Le compte brut intermédiaire de 171 incluait deux lignes de résumé ; il ne s'agit pas d'une hausse depuis les 146 adapters rapportés aux lots précédents. Dette héritée conservée : poll 1 087 lignes/complexité 101, polling Parakeet 501/30, capture 125 lignes, VAD 102 et signature VAD préexistante à 9 arguments. Aucun nouveau diagnostic, aucune suppression de lint ; les seuils de structure globaux ne sont pas revendiqués atteints.
+
+Deux contrôles conditionnels signalent NOT RUN dans les suites : `parakeet_import::tests::paths_reject_a_worker_outside_the_runtime_root` attend PARAKEET_L2_RUNTIME_ROOT ; `worker_ipc::tests::over_limit_parakeet_import_is_refused_before_pending_creation` attend PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_EN_WAV, PARAKEET_L2_WORKER et PARAKEET_L2_NATIVE_DIR. Les comptes libtest ne prouvent pas l'exécution de ces deux corps. Le reviewer les a jugés sans lacune matérielle E1 car leurs frontières n'ont pas été modifiées. Catalogue injecté et legacy sont réellement exécutés et réussis. Les 16 ignorés, exclusions D2 corpus natif/l3c convenues, campagnes natives et fenêtre Windows ne sont pas revendiqués exécutés ; aucun nouveau skip ajouté.
+
+Journaux des cinq suites finales : `Run-20261030T113052658-fcafe801`, `Run-20261030T113339641-28fcefc4`, `Run-20261030T113542460-231d3202`, `Run-20261030T113746321-91fdddfb`, `Run-20261030T113950683-f8546b84`, sous `target/parakeet-tests/refacto-worker-ipc-e1/logs/` avec stdout/stderr, index `guard.jsonl` et incidents `guard-events.jsonl`.
+
+### Revue et conservation
+
+Verdict indépendant **CLEAN** sur le candidat working tree, epoch 0 : une passe de revue, zéro correction, aucun constat ouvert, aucune vérification requise manquante ni blocage dans E1. Le reviewer confirme ordre, retours, identités, événements différés, seuil, absence d'extraction E2/F1/F2 et validation finale après reprise explicitement autorisée. Les limites conditionnelles sont nommées ci-dessus ; la clôture structurelle ne vaut pas qualification native/Windows.
+
+Le modèle installé conserve le SHA-256 `1FC70F774D38EB169993AC391EEA357EF47C88757EF72EE5943879B7E8E2BC69`, taille 1 624 555 275 octets et date de préflight ; copie et liens physiques restent bornés sous E1. Archive : `target/parakeet-tests/refacto-worker-ipc-e1/archive/closure-20261030/proofs.zip`, 94 entrées uniques, 330 684 octets. Arborescence relative conservée, compte/unicité et SHA-256 de chaque entrée comparés aux sources. SHA-256 du ZIP : `AB2D79C9ACFE3CB9A49B3BF924F3E23D8C095A19948AD98B3D80B636F88DD418`. Aucun modèle/corpus/WAV/cache/build archivé, aucun manifeste créé ni nettoyage/suppression sans manifeste de suppression approuvé ; copie modèle, liens et cargo-shared conservés.
+
+Espace libre final : 106 728 566 784 octets (environ 99,4 Gio). Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Sources relues et bilan conservés dans le commit local de clôture, aucun push. Aucun lot E2 autorisé par cette clôture.
