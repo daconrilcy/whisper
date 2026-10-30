@@ -1,6 +1,6 @@
-Avancée : plan de découpage de `application.rs` rédigé et revu CLEAN en dix tâches séquentielles.
-Blocage : implémentation et campagnes non autorisées ; prérequis de garde non satisfait.
-Décision : plan documentaire prêt ; conserver l’état dans la racine jusqu’à T10, sans autoriser l’exécution.
+Avancée : exécution T1–T10 autorisée ; garde T1 adaptée et cache copié, aucun code produit modifié.
+Blocage : auto-tests E0 arrêtés sur événements hors racines ; baseline et T1 non commencées.
+Décision : conserver les preuves et attendre l’arbitrage utilisateur avant toute reprise.
 
 # Plan — refactorisation de l’application du cœur
 
@@ -246,3 +246,15 @@ Le 30 octobre 2026, `rust_design_reviewer` (`/root/revue_design_plan`), indépen
 Son unique suggestion ADVISORY P-APP-01 (mineure) précisait le comptage des contrats T1. L’auteur l’a appliquée : huit types de contrats déplacés, `ImportApplication` conservé jusqu’à T10 et neuf chemins publics disponibles. À la seconde passe ciblée, sur `ba5465a9bba6d02d43c61e735d1af007434acb12`, le même reviewer a fermé P-APP-01 et maintenu CLEAN ; aucun constat ouvert. Aucun autre contenu n’a été réaudité lors de cette passe. La présente consignation de statut et de preuve ne change pas le plan technique.
 
 La mission a produit seulement ce plan et son cadrage, versionnés localement. Lectures et contrôles Git de présentation/périmètre effectués ; aucun code produit modifié, aucune campagne Cargo, compilation, exécution de test, validation native/Windows, remise d’EXE ou push. Les non suivis préexistants ont été préservés. Aucun résultat historique de campagne n’est revendiqué comme validation de ce refactoring futur.
+
+## 10. Exécution — arrêt E0 du 30 octobre 2026
+
+La demande d’exécution du plan a été confirmée dans la session par : « Oui, j’autorise l’adaptation de la garde sans anciennes exemptions et les campagnes T1–T10 dans les racines proposées, avec copie du cache Cargo et cible partagée. Exécute le plan avec les agents et revues prévus, sans push. » Cette autorisation couvre D0 et l’adaptation E0 ; elle ne dispense pas de réussir les auto-tests et préflights.
+
+La session principale a délégué uniquement T1 à `rust_implementer`, sur la base `94720718c40945ed7f5482aaa5a738bb6b7810ff`, branche `evo-startup-perf`. La garde historique a été adaptée sous `target/parakeet-tests/refacto-application-core/t1/guard.ps1`, sans anciennes exemptions, et le cache Cargo copié sous `t1/cargo-home/` (29 837 fichiers). Les sorties et temporaires de préparation sont conservés sous T1. Aucun fichier Rust ou manifeste n’a été modifié. Les non suivis préexistants `docs/architecture/`, `models/` et `sound example/` sont préservés.
+
+Préflight rapporté par l’implémenteur : Rust 1.98.1, rustfmt, Clippy, SDK Windows, MSVC, CUDA 12.9 et libclang présents ; analyse syntaxique PowerShell de la garde réussie. Espace libre avant préparation : 85 248 016 384 octets ; relevé après arrêt par la session principale : 85 525 430 272 octets. Ces relevés ne prouvent pas l’attribution des variations d’espace.
+
+Commande exécutée : `pwsh -NoProfile -File target/parakeet-tests/refacto-application-core/t1/guard.ps1 -Mode SelfTest`. Résultat : FAIL, sortie 1. Le journal `target/parakeet-tests/refacto-application-core/t1/logs/guard-events.jsonl`, relu par la session principale, contient deux événements réels hors racines sous `C:\Users\cyril\Downloads\linkedin_cv_tool_PRGX\CV_LinkedIn\_session_chromium\Default\Code Cache\js` : suppression du fichier `959e6672afd8ef39_0` à `2026-10-30T18:16:50.1570099+01:00`, puis modification du dossier à `2026-10-30T18:16:50.3756455+01:00`. Le journal indique l’arrêt de l’arbre de processus surveillé. Le watcher ne fournit pas de PID : l’origine des écritures reste inconnue ; elles ne sont pas attribuées à Cargo ou à l’implémenteur.
+
+E0 demeure non satisfait. Aucun Cargo, baseline V2/V3, contrôle V1–V7, test produit, compilation, revue de candidat Rust, recette native/Windows ou push n’a été exécuté. T1–T10 restent à réaliser. Aucun nettoyage ni exemption supplémentaire n’a été appliqué ; les preuves sont conservées. La reprise requiert l’arbitrage utilisateur prévu par AGENTS et la section 7 du plan.
