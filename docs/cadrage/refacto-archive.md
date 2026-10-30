@@ -1,6 +1,6 @@
-Avancée : périmètre, contrats, couverture statique et partition du refactoring définis.
-Blocage : caractérisation préalable non exécutée ; revue DESIGN à réaliser.
-Décision : préserver les comportements existants, puis extraire séquentiellement les responsabilités.
+Avancée : cadrage revu indépendamment CLEAN ; DESIGN READY pour rédaction du plan.
+Blocage : aucun pour planifier ; caractérisation préalable non exécutée.
+Décision : préparer le plan autorisé, sans implémentation ni campagne.
 
 # Refactorisation d’archive.rs
 
@@ -150,7 +150,7 @@ Owner : rust_architect, ARCH-ARCHIVE v1. Décisions techniques acceptées sous d
 
 ### Partition
 
-Préfixe crates/whisper-adapters/src/. Estimations sur blocs actuels, à mesurer après déplacement. 16 enfants, pas 16 tâches/rapports.
+Préfixe crates/whisper-adapters/src/. Estimations sur blocs actuels, à mesurer après déplacement. Quinze modules enfants plus la façade, pas quinze tâches/rapports.
 
 | Cible | Contenu | Lignes estimées |
 | --- | --- | ---: |
@@ -247,3 +247,13 @@ Readiness applicable : scope/use_cases/errors/domain/dependencies/persistence/co
 DESIGN READY proposé après revue indépendante du fichier Git, sans constat requis ni décision structurante manquante. Plan futur ≤10 tâches globales, caractérisation puis quatre extractions, avec chemins/prérequis DOCUMENT-CODE-EXECUTION/résultats/arrêts/retour arrière proportionné. Pas reset/nettoyage global.
 
 Avant extraction : plan accepté, GO précis, Git/préalables/concurrence actualisés, garde compatible autorisée, caractérisation requise exercée sur baseline. Ce cadrage ne ferme aucune lacune d’exécution.
+
+## 10. Revue indépendante et passage au plan
+
+Revue DESIGN par rust_design_reviewer `/root/revue_design_archive`, indépendant des quatre contributions, de leur synthèse et de l’écriture : **CLEAN**, zéro REQUIRED, sur `6263391cc629fe13cf91f3f4698a3381e69271ea`, fichier Git identique à la copie lue. Aucun test/Cargo/fichier modifié par le reviewer.
+
+Contrôles rendus : couverture CAP→REQ/UC/AC→domaine/invariants→modules/PF/acceptation ; sources archive, tests recovery/replacement/publication, live, conditions Parakeet/reprocessing, manifestes/garde F3 et clôtures précédentes recoupées ; contrats CURRENT/index, erreur tardive, alias, découverte/retrait, visibilité/cfg/API et limites simulations validés au niveau documentaire. Les validations produit restent NOT RUN.
+
+ADVISORY D-ARCH-A01, MINEUR : la formulation «16 enfants» comptait la façade parmi les enfants. Rectification de décompte ci-dessus, sans changer aucun chemin, contrat ou décision technique. Aucun autre constat. Le présent ajout consigne le résultat et le statut ; l’objet technique revu reste celui de `6263391c`.
+
+Le coordinateur établit DESIGN READY sur cette preuve et la délégation technique de la mission. La demande utilisateur autorise déjà la rédaction du plan dans la même session. Aucun GO code ne découle du verdict.
