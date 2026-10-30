@@ -278,9 +278,9 @@ Les champs ci-dessous complètent ce contrat commun, qui s'applique à chacune d
 ### F1 — Extraire les backends (lot 3f-backends)
 
 - Source finding / rationale : 3f, REQ-06 ; primitives de sélection en dernier.
-- Target files/modules : racine, `backends/mod.rs`, `backends/native.rs`, support.rs ; runtime/import/worker_start.rs si déjà créé en D5.
+- Target files/modules : racine, `backends/mod.rs`, `backends/native.rs`, support.rs, `runtime/import/worker_start.rs` et sa déclaration dans `runtime/import.rs` ; création et budget ajusté explicitement autorisés le 30 octobre 2026 (§33).
 - Ownership bucket : infra/adapters sélection et lancement ; orchestration reste runtime.
-- Scope budget : 5 production + tests correspondants ; exception pour le helper SHA transversal et l'appelant moteur existant, sans famille d'effets supplémentaire.
+- Scope budget : 6 production + tests correspondants, après accord précis du 30 octobre 2026 ; le sixième fichier reçoit uniquement la déclaration du sous-module. Exception pour le helper SHA transversal, l'orchestration et son câblage, sans famille d'effets supplémentaire.
 - Closed invariant : catalogue, routes et primitives moteur sans dépendance service/runtime.
 - Before metrics : RuntimeModelCatalog, IdleWorker, routes et attestations dans racine.
 - Target metrics : 0 corps de ces primitives dans racine ; backends n'importe ni service ni ImportRuntime.
@@ -1046,3 +1046,16 @@ Verdict final indépendant **CLEAN** sur le candidat working tree, époque 1 : d
 Le modèle installé conserve le SHA-256 `1FC70F774D38EB169993AC391EEA357EF47C88757EF72EE5943879B7E8E2BC69`, taille 1 624 555 275 octets et date du préflight ; copie et liens sont bornés sous E2. Archive : `target/parakeet-tests/refacto-worker-ipc-e2/archive/closure-20261030/proofs.zip`, 90 entrées uniques, 331 436 octets. Arborescence relative conservée, compte/unicité et SHA-256 de chaque entrée comparés aux sources. SHA-256 du ZIP : `E3C09D2F5E50B6174D018A9E9548A05800EBE7D43A5A6AAAA4D286DC693AA0B3`. Suites et Clippy époque 0, contrôles époque 1 distincts dans l'archive. Aucun modèle/corpus/WAV/cache/build archivé, aucun manifeste créé ni nettoyage/suppression sans manifeste de suppression approuvé ; copie modèle, liens et cargo-shared conservés.
 
 Espace libre final : 103 308 873 728 octets (environ 96,2 Gio). Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Sources relues et bilan conservés dans le commit local de clôture, aucun push. Aucun lot F1 autorisé par cette clôture.
+## 33. Démarrage autorisé du lot F1 — 30 octobre 2026
+
+Avancée : E2 clos CLEAN sur `50236dc8d2f62ad16f7884b2bc9b74aec7cef8ca` ; périmètre F1 ajusté et autorisé.
+Blocage : aucun obstacle documentaire restant ; préflight et baseline requis avant extraction.
+Décision : F1 seul, six fichiers production, revue indépendante et commit local sans push si clôture démontrée.
+
+L'utilisateur a autorisé F1, ses vérifications et le commit local sans push, avec clôture sans réserve après revue indépendante. Il a ensuite autorisé précisément la création de `runtime/import/worker_start.rs`, puis le budget de six fichiers après constat que sa déclaration requiert aussi une modification du parent. L'accord courant « oui je t'autorise » répond à la proposition explicite de six fichiers, le sixième limité à la déclaration du sous-module. Le plan F1 est ajusté ci-dessus avant code.
+
+Périmètre production exact : `worker_ipc.rs`, `backends/mod.rs`, `backends/native.rs`, `support.rs`, `runtime/import/worker_start.rs` et `runtime/import.rs` (déclaration seule). Les méthodes d'orchestration encore racine totalisent environ 661 lignes ; les ajouter aux 1 016 lignes d'import.rs dépasserait le plafond. Elles restent sur ImportRuntime dans le sous-module runtime, sans entrer dans les backends. Catalogue/bindings, cache IdleWorker, routes/attestations et probes deviennent des primitives backend sans dépendance service/ImportRuntime ; aides SHA vers support. Le prédicat pur can_retry_native_auto_on_cpu va backend ; l'orchestration de retry et ses pairs reste poll_unified, les sources/exécuteur restent F2. Réexports publics historiques et comportements CPU/GPU/Auto, preuves, identités, limites et réutilisation conservés. Aucun nouveau fallback, API, dépendance, feature ou manifeste.
+
+Campagne sous `target/parakeet-tests/refacto-worker-ipc-f1/`, garde existante adaptée, cache/fixture/modèle copié/temporaires et sorties bornés, cible Cargo partagée canonique. Préflight, auto-tests, seuil ≥30 Gio, surveillance, offline/locked et absence de Git concurrent obligatoires ; refus fmt sans --check et --fix maintenu. Legacy borné réellement actif, état du modèle installé contrôlé en lecture seule. Consignes extérieurs sans lien projet et objets Git maintenues sans lever les protections des ressources ou écritures suspectes/attribuées. Vérifications T-F et intégrations publiques worker_control/gpu_qualification_transport ; les corps conditionnels de catalogue/routes pertinents à F1 doivent être examinés et exécutés avec ressources bornées si nécessaires, sans campagne native implicite ni nouveau skip. Seules exclusions D2 corpus natif/l3c convenues ; pas de qualification native/Windows implicite.
+
+Lecture/écriture UTF-8 explicite, sans conversion globale aveugle ; comparaison des littéraux/messages restants et déplacés avec la base pour prévenir la régression corrigée en E2. Espace libre initial : 102 804 127 744 octets (environ 95,7 Gio). Non suivis préexistants préservés.
