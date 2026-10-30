@@ -1,6 +1,6 @@
-Avancée : exécution T1–T10 autorisée ; garde T1 adaptée et cache copié, aucun code produit modifié.
-Blocage : auto-tests E0 arrêtés sur événements hors racines ; baseline et T1 non commencées.
-Décision : conserver les preuves et attendre l’arbitrage utilisateur avant toute reprise.
+Avancée : T1 implémentée, vérifiée et revue CLEAN ; T2–T10 restent à réaliser.
+Blocage : aucun ; E0 satisfait après arbitrage utilisateur consigné ci-dessous.
+Décision : poursuivre séquentiellement, sans push et sans validation native/Windows revendiquée.
 
 # Plan — refactorisation de l’application du cœur
 
@@ -258,3 +258,16 @@ Préflight rapporté par l’implémenteur : Rust 1.98.1, rustfmt, Clippy, SDK W
 Commande exécutée : `pwsh -NoProfile -File target/parakeet-tests/refacto-application-core/t1/guard.ps1 -Mode SelfTest`. Résultat : FAIL, sortie 1. Le journal `target/parakeet-tests/refacto-application-core/t1/logs/guard-events.jsonl`, relu par la session principale, contient deux événements réels hors racines sous `C:\Users\cyril\Downloads\linkedin_cv_tool_PRGX\CV_LinkedIn\_session_chromium\Default\Code Cache\js` : suppression du fichier `959e6672afd8ef39_0` à `2026-10-30T18:16:50.1570099+01:00`, puis modification du dossier à `2026-10-30T18:16:50.3756455+01:00`. Le journal indique l’arrêt de l’arbre de processus surveillé. Le watcher ne fournit pas de PID : l’origine des écritures reste inconnue ; elles ne sont pas attribuées à Cargo ou à l’implémenteur.
 
 E0 demeure non satisfait. Aucun Cargo, baseline V2/V3, contrôle V1–V7, test produit, compilation, revue de candidat Rust, recette native/Windows ou push n’a été exécuté. T1–T10 restent à réaliser. Aucun nettoyage ni exemption supplémentaire n’a été appliqué ; les preuves sont conservées. La reprise requiert l’arbitrage utilisateur prévu par AGENTS et la section 7 du plan.
+
+## 11. Reprise autorisée et bilan des tâches
+
+Après l’arrêt ci-dessus, l’utilisateur a explicitement autorisé la reprise : « oui je t'autorise. Ne te soucies pas ni ne t'arrete pas pour des modifs/ecritures lié à des origines inconnues/hors projet ». Pour cette campagne, la garde consigne les événements extérieurs d’origine inconnue sans arrêt (`UNKNOWN_EXTERNAL_ORIGIN`), sans prétendre les attribuer. Elle conserve l’arrêt pour les événements inattendus dans le dépôt ou attribués à la campagne hors racines, ainsi que les refus de préflight. Cette décision remplace sur ce point la règle stricte initiale ; les journaux précédents sont conservés. Aucun nouveau dispositif ni élargissement des destinations volontaires n’est créé.
+
+### T1 — contrats, métadonnées, diagnostics et témoins
+
+- Base : `5919a95318cca6d2cc661349d9bd6e079ccc656b`. Implémenteur : `/root/implementation`, mode IMPLEMENT ; revue indépendante via `/root/review_loop`, première passe CLEAN, zéro correction, constat ou demande de vérification ouvert.
+- Fichiers : `application.rs`, nouveaux `application/contracts.rs`, `event_metadata.rs`, `diagnostics.rs` et `tests/application_routing.rs`. Huit types et leurs méthodes, deux impls de métadonnées et deux fonctions de diagnostic déplacés ; neuf chemins publics conservés. Comparaison exacte indépendante des corps et du résidu runtime, à normalisation des visibilités prévue près, conforme. Racine : 4 517 → 3 869 lignes physiques.
+- E0 : auto-tests réussis, dont variables absentes/hors racine/jonctions refusées, arrêt sur événements simulés attribués/dans dépôt et consignation d’un extérieur inconnu. Lanceur : `pwsh -NoProfile -File target/parakeet-tests/refacto-application-core/t1/guard.ps1`, modes `SelfTest` puis `Run -CargoArguments @(...)` pour les arguments V1–V7 de la section 5. Cwd dépôt ; cache/temp/TMP sous T1, cible partagée, profil d’environnement prescrit, sans Cargo direct.
+- V2/V3 baseline : 173 tests ; V3 candidat : 175 tests, zéro échec/ignoré. S1/S7 exécutés avant/après ; les deux caractérisations T1 sont exécutées aussi individuellement (un test par filtre). V1 format final, V5 build, V6 Clippy et V7 workspace : PASS. Un premier V1 a révélé des écarts de format corrigés avant les contrôles finaux. Avertissements hérités : `AppCommand`, diagnostic 153 lignes Clippy et `ImportEvent::identity` 108, corps inchangés ; avertissements existants du desktop lors de V7.
+- M1/M2 : diff sans erreur, chemins conformes et définitions uniques. Preuves : `target/parakeet-tests/refacto-application-core/t1/archive/t1-20261030/logs/`, 25 fichiers archivés, nombre et SHA-256 des copies vérifiés. V2 `Run-20261030T182038358-8696456f`, V3 baseline `Run-20261030T182109559-0a977abd`, candidat `Run-20261030T182401598-3aa6441b`. Le reviewer a lu les résultats V1–V7 et confirmé les témoins.
+- Espace final rapporté : 85 523 660 800 octets. Aucun nettoyage du cache partagé, aucune modification des non suivis préexistants. Natif, fenêtre Windows et push : non exécutés.
