@@ -1,6 +1,6 @@
-Avancée : reprise T1–T10 autorisée avec dérogation Temp utilisateur le 30 octobre 2026.
-Blocage : adaptation ciblée de la garde et témoin T1 restent à valider.
-Décision : consigner les créations/modifications Temp sans arrêt ; préserver les autres contrôles.
+Avancée : reprise T1–T10 autorisée avec dérogation aux changements du Temp utilisateur.
+Blocage : témoin T1 toujours à valider après adaptation de la garde.
+Décision : consigner les changements internes au Temp sans arrêt ; préserver les autres contrôles.
 
 # Plan de refactorisation d’archive.rs
 
@@ -253,3 +253,7 @@ Espace final : 67,40 Gio ; `git diff --check` réussi. Aucune source Rust modifi
 ### Dérogation Temp autorisée pour la reprise
 
 Accord utilisateur dans cette session : « Ne t'arrete plus a cause de modif/creation dans temp/ Je t'autorise la reprise T1–T10 ». Pour cette campagne archive uniquement, cet accord remplace la règle d’arrêt sur les événements `Created`/`Changed` sous `C:/Users/cyril/AppData/Local/Temp/`, y compris les cas précédemment non attribués. Ces événements restent consignés avec chemin/heure sans interrompre la campagne ; leur origine ne devient pas prouvée. L’accord ne crée aucune destination volontaire de campagne hors R/C : CARGO_HOME/TEMP/TMP restent internes, préflight canonique, auto-tests et surveillance maintenus. Aucun transfert aux autres projets/campagnes. Les autres événements et contrôles, dont racines sensibles, variables hors racine, erreurs de surveillance et échecs de commande, conservent leur traitement prévu. Les auto-tests doivent distinguer créations/modifications Temp consignées sans arrêt des refus toujours applicables. Reprise par le même implémenteur ; aucun push.
+
+Première traduction trop étroite de « modifications » en Created/Changed seulement : auto-tests réussis, témoin interrompu sur `Deleted C:/Users/cyril/AppData/Local/Temp/_MEI770962/api-ms-win-core-console-l1-1-0.dll` à `2026-10-30T20:19:45.6912782+01:00` (détection `20:19:45.7482398`). Run `20261030T201939048-abd71749`, sortie 1 ; compilation de dépendances commencée, aucun test attesté. 67,32 Gio libres. Preuves conservées dans R/logs/ ; événements Temp admis consignés dans allowed-temp-events.jsonl, attribution UNKNOWN.
+
+La principale rectifie son interprétation pour appliquer l’intention explicite de ne plus s’arrêter sur les modifications du Temp : créations, changements, suppressions et renommages entièrement internes au Temp utilisateur sont consignés sans arrêt. Un renommage dont l’autre extrémité sort du Temp reste contrôlé normalement. Cette précision remplace la restriction Created/Changed du paragraphe précédent ; aucune nouvelle destination volontaire ni tolérance hors Temp, erreur de surveillance ou variable incorrecte n’est accordée. L’implémenteur adapte les auto-tests avant reprise du témoin.
