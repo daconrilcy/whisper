@@ -1,4 +1,4 @@
-Avancée : T1–T4 implémentées, vérifiées et revues CLEAN ; T5–T10 restent à réaliser.
+Avancée : T1–T5 implémentées, vérifiées et revues CLEAN ; T6–T10 restent à réaliser.
 Blocage : aucun ; E0 satisfait après arbitrage utilisateur consigné ci-dessous.
 Décision : poursuivre séquentiellement, sans push et sans validation native/Windows revendiquée.
 
@@ -292,3 +292,10 @@ Après l’arrêt ci-dessus, l’utilisateur a explicitement autorisé la repris
 - Fichiers : `application.rs`, `runtime/mod.rs`, nouveau `runtime/live.rs` (720 lignes physiques). Racine : 3 242 → 2 731 lignes ; état privé conservé, M1/M3 conformes. Deux fonctions découpées après observation Clippy, sans avertissement dans `live.rs` au contrôle final.
 - Garde/cache/temp/TMP T4, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1/V3/V4/V5/V6 via `t4/guard.ps1`, cwd dépôt : PASS après corrections de format intermédiaires. Baseline/candidat : 175 tests chacun, zéro ignoré ; S4/S1 avant/après. Filtres : `live_stop` (3), direct avant Ready (1), `live_contract` (6), refus ancien StartLive (1). Avertissement hérité `SAMPLE_RATE` hors périmètre.
 - Preuves : `target/parakeet-tests/refacto-application-core/t4/archive/t4-20261030/logs/`, 33 fichiers, nombre/SHA-256 vérifiés ; baseline `Run-20261030T184801551-1dc512b5`, candidat `Run-20261030T185044103-661c1a3c`. Résultats relus par reviewer ; espace final 82 734 182 400 octets. Non suivis préservés ; aucun nettoyage, push ou validation native/Windows.
+
+### T5 — import et persistance
+
+- Base : `cf583dff61af0baf9e9ec56798d8ad57f6295300`. Même implémenteur et reviewer ; CLEAN première passe, zéro correction/constat/demande ouvert. Comparaison indépendante de dix branches du cycle, trois commandes et trois helpers : corps conservés, filtres/retours maintenus en amont, soumission/accusé/publication distincts.
+- Fichiers : `application.rs`, `runtime/mod.rs`, nouveau `runtime/import.rs` (523 lignes physiques). Racine : 2 731 → 2 320 lignes ; trois helpers définis uniquement dans import, M1/M3 conformes.
+- Garde/cache/temp/TMP T5, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1/V3/V4/V5/V6 de section 5 via `t5/guard.ps1`, cwd dépôt : PASS. Baseline/candidat : 175 tests chacun, zéro ignoré ; sept témoins S5 avant/après et 12 tests `import_contract` séparément. Format intermédiaire corrigé ; Clippy suivi seulement de formatage, aucun avertissement `import.rs`, héritage `SAMPLE_RATE` hors périmètre.
+- Preuves : `target/parakeet-tests/refacto-application-core/t5/archive/t5-20261030/logs/`, 19 fichiers, nombre/SHA-256 vérifiés ; baseline `Run-20261030T185428482-21d2350d`, candidat `Run-20261030T185630453-a5458f06`. Résultats relus par reviewer ; espace final 81 581 588 480 octets. Non suivis préservés ; aucun nettoyage, push ou validation native/Windows.
