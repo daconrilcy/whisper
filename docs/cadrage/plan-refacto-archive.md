@@ -1,6 +1,6 @@
-Avancée : T1 et T2 validées, revues indépendantes CLEAN.
-Blocage : caractérisation T3–T5 à exécuter avant toute extraction.
-Décision : engager T3 dans le périmètre autorisé, sans push.
+Avancée : T1–T3 validées, revues indépendantes CLEAN.
+Blocage : caractérisation T4–T5 à exécuter avant toute extraction.
+Décision : engager T4 dans le périmètre autorisé, sans push.
 
 # Plan de refactorisation d’archive.rs
 
@@ -277,3 +277,16 @@ Base `8515d6c7`, neuf nouveaux tests dans U/publication_characterization.rs, inc
 | 09 | index_absent_truncated_and_temporary_retry, index_rename_obstacle : erreurs répétées, fichiers conservés, reprise ; R11 nominal exercé |
 
 Revue indépendante T2, même coordinator/reviewer : **CLEAN**, zéro constat/demande/lacune ; une revue, aucune correction. Candidat worktree sur base `8515d6c7`, nouveau fichier SHA-256 `08EDA0B5A0953FFCDA60D808530F41687A1FCB8B3D074380604831688DD95FBA`. Aucun code de production/manifeste/lock modifié. États reconstruits : pas de panne sync_all forcée, kill ou powerfail démontré. C2/E2 acquis ; T3 peut commencer.
+
+### T3 validée — Possession et fin de publication
+
+Base `ca958a7b`, six tests U/export_ownership_characterization.rs et inclusion UT, production inchangée. Préflight/final : 66,85 Gio. V-U run `20261030T202955772-97555c86` : **34 réussis, zéro échec, un ignoré historique L04**, 269 filtrés ; V-F run `20261030T203015362-9e40dfe4` et `git diff --check` **PASS**. Fixtures R/t3.
+
+| PF | Tests archive_characterization_* (suffixes) / observations |
+| --- | --- |
+| 06 | ownership_versions_one_two_three_follow_existing_paths : v1 hardlink, migration v2→v3, v3, deux essais ; ownership_truncated_or_unknown_refuses_without_mutation : erreurs, octets et identités conservés |
+| 07 | v3_final_link_before_identity_is_recovered : final avant identité persistée ; R7 existant exercé pour seam copie exclusive/reconfirmation/tiers/ancien actif |
+| 10 | reconcile_partial_skips_byte_identical_third_party_then_retries : TXT déplacé, SRT tiers mêmes octets/identité différente préservé, répétition puis SRT propriétaire déplacé, index/CURRENT conservés |
+| 11 | residual_reservation_cleanup_refusal_and_retry : refus puis suppression et répétition, index/CURRENT inchangés ; second_external_resolution_preserves_committed_publication : deuxième résolution baseline refuse DuplicateStateChanged, données préservées |
+
+Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune ; une revue, aucune correction. Candidat nouveau fichier SHA-256 `1490EAFFE12C8489F093E5DA73CE3150303E499B7F645556690A63B5839A64F5` sur base ci-dessus. Coupures reconstruites/simulation, pas kill/powerfail. C3/E3 acquis ; T4 peut commencer.
