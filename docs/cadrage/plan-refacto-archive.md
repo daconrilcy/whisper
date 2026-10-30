@@ -1,12 +1,12 @@
-Avancée : dix tâches définies, de la caractérisation préalable aux extractions puis à la clôture.
-Blocage : aucune exécution autorisée ; garde et caractérisation baseline non exécutées.
-Décision : soumettre le candidat à la revue indépendante PLANS.
+Avancée : plan de dix tâches revu indépendamment CLEAN ; PLANS READY.
+Blocage : aucun documentaire ; garde et caractérisation baseline non exécutées.
+Décision : livrer les documents en commits locaux ; aucun GO d’exécution.
 
 # Plan de refactorisation d’archive.rs
 
 ## 1. Identité, autorité et portée
 
-- ID : PLAN-ARCHIVE v1, 30 octobre 2026, DRAFT.
+- ID : PLAN-ARCHIVE v1, 30 octobre 2026, PLANS READY documentaire ; aucune exécution autorisée.
 - Auteur : session Codex principale ; contribution rust_plan_writer `/root/plan_archive`, synthèse de son candidat en lecture seule.
 - Design parent : [refacto-archive.md](refacto-archive.md), DESIGN-ARCHIVE v1, Git `0bec1a3ad79cd3334a14ad73262b38c7a8e3b54e` ; CLEAN confirmé indépendamment par `/root/revue_design_archive`, zéro REQUIRED. Revue initiale sur `6263391c`, preuve dans `be549cb2` ; VIS-01 confirmé et advisory de décompte fermé sur `0bec1a3a`.
 - Base produit : `2829ce4569a90f494e6ff5f73a8887ee452074cf`, branche evo-startup-perf.
@@ -209,3 +209,11 @@ Préserver preuves/changements d’autrui ; pas reset global/suppression racine/
 Signatures finales/lints/build/tests/campagne restent NOT RUN. Erreurs/états reconstruits et seam existant ne démontrent ni kill ni powerfail ; MP3 réel/moteur natif/GPU/fenêtre/paquet non qualifiés.
 
 Après revue PLANS : GO d’exécution doit nommer tâche/lot, chemins source/tests, adaptation G, racines R/C et campagne utile, dont accord précis pour adaptation PowerShell existante. Acceptation plan/CLEAN ne suffit pas. Push soumis à accord distinct.
+
+## 10. Revue PLANS et état final
+
+Reviewer indépendant rust_design_reviewer `/root/revue_design_archive`, sans participation à rédaction/synthèse/correction : **CLEAN**, zéro REQUIRED et zéro ADVISORY, sur le candidat Git `e843a97a9522a15a7dfc2fcc059b124e31ed1a9c`, copie lue identique au fichier Git. Design parent `0bec1a3a` CLEAN préservé.
+
+Contrôles rendus : neuf CAP/REQ et 21 familles PF reliées aux tâches/chemins/observations ; couverture inverse, graphe sans cycle, baseline T2–T5 avant T6, quinze modules attribués et VIS-01 ; huit tests live, six cleanup et neuf noms V-K recoupés ; fallback r6, racines cleanup/create et faux workers internes confirmés ; lecture seule modèles ; garde source à adapter et absence de transfert de dérogations ; contrats sensibles observables et arrêt/retour arrière/permissions conformes. Lecture/comparaison statique et git diff --check réussis ; aucun test ni Cargo exécuté.
+
+Le coordinateur consigne PLANS READY sur cette preuve. Le présent ajout et le statut consignent le verdict sans modifier les tâches revues. Adaptation de garde, ressources, témoins baseline, comparaisons après extraction et validation produit restent NOT RUN. Aucun push réalisé.

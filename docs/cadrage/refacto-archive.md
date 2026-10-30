@@ -259,3 +259,5 @@ ADVISORY D-ARCH-A01, MINEUR : la formulation «16 enfants» comptait la façade 
 Le coordinateur établit DESIGN READY sur cette preuve et la délégation technique de la mission. La demande utilisateur autorise déjà la rédaction du plan dans la même session. Aucun GO code ne découle du verdict.
 
 Précision de planification VIS-01 : l’architecte auteur confirme DETAIL_WITHIN_ACCEPTED_CONTRACT pour la portée minimale des helpers imbriqués décrite au §6. Elle corrige la formulation pub(super), sans changement de frontière ou d’API hors archive. Confirmation ciblée du reviewer demandée avant revue finale PLANS.
+
+Confirmation indépendante effectuée par le même reviewer sur `0bec1a3ad79cd3334a14ad73262b38c7a8e3b54e` : **CLEAN confirmé**, VIS-01 validé et D-ARCH-A01 fermé. Aucun REQUIRED ; diff limité à la portée interne, au décompte et à la consignation du verdict. Le plan [plan-refacto-archive.md](plan-refacto-archive.md), candidat `e843a97a`, a ensuite été revu CLEAN indépendamment. Aucun autre changement de conception.
