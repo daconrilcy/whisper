@@ -1,6 +1,6 @@
-Avancée : lots A à D3 clos après vérifications et revue CLEAN ; bilan D3 au §24.
-Blocage : aucun dans le périmètre D3 autorisé.
-Décision : lot D3 clos sans réserve dans ce périmètre ; aucun lot D4 démarré.
+Avancée : lots A à D4 clos après vérifications et revue CLEAN ; bilan D4 au §26.
+Blocage : aucun dans le périmètre D4 autorisé.
+Décision : lot D4 clos sans réserve dans ce périmètre ; aucun lot D5 démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -813,3 +813,52 @@ Accord écrit de la session : « Passe au lot D4 selon le plan. Je t’autorise 
 Le test obligatoire `resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution`, jusqu'ici hors critères des lots précédents, devient une preuve D4 à exécuter. Sa fixture doit être bornée : copie du modèle réel sous la racine de campagne puis liens physiques entre cette copie canonique et le chemin legacy sous cette même racine. Adapter uniquement le test correspondant et son catalogue/attentes de chemins pour conserver les assertions d'identité, SHA et checkpoint ; ne pas remplacer le lien physique par une simple copie des deux fichiers, ni toucher au modèle installé. Établir cette preuve avant extraction, puis après. Les ressources installées et corpus servent en lecture seule, sans qualification native implicite.
 
 Campagne sous `target/parakeet-tests/refacto-worker-ipc-d4/`, copie adaptée de la garde existante, cache/fixture/temporaires/sorties sous D4, cible Cargo partagée canonique. Préflight, auto-tests, espace libre ≥30 Gio, surveillance, offline/locked et absence de Git concurrent obligatoires. Consignes existantes sur événements extérieurs sans lien projet et `.git/objects/` maintenues ; aucune destination volontaire externe ni écriture attribuée à la campagne autorisée. Sources, modèles, corpus, cache Cargo, ressources Whisper et index/HEAD/références/configuration protégés. Exclusions D2 corpus natif/l3c explicites ; aucune exclusion du test legacy D4, aucun nouveau skip ou campagne native/Windows implicite. Espace libre initial : 116 899 463 168 octets (environ 108,9 Gio). Non suivis préexistants préservés.
+## 26. Clôture du lot D4 — 30 octobre 2026
+
+Avancée : reprise et liaisons sources extraites, legacy réellement vérifié, revue indépendante CLEAN.
+Blocage : aucun dans le périmètre D4 autorisé.
+Décision : D4 clos sans réserve dans ce périmètre ; commit local sans push, aucun lot D5 démarré.
+
+### Delta et préservation des invariants
+
+Base Git exacte : `165471791b734f1676bf6130eb161bc82956640c`, après D3 clos. Implémentation déléguée au profil prévu ; revue par le coordinateur et le même reviewer indépendant en lecture seule. La session principale n'a pas modifié le code en parallèle.
+
+Quatre fichiers production : `worker_ipc.rs`, déclaration dans `runtime/mod.rs`, nouveaux `runtime/recovery.rs` (369 lignes physiques) et `runtime/source_binding.rs` (529). Les cinq bras ReleaseSourceBinding, InspectSourceSnapshotRecovery, ConfirmSourceSnapshotRecovery, ResumeInterrupted et ResumeReplacementCleanup délèguent. Les méthodes de liaison, rebind/transfert/restauration/libération, active_snapshot_bindings et inspect_source_snapshot_recovery sont sous leur propriétaire source_binding, sur le même ImportRuntime.
+
+Le reviewer a comparé les corps déplacés : les treize retours du dispatcher ResumeInterrupted sont mappés sur RecoveryEffect::Return ; les closures et l'épilogue conservent leurs chemins. Transferts, restitution sur erreur, checkpoints, générations, identités, fichiers durables, refus et modèle choisi sont préservés ; aucune source libérée prématurément, aucun recalcul universel de SHA ni politique de recovery du cœur déplacée. Aucune nouvelle reprise après panne, API, dépendance, feature ou modification de manifeste/Cargo.lock. Nouveaux modules sous 1 500 lignes.
+
+### Fixture legacy et modèle installé
+
+Le test `resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution` n'est plus NOT RUN : son corps est réellement exécuté avant et après extraction et dans les cinq configurations de référence et du candidat. La seule adaptation de test est dans `tests/resume_and_admission.rs` : modèle canonique et catalogue sous la racine D4, lien physique legacy vers cette copie bornée. Une copie unique du modèle réel est réutilisée, sans remplacer la sémantique de lien physique par deux copies indépendantes. Assertions SHA, checkpoint, identité/génération, file et pending conservées, confirmées par le reviewer.
+
+Le modèle installé reste en lecture seule. Son SHA-256 final est identique au préflight : `1FC70F774D38EB169993AC391EEA357EF47C88757EF72EE5943879B7E8E2BC69`, taille 1 624 555 275 octets et date relevée du 6 octobre 2026 à 08:12:43 inchangées. Les liens sont créés entre fichiers D4 ; aucun lien vers le modèle installé ni écriture volontaire sur celui-ci.
+
+Les exécutions isolées legacy avant/après et finale sont réussies : `Run-20261030T092034416-7f5a0a20`, `Run-20261030T094110060-9e712b87`, `Run-20261030T095757567-2c225882`, code 0 avec test exécuté, aucun retour NOT RUN. Après les cinq suites, un reformatage global involontaire du fragment inclus a été retiré : indentation et retours ligne remis comme HEAD, mêmes adaptations de chemins conservées. Le reviewer confirme la sémantique inchangée ; format final et legacy isolé final PASS sur ce dernier état.
+
+### Vérifications obtenues
+
+Préflight, auto-tests et surveillance de la garde D4 appliqués ; cache/fixture/modèle copié/temporaires et sorties sous D4, cible Cargo partagée canonique, commandes offline/locked, aucun Git concurrent. Règles de session sur événements extérieurs sans lien projet et objets Git conservées sans lever les protections des ressources projet. Aucun téléchargement, mécanisme de surveillance ou isolation supplémentaire.
+
+Le témoin R7 copie/reprise/publication passe avant/après. Les témoins `failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity` et `failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity` sont réellement exécutés, passent isolément sur candidat et dans les suites ; ils couvrent conservation et restitution de liaison/identité en échec. Format, `git diff --check`, workspace et cinq suites séquentielles baseline/candidat PASS ; pas de nouveau test, nom ou compte modifié.
+
+| Configuration séquentielle | Réussis baseline et candidat | Échoués | Ignorés | Filtrés autorisés | Legacy exécuté |
+| --- | --- | --- | --- | --- | --- |
+| défaut | 270 | 0 | 16 | 1 D2 corpus natif | oui |
+| recette-hooks | 274 | 0 | 16 | 1 D2 corpus natif | oui |
+| l01-memory-qualification | 270 | 0 | 16 | 1 D2 corpus natif | oui |
+| personal-qualification | 270 | 0 | 16 | 1 D2 corpus natif | oui |
+| recette-hooks,l3-gpu-qualification | 274 | 0 | 16 | 2 D2 corpus natif/l3c | oui |
+
+Clippy réussit : 146 avertissements contre 145 en référence. Le nouveau `too_many_lines` concerne ResumeInterrupted extrait, corps hérité de 332 lignes pour une cible de 100, sans `allow`. Le reviewer confirme l'équivalence et l'attribution en dette héritée admise par le plan, sans constat actionnable D4. Les diagnostics hérités du dispatcher diminuent de 969 à 584 lignes et de complexité cognitive 63 à 45 ; l'atteinte globale des cibles de structure n'est pas revendiquée.
+
+Les trois contrôles conditionnels non natifs sont acquis : catalogue injecté dans les suites grâce à WHISPER_L1B_RUNTIME_ROOT et les deux autres contrôles ciblés réussis. Les 16 tests ignorés, exclusions D2 corpus natif/l3c déjà convenues, campagnes natives et fenêtre Windows ne sont pas revendiqués exécutés ; aucun nouveau skip. Le legacy D4, désormais requis et exécuté, ne figure plus parmi ces limites hors périmètre.
+
+Journaux des cinq suites finales : `Run-20261030T094247000-c4f22f4c`, `Run-20261030T094527660-ea5d787c`, `Run-20261030T094822356-cac5293d`, `Run-20261030T095120954-a2e3788e`, `Run-20261030T095419486-bc1afc3b`, sous `target/parakeet-tests/refacto-worker-ipc-d4/logs/` avec stdout/stderr et index `guard.jsonl`. Les suites incluent le SHA réel du modèle ; leur durée accrue n'a pas été contournée.
+
+### Revue et conservation
+
+Le reviewer indépendant rend **CLEAN** sur le candidat working tree, epoch 0 : une passe de revue, zéro correction, aucun constat ouvert, aucune vérification requise manquante ni blocage. Il confirme notamment la reprise legacy réellement exécutée, la sémantique du diff final de fixture et les treize sorties précoces. La clôture reste celle de la refactorisation D4 et ne vaut pas qualification native/Windows.
+
+Archive : `target/parakeet-tests/refacto-worker-ipc-d4/archive/closure-20261030/proofs.zip`, 80 entrées uniques, 328 907 octets. Arborescence relative conservée, compte/unicité et SHA-256 de chaque entrée comparés aux sources. SHA-256 du ZIP : `55B01E71A7ABDFEF2514DB1A7609E8D54EFD97527EE5A41E339099A359F15356`. Aucun modèle/corpus/WAV/cache/build inclus, aucun manifeste créé, aucun nettoyage ou suppression sans manifeste de suppression approuvé. Copie du modèle, liens bornés et cargo-shared conservés.
+
+Espace libre final : 114 376 765 440 octets (environ 106,5 Gio). Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Sources relues et bilan conservés dans le commit local de clôture, aucun push. Aucun lot D5 autorisé par cette clôture.

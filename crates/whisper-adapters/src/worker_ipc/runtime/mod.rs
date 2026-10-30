@@ -3,7 +3,10 @@ use super::*;
 mod duplicates;
 mod live;
 mod queue;
+mod recovery;
+mod source_binding;
 pub(super) use live::{LiveEffect, MicrophoneTestCapture};
+pub(super) use recovery::RecoveryEffect;
 
 #[cfg(test)]
 pub(super) use duplicates::resolve_reprocessing_targets;

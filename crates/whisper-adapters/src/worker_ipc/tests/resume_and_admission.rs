@@ -1171,7 +1171,8 @@ fn main() {
                 ));
         fs::create_dir_all(root.join("legacy")).unwrap();
         let repository_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let model = repository_root.join("models/ggml-large-v3-turbo.bin");
+        let model = PathBuf::from(std::env::var_os("WHISPER_L1B_RUNTIME_ROOT").expect("bounded runtime"))
+            .join("models/ggml-large-v3-turbo.bin");
         let legacy_model = root.join("legacy/ggml-large-v3-turbo.bin");
         fs::hard_link(&model, &legacy_model).unwrap();
         let source = repository_root.join("sound example/spkr0.wav");
@@ -1218,7 +1219,7 @@ fn main() {
             Arc::new(PublicationGate::default()),
             Some(RuntimeModelCatalog {
                 catalog: crate::model_catalog::LocalModelCatalog::new(
-                    repository_root.join("models"),
+                    model.parent().unwrap().to_path_buf(),
                 ),
                 known_historical_turbo_path: legacy_model.to_string_lossy().into_owned(),
                 parakeet_paths: None,
