@@ -1,6 +1,6 @@
-Avancée : T1 validée, revue indépendante CLEAN ; E0 acquis.
-Blocage : caractérisation T2–T5 à exécuter avant toute extraction.
-Décision : engager T2 dans le périmètre autorisé, sans push.
+Avancée : T1 et T2 validées, revues indépendantes CLEAN.
+Blocage : caractérisation T3–T5 à exécuter avant toute extraction.
+Décision : engager T3 dans le périmètre autorisé, sans push.
 
 # Plan de refactorisation d’archive.rs
 
@@ -263,3 +263,17 @@ La principale rectifie son interprétation pour appliquer l’intention explicit
 Préflight sur `0d88375b` : 67,31 Gio libres. SelfTest **PASS**, sortie 0 ; les quatre catégories de changements internes Temp sont consignées sans arrêt, les traversées et autres événements externes simulés sont refusés. Témoin nominal exact ci-dessus **PASS**, sortie 0, un test exécuté/réussi, zéro ignoré, 288 filtrés ; commande 44 s. Run `20261030T202052854-d4c76281` dans R/logs/guard.jsonl, stdout/stderr associés conservés. 26 avertissements de compilation rapportés, pas de succès de suite entière déduit du témoin. Garde SHA-256 `16750A3D5E39609330364AE25F1416B6D037687BF7AC62F923F4B78B26CA00DF` ; espace final 67,22 Gio. Git suivi intact, `git diff --check` réussi.
 
 Revue indépendante routée par `/root/review_archive` (`rust_review_coordinator`) à un `rust_reviewer` en lecture seule : **CLEAN**, zéro constat, demande de vérification ou lacune matérielle ; une revue, aucune correction. Cible : base `7fdd329b`, candidat `0d88375b` et garde identifiée ci-dessus, scope T1. Comparaison G/F3, racines, retrait des tolérances historiques, dérogation Temp et preuves E0 revus. Limites conservées : surveillance sans confinement préventif, origine des événements Temp inconnue. T1 seule validée ; T2–T5 restent préalables aux extractions, T2 peut commencer. Aucun fichier Rust modifié à ce stade.
+
+### T2 validée — Caractérisation stockage/publication
+
+Base `8515d6c7`, neuf nouveaux tests dans U/publication_characterization.rs, inclusion UT ; A inchangé. Préflight 67,21 Gio, final 67,20 Gio. V-U run `20261030T202618192-60d1812a` : **28 réussis, zéro échec, un ignoré historique L04 explicitement exclu**, 269 filtrés ; neuf nouveaux scénarios et R11 existants exercés. V-F run `20261030T202643221-859a9917` et `git diff --check` **PASS**. Fixtures R/t2 via ARCHIVE_CHARACTERIZATION_ROOT ; temporaires des autres tests internes à R.
+
+| PF | Nouveaux tests archive_characterization_* (suffixes) / observations |
+| --- | --- |
+| 03,21 | stream_error, replace_obstacle, txt_only_prepare : erreur, final/tmp, préparation partielle et reprise |
+| 04 | missing_truncated_and_divergent_manifest : refus, restauration et scan complet |
+| 05 | intent_and_partial_staging, divergent_staged_srt : intention seule, staging partiel/divergent, absence publication puis reprise |
+| 08 | current_before_index_internal_resolution : deux résolutions, index/ordinal stables ; R11 existant couvre ancien actif et successeur |
+| 09 | index_absent_truncated_and_temporary_retry, index_rename_obstacle : erreurs répétées, fichiers conservés, reprise ; R11 nominal exercé |
+
+Revue indépendante T2, même coordinator/reviewer : **CLEAN**, zéro constat/demande/lacune ; une revue, aucune correction. Candidat worktree sur base `8515d6c7`, nouveau fichier SHA-256 `08EDA0B5A0953FFCDA60D808530F41687A1FCB8B3D074380604831688DD95FBA`. Aucun code de production/manifeste/lock modifié. États reconstruits : pas de panne sync_all forcée, kill ou powerfail démontré. C2/E2 acquis ; T3 peut commencer.
