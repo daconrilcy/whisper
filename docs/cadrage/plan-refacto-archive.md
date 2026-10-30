@@ -1,6 +1,6 @@
-Avancée : T1–T8 validées, revues indépendantes CLEAN ; trois extractions terminées.
-Blocage : aucun pour T9 ; échec optionnel recette-hooks préexistant consigné.
-Décision : engager l’extraction retrait T9, sans push.
+Avancée : T1–T9 validées, revues indépendantes CLEAN ; quatre extractions terminées.
+Blocage : aucun pour T10 ; limites de qualification consignées.
+Décision : engager vérification cumulée et clôture T10, sans push.
 
 # Plan de refactorisation d’archive.rs
 
@@ -355,3 +355,15 @@ V-U initial `20261030T210821169-34359782` échoué (BufRead manquant) ; import a
 Neuf V-K exacts chacun **un réussi, zéro ignoré, aucun NOT RUN**, dans l’ordre §5 : `20261030T211056244-f78b9491`, `20261030T211106578-7ac3f46d`, `20261030T211115546-d3647fd5`, `20261030T211130868-4edf2f79`, `20261030T211139975-57e52b61`, `20261030T211149047-8b6eb7b8`, `20261030T211207412-e3c46888`, `20261030T211216449-4421b377`, `20261030T211225438-d62cfd15`.
 
 Même reviewer indépendant : **CLEAN**, zéro constat/demande/lacune, une revue/aucune correction. 75 corps lexiquement identiques hors espaces/commentaires, une virgule finale de signature seulement ; API/réexports/visibilité/VIS-01/ordre de refus, hash/cache, chemins et provenance préservés. C8/E8 acquis ; T9 peut commencer. Échec recette-hooks T6 hors périmètre toujours non qualifié, pas natif/UI/kill/powerfail.
+
+### T9 validée — Retrait contrôlé
+
+Base `c88200b5`, A et cleanup.rs/cleanup/proofs.rs/cleanup/execution.rs seulement ; tests/assertions inchangés, imports explicites, corps/ordre des effets et cfg Windows/non-Windows déplacés mécaniquement. Préflight 66,56 Gio, final avant revue 66,45 Gio. V-U préparatoire `20261030T211531459-f3e2a06e` échoué sur imports manquants, corrigés ; `20261030T211552057-42448f8b` réussi, puis imports non-Windows ajustés avant campagne finale.
+
+Campagne initiale : V-U `20261030T211635059-59d1e278` **38 réussis, un ignoré L04 historique** ; V-R `20261030T211649292-e4214cfb` **8 réussis** ; V-C `20261030T211729239-46976765` **2 réussis** ; V-F `20261030T211756244-15398d6a`, V-B `20261030T211757869-68d5033e`, V-S `20261030T211810012-a747feef` **PASS**. Warnings build 16+5, Clippy260/136 doublons, baseline. Fixtures R/t9/rtc02 et create ; Turbo lu uniquement.
+
+Revue indépendante, même reviewer : ARCH-T9-R1 IMPORTANT, réexports non-Windows puis import TreatmentIdentity restreints à Windows alors que le fallback en dépend ; ARCH-T9-R2 MINEUR, browse_treatment_folder déplacé contrairement au design. Deux cycles de correction utilisés : réexports inconditionnels et variantes browse remises dans A (identiques octet pour octet au baseline), puis import TreatmentIdentity rendu inconditionnel dans proofs.rs. Aucun corps modifié.
+
+Après cycle 1 : V-U `20261030T212039844-470a4a80` **38 réussis/un ignoré L04** ; V-R `20261030T212054436-e4832f25` **8 réussis** ; V-F `20261030T212133585-6b288f20`, V-B `20261030T212135245-51799aec`, V-S `20261030T212147293-9ede4f6b` **PASS**. Après cycle 2 (import seul) : V-U `20261030T212318630-4dba82a4` **38 réussis/un ignoré L04** ; V-F `20261030T212333155-1d71d877`, V-B `20261030T212334813-036a090b`, V-S `20261030T212346797-ac8f3085`, diff --check **PASS**, V-R/V-C antérieurs retenus car delta import seul.
+
+Verdict final indépendant **CLEAN**, R1 et R2 fermés explicitement, zéro constat/demande/lacune ; trois passages de revue/deux cycles correction, pas de troisième correction. Candidat A SHA-256 `6D790B81674509F274FF8780D5FCED9D9093752737F630D979239DBD2B41C104`, proofs SHA-256 `672EC5AF76C19D244804F77A9BCC04B0C4DFAF7C3D9DAAF89A9D7A9F92B84829`. Fallbacks et réexports non-Windows vérifiés statiquement seulement, compilation non-Windows NOT RUN. C9/E9 acquis ; T10 peut commencer. Échec optionnel recette-hooks hors périmètre et limites natif/UI/kill/powerfail maintenus.
