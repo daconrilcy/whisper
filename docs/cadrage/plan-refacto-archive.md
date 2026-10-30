@@ -1,5 +1,5 @@
-Avancée : T1 préparée ; garde adaptée, modèles vérifiés, aucun Cargo lancé.
-Blocage : auto-test de garde échoué sur événement externe non attribué ; T1 non validée.
+Avancée : T1 préflight et auto-tests réussis ; témoin Cargo lancé puis interrompu.
+Blocage : nouvel événement externe non attribué pendant le témoin ; T1 non validée.
 Décision : arrêt et conservation des preuves ; arbitrage utilisateur requis avant reprise.
 
 # Plan de refactorisation d’archive.rs
@@ -239,3 +239,13 @@ Investigation en lecture seule autorisée : journal périodique toutes les 30 se
 Accord utilisateur : arrêt uniquement de CoreSync après vérification d’identité, puis reprise T1–T10 sans assouplir la garde et sans push. La principale a vérifié chemin, signature et stabilité PID/date de création puis arrêté seulement PID 50064. Aucun autre processus ou service arrêté. Préflight de reprise sur `f1637234` : 67,15 Gio libres, CoreSync absent, garde inchangée.
 
 Second SelfTest : **FAIL**, événement `Changed` du même journal à `2026-10-30T20:13:14.8069630+01:00`, détecté à `20:13:14.8130888+01:00`. Arrêt sans Cargo et preuves conservées dans le journal existant. Lecture ultérieure : CoreSync relancé à `20:13:09.521904+01:00`, PID 140924, parent 22808 (`Adobe Desktop Service.exe`, déjà présent). Aucun nouvel arrêt effectué. Espace final 66,84 Gio. La garde reste inchangée ; E0, témoin et T2–T10 restent non acquis/NOT RUN. Nouvel arbitrage requis pour traiter le relanceur extérieur au périmètre autorisé.
+
+### Troisième tentative T1 — Auto-tests réussis, témoin interrompu
+
+Accord utilisateur pour arrêter après vérification Creative Cloud.exe, Adobe Desktop Service.exe puis CoreSync.exe, et reprendre T1–T10 sans assouplir la garde ni pousser. Creative Cloud.exe était déjà absent ; chemins attendus, signatures Adobe Inc. valides et stabilité d’identité vérifiés avant arrêt ciblé d’Adobe Desktop Service.exe PID 22808 puis CoreSync.exe PID 140924. Aucun autre processus ou service arrêté. Les trois étaient absents après l’action et au préflight.
+
+Préflight sur `8cf827a6` : 67,08 Gio libres, outils et syntaxe présents. Garde inchangée. `G -Mode SelfTest` **PASS**, sortie 0 : chemins/variables hors racines refusés, test positif réussi et événements externes simulés refusés, y compris les deux sens des renommages traversant les racines.
+
+Témoin lancé par G : `test --offline --locked -p whisper-adapters --lib archive::tests::create_only_publication_returns_verified_internal_unified_artifacts_without_external_exports -- --exact --nocapture --test-threads=1`. Garde **FAIL**, sortie 1 : création de `C:/Users/cyril/AppData/Local/Temp/etilqs_0nJY2ZTRJ16D26D` à `2026-10-30T20:15:18.8651898+01:00`, détection à `20:15:18.9572266+01:00`. Attribution inconnue ; ne pas conclure à une fuite Cargo ou à une activité extérieure prouvée. Commande interrompue, stdout/stderr vides ; témoin non démontré. Run `20261030T201516416-624f193a`, preuves dans R/logs/guard.jsonl et guard-events.jsonl. Aucun effacement, aucune relance.
+
+Espace final : 67,40 Gio ; `git diff --check` réussi. Aucune source Rust modifiée, non suivis initiaux préservés. T1 reste non validée, T2–T10 et revue d’implémentation NOT RUN. Reprise soumise à arbitrage conformément au plan ; aucune tolérance ajoutée et aucun push.
