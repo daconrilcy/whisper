@@ -1,11 +1,11 @@
-Avancée : plan de découpage de `application.rs` proposé en dix tâches séquentielles.
+Avancée : plan de découpage de `application.rs` rédigé et revu CLEAN en dix tâches séquentielles.
 Blocage : implémentation et campagnes non autorisées ; prérequis de garde non satisfait.
-Décision : soumettre le plan à la revue indépendante ; conserver l’état dans la racine jusqu’à T10.
+Décision : plan documentaire prêt ; conserver l’état dans la racine jusqu’à T10, sans autoriser l’exécution.
 
 # Plan — refactorisation de l’application du cœur
 
 - ID : P-REF-APP-CORE, version 1.0, 30 octobre 2026.
-- Statut : DRAFT POUR REVUE PLANS ; aucune autorisation d’exécuter.
+- Statut : PLANS READY — revue indépendante CLEAN ; acceptation finale utilisateur et autorisation d’exécuter distinctes.
 - Auteur du document : session Codex principale ; contribution de planification : `rust_plan_writer`, PLAN-APP-CORE v1.
 - Design parent : [refacto-application-core.md](refacto-application-core.md), D-REF-APP-CORE, Git `682e09e7d8260f9e454441f50b11dc9d848895bb`.
 - Preuve de passage : DESIGN CLEAN indépendant sur `b258b1c44efc5e36467e287c1a3791215749c20a`, zéro REQUIRED/ADVISORY ; statut et preuve ajoutés sans modification technique dans `682e09e7`.
@@ -237,4 +237,12 @@ Avant délégation future, la session principale renseigne : tâche Tn, révisio
 
 Après candidat concret : revue indépendante par le circuit Rust prévu, corrections par l’implémenteur, au plus deux cycles. Constats ouverts après plafond : LIVRÉ AVEC RÉSERVES et décision utilisateur. La validation des moteurs/fichiers physiques et de la fenêtre Windows reste distincte et NOT RUN ; aucune remise d’EXE ni recette supplémentaire n’est imposée par ce plan.
 
-Le plan reste proposé jusqu’à sa revue ; ses commandes restent non exécutables avant E0 et GO applicable. Readiness documentaire, acceptation finale, autorisation de code, campagnes, validation produit et push sont des décisions distinctes.
+Le plan est prêt sur le plan documentaire ; ses commandes restent non exécutables avant E0 et GO applicable. Readiness documentaire, acceptation finale, autorisation de code, campagnes, validation produit et push sont des décisions distinctes.
+
+## 9. Revue indépendante et clôture documentaire
+
+Le 30 octobre 2026, `rust_design_reviewer` (`/root/revue_design_plan`), indépendant de l’auteur et du plan writer, a rendu PLANS CLEAN sur `98b33ac15025cc2dab3666b89c151caadd2b538c`, avec design parent `682e09e7d8260f9e454441f50b11dc9d848895bb`. Zéro constat REQUIRED. Il a vérifié les dix tâches, chemins, budgets, prérequis, scénarios et arguments proposés ; les 42 noms de témoins existants cités dans la carte ont été retrouvés dans les sources. Les deux témoins T1 sont des ajouts futurs clairement identifiés.
+
+Son unique suggestion ADVISORY P-APP-01 (mineure) précisait le comptage des contrats T1. L’auteur l’a appliquée : huit types de contrats déplacés, `ImportApplication` conservé jusqu’à T10 et neuf chemins publics disponibles. À la seconde passe ciblée, sur `ba5465a9bba6d02d43c61e735d1af007434acb12`, le même reviewer a fermé P-APP-01 et maintenu CLEAN ; aucun constat ouvert. Aucun autre contenu n’a été réaudité lors de cette passe. La présente consignation de statut et de preuve ne change pas le plan technique.
+
+La mission a produit seulement ce plan et son cadrage, versionnés localement. Lectures et contrôles Git de présentation/périmètre effectués ; aucun code produit modifié, aucune campagne Cargo, compilation, exécution de test, validation native/Windows, remise d’EXE ou push. Les non suivis préexistants ont été préservés. Aucun résultat historique de campagne n’est revendiqué comme validation de ce refactoring futur.
