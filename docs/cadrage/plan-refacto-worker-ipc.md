@@ -1,6 +1,6 @@
-Avancée : lots A à E1 clos après vérifications et revue CLEAN ; bilan E1 au §30.
-Blocage : aucun dans le périmètre E1 autorisé.
-Décision : lot E1 clos sans réserve dans ce périmètre ; aucun lot E2 démarré.
+Avancée : lots A à E2 clos après vérifications et revue CLEAN ; bilan E2 au §32.
+Blocage : aucun dans le périmètre E2 autorisé.
+Décision : lot E2 clos sans réserve dans ce périmètre ; aucun lot F1 démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -995,3 +995,54 @@ Décision : exécuter E2 seul selon le plan, revue indépendante puis commit loc
 Accord écrit de la session : « Passe au lot suivant elon le plan. Je t’autorise l’implémentation, les vérifications et le commit local, sans push. Clôture-le sans réserve après revue indépendante. » Le prochain lot est E2, dépendant de E1 clos. Périmètre : `worker_ipc.rs`, `runtime/mod.rs`, `runtime/poll_unified.rs`, subdivision conditionnelle `runtime/poll_unified/document.rs` si nécessaire ; quatre production maximum et tests directement correspondants. Extraire poll_unified_sessions, poll_unified_document et aides de libération/admission directement requises, sans changer le séquencement. Attribuer à poll_unified l'orchestration retry_native_gpu_startup_on_cpu et ses types NativeAutoCpuRetry, FailedManualGpuPeer et manual_gpu_failure_event. Le prédicat pur can_retry_native_auto_on_cpu reste racine jusqu'à F1 ; types source/exécuteur restent racine jusqu'à F2. Conserver ACK, points de libération, limites/concurrence, identités, drain et règles CPU/GPU existants, sans fusion de machines session/worker ni nouvelle politique.
 
 Campagne sous `target/parakeet-tests/refacto-worker-ipc-e2/`, copie adaptée de la garde E1 renforcée (refus fmt sans --check et --fix), cache/fixture/modèle copié/temporaires et sorties bornés sous E2, cible Cargo partagée canonique. Préflight, auto-tests, espace ≥30 Gio, surveillance, commandes offline/locked et absence de Git concurrent obligatoires. Legacy borné réellement actif dans les suites ; modèle installé en lecture seule, copie et liens sous E2, état pré/post contrôlé. Consignes extérieurs non attribués sans lien projet et `.git/objects/` maintenues sans lever les protections des ressources projet ou des écritures suspectes/attribuées. Seules exclusions D2 corpus natif/l3c déjà convenues, aucun nouveau skip ni qualification native/Windows implicite. Espace libre initial : 106 408 243 200 octets (environ 99,1 Gio). Non suivis préexistants préservés.
+## 32. Clôture du lot E2 — 30 octobre 2026
+
+Avancée : polling unifié extrait, correction d'encodage vérifiée et revue indépendante CLEAN.
+Blocage : aucun dans le périmètre E2 autorisé.
+Décision : E2 clos sans réserve dans ce périmètre ; commit local sans push, aucun lot F1 démarré.
+
+### Delta et invariants
+
+Base Git exacte : `2c73a5f7194695ece718172444cefc6841c550e2`, après E1 clos. Implémentation déléguée au profil prévu ; revue par le coordinateur et le même reviewer indépendant en lecture seule. La session principale n'a pas modifié le code en parallèle.
+
+Trois fichiers production : `worker_ipc.rs`, déclaration dans `runtime/mod.rs`, nouveau `runtime/poll_unified.rs` (1 334 lignes physiques). La subdivision document n'a pas été nécessaire. poll_unified_sessions, poll_unified_document, aides de libération/admission directement requises, retry_native_gpu_startup_on_cpu, NativeAutoCpuRetry, FailedManualGpuPeer et manual_gpu_failure_event possèdent leur définition unique sous poll_unified. Le prédicat pur can_retry_native_auto_on_cpu et les types source/exécuteur restent à la racine jusqu'aux lots F1/F2. Aucun test, API publique, manifeste, Cargo.lock, dépendance ou feature modifié.
+
+Le reviewer a comparé sept corps déplacés, identiques hors fins de ligne, et deux types identiques hors visibilité. Ordre du drain et du polling, ACK, identités/générations/tentatives, points de libération, restitutions, capacités, concurrence et repli préservés ; aucune fusion de machines session/worker, boucle active ou nouvelle politique. E1 et son seuil restent inchangés. Après correction des douze littéraux ci-dessous, la façade restante est équivalente à la base en dehors des définitions déplacées et des imports internes nécessaires.
+
+### Preuves initiales — époque 0
+
+Préflight, auto-tests et surveillance de la garde sous `target/parakeet-tests/refacto-worker-ipc-e2/`, cache/fixture/modèle copié/temporaires et sorties bornés sous E2, cible Cargo partagée canonique, commandes offline/locked, aucun Git concurrent. Garde renforcée E1 conservée : fmt sans --check et --fix refusés avant Cargo. Consignes de session sur événements extérieurs non attribués sans lien projet et objets Git maintenues sans lever les protections des ressources projet ou des écritures suspectes/attribuées. Aucune violation de garde signalée dans E2.
+
+Les quatre T-E passent avant/après. Trois témoins synthétiques supplémentaires candidat sont réellement exécutés et réussis, sans variable native conditionnelle : `native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call` (retry Auto et refus du pair GPU manuel), `controlled_document_drain_reads_one_segment_per_poll_and_preserves_all_pages` (drain borné et pages) et `import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio` (finalisation concurrente). Le test du cœur `unified_page_responses_and_errors_follow_latest_selection_request` passe après extraction (`Run-20261030T122853564-8b764eea`) sur core inchangé ; il n'a pas été exécuté séparément avant extraction et n'est pas présenté comme tel.
+
+Baseline puis premier candidat : format --check, workspace, diff check, Clippy et cinq suites séquentielles PASS, sans ajout ou retrait de test. Catalogue injecté et legacy réellement RUN/PASS dans les dix suites. Les cinq suites candidat appartiennent à l'époque 0, avant la restauration des douze littéraux :
+
+| Configuration | Réussis rapportés baseline et candidat époque 0 | Échoués | Ignorés | Filtrés autorisés | Legacy réel |
+| --- | --- | --- | --- | --- | --- |
+| défaut | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| recette-hooks | 276 | 0 | 16 | 1 D2 corpus natif | oui |
+| l01-memory-qualification | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| personal-qualification | 272 | 0 | 16 | 1 D2 corpus natif | oui |
+| recette-hooks,l3-gpu-qualification | 276 | 0 | 16 | 2 D2 corpus natif/l3c | oui |
+
+Journaux des suites candidat : `Run-20261030T121346485-21946b76`, `Run-20261030T121653051-052229bf`, `Run-20261030T121948294-ce6133f7`, `Run-20261030T122252434-7b41c570`, `Run-20261030T122548211-46244c60`, sous `target/parakeet-tests/refacto-worker-ipc-e2/logs/` avec stdout/stderr et index `guard.jsonl`.
+
+Clippy époque 0 : core 23 diagnostics et adapters 146, identiques avant/après, multiensemble des en-têtes identique. Dette héritée inchangée : longueur/complexité 960/64 du polling unifié et signature de repli à dix arguments préexistante. Aucun nouveau lint ou allow ; l'atteinte globale des cibles de structure n'est pas revendiquée.
+
+### Constat de revue et preuve finale — époque 1
+
+Première revue : constat requis MINEUR `WIPC-E2-R01`. Douze littéraux français restés dans `worker_ipc.rs`, hors code extrait, avaient subi une corruption d'encodage réelle : par exemple modèle devenu modÃ¨le, délai devenu dÃ©lai. Le reviewer l'a confirmé par comparaison UTF-8/code points avec la base ; ce n'était pas un simple affichage et les tests ne l'avaient pas détecté. Les diagnostics concernés touchaient qualification GPU, catalogue, démarrage micro et repli Auto. La clôture n'a pas été prononcée sur cet état malgré les suites vertes.
+
+Le même implémenteur a restauré exactement les douze lignes de littéraux de la base, sans réencodage global, modification d'autre fichier ou changement des corps extraits. Comparaison individuelle UTF-8 avec HEAD et absence de changement parasite confirmées par le même reviewer. Après correction : auto-tests de garde, `git diff --check`, format (`Run-20261030T123352109-43a556a9`) et workspace (`Run-20261030T123353804-b8b4d4b7`) PASS.
+
+Les cinq suites, les T-E, les autres tests cités et Clippy demeurent des preuves de l'époque 0 ; ils n'ont pas été relancés après la correction limitée aux douze littéraux. La preuve de fermeture demandée par le reviewer prévoyait explicitement la comparaison des littéraux et les contrôles format/diff/workspace, sans répétition des cinq suites si aucun autre changement. Le reviewer a confirmé cette condition et fermé lui-même WIPC-E2-R01. La preuve finale est composée, et ce bilan ne prétend pas à une campagne complète sur le commit final.
+
+### Limites, revue et conservation
+
+Deux corps conditionnels restent NOT RUN faute de variables : `paths_reject_a_worker_outside_the_runtime_root` attend PARAKEET_L2_RUNTIME_ROOT ; `over_limit_parakeet_import_is_refused_before_pending_creation` attend PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_EN_WAV, PARAKEET_L2_WORKER et PARAKEET_L2_NATIVE_DIR. Les comptes libtest ne prouvent pas l'exécution de ces deux corps. Le reviewer les a jugés sans lacune matérielle E2, leurs frontières restant inchangées. Les 16 ignorés, exclusions D2 corpus natif/l3c déjà convenues, campagnes natives et fenêtre Windows ne sont pas revendiqués exécutés ; aucun nouveau skip.
+
+Verdict final indépendant **CLEAN** sur le candidat working tree, époque 1 : deux passes de revue et un cycle correctif, WIPC-E2-R01 fermé, aucun constat ouvert, aucune vérification requise manquante ni blocage. Les limites ci-dessus restent explicites ; la clôture structurelle ne vaut pas qualification native/Windows.
+
+Le modèle installé conserve le SHA-256 `1FC70F774D38EB169993AC391EEA357EF47C88757EF72EE5943879B7E8E2BC69`, taille 1 624 555 275 octets et date du préflight ; copie et liens sont bornés sous E2. Archive : `target/parakeet-tests/refacto-worker-ipc-e2/archive/closure-20261030/proofs.zip`, 90 entrées uniques, 331 436 octets. Arborescence relative conservée, compte/unicité et SHA-256 de chaque entrée comparés aux sources. SHA-256 du ZIP : `E3C09D2F5E50B6174D018A9E9548A05800EBE7D43A5A6AAAA4D286DC693AA0B3`. Suites et Clippy époque 0, contrôles époque 1 distincts dans l'archive. Aucun modèle/corpus/WAV/cache/build archivé, aucun manifeste créé ni nettoyage/suppression sans manifeste de suppression approuvé ; copie modèle, liens et cargo-shared conservés.
+
+Espace libre final : 103 308 873 728 octets (environ 96,2 Gio). Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Sources relues et bilan conservés dans le commit local de clôture, aucun push. Aucun lot F1 autorisé par cette clôture.

@@ -5,10 +5,13 @@ mod effects;
 mod import;
 mod live;
 mod poll;
+mod poll_unified;
 mod queue;
 mod recovery;
 mod source_binding;
 pub(super) use live::{LiveEffect, MicrophoneTestCapture};
+#[cfg(test)]
+pub(super) use poll_unified::{manual_gpu_failure_event, retry_native_gpu_startup_on_cpu};
 pub(super) use recovery::RecoveryEffect;
 
 #[cfg(test)]
