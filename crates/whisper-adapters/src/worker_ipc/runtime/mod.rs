@@ -1,7 +1,9 @@
 use super::*;
 
 mod duplicates;
+mod live;
 mod queue;
+pub(super) use live::{LiveEffect, MicrophoneTestCapture};
 
 #[cfg(test)]
 pub(super) use duplicates::resolve_reprocessing_targets;

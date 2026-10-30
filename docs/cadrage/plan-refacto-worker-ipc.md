@@ -1,6 +1,6 @@
-Avancée : lots A à D2 clos après vérifications et revue CLEAN ; bilan D2 au §22.
-Blocage : aucun dans le périmètre D2 autorisé.
-Décision : lot D2 clos sans réserve dans ce périmètre ; aucun lot D3 démarré.
+Avancée : lots A à D3 clos après vérifications et revue CLEAN ; bilan D3 au §24.
+Blocage : aucun dans le périmètre D3 autorisé.
+Décision : lot D3 clos sans réserve dans ce périmètre ; aucun lot D4 démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -759,3 +759,46 @@ Décision : exécuter uniquement D3, revue indépendante puis commit local sans 
 Accord écrit de la session : « Passe au lot D3 selon le plan. Je t’autorise l’implémentation, les vérifications et le commit local, sans push. Clôture-le sans réserve après revue indépendante. » Périmètre : `worker_ipc.rs`, `runtime/mod.rs`, `runtime/live.rs`, subdivision autorisée `runtime/live/capture.rs` si nécessaire ; quatre fichiers production maximum et tests directement correspondants. Extraire les huit bras StartMicrophoneTest, StartDirectLive, StartUnifiedLive, StartLive, SetMicrophoneGain, FinishLiveOnCpu, StopUnifiedLive et StopMicrophoneTest, avec helpers live/capture/activation/tentative/replay nécessaires. Conserver primitives moteur jusqu'à F1 et source/exécuteur unifiés jusqu'à F2. Stop générique partagé reste D5. Préserver retours de closures et du dispatcher, événements différés, capture/durabilité/ACK, identités, gain, ordre Start/Stop et politique de repli existante. Pas de réécriture des modules capture.rs/direct_live.rs extérieurs ni nouvelle API, dépendance, feature ou manifeste.
 
 Campagne sous `target/parakeet-tests/refacto-worker-ipc-d3/`, copie adaptée de la garde existante, cache/fixture/temporaires et sorties bornés sous D3, cible Cargo partagée canonique inchangée. Préflight, auto-tests, surveillance, commandes offline/locked et séquencement sans Git pendant commande gardée obligatoires. Les consignes de session sur les fichiers extérieurs non attribués sans lien démontré avec le projet et sur `.git/objects/` restent applicables ; aucune destination volontaire hors racines, écriture attribuée à la campagne ou modification de ressource projet n'est autorisée. Index/HEAD/références/configuration, sources, ressources Whisper, modèles, corpus et cache Cargo restent protégés. Exclusions D2 corpus natif/l3c et limite hors périmètre D4 hardlink explicites, aucun nouveau skip ni campagne native/Windows implicite. Espace libre initial : 116 398 514 176 octets (environ 108,4 Gio). Non suivis préexistants préservés.
+## 24. Clôture du lot D3 — 30 octobre 2026
+
+Avancée : huit traitements direct/micro et helpers associés extraits, vérifications réussies et revue indépendante CLEAN.
+Blocage : aucun dans le périmètre D3 autorisé.
+Décision : D3 clos sans réserve dans ce périmètre ; commit local sans push, aucun lot D4 démarré.
+
+### Delta et contrats préservés
+
+Base Git exacte : `7b895ae871d48a3e785e7ce645200437a1f82d53`, après D2 clos. Implémentation déléguée au profil prévu ; revue par le coordinateur et le même reviewer indépendant en lecture seule. La session principale n'a pas modifié le code en parallèle.
+
+Trois fichiers production : `worker_ipc.rs`, déclaration dans `runtime/mod.rs` et nouveau `runtime/live.rs` (968 lignes physiques). La subdivision capture autorisée n'a pas été nécessaire. Les huit bras StartMicrophoneTest, StartDirectLive, StartUnifiedLive, StartLive, SetMicrophoneGain, FinishLiveOnCpu, StopUnifiedLive et StopMicrophoneTest délèguent. MicrophoneTestCapture, spawn_live_attempt, start_live, activate_live_after_ready, les tentatives CPU liées au direct et finish_live_on_cpu sont sous live. Stop générique, polling et primitives prévues pour F1/F2 restent en place. Aucun fichier capture.rs/direct_live.rs extérieur, test, dépendance, feature, manifeste ou Cargo.lock modifié.
+
+Le résultat interne LiveEffect conserve les deux retours anticipés du dispatcher StartDirectLive ; les returns de StartUnifiedLive restent locaux aux mêmes closures. Le reviewer a comparé les corps : préambule/épilogue, mutations, état unique ImportRuntime, identités, activation, réservation/remapping, événements différés, gain et ACK de persistance préservés. Aucun repli ajouté ni politique de sélection moteur modifiée. Visibilités limitées à worker_ipc, aucun nouvel export externe.
+
+### Vérifications avant/après
+
+Préflight, auto-tests et surveillance de la garde sous `target/parakeet-tests/refacto-worker-ipc-d3/`, cache/fixture/temporaires et sorties sous D3, cible Cargo partagée canonique, commandes offline/locked. Consignes existantes sur les événements extérieurs non attribués et objets Git conservées ; protections des fichiers liés au projet inchangées. Aucun Git concurrent des commandes gardées.
+
+Le premier check d'extraction avait relevé deux champs de capture encore privés pour le polling historique. Leur visibilité interne a été ajustée, puis un import réservé aux tests borné à cfg(test), avant les contrôles finaux. Les échecs intermédiaires restent dans les preuves ; l'état final et tous ses contrôles sont distingués, sans prétendre au succès des premières commandes en erreur.
+
+Six témoins ciblés ont réellement passé avant et après : les trois T-D3 nommés du plan (ordre Start/Stop, attente des ACK de persistance, gain et cible obsolète), le Start/Stop immédiat, les deux captures/finalisations concurrentes et la fermeture globale. Un témoin supplémentaire de capture MicrophoneTestCapture réussit après extraction. Les tests existants sont conservés sans renommage, retrait ou ajout ; les découvertes et comptes avant/après sont identiques.
+
+| Configuration séquentielle | Réussis baseline et candidat | Échoués | Ignorés | Filtrés autorisés | Résultat |
+| --- | --- | --- | --- | --- | --- |
+| défaut | 270 | 0 | 16 | 1 D2 corpus natif | PASS |
+| recette-hooks | 274 | 0 | 16 | 1 D2 corpus natif | PASS |
+| l01-memory-qualification | 270 | 0 | 16 | 1 D2 corpus natif | PASS |
+| personal-qualification | 270 | 0 | 16 | 1 D2 corpus natif | PASS |
+| recette-hooks,l3-gpu-qualification | 274 | 0 | 16 | 2 D2 corpus natif/l3c | PASS |
+
+Format, `git diff --check`, contrôle workspace et Clippy PASS. Clippy final : 145 avertissements, comme la baseline. Le reviewer a comparé les messages au-delà de leur nombre : aucun nouveau lint ; les seuls changements de diagnostics hérités sont la réduction de taille du dispatcher (1 247 à 969 lignes selon Clippy) et de sa complexité cognitive (82 à 63). Les cibles structurelles globales ne sont pas revendiquées atteintes pour tous les corps historiques, et aucun avertissement n'est masqué.
+
+Trois contrôles conditionnels non natifs isolés sont exécutés avec ressources bornées et réussissent : chemins de runtime, routage de catalogue, refus d'import trop long (`Run-20261030T090413525-e696342f`, `Run-20261030T090414746-426d36b3`, `Run-20261030T090415969-356de6a6`). Le test D4 impliquant un hardlink vers le modèle extérieur reste NOT RUN, hors critères D3. Les 16 tests ignorés, exclusions D2 corpus natif/l3c et campagnes natives/Windows ne sont pas revendiqués exécutés. Aucun nouveau skip.
+
+Journaux des cinq suites finales : `Run-20261030T085710879-343eb8da`, `Run-20261030T085836840-a86cd7fd`, `Run-20261030T090007302-032db68c`, `Run-20261030T090135885-c09fba85`, `Run-20261030T090300870-e06e18d0`, sous `target/parakeet-tests/refacto-worker-ipc-d3/logs/` avec stdout/stderr et index `guard.jsonl`.
+
+### Revue et conservation
+
+Le même reviewer indépendant rend **CLEAN** sur le candidat working tree, epoch 0 : une passe de revue, zéro correction, aucun constat ouvert, aucune vérification requise manquante ni blocage dans D3. L'équivalence des huit handlers, des retours anticipés et des helpers live a été confirmée, ainsi que l'absence d'élargissement vers F1/F2. Cette clôture structurelle ne vaut pas qualification native ni recette dans la fenêtre Windows.
+
+Archive : `target/parakeet-tests/refacto-worker-ipc-d3/archive/closure-20261030/proofs.zip`, 100 entrées uniques, 346 820 octets. Arborescence relative conservée ; compte/unicité et SHA-256 de chaque entrée comparés aux sources. SHA-256 du ZIP : `DF1C378CFD972027EE46D31A7B1864F4BD7ABD6A315863F102381B0A43109DD5`. Aucun cache/build/modèle/WAV archivé, aucun manifeste créé, aucun nettoyage ni suppression sans manifeste de suppression approuvé ; cargo-shared conservé.
+
+Espace libre final : 115 486 175 232 octets (environ 107,6 Gio). Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Sources relues et bilan conservés dans le commit local de clôture, aucun push. Aucun lot D4 autorisé par cette clôture.
