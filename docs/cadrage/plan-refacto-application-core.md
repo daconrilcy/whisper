@@ -1,4 +1,4 @@
-Avancée : T1–T5 implémentées, vérifiées et revues CLEAN ; T6–T10 restent à réaliser.
+Avancée : T1–T6 implémentées, vérifiées et revues CLEAN ; T7–T10 restent à réaliser.
 Blocage : aucun ; E0 satisfait après arbitrage utilisateur consigné ci-dessous.
 Décision : poursuivre séquentiellement, sans push et sans validation native/Windows revendiquée.
 
@@ -299,3 +299,10 @@ Après l’arrêt ci-dessus, l’utilisateur a explicitement autorisé la repris
 - Fichiers : `application.rs`, `runtime/mod.rs`, nouveau `runtime/import.rs` (523 lignes physiques). Racine : 2 731 → 2 320 lignes ; trois helpers définis uniquement dans import, M1/M3 conformes.
 - Garde/cache/temp/TMP T5, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1/V3/V4/V5/V6 de section 5 via `t5/guard.ps1`, cwd dépôt : PASS. Baseline/candidat : 175 tests chacun, zéro ignoré ; sept témoins S5 avant/après et 12 tests `import_contract` séparément. Format intermédiaire corrigé ; Clippy suivi seulement de formatage, aucun avertissement `import.rs`, héritage `SAMPLE_RATE` hors périmètre.
 - Preuves : `target/parakeet-tests/refacto-application-core/t5/archive/t5-20261030/logs/`, 19 fichiers, nombre/SHA-256 vérifiés ; baseline `Run-20261030T185428482-21d2350d`, candidat `Run-20261030T185630453-a5458f06`. Résultats relus par reviewer ; espace final 81 581 588 480 octets. Non suivis préservés ; aucun nettoyage, push ou validation native/Windows.
+
+### T6 — captures et documents unifiés
+
+- Base : `1116194aa9e2f2e6784759a809653bd82ced4f4f`. Même implémenteur et reviewer ; CLEAN première passe, zéro correction/constat/demande ouvert. Revue indépendante : routage par familles effectif, instructions/identités/révisions/erreurs et portée des retours préservées, publication conditionnée comme auparavant, aucun second propriétaire.
+- Fichiers : `application.rs`, `runtime/mod.rs`, nouveau `runtime/unified.rs` (1 057 lignes physiques, inférieur à 1 500). Racine : 2 320 → 1 464 lignes ; helpers uniques, M1/M3 conformes.
+- Garde/cache/temp/TMP T6, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1/V3/V4/V5/V6 de section 5 via `t6/guard.ps1`, cwd dépôt : PASS. Baseline/candidat : 175 tests chacun, zéro ignoré ; sept témoins S6U avant/après et filtre `unified_` (sept tests). Format intermédiaire corrigé ; Clippy suivi seulement de formatage, aucun avertissement `unified.rs`, héritage `SAMPLE_RATE` hors périmètre.
+- Preuves : `target/parakeet-tests/refacto-application-core/t6/archive/t6-20261030/logs/`, 19 fichiers, nombre/SHA-256 vérifiés ; baseline `Run-20261030T190118366-70a5ebea`, candidat `Run-20261030T190344191-832d46d2`. Résultats relus par reviewer ; espace final 79 959 887 872 octets. Non suivis préservés ; aucun nettoyage, push ou validation native/Windows.
