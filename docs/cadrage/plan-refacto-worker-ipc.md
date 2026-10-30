@@ -1,6 +1,6 @@
-Avancée : lots A à D4 clos après vérifications et revue CLEAN ; bilan D4 au §26.
-Blocage : aucun dans le périmètre D4 autorisé.
-Décision : lot D4 clos sans réserve dans ce périmètre ; aucun lot D5 démarré.
+Avancée : lots A à D5 clos après vérifications et revue CLEAN ; bilan D5 au §28.
+Blocage : aucun dans le périmètre D5 autorisé.
+Décision : lot D5 clos sans réserve dans ce périmètre ; aucun lot E1 démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -871,3 +871,56 @@ Décision : exécuter uniquement D5, revue indépendante puis commit local sans 
 Accord écrit de la session : « Passe au lot D5 selon le plan. Je t’autorise l’implémentation, les vérifications et le commit local, sans push. Clôture-le sans réserve après revue indépendante. » Périmètre production : `worker_ipc.rs`, `runtime/mod.rs`, `runtime/effects.rs`, `runtime/import.rs` ; si import dépasse 1 500 lignes, subdivision déjà autorisée en `runtime/import/preparation.rs`, `publication.rs`, `worker_start.rs`, plafond atomique sept production pour ce lot. Tests directement correspondants. Extraire les douze variants résiduels SetGpuCandidate, ReadUnifiedDocumentPage, ReadUnifiedAudioPartsPage, Prepare, StartWorker, StartAutomaticFinalTranscription, ScanHistory, ResolveImportPublication, ResolveLivePublication, PersistSegment, Publish et Stop, ainsi que préparation/persistance/publication/stop et wrappers moteur nécessaires, sans déplacer les primitives F1. Déplacer ensemble le préambule et l'épilogue dans effects.rs ; chacun des trente bras ne fait plus que déléguer, match exhaustif sans fourre-tout. Préserver signature, sorties précoces, mutations, nombre et ordre des événements, ACK, nettoyage, publication et compagnon JSON ; aucune nouvelle API, dépendance, feature ou modification de manifeste.
 
 Campagne sous `target/parakeet-tests/refacto-worker-ipc-d5/`, copie adaptée de la garde existante, cache/fixture/modèle copié/temporaires/sorties bornés sous D5, cible Cargo partagée canonique. Le test legacy borné reste réellement activé dans les suites avec sa copie modèle sous D5 ; aucun lien physique vers le modèle installé ou une racine de lot extérieure. Préflight, auto-tests, espace ≥30 Gio, surveillance, commandes offline/locked et absence de Git concurrent obligatoires. Consignes de session sur fichiers extérieurs non attribués sans lien projet et `.git/objects/` maintenues ; ressources projet et écritures suspectes/attribuées restent protégées, aucune destination volontaire hors racines. Seules exclusions D2 corpus natif/l3c convenues, aucun nouveau skip ni qualification native/Windows implicite. Espace libre initial : 114 140 852 224 octets (environ 106,3 Gio). Non suivis préexistants préservés.
+## 28. Clôture du lot D5 — 30 octobre 2026
+
+Avancée : import extrait et dispatcher exhaustif fermé, correction de revue vérifiée, verdict indépendant CLEAN.
+Blocage : aucun dans le périmètre D5 autorisé.
+Décision : D5 clos sans réserve dans ce périmètre ; commit local sans push, aucun lot E1 démarré.
+
+### Delta et fermeture de l'étape 3d
+
+Base Git exacte : `8ec1f8e79fa35c8a30aad7189f5613aec75c57a7`, après D4 clos. Implémentation déléguée au profil prévu, revue par le coordinateur et le même reviewer indépendant en lecture seule ; session principale seule auteure du bilan et des commits, sans modification du code en parallèle.
+
+Quatre fichiers production : `worker_ipc.rs`, déclaration dans `runtime/mod.rs`, nouveaux `runtime/effects.rs` (237 lignes physiques finales) et `runtime/import.rs` (1 016). Les subdivisions conditionnelles du plan n'ont pas été nécessaires. Une seule méthode effect, signature conservée ; préambule et épilogue déplacés ensemble. Le match principal contient trente variantes explicites, sans fourre-tout, chacune déléguée. Les douze variants résiduels d'import, lecture de pages, préparation, démarrage, persistance, publication et Stop ont leurs handlers ; les contrôles internes de retour D2 à D4 sont conservés. Aucun corps métier restant dans ce match, aucune nouvelle API externe, dépendance, feature, modification de manifeste ou Cargo.lock. Polling E1/E2 et primitives F1/F2 restent hors de ce lot.
+
+Le reviewer a comparé séparément les trente bras, la signature, le préambule et l'épilogue à la base, puis les helpers de préparation, persistance, publication et Stop. Équivalence confirmée hors câblage et mise en forme : retours dispatcher/closures, mutations, nombre/ordre des événements, ACK et compteurs, identités, nettoyage et chemins d'échec préservés.
+
+### Caractérisation et preuves initiales — époque 0
+
+Un test privé séparé `automatic_final_binding_failure_updates_companion_and_clears_identity` a été ajouté dans `tests/effect_characterization.rs`, déclaré par `tests.rs`. Il vérifie l'échec de binding automatique, Failed, le statut failed_or_unavailable du JSON compagnon, son diagnostic et le nettoyage des identités/sorties. PASS avant extraction (`Run-20261030T102957586-f39cb100`) puis après (`Run-20261030T103102615-a59faa15`), codes 0.
+
+Les trois témoins T-D5 nommés (publication échouée sans rétention, message worker échoué sans masquer Stop corrélé, Stopped obsolète sans masquer Stop corrélé), ainsi que l'ACK de persistance, ont été réellement exécutés et réussis avant/après. Baseline et premier candidat : format, workspace, diff check et cinq suites séquentielles PASS avec legacy réel. Une caractérisation supplémentaire dans la découverte à cette étape :
+
+| Configuration | Réussis baseline | Réussis candidat époque 0 | Échoués | Ignorés | Filtrés autorisés |
+| --- | --- | --- | --- | --- | --- |
+| défaut | 270 | 271 | 0 | 16 | 1 D2 corpus natif |
+| recette-hooks | 274 | 275 | 0 | 16 | 1 D2 corpus natif |
+| l01-memory-qualification | 270 | 271 | 0 | 16 | 1 D2 corpus natif |
+| personal-qualification | 270 | 271 | 0 | 16 | 1 D2 corpus natif |
+| recette-hooks,l3-gpu-qualification | 274 | 275 | 0 | 16 | 2 D2 corpus natif/l3c |
+
+Ces cinq suites appartiennent à l'époque 0 ; elles n'ont pas été relancées après la correction ciblée décrite ci-dessous. Journaux : `Run-20261030T103208167-add0ee56`, `Run-20261030T103504237-a4719f62`, `Run-20261030T103801406-48d239ca`, `Run-20261030T104058473-0bfe119e`, `Run-20261030T104356916-f913e829`, sous `target/parakeet-tests/refacto-worker-ipc-d5/logs/` avec stdout/stderr et index `guard.jsonl`.
+
+Les contrôles conditionnels purs sont acquis : catalogue injecté dans les suites grâce à WHISPER_L1B_RUNTIME_ROOT et deux contrôles ciblés (`Run-20261030T104639248-692b5b00`, `Run-20261030T104640395-83e55217`), codes 0. Le legacy borné reste réellement exécuté dans les suites ; aucun nouveau retour NOT RUN ou skip de ce témoin.
+
+### Constat de revue, correction et preuves finales — époque 1
+
+Première revue : aucun défaut fonctionnel observé, mais constat requis MINEUR `WIPC-D5-R01` sur deux nouvelles signatures de pagination à neuf arguments. Elles aplatissaient des champs homogènes request_id/révision/offset, avec risque d'inversion qui continuerait à compiler ; ces signatures n'ont pas été présentées comme dette héritée. Le même implémenteur a corrigé le constat : les commandes ImportEffect existantes restent groupées jusqu'aux deux handlers, puis sont déstructurées une fois. Signatures self + effet + événements, aucun nouveau contexte artificiel, API publique ou suppression de lint. Match principal toujours exhaustif.
+
+Le candidat corrigé ajoute un témoin de dispatcher `pagination_effects_preserve_request_and_generation_identity_on_error` dans le même fichier privé. Le test cible les identités et erreurs des deux événements paginés (`Run-20261030T105820655-550b73de`, PASS). Le test du cœur `unified_page_responses_and_errors_follow_latest_selection_request` passe (`Run-20261030T105904263-a9092c92`). Les contrôles réellement réexécutés sur l'époque 1 passent également : JSON/binding/nettoyage (`105843347-4eaec5f5`), publication échouée (`105844678-f7630d08`), Stop corrélé après événement obsolète (`105846124-6338a259`), ACK de persistance (`105847414-3b81f77f`), workspace (`105848705-e667d58f`), Clippy (`105852720-a70664a1`), format (`105902562-37197e4a`) ; préfixe `Run-20261030T` pour chaque référence.
+
+Le reviewer a vérifié la correction, fermé lui-même WIPC-D5-R01 et jugé ces contrôles ciblés suffisants pour les deux frontières modifiées, sans lacune matérielle. La preuve finale est donc composée : suites complètes époque 0, contrôles ciblés époque 1 et relecture de l'équivalence du changement borné. Ce bilan ne prétend pas à une exécution des cinq suites sur le commit final.
+
+Clippy initial : 148 avertissements contre 146 en baseline (deux nouvelles signatures de pagination, corps Stop extrait et disparition d'un diagnostic du dispatcher). Clippy corrigé : 146, les deux too_many_arguments de pagination ont disparu, sans allow. Dette de taille héritée explicitement retenue : effect 227 lignes et Stop 111 pour la cible 100. Le reviewer ne relève plus de constat actionnable et n'assimile pas cette dette à l'atteinte des cibles de structure.
+
+### Campagne, revue et conservation
+
+Préflight, auto-tests et surveillance de la garde sous D5, cache/fixture/modèle copié/temporaires et sorties bornés, cible Cargo partagée canonique, commandes offline/locked, aucun Git concurrent ni nouvelle isolation/surveillance. Consignes de session pour événements extérieurs non attribués sans lien projet et `.git/objects/` maintenues sans lever les protections des ressources projet. Modèle installé en lecture seule, SHA et métadonnées finaux identiques au préflight : `1FC70F774D38EB169993AC391EEA357EF47C88757EF72EE5943879B7E8E2BC69`, 1 624 555 275 octets, date relevée du 6 octobre 2026 à 08:12:43. Copie et liens physiques restent sous D5.
+
+Les 16 tests ignorés, exclusions D2 corpus natif/l3c déjà convenues, campagnes natives et fenêtre Windows ne sont pas revendiqués exécutés ; aucun nouveau skip ajouté. La clôture est celle du périmètre structurel D5, sans qualification native/Windows implicite.
+
+Verdict final indépendant **CLEAN** sur le candidat working tree époque 1 : deux passes de revue, un cycle correctif, WIPC-D5-R01 fermé, aucun constat ouvert ni vérification requise manquante. La transmission de correction n'avait initialement pas réactivé le reviewer ; le coordinateur a corrigé le déclenchement via le même reviewer avant le paquet final. Aucun changement de source ou de preuve pendant cette correction de coordination.
+
+Archive : `target/parakeet-tests/refacto-worker-ipc-d5/archive/closure-20261030/proofs.zip`, 104 entrées uniques, 378 726 octets. Arborescence relative conservée, compte/unicité et SHA-256 de chaque entrée comparés aux sources. SHA-256 du ZIP : `9C0FE209F3F76F461F25F2682F784A1B68C56CABC25D39A1742A57B4AD978477`. Suites époque 0 et contrôles époque 1 inclus avec leurs journaux distincts. Aucun modèle/corpus/WAV/cache/build archivé, aucun manifeste créé ni nettoyage/suppression sans manifeste de suppression approuvé ; copie modèle, liens bornés et cargo-shared conservés.
+
+Espace libre final : 110 231 945 216 octets (environ 102,7 Gio). Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Sources relues et bilan conservés dans le commit local de clôture, aucun push. Aucun lot E1 autorisé par cette clôture.
