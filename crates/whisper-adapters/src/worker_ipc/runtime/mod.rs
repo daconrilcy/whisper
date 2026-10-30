@@ -1,6 +1,11 @@
 use super::*;
 
+mod duplicates;
 mod queue;
+
+#[cfg(test)]
+pub(super) use duplicates::resolve_reprocessing_targets;
+pub(super) use duplicates::{DuplicateEffect, verified_present_publications};
 
 pub(super) struct ImportRuntime {
     pub(super) workers: WorkerPaths,

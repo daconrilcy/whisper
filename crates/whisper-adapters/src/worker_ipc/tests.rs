@@ -6,3 +6,4 @@ include!("tests/microphone_and_finalization.rs");
 include!("tests/reprocessing_and_transport.rs");
 include!("tests/resume_and_admission.rs");
 include!("tests/queue_characterization.rs");
+include!("tests/duplicate_characterization.rs");

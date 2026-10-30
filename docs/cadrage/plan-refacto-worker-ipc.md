@@ -1,6 +1,6 @@
-Avancée : lots A à D1 clos après vérifications et revue CLEAN ; bilan D1 au §20.
-Blocage : aucun dans le périmètre D1 autorisé.
-Décision : lot D1 clos sans réserve dans ce périmètre ; aucun lot D2 démarré.
+Avancée : lots A à D2 clos après vérifications et revue CLEAN ; bilan D2 au §22.
+Blocage : aucun dans le périmètre D2 autorisé.
+Décision : lot D2 clos sans réserve dans ce périmètre ; aucun lot D3 démarré.
 
 # Plan de refactorisation — worker_ipc
 
@@ -699,3 +699,54 @@ Décision : exécuter uniquement D2 selon le plan, revue indépendante puis comm
 Accord écrit de la session : « Ok commit et passe au D2 selon le plan ». Le commit D1 est acquis ; cette demande autorise la suite D2 avec les vérifications et la revue prévues, sans modifier l'interdiction de push. Périmètre : `worker_ipc.rs`, `worker_ipc/runtime/mod.rs` et `worker_ipc/runtime/duplicates.rs`, tests directement correspondants. Extraire ConfirmDuplicateImport, confirm_interrupted_publication, résolution des cibles et revalidation des publications. Préserver prompts, choix dernier/tous/cible exacte, refus/annulation, ordre des mutations et source bindings, retours courts, différence entre revalidation proposant un prompt et erreur terminale. Ne pas exécuter un épilogue auparavant évité et ne pas fusionner les politiques fichier/direct.
 
 Campagne sous `target/parakeet-tests/refacto-worker-ipc-d2/`, cible Cargo partagée canonique inchangée, copie adaptée de la garde existante, cache/fixture/temporaires et sorties bornés sous D2. Préflight, auto-tests, surveillance et commandes offline/locked requis. La directive utilisateur générale sur les fichiers extérieurs sans lien démontré avec le projet et l'accord `.git/objects/` pour tous les lots restent applicables ; aucune destination volontaire hors racines, écriture attribuée à la campagne ou modification de ressource projet n'est autorisée. Protection index/HEAD/références/configuration inchangée, aucune lecture Git concurrente d'une commande gardée. Exclusions D2 natif/l3c et limites hors périmètre D4 hardlink conservées explicitement, sans nouveau skip ni qualification native/Windows implicite. Espace libre initial : 119 925 055 488 octets (environ 111,7 Gio). Non suivis préexistants préservés.
+## 22. Clôture du lot D2 — 30 octobre 2026
+
+Avancée : traitement des doublons extrait, vérifications réussies et revue indépendante CLEAN.
+Blocage : aucun dans le périmètre D2 autorisé.
+Décision : D2 clos sans réserve dans ce périmètre ; commit local sans push, aucun lot D3 démarré.
+
+### Autorité et delta
+
+Après le GO initial du §21, l'utilisateur a confirmé explicitement l'implémentation, les vérifications, le commit local sans push et la clôture sans réserve après revue indépendante. Base exacte : `7ee653ccb7033679561c460a3ed4d9645b0c8eaa`, après D1 clos. Implémentation déléguée au profil prévu, revue par le coordinateur et le même reviewer indépendant ; la session principale n'a pas modifié le code en parallèle.
+
+Trois fichiers production : `worker_ipc.rs`, déclaration dans `runtime/mod.rs`, nouveau `runtime/duplicates.rs` (447 lignes physiques). ConfirmDuplicateImport délègue à un seul handler ; confirm_interrupted_publication, resolve_reprocessing_targets et verified_present_publications ont leur propriétaire sous duplicates. Les helpers restent privés à worker_ipc ; aucune nouvelle API externe, dépendance, feature, modification de manifeste ou Cargo.lock. La politique directe n'est pas fusionnée avec celle du doublon fichier.
+
+Le résultat interne `DuplicateEffect::Return` représente les deux retours du dispatcher préexistants : confirmation interrompue et refus CreateNew sans registre. `Continue(result)` préserve les chemins passant par l'épilogue ; les retours de revalidation ou d'erreur restent dans leurs closures d'origine. Le reviewer a vérifié les mutations, source bindings, identités, prompts, décisions et distinction entre revalidation proposant un prompt et erreur terminale. Aucun succès de handler n'active un épilogue auparavant évité.
+
+### Baseline, reprise et campagne
+
+Campagne sous `target/parakeet-tests/refacto-worker-ipc-d2/`, cache/fixture/temporaires et sorties sous D2, cible Cargo partagée canonique, préflight, auto-tests et surveillance existante, commandes offline/locked. Aucun téléchargement ni nouvelle isolation/surveillance.
+
+Le 29 octobre, la suite défaut de baseline avait échoué sur trois scénarios Auto utilisant réellement le microphone Windows par défaut, absent. Un échec de nettoyage de répertoire était aussi survenu puis avait réussi isolément. Ces résultats restent conservés. Le 30 octobre, l'utilisateur a confirmé « Microphone rétabli, tu peux reprendre » ; la suite défaut puis les autres configurations ont réussi, les trois scénarios Auto inclus sans exclusion ni correction de code microphone.
+
+Un événement Created dans Downloads sur un GUID.tmp à 08:16:43 a interrompu recette-hooks (`Run-20261030T081616295-8b50dd01`), sans attribution à la campagne ni lien projet démontré. La garde, encore limitée aux documents Office/PDF, a été alignée sur la consigne utilisateur générale déjà donnée de ne pas interrompre pour les fichiers extérieurs sans lien projet, sans limitation d'extension. Les fichiers non attribués concernés sont consignés `UNATTRIBUTED_EXTERNAL` ; fichiers suspects/attribués, ressources Whisper, cache Cargo, modèles, corpus, sources, index/HEAD/références/configuration et renommages entre zones restent protégés. Auto-tests du GUID synthétique et des refus projet réussis ; recette-hooks relancée PASS. Aucune destination volontaire hors racines ni effacement/restauration de l'événement autorisé.
+
+Un relevé Git avait été lancé par erreur en parallèle de l'auto-test initial de reprise, sans Cargo alors et sans incident d'index observé. La séquence a été corrigée avant la suite des campagnes : aucun Git pendant une commande gardée, y compris SelfTest ; aucun assouplissement de protection de l'index. Les auto-tests et les événements historiques restent archivés, sans conversion des commandes interrompues en succès.
+
+### Vérifications exécutées
+
+Les trois témoins T-D2 du plan, les parcours de retraitement et de reprise unifiée ont été exécutés et réussis avant/après. Une caractérisation privée séparée a été ajoutée dans `tests/duplicate_characterization.rs`, déclarée dans `tests.rs` : refus courts, identité et événements, avant extraction (`Run-20261030T082325938-ccf50c55`) puis après (`Run-20261030T082435738-0c6c3e68`), codes 0. Six témoins ciblés candidat réussis. Le témoin d'annulation du cœur `cancelling_duplicate_import_releases_only_the_new_source_snapshot` réussit (`Run-20261030T083302959-e911e1e8`).
+
+Baseline et candidat : format, contrôle workspace, cinq suites séquentielles et `git diff --check` PASS. Les découvertes comptent exactement un test supplémentaire de caractérisation, sans perte de scénario.
+
+| Configuration séquentielle | Réussis baseline | Réussis candidat | Échoués | Ignorés | Filtrés autorisés |
+| --- | --- | --- | --- | --- | --- |
+| défaut | 269 | 270 | 0 | 16 | 1 D2 natif |
+| recette-hooks | 273 | 274 | 0 | 16 | 1 D2 natif |
+| l01-memory-qualification | 269 | 270 | 0 | 16 | 1 D2 natif |
+| personal-qualification | 269 | 270 | 0 | 16 | 1 D2 natif |
+| recette-hooks,l3-gpu-qualification | 273 | 274 | 0 | 16 | 2 D2 natif/l3c |
+
+Clippy réussit : 145 avertissements contre 144 en baseline. Le nouveau `too_many_lines` concerne le corps de confirmation hérité extrait, 226 lignes pour une cible de 100 ; aucun `allow` ajouté. Le signalement préexistant de confirm_interrupted_publication (110 lignes) est conservé. Le reviewer confirme l'attribution en dette héritée permise par le plan, sans constat actionnable D2 ; l'atteinte du seuil de taille n'est pas revendiquée pour ce corps déplacé.
+
+Trois contrôles conditionnels non natifs isolés ont été réellement exécutés avec ressources bornées et réussissent : chemins de runtime, routage de catalogue et refus d'import trop long (`Run-20261030T083311086-ef04aa3a`, `Run-20261030T083312482-cb42fba2`, `Run-20261030T083313792-ad705178`). Le scénario de reprise legacy impliquant un hardlink sur le modèle extérieur reste NOT RUN et hors critères D2. Les 16 tests ignorés, les exclusions D2 corpus natif/l3c déjà convenues, les campagnes natives et la fenêtre Windows ne sont pas revendiqués exécutés. Aucun nouveau skip ajouté pour clôturer ce lot de refactorisation D2.
+
+Journaux des cinq suites finales : `Run-20261030T082546994-51891753`, `Run-20261030T082716109-e8ce41c0`, `Run-20261030T082845010-77274ead`, `Run-20261030T083014671-621154a6`, `Run-20261030T083144167-25eb7924`, sous `target/parakeet-tests/refacto-worker-ipc-d2/logs/` avec stdout/stderr et index `guard.jsonl`.
+
+### Revue et conservation
+
+Le reviewer indépendant rend **CLEAN** sur le candidat working tree, epoch 0 : une passe de revue, zéro correction, aucun constat ouvert, aucune vérification requise manquante ni blocage dans D2. Les retours courts, les closures, les identités et les mutations restent identiques ; la dette de taille héritée est explicitement attribuée ci-dessus conformément au plan. La clôture porte sur ce périmètre structurel, sans qualification native/Windows implicite.
+
+Archive : `target/parakeet-tests/refacto-worker-ipc-d2/archive/closure-20261030/proofs.zip`, 100 entrées uniques, 354 755 octets. Arborescence relative conservée, nombre/unicité et SHA-256 de chaque entrée comparés à sa source. SHA-256 du ZIP : `81C63A06BDCFBBC3BCF3328D7A3819D6567094453BEE76ABFCF1EE24AB53185C`. Aucun cache/build/modèle/WAV archivé, aucun manifeste créé ni nettoyage/suppression sans manifeste de suppression approuvé ; cargo-shared conservé.
+
+Espace libre final : 116 739 747 840 octets (environ 108,7 Gio). Non suivis préexistants `docs/architecture/`, `models/`, `sound example/` préservés et exclus du commit. Sources relues et bilan conservés dans un commit local de clôture, aucun push. Aucun lot D3 autorisé par cette clôture.
