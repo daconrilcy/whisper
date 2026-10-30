@@ -1,4 +1,4 @@
-Avancée : T1–T7 implémentées, vérifiées et revues CLEAN ; T8–T10 restent à réaliser.
+Avancée : T1–T8 implémentées, vérifiées et revues CLEAN ; T9–T10 restent à réaliser.
 Blocage : aucun ; E0 satisfait après arbitrage utilisateur consigné ci-dessous.
 Décision : poursuivre séquentiellement, sans push et sans validation native/Windows revendiquée.
 
@@ -313,3 +313,10 @@ Après l’arrêt ci-dessus, l’utilisateur a explicitement autorisé la repris
 - Fichiers : `application.rs`, `runtime/mod.rs`, nouveau `runtime/parakeet_views.rs` (572 lignes physiques). Racine : 1 464 → 948 lignes ; définitions uniques, M1/M3 conformes.
 - Garde/cache/temp/TMP T7, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1/V3/V4/V5/V6 via `t7/guard.ps1`, cwd dépôt : PASS. Baseline/candidat : 175 tests chacun, zéro ignoré ; cinq témoins S7P avant/après ; filtres `parakeet_`, `start_failure_before_live_started` et `unified_session_card_cache_stays_bounded_at_eight` non vides. Découpage de la fin et format corrigés ; aucun avertissement Clippy `parakeet_views.rs`, formatage seul ensuite ; héritage `SAMPLE_RATE` hors périmètre.
 - Preuves : `target/parakeet-tests/refacto-application-core/t7/archive/t7-20261030/logs/`, 25 fichiers, nombre/SHA-256 vérifiés ; baseline `Run-20261030T190708331-79751cd0`, candidat `Run-20261030T190924535-10b4d005`. Résultats relus par reviewer ; espace final 79 167 512 576 octets. Non suivis préservés ; aucun nettoyage, push ou validation native/Windows.
+
+### T8 — final automatique indépendant
+
+- Base : `7376edcee38a4221953949c636aa9fd0d6bb6a6e`. Même implémenteur et reviewer ; CLEAN première passe, zéro correction/constat/demande ouvert. Sept helpers déplacés, handler décomposé préparation/persistance/terminal ; comparaison indépendante conforme des auxiliaires et branches. Routage avant filtre actif, état séparé, statut non vérifié, limites de file 1 et segments 16, erreurs et passage au suivant conservés.
+- Fichiers : `application.rs`, `runtime/mod.rs`, nouveau `runtime/automatic_final.rs` (385 lignes physiques). Racine : 948 → 620 lignes ; sept définitions uniques, M1/M3 conformes.
+- Garde/cache/temp/TMP T8, cible partagée, environnement prescrit, auto-tests PASS. Arguments V1/V3/V4/V5/V6 via `t8/guard.ps1`, cwd dépôt : PASS. Baseline/candidat : 175 tests chacun, zéro ignoré ; deux témoins S8A avant/après et filtre `automatic_` (deux tests). Format intermédiaire corrigé ; aucun avertissement Clippy `automatic_final.rs`, formatage seul ensuite ; héritage `SAMPLE_RATE` hors périmètre. Saturation/reprise/accusés/fin/publication/erreurs également comparés statiquement.
+- Preuves : `target/parakeet-tests/refacto-application-core/t8/archive/t8-20261030/logs/`, 19 fichiers, nombre/SHA-256 vérifiés ; baseline `Run-20261030T191221900-b7680173`, candidat `Run-20261030T191400800-fd75f2e1`. Résultats relus par reviewer ; espace final 77 766 619 136 octets. Non suivis préservés ; aucun nettoyage, push ou validation native/Windows.
