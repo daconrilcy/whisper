@@ -1,6 +1,6 @@
-Avancée : lot L3D du cœur implémenté et relu CLEAN ; vérifications sous garde réussies et release locale distincte prête.
-Blocage : aucun pour la remise ; validation de la nouvelle version dans la fenêtre Windows restant à l'utilisateur.
-Décision : remettre release-core-l3d sans remplacer la version validée ; code non commité, aucune installation ni push.
+Avancée : phases 1 à 3 et lot L3D livrés, relus et validés par l'utilisateur ; code commité localement dans 778ef0bc puis ff98205b.
+Blocage : aucun sur les lots prévus ; aucune phase d'implémentation suivante n'est définie dans ce plan.
+Décision : clore ce plan en conservant la compatibilité historique ; aucune installation ni push.
 
 ## Header
 
@@ -42,12 +42,12 @@ Convention : `parakeet_import.rs` plus `parakeet_import/*.rs`, déclarations `mo
 
 | Audit finding | Severity | Disposition | Task IDs / gate | Notes |
 | --- | --- | --- | --- | --- |
-| EH-01 | High / IMPORTANT | Planned | P1-T1 | Choix personnel avant racines de journaux historiques. |
-| EH-02 | High / IMPORTANT | Planned | P1-T1, P3-T2 | Neutralisation à la frontière enfant, puis éventuel retrait dans le worker. |
-| EH-03 | Medium / IMPORTANT | Planned | P2-T1, G1 | Isoler les chemins ; conserver les profils Test par défaut. |
-| EH-04 | Low / MINEUR | Decision gate | G2, P3-T1, P3-T2 | Nettoyage R6/R7/trace après décision. Trace L3D du cœur différée à un lot diagnostic dédié. |
-| EH-05 | Medium / IMPORTANT | Deferred | G1, P3-T3 | Pas de suppression des clés persistantes ni des preuves GPU ; seule mise à jour atomique des identités nouvelles si workers reconstruits. |
-| EH-06 | Medium / IMPORTANT | Planned | P1-T1 | Nouvelle couverture autonome ; migration générale des anciens tests différée. |
+| EH-01 | High / IMPORTANT | Traité | P1-T1 | Choix personnel prioritaire et scénarios autonomes vérifiés. |
+| EH-02 | High / IMPORTANT | Traité | P1-T1, P3-T2 | Variables héritées neutralisées et mesures obsolètes retirées des workers qualifiés. |
+| EH-03 | Medium / IMPORTANT | Traité | P2-T1, G1 | Compatibilité des racines isolée ; profils Test conservés. |
+| EH-04 | Low / MINEUR | Traité | G2, P3-T1, P3-T2, P4-T1/T2/T3 | Diagnostics R6/R7 et traces historiques retirés ; lot L3D du cœur livré et validé. Journal ASR GPU conservé. |
+| EH-05 | Medium / IMPORTANT | Compatibilité préservée et vérifiée | G1, P3-T3 | Anciennes clés d'archives conservées, exécutables nouveaux admis par leurs identités qualifiées ; aucune migration de données. |
+| EH-06 | Medium / IMPORTANT | Périmètre P1 traité | P1-T1 | Couverture autonome exécutée ; migration générale des anciens tests maintenue hors périmètre. |
 
 ## 5. Recommended Sequence
 
@@ -369,3 +369,9 @@ Vérifications sous garde, toutes exit 0 : SelfTest ; format `20261031T205551067
 Après nouvelle réussite du SelfTest, compilation personnelle release sous garde exit 0 (`20261031T205836576-068a1c9f`). Dossier remis : `target/parakeet-tests/refacto-parakeet-live/p3-workers/release-core-l3d/`, avec nouveau desktop, copies vérifiées des deux workers Turbo précédemment livrés et lanceur `Lancer-Whisper.cmd` contrôlé par `--check`, sans ouverture de fenêtre. Les deux workers Parakeet, les deux modèles et les cinq/neuf DLL restent dans les ressources qualifiées `p3-workers/localappdata/Whisper/` ; présence et SHA-256 vérifiés. Il ne s'agit pas d'un dossier autonome. Les versions précédentes, dont `release-fix-parakeet-micro/`, sont conservées.
 
 Treize petites preuves copiées sous `p3-workers/core-l3d/archive/logs/`, nombre et SHA-256 vérifiés. Aucun nettoyage de WAV ou cache. Espace libre initial : 189,6 Gio ; final : 190,1 Gio. Aucun nouvel essai natif CPU/GPU, car moteurs et workers inchangés ; l'essai de fonctionnement dans la fenêtre Windows reste celui de l'utilisateur. Aucun push ni installation.
+
+### Clôture après validation utilisateur
+
+Le 31 octobre 2026, l'utilisateur déclare la release `release-core-l3d` fonctionnelle et autorise le commit du lot : `ff98205be35a8806453734e4fc72b36ab20d6c37`. Cette confirmation complète la remise P4 ; elle ne constitue pas une nouvelle campagne native ni une mesure de performance. Les mentions « non commité » et « validation restant » des bilans précédents décrivent leurs instantanés de remise, désormais dépassés par cette clôture.
+
+Tous les lots définis par ce plan (P1, P2, P3 et extension P4) sont livrés. Il n'existe pas de phase suivante à implémenter dans ce document. Les profils historiques, les clés d'archives et le journal ASR GPU restent volontairement conservés ; la migration générale des anciens tests et tout autre chantier restent hors périmètre. L'avertissement de méthode privée inutilisée déjà consigné n'autorise pas implicitement un nouveau lot. Les non-suivis `docs/architecture/`, `models/` et `sound example/` restent exclus des commits. Aucun push ni installation.
