@@ -1,6 +1,6 @@
-Avancée : P, S, T et E livrés CLEAN ; 69 sites fermés, 16 avertissements adapters lib restants.
-Blocage : aucun pour E ; préflight et sélection contrôlée C à établir.
-Décision : commit local E puis signatures/types C, garde inchangée et tous arrêts maintenus, sans push.
+Avancée : P, S, T et E livrés CLEAN ; C1–C5 implémentés avec contrôles ciblés réussis, C6 partiel.
+Blocage : deux changements C6 d'attribution non établie ; aucun contrôle après ces mutations.
+Décision : conserver le candidat C non livré et demander arbitrage avant reprise ; garde inchangée et aucun push.
 
 # Analyse et plan de correction Clippy — adaptateurs et desktop
 
@@ -512,9 +512,9 @@ Contrat commun à chaque tâche :
 ### C5 — Regrouper les références du repli de démarrage
 
 - Priority : High. Source finding : A73. Rationale : fermer ces diagnostics en préservant l'invariant décrit dans l'acceptation.
-- Target files/modules : adapters/src/worker_ipc/runtime/poll_unified.rs.
+- Target files/modules : adapters/src/worker_ipc/runtime/poll_unified.rs ; adapters/src/worker_ipc/runtime/mod.rs.
 - Ownership bucket : adaptateurs, responsabilité des modules nommés.
-- Scope budget : 1 fichiers production au maximum, plus tests directement correspondants ; aucun dépassement prévu.
+- Scope budget : 2 fichiers production au maximum, plus tests directement correspondants. Ajustement technique explicite de l'auteur avant C5 après inspection : NativeRetryState défini dans le module privé poll_unified devient nommable par son test consommateur via un unique `#[cfg(test)] pub(super) use poll_unified::NativeRetryState;` dans runtime/mod.rs ; le test emploie runtime::NativeRetryState. Ce fichier supplémentaire est déjà dans le périmètre autorisé C6 du même lot C ; aucune API publique, responsabilité ou fichier hors lot. Pas de réexport supplémentaire dans worker_ipc.rs ni de From de tuple artificiel.
 - Closed invariant / Before metrics / Target metrics : critère ci-dessous ; 1 site(s) → zéro. Metric commands : V-BASE et contrôles ci-dessous. Stop conditions : contrat commun et divergence du critère ci-dessous.
 - Dependencies : tâche précédente du même lot fermée.
 - Implementation outline : Contexte emprunté NativeRetryState regroupant scheduler/sessions/archives/executor_route/executor ; garder current_state/call/cause et les deux fabriques injectées explicites. Adapter les deux appels production et worker_ipc/tests/native_execution.rs. Aucun mem::take ou clonage d'état pour contourner un borrow.
@@ -781,6 +781,18 @@ G-TEST : neuf tests contrôlés exacts (trois transport/priorité/contre-pressio
 Même reviewer indépendant : **CLEAN E1–E3**, un passage, zéro correction, aucun constat/demande/gap. Il a tracé les six constructeurs Duplicate et les deux sorties vers le même événement métier : preuve locale de conservation jugée suffisante, sans exiger la voie positive à vrai modèle hors périmètre. Celle-ci reste NOT RUN, ainsi que natif, matériel et fenêtre ; aucun résultat global de recette inféré.
 
 Archive `target/parakeet-tests/clippy-adapters-desktop/archive/lot-e-20261031/` : **500 fichiers source/500 copies**, SHA-256 tous concordants, arborescence préservée, aucun manifeste ou nettoyage. Espace final **64 472 064 000 octets**. Non-suivis tiers préservés. Commit local E avant C, aucun push.
+
+### Candidat C et arrêt en C6
+
+Baseline C après commit E : `1d47098f18be2a2bc24a4f0522050d89c078266d`. G-TEST positif validé, baseline identique au jeu final prévu : GPU privé/intégration, capture synthétique sans --ignored (deux tests matériels restent ignorés), confirmation/recovery/contrats de fenêtres, trois tests VAD exacts et vad_contract, repli Auto avec faux worker, deux gates, archive et contrat de verrou. PARAKEET_L2_ARCHIVE_ROOT sous temp canonique, ARCHIVE_CHARACTERIZATION_ROOT et PARAKEET_R6_TEST_ROOT absents. SelfTest PASS, garde inchangée. Inventaires `ada17508`/`eb7bacdb`, Clippy baseline `b965d03c`, tests baseline `3236c1ee` à `83aea16b` PASS.
+
+C1–C5 implémentés et contrôles directement affectés réussis : C1 GPU `580419ab`/`ce5c3330`, Clippy `55ce3a98`, format initial `2c933004` FAIL puis forme d'import corrigée dans le scope et PASS `49129bd7` ; C2 capture `1c9cd5c5`, Clippy `bb83df03`, format `19de146a` ; C3 contrats `595f7db2` à `1306dad3`, Clippy `7acfb622`, format `f769d938` ; C4 VAD `7e7cc6a3` à `935d2325`, Clippy `d4569a6c`, format `7d0eb125` ; C5 repli contrôlé `a2f13d02`, Clippy `ae4a9cf7`, format initial `99422bb7` FAIL puis césure corrigée et PASS `55d9e6aa`. Les erreurs de forme restent consignées. Ajustement C5 de visibilité interne pour le test autorisé et justifié dans la tâche ; document écrit par main, sans édition Rust parallèle. Ces contrôles intermédiaires ne sont pas une livraison C ni une revue indépendante.
+
+Arrêt avant tests C6 : l'appel apply_patch demandé sur le bloc automatic_config de `service/mod.rs` répond « verification failed: Failed to find expected lines ... let automatic_parakeet_paths = parakeet_paths.clone() », alors que la lecture immédiate retrouve les transformations attendues. En outre, la destructuration `WorkerRuntimeConfig { ... } = config` dans `runtime/mod.rs` n'apparaît pas dans les appels d'écriture visibles de l'implémenteur. Blobs observés : runtime/mod.rs **65c2e108f29aa05fb4f47ed2324581d384fa6b5a**, dernière écriture **08:04:44** ; service/mod.rs **26e714cb2c0d279990b5770fff53ae34337fd491**, dernière écriture **08:04:52**, le 31 octobre. Origine de ces changements **non établie**, aucune attribution à un autre acteur ni hypothèse de double exécution d'outil présentée comme un fait. Le reste du delta correspond aux éditions déclarées par l'implémenteur. Pas d'événement de garde à l'origine de cet arrêt : c'est une limite d'attribution d'écriture. Main/reviewer/coordinateur n'ont pas édité ces fichiers.
+
+C6 reste incomplet ; **aucun Cargo ni nouvelle édition source après constat**. C7/C8 et D non commencés ; consolidé, strict core/adapters, workspace et profil personnel C **NOT RUN**. Fichiers Rust modifiés du candidat : capture.rs, gpu_inventory.rs, parakeet_live.rs, worker_ipc.rs, runtime/mod.rs, runtime/poll/parakeet.rs, runtime/poll_unified.rs, service/mod.rs et test native_execution.rs, tous dans le périmètre C. Document main et non-suivis préexistants conservés. HEAD avant ce bilan toujours baseline E ; aucun code indexé/commité. Diff-check PASS en lecture, espace **64 467 206 144 octets**. Journaux sous la campagne existante, aucun nettoyage/restauration, modèle/matériel/native/UI non exécutés.
+
+Arbitrage à soumettre : accepter le contenu courant de C6 comme candidat à finir puis revalider complètement (y compris tout contrôle affecté), avec revue indépendante avant commit C, sans effacer la limite de provenance ni modifier garde/arrêts. Aucune poursuite avant cette décision ; aucun constat CLEAN ou PASS courant de C6 déduit de ses transformations présentes.
 
 Autorisation écrite de l'utilisateur dans cette session après livraison du plan : « Implémente les six lots du plan dans l’ordre, avec revues indépendantes et commits locaux, sans push. J’autorise la tolérance limitée au Temp Windows non attribué pour cette campagne, avec les autres arrêts maintenus. » Cet accord couvre P, S, T, E, C puis D et les campagnes prévues. Pour cette seule campagne `clippy-adapters-desktop`, les événements Created/Changed/Deleted purement sous `%LOCALAPPDATA%\Temp` non attribués et les renommages dont les deux chemins y restent sont consignés UNATTRIBUTED sans arrêt ; aucune attribution ni destination volontaire externe n'en est déduite. Les événements attribués à la campagne, sensibles, erreurs de surveillance, renommages franchissant la frontière et les autres arrêts du plan restent bloquants. Une revue et un commit de chaque lot fermé précèdent le suivant. L'autorisation ne vaut pas extension aux warnings/cibles hors périmètre ni aux recettes natives/UI.
 
