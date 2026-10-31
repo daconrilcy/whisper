@@ -1,6 +1,6 @@
-Avancée : MVC raccordé ; finitions des fonctions longues et poursuite autorisées avec réserve V7 explicite.
-Blocage : fonctions longues UI et contrôles affectés à terminer avant revue.
-Décision : terminer dans les chemins prévus, sans corriger core ni neutraliser les avertissements ; revue et commits locaux, sans push.
+Avancée : refonte MVC implémentée et revue CLEAN ; commit produit local 90ead44e, bilan T8 établi.
+Blocage : aucun constat de revue ouvert ; V7 strict en échec hérité accepté, fenêtre Windows non exécutée.
+Décision : livraison avec réserves de validation explicites, sans remise de binaire ni push.
 
 # Refactorisation de ui.rs — plan PLAN-UI v1
 
@@ -234,3 +234,33 @@ Arrêt après V7 ; modifications UI et preuves conservées, aucun changement cor
 L'utilisateur répond « oui je t'autorise » à la demande précise : « Autorisez-vous à terminer ce découpage, refaire les contrôles affectés, puis poursuivre la revue et les commits en conservant l'échec Clippy strict comme réserve explicite ? » Il était précisé que cela n'autoriserait aucune modification de `whisper-core` ni neutralisation de ses avertissements.
 
 V7 demeure donc FAIL sur le candidat mesuré, avec disposition utilisateur autorisant la poursuite et la livraison assortie de cette réserve. Aucun PASS n'en est déduit, aucun correctif hors périmètre ni `allow` de contournement n'est autorisé. Les finitions sémantiques déjà prévues restent obligatoires, ainsi que les vérifications affectées et la revue indépendante T7. Les autres motifs d'arrêt et la limite de deux cycles de revue/correction restent applicables. Le présent accord est commité avant reprise sous garde.
+
+### Bilan final T1–T8 — refonte livrée avec réserves de validation
+
+**Produit :** commit local `90ead44ecd356ce1e9f5f01032b0449e9b11afba`, branche `evo-startup-perf`. Base du candidat relu : `0d88ee63d93664e36f1419badeeb3d3ea4b87762`. Les commits intermédiaires documentent les autorisations et arrêts de cette session ; ils ne sont pas des versions supplémentaires du code produit.
+
+**Changements :** 33 chemins UI créés/modifiés/supprimés au commit produit, exclusivement dans P-UI/P-C/P-V/P-P/P-T. `ui.rs` est une façade de **20 lignes**, contre 3 869 avant refonte ; état et préférences dans `ui/model.rs` et `model/preferences.rs`, contrôleur dans `model/controller*`, vues dans `model/view*`, helpers de présentation dans `presentation*`. Tests et fixtures répartis dans P-T ; les deux anciens fichiers ont été supprimés après transfert. Les 34 fichiers Rust UI finaux mesurent tous **600 lignes ou moins**, maximum **567**. Aucun changement core/adapters/workers, manifeste, dépendance, feature ou Cargo.lock. API conservée : 39 symboles publics ; 40 tests UI et mêmes comptes d'assertions. Le préfixe des tests unitaires est celui prévu par le design.
+
+**Finitions :** les fonctions longues ont été découpées sémantiquement dans les fichiers prévus, sans nouveaux scopes egui ni effets différés. V8 final ne relève plus de fonction de production UI au-dessus de 100 lignes ni de complexité cognitive UI au-dessus de 25 ; les autres avertissements hérités ne sont pas présentés comme supprimés.
+
+| Contrôle final | Résultat et exécution sous garde (arguments exacts au §7) |
+| --- | --- |
+| V1 format | PASS, exit 0 ; `20261031T050106383-11380582` |
+| V2 inventaire | PASS, exit 0 ; `20261031T050146638-463b9b17` ; 82/82 noms correspondent à la baseline après renommage du préfixe |
+| V3 tests défaut | PASS, exit 0 ; `20261031T050111310-99795497` ; 81 réussis, 1 ignoré préexistant |
+| V4 tests personnel | PASS, exit 0 ; `20261031T050120698-b4f3a9d6` ; 82 réussis, 1 ignoré préexistant |
+| V5 build défaut | PASS, exit 0 ; `20261031T050130394-6c9f1687` |
+| V6 build personnel | PASS, exit 0 ; `20261031T050135481-ea6024f6` |
+| V7 Clippy strict | FAIL, exit 101 ; `20261031T045723893-798bc559` ; dix diagnostics core inchangé, réserve explicitement acceptée ; non relancé après finitions, aucun PASS desktop déduit |
+| V8 Clippy structurel personnel | PASS d'exécution, exit 0 avec avertissements ; `20261031T050141324-b8ca8def` |
+| V9 espacement | PASS final sur l'index complet, après correction R1 ; également PASS sur l'arbre de travail |
+
+Toutes commandes Cargo par la garde UI depuis `C:\dev\whisper`, cache/temporaires UI et cible Cargo partagée du §6 ; `--offline --locked` quand acceptés, `CARGO_INCREMENTAL=0` et `CARGO_PROFILE_DEV_DEBUG=line-tables-only`. T1 a réussi ses auto-tests après la dérogation limitée ; les deux incidents initiaux et leurs arrêts restent consignés plus haut. Les résultats du tableau précèdent seulement une normalisation CRLF→LF de la fixture, sans changement du corps Rust ; le reviewer confirme que cette correction ne nécessite pas de nouveau Cargo. Il ne s'agit pas d'une qualification native ni d'un PASS V7 attribué au commit final.
+
+**T7 :** coordinateur `/root/review_ui`, reviewer indépendant réutilisé pour les deux passes : verdict final **CLEAN** sur candidat indexé epoch 1, ensuite commité sans changement de contenu. Deux passes de revue, un cycle de correction, aucun constat ouvert. R1 MINEUR découvert à la préparation du commit : `catalog_fixture.rs` était nouveau et absent du contrôle V9 non indexé ; son CRLF provoquait 28 lignes de défauts. Correction par le même implémenteur : conversion exclusive en LF. Même reviewer ferme R1 après contrôle du contenu et `git diff --cached --check` exit 0, confirmé par la principale. Aucune revue supplémentaire ni nouvel agent correcteur.
+
+**T8 :** aucun binaire remis ni fenêtre ouverte ; rendu, dialogues et comportement dans la fenêtre Windows restent **NOT RUN**, réservés à l'utilisateur. Réserve V7 acceptée conservée ; aucun avertissement neutralisé pour forcer le succès. Bilan rédigé par la session principale dans les deux documents prévus, commits locaux seulement, aucun push.
+
+Petites preuves archivées sans supprimer les originaux : `target/parakeet-tests/refacto-ui/archive/ui-proofs-20261031.zip`, **57 fichiers**, arborescence conservée, nombre et SHA-256 de chaque entrée comparés aux sources. Archive : **158 719 octets**, SHA-256 `A75DABA19713829E45CC5E64141698FA94144DBB44E15735E6E71DA740D4CDE3`. Elle contient garde, inventaires et journaux d'exécution jusqu'aux contrôles consolidés ; le constat et la correction R1 ultérieurs sont décrits ici et dans le diff Git, sans journal Cargo supplémentaire. Pas de nouveau manifeste de qualification ; aucun nettoyage de cache, temporaires, WAV, `.git` ou cargo-shared. Les non suivis préexistants `docs/architecture/`, `models/`, `sound example/` sont conservés.
+
+Espace final relevé après le commit produit : **66 948 063 232 octets**, environ **62,35 Gio**. CA-01–06/AC-01–11 examinés par le reviewer ; code CLEAN, livraison assortie des réserves de validation ci-dessus.

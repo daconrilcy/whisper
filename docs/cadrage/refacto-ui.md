@@ -1,6 +1,6 @@
-Avancée : cadrage MVC relu CLEAN ; deux constats fermés indépendamment.
-Blocage : aucun constat DESIGN ouvert ; code et validations produit non exécutés.
-Décision : DESIGN READY documentaire ; plan séparé livré, sans implémenter.
+Avancée : cadrage MVC implémenté selon le plan et code relu CLEAN ; commit local 90ead44e.
+Blocage : aucun constat de revue ouvert ; Clippy strict hérité en réserve acceptée, fenêtre Windows non exécutée.
+Décision : refonte livrée avec réserves de validation ; bilan dans plan-refacto-ui.md, sans binaire ni push.
 
 # Refactorisation de ui.rs — cadrage
 
