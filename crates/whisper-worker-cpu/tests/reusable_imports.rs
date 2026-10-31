@@ -9,7 +9,7 @@ use std::{
 };
 
 #[path = "support/worker.rs"]
-mod support;
+pub(crate) mod support;
 
 use sha2::{Digest, Sha256};
 use whisper_core::{

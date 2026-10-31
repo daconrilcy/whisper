@@ -14,8 +14,7 @@ use whisper_core::{
 
 #[path = "reusable_imports.rs"]
 mod reusable_imports;
-#[path = "support/worker.rs"]
-mod support;
+use reusable_imports::support;
 
 fn run_command(command: WorkerCommand) -> std::process::Output {
     let mut input = serde_json::to_vec(&IpcEnvelope::new(command)).unwrap();
