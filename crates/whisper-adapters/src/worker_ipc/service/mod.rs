@@ -3,8 +3,8 @@ pub(super) mod automatic_final;
 #[cfg(feature = "l01-memory-qualification")]
 use super::support::memory_trace;
 use super::{
-    EVENTS_PER_STAGE, ImportRuntime, MAX_FRAME_BYTES, PublicationGate, RuntimeModelCatalog,
-    serialize_frame,
+    EVENTS_PER_STAGE, ImportRuntime, MAX_FRAME_BYTES, PublicationGate, PublicationGateRegistry,
+    RuntimeModelCatalog, WorkerRuntimeConfig, serialize_frame,
 };
 use crate::supervisor::WorkerPaths;
 use std::{
@@ -32,7 +32,7 @@ pub struct AsyncImportIo {
     automatic_effects: SyncSender<ImportEffect>,
     automatic_stops: SyncSender<ImportEffect>,
     automatic_events: Receiver<ImportEvent>,
-    pub(super) automatic_publication_gates: Arc<Mutex<HashMap<(JobId, u64), Arc<PublicationGate>>>>,
+    pub(super) automatic_publication_gates: PublicationGateRegistry,
     automatic_identities: HashSet<(JobId, u64)>,
     automatic_active_identity: Option<(JobId, u64)>,
     automatic_queue: VecDeque<whisper_core::ports::AutomaticFinalImport>,
@@ -53,7 +53,7 @@ impl AsyncImportIo {
     }
 
     pub fn start_with_workers(workers: WorkerPaths) -> Self {
-        Self::start_inner(workers, None, None, None, None, false, false)
+        Self::start_inner(workers, None, WorkerRuntimeConfig::default())
     }
 
     /// Starts the import runtime with a catalog guard used by all model-bearing effects.
@@ -70,11 +70,7 @@ impl AsyncImportIo {
                 parakeet_paths: None,
                 gpu_parakeet_paths: None,
             }),
-            None,
-            None,
-            None,
-            false,
-            false,
+            WorkerRuntimeConfig::default(),
         )
     }
 
@@ -104,11 +100,11 @@ impl AsyncImportIo {
             workers,
             catalog_root,
             known_historical_turbo_path,
-            cpu_parakeet_paths,
-            gpu_parakeet_paths,
-            None,
-            false,
-            false,
+            WorkerRuntimeConfig {
+                parakeet_paths: cpu_parakeet_paths,
+                gpu_parakeet_paths,
+                ..WorkerRuntimeConfig::default()
+            },
         )
     }
 
@@ -126,11 +122,13 @@ impl AsyncImportIo {
             workers,
             catalog_root,
             known_historical_turbo_path,
-            cpu_parakeet_paths,
-            gpu_parakeet_paths,
-            snapshot_registry_root,
-            true,
-            true,
+            WorkerRuntimeConfig {
+                parakeet_paths: cpu_parakeet_paths,
+                gpu_parakeet_paths,
+                snapshot_registry_root,
+                require_snapshot_registry: true,
+                native_unified_candidate_enabled: true,
+            },
         )
     }
 
@@ -148,11 +146,13 @@ impl AsyncImportIo {
             workers,
             catalog_root,
             known_historical_turbo_path,
-            cpu_parakeet_paths,
-            gpu_parakeet_paths,
-            snapshot_registry_root,
-            true,
-            false,
+            WorkerRuntimeConfig {
+                parakeet_paths: cpu_parakeet_paths,
+                gpu_parakeet_paths,
+                snapshot_registry_root,
+                require_snapshot_registry: true,
+                native_unified_candidate_enabled: false,
+            },
         )
     }
 
@@ -160,36 +160,24 @@ impl AsyncImportIo {
         workers: WorkerPaths,
         catalog_root: PathBuf,
         known_historical_turbo_path: String,
-        cpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
-        gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
-        snapshot_registry_root: Option<PathBuf>,
-        require_snapshot_registry: bool,
-        native_unified_candidate_enabled: bool,
+        config: WorkerRuntimeConfig,
     ) -> Self {
         Self::start_inner(
             workers,
             Some(RuntimeModelCatalog {
                 catalog: crate::model_catalog::LocalModelCatalog::new(catalog_root),
                 known_historical_turbo_path,
-                parakeet_paths: cpu_parakeet_paths.clone(),
-                gpu_parakeet_paths: gpu_parakeet_paths.clone(),
+                parakeet_paths: config.parakeet_paths.clone(),
+                gpu_parakeet_paths: config.gpu_parakeet_paths.clone(),
             }),
-            cpu_parakeet_paths,
-            gpu_parakeet_paths,
-            snapshot_registry_root,
-            require_snapshot_registry,
-            native_unified_candidate_enabled,
+            config,
         )
     }
 
     fn start_inner(
         workers: WorkerPaths,
         model_catalog: Option<RuntimeModelCatalog>,
-        parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
-        gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
-        snapshot_registry_root: Option<PathBuf>,
-        require_snapshot_registry: bool,
-        native_unified_candidate_enabled: bool,
+        config: WorkerRuntimeConfig,
     ) -> Self {
         let (effect_tx, effect_rx) = mpsc::sync_channel(8);
         let (stop_tx, stop_rx) = mpsc::sync_channel(1);
@@ -214,9 +202,8 @@ impl AsyncImportIo {
             .as_ref()
             .map(RuntimeModelCatalog::clone_for_worker);
         let automatic_workers = workers.clone();
-        let automatic_parakeet_paths = parakeet_paths.clone();
-        let automatic_gpu_parakeet_paths = gpu_parakeet_paths.clone();
-        let automatic_snapshot_registry_root = snapshot_registry_root.clone();
+        let mut automatic_config = config.clone();
+        automatic_config.native_unified_candidate_enabled = false;
         thread::spawn({
             let publication_gate = publication_gate.clone();
             move || {
@@ -224,11 +211,7 @@ impl AsyncImportIo {
                     workers,
                     publication_gate,
                     model_catalog,
-                    parakeet_paths,
-                    gpu_parakeet_paths,
-                    snapshot_registry_root,
-                    require_snapshot_registry,
-                    native_unified_candidate_enabled,
+                    config,
                 );
                 service_loop(effect_rx, stop_rx, event_tx, runtime)
             }
@@ -242,11 +225,7 @@ impl AsyncImportIo {
                         automatic_workers,
                         Arc::new(PublicationGate::default()),
                         automatic_model_catalog,
-                        automatic_parakeet_paths,
-                        automatic_gpu_parakeet_paths,
-                        automatic_snapshot_registry_root,
-                        require_snapshot_registry,
-                        false,
+                        automatic_config,
                     );
                     runtime.automatic_publication_gates = Some(automatic_publication_gates);
                     service_loop(

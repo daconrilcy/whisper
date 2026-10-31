@@ -170,12 +170,14 @@ impl ImportRuntime {
                 match crate::archive::ArchiveStore::reconfirm_interrupted_publication(
                     &destination,
                     &previous,
-                    &source_sha256,
-                    prompt.source_samples,
-                    &current,
-                    choice,
-                    &reserved_basename,
-                    &prompt.export_basename,
+                    crate::archive::PublicationReconfirmation {
+                        source_sha256: &source_sha256,
+                        source_samples: prompt.source_samples,
+                        expected_active: &current,
+                        choice,
+                        reserved_basename: &reserved_basename,
+                        confirmed_basename: &prompt.export_basename,
+                    },
                 ) {
                     Ok(()) => Ok(Some(request)),
                     Err(error) if error.starts_with("DuplicateExportNameChanged:") => {

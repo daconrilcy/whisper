@@ -6,6 +6,8 @@ mod import;
 mod live;
 mod poll;
 mod poll_unified;
+#[cfg(test)]
+pub(super) use poll_unified::NativeRetryState;
 mod queue;
 mod recovery;
 mod source_binding;
@@ -67,8 +69,7 @@ pub(super) struct ImportRuntime {
     pub(super) active: Option<ImportRequestState>,
     pub(super) transport: Option<ChildWorkerTransport>,
     pub(super) publication_gate: Arc<PublicationGate>,
-    pub(super) automatic_publication_gates:
-        Option<Arc<Mutex<HashMap<(JobId, u64), Arc<PublicationGate>>>>>,
+    pub(super) automatic_publication_gates: Option<PublicationGateRegistry>,
     pub(super) unified_publication_gates:
         HashMap<whisper_core::parakeet_scheduler::SchedulerSession, Arc<PublicationGate>>,
     pub(super) resume_prefix: VecDeque<crate::journal::SegmentRecord>,
@@ -152,6 +153,7 @@ impl ImportRuntime {
         Self::new_with_workers_and_parakeet(workers, publication_gate, model_catalog, None, None)
     }
 
+    #[cfg(test)]
     pub(super) fn new_with_workers_and_parakeet(
         workers: WorkerPaths,
         publication_gate: Arc<PublicationGate>,
@@ -163,11 +165,11 @@ impl ImportRuntime {
             workers,
             publication_gate,
             model_catalog,
-            parakeet_paths,
-            gpu_parakeet_paths,
-            None,
-            false,
-            false,
+            WorkerRuntimeConfig {
+                parakeet_paths,
+                gpu_parakeet_paths,
+                ..WorkerRuntimeConfig::default()
+            },
         )
     }
 
@@ -175,12 +177,15 @@ impl ImportRuntime {
         workers: WorkerPaths,
         publication_gate: Arc<PublicationGate>,
         model_catalog: Option<RuntimeModelCatalog>,
-        parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
-        gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
-        snapshot_registry_root: Option<PathBuf>,
-        require_snapshot_registry: bool,
-        native_unified_candidate_enabled: bool,
+        config: WorkerRuntimeConfig,
     ) -> Self {
+        let WorkerRuntimeConfig {
+            parakeet_paths,
+            gpu_parakeet_paths,
+            snapshot_registry_root,
+            require_snapshot_registry,
+            native_unified_candidate_enabled,
+        } = config;
         Self {
             workers,
             model_catalog,

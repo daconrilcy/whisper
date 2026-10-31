@@ -7,6 +7,7 @@ use super::super::{
     installed_export_ownership_path, io, load_or_migrate_publication_index,
     persisted_file_identity, sha256_file, verify_artifact, write_new_synced, write_replace_synced,
 };
+use crate::archive::PublicationReconfirmation;
 
 impl ArchiveStore {
     pub fn lock_publications(root: &Path) -> Result<PublicationLock, String> {
@@ -166,12 +167,14 @@ impl ArchiveStore {
         write_publication_reservation_with_storage(
             root,
             request,
-            source_sha256,
-            source_samples,
-            Vec::new(),
-            DuplicateImportChoice::CreateNew,
-            "transcript".into(),
-            true,
+            PublicationReservation {
+                source_sha256: source_sha256.to_owned(),
+                source_samples,
+                expected_active: Vec::new(),
+                choice: DuplicateImportChoice::CreateNew,
+                export_basename: "transcript".into(),
+                internal_only: true,
+            },
         )
     }
 
@@ -185,12 +188,14 @@ impl ArchiveStore {
         write_publication_reservation_with_storage(
             root,
             request,
-            source_sha256,
-            request.source_samples.unwrap_or(0),
-            Vec::new(),
-            DuplicateImportChoice::CreateNew,
-            "transcript".into(),
-            true,
+            PublicationReservation {
+                source_sha256: source_sha256.to_owned(),
+                source_samples: request.source_samples.unwrap_or(0),
+                expected_active: Vec::new(),
+                choice: DuplicateImportChoice::CreateNew,
+                export_basename: "transcript".into(),
+                internal_only: true,
+            },
         )
     }
 
@@ -349,13 +354,16 @@ impl ArchiveStore {
     pub fn reconfirm_interrupted_publication(
         root: &Path,
         previous: &ImportRequest,
-        source_sha256: &str,
-        source_samples: u64,
-        expected_active: &[PublishedImport],
-        choice: DuplicateImportChoice,
-        reserved_basename: &str,
-        confirmed_basename: &str,
+        confirmation: PublicationReconfirmation<'_>,
     ) -> Result<(), String> {
+        let PublicationReconfirmation {
+            source_sha256,
+            source_samples,
+            expected_active,
+            choice,
+            reserved_basename,
+            confirmed_basename,
+        } = confirmation;
         let _lock = Self::lock_publications(root)?;
         let current = Self::published_imports(root, source_sha256)?;
         if current != expected_active {
@@ -622,25 +630,39 @@ pub(in crate::archive) fn write_publication_reservation(
     write_publication_reservation_with_storage(
         root,
         request,
-        source_sha256,
-        source_samples,
-        expected_active,
-        choice,
-        export_basename,
-        false,
+        PublicationReservation {
+            source_sha256: source_sha256.to_owned(),
+            source_samples,
+            expected_active,
+            choice,
+            export_basename,
+            internal_only: false,
+        },
     )
 }
 
-fn write_publication_reservation_with_storage(
-    root: &Path,
-    request: &ImportRequest,
-    source_sha256: &str,
+struct PublicationReservation {
+    source_sha256: String,
     source_samples: u64,
     expected_active: Vec<PublicationIdentity>,
     choice: DuplicateImportChoice,
     export_basename: String,
     internal_only: bool,
+}
+
+fn write_publication_reservation_with_storage(
+    root: &Path,
+    request: &ImportRequest,
+    reservation: PublicationReservation,
 ) -> Result<(), String> {
+    let PublicationReservation {
+        source_sha256,
+        source_samples,
+        expected_active,
+        choice,
+        export_basename,
+        internal_only,
+    } = reservation;
     let path = publication_reservation_path(root, request.job_id, request.generation);
     if path.exists() {
         return Err("DuplicateStateChanged: reservation already exists".into());
@@ -652,7 +674,7 @@ fn write_publication_reservation_with_storage(
         version: 1,
         operation_id,
         choice,
-        source_sha256: source_sha256.to_owned(),
+        source_sha256,
         source_samples,
         expected_active,
         export_basename,

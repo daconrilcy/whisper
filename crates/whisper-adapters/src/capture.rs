@@ -260,17 +260,29 @@ impl Pcm16Converter {
     }
 }
 
+struct CaptureCallbackState<'a> {
+    capacity: usize,
+    free: &'a mut Consumer<CaptureBuffer>,
+    ready: &'a mut Producer<CaptureBuffer>,
+    status: &'a CaptureStatus,
+    gain_state: &'a AtomicU64,
+    next_frame: &'a AtomicU64,
+}
+
 fn capture_into<T: Copy>(
     data: &[T],
     convert: impl Fn(T) -> f32,
     channels: u16,
-    capacity: usize,
-    free: &mut Consumer<CaptureBuffer>,
-    ready: &mut Producer<CaptureBuffer>,
-    status: &CaptureStatus,
-    gain_state: &AtomicU64,
-    next_frame: &AtomicU64,
+    state: CaptureCallbackState<'_>,
 ) {
+    let CaptureCallbackState {
+        capacity,
+        free,
+        ready,
+        status,
+        gain_state,
+        next_frame,
+    } = state;
     let channels = usize::from(channels);
     if channels == 0 || !data.len().is_multiple_of(channels) {
         status.flags.fetch_or(CAPTURE_FAILED, Ordering::Release);
@@ -499,12 +511,14 @@ fn start_device_with_buffer(
                     data,
                     |x| x,
                     channels,
-                    slot_samples,
-                    &mut free,
-                    &mut data_tx,
-                    &callback_status,
-                    &callback_gain_state,
-                    &callback_next_frame,
+                    CaptureCallbackState {
+                        capacity: slot_samples,
+                        free: &mut free,
+                        ready: &mut data_tx,
+                        status: &callback_status,
+                        gain_state: &callback_gain_state,
+                        next_frame: &callback_next_frame,
+                    },
                 )
             },
             move |error| {
@@ -519,12 +533,14 @@ fn start_device_with_buffer(
                     data,
                     |x| f32::from(x) / 32768.0,
                     channels,
-                    slot_samples,
-                    &mut free,
-                    &mut data_tx,
-                    &callback_status,
-                    &callback_gain_state,
-                    &callback_next_frame,
+                    CaptureCallbackState {
+                        capacity: slot_samples,
+                        free: &mut free,
+                        ready: &mut data_tx,
+                        status: &callback_status,
+                        gain_state: &callback_gain_state,
+                        next_frame: &callback_next_frame,
+                    },
                 )
             },
             move |error| {
@@ -539,12 +555,14 @@ fn start_device_with_buffer(
                     data,
                     |x| (f32::from(x) - 32768.0) / 32768.0,
                     channels,
-                    slot_samples,
-                    &mut free,
-                    &mut data_tx,
-                    &callback_status,
-                    &callback_gain_state,
-                    &callback_next_frame,
+                    CaptureCallbackState {
+                        capacity: slot_samples,
+                        free: &mut free,
+                        ready: &mut data_tx,
+                        status: &callback_status,
+                        gain_state: &callback_gain_state,
+                        next_frame: &callback_next_frame,
+                    },
                 )
             },
             move |error| {
@@ -842,12 +860,14 @@ mod tests {
                 &data,
                 |sample| sample,
                 2,
-                4,
-                &mut free_rx,
-                &mut captured_tx,
-                &status,
-                &gain_state,
-                &next_frame,
+                CaptureCallbackState {
+                    capacity: 4,
+                    free: &mut free_rx,
+                    ready: &mut captured_tx,
+                    status: &status,
+                    gain_state: &gain_state,
+                    next_frame: &next_frame,
+                },
             );
             let block = captured_rx
                 .pop()
@@ -880,12 +900,14 @@ mod tests {
             &[0.0f32; 3],
             |sample| sample,
             2,
-            4,
-            &mut free_rx,
-            &mut captured_tx,
-            &status,
-            &gain_state,
-            &next_frame,
+            CaptureCallbackState {
+                capacity: 4,
+                free: &mut free_rx,
+                ready: &mut captured_tx,
+                status: &status,
+                gain_state: &gain_state,
+                next_frame: &next_frame,
+            },
         );
 
         assert_ne!(status.flags.load(Ordering::Acquire) & CAPTURE_FAILED, 0);
@@ -913,12 +935,14 @@ mod tests {
             &[0.1_f32; 4],
             |sample| sample,
             2,
-            4,
-            &mut free_rx,
-            &mut captured_tx,
-            &status,
-            &gain_state,
-            &next_frame,
+            CaptureCallbackState {
+                capacity: 4,
+                free: &mut free_rx,
+                ready: &mut captured_tx,
+                status: &status,
+                gain_state: &gain_state,
+                next_frame: &next_frame,
+            },
         );
         let first = captured_rx.pop().unwrap();
         assert_eq!(first.first_frame, 0);
@@ -935,12 +959,14 @@ mod tests {
             &[0.2_f32; 4],
             |sample| sample,
             2,
-            4,
-            &mut free_rx,
-            &mut captured_tx,
-            &status,
-            &gain_state,
-            &next_frame,
+            CaptureCallbackState {
+                capacity: 4,
+                free: &mut free_rx,
+                ready: &mut captured_tx,
+                status: &status,
+                gain_state: &gain_state,
+                next_frame: &next_frame,
+            },
         );
         let second = captured_rx.pop().unwrap();
         assert_eq!(second.first_frame, 2);
@@ -979,12 +1005,14 @@ mod tests {
                 sample
             },
             2,
-            4,
-            &mut free_rx,
-            &mut captured_tx,
-            &status,
-            &gain_state,
-            &next_frame,
+            CaptureCallbackState {
+                capacity: 4,
+                free: &mut free_rx,
+                ready: &mut captured_tx,
+                status: &status,
+                gain_state: &gain_state,
+                next_frame: &next_frame,
+            },
         );
         let first = captured_rx.pop().unwrap();
         assert_eq!(first.gain, GainRevision::neutral());
@@ -993,12 +1021,14 @@ mod tests {
             &[0.2_f32; 4],
             |sample| sample,
             2,
-            4,
-            &mut free_rx,
-            &mut captured_tx,
-            &status,
-            &gain_state,
-            &next_frame,
+            CaptureCallbackState {
+                capacity: 4,
+                free: &mut free_rx,
+                ready: &mut captured_tx,
+                status: &status,
+                gain_state: &gain_state,
+                next_frame: &next_frame,
+            },
         );
         assert_eq!(captured_rx.pop().unwrap().gain, changed);
     }

@@ -300,11 +300,13 @@
         let calls = Arc::new(AtomicU64::new(0));
         let mut cpu_route_requests = Vec::new();
         let retry = retry_native_gpu_startup_on_cpu(
-            &mut scheduler,
-            &mut sessions,
-            &mut archives,
-            &mut executor_route,
-            &mut executor,
+            runtime::NativeRetryState {
+                scheduler: &mut scheduler,
+                sessions: &mut sessions,
+                archives: &mut archives,
+                executor_route: &mut executor_route,
+                executor: &mut executor,
+            },
             &mut state,
             call,
             &startup_error,
@@ -1062,11 +1064,13 @@
             workers,
             Arc::new(PublicationGate::default()),
             model_catalog,
-            Some(cpu_paths.clone()),
-            Some(gpu_paths.clone()),
-            Some(snapshot_registry_root),
-            true,
-            true,
+            WorkerRuntimeConfig {
+                parakeet_paths: Some(cpu_paths.clone()),
+                gpu_parakeet_paths: Some(gpu_paths.clone()),
+                snapshot_registry_root: Some(snapshot_registry_root),
+                require_snapshot_registry: true,
+                native_unified_candidate_enabled: true,
+            },
         )
         .with_native_harness_observer(observer);
         let mut request = unified_import_request(&archive_root, &source_path, job_id.0);
@@ -1599,11 +1603,13 @@
             workers.clone(),
             Arc::new(PublicationGate::default()),
             model_catalog,
-            Some(cpu_paths.clone()),
-            Some(gpu_paths),
-            Some(snapshot_registry_root.clone()),
-            true,
-            true,
+            WorkerRuntimeConfig {
+                parakeet_paths: Some(cpu_paths.clone()),
+                gpu_parakeet_paths: Some(gpu_paths),
+                snapshot_registry_root: Some(snapshot_registry_root.clone()),
+                require_snapshot_registry: true,
+                native_unified_candidate_enabled: true,
+            },
         )
         .with_native_harness_observer(Arc::clone(&observer))
         .with_controlled_capture(
@@ -3183,11 +3189,13 @@
             workers,
             Arc::new(PublicationGate::default()),
             model_catalog,
-            Some(cpu_paths.clone()),
-            None,
-            Some(execution_root.join("settings")),
-            true,
-            true,
+            WorkerRuntimeConfig {
+                parakeet_paths: Some(cpu_paths.clone()),
+                gpu_parakeet_paths: None,
+                snapshot_registry_root: Some(execution_root.join("settings")),
+                require_snapshot_registry: true,
+                native_unified_candidate_enabled: true,
+            },
         )
         .with_controlled_capture(
             CaptureStream::empty_test_capture(16_000, 1, "test:pu-l4-synthetic-capture"),
@@ -3541,11 +3549,13 @@
             workers,
             Arc::new(PublicationGate::default()),
             model_catalog,
-            Some(cpu_paths),
-            Some(gpu_paths.clone()),
-            Some(settings_root.clone()),
-            true,
-            true,
+            WorkerRuntimeConfig {
+                parakeet_paths: Some(cpu_paths),
+                gpu_parakeet_paths: Some(gpu_paths.clone()),
+                snapshot_registry_root: Some(settings_root.clone()),
+                require_snapshot_registry: true,
+                native_unified_candidate_enabled: true,
+            },
         )
         .with_native_harness_observer(observer);
         runtime

@@ -896,11 +896,11 @@
             },
             Arc::new(PublicationGate::default()),
             None,
-            None,
-            None,
-            Some(settings_root),
-            true,
-            false,
+            WorkerRuntimeConfig {
+                snapshot_registry_root: Some(settings_root),
+                require_snapshot_registry: true,
+                ..WorkerRuntimeConfig::default()
+            },
         )
         .with_controlled_transcriber(worker);
         let mut app = ImportApplication::new(RuntimeImportPort {
@@ -1075,11 +1075,11 @@
             },
             Arc::new(PublicationGate::default()),
             None,
-            None,
-            None,
-            Some(settings_root.clone()),
-            true,
-            false,
+            WorkerRuntimeConfig {
+                snapshot_registry_root: Some(settings_root.clone()),
+                require_snapshot_registry: true,
+                ..WorkerRuntimeConfig::default()
+            },
         )
         .with_controlled_transcriber(worker);
         let mut app = ImportApplication::new(RuntimeImportPort {
@@ -1431,11 +1431,11 @@
             },
             Arc::new(PublicationGate::default()),
             None,
-            None,
-            None,
-            Some(settings_root),
-            true,
-            false,
+            WorkerRuntimeConfig {
+                snapshot_registry_root: Some(settings_root),
+                require_snapshot_registry: true,
+                ..WorkerRuntimeConfig::default()
+            },
         )
         .with_controlled_transcriber(worker);
         let mut app = ImportApplication::new(RuntimeImportPort {
@@ -1696,11 +1696,11 @@
             },
             Arc::new(PublicationGate::default()),
             None,
-            None,
-            None,
-            Some(settings_root.clone()),
-            true,
-            false,
+            WorkerRuntimeConfig {
+                snapshot_registry_root: Some(settings_root.clone()),
+                require_snapshot_registry: true,
+                ..WorkerRuntimeConfig::default()
+            },
         )
         .with_controlled_transcriber(worker)
         .with_native_harness_observer(observer);
@@ -2011,11 +2011,11 @@
             },
             Arc::new(PublicationGate::default()),
             None,
-            None,
-            None,
-            Some(settings_root.clone()),
-            true,
-            false,
+            WorkerRuntimeConfig {
+                snapshot_registry_root: Some(settings_root.clone()),
+                require_snapshot_registry: true,
+                ..WorkerRuntimeConfig::default()
+            },
         )
         .with_controlled_transcriber(controlled_worker().0)
         .with_native_harness_observer(observer);
@@ -2185,11 +2185,11 @@
             },
             Arc::new(PublicationGate::default()),
             None,
-            None,
-            None,
-            Some(settings_root.clone()),
-            true,
-            false,
+            WorkerRuntimeConfig {
+                snapshot_registry_root: Some(settings_root.clone()),
+                require_snapshot_registry: true,
+                ..WorkerRuntimeConfig::default()
+            },
         )
         .with_controlled_transcriber(controlled_worker().0)
         .with_resume_binding_transfer_gate(Arc::clone(&transfer_gate))

@@ -2070,11 +2070,7 @@
             },
             Arc::new(PublicationGate::default()),
             None,
-            None,
-            None,
-            None,
-            false,
-            false,
+            WorkerRuntimeConfig::default(),
         )
         .with_controlled_transcriber(worker)
         .with_child_observer(Arc::clone(&child_observations));

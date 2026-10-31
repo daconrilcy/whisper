@@ -18,12 +18,19 @@ pub(in crate::worker_ipc) fn manual_gpu_failure_event(peer: FailedManualGpuPeer)
     }
 }
 
+pub(in crate::worker_ipc) struct NativeRetryState<'a> {
+    pub(in crate::worker_ipc) scheduler:
+        &'a mut whisper_core::parakeet_scheduler::ParakeetScheduler,
+    pub(in crate::worker_ipc) sessions:
+        &'a mut HashMap<whisper_core::parakeet_scheduler::SchedulerSession, UnifiedSessionState>,
+    pub(in crate::worker_ipc) archives:
+        &'a mut HashMap<whisper_core::parakeet_scheduler::SchedulerSession, ArchiveStore>,
+    pub(in crate::worker_ipc) executor_route: &'a mut Option<NativeUnifiedRoute>,
+    pub(in crate::worker_ipc) executor: &'a mut UnifiedInferenceExecutor,
+}
+
 pub(in crate::worker_ipc) fn retry_native_gpu_startup_on_cpu(
-    scheduler: &mut whisper_core::parakeet_scheduler::ParakeetScheduler,
-    sessions: &mut HashMap<whisper_core::parakeet_scheduler::SchedulerSession, UnifiedSessionState>,
-    archives: &mut HashMap<whisper_core::parakeet_scheduler::SchedulerSession, ArchiveStore>,
-    executor_route: &mut Option<NativeUnifiedRoute>,
-    executor: &mut UnifiedInferenceExecutor,
+    retry_state: NativeRetryState<'_>,
     current_state: &mut UnifiedSessionState,
     call: whisper_core::parakeet_scheduler::ScheduledCall,
     cause: &str,
@@ -32,6 +39,13 @@ pub(in crate::worker_ipc) fn retry_native_gpu_startup_on_cpu(
         NativeUnifiedRoute,
     ) -> Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
 ) -> Result<Option<NativeAutoCpuRetry>, String> {
+    let NativeRetryState {
+        scheduler,
+        sessions,
+        archives,
+        executor_route,
+        executor,
+    } = retry_state;
     let auto_gpu_unstarted = |state: &UnifiedSessionState| {
         state.native_route.as_ref().is_some_and(|route| {
             state.request.config.compute == route.requested_compute
@@ -1129,11 +1143,13 @@ impl ImportRuntime {
                     Err(error) => {
                         let cpu_paths = self.parakeet_paths.clone();
                         match retry_native_gpu_startup_on_cpu(
-                            &mut self.parakeet_scheduler,
-                            &mut self.unified_sessions,
-                            &mut self.unified_archives,
-                            &mut self.native_executor_route,
-                            executor,
+                            NativeRetryState {
+                                scheduler: &mut self.parakeet_scheduler,
+                                sessions: &mut self.unified_sessions,
+                                archives: &mut self.unified_archives,
+                                executor_route: &mut self.native_executor_route,
+                                executor,
+                            },
                             &mut state,
                             call,
                             &error,
@@ -1235,11 +1251,13 @@ impl ImportRuntime {
                     Err(error) => {
                         let cpu_paths = self.parakeet_paths.clone();
                         match retry_native_gpu_startup_on_cpu(
-                            &mut self.parakeet_scheduler,
-                            &mut self.unified_sessions,
-                            &mut self.unified_archives,
-                            &mut self.native_executor_route,
-                            executor,
+                            NativeRetryState {
+                                scheduler: &mut self.parakeet_scheduler,
+                                sessions: &mut self.unified_sessions,
+                                archives: &mut self.unified_archives,
+                                executor_route: &mut self.native_executor_route,
+                                executor,
+                            },
                             &mut state,
                             call,
                             &error,

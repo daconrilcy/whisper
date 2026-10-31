@@ -255,12 +255,14 @@
         ArchiveStore::reconfirm_interrupted_publication(
             &root,
             &previous,
-            &intent.source_sha256,
-            intent.source_samples,
-            &prior_publications,
-            DuplicateImportChoice::Replace,
-            "r7-audio",
-            &new_basename,
+            PublicationReconfirmation {
+                source_sha256: &intent.source_sha256,
+                source_samples: intent.source_samples,
+                expected_active: &prior_publications,
+                choice: DuplicateImportChoice::Replace,
+                reserved_basename: "r7-audio",
+                confirmed_basename: &new_basename,
+            },
         )
         .unwrap();
         let confirmed_intent: PublicationIntent = serde_json::from_slice(

@@ -15,6 +15,12 @@ mod windows_native;
 
 const DISPLAY_CLASS_GUID: &str = "{4d36e968-e325-11ce-bfc1-08002be10318}";
 
+type RuntimeInventoryResult = (
+    u64,
+    Result<Vec<whisper_core::gpu_inventory::GpuRuntimeIdentity>, String>,
+);
+type RuntimeInventoryReceiver = Receiver<RuntimeInventoryResult>;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct DxgiLogEntry {
     identity: Option<String>,
@@ -35,12 +41,7 @@ pub struct WindowsGpuInventoryPort {
     collecting: Arc<AtomicBool>,
     worker: PathBuf,
     qualified_receiver: Option<Receiver<(u64, Result<GpuQualifiedCollection, String>)>>,
-    runtime_receiver: Option<
-        Receiver<(
-            u64,
-            Result<Vec<whisper_core::gpu_inventory::GpuRuntimeIdentity>, String>,
-        )>,
-    >,
+    runtime_receiver: Option<RuntimeInventoryReceiver>,
 }
 
 impl WindowsGpuInventoryPort {
@@ -308,13 +309,15 @@ fn log_inventory(
         .join("gpu-inventory.log");
     if let Err(error) = append_inventory_log(
         &path,
-        generation,
-        observations,
-        dxgi,
-        targets,
-        results,
-        error,
-        qualification_error,
+        InventoryLogSnapshot {
+            generation,
+            observations,
+            dxgi,
+            targets,
+            results,
+            error,
+            qualification_error,
+        },
     ) {
         let message = format!(
             "GPU inventory log append failed ({}): {error}",
@@ -324,16 +327,29 @@ fn log_inventory(
     }
 }
 
+struct InventoryLogSnapshot<'a> {
+    generation: u64,
+    observations: &'a [GpuObservation],
+    dxgi: &'a [DxgiLogEntry],
+    targets: &'a [whisper_core::ipc::GpuQualificationTarget],
+    results: Option<&'a [whisper_core::ipc::GpuQualificationResult]>,
+    error: Option<&'a str>,
+    qualification_error: Option<&'a str>,
+}
+
 fn append_inventory_log(
     path: &std::path::Path,
-    generation: u64,
-    observations: &[GpuObservation],
-    dxgi: &[DxgiLogEntry],
-    targets: &[whisper_core::ipc::GpuQualificationTarget],
-    results: Option<&[whisper_core::ipc::GpuQualificationResult]>,
-    error: Option<&str>,
-    qualification_error: Option<&str>,
+    snapshot: InventoryLogSnapshot<'_>,
 ) -> Result<(), String> {
+    let InventoryLogSnapshot {
+        generation,
+        observations,
+        dxgi,
+        targets,
+        results,
+        error,
+        qualification_error,
+    } = snapshot;
     let timestamp_unix_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |duration| duration.as_millis());
@@ -598,8 +614,9 @@ fn variant_u32(value: &wmi::Variant) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        DISPLAY_CLASS_GUID, DxgiLogEntry, GpuCollection, append_inventory_log, gpu_query,
-        qualified_collection, runtime_identities, unique_adapter, unqualified_collection,
+        DISPLAY_CLASS_GUID, DxgiLogEntry, GpuCollection, InventoryLogSnapshot,
+        append_inventory_log, gpu_query, qualified_collection, runtime_identities, unique_adapter,
+        unqualified_collection,
     };
     use whisper_core::gpu_inventory::{
         GpuAvailability, GpuCatalogueCoverage, GpuCause, GpuIdentityMatch, GpuObservation,
@@ -735,24 +752,28 @@ mod tests {
         };
         append_inventory_log(
             &path,
-            4,
-            &[observation.clone()],
-            &[],
-            &[],
-            None,
-            Some("partial"),
-            None,
+            InventoryLogSnapshot {
+                generation: 4,
+                observations: &[observation.clone()],
+                dxgi: &[],
+                targets: &[],
+                results: None,
+                error: Some("partial"),
+                qualification_error: None,
+            },
         )
         .unwrap();
         append_inventory_log(
             &path,
-            5,
-            &[observation],
-            &[],
-            &[],
-            None,
-            Some("second partial"),
-            None,
+            InventoryLogSnapshot {
+                generation: 5,
+                observations: &[observation],
+                dxgi: &[],
+                targets: &[],
+                results: None,
+                error: Some("second partial"),
+                qualification_error: None,
+            },
         )
         .unwrap();
 
@@ -775,13 +796,15 @@ mod tests {
         assert!(
             append_inventory_log(
                 &path,
-                1,
-                &[],
-                &[],
-                &[],
-                None,
-                Some("collection failed"),
-                None,
+                InventoryLogSnapshot {
+                    generation: 1,
+                    observations: &[],
+                    dxgi: &[],
+                    targets: &[],
+                    results: None,
+                    error: Some("collection failed"),
+                    qualification_error: None,
+                },
             )
             .is_err()
         );
@@ -796,7 +819,19 @@ mod tests {
             luid: 0x1234,
             identity_error: Some("SetupAPI join failed".into()),
         };
-        append_inventory_log(&path, 7, &[], &[entry], &[], None, None, None).unwrap();
+        append_inventory_log(
+            &path,
+            InventoryLogSnapshot {
+                generation: 7,
+                observations: &[],
+                dxgi: &[entry],
+                targets: &[],
+                results: None,
+                error: None,
+                qualification_error: None,
+            },
+        )
+        .unwrap();
         let text = std::fs::read_to_string(path).unwrap();
         let value: serde_json::Value = serde_json::from_str(text.trim()).unwrap();
         assert_eq!(value["dxgi"][0]["identity"], serde_json::Value::Null);

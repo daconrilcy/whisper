@@ -120,6 +120,17 @@ use whisper_core::{
     },
 };
 
+type PublicationGateRegistry = Arc<Mutex<HashMap<(JobId, u64), Arc<PublicationGate>>>>;
+
+#[derive(Clone, Default)]
+struct WorkerRuntimeConfig {
+    parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+    gpu_parakeet_paths: Option<crate::parakeet_import::ParakeetWorkerPaths>,
+    snapshot_registry_root: Option<PathBuf>,
+    require_snapshot_registry: bool,
+    native_unified_candidate_enabled: bool,
+}
+
 #[cfg(test)]
 include!("worker_ipc/tests/stopped_ack.rs");
 

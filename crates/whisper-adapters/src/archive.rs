@@ -16,6 +16,15 @@ use whisper_core::{
     },
 };
 
+pub struct PublicationReconfirmation<'a> {
+    pub source_sha256: &'a str,
+    pub source_samples: u64,
+    pub expected_active: &'a [PublishedImport],
+    pub choice: DuplicateImportChoice,
+    pub reserved_basename: &'a str,
+    pub confirmed_basename: &'a str,
+}
+
 mod campaign;
 mod cleanup;
 mod identity;
@@ -330,10 +339,12 @@ pub struct PublicationLock {
     _file: File,
 }
 
+type ExportHardLinker = dyn Fn(&Path, &Path) -> io::Result<()> + Send + Sync;
+
 pub struct ArchiveStore {
     root: PathBuf,
     current: Option<ActiveArchive>,
-    export_hard_linker: Arc<dyn Fn(&Path, &Path) -> io::Result<()> + Send + Sync>,
+    export_hard_linker: Arc<ExportHardLinker>,
     unified_resume_checkpoint: Option<UnifiedArchiveResumeCheckpoint>,
 }
 

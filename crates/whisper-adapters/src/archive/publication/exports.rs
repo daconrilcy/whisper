@@ -54,6 +54,10 @@ pub(in crate::archive) fn install_publication_exports_with_copy_hook(
     hard_linker: &dyn Fn(&Path, &Path) -> io::Result<()>,
     after_final_copy: &dyn Fn(&str, &Path) -> Result<(), String>,
 ) -> Result<(), String> {
+    let ops = ExportInstallOps {
+        hard_linker,
+        after_final_copy,
+    };
     let manifest: CompleteRecord = serde_json::from_slice(
         &fs::read(directory.join("manifest.json"))
             .map_err(|error| format!("StorageCorrupt: export manifest: {error}"))?,
@@ -118,8 +122,7 @@ pub(in crate::archive) fn install_publication_exports_with_copy_hook(
             &mut ownership,
             &manifest.text,
             "txt",
-            hard_linker,
-            after_final_copy,
+            &ops,
         )?;
         install_owned_export(
             &exports,
@@ -128,8 +131,7 @@ pub(in crate::archive) fn install_publication_exports_with_copy_hook(
             &mut ownership,
             &manifest.srt,
             "srt",
-            hard_linker,
-            after_final_copy,
+            &ops,
         )?;
         verify_owned_export(&exports, directory, &ownership, &manifest.text, "txt")?;
         verify_owned_export(&exports, directory, &ownership, &manifest.srt, "srt")?;
@@ -217,8 +219,7 @@ pub(in crate::archive) fn install_publication_exports_with_copy_hook(
         &mut ownership,
         &manifest.text,
         "txt",
-        hard_linker,
-        after_final_copy,
+        &ops,
     )?;
     install_owned_export(
         &exports,
@@ -227,8 +228,7 @@ pub(in crate::archive) fn install_publication_exports_with_copy_hook(
         &mut ownership,
         &manifest.srt,
         "srt",
-        hard_linker,
-        after_final_copy,
+        &ops,
     )?;
     verify_owned_export(&exports, directory, &ownership, &manifest.text, "txt")?;
     verify_owned_export(&exports, directory, &ownership, &manifest.srt, "srt")?;
@@ -326,6 +326,11 @@ fn copy_file_create_new(source: &Path, target: &Path) -> Result<(), String> {
         .map_err(|error| format!("StorageUnavailable: sync export copy: {error}"))
 }
 
+struct ExportInstallOps<'a> {
+    hard_linker: &'a dyn Fn(&Path, &Path) -> io::Result<()>,
+    after_final_copy: &'a dyn Fn(&str, &Path) -> Result<(), String>,
+}
+
 fn install_owned_export(
     exports: &Path,
     generation: &Path,
@@ -333,8 +338,7 @@ fn install_owned_export(
     ownership: &mut InstalledExportOwnership,
     artifact: &ArtifactRecord,
     extension: &str,
-    hard_linker: &dyn Fn(&Path, &Path) -> io::Result<()>,
-    after_final_copy: &dyn Fn(&str, &Path) -> Result<(), String>,
+    ops: &ExportInstallOps<'_>,
 ) -> Result<(), String> {
     let expected_final_identity = match extension {
         "txt" => ownership.text_file_identity.clone(),
@@ -388,7 +392,7 @@ fn install_owned_export(
             "StorageCorrupt: owned {extension} export temporary is unavailable or changed"
         ));
     }
-    if hard_linker(&temporary, &final_path).is_ok() {
+    if (ops.hard_linker)(&temporary, &final_path).is_ok() {
         set_export_file_identity(ownership, extension, expected_temporary_identity.clone());
     } else {
         if final_path.exists() {
@@ -397,7 +401,7 @@ fn install_owned_export(
             ));
         }
         copy_file_create_new(&temporary, &final_path)?;
-        after_final_copy(extension, &final_path)?;
+        (ops.after_final_copy)(extension, &final_path)?;
         set_export_file_identity(ownership, extension, persisted_file_identity(&final_path)?);
     }
     write_replace_synced(

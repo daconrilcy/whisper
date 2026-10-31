@@ -860,10 +860,12 @@ impl ParakeetLive {
             .name(format!("parakeet-live-{session_id}"))
             .spawn(move || {
                 inference_thread(
-                    worker_paths,
-                    worker_request,
-                    worker_gpu,
-                    worker_log_root,
+                    InferenceThreadContext {
+                        paths: worker_paths,
+                        request: worker_request,
+                        candidate: worker_gpu,
+                        session_log_root: worker_log_root,
+                    },
                     worker_cancel,
                     request_rx,
                     event_tx,
@@ -2173,17 +2175,27 @@ fn expected_live_worker_backend(compute: ComputeChoice) -> &'static str {
     }
 }
 
-fn inference_thread(
+struct InferenceThreadContext {
     paths: ParakeetWorkerPaths,
     request: LiveRequest,
     candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     session_log_root: PathBuf,
+}
+
+fn inference_thread(
+    context: InferenceThreadContext,
     cancel: Arc<AtomicBool>,
     requests: Receiver<InferenceRequest>,
     events: SyncSender<InferenceEvent>,
     trace_enabled: bool,
     diagnostics: D2WorkerDiagnostics,
 ) {
+    let InferenceThreadContext {
+        paths,
+        request,
+        candidate,
+        session_log_root,
+    } = context;
     diagnostics.record(serde_json::json!({
         "event":"worker-configured",
         "executable":paths.executable.to_string_lossy().into_owned(),
@@ -2414,17 +2426,19 @@ fn inference_thread(
             }) => {
                 let result = transcribe_window(
                     &mut process,
-                    &request,
-                    &identity,
-                    native_call_marker_required,
-                    expected_gpu.clone(),
-                    attempt,
+                    WindowRequestContext {
+                        request: &request,
+                        identity: &identity,
+                        native_call_marker_required,
+                        expected_gpu: expected_gpu.clone(),
+                        attempt,
+                        trace_enabled,
+                    },
                     &cancel,
                     &path,
                     sha256,
                     samples.len() as u64,
                     request.group_offset_samples.saturating_add(start_sample),
-                    trace_enabled,
                 );
                 attempt = attempt.saturating_add(1);
                 let _ = fs::remove_file(&path);
@@ -2528,20 +2542,32 @@ fn inference_thread(
     }
 }
 
-fn transcribe_window(
-    process: &mut ParakeetProcess,
-    request: &LiveRequest,
-    identity: &whisper_core::parakeet_ipc::WorkerIdentity,
+struct WindowRequestContext<'a> {
+    request: &'a LiveRequest,
+    identity: &'a whisper_core::parakeet_ipc::WorkerIdentity,
     native_call_marker_required: bool,
     expected_gpu: Option<whisper_core::parakeet_ipc::ExpectedGpu>,
     attempt: u64,
+    trace_enabled: bool,
+}
+
+fn transcribe_window(
+    process: &mut ParakeetProcess,
+    context: WindowRequestContext<'_>,
     cancel: &AtomicBool,
     path: &Path,
     sha256: String,
     expected_samples: u64,
     global_window_start_sample: u64,
-    trace_enabled: bool,
 ) -> Result<WindowTranscription, String> {
+    let WindowRequestContext {
+        request,
+        identity,
+        native_call_marker_required,
+        expected_gpu,
+        attempt,
+        trace_enabled,
+    } = context;
     let expected_job_id = format!("{:032x}", request.job_id.0);
     process.transcribe_with_gpu(
         expected_job_id.clone(),

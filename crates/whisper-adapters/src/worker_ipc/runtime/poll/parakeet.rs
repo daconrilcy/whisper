@@ -80,6 +80,17 @@ pub(in crate::worker_ipc) fn append_single_pass_parakeet_word_group(
     }
     Ok(())
 }
+struct ParakeetVadResult {
+    request_id: u64,
+    job_id: String,
+    generation: u64,
+    attempt: u64,
+    identity: whisper_core::parakeet_ipc::WorkerIdentity,
+    source_sha256: String,
+    duration_samples: u64,
+    words: Vec<whisper_core::parakeet_ipc::Word>,
+}
+
 pub(in crate::worker_ipc) struct ParakeetVadRun {
     pub(in crate::worker_ipc) request: ImportRequest,
     pub(in crate::worker_ipc) decoder: Option<crate::decoder::DecoderProxy<ChildWorkerTransport>>,
@@ -386,15 +397,18 @@ impl ImportRuntime {
 
     fn handle_parakeet_vad_result(
         &mut self,
-        request_id: u64,
-        job_id: String,
-        generation: u64,
-        attempt: u64,
-        identity: whisper_core::parakeet_ipc::WorkerIdentity,
-        source_sha256: String,
-        duration_samples: u64,
-        words: Vec<whisper_core::parakeet_ipc::Word>,
+        result: ParakeetVadResult,
     ) -> Option<Result<WorkerEvent, PortError>> {
+        let ParakeetVadResult {
+            request_id,
+            job_id,
+            generation,
+            attempt,
+            identity,
+            source_sha256,
+            duration_samples,
+            words,
+        } = result;
         let active = self.active.as_ref()?;
         let id = (active.job_id, active.generation, active.instance_id);
         let Some(run) = self.parakeet_vad.as_mut() else {
@@ -774,7 +788,7 @@ impl ImportRuntime {
                 ..
             } => {
                 if self.parakeet_vad.is_some() {
-                    return self.handle_parakeet_vad_result(
+                    return self.handle_parakeet_vad_result(ParakeetVadResult {
                         request_id,
                         job_id,
                         generation,
@@ -783,7 +797,7 @@ impl ImportRuntime {
                         source_sha256,
                         duration_samples,
                         words,
-                    );
+                    });
                 }
                 let Some(active) = self.active.as_ref() else {
                     return Some(Err(PortError::Failed(
