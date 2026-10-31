@@ -1,6 +1,6 @@
-Avancée : 98 emplacements d'avertissement recensés et reliés à 30 tâches dans six lots bornés.
-Blocage : aucune campagne nouvelle exécutée ; baseline des profils supplémentaires et autorisation d'implémentation restent à obtenir.
-Décision : corriger sans neutraliser les lints, en séparant verrouillage, réécritures locales et changements de contrats.
+Avancée : six lots autorisés pour implémentation séquentielle ; préparation du lot P.
+Blocage : préflight et baseline de la nouvelle campagne à établir avant édition produit.
+Décision : revues indépendantes et commits locaux par lot, tolérance Temp bornée autorisée, aucun push.
 
 # Analyse et plan de correction Clippy — adaptateurs et desktop
 
@@ -717,6 +717,8 @@ Seuls les gates de produit/périmètre doivent être soumis à l'utilisateur. G-
 Vérifications réellement réalisées pour cette livraison : lecture des sources, journal et manifestes ; extraction/dédoublonnage en mémoire des diagnostics ; recherches des consommateurs ; état Git, lecture des consignes et `git diff --check` documentaire. Aucun Cargo, modification Rust/test/configuration/garde, modèle, moteur, fenêtre ou push. L'auteur principal écrit et commite ce seul document. L'analyse n'est pas une nouvelle preuve d'exécution.
 
 ## 11. Implementation Agent Prompt
+
+Autorisation écrite de l'utilisateur dans cette session après livraison du plan : « Implémente les six lots du plan dans l’ordre, avec revues indépendantes et commits locaux, sans push. J’autorise la tolérance limitée au Temp Windows non attribué pour cette campagne, avec les autres arrêts maintenus. » Cet accord couvre P, S, T, E, C puis D et les campagnes prévues. Pour cette seule campagne `clippy-adapters-desktop`, les événements Created/Changed/Deleted purement sous `%LOCALAPPDATA%\Temp` non attribués et les renommages dont les deux chemins y restent sont consignés UNATTRIBUTED sans arrêt ; aucune attribution ni destination volontaire externe n'en est déduite. Les événements attribués à la campagne, sensibles, erreurs de surveillance, renommages franchissant la frontière et les autres arrêts du plan restent bloquants. Une revue et un commit de chaque lot fermé précèdent le suivant. L'autorisation ne vaut pas extension aux warnings/cibles hors périmètre ni aux recettes natives/UI.
 
 À utiliser uniquement après accord précis sur le lot et la campagne :
 
