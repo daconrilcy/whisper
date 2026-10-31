@@ -647,7 +647,7 @@ pub(super) fn validate_pending(
     } else {
         pending.version == 1 && pending.qualification.is_none()
     };
-    if (!matches!(pending.version, 1 | 2 | 3) && !unified)
+    if (!matches!(pending.version, 1..=3) && !unified)
         || (pending.version < 4 && pending.strategy != legacy_transcription_strategy())
         || pending.job_id != job_id
         || pending.generation.get() != generation

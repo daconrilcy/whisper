@@ -168,7 +168,7 @@ impl ResumeCoverageReader {
             .len();
         if &header != INDEX_HEADER
             || index_size < INDEX_HEADER.len() as u64
-            || (index_size - INDEX_HEADER.len() as u64) % INDEX_ENTRY_BYTES != 0
+            || !(index_size - INDEX_HEADER.len() as u64).is_multiple_of(INDEX_ENTRY_BYTES)
         {
             return Err("StorageCorrupt: resume document index".into());
         }

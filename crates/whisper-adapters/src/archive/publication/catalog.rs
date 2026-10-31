@@ -919,7 +919,7 @@ pub(in crate::archive) fn reconcile_replaced_exports(
         };
         let ownership: InstalledExportOwnership = serde_json::from_slice(&ownership_bytes)
             .map_err(|error| format!("StorageCorrupt: export ownership record: {error}"))?;
-        if !matches!(ownership.version, 1 | 2 | 3)
+        if !matches!(ownership.version, 1..=3)
             || ownership.job_id != record.job_id
             || ownership.generation != record.generation
             || ownership.source_sha256 != record.source_sha256
@@ -931,11 +931,7 @@ pub(in crate::archive) fn reconcile_replaced_exports(
         }
         fs::create_dir_all(&backup)
             .map_err(|error| format!("StorageUnavailable: replaced export backup: {error}"))?;
-        let suffix = format!(
-            "{}-{}",
-            format!("{:032x}", record.job_id.0),
-            record.generation.get()
-        );
+        let suffix = format!("{:032x}-{}", record.job_id.0, record.generation.get());
         for (ext, artifact) in [("txt", &manifest.text), ("srt", &manifest.srt)] {
             let source = root.join("exports").join(format!("{name}.{ext}"));
             if !source.exists() {

@@ -56,8 +56,7 @@ impl OpenModelFile {
         let canonical_file = File::open(&canonical_path)?;
         let canonical_identity = Handle::from_file(canonical_file)?;
         if identity != canonical_identity {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(io::Error::other(
                 "artifact path changed while its canonical identity was being opened",
             ));
         }
@@ -95,8 +94,7 @@ impl ModelFileHashCache {
         let bytes_read = io::copy(&mut opened.file, &mut hasher)?;
         let after_read = OpenModelFile::open(path)?;
         if bytes_read != opened.size_bytes || !opened.matches(&after_read) {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(io::Error::other(
                 "model identity changed while its SHA-256 was being computed",
             ));
         }
@@ -165,7 +163,7 @@ fn cached_file_sha256(
     let mut cache = ARTIFACT_HASH_CACHE
         .get_or_init(|| Mutex::new(ModelFileHashCache::default()))
         .lock()
-        .map_err(|_| io::Error::new(io::ErrorKind::Other, "model hash cache is poisoned"))?;
+        .map_err(|_| io::Error::other("model hash cache is poisoned"))?;
     let result = cache.sha256(path);
     drop(cache);
     let full_read = result.as_ref().is_ok_and(|(_, _, full_read)| *full_read);
@@ -188,7 +186,7 @@ pub fn model_sha256_full_read_count(path: &Path) -> io::Result<u64> {
     ARTIFACT_HASH_CACHE
         .get_or_init(|| Mutex::new(ModelFileHashCache::default()))
         .lock()
-        .map_err(|_| io::Error::new(io::ErrorKind::Other, "model hash cache is poisoned"))?
+        .map_err(|_| io::Error::other("model hash cache is poisoned"))?
         .full_read_count(path)
 }
 
@@ -198,7 +196,7 @@ pub fn artifact_sha256_full_read_count(path: &Path) -> io::Result<u64> {
     ARTIFACT_HASH_CACHE
         .get_or_init(|| Mutex::new(ModelFileHashCache::default()))
         .lock()
-        .map_err(|_| io::Error::new(io::ErrorKind::Other, "artifact hash cache is poisoned"))?
+        .map_err(|_| io::Error::other("artifact hash cache is poisoned"))?
         .full_read_count(path)
 }
 

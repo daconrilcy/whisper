@@ -321,7 +321,6 @@ fn log_inventory(
             path.display()
         );
         eprintln!("{message}");
-        return;
     }
 }
 

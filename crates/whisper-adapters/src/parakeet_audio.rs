@@ -345,7 +345,6 @@ impl From<std::io::Error> for AudioStoreError {
 /// the active part is finalized explicitly with `finish`.
 pub struct PcmPartWriter {
     base_path: PathBuf,
-    index_path: PathBuf,
     index: File,
     part: File,
     part_number: u64,
@@ -387,7 +386,6 @@ impl PcmPartWriter {
             .open(&base_path)?;
         let mut writer = Self {
             base_path,
-            index_path,
             index,
             part,
             part_number: 1,
@@ -732,8 +730,10 @@ impl PcmPartStore {
                 file.read_exact(&mut bytes)?;
                 output.extend(
                     bytes
-                        .chunks_exact(2)
-                        .map(|pair| i16::from_le_bytes([pair[0], pair[1]])),
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|pair| i16::from_le_bytes(*pair)),
                 );
             }
             offset += page.len() as u64;

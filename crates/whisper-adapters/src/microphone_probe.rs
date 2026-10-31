@@ -261,11 +261,11 @@ impl MicrophoneProbe {
                         worker_processed_chunks.fetch_add(1, Ordering::Release);
                         continue;
                     };
-                    if analyzer.epoch == worker_epoch.load(Ordering::Acquire) {
-                        if let Ok(mut latest) = worker_latest.write() {
-                            *latest = Some(Arc::new(snapshot));
-                            worker_valid.store(true, Ordering::Release);
-                        }
+                    if analyzer.epoch == worker_epoch.load(Ordering::Acquire)
+                        && let Ok(mut latest) = worker_latest.write()
+                    {
+                        *latest = Some(Arc::new(snapshot));
+                        worker_valid.store(true, Ordering::Release);
                     }
                     #[cfg(test)]
                     worker_processed_chunks.fetch_add(1, Ordering::Release);

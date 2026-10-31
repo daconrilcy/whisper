@@ -51,8 +51,10 @@ pub fn adapter_instance_id(luid: LUID) -> Result<String, String> {
     }
     .map_err(|e| format!("SetupDiGetClassDevsW: {e}"))?;
     let result = (|| {
-        let mut interface = SP_DEVICE_INTERFACE_DATA::default();
-        interface.cbSize = std::mem::size_of::<SP_DEVICE_INTERFACE_DATA>() as u32;
+        let mut interface = SP_DEVICE_INTERFACE_DATA {
+            cbSize: std::mem::size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+            ..Default::default()
+        };
         // SAFETY: path is the fixed NUL-terminated DisplayConfig output; set remains live.
         unsafe { SetupDiOpenDeviceInterfaceW(set, PCWSTR(path.as_ptr()), 0, Some(&mut interface)) }
             .map_err(|e| format!("SetupDiOpenDeviceInterfaceW: {e}"))?;
@@ -74,8 +76,10 @@ pub fn adapter_instance_id(luid: LUID) -> Result<String, String> {
         unsafe {
             (*detail).cbSize = std::mem::size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32;
         }
-        let mut devinfo = SP_DEVINFO_DATA::default();
-        devinfo.cbSize = std::mem::size_of::<SP_DEVINFO_DATA>() as u32;
+        let mut devinfo = SP_DEVINFO_DATA {
+            cbSize: std::mem::size_of::<SP_DEVINFO_DATA>() as u32,
+            ..Default::default()
+        };
         // SAFETY: detail storage and initialized devinfo remain writable for the call.
         unsafe {
             SetupDiGetDeviceInterfaceDetailW(

@@ -325,13 +325,13 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
             if identity_snapshot(actual)? != object.identity {
                 return Err(format!("CleanupIdentityChanged: {}", object.relative_path));
             }
-            if let Some(expected_sha) = &object.sha256 {
-                if hex(&sha256_file(&path)?) != *expected_sha {
-                    return Err(format!(
-                        "CleanupIdentityChanged: empreinte modifiée {}",
-                        object.relative_path
-                    ));
-                }
+            if let Some(expected_sha) = &object.sha256
+                && hex(&sha256_file(&path)?) != *expected_sha
+            {
+                return Err(format!(
+                    "CleanupIdentityChanged: empreinte modifiée {}",
+                    object.relative_path
+                ));
             }
         }
         if let Some(container) = &target.container

@@ -162,6 +162,12 @@ pub struct WindowsModelPreferencePort {
     known_historical_turbo_path: String,
 }
 
+impl Default for WindowsModelPreferencePort {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WindowsModelPreferencePort {
     pub fn new() -> Self {
         let local_app_data = std::env::var_os("LOCALAPPDATA")

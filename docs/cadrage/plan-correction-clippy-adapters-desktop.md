@@ -1,6 +1,6 @@
-Avancée : P livré ; reprise des quatre contrôles S-V1 sur le candidat courant autorisée après arrêt.
-Blocage : preuves S-V1 à produire avant verdict et livraison S.
-Décision : garde inchangée, tous arrêts maintenus ; revue puis lots suivants dans l'ordre, sans push.
+Avancée : P et S livrés CLEAN ; 47 sites fermés, 38 avertissements adapters lib restants.
+Blocage : aucun pour S ; préflight et sélection contrôlée T à établir.
+Décision : commit local S puis lot T, garde inchangée et tous arrêts maintenus, sans push.
 
 # Analyse et plan de correction Clippy — adaptateurs et desktop
 
@@ -751,6 +751,14 @@ Nouvel arrêt : SelfTest préalable PASS, puis première commande de test tenté
 Verdict courant de revue **BLOCKED**, S-R1 fermé, S-V1 non exécuté ; deux passages de revue, zéro correction attribuée pendant la boucle. S n'est pas livré, T/E/C/D restent non commencés. Espace relevé **64 517 197 824 octets**. Les preuves et le candidat sont conservés, aucun nettoyage/restauration, aucune tolérance .git ni modification de garde ajoutée. Arbitrage requis pour accepter le prédicat Path courant comme candidat à revalider et reprendre les quatre contrôles S-V1 puis la revue, en conservant tous les arrêts. Aucune revendication CLEAN ou PASS courant avant cette revalidation.
 
 Autorisation courante de l'utilisateur : « oui je t'autorise », répondant à la demande précise de reprendre les quatre contrôles demandés sur ce candidat, puis la revue et les lots suivants avec garde inchangée et tous arrêts maintenus. Le prédicat Path courant devient le candidat accepté pour revalidation ; son auteur reste indéterminé et aucun historique n'est réécrit. Reprendre S-V1 sous les contraintes de campagne existantes, sans lancer le scénario de fixture non retenu lors de l'essai interrompu. Cette reprise n'ajoute aucune tolérance .git ni autorisation de push/native/UI.
+
+### Clôture du lot S
+
+Après cette autorisation, Clippy `cc1825d2` et le scénario import pur exact `6d336a02` PASS ; format `73f46697` FAIL, limité aux retours à la ligne de Path::new. Le reviewer émet **S-R2 MINEUR**. Correction par l'implémenteur en mode CORRECT, uniquement cosmétique dans parakeet_import.rs, blob courant **eecd78b5** ; aucun changement du prédicat Path/Path. Échec conservé et non confondu avec les contrôles courants : SelfTest PASS, format initial `8a99be8b`, puis les quatre contrôles S-V1 **Clippy desktop all-targets `7120f874`, test import exact `73e69d10` (1 réussi), format `93b27666`, check workspace/all-targets `e489cb62` : tous exit 0**, diff-check PASS. Commandes et journaux sous la même racine de campagne, aucun changement de garde ; HEAD/index inchangés pendant vérification.
+
+Même reviewer indépendant via coordinateur : **CLEAN courant sur S1–S6**, baseline logique `5addc54c`, S-R1 et S-R2 fermés, aucune demande ni lacune matérielle restante ; **un cycle de correction attribué** (format). La provenance du changement Path antérieur reste inconnue et conservée comme limite, sans attribuer l'acte à un agent ; utilisateur a accepté le candidat pour sa revalidation désormais réussie. Les preuves précédentes des autres fichiers S restent applicables, aucune autre mutation source. Les 30 sites S sont fermés ; bibliothèque adapters **68 → 38** avertissements. Autres tests non sélectionnés, natif, matériel et fenêtre NOT RUN ; archive conserve un ignoré.
+
+Archivage sous `target/parakeet-tests/clippy-adapters-desktop/archive/lot-s-20261031/` : **302 fichiers source / 302 copies, tous SHA-256 concordants**, garde et journaux avec arborescence ; aucun manifeste, nettoyage ou suppression. Espace final **64 492 310 528 octets**. Les incidents et résultats intermédiaires sont conservés. Livraison S par commit local avec les 16 fichiers prévus et ce bilan ; aucun push, non-suivis préexistants préservés.
 
 Autorisation écrite de l'utilisateur dans cette session après livraison du plan : « Implémente les six lots du plan dans l’ordre, avec revues indépendantes et commits locaux, sans push. J’autorise la tolérance limitée au Temp Windows non attribué pour cette campagne, avec les autres arrêts maintenus. » Cet accord couvre P, S, T, E, C puis D et les campagnes prévues. Pour cette seule campagne `clippy-adapters-desktop`, les événements Created/Changed/Deleted purement sous `%LOCALAPPDATA%\Temp` non attribués et les renommages dont les deux chemins y restent sont consignés UNATTRIBUTED sans arrêt ; aucune attribution ni destination volontaire externe n'en est déduite. Les événements attribués à la campagne, sensibles, erreurs de surveillance, renommages franchissant la frontière et les autres arrêts du plan restent bloquants. Une revue et un commit de chaque lot fermé précèdent le suivant. L'autorisation ne vaut pas extension aux warnings/cibles hors périmètre ni aux recettes natives/UI.
 

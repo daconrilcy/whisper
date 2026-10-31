@@ -163,6 +163,7 @@ impl Confirmation {
         !self.pending.is_empty() || !self.unresolved.is_empty() || self.covered_end < durable_end
     }
 
+    #[cfg(test)]
     pub(super) fn finalize(&mut self) -> Vec<ConfirmedBlock> {
         self.finalize_observed(false).published
     }
@@ -199,6 +200,7 @@ impl Confirmation {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn ingest(&mut self, hypothesis: Hypothesis) -> Result<Vec<ConfirmedBlock>, String> {
         self.ingest_observed(hypothesis, false)
             .map(|decision| decision.published)

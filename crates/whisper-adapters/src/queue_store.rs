@@ -489,14 +489,14 @@ impl QueueStore {
             generation,
         })?;
         self.entries.remove(&sequence);
-        if status != QueueStatus::Running {
-            if let Some(destination) = self.path.parent().and_then(Path::parent) {
-                crate::archive::ArchiveStore::clear_duplicate_reservation(
-                    destination,
-                    job_id,
-                    generation,
-                )?;
-            }
+        if status != QueueStatus::Running
+            && let Some(destination) = self.path.parent().and_then(Path::parent)
+        {
+            crate::archive::ArchiveStore::clear_duplicate_reservation(
+                destination,
+                job_id,
+                generation,
+            )?;
         }
         Ok(())
     }

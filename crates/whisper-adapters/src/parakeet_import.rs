@@ -146,9 +146,9 @@ impl ParakeetWorkerPaths {
             }
             "worker" => "PARAKEET_L2_CPU_WORKER",
             "native directory"
-                if self.native_dir
-                    == PathBuf::from(
-                        std::env::var_os("PARAKEET_L2_NATIVE_DIR").unwrap_or_default(),
+                if self.native_dir.as_path()
+                    == Path::new(
+                        &std::env::var_os("PARAKEET_L2_NATIVE_DIR").unwrap_or_default(),
                     ) =>
             {
                 "PARAKEET_L2_NATIVE_DIR"

@@ -8,7 +8,7 @@ mod confirmation;
 
 use confirmation::{Confirmation, Hypothesis, TimedWord};
 
-use crate::microphone_probe::{MicrophoneProbe, MicrophoneSpectrumReader};
+use crate::microphone_probe::MicrophoneProbe;
 use crate::{
     capture::{CaptureStream, Pcm16Converter},
     direct_live::WavOutput,
@@ -176,7 +176,7 @@ impl UnifiedCapturePump {
         for (gain, first_frame) in gain_updates {
             self.record_gain_acknowledgement(gain, first_frame);
         }
-        Ok(self.collect_available_acknowledgements()?)
+        self.collect_available_acknowledgements()
     }
 
     pub(crate) fn set_gain(
@@ -358,6 +358,7 @@ enum InferenceRequest {
 }
 
 #[derive(Clone)]
+#[cfg_attr(not(test), derive(Default))]
 struct D2WorkerDiagnostics {
     #[cfg(test)]
     path: Option<PathBuf>,
@@ -372,13 +373,6 @@ impl Default for D2WorkerDiagnostics {
             path: None,
             write_lock: Arc::new(std::sync::Mutex::new(())),
         }
-    }
-}
-
-#[cfg(not(test))]
-impl Default for D2WorkerDiagnostics {
-    fn default() -> Self {
-        Self {}
     }
 }
 
@@ -918,14 +912,6 @@ impl ParakeetLive {
         (self.request.job_id, self.request.generation)
     }
 
-    pub(crate) fn session_id(&self) -> u64 {
-        self.session_id
-    }
-
-    pub(crate) fn destination(&self) -> &str {
-        &self.request.destination
-    }
-
     #[cfg(test)]
     pub(crate) fn enqueue_d2_capture_block(&mut self, samples: Vec<f32>) {
         self.capture
@@ -1435,10 +1421,10 @@ impl ParakeetLive {
         if let Some(mut converter) = self.converter.take() {
             match converter.finish() {
                 Ok(tail) => {
-                    if let Some(wav) = self.wav.as_mut() {
-                        if let Err(error) = wav.append(&tail) {
-                            failures.push(format!("Dernier bloc audio non écrit : {error}"));
-                        }
+                    if let Some(wav) = self.wav.as_mut()
+                        && let Err(error) = wav.append(&tail)
+                    {
+                        failures.push(format!("Dernier bloc audio non écrit : {error}"));
                     }
                 }
                 Err(error) => failures.push(format!("Conversion audio incomplète : {error}")),
@@ -1718,56 +1704,53 @@ impl ParakeetLive {
                 .request
                 .group_offset_samples
                 .saturating_add(self.next_window_start);
-            if self.recovery_attempts.len() < MAX_RECOVERY_ATTEMPTS {
-                if let Some(target) = self
+            if self.recovery_attempts.len() < MAX_RECOVERY_ATTEMPTS
+                && let Some(target) = self
                     .confirmation
                     .recovery_candidates(next_global_start)
                     .into_iter()
                     .find(|range| !self.recovery_attempts.contains_overlap(*range))
-                {
-                    if let Some((start, count)) =
-                        recovery_window(target, self.request.group_offset_samples, total)
-                    {
-                        match self.submit_window(start, count, false, Some(target)) {
-                            Ok(true) => {
-                                self.recovery_attempts.record(target);
-                                if self.trace.enabled() {
-                                    self.trace.record(serde_json::json!({
-                                        "event": "recovery_scheduled",
-                                        "job_id": format!("{:032x}", self.request.job_id.0),
-                                        "generation": self.request.generation.get(),
-                                        "session_id": self.session_id,
-                                        "target_range": range_trace_json(&target),
-                                        "window_start_sample": self.request.group_offset_samples.saturating_add(start),
-                                        "window_end_sample": self.request.group_offset_samples.saturating_add(start).saturating_add(count),
-                                        "attempt_for_range": 1,
-                                        "attempt_limit_per_range": 1,
-                                        "session_attempt": self.recovery_attempts.len(),
-                                        "session_attempt_limit": MAX_RECOVERY_ATTEMPTS,
-                                        "at_unix_ms": unix_time_ms(),
-                                        "publication_phase": "capture_active",
-                                    }));
-                                }
-                                return Ok(());
-                            }
-                            Ok(false) if self.unavailable => return Ok(()),
-                            Ok(false) => {}
-                            Err(error) => {
-                                self.recovery_attempts.record(target);
-                                if self.trace.enabled() {
-                                    self.trace.record(serde_json::json!({
-                                        "event": "recovery_not_submitted",
-                                        "job_id": format!("{:032x}", self.request.job_id.0),
-                                        "generation": self.request.generation.get(),
-                                        "session_id": self.session_id,
-                                        "target_range": range_trace_json(&target),
-                                        "reason_code": "recovery_window_preparation_failed",
-                                        "error": bounded_text(&error, TRACE_MAX_TEXT_BYTES).0,
-                                        "at_unix_ms": unix_time_ms(),
-                                        "publication_phase": "capture_active",
-                                    }));
-                                }
-                            }
+                && let Some((start, count)) =
+                    recovery_window(target, self.request.group_offset_samples, total)
+            {
+                match self.submit_window(start, count, false, Some(target)) {
+                    Ok(true) => {
+                        self.recovery_attempts.record(target);
+                        if self.trace.enabled() {
+                            self.trace.record(serde_json::json!({
+                                "event": "recovery_scheduled",
+                                "job_id": format!("{:032x}", self.request.job_id.0),
+                                "generation": self.request.generation.get(),
+                                "session_id": self.session_id,
+                                "target_range": range_trace_json(&target),
+                                "window_start_sample": self.request.group_offset_samples.saturating_add(start),
+                                "window_end_sample": self.request.group_offset_samples.saturating_add(start).saturating_add(count),
+                                "attempt_for_range": 1,
+                                "attempt_limit_per_range": 1,
+                                "session_attempt": self.recovery_attempts.len(),
+                                "session_attempt_limit": MAX_RECOVERY_ATTEMPTS,
+                                "at_unix_ms": unix_time_ms(),
+                                "publication_phase": "capture_active",
+                            }));
+                        }
+                        return Ok(());
+                    }
+                    Ok(false) if self.unavailable => return Ok(()),
+                    Ok(false) => {}
+                    Err(error) => {
+                        self.recovery_attempts.record(target);
+                        if self.trace.enabled() {
+                            self.trace.record(serde_json::json!({
+                                "event": "recovery_not_submitted",
+                                "job_id": format!("{:032x}", self.request.job_id.0),
+                                "generation": self.request.generation.get(),
+                                "session_id": self.session_id,
+                                "target_range": range_trace_json(&target),
+                                "reason_code": "recovery_window_preparation_failed",
+                                "error": bounded_text(&error, TRACE_MAX_TEXT_BYTES).0,
+                                "at_unix_ms": unix_time_ms(),
+                                "publication_phase": "capture_active",
+                            }));
                         }
                     }
                 }
@@ -2902,6 +2885,7 @@ mod window_result_contract_tests {
 #[cfg(test)]
 mod microphone_spectrum_tests {
     use super::*;
+    use crate::microphone_probe::MicrophoneSpectrumReader;
     use std::collections::VecDeque;
     use std::{
         sync::{atomic::AtomicBool, mpsc},

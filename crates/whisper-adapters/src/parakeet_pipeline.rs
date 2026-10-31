@@ -476,7 +476,7 @@ pub fn commit_preview<D: ParakeetDocumentPort>(
     words: &[whisper_core::parakeet_ipc::Word],
 ) -> Result<u64, String> {
     let segments = validated_segments(
-        &words,
+        words,
         window,
         available_samples,
         instance_id,

@@ -220,7 +220,7 @@ impl ArchiveStore {
             .len();
         if &header != INDEX_HEADER
             || index_size < INDEX_HEADER.len() as u64
-            || (index_size - INDEX_HEADER.len() as u64) % INDEX_ENTRY_BYTES != 0
+            || !(index_size - INDEX_HEADER.len() as u64).is_multiple_of(INDEX_ENTRY_BYTES)
         {
             return Err("StorageCorrupt: unified document index".into());
         }
@@ -308,7 +308,7 @@ impl ArchiveStore {
         const INDEX_HEADER_BYTES: u64 = 8;
         const INDEX_RECORD_BYTES: u64 = 24;
         if index_bytes < INDEX_HEADER_BYTES
-            || (index_bytes - INDEX_HEADER_BYTES) % INDEX_RECORD_BYTES != 0
+            || !(index_bytes - INDEX_HEADER_BYTES).is_multiple_of(INDEX_RECORD_BYTES)
         {
             return Err("StorageCorrupt: unified audio part index length".into());
         }
