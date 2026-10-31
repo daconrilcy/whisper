@@ -1,6 +1,6 @@
-Avancée : plan relu CLEAN ; exécution autorisée, préparation T1 et inventaire statique effectués.
-Blocage : auto-test de la garde UI arrêté sur un événement hors racine, d'origine indéterminée ; aucun Cargo lancé.
-Décision : arrêt avant refonte et conservation des éléments ; arbitrage utilisateur nécessaire avant reprise, sans push.
+Avancée : garde UI validée par auto-tests ; première commande de baseline démarrée sous garde.
+Blocage : événement hors racine sous .git/objects/pack ; baseline interrompue, code produit inchangé.
+Décision : campagne arrêtée en T2, dérogation Temp inchangée ; arbitrage avant reprise, sans push.
 
 # Refactorisation de ui.rs — plan PLAN-UI v1
 
@@ -181,3 +181,20 @@ Base d'exécution : `95fd9687ff6fa5d2d6bbd02a3d99dffcffb793a3`, branche `evo-sta
 La garde a déclenché l'arrêt ; aucun nouvel auto-test ni Cargo n'a suivi. Fichier signalé, cache, temporaires et journaux ne sont ni effacés ni restaurés. Les éléments d'exécution restent dans la racine UI ignorée par Git ; seul ce bilan documentaire est commité. L'archivage de clôture de campagne n'est pas annoncé effectué : la campagne reste arrêtée en T1.
 
 Décision nécessaire avant reprise : conserver l'arrêt pour rechercher l'origine de l'événement, ou autoriser précisément une dérogation limitée au traitement des événements Temp non attribués. Recommandation : examiner d'abord les éléments disponibles en lecture seule ; aucune dérogation d'une autre campagne ne s'applique automatiquement. La refonte UI n'est pas livrée.
+
+### Reprise autorisée du 31 octobre 2026
+
+À la demande précise « Autorisez-vous une dérogation limitée à cette campagne pour consigner les événements Temp non attribués sans arrêter, tout en maintenant l'arrêt pour les écritures attribuées hors racine et les autres violations ? », l'utilisateur répond : « oui je t'autoriser ».
+
+Cette dérogation concerne seulement la campagne UI : un événement observé dans le Temp utilisateur sans attribution démontrée est conservé comme `UNATTRIBUTED` sans provoquer à lui seul l'arrêt. Il ne devient ni une écriture Cargo prouvée ni une écriture autorisée. Aucune destination applicative volontaire hors des racines UI et Cargo partagée n'est autorisée. Une écriture attribuée hors racine, une autre violation du préflight ou une modification inexpliquée d'un emplacement sensible impose toujours l'arrêt. La surveillance ne constitue pas un confinement préventif et son absence de PID ne prouve pas l'origine des événements.
+
+Premier échec et éléments conservés ; nouveaux auto-tests requis avant Cargo. Base de reprise `bf5a54a47e57dc5cffbd6c8dfa5f6d682a00181c` (bilan documentaire seulement depuis la base précédente), mêmes chemins et responsable d'implémentation. Espace relevé avant reprise : **64,12 Gio**. Aucun transfert général de dérogation ni changement du design MVC.
+
+### Résultat de reprise — arrêt en T2
+
+- T1/V0 : **PASS, exit 0**. Auto-tests des variables/racines/jonctions et des événements simulés : Temp non attribué consigné `UNATTRIBUTED` ; Temp attribué, autres chemins externes et renommages transfrontaliers refusés. Premier échec conservé.
+- T2/V2 exécuté sous garde : `& .\target\parakeet-tests\refacto-ui\guard.ps1 -Mode Run -CargoArguments @('test','--offline','--locked','-p','whisper-desktop','--lib','--tests','--','--list')`. **FAIL, exit 1**, après environ 24 secondes : événement `Changed` sur `C:\dev\whisper\.git\objects\pack\tmp_pack_rHYElW`, horodatage du journal `2026-10-31T04:46:26.7047987+01:00`, détection `2026-10-31T04:46:26.8519485+01:00`. La garde rapporte l'arrêt de l'arbre de processus. Aucun inventaire exécuté complet ni résultat de test obtenu.
+- Journaux conservés : `target/parakeet-tests/refacto-ui/logs/guard-events.jsonl` et `guard.jsonl`, identifiant d'exécution `20261031T044603839-3a847c9b` ; sorties de compilation incomplète conservées.
+- Inspection ultérieure en lecture seule : un processus `git.exe` était présent, puis absent lors du relevé suivant. Cela ne démontre ni son lien avec le fichier observé ni l'origine exacte de l'événement. Aucune configuration Git modifiée et aucun processus Git arrêté par la session principale.
+
+La dérogation Temp ne couvre pas `.git`. T2 reste incomplet ; T3–T7 non exécutés, aucun code ni test produit modifié. Espace final rapporté : **63,69 Gio**. Aucun nettoyage/restauration, aucune relance Cargo après l'arrêt. Le bilan documentaire est commité localement ; pas de push. Arbitrage nécessaire avant reprise ; option recommandée : autoriser une nouvelle tentative après disparition de l'activité Git observée, sans tolérance supplémentaire pour `.git`.
