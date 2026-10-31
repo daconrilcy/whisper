@@ -1,12 +1,12 @@
-Avancée : besoin accepté ; cadrage MVC établi sur les sources actuelles.
-Blocage : revue DESIGN indépendante à réaliser sur cette version Git.
-Décision : proposition documentaire uniquement ; aucune implémentation autorisée.
+Avancée : cadrage MVC relu CLEAN ; deux constats fermés indépendamment.
+Blocage : aucun constat DESIGN ouvert ; code et validations produit non exécutés.
+Décision : DESIGN READY documentaire ; préparer le plan demandé, sans implémenter.
 
 # Refactorisation de ui.rs — cadrage
 
 ## 1. Identité, autorité et livrables
 
-- ID : DESIGN-UI v1, 31 octobre 2026, candidat à revue DESIGN.
+- ID : DESIGN-UI v1, 31 octobre 2026, DESIGN READY documentaire après revue indépendante.
 - Auteur des documents : session Codex principale. Contributions en lecture seule : product framer, requirements analyst, domain architect et rust architect, coordonnés par `/root/cadrage_ui`. Les sections ci-dessous intègrent leurs propositions ; elles ne revendiquent pas une copie littérale des contributions.
 - Base produit inspectée : `7154e3fee990ffc08e9bebb4bdf094aabaaa6e8e`, branche `evo-startup-perf`.
 - Besoin REF-UI v1 qualifié avec revue indépendante PASS, puis accepté par l'utilisateur dans cette session.
@@ -223,5 +223,7 @@ Questions produit structurantes : aucune. Détails réversibles : noms des méth
 Revue DESIGN initiale par `/root/cadrage_ui/review_ui`, indépendant de la rédaction, sur `9b69ce9fcf35d4e50ee6ec6c49636200f9ff1656` : **FINDINGS**, un constat UI-D01 IMPORTANT/Medium REQUIRED. Preuve : `microphone_test_start_enabled` et `unified_live_admission_available` appellent le prédicat alors placé dans controller, en contradiction avec la matrice. Condition de fermeture : placement partagé pur, définition unique, imports/visibilités/mapping/budgets alignés. Correction proposée par l'architecte : placement dans presentation/selection et accès internes décrits ci-dessus. Fermeture réservée au reviewer lors de la relecture Git ; aucun autre constat initial.
 
 Relecture sur `057ac834196f44d12fd0ba7ef2ce48bbec7fb9f0` : UI-D01 **CLOSED** par le reviewer ; **FINDINGS**, nouveau UI-D02 IMPORTANT/Medium REQUIRED. Preuve : la matrice interdisait toute dépendance presentation vers model alors que les helpers de sélection prennent SelectionWidgetState et ModelPreferenceEvent placés dans model/preferences. Correction finale de l'architecte, deuxième cycle : autoriser seulement ces deux types passifs avec imports explicites, et préciser les accès aux helpers et types core comme ci-dessus. Aucun nouvel accès à l'état vivant ni changement d'API ; fermeture UI-D02 réservée au reviewer sur la version corrigée Git.
+
+Verdict final brut de `/root/cadrage_ui/review_ui` sur `9dabf0f2da23fb4330b88f9363ce162b2a2bc86c` : **CLEAN** ; UI-D01 et UI-D02 **CLOSED**, aucun REQUIRED ouvert ni suggestion. Révision Git contrôlée inchangée pendant la revue. Deux cycles de correction consommés. Statut courant : **DESIGN READY documentaire** ; la présente inscription du verdict est une preuve de revue, pas une modification du design technique ni une autorisation de code/campagne/push.
 
 Contrôles de cette mission : lectures ciblées et git diff --check ; aucun test, build, Cargo, moteur natif ou ouverture Windows. La future recette Windows restera celle de l'utilisateur ; aucun binaire remis ici.
