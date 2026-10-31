@@ -1,6 +1,6 @@
-Avancée : P, S, T et E livrés CLEAN ; C1–C5 implémentés avec contrôles ciblés réussis, C6 partiel.
-Blocage : deux changements C6 d'attribution non établie ; aucun contrôle après ces mutations.
-Décision : conserver le candidat C non livré et demander arbitrage avant reprise ; garde inchangée et aucun push.
+Avancée : P, S, T et E livrés CLEAN ; reprise du candidat C6 autorisée avec limite de provenance conservée.
+Blocage : C6 à terminer puis C7/C8 et revalidation consolidée avant revue et livraison C.
+Décision : garde et arrêts inchangés, revue indépendante avant commit C puis D, sans push.
 
 # Analyse et plan de correction Clippy — adaptateurs et desktop
 
@@ -793,6 +793,8 @@ Arrêt avant tests C6 : l'appel apply_patch demandé sur le bloc automatic_confi
 C6 reste incomplet ; **aucun Cargo ni nouvelle édition source après constat**. C7/C8 et D non commencés ; consolidé, strict core/adapters, workspace et profil personnel C **NOT RUN**. Fichiers Rust modifiés du candidat : capture.rs, gpu_inventory.rs, parakeet_live.rs, worker_ipc.rs, runtime/mod.rs, runtime/poll/parakeet.rs, runtime/poll_unified.rs, service/mod.rs et test native_execution.rs, tous dans le périmètre C. Document main et non-suivis préexistants conservés. HEAD avant ce bilan toujours baseline E ; aucun code indexé/commité. Diff-check PASS en lecture, espace **64 467 206 144 octets**. Journaux sous la campagne existante, aucun nettoyage/restauration, modèle/matériel/native/UI non exécutés.
 
 Arbitrage à soumettre : accepter le contenu courant de C6 comme candidat à finir puis revalider complètement (y compris tout contrôle affecté), avec revue indépendante avant commit C, sans effacer la limite de provenance ni modifier garde/arrêts. Aucune poursuite avant cette décision ; aucun constat CLEAN ou PASS courant de C6 déduit de ses transformations présentes.
+
+Autorisation de reprise donnée dans cette même session : « oui je t'autorise », en réponse à la demande précise de reprendre sur ce candidat C6, terminer C, le revalider puis le faire relire avant commit et poursuivre D. Les blobs C6 constatés sont acceptés comme point de reprise, pas comme travail déjà vérifié ; leur auteur reste indéterminé. Refaire espace/SelfTest et les contrôles consolidés requis sur le candidat final, sans modification de garde ni des autres arrêts, sans push. Le delta Rust reste rapporté à la baseline E pour la revue de tout le lot C.
 
 Autorisation écrite de l'utilisateur dans cette session après livraison du plan : « Implémente les six lots du plan dans l’ordre, avec revues indépendantes et commits locaux, sans push. J’autorise la tolérance limitée au Temp Windows non attribué pour cette campagne, avec les autres arrêts maintenus. » Cet accord couvre P, S, T, E, C puis D et les campagnes prévues. Pour cette seule campagne `clippy-adapters-desktop`, les événements Created/Changed/Deleted purement sous `%LOCALAPPDATA%\Temp` non attribués et les renommages dont les deux chemins y restent sont consignés UNATTRIBUTED sans arrêt ; aucune attribution ni destination volontaire externe n'en est déduite. Les événements attribués à la campagne, sensibles, erreurs de surveillance, renommages franchissant la frontière et les autres arrêts du plan restent bloquants. Une revue et un commit de chaque lot fermé précèdent le suivant. L'autorisation ne vaut pas extension aux warnings/cibles hors périmètre ni aux recettes natives/UI.
 
