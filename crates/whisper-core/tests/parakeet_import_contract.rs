@@ -223,7 +223,7 @@ fn personal_release_keys_match_the_qualified_candidate_b_workers_and_dll_sets() 
     );
     assert_eq!(
         cpu.worker_build,
-        "84c371d4df55043ada4a1d96b80180ed0c03b208410c599262c8ea3762304e60"
+        "a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d"
     );
     assert_eq!(cpu.backend, Backend::Cpu);
     assert_eq!(cpu.inference_profile, "import-single-pass");
@@ -235,7 +235,7 @@ fn personal_release_keys_match_the_qualified_candidate_b_workers_and_dll_sets() 
     );
     assert_eq!(
         gpu.worker_build,
-        "bf58eb9d7300c444864347496b5a27e8584da3d30d634a759be99a598eda5ce4"
+        "7ffb0b4a022ec26909a8939b37787de6df6c9bdb2903edf14d3ffb32579eefc1"
     );
     assert_eq!(gpu.backend, Backend::Gpu);
     assert_eq!(gpu.hardware_profile.as_deref(), Some("selected-gpu"));
