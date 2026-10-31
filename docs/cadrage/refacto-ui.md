@@ -114,7 +114,7 @@ Budgets estimatifs après extraction, non preuves de taille. Tous les chemins ci
 | `ui.rs` | Façade et réexports explicites | 100 |
 | `ui/model.rs` | État, types privés, constructeurs/builders : 320–458,489–577,604–610 | 400 |
 | `ui/model/preferences.rs` | Commandes/événements/runtime et mailbox : 193–292 | 160 |
-| `ui/model/controller.rs` | Poll/dispatch 459–487,612–775 ; préframe 2014–2121 ; arrêt/refresh 1411–1437 ; gardes 3804–3831 | 500 |
+| `ui/model/controller.rs` | Poll/dispatch 459–487,612–775 ; préframe 2014–2121 ; arrêt/refresh 1411–1437 ; gardes 3804–3817 | 500 |
 | `ui/model/controller/actions.rs` | Import/live/test/gain 1496–1775 ; IDs 298–318 ; conversions 3437–3466 | 450 |
 | `ui/model/controller/observability.rs` | Jalons 1439–1494 ; horodatages et premier rendu 3833–3866 | 180 |
 | `ui/model/view.rs` | eframe::App 1777–1792 ; orchestration courte de show_ui | 160 |
@@ -131,13 +131,15 @@ Budgets estimatifs après extraction, non preuves de taille. Tous les chemins ci
 | `ui/presentation.rs` | Index des helpers et réexports vers façade | 100 |
 | `ui/presentation/microphone.rs` | Mesure/source 21–28,108–191 ; labels 3164–3227 et constantes | 300 |
 | `ui/presentation/gpu.rs` | GPU 2922–2931,2949–3108,3125–3162,3244–3271 | 280 |
-| `ui/presentation/selection.rs` | Choix 2933–2947,3370–3435 ; admission/widgets 3467–3626 | 350 |
+| `ui/presentation/selection.rs` | Choix 2933–2947,3370–3435 ; admission/widgets 3467–3626 ; prédicat pur window_must_remain_open 3819–3831 | 370 |
 | `ui/presentation/language.rs` | Choix et labels des langues 3628–3762 | 220 |
 | `ui/presentation/paths.rs` | Sauvegarde 3110–3123, édition 3229–3242, chemins 3273–3275/3306–3317 ; défauts/hash 3364–3368/3764–3799 | 180 |
 | `ui/presentation/text.rs` | Labels 3277–3304 et texte provisoire 3319–3362 | 120 |
 | `ui/presentation/recovery.rs` | Widget récupération 2883–2920 | 100 |
 
 Les plages servent à retrouver les responsabilités ; les frontières exactes suivent les accolades. Les imports et petites constantes suivent leur consommateur. Les fonctions longues sont divisées en helpers sémantiques dans les fichiers prévus ; le respect de 600 lignes ne suffit pas à justifier une fonction géante.
+
+Le prédicat partagé `window_must_remain_open(JobState) -> bool` conserve une définition unique et son corps dans `presentation/selection.rs`, visible `pub(in crate::ui)`. `presentation.rs` le réexporte avec cette même visibilité interne, sans exposition par la façade publique. `presentation/microphone.rs` l'utilise via son parent ; le contrôleur et l'import privé de model pour les tests passent par `crate::ui::presentation::window_must_remain_open`. L'admission unifiée l'appelle localement. Ainsi présentation ne dépend pas du contrôleur.
 
 ### Tests, includes et visibilité
 
@@ -167,7 +169,7 @@ Le préfixe Rust des tests unitaires change de `ui::tests` à `ui::model::tests`
 | model | Types/API core et services déjà détenus | Nouvelle politique métier/effet ; revue champs et constructeurs |
 | controller | État parent, AppFacade et services déjà utilisés | Nouveau worker/thread/verrou/routage ; comparaison points d'effets |
 | view | État parent, helpers, méthodes contrôleur à visibilité bornée | Nouvelle politique/IO/scopes egui ; revue ordre et vrais widgets |
-| presentation | Types et egui nécessaires aux helpers existants | Dépendance au contrôleur/root ou nouvel IO |
+| presentation | Types, egui et autres helpers purs de presentation nécessaires aux fonctions existantes | Dépendance au contrôleur/model/root ou nouvel IO |
 | core/adapters/workers | Aucun changement | Dépendance vers UI, changement de contrat/manifeste |
 
 Écarts hérités à la cible de séparation : CatalogSnapshot vient de whisper_adapters ; ArchiveStore::browse_treatment_folder est appelé dans ui.rs:2471–2477. Les consignes desktop reconnaissent ces accès directs existants. Cette refonte les conserve sans les étendre et sans revendiquer une séparation infrastructure/UI totale. Leur suppression ne fait pas partie du mandat.
@@ -215,5 +217,7 @@ La surveillance après écriture n'est pas un confinement préventif. Si la gard
 Questions produit structurantes : aucune. Détails réversibles : noms des méthodes d'extraction, owner implémenteur, avant le déplacement concerné, dans les chemins/contrats définis. Un nouveau chemin ou changement de contrat est un changement de plan/design à faire revoir, pas une permission implicite.
 
 État initial : candidat documentaire, revue indépendante à effectuer sur Git. Seul le reviewer peut déclarer CLEAN et fermer ses constats, avec deux cycles revue/correction maximum. Le plan est déjà demandé par l'utilisateur ; il pourra être préparé après revue DESIGN satisfaisante. DESIGN READY et PLANS READY resteront distincts d'un GO de code.
+
+Revue DESIGN initiale par `/root/cadrage_ui/review_ui`, indépendant de la rédaction, sur `9b69ce9fcf35d4e50ee6ec6c49636200f9ff1656` : **FINDINGS**, un constat UI-D01 IMPORTANT/Medium REQUIRED. Preuve : `microphone_test_start_enabled` et `unified_live_admission_available` appellent le prédicat alors placé dans controller, en contradiction avec la matrice. Condition de fermeture : placement partagé pur, définition unique, imports/visibilités/mapping/budgets alignés. Correction proposée par l'architecte : placement dans presentation/selection et accès internes décrits ci-dessus. Fermeture réservée au reviewer lors de la relecture Git ; aucun autre constat initial.
 
 Contrôles de cette mission : lectures ciblées et git diff --check ; aucun test, build, Cargo, moteur natif ou ouverture Windows. La future recette Windows restera celle de l'utilisateur ; aucun binaire remis ici.
