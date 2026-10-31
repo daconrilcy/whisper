@@ -1,6 +1,6 @@
-Avancée : lot P livré CLEAN dans 0f0eab3e ; 17 sites fermés, 68 avertissements adapters lib restants.
-Blocage : préflight S arrêté sur un événement .git d'origine indéterminée ; aucun code S modifié.
-Décision : conserver les preuves et demander arbitrage avant reprise ; protection .git et autres arrêts maintenus.
+Avancée : lot P livré CLEAN ; reprise du préflight S explicitement autorisée après l'arrêt.
+Blocage : auto-tests S à repasser avant tests ou édition produit.
+Décision : garde inchangée, aucun événement .git toléré, autres arrêts maintenus et lots dans l'ordre sans push.
 
 # Analyse et plan de correction Clippy — adaptateurs et desktop
 
@@ -735,6 +735,8 @@ Lot P commité `0f0eab3e0d41acf12bfee40747df5a2ec130778d`. La sélection positiv
 Premier SelfTest S : **FAIL exit 1**, mode `SelfTest-in-root-write`, événement réel **Changed** sur `C:\dev\whisper\.git` à **2026-10-31T06:06:14.3514157+01:00**, détecté à **06:06:14.5650571+01:00** ; arbre du faux processus d'auto-test interrompu. Preuve : `target/parakeet-tests/clippy-adapters-desktop/logs/guard-events.jsonl`. L'événement ne relève pas de la tolérance Temp. Le watcher ne fournit pas de PID : attribution et objet précis modifié indéterminés, aucune écriture Cargo démontrée. Aucun Cargo ni test produit S lancé, aucune édition source S, aucun nettoyage/restauration ni modification permissive de garde après l'arrêt.
 
 Contrôles en lecture après arrêt : HEAD toujours `0f0eab3e`, aucune différence suivie, pas de fichier .lock persistant observé dans .git ; index et reflog observés inchangés depuis le commit P. Ces observations ne prouvent pas l'origine de l'événement transitoire. Non-suivis préexistants conservés ; espace relevé **64 594 509 824 octets**. S1–S6 restent TODO, T/E/C/D non commencés. Aucune revue d'implémentation S demandée faute de candidat. Recommandation soumise à l'utilisateur : autoriser une simple reprise du préflight S et des auto-tests, **sans modifier la garde ni tolérer .git** ; tout nouvel événement sensible impose toujours l'arrêt. Pas de reprise avant cet arbitrage selon la règle permanente.
+
+Autorisation de reprise dans cette même session : « Oui, reprends le préflight S sans modifier la garde ni tolérer les événements .git. Garde tous les autres arrêts et poursuis les lots dans l’ordre avec revues indépendantes et commits locaux, sans push. » La garde reste inchangée, les preuves de l'incident sont conservées et son origine reste indéterminée. Refaire espace et SelfTest avant baseline S ; aucune autorisation de tolérer .git ou d'élargir la campagne n'est créée.
 
 Autorisation écrite de l'utilisateur dans cette session après livraison du plan : « Implémente les six lots du plan dans l’ordre, avec revues indépendantes et commits locaux, sans push. J’autorise la tolérance limitée au Temp Windows non attribué pour cette campagne, avec les autres arrêts maintenus. » Cet accord couvre P, S, T, E, C puis D et les campagnes prévues. Pour cette seule campagne `clippy-adapters-desktop`, les événements Created/Changed/Deleted purement sous `%LOCALAPPDATA%\Temp` non attribués et les renommages dont les deux chemins y restent sont consignés UNATTRIBUTED sans arrêt ; aucune attribution ni destination volontaire externe n'en est déduite. Les événements attribués à la campagne, sensibles, erreurs de surveillance, renommages franchissant la frontière et les autres arrêts du plan restent bloquants. Une revue et un commit de chaque lot fermé précèdent le suivant. L'autorisation ne vaut pas extension aux warnings/cibles hors périmètre ni aux recettes natives/UI.
 
