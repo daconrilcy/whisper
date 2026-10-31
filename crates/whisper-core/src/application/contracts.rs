@@ -19,7 +19,7 @@ pub enum AppCommand {
         request: ImportRequest,
     },
     ResolveDuplicateImport {
-        prompt: DuplicateImportPrompt,
+        prompt: Box<DuplicateImportPrompt>,
         choice: DuplicateImportChoice,
     },
     CancelDuplicateImport,

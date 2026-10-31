@@ -90,7 +90,7 @@ impl ImportRuntime {
             ),
             ImportEffect::Enqueue(request) => self.enqueue(request, events),
             ImportEffect::ConfirmDuplicateImport { prompt, choice } => {
-                match self.confirm_duplicate_import(prompt, choice, events) {
+                match self.confirm_duplicate_import(*prompt, choice, events) {
                     DuplicateEffect::Return => return,
                     DuplicateEffect::Continue(result) => result,
                 }

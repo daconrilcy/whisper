@@ -530,7 +530,7 @@ pub enum ImportEffect {
     StartAutomaticFinalTranscription(AutomaticFinalImport),
     Enqueue(ImportRequest),
     ConfirmDuplicateImport {
-        prompt: DuplicateImportPrompt,
+        prompt: Box<DuplicateImportPrompt>,
         choice: DuplicateImportChoice,
     },
     ReleaseSourceBinding {

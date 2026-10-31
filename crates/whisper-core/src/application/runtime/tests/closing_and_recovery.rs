@@ -104,7 +104,7 @@
                 gain_db: 0,
             },
             AppCommand::ResolveDuplicateImport {
-                prompt,
+                prompt: Box::new(prompt),
                 choice: DuplicateImportChoice::CreateNew,
             },
         ];

@@ -24,7 +24,7 @@ fn duplicate_confirmation_short_refusals_preserve_runtime_identity() {
     let mut events = VecDeque::new();
     runtime.effect(
         ImportEffect::ConfirmDuplicateImport {
-            prompt: prompt.clone(),
+            prompt: Box::new(prompt.clone()),
             choice: DuplicateImportChoice::CreateNew,
         },
         &mut events,
@@ -37,7 +37,7 @@ fn duplicate_confirmation_short_refusals_preserve_runtime_identity() {
     prompt.resume_from = Some(request.clone());
     runtime.effect(
         ImportEffect::ConfirmDuplicateImport {
-            prompt,
+            prompt: Box::new(prompt),
             choice: DuplicateImportChoice::Replace,
         },
         &mut events,

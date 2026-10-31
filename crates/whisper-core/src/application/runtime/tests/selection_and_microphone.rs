@@ -819,7 +819,7 @@
         app.view.duplicate_import_prompt = Some(current);
 
         let result = app.dispatch(AppCommand::ResolveDuplicateImport {
-            prompt: stale,
+            prompt: Box::new(stale),
             choice: DuplicateImportChoice::ReplaceAll,
         });
 

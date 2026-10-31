@@ -32,13 +32,13 @@ impl<A: Application> DesktopApp<A> {
                     ui.horizontal(|ui| {
                         if ui.button("Reprendre et remplacer les traitements existants").clicked() {
                             self.dispatch(AppCommand::ResolveDuplicateImport {
-                                prompt: prompt.clone(),
+                                prompt: Box::new(prompt.clone()),
                                 choice: DuplicateImportChoice::Replace,
                             });
                         }
                         if ui.button("Reprendre sous un nouveau nom").clicked() {
                             self.dispatch(AppCommand::ResolveDuplicateImport {
-                                prompt: prompt.clone(),
+                                prompt: Box::new(prompt.clone()),
                                 choice: DuplicateImportChoice::CreateNew,
                             });
                         }
@@ -61,13 +61,13 @@ impl<A: Application> DesktopApp<A> {
                     ui.horizontal(|ui| {
                         if ui.add_enabled(latest_available, egui::Button::new("Remplacer le dernier traitement")).clicked() {
                             self.dispatch(AppCommand::ResolveDuplicateImport {
-                                prompt: prompt.clone(),
+                                prompt: Box::new(prompt.clone()),
                                 choice: DuplicateImportChoice::ReplaceLatest,
                             });
                         }
                         if ui.add_enabled(verified_count > 0, egui::Button::new("Remplacer tous les traitements")).clicked() {
                             self.dispatch(AppCommand::ResolveDuplicateImport {
-                                prompt: prompt.clone(),
+                                prompt: Box::new(prompt.clone()),
                                 choice: DuplicateImportChoice::ReplaceAll,
                             });
                         }
@@ -75,13 +75,13 @@ impl<A: Application> DesktopApp<A> {
                             && let Some(selected_path) = whisper_adapters::archive::ArchiveStore::browse_treatment_folder(std::path::Path::new(&prompt.request.destination))
                         {
                             self.dispatch(AppCommand::ResolveDuplicateImport {
-                                prompt: prompt.clone(),
+                                prompt: Box::new(prompt.clone()),
                                 choice: DuplicateImportChoice::ReplaceSelectedPath(selected_path),
                             });
                         }
                         if ui.button("Créer un nouveau").clicked() {
                             self.dispatch(AppCommand::ResolveDuplicateImport {
-                                prompt: prompt.clone(),
+                                prompt: Box::new(prompt.clone()),
                                 choice: DuplicateImportChoice::CreateNew,
                             });
                         }

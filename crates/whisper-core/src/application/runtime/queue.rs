@@ -381,7 +381,7 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     job_id: prompt.request.job_id,
                     generation: prompt.request.generation,
                 };
-                if self.view.duplicate_import_prompt.as_ref() != Some(&prompt) {
+                if self.view.duplicate_import_prompt.as_ref() != Some(prompt.as_ref()) {
                     return Err(ApplicationError::InvalidCommand);
                 }
                 let is_resume_confirmation = prompt.resume_from.is_some();

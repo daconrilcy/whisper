@@ -173,7 +173,7 @@ fn r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives(
     .unwrap();
     let prompt = wait_r11_prompt(&mut app);
     app.dispatch(AppCommand::ResolveDuplicateImport {
-        prompt,
+        prompt: Box::new(prompt),
         choice: DuplicateImportChoice::CreateNew,
     })
     .unwrap();
@@ -208,7 +208,7 @@ fn r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives(
     assert_eq!(prompt.publications.len(), 3);
     let preexisting_export = std::fs::read(destination.join("exports/renamed-audio.txt")).unwrap();
     app.dispatch(AppCommand::ResolveDuplicateImport {
-        prompt: prompt.clone(),
+        prompt: Box::new(prompt.clone()),
         choice: DuplicateImportChoice::Replace,
     })
     .unwrap();
@@ -288,7 +288,7 @@ fn r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives(
     let prompt = wait_r11_prompt(&mut app);
     assert_eq!(prompt.publications.len(), 4);
     app.dispatch(AppCommand::ResolveDuplicateImport {
-        prompt,
+        prompt: Box::new(prompt),
         choice: DuplicateImportChoice::Replace,
     })
     .unwrap();
@@ -375,7 +375,7 @@ fn r11_collision_reprompts_before_queue(
         .join(format!("{original_name}.txt"));
     std::fs::write(&collision_path, b"third-party file").unwrap();
     app.dispatch(AppCommand::ResolveDuplicateImport {
-        prompt: first_prompt,
+        prompt: Box::new(first_prompt),
         choice: DuplicateImportChoice::CreateNew,
     })
     .unwrap();
@@ -398,7 +398,7 @@ fn r11_collision_reprompts_before_queue(
         updated_prompt.request.generation,
     ));
     app.dispatch(AppCommand::ResolveDuplicateImport {
-        prompt: updated_prompt,
+        prompt: Box::new(updated_prompt),
         choice: DuplicateImportChoice::CreateNew,
     })
     .unwrap();

@@ -285,8 +285,11 @@ fn run_import_with_choice(
             let choice = duplicate_choice.unwrap_or_else(|| {
                 panic!("{operation}: unexpected duplicate prompt for {source_path}")
             });
-            app.dispatch(AppCommand::ResolveDuplicateImport { prompt, choice })
-                .expect("confirm duplicate import through the application flow");
+            app.dispatch(AppCommand::ResolveDuplicateImport {
+                prompt: Box::new(prompt),
+                choice,
+            })
+            .expect("confirm duplicate import through the application flow");
             break wait_for_queued_request(app, &source_path, &destination, &import_deadline);
         }
 

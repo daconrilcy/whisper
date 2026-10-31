@@ -324,7 +324,7 @@ fn application_create_new_processes_the_bound_snapshot_and_preserves_prior_publi
         thread::sleep(std::time::Duration::from_millis(10));
     };
     app.dispatch(AppCommand::ResolveDuplicateImport {
-        prompt,
+        prompt: Box::new(prompt),
         choice: DuplicateImportChoice::CreateNew,
     })
     .unwrap();

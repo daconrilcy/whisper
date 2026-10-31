@@ -412,7 +412,7 @@ fn create_failed_cleanup_fixture(name: &str, mutation: ContainerMutation) -> Fai
     };
     assert_eq!(prompt.publications.len(), 1);
     app.dispatch(AppCommand::ResolveDuplicateImport {
-        prompt,
+        prompt: Box::new(prompt),
         choice: DuplicateImportChoice::ReplaceAll,
     })
     .unwrap();
@@ -1015,7 +1015,7 @@ fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request
         vec![Some(1), Some(2), Some(3), Some(4)]
     );
     app.dispatch(AppCommand::ResolveDuplicateImport {
-        prompt,
+        prompt: Box::new(prompt),
         choice: DuplicateImportChoice::ReplaceAll,
     })
     .unwrap();

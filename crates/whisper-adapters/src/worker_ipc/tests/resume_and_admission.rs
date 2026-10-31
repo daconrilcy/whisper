@@ -291,8 +291,11 @@ fn main() {
             "ambiguous export must require visible reconfirmation"
         );
         assert_eq!(prompt.publications, old_publications);
-        app.dispatch(AppCommand::ResolveDuplicateImport { prompt, choice })
-            .unwrap();
+        app.dispatch(AppCommand::ResolveDuplicateImport {
+            prompt: Box::new(prompt),
+            choice,
+        })
+        .unwrap();
 
         let deadline = Instant::now() + Duration::from_secs(60);
         while !ready.is_file() {

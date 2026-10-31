@@ -795,7 +795,7 @@ impl ParakeetProcess {
             job_id,
             generation,
             attempt,
-            identity,
+            identity: Box::new(identity),
             source_path: source_path.to_string_lossy().into_owned(),
             source_sha256,
             expected_gpu,

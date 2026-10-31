@@ -59,7 +59,7 @@ pub enum Command {
         job_id: String,
         generation: u64,
         attempt: u64,
-        identity: WorkerIdentity,
+        identity: Box<WorkerIdentity>,
         source_path: String,
         source_sha256: String,
         #[serde(default)]

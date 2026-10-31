@@ -1,6 +1,6 @@
-Avancée : P0 et lot A réalisés ; sept diagnostics simples supprimés, revue indépendante CLEAN.
-Blocage : aucun sur A ; trois diagnostics d'enums restent à traiter dans B.
-Décision : poursuivre B sous la tolérance Temp autorisée et les autres conditions d'arrêt maintenues.
+Avancée : dix diagnostics Clippy du cœur corrigés ; lots A et B relus indépendamment CLEAN, contrôles prévus réussis.
+Blocage : aucun dans ce périmètre ; avertissements adapters/desktop hors plan et validation native/UI non exécutée.
+Décision : livraison locale des deux lots ; aucun strict workspace, push ou résultat natif/UI revendiqué.
 
 # Plan de correction Clippy du cœur
 
@@ -310,6 +310,36 @@ Autorisation de reprise écrite dans cette même session : « Oui, j’autorise 
 Baseline Git `586d070872114084d9814cc431b90d1f3f30c665` ; implémenteur `/root/implementation_clippy`. Garde adaptée et SelfTest PASS avec tolérance précise autorisée. Commandes §7 exécutées sous garde depuis le dépôt, variables et cible canoniques, hors ligne et lock conservé : V-T baseline `d1329647`, A1 `5fde5d56`, final A2 `599a9189` : **175 tests réussis, zéro échec/ignoré** à chaque état ; V-CL baseline `8553ce17` : dix avertissements, A1 `e2dbaff5` : sept, A2 `642614f8` : trois `large_enum_variant` attendus ; V-F final `2b7c6272` : PASS. `git diff --check` PASS. Les suffixes de run identifient les entrées de `target/parakeet-tests/clippy-core/logs/guard.jsonl` et leurs journaux `Run-*`.
 
 Six fichiers core modifiés conformément à A1/A2, 16 insertions/40 suppressions rapportées ; aucun contrat public modifié. Reviewer indépendant `/root/review_clippy/rust_reviewer_clippy_a`, via `rust_review_coordinator` : **CLEAN** sur ce candidat worktree, baseline ci-dessus, périmètre P0/A1/A2 ; un passage, aucune correction ni demande de vérification, aucun constat ouvert. Ce verdict ne ferme pas les trois enums du lot B ni le strict global. Événements Temp consignés UNATTRIBUTED, origine inconnue ; aucun autre arrêt signalé. Espace final A : 66 024 980 480 octets. Non-suivis préexistants préservés ; aucun push ni native/UI.
+
+### Livraison lot B et bilan final
+
+Lot A commité localement `d145873ca0990b1ba9c0c5df7c0f18df3e21bf8e`, baseline de B. Même implémenteur, 19 fichiers B modifiés, tous dans le périmètre prévu : signatures des trois champs publics, producteurs/consommateurs et constructeurs de tests coordonnés, nouveau `crates/whisper-adapters/tests/parakeet_command_wire.rs`. `session.rs`, helpers métier, manifestes, Cargo.lock et règles de lint inchangés. Le prompt est alloué à la construction de la commande puis la même Box passe à l'effet ; l'adaptateur retrouve la valeur possédée avant son helper existant. Les types Ready/Result et la version IPC restent inchangés.
+
+Le scénario existant `stale_duplicate_dialog_response_cannot_submit_a_replacement` couvre déjà le refus du prompt périmé et l'absence d'effet : aucune duplication de scénario ajoutée. B1 : V-T **175 PASS**, test ciblé adaptateur **1 PASS**, check workspace/all-targets et format PASS, un seul avertissement résiduel Parakeet. B2 : fixture v1 littérale indépendante exécutée avant et après Box, vérification des identités/champs, expected_gpu absent/null/présent et Shutdown.
+
+Contrôles finaux sous garde autorisée, depuis `C:\dev\whisper`, mêmes variables/racines que A, --offline --locked pour les commandes applicables :
+
+| Contrôle §7 | Run (suffixe dans guard.jsonl) | Résultat |
+| --- | --- | --- |
+| V-P B | SelfTest | PASS ; tolérance Temp bornée et tous les autres refus conservés |
+| V-CS strict core lib | `f92058de` | **PASS, exit 0, zéro avertissement** |
+| V-CL core lib | `08b94fc8` | PASS, zéro avertissement |
+| V-T core all-targets | `bf560154` | **175 réussis, zéro échec/ignoré** |
+| V-WIRE avant / après Box | `12d717b4` / `fc2735ef` | **2 tests réussis à chaque état** |
+| V-LEGACY CPU v1 | `fe828cae` | 1 test JSON non natif réussi |
+| V-DUP refus courts | `14b7d3b6` | 1 test réussi |
+| V-CHECK workspace/all-targets | `81e70a2e` | PASS, tests ignorés compilés sans exécution |
+| V-CHECK desktop personal-install | `0f444792` | PASS |
+| V-CHECK worker parakeet-cuda,parakeet-personal | `e118e564` | PASS |
+| Relevé Clippy desktop all-targets non strict | `3da3f339` | Exit 0 avec dette hors périmètre : notamment adapters lib 85 et desktop lib 10 avertissements |
+| V-F workspace | `61a25282` | PASS |
+| V-D | git diff --check | PASS sur le candidat et le document de bilan |
+
+Reviewer indépendant **identique à A**, `/root/review_clippy/rust_reviewer_clippy_a`, par le même coordinateur : **CLEAN** sur le candidat B worktree, baseline `d145873c`, périmètre B1/B2/V1 ; un passage, zéro correction, aucun constat/demande de vérification/gap matériel restant. Inspection des 19 fichiers et des preuves. L'implémenteur avait également essayé un contrôle exploratoire rustfmt sur des fragments include autonomes, exit 1 hors de leur contexte ; le reviewer confirme qu'il ne révèle pas de défaut de ce delta et qu'il n'a pas été utilisé comme preuve du format requis, V-F workspace étant PASS. Aucun fichier source modifié après les contrôles valides et la revue.
+
+Clôture : garde et petits journaux conservés puis copiés avec leur arborescence sous `target/parakeet-tests/clippy-core/archive/lot-a-b-20261031/` ; **56 fichiers source / 56 copies, 370 773 octets, tous SHA-256 concordants** selon l'implémenteur. Aucun manifeste ajouté ni nettoyage. Espace final : **65 768 648 704 octets**. Les traces de l'arrêt initial restent incluses. Les événements Temp autorisés restent UNATTRIBUTED, origine inconnue ; aucune destination volontaire externe ajoutée. Non-suivis préexistants préservés.
+
+S1–S7 et E1–E3 sont fermés dans la portée **bibliothèque core** ; le strict --all-targets/workspace/desktop n'a pas été exécuté ni revendiqué. Avertissements aval explicitement différés, aucun allow/expect, dépendance ou changement de feature. Imports réels, tests natifs ignorés, inférence et fenêtre Windows : **NOT RUN**. Livraison par commits locaux uniquement, aucun push.
 
 ## 11. Implementation Agent Prompt
 

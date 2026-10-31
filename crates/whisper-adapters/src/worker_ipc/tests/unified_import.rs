@@ -479,7 +479,7 @@
             if let Some(prompt) = view.duplicate_import_prompt.clone() {
                 assert_eq!(prompt.request.job_id, requested_job);
                 app.dispatch(AppCommand::ResolveDuplicateImport {
-                    prompt,
+                    prompt: Box::new(prompt),
                     choice: choice
                         .take()
                         .expect("duplicate import requires its explicit test choice"),
@@ -1464,8 +1464,11 @@
                     let choice = confirmation
                         .take()
                         .expect("only repeated source imports require a choice");
-                    app.dispatch(AppCommand::ResolveDuplicateImport { prompt, choice })
-                        .expect("confirm duplicate or reprocessing choice");
+                    app.dispatch(AppCommand::ResolveDuplicateImport {
+                        prompt: Box::new(prompt),
+                        choice,
+                    })
+                    .expect("confirm duplicate or reprocessing choice");
                     continue;
                 }
                 if let Some(entry) = view.queue.iter().find(|entry| {
