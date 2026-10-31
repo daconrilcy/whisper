@@ -6,8 +6,8 @@ pub(in crate::worker_ipc) use parakeet::ParakeetVadRun;
 #[cfg(test)]
 pub(in crate::worker_ipc) use parakeet::{
     ParakeetStoppedExit, TDT_FRAME_OVERLAP_SAMPLES, append_single_pass_parakeet_word_group,
-    append_vad_parakeet_word_group, parakeet_stopped_exit, parakeet_vad_segments,
-    vad_word_overlap_within_one_tdt_frame, validate_single_pass_parakeet_words,
+    parakeet_stopped_exit, parakeet_vad_segments, vad_word_overlap_within_one_tdt_frame,
+    validate_single_pass_parakeet_words,
 };
 
 pub(in crate::worker_ipc) fn take_ready_live_stop(

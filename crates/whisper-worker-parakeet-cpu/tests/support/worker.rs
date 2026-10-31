@@ -10,7 +10,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub const CONTROLLED_TIMEOUT: Duration = Duration::from_secs(300);
 pub const NATIVE_TIMEOUT: Duration = Duration::from_secs(600);
 
 pub struct BoundedChild {

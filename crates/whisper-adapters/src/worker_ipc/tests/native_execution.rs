@@ -2223,7 +2223,7 @@
             generation,
         })
         .expect("select A to read its real application document");
-        let mut first_text_available = None;
+        let first_text_available;
         let document_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let mut requested_revision = None;
         let mut stale_wait_revision = None;
@@ -2988,7 +2988,7 @@
         .expect("stop C through ImportApplication");
         trace_checkpoint("after-Stop-C", &app, None, &observations);
         let c_publication_deadline = Instant::now() + Duration::from_secs(60 * 60);
-        let mut c_published_at = None;
+        let c_published_at;
         let mut c_audio_drained_at = None;
         let mut c_finalizing_at = None;
         let mut c_publishing_at = None;

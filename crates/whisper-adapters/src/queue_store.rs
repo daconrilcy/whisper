@@ -558,6 +558,44 @@ impl QueueStore {
     }
 }
 
+fn repair_uncommitted_tail(file: &mut File) -> Result<(), String> {
+    const SCAN_BYTES: usize = 8 * 1024;
+    let length = file
+        .metadata()
+        .map_err(|e| format!("StorageCorrupt: queue metadata: {e}"))?
+        .len();
+    if length == 0 {
+        return Ok(());
+    }
+    file.seek(SeekFrom::End(-1))
+        .map_err(|e| format!("StorageCorrupt: queue seek: {e}"))?;
+    let mut last = [0_u8; 1];
+    file.read_exact(&mut last)
+        .map_err(|e| format!("StorageCorrupt: queue read: {e}"))?;
+    if last[0] == b'\n' {
+        return Ok(());
+    }
+    let mut end = length;
+    let mut valid_len = 0_u64;
+    let mut chunk = vec![0_u8; SCAN_BYTES];
+    while end > 0 {
+        let start = end.saturating_sub(SCAN_BYTES as u64);
+        let count = (end - start) as usize;
+        file.seek(SeekFrom::Start(start))
+            .map_err(|e| format!("StorageCorrupt: queue tail scan: {e}"))?;
+        file.read_exact(&mut chunk[..count])
+            .map_err(|e| format!("StorageCorrupt: queue tail scan: {e}"))?;
+        if let Some(index) = chunk[..count].iter().rposition(|byte| *byte == b'\n') {
+            valid_len = start + index as u64 + 1;
+            break;
+        }
+        end = start;
+    }
+    file.set_len(valid_len)
+        .and_then(|()| file.sync_all())
+        .map_err(|e| format!("StorageUnavailable: queue tail repair failed: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -764,42 +802,4 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
         std::fs::remove_dir_all(destination).unwrap();
     }
-}
-
-fn repair_uncommitted_tail(file: &mut File) -> Result<(), String> {
-    const SCAN_BYTES: usize = 8 * 1024;
-    let length = file
-        .metadata()
-        .map_err(|e| format!("StorageCorrupt: queue metadata: {e}"))?
-        .len();
-    if length == 0 {
-        return Ok(());
-    }
-    file.seek(SeekFrom::End(-1))
-        .map_err(|e| format!("StorageCorrupt: queue seek: {e}"))?;
-    let mut last = [0_u8; 1];
-    file.read_exact(&mut last)
-        .map_err(|e| format!("StorageCorrupt: queue read: {e}"))?;
-    if last[0] == b'\n' {
-        return Ok(());
-    }
-    let mut end = length;
-    let mut valid_len = 0_u64;
-    let mut chunk = vec![0_u8; SCAN_BYTES];
-    while end > 0 {
-        let start = end.saturating_sub(SCAN_BYTES as u64);
-        let count = (end - start) as usize;
-        file.seek(SeekFrom::Start(start))
-            .map_err(|e| format!("StorageCorrupt: queue tail scan: {e}"))?;
-        file.read_exact(&mut chunk[..count])
-            .map_err(|e| format!("StorageCorrupt: queue tail scan: {e}"))?;
-        if let Some(index) = chunk[..count].iter().rposition(|byte| *byte == b'\n') {
-            valid_len = start + index as u64 + 1;
-            break;
-        }
-        end = start;
-    }
-    file.set_len(valid_len)
-        .and_then(|()| file.sync_all())
-        .map_err(|e| format!("StorageUnavailable: queue tail repair failed: {e}"))
 }

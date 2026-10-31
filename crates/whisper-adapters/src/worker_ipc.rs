@@ -6,14 +6,11 @@ mod runtime;
 use runtime::ImportRuntime;
 #[cfg(test)]
 use runtime::{
-    FinishedLiveWindow, ImportRequestState, LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL,
-    LiveCaptureState, LiveRecoveryState, ParakeetStoppedExit, ParakeetVadRun, PendingLiveState,
-    PreflightResult, TDT_FRAME_OVERLAP_SAMPLES, acceptance_barrier,
-    append_single_pass_parakeet_word_group, append_vad_parakeet_word_group,
-    bind_unidentified_startup_failure, campaign_reserve_attempt, collision_free_job_id,
-    live_capture_poll_allowed, map_attempt_sequence, parakeet_stopped_exit, parakeet_vad_segments,
-    pending_unified_event_identity, queued_request_identity_matches, recovery_stop_counters,
-    scan_archive_history, take_ready_live_stop, unix_time_ms,
+    ImportRequestState, LiveCaptureState, LiveRecoveryState, ParakeetStoppedExit,
+    TDT_FRAME_OVERLAP_SAMPLES, acceptance_barrier, append_single_pass_parakeet_word_group,
+    bind_unidentified_startup_failure, live_capture_poll_allowed, map_attempt_sequence,
+    parakeet_stopped_exit, parakeet_vad_segments, queued_request_identity_matches,
+    recovery_stop_counters, take_ready_live_stop, unix_time_ms,
     vad_word_overlap_within_one_tdt_frame, validate_single_pass_parakeet_words,
     worker_event_identity, worker_event_is_stale,
 };
@@ -135,6 +132,10 @@ include!("worker_ipc/tests/stopped_ack.rs");
 
 #[cfg(test)]
 include!("worker_ipc/tests/runtime_support.rs");
+
+#[cfg(test)]
+#[path = "worker_ipc/tests/runtime_support_debug.rs"]
+mod runtime_support_debug;
 
 #[cfg(test)]
 mod tests;

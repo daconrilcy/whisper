@@ -1,6 +1,6 @@
 use std::{fs::File, path::Path};
 use symphonia::core::{
-    audio::{AudioBufferRef, Channels, SampleBuffer},
+    audio::{Channels, SampleBuffer},
     codecs::{CODEC_TYPE_MP3, CodecType, Decoder, DecoderOptions},
     errors::Error,
     formats::{FormatOptions, FormatReader, Packet},
@@ -427,11 +427,6 @@ fn decode_packets<F: FnMut(u64, Vec<f32>) -> Result<(), String>>(
         state.process_packet(decoder, &packet)?;
     }
     Ok(())
-}
-
-#[allow(dead_code)]
-fn _audio_buffer_ref_is_supported(buffer: &AudioBufferRef<'_>) -> usize {
-    buffer.frames()
 }
 
 #[cfg(test)]

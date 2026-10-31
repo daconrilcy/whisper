@@ -10,7 +10,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub const CONTROLLED_TIMEOUT: Duration = Duration::from_secs(300);
 pub const NATIVE_TIMEOUT: Duration = Duration::from_secs(600);
 
 pub struct BoundedChild {
@@ -49,9 +48,6 @@ impl BoundedChild {
         }
     }
 
-    pub fn id(&self) -> u32 {
-        self.child.lock().unwrap().id()
-    }
     pub fn stdin(&self) -> ChildStdin {
         self.child.lock().unwrap().stdin.take().unwrap()
     }

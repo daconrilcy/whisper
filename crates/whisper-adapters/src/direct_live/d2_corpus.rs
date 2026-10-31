@@ -447,6 +447,69 @@ fn record_engine_status(root: &Path, status: serde_json::Value) {
     record(&root.join("d2-engine-status.json"), status);
 }
 
+fn read_wav16(path: &Path) -> (u32, u16, Vec<i16>) {
+    let bytes = fs::read(path).unwrap();
+    assert_eq!(&bytes[..4], b"RIFF");
+    assert_eq!(&bytes[8..12], b"WAVE");
+    let (mut rate, mut channels, mut format, mut bits, mut pcm) = (None, None, None, None, None);
+    let mut at = 12;
+    while at + 8 <= bytes.len() {
+        let size = u32::from_le_bytes(bytes[at + 4..at + 8].try_into().unwrap()) as usize;
+        let begin = at + 8;
+        let end = begin.checked_add(size).unwrap();
+        assert!(end <= bytes.len());
+        match &bytes[at..at + 4] {
+            b"fmt " => {
+                format = Some(u16::from_le_bytes(
+                    bytes[begin..begin + 2].try_into().unwrap(),
+                ));
+                channels = Some(u16::from_le_bytes(
+                    bytes[begin + 2..begin + 4].try_into().unwrap(),
+                ));
+                rate = Some(u32::from_le_bytes(
+                    bytes[begin + 4..begin + 8].try_into().unwrap(),
+                ));
+                bits = Some(u16::from_le_bytes(
+                    bytes[begin + 14..begin + 16].try_into().unwrap(),
+                ));
+            }
+            b"data" => pcm = Some(&bytes[begin..end]),
+            _ => {}
+        }
+        at = end + (size % 2);
+    }
+    assert_eq!(format, Some(1));
+    assert_eq!(bits, Some(16));
+    let samples = pcm
+        .unwrap()
+        .chunks_exact(2)
+        .map(|p| i16::from_le_bytes([p[0], p[1]]))
+        .collect();
+    (rate.unwrap(), channels.unwrap(), samples)
+}
+fn pcm_frames(path: &str) -> u64 {
+    let bytes = fs::read(path).unwrap();
+    assert_eq!(&bytes[..4], b"RIFF");
+    (bytes.len() - 44) as u64 / 2
+}
+fn hash(path: &Path) -> String {
+    format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
+}
+fn decode_sha256(value: &str) -> [u8; 32] {
+    assert_eq!(value.len(), 64);
+    std::array::from_fn(|index| u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap())
+}
+fn record(path: &Path, value: serde_json::Value) {
+    let mut f = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .unwrap();
+    serde_json::to_writer(&mut f, &value).unwrap();
+    f.write_all(b"\n").unwrap();
+    f.sync_data().unwrap();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -556,67 +619,4 @@ mod tests {
                 .unwrap();
         assert_eq!(saved, status);
     }
-}
-
-fn read_wav16(path: &Path) -> (u32, u16, Vec<i16>) {
-    let bytes = fs::read(path).unwrap();
-    assert_eq!(&bytes[..4], b"RIFF");
-    assert_eq!(&bytes[8..12], b"WAVE");
-    let (mut rate, mut channels, mut format, mut bits, mut pcm) = (None, None, None, None, None);
-    let mut at = 12;
-    while at + 8 <= bytes.len() {
-        let size = u32::from_le_bytes(bytes[at + 4..at + 8].try_into().unwrap()) as usize;
-        let begin = at + 8;
-        let end = begin.checked_add(size).unwrap();
-        assert!(end <= bytes.len());
-        match &bytes[at..at + 4] {
-            b"fmt " => {
-                format = Some(u16::from_le_bytes(
-                    bytes[begin..begin + 2].try_into().unwrap(),
-                ));
-                channels = Some(u16::from_le_bytes(
-                    bytes[begin + 2..begin + 4].try_into().unwrap(),
-                ));
-                rate = Some(u32::from_le_bytes(
-                    bytes[begin + 4..begin + 8].try_into().unwrap(),
-                ));
-                bits = Some(u16::from_le_bytes(
-                    bytes[begin + 14..begin + 16].try_into().unwrap(),
-                ));
-            }
-            b"data" => pcm = Some(&bytes[begin..end]),
-            _ => {}
-        }
-        at = end + (size % 2);
-    }
-    assert_eq!(format, Some(1));
-    assert_eq!(bits, Some(16));
-    let samples = pcm
-        .unwrap()
-        .chunks_exact(2)
-        .map(|p| i16::from_le_bytes([p[0], p[1]]))
-        .collect();
-    (rate.unwrap(), channels.unwrap(), samples)
-}
-fn pcm_frames(path: &str) -> u64 {
-    let bytes = fs::read(path).unwrap();
-    assert_eq!(&bytes[..4], b"RIFF");
-    (bytes.len() - 44) as u64 / 2
-}
-fn hash(path: &Path) -> String {
-    format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
-}
-fn decode_sha256(value: &str) -> [u8; 32] {
-    assert_eq!(value.len(), 64);
-    std::array::from_fn(|index| u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap())
-}
-fn record(path: &Path, value: serde_json::Value) {
-    let mut f = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .unwrap();
-    serde_json::to_writer(&mut f, &value).unwrap();
-    f.write_all(b"\n").unwrap();
-    f.sync_data().unwrap();
 }

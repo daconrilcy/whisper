@@ -510,12 +510,11 @@
         app.dispatch(AppCommand::ProcessQueued { request })
             .expect("process the durable import through the application");
         let deadline = Instant::now() + Duration::from_secs(60);
-        let mut last_message = None;
         loop {
             let view = app
                 .dispatch(AppCommand::Refresh)
                 .expect("refresh processed import");
-            last_message = view.message.clone();
+            let last_message = view.message.clone();
             if let Some(session) = view
                 .unified_parakeet_sessions
                 .iter()
@@ -1487,12 +1486,11 @@
             app.dispatch(AppCommand::ProcessQueued { request: queued })
                 .expect("ProcessQueued must use the real reprocessing route");
             let deadline = Instant::now() + Duration::from_secs(60);
-            let mut last_message = None;
             loop {
                 let view = app
                     .dispatch(AppCommand::Refresh)
                     .expect("refresh reprocessing session");
-                last_message = view.message.clone();
+                let last_message = view.message.clone();
                 if let Some(session) = view
                     .unified_parakeet_sessions
                     .iter()

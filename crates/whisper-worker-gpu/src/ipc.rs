@@ -1,7 +1,7 @@
 use serde::{Serialize, de::DeserializeOwned};
 use std::io::{self, BufRead, Write};
 
-#[cfg(test)]
+#[cfg(any(test, feature = "l01-memory-qualification"))]
 pub use whisper_worker_common::ipc::MAX_FRAME_BYTES;
 
 fn observer() -> Option<whisper_worker_common::observation::MemoryObserver> {

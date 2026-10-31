@@ -28,7 +28,7 @@ fn direct_capture_publishes_frequency_spectrum_without_changing_wav_audio() {
     std::fs::create_dir_all(&directory).unwrap();
     let mut request = startup_request(&directory, ComputeChoice::Cpu);
     request.microphone = whisper_core::MicrophoneChoice::Device("test:mic".into());
-    let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+    let capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
     let mut live = super::DirectLive::from_test_capture(request, capture).unwrap();
     let input_blocks = (0..5)
         .map(|block| {

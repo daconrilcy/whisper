@@ -174,7 +174,6 @@
             true
         ));
         delivered.push(worker_events.pop_front().unwrap());
-        capture_events_since_worker = 0;
         assert_eq!(
             delivered,
             [
@@ -216,7 +215,7 @@
                 compute: ComputeChoice::Cpu,
             },
         };
-        let mut capture = CaptureStream::empty_test_capture(16_000, 1, "test:legacy");
+        let capture = CaptureStream::empty_test_capture(16_000, 1, "test:legacy");
         let probe = crate::microphone_probe::MicrophoneProbe::start(
             16_000,
             Some("test:legacy".into()),
@@ -631,7 +630,7 @@
 
     #[test]
     fn microphone_test_capture_owns_only_capture_conversion_and_probe_until_stop() {
-        let mut capture =
+        let capture =
             crate::capture::CaptureStream::empty_test_capture(48_000, 1, "wasapi:test-device");
         let (mut test, identity) =
             MicrophoneTestCapture::from_capture(JobId(904), Generation::first(), capture).unwrap();
@@ -1186,22 +1185,19 @@
         assert!(wav_size_during_import > 44, "capture B WAV did not advance");
 
         let deadline = Instant::now() + Duration::from_secs(4);
-        let mut final_failure_at = None;
-        loop {
+        let final_failure_at = loop {
             assert!(
                 Instant::now() < deadline,
                 "slow final import did not finish"
             );
             match io.poll().unwrap() {
                 Some(ImportEvent::Failed { job_id, .. }) if job_id == import_a.request.job_id => {
-                    final_failure_at = Some(Instant::now());
-                    break;
+                    break Instant::now();
                 }
                 Some(other) => panic!("unexpected event during R5 simulation: {other:?}"),
                 None => thread::sleep(Duration::from_millis(5)),
             }
-        }
-        let final_failure_at = final_failure_at.unwrap();
+        };
         assert!(final_failure_at.duration_since(started_at) >= Duration::from_millis(2_000));
         let wav_size_after_import = fs::metadata(&wav_path).unwrap().len();
         assert!(

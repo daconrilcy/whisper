@@ -49,9 +49,6 @@ impl BoundedChild {
         }
     }
 
-    pub fn id(&self) -> u32 {
-        self.child.lock().unwrap().id()
-    }
     pub fn stdin(&self) -> ChildStdin {
         self.child.lock().unwrap().stdin.take().unwrap()
     }

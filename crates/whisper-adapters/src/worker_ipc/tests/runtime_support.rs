@@ -1,5 +1,4 @@
 #[cfg(test)]
-#[derive(Debug)]
 enum NativeQualificationEventKind {
     PreparedRoute {
         session: whisper_core::parakeet_scheduler::SchedulerSession,
@@ -58,6 +57,120 @@ enum NativeQualificationEventKind {
         incarnation: u64,
         pid: u32,
     },
+}
+
+#[cfg(test)]
+impl std::fmt::Debug for NativeQualificationEventKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::PreparedRoute {
+                session,
+                requested_compute,
+                compute,
+                has_candidate,
+                has_expected_gpu,
+                fallback_reason,
+            } => f
+                .debug_struct("PreparedRoute")
+                .field("session", session)
+                .field("requested_compute", requested_compute)
+                .field("compute", compute)
+                .field("has_candidate", has_candidate)
+                .field("has_expected_gpu", has_expected_gpu)
+                .field("fallback_reason", fallback_reason)
+                .finish(),
+            Self::SourceBindingMap {
+                operation,
+                bindings,
+            } => f
+                .debug_struct("SourceBindingMap")
+                .field("operation", operation)
+                .field("bindings", bindings)
+                .finish(),
+            Self::Starting { incarnation } => f
+                .debug_struct("Starting")
+                .field("incarnation", incarnation)
+                .finish(),
+            Self::Spawned { incarnation, pid } => f
+                .debug_struct("Spawned")
+                .field("incarnation", incarnation)
+                .field("pid", pid)
+                .finish(),
+            Self::Ready {
+                incarnation,
+                pid,
+                backend,
+                profile,
+                model_sha256,
+                runtime_sha256,
+                build_sha256,
+                gpu_attested,
+            } => f
+                .debug_struct("Ready")
+                .field("incarnation", incarnation)
+                .field("pid", pid)
+                .field("backend", backend)
+                .field("profile", profile)
+                .field("model_sha256", model_sha256)
+                .field("runtime_sha256", runtime_sha256)
+                .field("build_sha256", build_sha256)
+                .field("gpu_attested", gpu_attested)
+                .finish(),
+            Self::RequestSent {
+                incarnation,
+                pid,
+                session,
+                generation,
+                attempt,
+                request_id,
+                work,
+            } => f
+                .debug_struct("RequestSent")
+                .field("incarnation", incarnation)
+                .field("pid", pid)
+                .field("session", session)
+                .field("generation", generation)
+                .field("attempt", attempt)
+                .field("request_id", request_id)
+                .field("work", work)
+                .finish(),
+            Self::Result {
+                incarnation,
+                pid,
+                session,
+                generation,
+                attempt,
+                request_id,
+                work,
+                word_count,
+            } => f
+                .debug_struct("Result")
+                .field("incarnation", incarnation)
+                .field("pid", pid)
+                .field("session", session)
+                .field("generation", generation)
+                .field("attempt", attempt)
+                .field("request_id", request_id)
+                .field("work", work)
+                .field("word_count", word_count)
+                .finish(),
+            Self::CaptureAcknowledged {
+                session,
+                written_samples,
+                durable_samples,
+            } => f
+                .debug_struct("CaptureAcknowledged")
+                .field("session", session)
+                .field("written_samples", written_samples)
+                .field("durable_samples", durable_samples)
+                .finish(),
+            Self::Reaped { incarnation, pid } => f
+                .debug_struct("Reaped")
+                .field("incarnation", incarnation)
+                .field("pid", pid)
+                .finish(),
+        }
+    }
 }
 
 #[cfg(test)]

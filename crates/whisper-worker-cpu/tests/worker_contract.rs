@@ -22,7 +22,7 @@ fn run_command(command: WorkerCommand) -> std::process::Output {
     support::output(
         &mut Command::new(env!("CARGO_BIN_EXE_whisper-worker-cpu")),
         Some(input),
-        support::CONTROLLED_TIMEOUT,
+        Duration::from_secs(300),
     )
 }
 

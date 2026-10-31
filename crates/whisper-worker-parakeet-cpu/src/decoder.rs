@@ -1,7 +1,7 @@
 use std::{fs::File, path::Path};
 
 use symphonia::core::{
-    audio::{AudioBufferRef, Channels, SampleBuffer},
+    audio::{Channels, SampleBuffer},
     codecs::{CODEC_TYPE_MP3, DecoderOptions},
     errors::Error,
     formats::FormatOptions,
@@ -141,9 +141,4 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
         channels,
         codec: format!("{:?}", codec),
     })
-}
-
-#[allow(dead_code)]
-fn _audio_buffer_ref_is_supported(buffer: &AudioBufferRef<'_>) -> usize {
-    buffer.frames()
 }

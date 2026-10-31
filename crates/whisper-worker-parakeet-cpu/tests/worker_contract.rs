@@ -1,3 +1,5 @@
+#![cfg(feature = "parakeet-personal")]
+
 use sha2::{Digest, Sha256};
 use std::{
     fs,
@@ -42,7 +44,7 @@ fn decode_case(
             .arg(&output)
             .env("LOCALAPPDATA", &local)
             .env("PARAKEET_L2_RUNTIME_ROOT", &runtime);
-        support::output(&mut command, None, support::CONTROLLED_TIMEOUT)
+        support::output(&mut command, None, Duration::from_secs(300))
     };
     let first = run();
     assert!(

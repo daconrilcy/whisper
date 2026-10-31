@@ -3,7 +3,6 @@ mod diagnostics;
 mod encoder;
 mod engine_cache;
 mod integrity;
-#[allow(dead_code)]
 mod ipc;
 mod ipc_output;
 #[cfg(feature = "l01-memory-qualification")]

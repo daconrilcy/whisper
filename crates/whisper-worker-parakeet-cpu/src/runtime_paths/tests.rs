@@ -1,4 +1,9 @@
 use super::*;
+#[cfg(any(
+    not(feature = "parakeet-cuda"),
+    not(feature = "parakeet-personal"),
+    feature = "parakeet-qualification-reference"
+))]
 fn fixture_repository() -> PathBuf {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../target/parakeet-tests/refacto-parakeet-live/p3-workers")

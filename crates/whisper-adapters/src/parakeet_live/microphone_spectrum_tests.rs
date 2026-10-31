@@ -32,7 +32,7 @@ fn parakeet_capture_pump_publishes_frequency_spectrum_and_preserves_wav() {
             compute: ComputeChoice::Cpu,
         },
     };
-    let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+    let capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
     let probe =
         MicrophoneProbe::start(16_000, Some("test:mic".into()), job_id, generation).unwrap();
     let converter = Pcm16Converter::new(16_000, 1).unwrap();

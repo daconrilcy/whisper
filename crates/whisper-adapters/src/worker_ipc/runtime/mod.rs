@@ -16,16 +16,13 @@ pub(super) use live::{
     FinishedLiveWindow, ImportRequestState, LiveCaptureState, LiveRecoveryState, PendingLiveState,
     live_capture_poll_allowed,
 };
-#[cfg(test)]
-pub(super) use live::{LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL, campaign_reserve_attempt};
 pub(super) use poll::ParakeetVadRun;
 #[cfg(test)]
 pub(super) use poll::{
     ParakeetStoppedExit, TDT_FRAME_OVERLAP_SAMPLES, append_single_pass_parakeet_word_group,
-    append_vad_parakeet_word_group, bind_unidentified_startup_failure, map_attempt_sequence,
-    parakeet_stopped_exit, parakeet_vad_segments, take_ready_live_stop,
-    vad_word_overlap_within_one_tdt_frame, validate_single_pass_parakeet_words,
-    worker_event_identity, worker_event_is_stale,
+    bind_unidentified_startup_failure, map_attempt_sequence, parakeet_stopped_exit,
+    parakeet_vad_segments, take_ready_live_stop, vad_word_overlap_within_one_tdt_frame,
+    validate_single_pass_parakeet_words, worker_event_identity, worker_event_is_stale,
 };
 pub(super) use support::{
     PreflightResult, acceptance_barrier, collision_free_job_id, pending_unified_event_identity,

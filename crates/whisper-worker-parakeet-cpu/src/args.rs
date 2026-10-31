@@ -1,6 +1,8 @@
 use std::{env, path::PathBuf};
 use whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
-use whisper_core::parakeet_windows::{PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE};
+use whisper_core::parakeet_windows::PROFILE_IMPORT_VAD;
+#[cfg(feature = "parakeet-qualification-reference")]
+use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;
 
 pub(crate) fn parse_args() -> Result<Args, String> {
     let mut model = None;

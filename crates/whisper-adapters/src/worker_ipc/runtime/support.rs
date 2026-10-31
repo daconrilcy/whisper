@@ -354,11 +354,6 @@ impl ImportRuntime {
     }
 
     #[cfg(test)]
-    pub(in crate::worker_ipc) fn hold_next_reserved_call_once(&mut self) {
-        self.controlled_hold_reserved_call_once = true;
-    }
-
-    #[cfg(test)]
     pub(in crate::worker_ipc) fn hold_next_child_ready(
         &mut self,
     ) -> Arc<(Mutex<bool>, std::sync::Condvar)> {

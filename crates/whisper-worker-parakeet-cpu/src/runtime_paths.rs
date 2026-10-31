@@ -86,6 +86,10 @@ fn personal_runtime_path_is_allowed(root: &Path, personal_root: &Path) -> bool {
             && root.file_name().is_some_and(|name| !name.is_empty()))
 }
 
+#[cfg(any(
+    not(feature = "parakeet-personal"),
+    all(test, feature = "parakeet-qualification-reference")
+))]
 fn qualification_root_is_valid(profile: &str, root: &Path, repository: &Path) -> bool {
     if profile == PARAKEET_PROFILE_IMPORT_SINGLE_PASS {
         return allowed_runtime_roots(repository).contains(&root.to_path_buf());
@@ -98,6 +102,16 @@ fn qualification_root_is_valid(profile: &str, root: &Path, repository: &Path) ->
         == Some(&root.to_path_buf())
 }
 
+#[cfg(any(
+    not(feature = "parakeet-personal"),
+    all(
+        test,
+        any(
+            not(feature = "parakeet-cuda"),
+            feature = "parakeet-qualification-reference"
+        )
+    )
+))]
 fn allowed_runtime_root_candidates(repository: &Path) -> Vec<PathBuf> {
     #[cfg(feature = "parakeet-personal")]
     {
@@ -113,16 +127,30 @@ fn allowed_runtime_root_candidates(repository: &Path) -> Vec<PathBuf> {
     }
     #[cfg(all(not(feature = "parakeet-cuda"), not(feature = "parakeet-personal")))]
     {
-        let mut roots = ["l2a-1", "l2a-2"]
+        let roots = ["l2a-1", "l2a-2"]
             .into_iter()
             .map(|lot| repository.join("target/parakeet-tests/l2").join(lot))
             .collect::<Vec<_>>();
         #[cfg(feature = "parakeet-qualification-reference")]
-        roots.push(repository.join("target/parakeet-tests/l2/l2b"));
+        let roots = {
+            let mut roots = roots;
+            roots.push(repository.join("target/parakeet-tests/l2/l2b"));
+            roots
+        };
         roots
     }
 }
 
+#[cfg(any(
+    not(feature = "parakeet-personal"),
+    all(
+        test,
+        any(
+            not(feature = "parakeet-cuda"),
+            feature = "parakeet-qualification-reference"
+        )
+    )
+))]
 fn allowed_runtime_roots(repository: &Path) -> Vec<PathBuf> {
     allowed_runtime_root_candidates(repository)
         .into_iter()
@@ -130,6 +158,7 @@ fn allowed_runtime_roots(repository: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
+#[cfg(all(test, not(feature = "parakeet-cuda")))]
 fn allowed_runtime_roots_for(repository: &Path, lots: &[&str]) -> Vec<PathBuf> {
     lots.into_iter()
         .filter_map(|lot| {

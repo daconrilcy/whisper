@@ -39,24 +39,12 @@ impl Engine {
         }
     }
 
-    pub fn transcribe(&mut self, audio: &DecodedAudio) -> Result<(String, Vec<Word>, u64), String> {
-        self.transcribe_with_start_callback(audio, || Ok(()))
-    }
-
     pub fn transcribe_with_start_callback(
         &mut self,
         audio: &DecodedAudio,
         on_native_call_started: impl FnOnce() -> Result<(), String>,
     ) -> Result<(String, Vec<Word>, u64), String> {
         self.transcribe_bounded(audio, MAX_DURATION_MS, on_native_call_started)
-    }
-
-    #[cfg(feature = "parakeet-qualification-reference")]
-    pub fn transcribe_reference(
-        &mut self,
-        audio: &DecodedAudio,
-    ) -> Result<(String, Vec<Word>, u64), String> {
-        self.transcribe_reference_with_start_callback(audio, || Ok(()))
     }
 
     #[cfg(feature = "parakeet-qualification-reference")]

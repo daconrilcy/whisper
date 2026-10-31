@@ -10,11 +10,10 @@ mod test_support;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+use outputs::export_parakeet_manifest;
 use outputs::finalize_incomplete_outputs;
-pub(crate) use outputs::{
-    ParakeetExportOutcome, automatic_final_output_paths, export_parakeet_manifest,
-    export_parakeet_outputs, export_segments,
-};
+pub(crate) use outputs::{automatic_final_output_paths, export_parakeet_outputs, export_segments};
 pub(crate) use wav::WavOutput;
 use wav::fill_pending_from_wav;
 #[cfg(test)]
