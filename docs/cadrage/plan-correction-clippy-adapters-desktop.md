@@ -1,6 +1,6 @@
-Avancée : six lots autorisés pour implémentation séquentielle ; préparation du lot P.
-Blocage : préflight et baseline de la nouvelle campagne à établir avant édition produit.
-Décision : revues indépendantes et commits locaux par lot, tolérance Temp bornée autorisée, aucun push.
+Avancée : lot P réalisé et relu CLEAN ; 17 sites fermés, 68 avertissements adapters lib restants.
+Blocage : aucun pour P ; sélection contrôlée S à établir avant édition.
+Décision : commit local P puis lot S, revues et autres arrêts maintenus, aucun push.
 
 # Analyse et plan de correction Clippy — adaptateurs et desktop
 
@@ -717,6 +717,16 @@ Seuls les gates de produit/périmètre doivent être soumis à l'utilisateur. G-
 Vérifications réellement réalisées pour cette livraison : lecture des sources, journal et manifestes ; extraction/dédoublonnage en mémoire des diagnostics ; recherches des consommateurs ; état Git, lecture des consignes et `git diff --check` documentaire. Aucun Cargo, modification Rust/test/configuration/garde, modèle, moteur, fenêtre ou push. L'auteur principal écrit et commite ce seul document. L'analyse n'est pas une nouvelle preuve d'exécution.
 
 ## 11. Implementation Agent Prompt
+
+### Bilan du lot P
+
+Implémenteur `/root/implementation_clippy`, baseline `f41d7cca66fa62a8367d2774c6627cae23b4def7`, candidat worktree relu : six fichiers de production et nouveau `tests/publication_lock_contract.rs` conformes P1–P4. Les trois fichiers de verrou sont explicitement non tronquants ; les gardiens File et validation d'identité sont conservés, aucune lecture/comparaison de plan durable retirée. V-BASE : **85 → 68** avertissements adapters lib, les **17 sites P disparus**.
+
+Toutes commandes Cargo via garde `target/parakeet-tests/clippy-adapters-desktop/guard.ps1`, cwd dépôt, cache/temp/TMP sous campagne et cible canonique cargo-shared, offline/locked, environnement prescrit. SelfTest PASS avec tolérance bornée et autres arrêts. Runs baseline/candidat (suffixes de `logs/guard.jsonl` et `Run-*`) : archive `304a6607`/`ac4ff369` **38 réussis et 1 ignoré** ; recovery snapshot `661f6306`/`4589989a` **3 réussis** ; identité Windows `f0b70a38`/`a1d005e5` **3 réussis** ; intégration source `04fecdc9`/`d6d652d9` **13 réussis** ; nouveau contrat verrou avant/après `8ab51dcf`/`181b847d` **1 réussi**. V-BASE `92638e65`/`1fd1f8b7` exit 0 ; check workspace/all-targets `562e0c03`, format final `c2862d15` et diff-check PASS. Les suites non sélectionnées, recettes natives et fenêtre Windows restent NOT RUN ; aucun PASS global lib ou strict global inféré.
+
+Échecs intermédiaires conservés : `be418bad`, format de deux expressions du nouveau test, corrigé sans changement d'assertion ; `af841d19`, erreur E0596 car mut avait été retiré au mauvais document de journal.rs, réparée en rétablissant la première liaison mutable et en retirant seulement celle du site Clippy. Chaque arrêt a été signalé ; l'auteur du plan a arbitré les réparations strictement dans le périmètre du GO, puis contrôles affectés rejoués. Aucun échec ni défaut connu transmis comme fermé sans vérification.
+
+Reviewer `/root/review_clippy/rust_reviewer_clippy_a`, via même coordinateur : **CLEAN** sur ce candidat et cette baseline, scope préflight/P1–P4 ; un passage, zéro correction de revue, aucun constat/demande/gap ouvert. Archivage par l'implémenteur sous `target/parakeet-tests/clippy-adapters-desktop/archive/lot-p-20261031/` : **76 fichiers source/76 copies**, **687 396 octets**, tous SHA-256 concordants ; aucun manifeste ni nettoyage. Espace final **64 609 779 712 octets**. Temp autorisé reste UNATTRIBUTED ; non-suivis tiers préservés. Aucun push.
 
 Autorisation écrite de l'utilisateur dans cette session après livraison du plan : « Implémente les six lots du plan dans l’ordre, avec revues indépendantes et commits locaux, sans push. J’autorise la tolérance limitée au Temp Windows non attribué pour cette campagne, avec les autres arrêts maintenus. » Cet accord couvre P, S, T, E, C puis D et les campagnes prévues. Pour cette seule campagne `clippy-adapters-desktop`, les événements Created/Changed/Deleted purement sous `%LOCALAPPDATA%\Temp` non attribués et les renommages dont les deux chemins y restent sont consignés UNATTRIBUTED sans arrêt ; aucune attribution ni destination volontaire externe n'en est déduite. Les événements attribués à la campagne, sensibles, erreurs de surveillance, renommages franchissant la frontière et les autres arrêts du plan restent bloquants. Une revue et un commit de chaque lot fermé précèdent le suivant. L'autorisation ne vaut pas extension aux warnings/cibles hors périmètre ni aux recettes natives/UI.
 

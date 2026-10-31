@@ -182,7 +182,7 @@ pub(super) fn validate_unified_resume_prefix(
     if checkpoint.confirmed_segments == 0 {
         return Ok(None);
     }
-    let mut document = crate::parakeet_document::ParakeetDocumentStore::open_resume_coverage(
+    let document = crate::parakeet_document::ParakeetDocumentStore::open_resume_coverage(
         document_directory,
         job_id,
         generation,

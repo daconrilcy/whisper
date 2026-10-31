@@ -15,6 +15,7 @@ impl ArchiveStore {
         let path = root.join(".whisper-publications.lock");
         let file = OpenOptions::new()
             .create(true)
+            .truncate(false)
             .read(true)
             .write(true)
             .open(path)

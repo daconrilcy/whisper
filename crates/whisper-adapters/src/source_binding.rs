@@ -76,7 +76,7 @@ enum RegistryStatus {
 }
 
 enum OperationGuardProbe {
-    Acquired(File),
+    Acquired { _guard: File },
     Busy,
     Missing,
 }
@@ -758,8 +758,8 @@ fn recovery_candidate(
         let Some(intent) = entry.retirement.as_ref() else {
             return Ok(protected("Intention de retrait durable absente".into()));
         };
-        if PathBuf::from(&intent.snapshot.path) != snapshot_path
-            || PathBuf::from(&intent.record.path) != expected_record_path(&canonical, entry)
+        if Path::new(&intent.snapshot.path) != snapshot_path
+            || Path::new(&intent.record.path) != expected_record_path(&canonical, entry)
         {
             return Ok(protected("Chemin de retrait durable divergent".into()));
         }
@@ -884,9 +884,7 @@ fn resume_retirement(registry: &SnapshotRegistry, entry: &RegistryEntry) -> Resu
         .ok_or_else(|| "SourceSnapshotRegistryCorrupt: retirement intent missing".to_owned())?;
     let record_path = PathBuf::from(&intent.record.path);
     let snapshot_path = PathBuf::from(&intent.snapshot.path);
-    if let Err(error) = check_pending_intent(intent) {
-        return Err(error);
-    }
+    check_pending_intent(intent)?;
     delete_path_if_identity_matches(&snapshot_path, &intent.snapshot)?;
     delete_path_if_identity_matches(&record_path, &intent.record)?;
     let record = SnapshotRecord {
@@ -1130,24 +1128,6 @@ impl SnapshotRegistry {
         })
     }
 
-    fn release_record(&self, record: &SnapshotRecord) -> Result<(), String> {
-        self.update(|entries| {
-            let index = entries
-                .iter()
-                .position(|entry| {
-                    entry.job_id == record.job_id
-                        && entry.generation == record.generation
-                        && entry.destination == record.destination
-                        && entry.snapshot_path.as_deref() == Some(record.snapshot_path.as_str())
-                })
-                .ok_or_else(|| {
-                    "SourceSnapshotRegistry: refusing to release a different binding".to_owned()
-                })?;
-            entries.remove(index);
-            Ok(())
-        })
-    }
-
     fn read_entries(&self) -> Result<Vec<RegistryEntry>, String> {
         let path = self.root.join(REGISTRY_FILE);
         let lock_path = self.root.join(REGISTRY_LOCK_FILE);
@@ -1243,6 +1223,7 @@ impl SnapshotRegistry {
         let lock_path = self.root.join(REGISTRY_LOCK_FILE);
         let lock_file = OpenOptions::new()
             .create(true)
+            .truncate(false)
             .read(true)
             .write(true)
             .open(&lock_path)
@@ -1341,10 +1322,10 @@ fn cleanup_failed_capture(
     cause: String,
 ) -> String {
     for artifact in artifacts {
-        if artifact.exists() {
-            if let Err(error) = fs::remove_file(artifact) {
-                return format!("{cause}; SourceSnapshotOrphaned: {artifact:?}: {error}");
-            }
+        if artifact.exists()
+            && let Err(error) = fs::remove_file(artifact)
+        {
+            return format!("{cause}; SourceSnapshotOrphaned: {artifact:?}: {error}");
         }
     }
     match registry.release(request.job_id, request.generation, destination) {
@@ -1364,6 +1345,7 @@ fn lock_operation(registry_root: &Path) -> Result<File, String> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(registry_root.join(OPERATION_LOCK_FILE))
         .map_err(|error| {
             format!("SourceSnapshotRegistryUnavailable: open operation lock: {error}")
@@ -1390,7 +1372,7 @@ fn recovery_operation_guard(registry_root: &Path) -> Result<OperationGuardProbe,
         }
     };
     match file.try_lock() {
-        Ok(()) => Ok(OperationGuardProbe::Acquired(file)),
+        Ok(()) => Ok(OperationGuardProbe::Acquired { _guard: file }),
         Err(std::fs::TryLockError::WouldBlock) => Ok(OperationGuardProbe::Busy),
         Err(std::fs::TryLockError::Error(error)) => Err(format!(
             "SourceSnapshotRegistryUnavailable: inspect operation lock: {error}"
@@ -1400,7 +1382,7 @@ fn recovery_operation_guard(registry_root: &Path) -> Result<OperationGuardProbe,
 
 fn operation_guard_state(probe: &OperationGuardProbe) -> (bool, bool) {
     match probe {
-        OperationGuardProbe::Acquired(_) => (true, false),
+        OperationGuardProbe::Acquired { .. } => (true, false),
         OperationGuardProbe::Busy => (false, true),
         OperationGuardProbe::Missing => (false, false),
     }
@@ -1433,7 +1415,7 @@ fn validate_record(
         || record.job_id != job_id
         || record.generation != generation
         || record.destination != destination.to_string_lossy()
-        || PathBuf::from(&record.snapshot_path) != expected_snapshot
+        || Path::new(&record.snapshot_path) != expected_snapshot
         || !metadata.is_file()
         || metadata.len() != record.source_len
     {

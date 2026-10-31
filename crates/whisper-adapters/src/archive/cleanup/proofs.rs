@@ -307,9 +307,9 @@ fn capture_cleanup_ancestor(
         ));
     }
     let relative_path = relative_to_root(root, path)?;
-    if let Some(existing) = ancestors
+    if ancestors
         .iter()
-        .find(|ancestor| ancestor.relative_path == relative_path)
+        .any(|ancestor| ancestor.relative_path == relative_path)
     {
         return Ok(());
     }

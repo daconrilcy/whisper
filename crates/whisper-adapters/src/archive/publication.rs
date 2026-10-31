@@ -197,7 +197,7 @@ impl ArchiveStore {
                     crate::windows_file_identity::inspect(&active.directory, true)?,
                 )?;
                 let successor_files = capture_successor_files(&root, &active.directory)?;
-                let mut plan = CleanupPlan {
+                let plan = CleanupPlan {
                     version: 1,
                     cleanup_id: cleanup_id.to_owned(),
                     destination: root
@@ -225,7 +225,6 @@ impl ArchiveStore {
                             "DuplicateStateChanged: nettoyage durable déjà différent".into()
                         );
                     }
-                    plan = existing;
                 } else {
                     write_cleanup_plan(&root, &plan)?;
                 }

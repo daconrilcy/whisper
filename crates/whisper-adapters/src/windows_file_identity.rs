@@ -35,7 +35,7 @@ pub(crate) struct VerifiedFile {
 
 pub(crate) struct VerifiedSource {
     _file: File,
-    pub identity: FileIdentity,
+    _identity: FileIdentity,
     pub sha256: [u8; 32],
 }
 
@@ -134,7 +134,7 @@ impl VerifiedFile {
         // handle after verifying its file ID and rejecting reparse points.
         unsafe {
             SetFileInformationByHandle(
-                HANDLE(self.file.as_raw_handle() as *mut core::ffi::c_void),
+                HANDLE(self.file.as_raw_handle()),
                 FileDispositionInfo,
                 (&disposition as *const FILE_DISPOSITION_INFO).cast(),
                 std::mem::size_of::<FILE_DISPOSITION_INFO>() as u32,
@@ -152,7 +152,7 @@ fn identity_for_handle(file: &File, expect_directory: bool) -> Result<FileIdenti
     // exact Win32 structure layout, and the size matches the structure.
     unsafe {
         GetFileInformationByHandleEx(
-            HANDLE(file.as_raw_handle() as *mut core::ffi::c_void),
+            HANDLE(file.as_raw_handle()),
             FileIdInfo,
             (&mut id as *mut FILE_ID_INFO).cast(),
             std::mem::size_of::<FILE_ID_INFO>() as u32,
@@ -165,7 +165,7 @@ fn identity_for_handle(file: &File, expect_directory: bool) -> Result<FileIdenti
     // writable storage for the exact FILE_ATTRIBUTE_TAG_INFO structure.
     unsafe {
         GetFileInformationByHandleEx(
-            HANDLE(file.as_raw_handle() as *mut core::ffi::c_void),
+            HANDLE(file.as_raw_handle()),
             FileAttributeTagInfo,
             (&mut attributes as *mut FILE_ATTRIBUTE_TAG_INFO).cast(),
             std::mem::size_of::<FILE_ATTRIBUTE_TAG_INFO>() as u32,
@@ -220,7 +220,7 @@ pub(crate) fn open_and_hash_source(path: &Path) -> Result<VerifiedSource, String
     }
     Ok(VerifiedSource {
         _file: file,
-        identity,
+        _identity: identity,
         sha256: hasher.finalize().into(),
     })
 }
