@@ -22,6 +22,12 @@ G1 est arrêté définitivement. Une tâche Whisper doit servir l'objectif produ
 
 ## Règle permanente des campagnes locales
 
+### Niveau d'exécution 1 — vérifications Cargo
+
+Pour les commandes Cargo de format, analyse, compilation et tests sans exécution native, appliquer le niveau 1 : aucun `FileSystemWatcher`, abonnement aux événements du système de fichiers ou arrêt sur un événement `.git` d'origine inconnue. Les auto-tests de ce niveau vérifient les arguments, variables, racines et jonctions ; ils n'arment aucune surveillance et ne testent pas d'arrêt sur des événements de fichiers. Cette règle, confirmée par l'utilisateur le 31 octobre 2026, prévaut pour ce périmètre sur les obligations de surveillance et leurs auto-tests ci-dessous, y compris celles des anciennes gardes et des plans historiques.
+
+Conserver les contrôles préalables d'espace libre, de chemins canoniques et d'environnement isolé, la cible Cargo partagée, les options hors ligne et verrouillées et l'arrêt sur échec de commande. Les contrôles Git utiles se font séparément avec `--no-optional-locks` ; une activité Git concurrente doit être identifiée par sa commande et son ascendance disponibles, sans attribuer rétroactivement un événement à ce processus ni le terminer automatiquement. Le niveau 1 ne démontre pas l'absence d'écriture hors racine. Les recettes natives restent soumises à leur périmètre autorisé.
+
 - Avant chaque lot, relever l'espace libre du volume de travail. Sous 30 Gio libres, arrêter avant toute compilation ou campagne de test.
 - Utiliser un seul `CARGO_TARGET_DIR` de compilation : `target/parakeet-tests/cargo-shared/`. Les racines de lot reçoivent uniquement sorties, temporaires et preuves. La garde à échec fermé vérifie séparément cette racine Cargo canonique et les racines d'écriture du lot ; aucune commande Cargo n'est lancée si une variable sort de sa racine autorisée.
 - **Aucune écriture de campagne hors des racines autorisées, même temporaire ou indirecte par Cargo, rustc, un script ou un processus enfant.** Avant le premier Cargo, fixer et vérifier canoniquement `CARGO_HOME`, `TEMP` et `TMP` sous la racine d'exécution du lot, et `CARGO_TARGET_DIR` sur la racine partagée ci-dessus. Ne pas utiliser le cache Cargo du profil utilisateur en écriture : si son contenu est nécessaire hors ligne, le copier sous la racine du lot avant la campagne. Une variable absente, une résolution hors racine ou une jonction qui y mène interdit le lancement de Cargo.
