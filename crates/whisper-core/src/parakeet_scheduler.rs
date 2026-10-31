@@ -258,10 +258,10 @@ impl ParakeetScheduler {
         self.call_started = false;
         match call.work {
             ScheduledWork::Preview { sequence } => {
-                if let Some(state) = self.sessions.get_mut(&call.session) {
-                    if state.preview_ready == Some(sequence) {
-                        state.preview_ready = None;
-                    }
+                if let Some(state) = self.sessions.get_mut(&call.session)
+                    && state.preview_ready == Some(sequence)
+                {
+                    state.preview_ready = None;
                 }
             }
             ScheduledWork::Final { .. } => {

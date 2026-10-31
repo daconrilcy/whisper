@@ -257,11 +257,9 @@ impl ModelSelectionApp {
                     })
                 })
                 .cloned()
-                .ok_or_else(|| {
-                    SelectionRefusal::Capability(Refusal {
-                        cause: crate::engine_capabilities::RefusalCause::ConfigurationUnknown,
-                    })
-                })?,
+                .ok_or(SelectionRefusal::Capability(Refusal {
+                    cause: crate::engine_capabilities::RefusalCause::ConfigurationUnknown,
+                }))?,
             language: language.clone(),
         };
         let admission =
@@ -305,11 +303,9 @@ fn normalize_language(
                 .iter()
                 .find(|(short, english)| input == *short || input == *english)
                 .map(|(short, _)| *short)
-                .ok_or_else(|| {
-                    SelectionRefusal::Capability(Refusal {
-                        cause: crate::engine_capabilities::RefusalCause::LanguageUnavailable,
-                    })
-                })?;
+                .ok_or(SelectionRefusal::Capability(Refusal {
+                    cause: crate::engine_capabilities::RefusalCause::LanguageUnavailable,
+                }))?;
             Ok(LanguageChoice::Manual(LanguageCode(canonical.to_owned())))
         }
         (_, choice) => Ok(choice),

@@ -183,7 +183,7 @@ impl GpuInventoryApp {
 
     pub fn close(&mut self) {
         self.closed = true;
-        self.generation = self.generation.checked_add(1).unwrap_or(u64::MAX);
+        self.generation = self.generation.saturating_add(1);
         self.in_flight = false;
         self.state = GpuInventoryState::NotRequested;
         self.qualified_state = GpuQualifiedInventoryState::NotRequested;

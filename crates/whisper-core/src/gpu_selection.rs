@@ -79,14 +79,13 @@ pub fn resolve(
         }
     };
 
-    if let Some(preferred) = preferred_identity {
-        if let Some(device) = inventory
+    if let Some(preferred) = preferred_identity
+        && let Some(device) = inventory
             .devices
             .iter()
             .find(|device| device.device.identity == preferred && is_compatible(device))
-        {
-            return SelectionResolution::Candidate(SessionCandidate::Gpu(candidate(device, false)));
-        }
+    {
+        return SelectionResolution::Candidate(SessionCandidate::Gpu(candidate(device, false)));
     }
 
     let mut compatible: Vec<&GpuQualifiedDevice> = inventory

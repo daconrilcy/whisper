@@ -232,25 +232,6 @@ pub fn engine_snapshot(
                         .collect(),
                     resource_requirements: vec![],
                 }
-            } else if backend == Backend::Cpu {
-                ConfigurationCapabilities {
-                    key,
-                    compute: Capability::QUALIFIED,
-                    auto_language: Capability::QUALIFIED,
-                    languages: vec![
-                        LanguageCapability {
-                            code: LanguageCode("fr".into()),
-                            recognized: Capability::QUALIFIED,
-                            manual: unsupported(),
-                        },
-                        LanguageCapability {
-                            code: LanguageCode("en".into()),
-                            recognized: Capability::QUALIFIED,
-                            manual: unsupported(),
-                        },
-                    ],
-                    resource_requirements: vec![],
-                }
             } else {
                 ConfigurationCapabilities {
                     key,

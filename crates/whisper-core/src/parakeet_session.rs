@@ -3,7 +3,7 @@
 use crate::{
     domain::{Generation, JobId},
     parakeet_windows::{
-        FRAME_SAMPLES, MARGIN_SAMPLES, SAMPLE_RATE, WINDOW_MAX_SAMPLES, WINDOW_MIN_SAMPLES,
+        FRAME_SAMPLES, MARGIN_SAMPLES, WINDOW_MAX_SAMPLES, WINDOW_MIN_SAMPLES,
         WINDOW_TARGET_SAMPLES,
     },
 };

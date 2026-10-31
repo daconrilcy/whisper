@@ -1,6 +1,6 @@
-Avancée : reprise de P0 autorisée après arrêt initial ; aucune correction Rust appliquée à ce stade.
-Blocage : baseline à reprendre sous la tolérance Temp précisément autorisée pour clippy-core.
-Décision : poursuivre les deux lots du plan, avec les autres conditions d'arrêt maintenues.
+Avancée : P0 et lot A réalisés ; sept diagnostics simples supprimés, revue indépendante CLEAN.
+Blocage : aucun sur A ; trois diagnostics d'enums restent à traiter dans B.
+Décision : poursuivre B sous la tolérance Temp autorisée et les autres conditions d'arrêt maintenues.
 
 # Plan de correction Clippy du cœur
 
@@ -304,6 +304,12 @@ Preuves conservées sous `target/parakeet-tests/clippy-core/logs/` : `guard-even
 Arbitrage soumis après cet arrêt : maintenir la règle stricte ou autoriser pour cette seule campagne `clippy-core` une tolérance bornée des événements purement locaux sous `%LOCALAPPDATA%\Temp` sans attribution démontrée, consignés UNATTRIBUTED sans qualification de leur origine. Les écritures applicatives volontaires restent limitées aux deux racines prévues ; une écriture externe attribuée à la campagne, un événement sensible, un défaut de garde ou un échec test/build imposent toujours l'arrêt.
 
 Autorisation de reprise écrite dans cette même session : « Oui, j’autorise cette tolérance limitée au Temp Windows non attribué pour la seule campagne clippy-core. Reprends l’implémentation du plan avec les autres arrêts maintenus. » Elle remplace, pour cette seule campagne, l'exigence P0 de refus des événements Temp non attribués. Adapter la branche correspondante de la garde et ses auto-tests, puis relancer SelfTest avant Cargo. Tolérance uniquement aux créations/modifications/suppressions purement sous le Temp Windows non attribuées et aux renommages dont ancien et nouveau chemins sont tous deux sous ce Temp ; aucun élargissement aux événements attribués, aux erreurs de surveillance, aux emplacements sensibles ou aux renommages franchissant cette frontière. L'origine des événements tolérés reste indéterminée ; aucune destination volontaire hors racine n'est créée. Les preuves de l'arrêt initial sont conservées.
+
+### Livraison P0 et lot A
+
+Baseline Git `586d070872114084d9814cc431b90d1f3f30c665` ; implémenteur `/root/implementation_clippy`. Garde adaptée et SelfTest PASS avec tolérance précise autorisée. Commandes §7 exécutées sous garde depuis le dépôt, variables et cible canoniques, hors ligne et lock conservé : V-T baseline `d1329647`, A1 `5fde5d56`, final A2 `599a9189` : **175 tests réussis, zéro échec/ignoré** à chaque état ; V-CL baseline `8553ce17` : dix avertissements, A1 `e2dbaff5` : sept, A2 `642614f8` : trois `large_enum_variant` attendus ; V-F final `2b7c6272` : PASS. `git diff --check` PASS. Les suffixes de run identifient les entrées de `target/parakeet-tests/clippy-core/logs/guard.jsonl` et leurs journaux `Run-*`.
+
+Six fichiers core modifiés conformément à A1/A2, 16 insertions/40 suppressions rapportées ; aucun contrat public modifié. Reviewer indépendant `/root/review_clippy/rust_reviewer_clippy_a`, via `rust_review_coordinator` : **CLEAN** sur ce candidat worktree, baseline ci-dessus, périmètre P0/A1/A2 ; un passage, aucune correction ni demande de vérification, aucun constat ouvert. Ce verdict ne ferme pas les trois enums du lot B ni le strict global. Événements Temp consignés UNATTRIBUTED, origine inconnue ; aucun autre arrêt signalé. Espace final A : 66 024 980 480 octets. Non-suivis préexistants préservés ; aucun push ni native/UI.
 
 ## 11. Implementation Agent Prompt
 
