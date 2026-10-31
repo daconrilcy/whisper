@@ -1,6 +1,6 @@
-Avancée : phases 1 à 3 et correctifs micro validés par l'utilisateur, commit local 778ef0bc ; lot L3D du cœur autorisé.
-Blocage : aucun pour préparer et exécuter le lot L3D décrit en section 12.
-Décision : retirer uniquement cette trace historique, vérifier sous garde, faire relire et reconstruire une release locale distincte, sans installation ni push.
+Avancée : lot L3D du cœur implémenté et relu CLEAN ; vérifications sous garde réussies et release locale distincte prête.
+Blocage : aucun pour la remise ; validation de la nouvelle version dans la fenêtre Windows restant à l'utilisateur.
+Décision : remettre release-core-l3d sans remplacer la version validée ; code non commité, aucune installation ni push.
 
 ## Header
 
@@ -359,3 +359,13 @@ Objectif produit : supprimer la lecture de la variable de chronométrage et les 
 - Vérifier présence et SHA-256 des ressources effectives et des copies remises ; contrôler le lanceur avec `--check` sans ouvrir la fenêtre. Ne pas annoncer un paquet autonome.
 - Archiver les petites preuves en conservant leur arborescence et en vérifiant nombre et SHA-256 ; relever l'espace libre final. Aucun nettoyage de cache ou WAV sans manifeste approuvé.
 - Compte rendu dans ce document et la remise : fichiers changés, checks réellement exécutés, verdict, réserves et validation Windows restant à l'utilisateur. Aucun nouveau rapport séparé, installation, push ou modification d'archive utilisateur. Le commit du code de ce nouveau lot nécessite un accord distinct ; seul le plan est versionné localement avant implémentation.
+
+### Bilan P4 — 31 octobre 2026
+
+La session utilisateur a confirmé ce périmètre avant le commit de plan `60e5cf7b`. L'implémenteur a modifié les six fichiers nommés à P4-T1, en supprimant `application/diagnostics.rs` : 201 suppressions, aucune insertion. Les quatre symboles ciblés sont absents de `whisper-core/src`. Aucune modification de worker, modèle, identité, protocole, dépendance, archive utilisateur ou garde. Les sources restent non commitées dans l'attente d'un accord distinct.
+
+Vérifications sous garde, toutes exit 0 : SelfTest ; format `20261031T205551067-645b0d52` ; cœur 81/81 avec `PARAKEET_L3D_TIMING_ACTIVE=1` dans le seul processus de campagne et `--nocapture`, aucune trace L3D dans stdout/stderr (`20261031T205556195-8ecacc3f`) ; desktop personnel 48/48 (`20261031T205603423-3967557f`) ; Clippy cœur lib/tests (`20261031T205621657-f58ac527`) ; build de développement personnel (`20261031T205627981-39518c0d`). La revue indépendante du candidat epoch 11 est CLEAN : ordre des commandes, événements, effets et transitions conservé, aucun constat ouvert. Le nouvel avertissement `dead_code` de la méthode privée pure `ImportEvent::kind_name` dans le septième fichier `application/event_metadata.rs` est consigné ; le relecteur ne relève pas de risque produit justifiant une extension. L'avertissement d'imports inutilisés des adaptateurs est préexistant.
+
+Après nouvelle réussite du SelfTest, compilation personnelle release sous garde exit 0 (`20261031T205836576-068a1c9f`). Dossier remis : `target/parakeet-tests/refacto-parakeet-live/p3-workers/release-core-l3d/`, avec nouveau desktop, copies vérifiées des deux workers Turbo précédemment livrés et lanceur `Lancer-Whisper.cmd` contrôlé par `--check`, sans ouverture de fenêtre. Les deux workers Parakeet, les deux modèles et les cinq/neuf DLL restent dans les ressources qualifiées `p3-workers/localappdata/Whisper/` ; présence et SHA-256 vérifiés. Il ne s'agit pas d'un dossier autonome. Les versions précédentes, dont `release-fix-parakeet-micro/`, sont conservées.
+
+Treize petites preuves copiées sous `p3-workers/core-l3d/archive/logs/`, nombre et SHA-256 vérifiés. Aucun nettoyage de WAV ou cache. Espace libre initial : 189,6 Gio ; final : 190,1 Gio. Aucun nouvel essai natif CPU/GPU, car moteurs et workers inchangés ; l'essai de fonctionnement dans la fenêtre Windows reste celui de l'utilisateur. Aucun push ni installation.
