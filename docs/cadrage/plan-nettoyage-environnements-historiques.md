@@ -136,19 +136,20 @@ Convention : `parakeet_import.rs` plus `parakeet_import/*.rs`, déclarations `mo
 ### P3-T1 : nettoyer les diagnostics historiques des adaptateurs
 
 - Révision acceptée le 31 octobre 2026 : après inventaire et arrêt avant édition, l'utilisateur a autorisé le retrait complet sur les 21 fichiers de production explicitement proposés, avec tests concernés, vérifications sous la garde existante, revue indépendante et reconstruction locale sans workers ni push. Cette révision remplace le budget initial de trois fichiers pour ce seul lot ; elle n'autorise pas P3-T2/P3-T3.
+- Extension précise acceptée ensuite dans cette même conversation : ajouter `parakeet_confirmation.rs` uniquement pour retirer les métadonnées/calculs de trace, sans changer règles, segments, plages ni ordre de confirmation ; ajouter `archive.rs` uniquement pour retirer l'import `Instant` inutilisé. Total autorisé : 23 fichiers de production, neuf tâches ci-dessous. Les vérifications, la revue et la reconstruction restent soumises à la garde existante, sans workers ni push.
 - Priority : Low.
 - Source finding : EH-04.
 - Rationale : retirer les chemins de campagne et les coûts optionnels des diagnostics jugés inutiles.
-- Target files/modules : sous `crates/whisper-adapters/src/`, les 21 chemins des tâches ci-dessous ; tests correspondants sous `tests/`, adaptation du test privé existant `parakeet_live/microphone_spectrum_tests.rs` et petits invariants privés séparés seulement si inaccessibles sans élargir l'API.
+- Target files/modules : sous `crates/whisper-adapters/src/`, les 23 chemins des tâches ci-dessous ; tests correspondants sous `tests/`, adaptation du test privé existant `parakeet_live/microphone_spectrum_tests.rs` et petits invariants privés séparés seulement si inaccessibles sans élargir l'API.
 - Ownership bucket : diagnostics infra/adapters.
-- Scope budget : 21 fichiers de production maximum, répartis en huit tâches ci-dessous, plus tests directement correspondants ; aucune nouvelle dépendance. La suppression de la trace micro est une exception atomique de six fichiers : champs, appels et définitions doivent disparaître ensemble pour conserver un candidat compilable.
+- Scope budget : 23 fichiers de production maximum, répartis en neuf tâches ci-dessous, plus tests directement correspondants ; aucune nouvelle dépendance. La suppression de la trace micro est une exception atomique de six fichiers : champs, appels et définitions doivent disparaître ensemble pour conserver un candidat compilable. La tâche séparée de confirmation retire seulement les producteurs de métadonnées, avec les mêmes règles de décision.
 - Closed invariant : zéro lecture/écriture R7/ancienne trace micro dans la release personnelle selon la décision G2 ; D2 `cfg(test)` préservé.
 - Before metrics : trace micro à racine absolue et mesures R7 facultatives compilées dans les adaptateurs.
 - Target metrics : zéro accès aux anciennes destinations depuis le produit personnel, attestation ASR intacte.
 - Metric commands : V0, V2, V4 ; contrôle des appels et imports résiduels.
-- Stop conditions : besoin d'un nouveau produit de diagnostic, d'une feature, d'un 22e fichier de production ou d'un changement de worker ; arrêter pour arbitrage. Ne pas inventer une API de télémétrie.
+- Stop conditions : besoin d'un nouveau produit de diagnostic, d'une feature, d'un 24e fichier de production ou d'un changement de worker ; arrêter pour arbitrage. Ne pas inventer une API de télémétrie.
 - Dependencies : P2-T1, G2.
-- Implementation outline : supprimer les mesures R7 des adaptateurs et l'ancienne trace micro, leurs appels, champs et calculs dédiés devenus sans objet ; conserver les diagnostics D2 `cfg(test)` et le journal ASR/attestation GPU ; ne pas modifier la capture ni la confirmation. Aucun relais no-op permanent pour les mécanismes retirés.
+- Implementation outline : supprimer les mesures R7 des adaptateurs et l'ancienne trace micro, leurs appels, champs et calculs dédiés devenus sans objet ; conserver les diagnostics D2 `cfg(test)` et le journal ASR/attestation GPU ; ne pas modifier le comportement de capture ou de confirmation. Les champs `published` et `unresolved_before/after` de confirmation restent nécessaires aux événements produit ; seuls les curseurs/refus détaillés et autres données exclusives à la trace peuvent disparaître. Conserver strictement les prédicats de refus, leur ordre et les résultats de finalisation. Aucun relais no-op permanent pour les mécanismes retirés.
 - Tests to add or update : activation des anciennes variables sans effet de fichier pour le produit ; comportements audio identiques ; contrats de traces conservées vérifiés séparément.
 - Verification commands : V0, V2, V4.
 - Command provenance : Observed pour recherche ; Repo docs/Source inferred pour futures commandes.
@@ -156,7 +157,7 @@ Convention : `parakeet_import.rs` plus `parakeet_import/*.rs`, déclarations `mo
 - Rollback/fallback notes : différer si utilité diagnostic non tranchée ; P1 reste suffisante pour protéger le lancement.
 - Notes for implementation agent : trace L3D dans le cœur explicitement hors tâche ; pas de renommage global de variables.
 
-Découpage borné du lot P3-T1 élargi (huit tâches ; tous les chemins ci-dessous sont relatifs à `crates/whisper-adapters/src/`) :
+Découpage borné du lot P3-T1 élargi (neuf tâches ; tous les chemins ci-dessous sont relatifs à `crates/whisper-adapters/src/`) :
 
 | Tâche | Chemins / responsabilité | Budget production |
 | --- | --- | --- |
@@ -164,10 +165,11 @@ Découpage borné du lot P3-T1 élargi (huit tâches ; tous les chemins ci-desso
 | P3-T1-B | Retirer appels R7 dans `archive/import.rs`, `archive/storage.rs`, `archive/recovery.rs` | 3 |
 | P3-T1-C | Retirer appels R7 dans `archive/source.rs`, `archive/journal.rs`, `archive/publication.rs` | 3 |
 | P3-T1-D | Retirer appels R7 dans `worker_ipc/runtime/duplicates.rs`, `worker_ipc/runtime/import.rs`, `worker_ipc/runtime/queue.rs` | 3 |
-| P3-T1-E | Retirer appels R7 dans `worker_ipc/runtime/poll/parakeet.rs` | 1 |
+| P3-T1-E | Retirer appels R7 dans `worker_ipc/runtime/poll/parakeet.rs` ; retirer seulement l'import `Instant` inutilisé dans `archive.rs` | 2 |
 | P3-T1-F | Retirer `diagnostics.rs` et sa déclaration dans `lib.rs`, après les consommateurs | 2 |
 | P3-T1-G | Retirer trace micro dans `parakeet_live.rs`, `parakeet_live/{events,lifecycle,trace,inference,windows}.rs`, garder D2 | 6, exception atomique motivée ci-dessus |
-| P3-T1-H | Adapter/ajouter tests directs, vérifier V0/V2/V4 et variables historiques sans fichier, revue puis release locale | 0 hors corrections des chemins déjà ouverts |
+| P3-T1-H | Retirer uniquement métadonnées et calculs de trace dans `parakeet_confirmation.rs` ; vérifier décisions identiques | 1 |
+| P3-T1-I | Adapter/ajouter tests directs, vérifier V0/V2/V4 et variables historiques sans fichier, revue puis release locale | 0 hors corrections des chemins déjà ouverts |
 
 Préflight : référence exacte pré-P3 de chaque fichier déjà modifié ou non suivi qui sera touché, tests compris, sous `target/parakeet-tests/refacto-parakeet-live/pre-p3-t1/` ; aucun manifeste d'empreintes ajouté. Racines autorisées inchangées : lot `target/parakeet-tests/refacto-parakeet-live/` et compilation `target/parakeet-tests/cargo-shared/`, garde existante uniquement. Ne pas lancer de vérification Cargo sur un état de suppression intermédiaire incomplet ; produire d'abord le candidat cohérent. Première erreur de compilation, test ou garde : arrêt et arbitrage selon AGENTS.
 
