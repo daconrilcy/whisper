@@ -1,6 +1,6 @@
-Avancée : plan en huit tâches relu CLEAN contre le cadrage DESIGN READY.
-Blocage : aucun constat PLANS ouvert ; vérifications produit non exécutées.
-Décision : PLANS READY documentaire, sans autorisation d'implémentation ni de push.
+Avancée : plan relu CLEAN ; exécution autorisée, préparation T1 et inventaire statique effectués.
+Blocage : auto-test de la garde UI arrêté sur un événement hors racine, d'origine indéterminée ; aucun Cargo lancé.
+Décision : arrêt avant refonte et conservation des éléments ; arbitrage utilisateur nécessaire avant reprise, sans push.
 
 # Refactorisation de ui.rs — plan PLAN-UI v1
 
@@ -166,3 +166,18 @@ Reviewer `/root/cadrage_ui/review_ui`, indépendant de la rédaction/correction 
 Statut courant : **PLANS READY documentaire**. Inscription du verdict uniquement, sans modification technique du plan revu. Limite résiduelle d'exécution : garde UI à préparer sous accord précis et conformité à démontrer avant tout Cargo ; aucun transfert de dérogation ni GO de campagne.
 
 Vérifications réellement exécutées pour cette livraison : lectures/analyse statique, git diff --check (travail, index et comparaison depuis la base), contrôle de la liste des fichiers modifiés, commits locaux et revues documentaires indépendantes. Seuls `docs/cadrage/refacto-ui.md` et `docs/cadrage/plan-refacto-ui.md` changent depuis la base produit ; non suivis préexistants préservés. Aucun code, test, build, Cargo, moteur natif, fenêtre Windows ou push. Espace final relevé : **70 596 972 544 octets** libres sur C, environ 65,75 Gio ; aucun nettoyage effectué.
+
+### Tentative d'exécution du 31 octobre 2026 — arrêt en T1
+
+Autorisation de cette session : « Je confirme T1–T7, l’adaptation de la garde UI, les campagnes prévues, l’implémentation déléguée et la revue indépendante, puis le bilan T8 et les commits locaux, sans remise de binaire ni push. Lance. » Cette autorisation remplace la limite documentaire pour ces actions précises ; le design et le plan techniques restent inchangés.
+
+Base d'exécution : `95fd9687ff6fa5d2d6bbd02a3d99dffcffb793a3`, branche `evo-startup-perf`. Implémenteur délégué : `/root/implement_ui`, mode IMPLEMENT. Les non suivis `docs/architecture/`, `models/` et `sound example/` sont préservés. Espace avant délégation : **64,56 Gio** ; espace final rapporté par l'implémenteur : **64,47 Gio**.
+
+- T1 : garde adaptée dans `target/parakeet-tests/refacto-ui/guard.ps1`, cache hors ligne copié sous la racine UI, analyse syntaxique PowerShell réussie. Aucune tolérance Temp historique reconduite ; contrôle supplémentaire de `WHISPER_DESKTOP_TEST_ROOT` pour refuser une destination externe.
+- V0 réellement exécuté : `& .\target\parakeet-tests\refacto-ui\guard.ps1 -Mode SelfTest`, **FAIL, exit 1**. Événement `Created` enregistré pour `C:\Users\cyril\AppData\Local\Temp\etilqs_AeH9uTaTdcWausw`, horodatage du journal `2026-10-31T04:44:10.2707828+01:00`. Origine indéterminée ; aucune attribution à Cargo ou à la campagne démontrée. Journal conservé : `target/parakeet-tests/refacto-ui/logs/guard-events.jsonl`.
+- T2 : inventaires statiques fichiers/API/tests/assertions conservés dans la racine UI (`baseline-files.txt`, `baseline-public-api.txt`, `baseline-tests.txt`). Aucune baseline exécutée par Cargo ; la référence comportementale reste à établir.
+- T3–T7 : **NOT RUN** ; aucun changement du code produit ou des tests. Aucune revue de candidat Rust puisque le candidat n'existe pas. Aucun build, moteur natif, remise de binaire, ouverture de fenêtre ou push.
+
+La garde a déclenché l'arrêt ; aucun nouvel auto-test ni Cargo n'a suivi. Fichier signalé, cache, temporaires et journaux ne sont ni effacés ni restaurés. Les éléments d'exécution restent dans la racine UI ignorée par Git ; seul ce bilan documentaire est commité. L'archivage de clôture de campagne n'est pas annoncé effectué : la campagne reste arrêtée en T1.
+
+Décision nécessaire avant reprise : conserver l'arrêt pour rechercher l'origine de l'événement, ou autoriser précisément une dérogation limitée au traitement des événements Temp non attribués. Recommandation : examiner d'abord les éléments disponibles en lecture seule ; aucune dérogation d'une autre campagne ne s'applique automatiquement. La refonte UI n'est pas livrée.
