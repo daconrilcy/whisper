@@ -1,6 +1,6 @@
-Avancée : garde UI validée par auto-tests ; première commande de baseline démarrée sous garde.
-Blocage : événement hors racine sous .git/objects/pack ; baseline interrompue, code produit inchangé.
-Décision : campagne arrêtée en T2, dérogation Temp inchangée ; arbitrage avant reprise, sans push.
+Avancée : garde UI validée par auto-tests ; nouvelle tentative de baseline autorisée après arrêt en T2.
+Blocage : baseline comportementale encore incomplète, code produit inchangé.
+Décision : reprendre sans élargir la dérogation Temp, contrôles sur .git maintenus, sans push.
 
 # Refactorisation de ui.rs — plan PLAN-UI v1
 
@@ -198,3 +198,7 @@ Premier échec et éléments conservés ; nouveaux auto-tests requis avant Cargo
 - Inspection ultérieure en lecture seule : un processus `git.exe` était présent, puis absent lors du relevé suivant. Cela ne démontre ni son lien avec le fichier observé ni l'origine exacte de l'événement. Aucune configuration Git modifiée et aucun processus Git arrêté par la session principale.
 
 La dérogation Temp ne couvre pas `.git`. T2 reste incomplet ; T3–T7 non exécutés, aucun code ni test produit modifié. Espace final rapporté : **63,69 Gio**. Aucun nettoyage/restauration, aucune relance Cargo après l'arrêt. Le bilan documentaire est commité localement ; pas de push. Arbitrage nécessaire avant reprise ; option recommandée : autoriser une nouvelle tentative après disparition de l'activité Git observée, sans tolérance supplémentaire pour `.git`.
+
+### Nouvelle tentative autorisée après l'arrêt T2
+
+L'utilisateur répond « oui je t'autorise » à la demande de reprise après disparition du processus Git observé, sans élargir la dérogation. Les contrôles sur `.git` et les autres emplacements sensibles restent donc inchangés ; l'origine du précédent événement demeure indéterminée. Même responsable et périmètre T1–T7 puis bilan T8/commits locaux ; pas de remise de binaire ni push. Ce bilan d'autorisation est commité avant de relancer la garde pour ne pas provoquer nous-mêmes d'écritures Git concurrentes à la campagne. Prochaine action : préflight, puis nouvelle tentative de baseline sous garde avant toute modification de production.
