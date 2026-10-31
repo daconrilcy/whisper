@@ -1,6 +1,6 @@
-Avancée : P, S, T et E livrés CLEAN ; reprise du candidat C6 autorisée avec limite de provenance conservée.
-Blocage : C6 à terminer puis C7/C8 et revalidation consolidée avant revue et livraison C.
-Décision : garde et arrêts inchangés, revue indépendante avant commit C puis D, sans push.
+Avancée : P, S, T et E livrés CLEAN ; C6 compile et un test ciblé réussit, C reste non livré.
+Blocage : garde arrêtée sous 30 Gio libres (environ 22,35 Gio) avant le deuxième test C6.
+Décision : aucune suppression ; proposer le retrait borné de 13 anciennes copies de cache avant reprise, tous arrêts inchangés.
 
 # Analyse et plan de correction Clippy — adaptateurs et desktop
 
@@ -795,6 +795,33 @@ C6 reste incomplet ; **aucun Cargo ni nouvelle édition source après constat**.
 Arbitrage à soumettre : accepter le contenu courant de C6 comme candidat à finir puis revalider complètement (y compris tout contrôle affecté), avec revue indépendante avant commit C, sans effacer la limite de provenance ni modifier garde/arrêts. Aucune poursuite avant cette décision ; aucun constat CLEAN ou PASS courant de C6 déduit de ses transformations présentes.
 
 Autorisation de reprise donnée dans cette même session : « oui je t'autorise », en réponse à la demande précise de reprendre sur ce candidat C6, terminer C, le revalider puis le faire relire avant commit et poursuivre D. Les blobs C6 constatés sont acceptés comme point de reprise, pas comme travail déjà vérifié ; leur auteur reste indéterminé. Refaire espace/SelfTest et les contrôles consolidés requis sur le candidat final, sans modification de garde ni des autres arrêts, sans push. Le delta Rust reste rapporté à la baseline E pour la revue de tout le lot C.
+
+### Arrêt de reprise C6 — espace libre
+
+Après autorisation, reprise SelfTest PASS et conservation des blobs acceptés. Les appels de tests aux constructeurs C6 ont été adaptés dans les supports déjà prévus (six unified_import, quatre native_execution et un unified_capture), après vérification des valeurs par défaut ; un essai de transformation regex a échoué avant toute écriture et a été remplacé par des patches contextualisés. Pas de nouvelle API publique ni de périmètre produit ajouté.
+
+C6 compile et son premier test contrôlé `stop_before_commit_atomically_prevents_publication` a réussi : run **20261031T092521279-bf6bad30**, un test exécuté. Avant le deuxième test, la garde refuse Cargo : **moins de 30 Gio libres**. Aucun deuxième run démarré ni contournement, nettoyage ou autre commande Cargo après l'arrêt. Espace initial de reprise **64 462 389 248 octets**, puis **23 998 660 608 octets** au signalement ; relevé principal voisin **23 997 140 992 octets (22,35 Gio)**. Origine de la baisse non établie ; aucun processus cargo/rustc/rustdoc/clippy-driver trouvé au contrôle principal ultérieur, sans preuve sur les processus passés.
+
+Mesures en lecture seule : cargo-shared environ **22,89 Gio**, campagne actuelle **0,74 Gio**, ancienne clippy-core **0,73 Gio**. Aucun nettoyage de cargo-shared ni de la campagne active n'est proposé. C6 reste partiel, C7/C8 et D non commencés, stricts et consolidé C non exécutés, aucun code C commité ; journaux et candidat préservés.
+
+Préalable ponctuel proposé à la reprise, **NON EXÉCUTÉ et soumis à accord précis** : retirer seulement les 13 copies de cache ci-dessous, mesurées à **10 206 174 212 octets (9,51 Gio)**. Ce sont des caches copiés d'anciennes campagnes ; leurs journaux, archives, corpus, modèles, binaires et autres dossiers ne sont pas inclus. Les chemins de racine observés sont des répertoires sans attribut ReparsePoint. Avant toute suppression, vérifier de nouveau chemins absolus/résolution et absence de jonction dans chaque chaîne/cible, confirmer qu'aucun lot actif ne les utilise ; conserver un refus fermé si contrôle non concluant. Utiliser les opérations PowerShell natives avec LiteralPath dans ces seules cibles, sans shell secondaire. Aucun manifeste supplémentaire n'est créé : cette liste bornée dans le bilan est l'objet de la demande d'accord.
+
+- `C:\dev\whisper\target\parakeet-tests\refacto-application-core\t1\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\refacto-application-core\t2\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\refacto-application-core\t3\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\refacto-application-core\t4\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\refacto-application-core\t5\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\refacto-application-core\t6\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\refacto-application-core\t7\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\refacto-application-core\t8\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\refacto-application-core\t9\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\refacto-application-core\t10\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\refacto-ui\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\clippy-core\cargo-home`
+- `C:\dev\whisper\target\parakeet-tests\worker-common\cargo-home`
+
+Estimation après cette suppression seulement : environ **31,85 Gio libres**, sous réserve d'autres écritures concurrentes. Relever l'espace réel et ne reprendre Cargo que si au moins 30 Gio sont confirmés par la garde. Le seuil, la garde, la protection .git et les autres arrêts restent inchangés. Autre option : utilisateur libère lui-même au moins 8 Gio sur C puis signale la reprise. Aucune action de suppression n'est autorisée à ce stade ; le prérequis de stockage ne s'ajoute pas comme une onzième tâche au lot C.
+
 
 Autorisation écrite de l'utilisateur dans cette session après livraison du plan : « Implémente les six lots du plan dans l’ordre, avec revues indépendantes et commits locaux, sans push. J’autorise la tolérance limitée au Temp Windows non attribué pour cette campagne, avec les autres arrêts maintenus. » Cet accord couvre P, S, T, E, C puis D et les campagnes prévues. Pour cette seule campagne `clippy-adapters-desktop`, les événements Created/Changed/Deleted purement sous `%LOCALAPPDATA%\Temp` non attribués et les renommages dont les deux chemins y restent sont consignés UNATTRIBUTED sans arrêt ; aucune attribution ni destination volontaire externe n'en est déduite. Les événements attribués à la campagne, sensibles, erreurs de surveillance, renommages franchissant la frontière et les autres arrêts du plan restent bloquants. Une revue et un commit de chaque lot fermé précèdent le suivant. L'autorisation ne vaut pas extension aux warnings/cibles hors périmètre ni aux recettes natives/UI.
 
