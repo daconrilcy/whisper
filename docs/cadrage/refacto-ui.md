@@ -1,6 +1,6 @@
 Avancée : cadrage MVC relu CLEAN ; deux constats fermés indépendamment.
 Blocage : aucun constat DESIGN ouvert ; code et validations produit non exécutés.
-Décision : DESIGN READY documentaire ; préparer le plan demandé, sans implémenter.
+Décision : DESIGN READY documentaire ; plan séparé livré, sans implémenter.
 
 # Refactorisation de ui.rs — cadrage
 
@@ -227,3 +227,5 @@ Relecture sur `057ac834196f44d12fd0ba7ef2ce48bbec7fb9f0` : UI-D01 **CLOSED** par
 Verdict final brut de `/root/cadrage_ui/review_ui` sur `9dabf0f2da23fb4330b88f9363ce162b2a2bc86c` : **CLEAN** ; UI-D01 et UI-D02 **CLOSED**, aucun REQUIRED ouvert ni suggestion. Révision Git contrôlée inchangée pendant la revue. Deux cycles de correction consommés. Statut courant : **DESIGN READY documentaire** ; la présente inscription du verdict est une preuve de revue, pas une modification du design technique ni une autorisation de code/campagne/push.
 
 Contrôles de cette mission : lectures ciblées et git diff --check ; aucun test, build, Cargo, moteur natif ou ouverture Windows. La future recette Windows restera celle de l'utilisateur ; aucun binaire remis ici.
+
+Clôture documentaire : plan séparé `plan-refacto-ui.md` relu PLANS CLEAN sur `68639422ef37cd79f7c727ea1587d84f10dd5e2e`, huit tâches, aucun constat requis ouvert. Le design technique demeure celui relu sur `9dabf0f2`. Seuls ces deux documents ont changé depuis la base ; commits locaux, aucun push. Espace final C : 70 596 972 544 octets libres. Aucun test ou compilation n'a été exécuté.

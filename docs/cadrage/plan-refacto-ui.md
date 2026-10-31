@@ -1,6 +1,6 @@
-Avancée : plan de refactorisation défini en huit tâches reliées au cadrage.
-Blocage : revue PLANS indépendante à réaliser ; aucune campagne exécutée.
-Décision : proposition documentaire, sans autorisation d'implémentation ni de push.
+Avancée : plan en huit tâches relu CLEAN contre le cadrage DESIGN READY.
+Blocage : aucun constat PLANS ouvert ; vérifications produit non exécutées.
+Décision : PLANS READY documentaire, sans autorisation d'implémentation ni de push.
 
 # Refactorisation de ui.rs — plan PLAN-UI v1
 
@@ -158,3 +158,11 @@ L'utilisateur observe rendu, activation des commandes, dialogues, micro/textes, 
 Statut initial : candidat à revue **PLANS**, sur cette version Git contre le design parent. Vérifier couverture AC-01–11, chemins, prérequis, dépendances et commandes. Le rédacteur ne déclare pas son propre CLEAN. Deux cycles revue/correction maximum ; au-delà LIVRÉ AVEC RÉSERVES, constats ouverts et décision utilisateur.
 
 La mission actuelle s'arrête aux documents et commits locaux. Un verdict PLANS CLEAN ne vaut pas GO code/campagne/recette/push. Toutes vérifications produit proposées restent NOT RUN.
+
+### Verdict indépendant et bilan documentaire
+
+Reviewer `/root/cadrage_ui/review_ui`, indépendant de la rédaction/correction du plan, lecture seule : **PLANS CLEAN** sur `68639422ef37cd79f7c727ea1587d84f10dd5e2e`, contre DESIGN technique `9dabf0f2` et verdict consigné dans `82ae582c`. Fichier Git inchangé avant/après revue ; aucun REQUIRED ouvert ni suggestion, aucun cycle de correction PLANS consommé. Le reviewer confirme la couverture bidirectionnelle CA-01–06/AC-01–11, les huit tâches, le raccord atomique T4, la baseline sur production inchangée et la séparation des autorisations futures. Les tests nommés et les cinq fichiers d'intégration existent. UI-D01/UI-D02 restent fermés.
+
+Statut courant : **PLANS READY documentaire**. Inscription du verdict uniquement, sans modification technique du plan revu. Limite résiduelle d'exécution : garde UI à préparer sous accord précis et conformité à démontrer avant tout Cargo ; aucun transfert de dérogation ni GO de campagne.
+
+Vérifications réellement exécutées pour cette livraison : lectures/analyse statique, git diff --check (travail, index et comparaison depuis la base), contrôle de la liste des fichiers modifiés, commits locaux et revues documentaires indépendantes. Seuls `docs/cadrage/refacto-ui.md` et `docs/cadrage/plan-refacto-ui.md` changent depuis la base produit ; non suivis préexistants préservés. Aucun code, test, build, Cargo, moteur natif, fenêtre Windows ou push. Espace final relevé : **70 596 972 544 octets** libres sur C, environ 65,75 Gio ; aucun nettoyage effectué.
