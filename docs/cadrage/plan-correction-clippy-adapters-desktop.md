@@ -1,6 +1,6 @@
-Avancée : P, S, T, E et C livrés CLEAN ; reprise D autorisée à appels explicites vérifiés.
-Blocage : baseline D valide à établir avant corrections, résultats accidentels exclus.
-Décision : garde et arrêts inchangés, revue indépendante et commit local D après contrôles, sans push.
+Avancée : six lots implémentés et relus CLEAN ; 98 sites fermés, contrôles stricts prévus réussis.
+Blocage : aucun dans le périmètre ; limites de qualification et provenance conservées au bilan.
+Décision : livraison par six commits de lots locaux et bilans, sans push ni qualification native/Windows revendiquée.
 
 # Analyse et plan de correction Clippy — adaptateurs et desktop
 
@@ -9,7 +9,7 @@ Décision : garde et arrêts inchangés, revue indépendante et commit local D a
 - Source audit : présent document et journal `target/parakeet-tests/clippy-core/logs/Run-20261031T053220129-3da3f339.stderr.log`, commande observée `clippy --offline --locked -p whisper-desktop --all-targets`, exit 0.
 - Planning date : 2026-10-31.
 - Target workspace : `C:\dev\whisper`, branche `evo-startup-perf`, HEAD `d9f9b859207312d4db39775d94557bd9ecece130`.
-- Planning mode : plan only, no code changes.
+- Planning mode : plan initial sans modification du code ; exécution ensuite autorisée et livrée, avec bilans successifs en section 11.
 - Confidence : medium — inventaire exhaustif du journal fourni et inspection ciblée des sources/consommateurs, mais profils supplémentaires et tests adaptateurs non relancés ; certains usages cfg doivent être confirmés avant suppression.
 - Plan quality check : passed, auto-contrôle documentaire ; aucune revue indépendante du plan revendiquée.
 - Notation : `adapters/` signifie `crates/whisper-adapters/`, `desktop/` signifie `crates/whisper-desktop/` ; les chemins abrégés de tests se rattachent à la crate de la tâche.
@@ -86,108 +86,108 @@ L'absence de consommateurs externes au dépôt n'est pas démontrée. Les ajouts
 
 ## 4. Finding Traceability
 
-Chaque emplacement a un ID stable A01–A85 ou D01–D13 et une tâche. Les numéros de ligne sont ceux de HEAD lors de l'analyse ; la recherche par symbole prime après modification. Tous les constats du journal sont **Planned**. La dette des autres profils/cibles non mesurés reste **Deferred** jusqu'au relevé autorisé, sans promesse de nettoyage implicite. Les risques de conservation sont IMPORTANT ; les autres diagnostics sont MINEUR, sans panne fonctionnelle affirmée.
+Chaque emplacement a un ID stable A01–A85 ou D01–D13 et une tâche. Les numéros de ligne sont ceux de HEAD lors de l'analyse ; la recherche par symbole prime après modification. Les 98 constats initialement Planned sont désormais **Already resolved** après implémentation, contrôles et revue de leur lot. La dette des autres profils/cibles non mesurés reste **Deferred** jusqu'au relevé autorisé, sans promesse de nettoyage implicite. Les risques de conservation sont IMPORTANT ; les autres diagnostics sont MINEUR, sans panne fonctionnelle affirmée.
 
 | Audit finding | Severity | Disposition | Task IDs / gate | Notes |
 | --- | --- | --- | --- | --- |
-| A01 `crates/whisper-adapters/src/parakeet_live.rs:11` | MINEUR | Planned | S6 | unused import: `MicrophoneSpectrumReader` |
-| A02 `crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs:247` | MINEUR | Planned | T1 | `unused_unit` |
-| A03 `crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs:249` | MINEUR | Planned | T1 | `unused_unit` |
-| A04 `crates/whisper-adapters/src/worker_ipc/runtime/queue.rs:22` | MINEUR | Planned | T1 | `unused_unit` |
-| A05 `crates/whisper-adapters/src/worker_ipc/runtime/queue.rs:28` | MINEUR | Planned | T1 | `unused_unit` |
-| A06 `crates/whisper-adapters/src/archive/cleanup/proofs.rs:310` | MINEUR | Planned | P3 | unused variable: `existing` |
-| A07 `crates/whisper-adapters/src/archive/journal.rs:185` | MINEUR | Planned | P3 | variable does not need to be mutable |
-| A08 `crates/whisper-adapters/src/archive/publication.rs:228` | MINEUR | Planned | P3 | value assigned to `plan` is never read |
-| A09 `crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs:231` | MINEUR | Planned | T2 | unused variable: `pid` |
-| A10 `crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs:256` | MINEUR | Planned | T2 | unused variable: `pid` |
-| A11 `crates/whisper-adapters/src/worker_ipc/runtime/live.rs:234` | MINEUR | Planned | T2 | unused variable: `session` |
-| A12 `crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs:453` | MINEUR | Planned | T3 | variable does not need to be mutable |
-| A13 `crates/whisper-adapters/src/worker_ipc/service/automatic_final.rs:54` | MINEUR | Planned | T2 | unused variable: `generation` |
-| A14 `crates/whisper-adapters/src/parakeet_audio.rs:348` | MINEUR | Planned | S5 | field `index_path` is never read |
-| A15 `crates/whisper-adapters/src/parakeet_live.rs:921` | MINEUR | Planned | S6 | methods `session_id` and `destination` are never used |
-| A16 `crates/whisper-adapters/src/parakeet_confirmation.rs:166` | MINEUR | Planned | S6 | methods `finalize` and `ingest` are never used |
-| A17 `crates/whisper-adapters/src/source_binding.rs:79` | IMPORTANT | Planned | P1 | field `0` is never read |
-| A18 `crates/whisper-adapters/src/source_binding.rs:1133` | IMPORTANT | Planned | P4 | method `release_record` is never used |
-| A19 `crates/whisper-adapters/src/windows_file_identity.rs:38` | IMPORTANT | Planned | P2 | field `identity` is never read |
-| A20 `crates/whisper-adapters/src/worker_ipc/runtime/mod.rs:155` | IMPORTANT | Planned | C6 | associated function `new_with_workers_and_parakeet` is never used |
-| A21 `crates/whisper-adapters/src/archive/cleanup/execution.rs:328` | MINEUR | Planned | S1 | `collapsible_if` |
-| A22 `crates/whisper-adapters/src/archive/identity.rs:223` | MINEUR | Planned | S1 | `manual_is_multiple_of` |
-| A23 `crates/whisper-adapters/src/archive/identity.rs:311` | MINEUR | Planned | S1 | `manual_is_multiple_of` |
-| A24 `crates/whisper-adapters/src/archive/publication/catalog.rs:17` | IMPORTANT | Planned | P1 | `suspicious_open_options` |
-| A25 `crates/whisper-adapters/src/archive/publication/catalog.rs:348` | IMPORTANT | Planned | C7 | `too_many_arguments` |
-| A26 `crates/whisper-adapters/src/archive/publication/catalog.rs:633` | IMPORTANT | Planned | C7 | `too_many_arguments` |
-| A27 `crates/whisper-adapters/src/archive/publication/catalog.rs:921` | MINEUR | Planned | S2 | `manual_range_patterns` |
-| A28 `crates/whisper-adapters/src/archive/publication/catalog.rs:933` | MINEUR | Planned | S2 | `format_in_format_args` |
-| A29 `crates/whisper-adapters/src/archive/publication/exports.rs:329` | IMPORTANT | Planned | C8 | `too_many_arguments` |
-| A30 `crates/whisper-adapters/src/archive/recovery.rs:650` | MINEUR | Planned | S1 | `manual_range_patterns` |
-| A31 `crates/whisper-adapters/src/archive.rs:336` | IMPORTANT | Planned | C8 | `type_complexity` |
-| A32 `crates/whisper-adapters/src/capture.rs:263` | IMPORTANT | Planned | C2 | `too_many_arguments` |
-| A33 `crates/whisper-adapters/src/gpu_inventory/windows_native.rs:55` | MINEUR | Planned | S3 | `field_reassign_with_default` |
-| A34 `crates/whisper-adapters/src/gpu_inventory/windows_native.rs:78` | MINEUR | Planned | S3 | `field_reassign_with_default` |
-| A35 `crates/whisper-adapters/src/gpu_inventory.rs:38` | MINEUR | Planned | C1 | `type_complexity` |
-| A36 `crates/whisper-adapters/src/gpu_inventory.rs:324` | MINEUR | Planned | S3 | `needless_return` |
-| A37 `crates/whisper-adapters/src/gpu_inventory.rs:328` | MINEUR | Planned | C1 | `too_many_arguments` |
-| A38 `crates/whisper-adapters/src/microphone_probe.rs:264` | MINEUR | Planned | S3 | `collapsible_if` |
-| A39 `crates/whisper-adapters/src/model_catalog.rs:59` | MINEUR | Planned | S4 | `io_other_error` |
-| A40 `crates/whisper-adapters/src/model_catalog.rs:98` | MINEUR | Planned | S4 | `io_other_error` |
-| A41 `crates/whisper-adapters/src/model_catalog.rs:168` | MINEUR | Planned | S4 | `io_other_error` |
-| A42 `crates/whisper-adapters/src/model_catalog.rs:191` | MINEUR | Planned | S4 | `io_other_error` |
-| A43 `crates/whisper-adapters/src/model_catalog.rs:201` | MINEUR | Planned | S4 | `io_other_error` |
-| A44 `crates/whisper-adapters/src/parakeet_audio.rs:735` | MINEUR | Planned | S5 | `chunks_exact_to_as_chunks` |
-| A45 `crates/whisper-adapters/src/parakeet_document.rs:171` | MINEUR | Planned | S5 | `manual_is_multiple_of` |
-| A46 `crates/whisper-adapters/src/parakeet_import.rs:150` | MINEUR | Planned | S6 | `cmp_owned` |
-| A47 `crates/whisper-adapters/src/parakeet_live.rs:179` | MINEUR | Planned | S6 | `needless_question_mark` |
-| A48 `crates/whisper-adapters/src/parakeet_live.rs:379` | MINEUR | Planned | S6 | `derivable_impls` |
-| A49 `crates/whisper-adapters/src/parakeet_live.rs:1438` | MINEUR | Planned | S6 | `collapsible_if` |
-| A50 `crates/whisper-adapters/src/parakeet_live.rs:1721` | MINEUR | Planned | S6 | `collapsible_if` |
-| A51 `crates/whisper-adapters/src/parakeet_live.rs:1722` | MINEUR | Planned | S6 | `collapsible_if` |
-| A52 `crates/whisper-adapters/src/parakeet_live.rs:2193` | IMPORTANT | Planned | C3 | `too_many_arguments` |
-| A53 `crates/whisper-adapters/src/parakeet_live.rs:2548` | IMPORTANT | Planned | C3 | `too_many_arguments` |
-| A54 `crates/whisper-adapters/src/parakeet_pipeline.rs:479` | MINEUR | Planned | S5 | `needless_borrow` |
-| A55 `crates/whisper-adapters/src/path_settings.rs:166` | MINEUR | Planned | S4 | `new_without_default` |
-| A56 `crates/whisper-adapters/src/queue_store.rs:492` | MINEUR | Planned | S4 | `collapsible_if` |
-| A57 `crates/whisper-adapters/src/source_binding.rs:761` | IMPORTANT | Planned | P4 | `cmp_owned` |
-| A58 `crates/whisper-adapters/src/source_binding.rs:762` | IMPORTANT | Planned | P4 | `cmp_owned` |
-| A59 `crates/whisper-adapters/src/source_binding.rs:887` | IMPORTANT | Planned | P4 | `question_mark` |
-| A60 `crates/whisper-adapters/src/source_binding.rs:1245` | IMPORTANT | Planned | P1 | `suspicious_open_options` |
-| A61 `crates/whisper-adapters/src/source_binding.rs:1344` | IMPORTANT | Planned | P4 | `collapsible_if` |
-| A62 `crates/whisper-adapters/src/source_binding.rs:1366` | IMPORTANT | Planned | P1 | `suspicious_open_options` |
-| A63 `crates/whisper-adapters/src/source_binding.rs:1436` | IMPORTANT | Planned | P4 | `cmp_owned` |
-| A64 `crates/whisper-adapters/src/windows_file_identity.rs:137` | IMPORTANT | Planned | P2 | `unnecessary_cast` |
-| A65 `crates/whisper-adapters/src/windows_file_identity.rs:155` | IMPORTANT | Planned | P2 | `unnecessary_cast` |
-| A66 `crates/whisper-adapters/src/windows_file_identity.rs:168` | IMPORTANT | Planned | P2 | `unnecessary_cast` |
-| A67 `crates/whisper-adapters/src/worker_ipc/ipc/mod.rs:303` | IMPORTANT | Planned | E1 | `large_enum_variant` |
-| A68 `crates/whisper-adapters/src/worker_ipc/parakeet_unified/mod.rs:105` | IMPORTANT | Planned | E3 | `large_enum_variant` |
-| A69 `crates/whisper-adapters/src/worker_ipc/runtime/live.rs:1318` | MINEUR | Planned | T2 | `let_unit_value` |
-| A70 `crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs:387` | IMPORTANT | Planned | C4 | `too_many_arguments` |
-| A71 `crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs:465` | MINEUR | Planned | T3 | `collapsible_if` |
-| A72 `crates/whisper-adapters/src/worker_ipc/runtime/poll.rs:347` | MINEUR | Planned | T3 | `question_mark` |
-| A73 `crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs:21` | IMPORTANT | Planned | C5 | `too_many_arguments` |
-| A74 `crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs:667` | MINEUR | Planned | T3 | `collapsible_if` |
-| A75 `crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs:886` | MINEUR | Planned | T3 | `collapsible_if` |
-| A76 `crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs:53` | MINEUR | Planned | T4 | `needless_borrow` |
-| A77 `crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs:281` | MINEUR | Planned | T4 | `collapsible_if` |
-| A78 `crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs:15` | MINEUR | Planned | T4 | `map_entry` |
-| A79 `crates/whisper-adapters/src/worker_ipc/runtime/support.rs:3` | IMPORTANT | Planned | E2 | `large_enum_variant` |
-| A80 `crates/whisper-adapters/src/worker_ipc/runtime/support.rs:416` | MINEUR | Planned | T1 | `collapsible_if` |
-| A81 `crates/whisper-adapters/src/worker_ipc/runtime/support.rs:448` | MINEUR | Planned | T1 | `collapsible_if` |
-| A82 `crates/whisper-adapters/src/worker_ipc/runtime/mod.rs:71` | IMPORTANT | Planned | C6 | `type_complexity` |
-| A83 `crates/whisper-adapters/src/worker_ipc/runtime/mod.rs:174` | IMPORTANT | Planned | C6 | `too_many_arguments` |
-| A84 `crates/whisper-adapters/src/worker_ipc/service/mod.rs:35` | IMPORTANT | Planned | C6 | `type_complexity` |
-| A85 `crates/whisper-adapters/src/worker_ipc/service/mod.rs:159` | IMPORTANT | Planned | C6 | `too_many_arguments` |
-| D01 `crates/whisper-desktop/src/ui/model/view/microphone.rs:246` | MINEUR | Planned | D1 | unused variable: `response` |
-| D02 `crates/whisper-desktop/src/ui/presentation/selection.rs:86` | MINEUR | Planned | D1 | unused variable: `model` |
-| D03 `crates/whisper-desktop/src/ui/model/preferences.rs:62` | IMPORTANT | Planned | D4 | `result_unit_err` |
-| D04 `crates/whisper-desktop/src/ui/model/preferences.rs:78` | IMPORTANT | Planned | D4 | `result_unit_err` |
-| D05 `crates/whisper-desktop/src/ui/model/view/capture.rs:319` | MINEUR | Planned | D2 | `collapsible_if` |
-| D06 `crates/whisper-desktop/src/ui/model.rs:95` | MINEUR | Planned | D3 | `type_complexity` |
-| D07 `crates/whisper-desktop/src/lib.rs:6` | IMPORTANT | Planned | D5 | `too_many_arguments` |
-| D08 `crates/whisper-desktop/src/ui/model/view/unified.rs:287` | MINEUR | Planned | D1 | unused return value of `eframe::egui::Ui::selectable_label` that must be used |
-| D09 `crates/whisper-desktop/src/ui/model/view/unified.rs:337` | MINEUR | Planned | D1 | unused return value of `eframe::egui::Ui::selectable_label` that must be used |
-| D10 `crates/whisper-desktop/src/ui/model/view/unified.rs:341` | MINEUR | Planned | D1 | unused return value of `eframe::egui::Ui::selectable_label` that must be used |
-| D11 `crates/whisper-desktop/src/ui/tests/support.rs:434` | MINEUR | Planned | D2 | `type_complexity` |
-| D12 `crates/whisper-desktop/src/root.rs:837` | MINEUR | Planned | D2 | `op_ref` |
-| D13 `crates/whisper-desktop/src/root.rs:844` | MINEUR | Planned | D2 | `op_ref` |
+| A01 `crates/whisper-adapters/src/parakeet_live.rs:11` | MINEUR | Already resolved | S6 | unused import: `MicrophoneSpectrumReader` |
+| A02 `crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs:247` | MINEUR | Already resolved | T1 | `unused_unit` |
+| A03 `crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs:249` | MINEUR | Already resolved | T1 | `unused_unit` |
+| A04 `crates/whisper-adapters/src/worker_ipc/runtime/queue.rs:22` | MINEUR | Already resolved | T1 | `unused_unit` |
+| A05 `crates/whisper-adapters/src/worker_ipc/runtime/queue.rs:28` | MINEUR | Already resolved | T1 | `unused_unit` |
+| A06 `crates/whisper-adapters/src/archive/cleanup/proofs.rs:310` | MINEUR | Already resolved | P3 | unused variable: `existing` |
+| A07 `crates/whisper-adapters/src/archive/journal.rs:185` | MINEUR | Already resolved | P3 | variable does not need to be mutable |
+| A08 `crates/whisper-adapters/src/archive/publication.rs:228` | MINEUR | Already resolved | P3 | value assigned to `plan` is never read |
+| A09 `crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs:231` | MINEUR | Already resolved | T2 | unused variable: `pid` |
+| A10 `crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs:256` | MINEUR | Already resolved | T2 | unused variable: `pid` |
+| A11 `crates/whisper-adapters/src/worker_ipc/runtime/live.rs:234` | MINEUR | Already resolved | T2 | unused variable: `session` |
+| A12 `crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs:453` | MINEUR | Already resolved | T3 | variable does not need to be mutable |
+| A13 `crates/whisper-adapters/src/worker_ipc/service/automatic_final.rs:54` | MINEUR | Already resolved | T2 | unused variable: `generation` |
+| A14 `crates/whisper-adapters/src/parakeet_audio.rs:348` | MINEUR | Already resolved | S5 | field `index_path` is never read |
+| A15 `crates/whisper-adapters/src/parakeet_live.rs:921` | MINEUR | Already resolved | S6 | methods `session_id` and `destination` are never used |
+| A16 `crates/whisper-adapters/src/parakeet_confirmation.rs:166` | MINEUR | Already resolved | S6 | methods `finalize` and `ingest` are never used |
+| A17 `crates/whisper-adapters/src/source_binding.rs:79` | IMPORTANT | Already resolved | P1 | field `0` is never read |
+| A18 `crates/whisper-adapters/src/source_binding.rs:1133` | IMPORTANT | Already resolved | P4 | method `release_record` is never used |
+| A19 `crates/whisper-adapters/src/windows_file_identity.rs:38` | IMPORTANT | Already resolved | P2 | field `identity` is never read |
+| A20 `crates/whisper-adapters/src/worker_ipc/runtime/mod.rs:155` | IMPORTANT | Already resolved | C6 | associated function `new_with_workers_and_parakeet` is never used |
+| A21 `crates/whisper-adapters/src/archive/cleanup/execution.rs:328` | MINEUR | Already resolved | S1 | `collapsible_if` |
+| A22 `crates/whisper-adapters/src/archive/identity.rs:223` | MINEUR | Already resolved | S1 | `manual_is_multiple_of` |
+| A23 `crates/whisper-adapters/src/archive/identity.rs:311` | MINEUR | Already resolved | S1 | `manual_is_multiple_of` |
+| A24 `crates/whisper-adapters/src/archive/publication/catalog.rs:17` | IMPORTANT | Already resolved | P1 | `suspicious_open_options` |
+| A25 `crates/whisper-adapters/src/archive/publication/catalog.rs:348` | IMPORTANT | Already resolved | C7 | `too_many_arguments` |
+| A26 `crates/whisper-adapters/src/archive/publication/catalog.rs:633` | IMPORTANT | Already resolved | C7 | `too_many_arguments` |
+| A27 `crates/whisper-adapters/src/archive/publication/catalog.rs:921` | MINEUR | Already resolved | S2 | `manual_range_patterns` |
+| A28 `crates/whisper-adapters/src/archive/publication/catalog.rs:933` | MINEUR | Already resolved | S2 | `format_in_format_args` |
+| A29 `crates/whisper-adapters/src/archive/publication/exports.rs:329` | IMPORTANT | Already resolved | C8 | `too_many_arguments` |
+| A30 `crates/whisper-adapters/src/archive/recovery.rs:650` | MINEUR | Already resolved | S1 | `manual_range_patterns` |
+| A31 `crates/whisper-adapters/src/archive.rs:336` | IMPORTANT | Already resolved | C8 | `type_complexity` |
+| A32 `crates/whisper-adapters/src/capture.rs:263` | IMPORTANT | Already resolved | C2 | `too_many_arguments` |
+| A33 `crates/whisper-adapters/src/gpu_inventory/windows_native.rs:55` | MINEUR | Already resolved | S3 | `field_reassign_with_default` |
+| A34 `crates/whisper-adapters/src/gpu_inventory/windows_native.rs:78` | MINEUR | Already resolved | S3 | `field_reassign_with_default` |
+| A35 `crates/whisper-adapters/src/gpu_inventory.rs:38` | MINEUR | Already resolved | C1 | `type_complexity` |
+| A36 `crates/whisper-adapters/src/gpu_inventory.rs:324` | MINEUR | Already resolved | S3 | `needless_return` |
+| A37 `crates/whisper-adapters/src/gpu_inventory.rs:328` | MINEUR | Already resolved | C1 | `too_many_arguments` |
+| A38 `crates/whisper-adapters/src/microphone_probe.rs:264` | MINEUR | Already resolved | S3 | `collapsible_if` |
+| A39 `crates/whisper-adapters/src/model_catalog.rs:59` | MINEUR | Already resolved | S4 | `io_other_error` |
+| A40 `crates/whisper-adapters/src/model_catalog.rs:98` | MINEUR | Already resolved | S4 | `io_other_error` |
+| A41 `crates/whisper-adapters/src/model_catalog.rs:168` | MINEUR | Already resolved | S4 | `io_other_error` |
+| A42 `crates/whisper-adapters/src/model_catalog.rs:191` | MINEUR | Already resolved | S4 | `io_other_error` |
+| A43 `crates/whisper-adapters/src/model_catalog.rs:201` | MINEUR | Already resolved | S4 | `io_other_error` |
+| A44 `crates/whisper-adapters/src/parakeet_audio.rs:735` | MINEUR | Already resolved | S5 | `chunks_exact_to_as_chunks` |
+| A45 `crates/whisper-adapters/src/parakeet_document.rs:171` | MINEUR | Already resolved | S5 | `manual_is_multiple_of` |
+| A46 `crates/whisper-adapters/src/parakeet_import.rs:150` | MINEUR | Already resolved | S6 | `cmp_owned` |
+| A47 `crates/whisper-adapters/src/parakeet_live.rs:179` | MINEUR | Already resolved | S6 | `needless_question_mark` |
+| A48 `crates/whisper-adapters/src/parakeet_live.rs:379` | MINEUR | Already resolved | S6 | `derivable_impls` |
+| A49 `crates/whisper-adapters/src/parakeet_live.rs:1438` | MINEUR | Already resolved | S6 | `collapsible_if` |
+| A50 `crates/whisper-adapters/src/parakeet_live.rs:1721` | MINEUR | Already resolved | S6 | `collapsible_if` |
+| A51 `crates/whisper-adapters/src/parakeet_live.rs:1722` | MINEUR | Already resolved | S6 | `collapsible_if` |
+| A52 `crates/whisper-adapters/src/parakeet_live.rs:2193` | IMPORTANT | Already resolved | C3 | `too_many_arguments` |
+| A53 `crates/whisper-adapters/src/parakeet_live.rs:2548` | IMPORTANT | Already resolved | C3 | `too_many_arguments` |
+| A54 `crates/whisper-adapters/src/parakeet_pipeline.rs:479` | MINEUR | Already resolved | S5 | `needless_borrow` |
+| A55 `crates/whisper-adapters/src/path_settings.rs:166` | MINEUR | Already resolved | S4 | `new_without_default` |
+| A56 `crates/whisper-adapters/src/queue_store.rs:492` | MINEUR | Already resolved | S4 | `collapsible_if` |
+| A57 `crates/whisper-adapters/src/source_binding.rs:761` | IMPORTANT | Already resolved | P4 | `cmp_owned` |
+| A58 `crates/whisper-adapters/src/source_binding.rs:762` | IMPORTANT | Already resolved | P4 | `cmp_owned` |
+| A59 `crates/whisper-adapters/src/source_binding.rs:887` | IMPORTANT | Already resolved | P4 | `question_mark` |
+| A60 `crates/whisper-adapters/src/source_binding.rs:1245` | IMPORTANT | Already resolved | P1 | `suspicious_open_options` |
+| A61 `crates/whisper-adapters/src/source_binding.rs:1344` | IMPORTANT | Already resolved | P4 | `collapsible_if` |
+| A62 `crates/whisper-adapters/src/source_binding.rs:1366` | IMPORTANT | Already resolved | P1 | `suspicious_open_options` |
+| A63 `crates/whisper-adapters/src/source_binding.rs:1436` | IMPORTANT | Already resolved | P4 | `cmp_owned` |
+| A64 `crates/whisper-adapters/src/windows_file_identity.rs:137` | IMPORTANT | Already resolved | P2 | `unnecessary_cast` |
+| A65 `crates/whisper-adapters/src/windows_file_identity.rs:155` | IMPORTANT | Already resolved | P2 | `unnecessary_cast` |
+| A66 `crates/whisper-adapters/src/windows_file_identity.rs:168` | IMPORTANT | Already resolved | P2 | `unnecessary_cast` |
+| A67 `crates/whisper-adapters/src/worker_ipc/ipc/mod.rs:303` | IMPORTANT | Already resolved | E1 | `large_enum_variant` |
+| A68 `crates/whisper-adapters/src/worker_ipc/parakeet_unified/mod.rs:105` | IMPORTANT | Already resolved | E3 | `large_enum_variant` |
+| A69 `crates/whisper-adapters/src/worker_ipc/runtime/live.rs:1318` | MINEUR | Already resolved | T2 | `let_unit_value` |
+| A70 `crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs:387` | IMPORTANT | Already resolved | C4 | `too_many_arguments` |
+| A71 `crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs:465` | MINEUR | Already resolved | T3 | `collapsible_if` |
+| A72 `crates/whisper-adapters/src/worker_ipc/runtime/poll.rs:347` | MINEUR | Already resolved | T3 | `question_mark` |
+| A73 `crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs:21` | IMPORTANT | Already resolved | C5 | `too_many_arguments` |
+| A74 `crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs:667` | MINEUR | Already resolved | T3 | `collapsible_if` |
+| A75 `crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs:886` | MINEUR | Already resolved | T3 | `collapsible_if` |
+| A76 `crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs:53` | MINEUR | Already resolved | T4 | `needless_borrow` |
+| A77 `crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs:281` | MINEUR | Already resolved | T4 | `collapsible_if` |
+| A78 `crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs:15` | MINEUR | Already resolved | T4 | `map_entry` |
+| A79 `crates/whisper-adapters/src/worker_ipc/runtime/support.rs:3` | IMPORTANT | Already resolved | E2 | `large_enum_variant` |
+| A80 `crates/whisper-adapters/src/worker_ipc/runtime/support.rs:416` | MINEUR | Already resolved | T1 | `collapsible_if` |
+| A81 `crates/whisper-adapters/src/worker_ipc/runtime/support.rs:448` | MINEUR | Already resolved | T1 | `collapsible_if` |
+| A82 `crates/whisper-adapters/src/worker_ipc/runtime/mod.rs:71` | IMPORTANT | Already resolved | C6 | `type_complexity` |
+| A83 `crates/whisper-adapters/src/worker_ipc/runtime/mod.rs:174` | IMPORTANT | Already resolved | C6 | `too_many_arguments` |
+| A84 `crates/whisper-adapters/src/worker_ipc/service/mod.rs:35` | IMPORTANT | Already resolved | C6 | `type_complexity` |
+| A85 `crates/whisper-adapters/src/worker_ipc/service/mod.rs:159` | IMPORTANT | Already resolved | C6 | `too_many_arguments` |
+| D01 `crates/whisper-desktop/src/ui/model/view/microphone.rs:246` | MINEUR | Already resolved | D1 | unused variable: `response` |
+| D02 `crates/whisper-desktop/src/ui/presentation/selection.rs:86` | MINEUR | Already resolved | D1 | unused variable: `model` |
+| D03 `crates/whisper-desktop/src/ui/model/preferences.rs:62` | IMPORTANT | Already resolved | D4 | `result_unit_err` |
+| D04 `crates/whisper-desktop/src/ui/model/preferences.rs:78` | IMPORTANT | Already resolved | D4 | `result_unit_err` |
+| D05 `crates/whisper-desktop/src/ui/model/view/capture.rs:319` | MINEUR | Already resolved | D2 | `collapsible_if` |
+| D06 `crates/whisper-desktop/src/ui/model.rs:95` | MINEUR | Already resolved | D3 | `type_complexity` |
+| D07 `crates/whisper-desktop/src/lib.rs:6` | IMPORTANT | Already resolved | D5 | `too_many_arguments` |
+| D08 `crates/whisper-desktop/src/ui/model/view/unified.rs:287` | MINEUR | Already resolved | D1 | unused return value of `eframe::egui::Ui::selectable_label` that must be used |
+| D09 `crates/whisper-desktop/src/ui/model/view/unified.rs:337` | MINEUR | Already resolved | D1 | unused return value of `eframe::egui::Ui::selectable_label` that must be used |
+| D10 `crates/whisper-desktop/src/ui/model/view/unified.rs:341` | MINEUR | Already resolved | D1 | unused return value of `eframe::egui::Ui::selectable_label` that must be used |
+| D11 `crates/whisper-desktop/src/ui/tests/support.rs:434` | MINEUR | Already resolved | D2 | `type_complexity` |
+| D12 `crates/whisper-desktop/src/root.rs:837` | MINEUR | Already resolved | D2 | `op_ref` |
+| D13 `crates/whisper-desktop/src/root.rs:844` | MINEUR | Already resolved | D2 | `op_ref` |
 | Autres warnings tests adaptateurs/profils/workers non mesurés | À qualifier | Deferred | G-SCOPE | Ne pas annoncer zéro ni les corriger sans extension précise |
 
 ## 5. Recommended Sequence
@@ -714,7 +714,7 @@ Seuls les gates de produit/périmètre doivent être soumis à l'utilisateur. G-
 | Paths real or proposed explicitly | Pass | Nouvelle campagne/test/paramètres sont des cibles futures nommées |
 | Phase-by-phase scope narrow | Pass | Chaque lot ferme ses sites et invariants avant suite |
 
-Vérifications réellement réalisées pour cette livraison : lecture des sources, journal et manifestes ; extraction/dédoublonnage en mémoire des diagnostics ; recherches des consommateurs ; état Git, lecture des consignes et `git diff --check` documentaire. Aucun Cargo, modification Rust/test/configuration/garde, modèle, moteur, fenêtre ou push. L'auteur principal écrit et commite ce seul document. L'analyse n'est pas une nouvelle preuve d'exécution.
+Vérifications réellement réalisées pour la livraison documentaire initiale : lecture des sources, journal et manifestes ; extraction/dédoublonnage en mémoire des diagnostics ; recherches des consommateurs ; état Git, lecture des consignes et `git diff --check` documentaire. À ce stade initial, aucun Cargo, modification Rust/test/configuration/garde, modèle, moteur, fenêtre ou push. L'auteur principal écrit et commite les documents ; les preuves d'implémentation et de validation ultérieures sont distinguées dans les bilans en section 11. L'analyse initiale seule n'est pas une preuve d'exécution.
 
 ## 11. Implementation Agent Prompt
 
@@ -862,6 +862,28 @@ Reprise technique **proposée, NON EXÉCUTÉE et soumise à arbitrage** : dix ap
 Même sélection baseline/candidat, profils défaut et personal-install distincts ; filtres non vides vérifiés. Les scénarios de racines historiques retournant tôt ne sont pas des PASS de qualification. Après baseline valable seulement, D1–D5 puis contrôles finaux et revue indépendante avant commit. Tous autres arrêts et l'exclusion des recettes natives/UI restent maintenus ; pas de push. Aucun lancement de cette reprise avant arbitrage utilisateur après l'exécution hors périmètre et les échecs.
 
 Accord courant de l'utilisateur : « oui je t'autorise », répondant à la demande précise de reprendre D avec un appel explicite et contrôlé par commande, sans boucle d'arguments, garde et arrêts inchangés. Les dix commandes proposées deviennent la sélection technique autorisée, avec contrôle préalable du tableau littéral complet à chaque appel. Refaire espace/SelfTest, établir la baseline admissible puis D1–D5 et contrôles finaux ; aucune commande accidentelle antérieure ne vaut preuve. La reprise ne donne pas d'autorisation de test global non filtré, recette native/UI ou push.
+
+### Livraison du lot D et clôture des six lots
+
+Baseline logique D `f3b361312375331143a5798795628f3b862ee4d7`. Reprise sous garde inchangée, SelfTest et préflight PASS ; dix appels explicites distincts, arguments/package/cible/filtre/feature vérifiés avant chaque garde. Baseline valable **58 tests réussis par profil** (défaut `5ba8d20c` à `fe54ae4c`, personnel `332f6ba8` à `3fff9202`), sans réutilisation du run accidentel. Candidat D1–D5 dans 12 fichiers desktop, sans source core/adapters modifiée : widgets et messages inchangés, instrumentation rectangle conservée, alias tuple de requête, erreur nommée de canal et réexports, neuf champs de DesktopStartup et seul appel main coordonnés.
+
+Consolidé final **59 tests réussis dans chacun des deux profils**, soit 118 exécutions : 40 tests lib UI, un binaire exact de métadonnées, deux micro, dix préférences, six GPU ; augmentation d'un test de préférences. Profil défaut runs `1fb3ffdc` à `69ba4544` ; profil personnel `86674611` à **`214e8415`** (GPU personnel six réussis), test préférences personnel `1ccd73e2` dix réussis avant GPU. **Clippy strict desktop all-targets `d53cfcd0` exit 0**, les **13 sites D fermés** ; check personnel `049af309`, format `08bb1350`, diff-check PASS. Check workspace final confirmé directement dans guard.jsonl : **20261031T105526456-ad4ef60d**, exit 0 (corrige l'identifiant erroné 61eaa24e du premier handoff). Les résultats core/adapters lib stricts de C restent applicables car aucune source concernée modifiée en D. Aucune compilation seule n'est annoncée comme test passé.
+
+Même reviewer indépendant : **CLEAN D1–D5**, un passage sans correction, aucun constat/demande/gap. Il confirme que saturation du canal reste succès, dernière préférence conservée, Poisoned/Disconnected suivent les branches d'erreur existantes, messages utilisateur et ordre de démarrage inchangés. Le run accidentel antérieur ne qualifie rien ; tests de racines historiques à retour anticipé non qualifiés, sélection positive différente d'une suite desktop globale. Recettes natives, matériel réel et fenêtre Windows non qualifiés ; aucune nouvelle qualification déduite de l'incident hors sélection.
+
+Archive `target/parakeet-tests/clippy-adapters-desktop/archive/lot-d-20261031/` : **748 fichiers source/748 copies, SHA-256 tous concordants**, garde et petits journaux avec arborescence, sans manifeste supplémentaire ni nettoyage. Espace final **180 927 270 912 octets**. Aucun fichier source modifié après revue, non-suivis préexistants conservés. Livraison D par commit local de clôture ; aucun push.
+
+| Lot | Livraison Git locale | Revue indépendante finale | Sites fermés |
+| --- | --- | --- | --- |
+| P | `0f0eab3e` | CLEAN | 17 |
+| S | `b08589f5` | CLEAN après un cycle | 30 |
+| T | `19716bda` | CLEAN après un cycle | 19 |
+| E | `1d47098f` | CLEAN | 3 |
+| C | `f3b36131` | CLEAN | 16 |
+| D | commit de cette clôture | CLEAN | 13 |
+| Total | six lots dans l'ordre | aucun constat ouvert | **98** |
+
+Bilan de portée : contrôles stricts **core lib**, **adapters lib** et **desktop all-targets (défaut)** PASS ; tests desktop synthétiques défaut/personnel et compilations workspace/personnel PASS. Pas de strict workspace/all-features/adapters all-targets, ni recette native/matérielle/Windows revendiqués. Les deux limites de provenance antérieures S/C restent documentées et acceptées pour revalidation par l'utilisateur ; contenu courant revu et vérifié, sans inventer d'auteur. Les arrêts, essais échoués et reprise hors sélection demeurent dans le bilan et les journaux. Aucun effacement de preuve ni livraison avec constat de code ouvert.
 
 
 

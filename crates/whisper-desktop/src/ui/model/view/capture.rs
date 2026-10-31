@@ -317,15 +317,14 @@ impl<A: Application> DesktopApp<A> {
                         });
                     });
                 if capture.capture_state == whisper_core::ports::ParakeetCaptureViewState::Capturing
+                    && let Some(text) = capture.provisional_text.as_deref()
                 {
-                    if let Some(text) = capture.provisional_text.as_deref() {
-                        let provisional = provisional_without_confirmed_prefix(capture, text);
-                        if let Some(provisional) = provisional {
-                            ui.label("Texte provisoire — peut changer");
-                            ui.label(provisional);
-                        } else {
-                            ui.small("Une hypothèse recouvre un bloc confirmé ; son contenu non séparable est masqué pour éviter les doublons.");
-                        }
+                    let provisional = provisional_without_confirmed_prefix(capture, text);
+                    if let Some(provisional) = provisional {
+                        ui.label("Texte provisoire — peut changer");
+                        ui.label(provisional);
+                    } else {
+                        ui.small("Une hypothèse recouvre un bloc confirmé ; son contenu non séparable est masqué pour éviter les doublons.");
                     }
                 }
             }

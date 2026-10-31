@@ -3,18 +3,33 @@
 mod reactivity_log;
 pub mod ui;
 
+pub struct DesktopStartup {
+    pub compute_choice: whisper_core::ComputeChoice,
+    pub startup_message: Option<String>,
+    pub paths: whisper_core::path_settings::PathSettingsApp,
+    pub microphone_port: Box<dyn whisper_core::MicrophonePort>,
+    pub gpu_probe: std::sync::mpsc::Receiver<Result<(), String>>,
+    pub gpu_inventory: whisper_core::gpu_inventory_app::GpuInventoryApp,
+    pub process_started_at_unix_ms: u64,
+    pub model_selection: ui::ModelSelectionRuntime,
+    pub unified_candidate_enabled: bool,
+}
+
 pub fn run<A: whisper_core::Application + 'static>(
     application: A,
-    compute_choice: whisper_core::ComputeChoice,
-    startup_message: Option<String>,
-    paths: whisper_core::path_settings::PathSettingsApp,
-    microphone_port: Box<dyn whisper_core::MicrophonePort>,
-    gpu_probe: std::sync::mpsc::Receiver<Result<(), String>>,
-    gpu_inventory: whisper_core::gpu_inventory_app::GpuInventoryApp,
-    process_started_at_unix_ms: u64,
-    model_selection: ui::ModelSelectionRuntime,
-    unified_candidate_enabled: bool,
+    startup: DesktopStartup,
 ) -> eframe::Result {
+    let DesktopStartup {
+        compute_choice,
+        startup_message,
+        paths,
+        microphone_port,
+        gpu_probe,
+        gpu_inventory,
+        process_started_at_unix_ms,
+        model_selection,
+        unified_candidate_enabled,
+    } = startup;
     eframe::run_native(
         "Whisper",
         eframe::NativeOptions {

@@ -31,7 +31,7 @@ use controller::{
 mod view;
 pub use preferences::{
     ModelPreferenceCommand, ModelPreferenceCommandReceiver, ModelPreferenceCommandSender,
-    ModelPreferenceEvent, ModelSelectionRuntime, SelectionWidgetState,
+    ModelPreferenceEvent, ModelSelectionRuntime, PreferenceChannelError, SelectionWidgetState,
     model_preference_command_channel,
 };
 #[cfg(test)]
@@ -44,6 +44,16 @@ mod tests;
 const IMPORT_CPU_MVP: bool = true;
 static NEXT_JOB: AtomicU64 = AtomicU64::new(1);
 static NEXT_IMPORT_JOB_ID: AtomicU64 = AtomicU64::new(1);
+
+type UnifiedAudioRequestKey = (
+    JobId,
+    Generation,
+    u64,
+    u64,
+    u64,
+    Option<u64>,
+    whisper_core::ports::UnifiedSessionPhase,
+);
 
 pub struct DesktopApp<A> {
     application: AppFacade<A>,
@@ -92,15 +102,7 @@ pub struct DesktopApp<A> {
     last_test_default_identity: Option<String>,
     confirmed_live_default_identity: Option<String>,
     last_unified_document_request: Option<(JobId, Generation, u64, u64)>,
-    last_unified_audio_request: Option<(
-        JobId,
-        Generation,
-        u64,
-        u64,
-        u64,
-        Option<u64>,
-        whisper_core::ports::UnifiedSessionPhase,
-    )>,
+    last_unified_audio_request: Option<UnifiedAudioRequestKey>,
     unified_wait_tracking: std::collections::HashMap<
         (JobId, Generation),
         (

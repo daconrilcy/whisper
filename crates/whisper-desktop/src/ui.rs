@@ -4,7 +4,7 @@ mod presentation;
 pub use model::{
     DesktopApp, ModelPreferenceCommand, ModelPreferenceCommandReceiver,
     ModelPreferenceCommandSender, ModelPreferenceEvent, ModelSelectionRuntime,
-    SelectionWidgetState, model_preference_command_channel,
+    PreferenceChannelError, SelectionWidgetState, model_preference_command_channel,
 };
 pub use presentation::{
     APPROVED_MODEL_SHA256, LanguageChoices, MicrophoneMeterPresentation, apply_initial_model,

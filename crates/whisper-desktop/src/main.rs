@@ -18,14 +18,16 @@ fn main() -> eframe::Result {
     } = root::compose();
     whisper_desktop::run(
         application,
-        compute_choice,
-        startup_message,
-        paths,
-        Box::new(whisper_adapters::capture::WasapiMicrophonePort),
-        gpu_probe,
-        gpu_inventory,
-        process_started_at_unix_ms,
-        model_selection,
-        unified_candidate_enabled,
+        whisper_desktop::DesktopStartup {
+            compute_choice,
+            startup_message,
+            paths,
+            microphone_port: Box::new(whisper_adapters::capture::WasapiMicrophonePort),
+            gpu_probe,
+            gpu_inventory,
+            process_started_at_unix_ms,
+            model_selection,
+            unified_candidate_enabled,
+        },
     )
 }

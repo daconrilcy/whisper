@@ -10,7 +10,10 @@ pub fn record_compute_selection_interaction(
     selected
 }
 
-pub fn record_preference_delivery(notice: &mut Option<String>, result: Result<(), ()>) {
+pub fn record_preference_delivery(
+    notice: &mut Option<String>,
+    result: Result<(), crate::ui::model::PreferenceChannelError>,
+) {
     if result.is_err() {
         *notice = Some("Préférence non enregistrée : service de préférences indisponible.".into());
     }
@@ -83,7 +86,7 @@ pub fn compute_for_model(
     preferred
 }
 
-pub fn model_supports_live(model: Option<whisper_core::model_catalog::ModelId>) -> bool {
+pub fn model_supports_live(_model: Option<whisper_core::model_catalog::ModelId>) -> bool {
     true
 }
 

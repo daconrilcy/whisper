@@ -834,14 +834,14 @@ mod tests {
         let l6_perso = repository
             .join("target/parakeet-tests/l6-perso")
             .canonicalize()
-            .is_ok_and(|expected| configured == &expected || configured.starts_with(expected));
+            .is_ok_and(|expected| configured == expected || configured.starts_with(expected));
         l6_perso
             || ["l3b", "l3c", "l3d"].into_iter().any(|lot| {
                 repository
                     .join(format!("target/parakeet-tests/l3/{lot}"))
                     .canonicalize()
                     .is_ok_and(|expected| {
-                        configured == &expected || configured.starts_with(expected)
+                        configured == expected || configured.starts_with(expected)
                     })
             })
     }

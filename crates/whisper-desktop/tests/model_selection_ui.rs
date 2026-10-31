@@ -7,8 +7,8 @@ use whisper_core::{
     path_settings::StartupComputePreference,
 };
 use whisper_desktop::ui::{
-    ModelPreferenceCommand, ModelPreferenceEvent, SelectionWidgetState, apply_initial_model,
-    apply_preference_event, apply_startup_preference, compute_for_model,
+    ModelPreferenceCommand, ModelPreferenceEvent, PreferenceChannelError, SelectionWidgetState,
+    apply_initial_model, apply_preference_event, apply_startup_preference, compute_for_model,
     language_choices_for_compute, language_option_labels, language_selection_combo,
     model_preference_command_channel, model_selection_combo, model_supports_live,
     record_compute_selection_interaction, record_preference_delivery,
@@ -313,6 +313,7 @@ fn disconnected_preference_worker_reports_failed_model_and_compute_saves() {
     let result = sender.send(ModelPreferenceCommand::ChooseModel(
         ModelId::WhisperLargeV3Turbo,
     ));
+    assert_eq!(result, Err(PreferenceChannelError::Disconnected));
     record_preference_delivery(&mut save_notice, result);
     assert_eq!(
         save_notice.as_deref(),
@@ -326,6 +327,7 @@ fn disconnected_preference_worker_reports_failed_model_and_compute_saves() {
     let result = sender.send(ModelPreferenceCommand::ChooseStartupCompute(
         StartupComputePreference::Auto,
     ));
+    assert_eq!(result, Err(PreferenceChannelError::Disconnected));
     record_preference_delivery(&mut save_notice, result);
     assert_eq!(
         save_notice.as_deref(),
@@ -335,6 +337,16 @@ fn disconnected_preference_worker_reports_failed_model_and_compute_saves() {
         load_notice.as_deref(),
         Some("Impossible de lire les préférences de modèle.")
     );
+}
+
+#[test]
+fn preference_receiver_reports_disconnected_after_last_sender_drops() {
+    let (sender, receiver) = model_preference_command_channel();
+    drop(sender);
+    assert!(matches!(
+        receiver.recv(),
+        Err(PreferenceChannelError::Disconnected)
+    ));
 }
 
 fn rendered_text(shapes: Vec<egui::epaint::ClippedShape>) -> String {

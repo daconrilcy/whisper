@@ -243,11 +243,11 @@ impl<A: Application> DesktopApp<A> {
             }
         }
         if saturated {
-            let response =
+            let _response =
                 ui.colored_label(MICROPHONE_SATURATION_COLOR, MICROPHONE_SATURATION_LABEL);
             #[cfg(test)]
             {
-                self.microphone_saturation_badge_rect = Some(response.rect);
+                self.microphone_saturation_badge_rect = Some(_response.rect);
             }
         }
         if self.view.microphone_acquisition.is_some() {

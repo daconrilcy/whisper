@@ -431,7 +431,9 @@ struct OneMicrophone;
 struct ChangingDefaultMicrophone(Rc<RefCell<String>>);
 
 #[derive(Clone, Default)]
-struct ControlledGpuInventory(Rc<RefCell<VecDeque<(u64, Result<GpuCollection, String>)>>>);
+struct ControlledGpuInventory(ControlledGpuResponseQueue);
+
+type ControlledGpuResponseQueue = Rc<RefCell<VecDeque<(u64, Result<GpuCollection, String>)>>>;
 
 impl GpuInventoryPort for ControlledGpuInventory {
     fn start(&mut self, _generation: u64) -> Result<(), String> {

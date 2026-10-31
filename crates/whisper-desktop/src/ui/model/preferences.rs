@@ -30,6 +30,23 @@ struct PendingPreferenceChoices {
     startup_compute: Option<whisper_core::path_settings::StartupComputePreference>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PreferenceChannelError {
+    Poisoned,
+    Disconnected,
+}
+
+impl std::fmt::Display for PreferenceChannelError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Poisoned => formatter.write_str("preference mailbox lock poisoned"),
+            Self::Disconnected => formatter.write_str("preference channel disconnected"),
+        }
+    }
+}
+
+impl std::error::Error for PreferenceChannelError {}
+
 /// Bounded wake channel with a coalescing latest-choice mailbox for preference persistence.
 #[derive(Clone)]
 pub struct ModelPreferenceCommandSender {
@@ -59,8 +76,11 @@ pub fn model_preference_command_channel()
 }
 
 impl ModelPreferenceCommandSender {
-    pub fn send(&self, command: ModelPreferenceCommand) -> Result<(), ()> {
-        let mut pending = self.pending.lock().map_err(|_| ())?;
+    pub fn send(&self, command: ModelPreferenceCommand) -> Result<(), PreferenceChannelError> {
+        let mut pending = self
+            .pending
+            .lock()
+            .map_err(|_| PreferenceChannelError::Poisoned)?;
         match command {
             ModelPreferenceCommand::ChooseModel(model) => pending.model = Some(model),
             ModelPreferenceCommand::ChooseStartupCompute(choice) => {
@@ -69,15 +89,20 @@ impl ModelPreferenceCommandSender {
         }
         match self.wake.try_send(()) {
             Ok(()) | Err(TrySendError::Full(())) => Ok(()),
-            Err(TrySendError::Disconnected(())) => Err(()),
+            Err(TrySendError::Disconnected(())) => Err(PreferenceChannelError::Disconnected),
         }
     }
 }
 
 impl ModelPreferenceCommandReceiver {
-    pub fn recv(&self) -> Result<Vec<ModelPreferenceCommand>, ()> {
-        self.wake.recv().map_err(|_| ())?;
-        let mut pending = self.pending.lock().map_err(|_| ())?;
+    pub fn recv(&self) -> Result<Vec<ModelPreferenceCommand>, PreferenceChannelError> {
+        self.wake
+            .recv()
+            .map_err(|_| PreferenceChannelError::Disconnected)?;
+        let mut pending = self
+            .pending
+            .lock()
+            .map_err(|_| PreferenceChannelError::Poisoned)?;
         let mut commands = Vec::with_capacity(2);
         if let Some(model) = pending.model.take() {
             commands.push(ModelPreferenceCommand::ChooseModel(model));

@@ -284,7 +284,7 @@ impl<A: Application> DesktopApp<A> {
                             "Partie {} — {}..{} échantillons",
                             part.number, part.start_sample, part.end_sample
                         ));
-                        ui.selectable_label(false, part.path.as_str());
+                        let _ = ui.selectable_label(false, part.path.as_str());
                     }
                 });
             ui.horizontal(|ui| {
@@ -334,11 +334,11 @@ impl<A: Application> DesktopApp<A> {
         ui.horizontal(|ui| {
             if let Some(path) = session.txt_path.as_deref() {
                 ui.label("TXT");
-                ui.selectable_label(false, path);
+                let _ = ui.selectable_label(false, path);
             }
             if let Some(path) = session.srt_path.as_deref() {
                 ui.label("SRT");
-                ui.selectable_label(false, path);
+                let _ = ui.selectable_label(false, path);
             }
         });
         if (session.txt_path.is_none() || session.srt_path.is_none())
