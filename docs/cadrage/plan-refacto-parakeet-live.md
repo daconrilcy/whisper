@@ -1,6 +1,6 @@
-Avancée : plan de refactoring accepté par l'utilisateur pour l'implémentation du lot.
-Blocage : racine de campagne et adaptation de garde à autoriser précisément avant le premier Cargo.
-Décision : seuil de 650 lignes et dix chemins source du plan acceptés par renvoi aux documents ; aucun push autorisé.
+Avancée : découpage réalisé, contrôles ciblés réussis et revue indépendante CLEAN.
+Blocage : recette D2 native, GPU réel et fenêtre Windows non exécutés ; suite globale interrompue non déclarée PASS.
+Décision : commit local et push du périmètre exact autorisés dans cette session ; conserver les limites de preuve.
 
 # Plan de refactoring de Parakeet Live — PLAN-PL v1
 
@@ -50,3 +50,19 @@ L'ordre de comparaison est base T1, extraction par lots T2–T8, candidat cumula
 | D-PL-03 | Pour la future campagne, identifier une garde existante applicable et autoriser sa racine de lot ; si adaptation nécessaire, demander son périmètre précis. | Traiter ce prérequis lors de l'autorisation d'implémentation, avant tout Cargo. |
 
 **Statut : PLANS ACCEPTÉ POUR IMPLÉMENTATION.** L'accord sur le lot source est reçu dans cette session. La racine de campagne, la garde et l'exécution de Cargo restent soumises à un accord précis distinct. Aucun code, test, build, lint ou revue indépendante du candidat n'a été exécuté lors de cette mise à jour documentaire.
+
+## 6. Réalisation, preuves et clôture du lot
+
+Sur la base `bf2d3a2e23d5235664537e5d2f00305d2a216aba`, l'implémenteur a modifié uniquement les dix chemins Rust proposés au §1. Le fichier principal est passé de 3 138 à **202 lignes physiques** ; les neuf extraits comptent de 57 à 551 lignes. Les 313 noms de tests de bibliothèque listés avant et après sont identiques, dont les neuf tests inline déplacés. Aucun manifeste, `Cargo.lock`, modèle, worker ou fichier des autres parcours n'a été modifié par ce lot.
+
+Sous la garde `target/parakeet-tests/refacto-parakeet-live/guard.ps1`, avec cache et temporaires isolés, `CARGO_TARGET_DIR` canonique, `--offline --locked` et les réglages de campagne prescrits : les 36 tests `parakeet_live::` ont réussi avant et après extraction ; le test consommateur de gain a réussi ; `cargo fmt --all -- --check`, `cargo build -p whisper-adapters` et Clippy `--all-targets` avec les quatre lints structurels ont terminé code 0. Clippy émet encore des avertissements, dont sur des fonctions déplacées ; ce succès ne prétend pas que chaque seuil structurel est atteint. `git diff --check` a réussi. Le relecteur Rust indépendant a rendu **CLEAN** sur le candidat, puis maintenu ce verdict après les nouvelles preuves : deux passages de revue, zéro correction demandée.
+
+Une tentative supplémentaire de suite globale `whisper-adapters --lib` a été interrompue après huit `FAILED` observés et avant son bilan final : elle n'est **pas PASS**. L'inventaire statique a relevé des variables de racine ou de fixture manquantes, sans établir les messages de panic de cette tentative. Après arbitrage explicite, sept de ces tests ont été repris séparément sous la garde adaptée avec racines isolées et une copie MP3 vérifiée ; chacun a réussi (1 test, 0 échec). Les sept journaux sont dans `target/parakeet-tests/refacto-parakeet-live/logs/`, runs `20261031T161807022-756cc816`, `20261031T161823652-97373bbd`, `20261031T161836051-35f0b6de`, `20261031T161855333-c4227322`, `20261031T161857122-a132f08e`, `20261031T161858822-4e105e6e` et `20261031T161900486-7f7d963e`. La copie MP3 conserve le SHA-256 attendu `eebce5a2af18d4f929af5c243c50a6bc31b0910a583577cb940e0e4895e7cd80`.
+
+La recette D2 native reste **NOT RUN** : les ressources qu'elle attend sous `%LOCALAPPDATA%\Whisper` sont absentes. GPU réel et fenêtre Windows restent également **NOT RUN** ; aucune validation produit native n'est déduite des tests contrôlés. Neuf événements Temp observés pendant la reprise ont été consignés `UNATTRIBUTED` selon la règle permanente ; leur origine reste inconnue et ils ne deviennent pas des écritures de campagne autorisées. Aucune autre violation de garde n'a été signalée.
+
+Les 35 petits fichiers de `logs/` (370 725 octets) ont été copiés dans `target/parakeet-tests/refacto-parakeet-live/archive/closure-20261031/logs/` en conservant l'arborescence ; nombre, chemins relatifs, tailles et SHA-256 correspondent aux originaux. Les originaux, le cache partagé et les fixtures sont conservés : aucune suppression sans manifeste approuvé. Espace libre C: relevé à **162,71 Gio** avant commit.
+
+Après la proposition de clôture limitée aux dix fichiers Rust et au présent bilan, l'utilisateur a répondu dans cette session : « ok commit et push ». Cet accord autorise le commit local de ces onze chemins et le push de la branche courante `evo-startup-perf` vers son amont `origin/evo-startup-perf`, après contrôle de l'état distant. Les dossiers non suivis `docs/architecture/`, `models/` et `sound example/` restent hors livraison.
+
+**Statut de réalisation : CLEAN pour le périmètre du plan**, avec les limites de validation native et de suite globale détaillées ci-dessus.
