@@ -231,10 +231,6 @@ impl ImportRuntime {
         if !controlled_worker_available && !executor_available && native_route.is_none() {
             return Err("ModelNotQualified: controlled worker injection is required".into());
         }
-        let session = whisper_core::parakeet_scheduler::SchedulerSession {
-            job_id: request.job_id,
-            generation: request.generation,
-        };
         if self.native_unified_candidate_enabled && native_route.is_none() {
             return Err(
                 "NativeCandidateUnavailable: the capture has no validated fixed backend route"
@@ -1314,10 +1310,7 @@ impl ImportRuntime {
                 }
             });
         match result {
-            Ok(applied) => {
-                let _ = applied;
-                Ok(())
-            }
+            Ok(()) => Ok(()),
             Err(message) => {
                 events.push_back(ImportEvent::MicrophoneGainRejected {
                     job_id,

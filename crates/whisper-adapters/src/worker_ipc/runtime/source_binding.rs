@@ -12,9 +12,9 @@ impl ImportRuntime {
             return crate::archive::ArchiveStore::identify_source(request);
         };
         let key = (request.job_id, request.generation.get());
-        if !self.source_bindings.contains_key(&key) {
+        if let std::collections::hash_map::Entry::Vacant(entry) = self.source_bindings.entry(key) {
             let binding = crate::source_binding::SourceBinding::acquire(request, &registry_root)?;
-            self.source_bindings.insert(key, binding);
+            entry.insert(binding);
         }
         let binding = self
             .source_bindings

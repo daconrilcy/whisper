@@ -51,7 +51,7 @@ pub(in crate::worker_ipc) fn attach_automatic_final_import(
 ) -> ImportEvent {
     let ImportEvent::ParakeetCaptureStopped {
         job_id: capture_job,
-        generation,
+        generation: _,
         wav_path,
         automatic_final,
         ..

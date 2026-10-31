@@ -462,11 +462,10 @@ impl ImportRuntime {
             self.parakeet_events
                 .push_back(WorkerEvent::Segment(segment));
         }
-        if self.parakeet_events.len() == 1 {
-            if let Err(error) = self.confirm_and_advance_parakeet_vad_window(window, last_sequence)
-            {
-                return Some(Err(PortError::Failed(error)));
-            }
+        if self.parakeet_events.len() == 1
+            && let Err(error) = self.confirm_and_advance_parakeet_vad_window(window, last_sequence)
+        {
+            return Some(Err(PortError::Failed(error)));
         }
         self.parakeet_events.pop_front().map(Ok)
     }

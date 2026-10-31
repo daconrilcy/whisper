@@ -228,6 +228,7 @@ impl crate::parakeet_pipeline::WindowTranscriber for NativeParakeetWindowTranscr
                 Ok(())
             }
             Err(error) => {
+                #[cfg(test)]
                 let pid = process.pid();
                 let reap = process.terminate();
                 match reap {
@@ -253,6 +254,7 @@ impl crate::parakeet_pipeline::WindowTranscriber for NativeParakeetWindowTranscr
         #[cfg(test)]
         let incarnation = self.harness_incarnation.take();
         if let Some(mut process) = self.process.take() {
+            #[cfg(test)]
             let pid = process.pid();
             process
                 .terminate()

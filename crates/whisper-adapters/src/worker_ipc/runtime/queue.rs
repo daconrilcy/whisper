@@ -19,13 +19,11 @@ impl ImportRuntime {
                     .bind_import_request(&request)
                     .map(|bound| {
                         request = bound;
-                        ()
                     })
                     .and_then(|()| self.ensure_source_binding(&mut request))
                     .and_then(|()| {
                         self.bind_import_request(&request).map(|bound| {
                             request = bound;
-                            ()
                         })
                     })
                     .and_then(|()| {

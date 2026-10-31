@@ -244,9 +244,9 @@ impl ImportRuntime {
         }
         let result = self
                     .bind_import_request(&request)
-                    .map(|bound| { request = bound; () })
+                    .map(|bound| { request = bound; })
                     .and_then(|()| self.ensure_source_binding(&mut request))
-                    .and_then(|()| self.bind_import_request(&request).map(|bound| { request = bound; () }))
+                    .and_then(|()| self.bind_import_request(&request).map(|bound| { request = bound; }))
                     .and_then(|()| {
                         crate::archive::assert_campaign_archive(Path::new(&request.destination))
                     })

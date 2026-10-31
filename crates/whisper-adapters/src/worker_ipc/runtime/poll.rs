@@ -344,9 +344,7 @@ impl ImportRuntime {
                 self.active = None;
                 return Some(Err(failure));
             }
-            let Some(active) = self.active.as_ref() else {
-                return None;
-            };
+            let active = self.active.as_ref()?;
             self.parakeet_events.push_back(WorkerEvent::Ready {
                 job_id: active.job_id,
                 generation: active.generation,

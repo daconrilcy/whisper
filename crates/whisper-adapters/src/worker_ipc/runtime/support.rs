@@ -416,15 +416,13 @@ impl ServiceRuntime for ImportRuntime {
         if let (Some(identity), Some(gates)) = (
             import_effect_identity(&effect),
             self.automatic_publication_gates.as_ref(),
-        ) {
-            if let Some(gate) = gates
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .get(&identity)
-                .cloned()
-            {
-                self.publication_gate = gate;
-            }
+        ) && let Some(gate) = gates
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&identity)
+            .cloned()
+        {
+            self.publication_gate = gate;
         }
         self.effect(effect, pending);
     }
@@ -445,13 +443,13 @@ impl ServiceRuntime for ImportRuntime {
                 }
             };
         }
-        if let Some(live) = self.parakeet_live.as_mut() {
-            if let Err(error) = live.pump_capture() {
-                let event = live.stop_after_capture_error(error);
-                let event = attach_automatic_final_import(live, event);
-                self.parakeet_pending_events.push_back(event);
-                self.parakeet_live = None;
-            }
+        if let Some(live) = self.parakeet_live.as_mut()
+            && let Err(error) = live.pump_capture()
+        {
+            let event = live.stop_after_capture_error(error);
+            let event = attach_automatic_final_import(live, event);
+            self.parakeet_pending_events.push_back(event);
+            self.parakeet_live = None;
         }
         None
     }

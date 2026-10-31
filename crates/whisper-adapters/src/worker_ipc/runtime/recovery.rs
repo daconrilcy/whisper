@@ -50,7 +50,7 @@ impl ImportRuntime {
             }
             let destination = Path::new(&request.destination);
             match crate::archive::ArchiveStore::publication_reconfirmation_required(
-                &destination,
+                destination,
                 previous.job_id,
                 previous.generation,
             ) {
@@ -278,21 +278,21 @@ impl ImportRuntime {
                 });
             match result {
                 Ok((prepared, prefix, queue)) => {
-                    if let Some(route) = native_route {
-                        if let Err(error) = self.register_prepared_native_route(
+                    if let Some(route) = native_route
+                        && let Err(error) = self.register_prepared_native_route(
                             whisper_core::parakeet_scheduler::SchedulerSession {
                                 job_id: id.0,
                                 generation: id.1,
                             },
                             route,
-                        ) {
-                            events.push_back(ImportEvent::Failed {
-                                job_id: id.0,
-                                generation: id.1,
-                                message: error,
-                            });
-                            return RecoveryEffect::Return;
-                        }
+                        )
+                    {
+                        events.push_back(ImportEvent::Failed {
+                            job_id: id.0,
+                            generation: id.1,
+                            message: error,
+                        });
+                        return RecoveryEffect::Return;
                     }
                     let unified_resume_checkpoint = archive.take_unified_resume_checkpoint();
                     let confirmed_segments = unified_resume_checkpoint

@@ -450,7 +450,9 @@ impl ImportRuntime {
                 Err("ModelNotQualified: unified inference executor is unavailable".into())
             };
             match start_result {
-                Ok(mut executor) => {
+                Ok(executor) => {
+                    #[cfg(test)]
+                    let mut executor = executor;
                     #[cfg(test)]
                     {
                         executor.disconnect_result_for = self.controlled_disconnect_session;
@@ -664,15 +666,13 @@ impl ImportRuntime {
                         let skip_recycle = self.controlled_skip_child_recycle;
                         #[cfg(not(test))]
                         let skip_recycle = false;
-                        if !skip_recycle {
-                            if let Err(reap_error) = executor.stop_and_reap() {
-                                self.unified_sessions.insert(session, state);
-                                return Some(Err((
-                                    session.job_id,
-                                    session.generation,
-                                    format!("{error}; InferenceReap: {reap_error}"),
-                                )));
-                            }
+                        if !skip_recycle && let Err(reap_error) = executor.stop_and_reap() {
+                            self.unified_sessions.insert(session, state);
+                            return Some(Err((
+                                session.job_id,
+                                session.generation,
+                                format!("{error}; InferenceReap: {reap_error}"),
+                            )));
                         }
                         if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
                             self.unified_sessions.insert(session, state);
@@ -883,10 +883,10 @@ impl ImportRuntime {
                     return Some(Err((session.job_id, session.generation, failure)));
                 }
                 self.unified_sessions.remove(&session);
-                if self.parakeet_scheduler.active_sessions() > 0 {
-                    if let Err(restart_error) = executor.restart() {
-                        failure.push_str(&format!("; InferenceRestart: {restart_error}"));
-                    }
+                if self.parakeet_scheduler.active_sessions() > 0
+                    && let Err(restart_error) = executor.restart()
+                {
+                    failure.push_str(&format!("; InferenceRestart: {restart_error}"));
                 }
                 return Some(Err((session.job_id, session.generation, failure)));
             }
