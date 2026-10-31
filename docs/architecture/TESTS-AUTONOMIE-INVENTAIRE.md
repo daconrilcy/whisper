@@ -1,8 +1,23 @@
-Avancée : étape 1 terminée ; inventaire statique nominatif remis, aucun test ni code modifié.
-Blocage : validation humaine attendue ; les cas A_VERIFIER ne sont pas déclarés autonomes.
-Décision : valider ou corriger le classement avant toute étape 2 ; préciser les chemins des tests intégrés avant leur modification.
+Avancée : inventaire validé ; résolution des incertitudes et étapes 2 à 5 autorisées le 1er novembre 2026.
+Blocage : aucun établi avant le préflight ; les cas A_VERIFIER restent à résoudre.
+Décision : implémentation déléguée, sans production, sans changement d'assertions et sans exécution native.
 
 # Inventaire d’autonomie des tests — étape 1
+
+## Plan d'exécution accepté dans la session du 1er novembre 2026
+
+Autorisation utilisateur : « Je valide l’inventaire. Résous les A_VERIFIER puis poursuis les étapes 2 à 5. J’autorise les changements dans les sections de tests des fichiers cités, sans modifier le code de production ni les assertions. Aucun test natif. » Cette section versionne les étapes de la mission et cette autorisation ; les constats de l'étape 1 ci-dessous restent historiques.
+
+1. Résoudre nominativement les A_VERIFIER et confirmer les prérequis des tests à partir des corps et helpers, sans exécuter de test natif ; mettre à jour le JSON d'inventaire avec le classement final et sa justification.
+2. Préparer la campagne de niveau 1 : vérifier la garde existante sans la modifier, ses auto-tests sans surveillance, l'espace libre, les racines canoniques, le cache Cargo isolé et les variables nettoyées. Si aucun chemin conforme n'est disponible, arrêter les commandes concernées et décrire la décision minimale requise.
+3. Obtenir les listes avant modification par deux commandes Cargo séparées (-- --list, puis -- --ignored --list), sans exécuter de test. Ne pas exécuter le workspace avant reclassement puisqu'il contient des tests natifs ; sa durée avant reste non mesurée dans ce lot.
+4. Ajouter native-tests, désactivée par défaut, uniquement dans [features] des crates concernées, avec relais nécessaires. Ajouter cfg_attr(not(feature = "native-tests"), ignore = "prérequis exact") aux tests natifs, sans supprimer les ignore historiques ni modifier les assertions.
+5. Retirer les faux succès : défauts temporaires synthétiques lorsque suffisants, sinon classement natif et échec explicite si prérequis absent. Les scénarios mixtes restent entiers avec TODO(DEBT-n) et entrée dans docs/debt.md. Conserver les identités/nombres des tests et ne pas découper leur contenu vérifié.
+6. Créer les contrôles locaux ci/check-structure et ci/tests-baseline.txt demandés, sans dépendance ni CI distante, en restant dans la stack Rust. Les exceptions doivent être nominatives, justifiées et figées ; elles ne doivent pas autoriser de faux succès. Tout conflit nécessaire avec le périmètre ou les assertions impose un arrêt ciblé.
+7. Exécuter séparément, par le niveau 1 conforme, cargo test --offline --locked --workspace ; les deux listes après ; cargo clippy --offline --locked --workspace --all-targets ; cargo fmt --check (les options offline/locked ne s'appliquent pas à fmt). Nettoyer WHISPER_* et PARAKEET_*, LOCALAPPDATA vide isolé ; utiliser la cible partagée C:/dev/whisper/target/parakeet-tests/cargo-shared. Exécuter les contrôles locaux. Aucun --features native-tests, --all-features ou --ignored en exécution.
+8. Revue indépendante via rust_review_coordinator, au plus deux cycles revue/correction ; bilan final, preuves avant/après et diff word-diff des assertions, commit local du résultat documentaire par la session principale. Aucun push.
+
+Responsabilités : rust_implementer possède les modifications des tests, des sections features et de ci/ ; la session principale possède les documents sous docs/architecture/ et docs/debt.md. Le profil d'implémentation fournit les classements et contributions documentaires à la session principale. Les fichiers inline cités dans l'inventaire sont autorisés exclusivement dans leurs sections de tests et helpers de tests. Cargo.lock, production, modèles, garde et scripts de recette restent interdits. Au plus dix tâches et dix fichiers de rapport ; ce plan compte huit tâches. Les petites preuves restent dans les racines autorisées, sans nettoyage de la cible partagée.
 
 Branche `refacto/tests-autonomes`, worktree `C:\dev\whisper\target\agent-worktrees\tests-autonomes`, référence Git `248f86794c3a1e2d2b1ba6d5a7afafc84972535d`. Remise le 1er novembre 2026, analyse commencée le 31 octobre. Seuls ce compte rendu et le JSON demandé sont ajoutés. Aucun reclassement effectif, feature ou garde-fou créé.
 
