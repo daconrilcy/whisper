@@ -1,12 +1,12 @@
-Avancée : plan de refactoring proposé à partir du cadrage DESIGN-PL v1.
-Blocage : acceptation du seuil, des chemins et du préflight de campagne avant implémentation.
-Décision : dix tâches au plus, sans autorisation de coder ni de lancer Cargo dans cette session.
+Avancée : plan de refactoring accepté par l'utilisateur pour l'implémentation du lot.
+Blocage : racine de campagne et adaptation de garde à autoriser précisément avant le premier Cargo.
+Décision : seuil de 650 lignes et dix chemins source du plan acceptés par renvoi aux documents ; aucun push autorisé.
 
 # Plan de refactoring de Parakeet Live — PLAN-PL v1
 
 ## 1. Parent et portée
 
-Parent : [DESIGN-PL v1](refacto-parakeet-live.md), établi sur `b09a8b669834803cfd46e15c3c10eefdf744b518`. Mandat documentaire du 31 octobre 2026 : cadrage puis plan, après clarification « fichier entier, tests compris ». Le plan est **proposé pour validation** ; sa rédaction ne vaut ni acceptation du lot, ni autorisation de code, de campagne Cargo ou de push.
+Parent : [DESIGN-PL v1](refacto-parakeet-live.md), établi sur `b09a8b669834803cfd46e15c3c10eefdf744b518`. Mandat documentaire du 31 octobre 2026 : cadrage puis plan, après clarification « fichier entier, tests compris ». Après versionnement de ces documents au commit `23fa1c8318d86e997ef00583186b170325e57201`, l'utilisateur a écrit dans cette session : « Ok tu peux implémenter à partir de ces documents ». Cet accord accepte le lot du plan, sa borne de 650 lignes et ses dix chemins source ; il ne vaut ni autorisation d'un nouveau chemin de campagne ou d'une adaptation de garde, ni autorisation de push.
 
 Objectif du lot futur : refactoring structurel à comportement constant. Chemins source proposés en écriture : `crates/whisper-adapters/src/parakeet_live.rs` et les neuf fichiers sous `crates/whisper-adapters/src/parakeet_live/` énumérés au §4 du design (six modules de production et trois modules de tests). Le répertoire n'existe pas encore. Aucun autre source, manifeste, `Cargo.lock`, modèle, runtime, script ou dossier non suivi n'est ouvert en écriture par ce plan. Le compte rendu du lot utilisera les livrables de cadrage existants ; tout nouveau chemin, garde ou artefact exigera l'accord précis applicable.
 
@@ -49,4 +49,4 @@ L'ordre de comparaison est base T1, extraction par lots T2–T8, candidat cumula
 | D-PL-02 | Accepter les dix chemins source proposés, ou demander un découpage différent. | Accepter la famille privée `parakeet_live/` après revue des visibilités. |
 | D-PL-03 | Pour la future campagne, identifier une garde existante applicable et autoriser sa racine de lot ; si adaptation nécessaire, demander son périmètre précis. | Traiter ce prérequis lors de l'autorisation d'implémentation, avant tout Cargo. |
 
-**Statut : PLANS PROPOSÉ.** Aucun code, test, build, lint ou revue indépendante du candidat n'a été exécuté pour ce plan. L'accord sur ce plan et les autorisations distinctes d'implémentation/campagne restent nécessaires.
+**Statut : PLANS ACCEPTÉ POUR IMPLÉMENTATION.** L'accord sur le lot source est reçu dans cette session. La racine de campagne, la garde et l'exécution de Cargo restent soumises à un accord précis distinct. Aucun code, test, build, lint ou revue indépendante du candidat n'a été exécuté lors de cette mise à jour documentaire.
