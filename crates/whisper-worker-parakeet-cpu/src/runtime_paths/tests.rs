@@ -1,11 +1,20 @@
 use super::*;
+fn fixture_repository() -> PathBuf {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target/parakeet-tests/refacto-parakeet-live/p3-workers")
+        .join(format!("runtime-paths-{}", std::process::id()));
+    for path in ["l2/l2a-1", "l2/l2a-2", "l2/l2b", "l3/l3a", "l3/l3b"] {
+        std::fs::create_dir_all(root.join("target/parakeet-tests").join(path)).unwrap();
+    }
+    root.canonicalize().unwrap()
+}
 #[cfg(feature = "parakeet-qualification-reference")]
 use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;
 
 #[cfg(not(feature = "parakeet-cuda"))]
 #[test]
 fn accepts_only_the_two_canonical_l2_test_roots() {
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    let repository = fixture_repository();
     let l2a_roots = allowed_runtime_roots_for(&repository, &["l2a-1", "l2a-2"]);
     let l2a1 = repository
         .join("target/parakeet-tests/l2/l2a-1")
@@ -43,7 +52,7 @@ fn accepts_only_the_two_canonical_l2_test_roots() {
 #[cfg(all(feature = "parakeet-cuda", not(feature = "parakeet-personal")))]
 #[test]
 fn gpu_worker_allows_only_the_canonical_l3_runtime_roots() {
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    let repository = fixture_repository();
     let l3a = repository
         .join("target/parakeet-tests/l3/l3a")
         .canonicalize()
@@ -70,7 +79,7 @@ fn gpu_worker_allows_only_the_canonical_l3_runtime_roots() {
 #[cfg(feature = "parakeet-qualification-reference")]
 #[test]
 fn qualification_profiles_are_confined_to_l2b() {
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    let repository = fixture_repository();
     let l2a2 = repository
         .join("target/parakeet-tests/l2/l2a-2")
         .canonicalize()

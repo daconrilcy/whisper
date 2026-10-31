@@ -1,4 +1,4 @@
-use super::{File, Instant, OpenOptions, Path, Write, fs, io};
+use super::{File, OpenOptions, Path, Write, fs, io};
 
 pub(super) fn write_replace_streamed(
     path: &Path,
@@ -48,7 +48,6 @@ pub(super) fn write_new_synced(path: &Path, bytes: &[u8]) -> Result<(), String> 
     file.sync_all().map_err(|e| e.to_string())
 }
 pub(super) fn write_replace_synced(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let started = Instant::now();
     let temporary = path.with_extension(format!(
         "{}.tmp",
         path.extension().and_then(|x| x.to_str()).unwrap_or("data")
@@ -63,13 +62,5 @@ pub(super) fn write_replace_synced(path: &Path, bytes: &[u8]) -> Result<(), Stri
     file.sync_all().map_err(|e| e.to_string())?;
     drop(file);
     fs::rename(temporary, path).map_err(|e| e.to_string())?;
-    crate::diagnostics::record_stage_timing(
-        "archive_write_replace",
-        started.elapsed(),
-        serde_json::json!({
-            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
-            "bytes": bytes.len(),
-        }),
-    );
     Ok(())
 }

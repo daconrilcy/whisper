@@ -80,7 +80,6 @@ use crate::{
     WorkerTransport,
     archive::{ArchiveStore, LiveArchive},
     capture::{CaptureStream, Pcm16Converter},
-    diagnostics::{TimingContextGuard, record_stage_timing},
     staging::{PcmStaging, PcmWriter},
     supervisor::{
         DiagnosticCode, DiagnosticPhase, DiagnosticRecord, DiagnosticSink, ProgressPhase,

@@ -94,7 +94,15 @@ pub(in crate::ui) fn unified_live_admission_available(view: &AppView) -> bool {
     use whisper_core::ports::UnifiedSessionPhase as Phase;
 
     if view.microphone_test_active
-        || view.direct_capture_phase.is_some()
+        || view.direct_capture_phase.is_some_and(|phase| {
+            !matches!(
+                (phase, view.direct_engine_phase),
+                (
+                    whisper_core::application::DirectCapturePhase::Stopped,
+                    Some(whisper_core::application::DirectEnginePhase::Released)
+                )
+            )
+        })
         || (view.close_requested && !view.close_ready)
     {
         return false;

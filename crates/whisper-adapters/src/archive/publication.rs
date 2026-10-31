@@ -1,9 +1,8 @@
 use super::{
-    ArchiveStore, CompleteRecord, Generation, Instant, JobId, Write, campaign_gate,
-    copy_replace_streamed, fs, hex, load_or_migrate_publication_index,
-    record_campaign_operation_result, sha256_file, timestamp_checked, validate_segment_journal,
-    verified_artifact, verify_artifact, visit_segments, write_replace_streamed,
-    write_replace_synced,
+    ArchiveStore, CompleteRecord, Generation, JobId, Write, campaign_gate, copy_replace_streamed,
+    fs, hex, load_or_migrate_publication_index, record_campaign_operation_result, sha256_file,
+    timestamp_checked, validate_segment_journal, verified_artifact, verify_artifact,
+    visit_segments, write_replace_streamed, write_replace_synced,
 };
 #[cfg(windows)]
 use super::{
@@ -35,7 +34,6 @@ impl ArchiveStore {
         generation: Generation,
         expected_count: u64,
     ) -> Result<(), String> {
-        let started = Instant::now();
         let active = self
             .current
             .as_ref()
@@ -131,16 +129,10 @@ impl ArchiveStore {
                 }
             }
         }
-        crate::diagnostics::record_stage_timing(
-            "archive_prepare_publish",
-            started.elapsed(),
-            serde_json::json!({ "segments": expected_count, "text_bytes": fs::metadata(&text_path).map(|meta| meta.len()).unwrap_or(0), "srt_bytes": fs::metadata(&srt_path).map(|meta| meta.len()).unwrap_or(0) }),
-        );
         Ok(())
     }
 
     pub fn commit_publish(&mut self, job_id: JobId, generation: Generation) -> Result<(), String> {
-        let started = Instant::now();
         let active = self
             .current
             .as_ref()
@@ -284,11 +276,6 @@ impl ArchiveStore {
         }
         Self::clear_duplicate_reservation(&root, job_id, generation)?;
         self.current = None;
-        crate::diagnostics::record_stage_timing(
-            "archive_commit_publish",
-            started.elapsed(),
-            serde_json::json!({ "job_id": format!("{:032x}", job_id.0), "generation": generation.get() }),
-        );
         Ok(())
     }
 

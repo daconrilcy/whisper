@@ -11,9 +11,7 @@ mod reference_decoder;
 mod runtime_paths;
 mod session;
 mod startup;
-mod timing;
 mod transcription;
-use timing::record_r7_timing;
 
 fn main() {
     if let Err(error) = startup::run() {

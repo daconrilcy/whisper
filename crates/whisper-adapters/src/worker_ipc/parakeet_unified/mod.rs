@@ -151,6 +151,14 @@ impl UnifiedSessionSource {
         }
     }
 
+    pub(in crate::worker_ipc) fn take_probe_telemetry(
+        &mut self,
+    ) -> Option<whisper_core::ImportEvent> {
+        match self {
+            Self::Capture(capture) => capture.take_next_probe_telemetry(),
+            Self::Closed(_) => None,
+        }
+    }
     pub(in crate::worker_ipc) fn take_gain_events(
         &mut self,
     ) -> Vec<crate::parakeet_live::AppliedCaptureGain> {

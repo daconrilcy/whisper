@@ -19,7 +19,6 @@ pub(super) fn inference_thread(
     cancel: Arc<AtomicBool>,
     requests: Receiver<InferenceRequest>,
     events: SyncSender<InferenceEvent>,
-    trace_enabled: bool,
     diagnostics: D2WorkerDiagnostics,
 ) {
     let InferenceThreadContext {
@@ -264,22 +263,16 @@ pub(super) fn inference_thread(
                         native_call_marker_required,
                         expected_gpu: expected_gpu.clone(),
                         attempt,
-                        trace_enabled,
                     },
                     &cancel,
                     &path,
                     sha256,
                     samples.len() as u64,
-                    request.group_offset_samples.saturating_add(start_sample),
                 );
                 attempt = attempt.saturating_add(1);
                 let _ = fs::remove_file(&path);
                 match result {
-                    Ok(WindowTranscription::Usable {
-                        text,
-                        words,
-                        native,
-                    }) => {
+                    Ok(WindowTranscription::Usable { text, words }) => {
                         diagnostics.record(serde_json::json!({
                             "event":"worker-window-result",
                             "pid":process.pid(),
@@ -298,7 +291,6 @@ pub(super) fn inference_thread(
                                 words,
                                 captured_at_unix_ms,
                                 available_at_unix_ms: unix_time_ms(),
-                                native,
                                 recovery_for,
                             })
                             .is_err()
@@ -307,7 +299,7 @@ pub(super) fn inference_thread(
                             return;
                         }
                     }
-                    Ok(WindowTranscription::Unusable { message, native }) => {
+                    Ok(WindowTranscription::Unusable { message }) => {
                         diagnostics.record(serde_json::json!({
                             "event":"worker-window-unusable",
                             "pid":process.pid(),
@@ -322,7 +314,6 @@ pub(super) fn inference_thread(
                                 start_sample,
                                 end_sample,
                                 message,
-                                native,
                                 recovery_for,
                             })
                             .is_err()
@@ -380,7 +371,6 @@ struct WindowRequestContext<'a> {
     native_call_marker_required: bool,
     expected_gpu: Option<whisper_core::parakeet_ipc::ExpectedGpu>,
     attempt: u64,
-    trace_enabled: bool,
 }
 
 fn transcribe_window(
@@ -390,7 +380,6 @@ fn transcribe_window(
     path: &Path,
     sha256: String,
     expected_samples: u64,
-    global_window_start_sample: u64,
 ) -> Result<WindowTranscription, String> {
     let WindowRequestContext {
         request,
@@ -398,7 +387,6 @@ fn transcribe_window(
         native_call_marker_required,
         expected_gpu,
         attempt,
-        trace_enabled,
     } = context;
     let expected_job_id = format!("{:032x}", request.job_id.0);
     process.transcribe_with_gpu(
@@ -474,14 +462,10 @@ fn transcribe_window(
                 })) =>
             {
                 let validation = validate_words(&words, expected_samples);
-                let native = trace_enabled.then(|| {
-                    native_hypothesis_trace(&text, &words, global_window_start_sample, &validation)
-                });
                 return Ok(match validation {
                     Ok(ranges) if ranges.is_empty() && !text.trim().is_empty() => {
                         WindowTranscription::Unusable {
                             message: "Texte Parakeet sans mots horodatés".into(),
-                            native,
                         }
                     }
                     Ok(ranges) => WindowTranscription::Usable {
@@ -498,12 +482,8 @@ fn transcribe_window(
                                 },
                             })
                             .collect(),
-                        native,
                     },
-                    Err(error) => WindowTranscription::Unusable {
-                        message: error,
-                        native,
-                    },
+                    Err(error) => WindowTranscription::Unusable { message: error },
                 });
             }
             Some(WorkerEvent::Failed {

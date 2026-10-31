@@ -34,31 +34,9 @@ pub(super) struct ConfirmedBlock {
 
 #[derive(Clone, Debug)]
 pub(super) struct ConfirmationDecision {
-    pub cursor_before: u64,
-    pub cursor_after: u64,
     pub published: Vec<ConfirmedBlock>,
-    pub first_refusal: Option<ConfirmationRefusal>,
     pub unresolved_before: Vec<SourceRange>,
     pub unresolved_after: Vec<SourceRange>,
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct ConfirmationRefusal {
-    pub code: &'static str,
-    pub range: Option<SourceRange>,
-    pub gaps: Vec<SourceRange>,
-    pub alignment_candidate: Option<AlignmentCandidate>,
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct AlignmentCandidate {
-    pub sequence: u64,
-    pub range: SourceRange,
-    pub start_delta_samples: u64,
-    pub end_delta_samples: u64,
-    pub overlap_samples: u64,
-    pub within_time_tolerance: bool,
-    pub same_span: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -89,10 +67,12 @@ impl Confirmation {
         &self.confirmed
     }
 
+    #[cfg(test)]
     pub(super) fn confirmed_end(&self) -> u64 {
         self.confirmed_end
     }
 
+    #[cfg(test)]
     pub(super) fn unresolved(&self) -> &[SourceRange] {
         &self.unresolved
     }
@@ -165,29 +145,16 @@ impl Confirmation {
 
     #[cfg(test)]
     pub(super) fn finalize(&mut self) -> Vec<ConfirmedBlock> {
-        self.finalize_observed(false).published
+        self.finalize_observed()
     }
 
-    pub(super) fn finalize_observed(
-        &mut self,
-        include_alignment_diagnostic: bool,
-    ) -> ConfirmationDecision {
-        let cursor_before = self.confirmed_end;
-        let unresolved_before = self.unresolved.clone();
+    pub(super) fn finalize_observed(&mut self) -> Vec<ConfirmedBlock> {
         // The capture has ended, so the last second is no longer a moving edge.
         // This only releases words already witnessed in two windows.
         self.latest_window_end = self
             .latest_window_end
             .saturating_add(UNCONFIRMED_TAIL_SAMPLES);
-        let (published, first_refusal) = self.publish_ready(include_alignment_diagnostic);
-        ConfirmationDecision {
-            cursor_before,
-            cursor_after: self.confirmed_end,
-            published,
-            first_refusal,
-            unresolved_before,
-            unresolved_after: self.unresolved.clone(),
-        }
+        self.publish_ready()
     }
 
     pub(super) fn mark_unresolved(&mut self, range: SourceRange) {
@@ -202,16 +169,14 @@ impl Confirmation {
 
     #[cfg(test)]
     pub(super) fn ingest(&mut self, hypothesis: Hypothesis) -> Result<Vec<ConfirmedBlock>, String> {
-        self.ingest_observed(hypothesis, false)
+        self.ingest_observed(hypothesis)
             .map(|decision| decision.published)
     }
 
     pub(super) fn ingest_observed(
         &mut self,
         hypothesis: Hypothesis,
-        include_alignment_diagnostic: bool,
     ) -> Result<ConfirmationDecision, String> {
-        let cursor_before = self.confirmed_end;
         let unresolved_before = self.unresolved.clone();
         if hypothesis.sequence <= self.latest_sequence
             || hypothesis.range.sample_rate_hz != SAMPLE_RATE
@@ -355,93 +320,34 @@ impl Confirmation {
         let pending = &self.pending;
         self.unresolved
             .retain(|range| !gap_fully_covered(*range, evidence, pending));
-        let (published, first_refusal) = self.publish_ready(include_alignment_diagnostic);
+        let published = self.publish_ready();
         Ok(ConfirmationDecision {
-            cursor_before,
-            cursor_after: self.confirmed_end,
             published,
-            first_refusal,
             unresolved_before,
             unresolved_after: self.unresolved.clone(),
         })
     }
 
-    fn publish_ready(
-        &mut self,
-        include_alignment_diagnostic: bool,
-    ) -> (Vec<ConfirmedBlock>, Option<ConfirmationRefusal>) {
+    fn publish_ready(&mut self) -> Vec<ConfirmedBlock> {
         let cutoff = self
             .latest_window_end
             .saturating_sub(UNCONFIRMED_TAIL_SAMPLES);
         let mut published = Vec::new();
         let mut retained = Vec::with_capacity(self.pending.len());
         let mut run = Vec::new();
-        let mut first_refusal = None;
         for tracked in std::mem::take(&mut self.pending) {
-            let refusal = if !tracked.witnessed_twice {
-                Some(ConfirmationRefusal {
-                    code: "insufficient_evidence",
-                    range: Some(tracked.word.range),
-                    gaps: Vec::new(),
-                    alignment_candidate: include_alignment_diagnostic
-                        .then(|| self.first_unaligned_lexical_candidate(&tracked))
-                        .flatten(),
-                })
-            } else if tracked.conflict {
-                let lexical_conflict = self.confirmed.iter().any(|other| {
-                    other.range != tracked.word.range
-                        && ranges_overlap(other.range, tracked.word.range)
-                        && normalized_word(&other.text) != normalized_word(&tracked.word.text)
-                });
-                Some(ConfirmationRefusal {
-                    code: if lexical_conflict {
-                        "lexical_conflict"
-                    } else {
-                        "temporal_disagreement"
-                    },
-                    range: Some(tracked.word.range),
-                    gaps: Vec::new(),
-                    alignment_candidate: None,
-                })
-            } else if tracked.word.range.end_sample > cutoff {
-                Some(ConfirmationRefusal {
-                    code: "reserved_tail",
-                    range: Some(tracked.word.range),
-                    gaps: Vec::new(),
-                    alignment_candidate: None,
-                })
-            } else if self
-                .confirmed
-                .iter()
-                .any(|block| ranges_overlap(block.range, tracked.word.range))
-            {
-                Some(ConfirmationRefusal {
-                    code: "continuity_break",
-                    range: Some(tracked.word.range),
-                    gaps: Vec::new(),
-                    alignment_candidate: None,
-                })
-            } else {
-                let gaps: Vec<_> = self
-                    .unresolved
+            let refusal = !tracked.witnessed_twice
+                || tracked.conflict
+                || tracked.word.range.end_sample > cutoff
+                || self
+                    .confirmed
                     .iter()
-                    .copied()
-                    .filter(|range| {
-                        range.start_sample < tracked.word.range.end_sample
-                            && range.end_sample > tracked.word.range.start_sample
-                    })
-                    .collect();
-                (!gaps.is_empty()).then_some(ConfirmationRefusal {
-                    code: "unresolved_gap",
-                    range: Some(tracked.word.range),
-                    gaps,
-                    alignment_candidate: None,
-                })
-            };
-            if let Some(refusal) = refusal {
-                if first_refusal.is_none() {
-                    first_refusal = Some(refusal);
-                }
+                    .any(|block| ranges_overlap(block.range, tracked.word.range))
+                || self.unresolved.iter().any(|range| {
+                    range.start_sample < tracked.word.range.end_sample
+                        && range.end_sample > tracked.word.range.start_sample
+                });
+            if refusal {
                 if !run.is_empty() {
                     published.push(self.block_from_words(std::mem::take(&mut run)));
                 }
@@ -466,69 +372,7 @@ impl Confirmation {
             published.push(self.block_from_words(run));
         }
         self.pending = retained;
-        (published, first_refusal)
-    }
-
-    fn first_unaligned_lexical_candidate(
-        &self,
-        tracked: &TrackedWord,
-    ) -> Option<AlignmentCandidate> {
-        let expected = normalized_word(&tracked.word.text);
-        if expected.is_empty() {
-            return None;
-        }
-        for hypothesis in self
-            .evidence
-            .iter()
-            .filter(|hypothesis| hypothesis.sequence > tracked.first_sequence)
-        {
-            for candidate in &hypothesis.words {
-                if normalized_word(&candidate.text) != expected
-                    || same_word(&tracked.word, candidate)
-                {
-                    continue;
-                }
-                let overlap_start = tracked
-                    .word
-                    .range
-                    .start_sample
-                    .max(candidate.range.start_sample);
-                let overlap_end = tracked
-                    .word
-                    .range
-                    .end_sample
-                    .min(candidate.range.end_sample);
-                return Some(AlignmentCandidate {
-                    sequence: hypothesis.sequence,
-                    range: candidate.range,
-                    start_delta_samples: tracked
-                        .word
-                        .range
-                        .start_sample
-                        .abs_diff(candidate.range.start_sample),
-                    end_delta_samples: tracked
-                        .word
-                        .range
-                        .end_sample
-                        .abs_diff(candidate.range.end_sample),
-                    overlap_samples: overlap_end.saturating_sub(overlap_start),
-                    within_time_tolerance: tracked
-                        .word
-                        .range
-                        .start_sample
-                        .abs_diff(candidate.range.start_sample)
-                        <= TIME_TOLERANCE_SAMPLES
-                        && tracked
-                            .word
-                            .range
-                            .end_sample
-                            .abs_diff(candidate.range.end_sample)
-                            <= TIME_TOLERANCE_SAMPLES,
-                    same_span: same_span(&tracked.word, candidate),
-                });
-            }
-        }
-        None
+        published
     }
 
     fn block_from_words(&mut self, words: Vec<TimedWord>) -> ConfirmedBlock {

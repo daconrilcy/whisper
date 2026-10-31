@@ -515,6 +515,7 @@ impl ImportRuntime {
         let mut progress_updates = Vec::new();
         let mut preview_updates = Vec::new();
         let mut gain_updates = Vec::new();
+        let mut telemetry_updates = Vec::new();
         for (session, state) in &mut self.unified_sessions {
             if !state.source.is_capture() || state.source_closed {
                 continue;
@@ -565,6 +566,27 @@ impl ImportRuntime {
                     pump_error = Some((*session, error));
                 }
             }
+            if let Some(event) = state.source.take_probe_telemetry() {
+                telemetry_updates.push(event);
+            }
+        }
+        for event in telemetry_updates {
+            self.parakeet_pending_events
+                .retain(|pending| match (&event, pending) {
+                    (
+                        ImportEvent::MicrophoneMeter(current),
+                        ImportEvent::MicrophoneMeter(previous),
+                    ) => {
+                        (current.job_id, current.generation)
+                            != (previous.job_id, previous.generation)
+                    }
+                    (
+                        ImportEvent::MicrophoneSpectrum(current),
+                        ImportEvent::MicrophoneSpectrum(previous),
+                    ) => current.owner() != previous.owner(),
+                    _ => true,
+                });
+            self.parakeet_pending_events.push_back(event);
         }
         let _ = pump_error;
         self.parakeet_pending_events

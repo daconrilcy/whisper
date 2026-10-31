@@ -58,7 +58,7 @@ impl<A: Application> DesktopApp<A> {
             return;
         };
         self.unified_session_status(ui, session);
-        let (document_current, parts_current) = self.request_unified_pages(session, &selected);
+        let (document_current, parts_current) = self.request_unified_pages(ui, session, &selected);
         self.unified_document_ui(ui, session, &selected, document_current);
         self.unified_audio_ui(ui, session, &selected, parts_current);
     }
@@ -144,6 +144,7 @@ impl<A: Application> DesktopApp<A> {
 
     fn request_unified_pages(
         &mut self,
+        ui: &egui::Ui,
         session: &whisper_core::ports::UnifiedParakeetSessionView,
         selected: &whisper_core::ports::UnifiedParakeetSelectionView,
     ) -> (bool, bool) {
@@ -174,9 +175,57 @@ impl<A: Application> DesktopApp<A> {
                 });
             }
         }
-        let parts_current = selected.audio_parts_page.as_ref().is_some_and(|page| {
-            page.revision == session.audio_parts_revision && session.audio_parts_revision != 0
-        });
+        let parts_current = selected.audio_parts_error.is_none()
+            && selected.audio_parts_page.as_ref().is_some_and(|page| {
+                page.revision == session.audio_parts_revision && session.audio_parts_revision != 0
+            });
+        let stale = matches!(
+            selected.audio_parts_error.as_deref(),
+            Some(
+                "StaleResponse: unified audio parts changed"
+                    | "StaleResponse: unified audio parts changed during read"
+            )
+        );
+        let retry_id = egui::Id::new(("unified-audio-retry", identity));
+        if stale {
+            let now = ui.input(|input| input.time);
+            let retry_at = ui.ctx().data_mut(|data| {
+                if let Some(retry_at) = data.get_temp::<f64>(retry_id) {
+                    retry_at
+                } else {
+                    let retry_at = now + 0.25;
+                    data.insert_temp(retry_id, retry_at);
+                    retry_at
+                }
+            });
+            if now >= retry_at {
+                let offset = selected
+                    .audio_parts_page
+                    .as_ref()
+                    .map_or(0, |page| page.offset);
+                self.last_unified_audio_request = Some((
+                    identity.0,
+                    identity.1,
+                    0,
+                    offset,
+                    session.durable_samples,
+                    session.total_samples,
+                    session.phase,
+                ));
+                self.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+                    job_id: identity.0,
+                    generation: identity.1,
+                    expected_revision: 0,
+                    offset,
+                });
+                ui.ctx()
+                    .data_mut(|data| data.insert_temp(retry_id, now + 0.25));
+            }
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(250));
+        } else {
+            ui.ctx().data_mut(|data| data.remove::<f64>(retry_id));
+        }
         if !parts_current && selected.audio_parts_error.is_none() {
             let offset = selected
                 .audio_parts_page
@@ -274,7 +323,21 @@ impl<A: Application> DesktopApp<A> {
         let identity = (session.job_id, session.generation);
         ui.separator();
         ui.label("Parties audio WAV");
-        if parts_current {
+        let stale_error = matches!(
+            selected.audio_parts_error.as_deref(),
+            Some(
+                "StaleResponse: unified audio parts changed"
+                    | "StaleResponse: unified audio parts changed during read"
+            )
+        );
+        let can_show_previous = selected.audio_parts_page.is_some()
+            && (selected.audio_parts_error.is_none() || stale_error);
+        if parts_current || can_show_previous {
+            ui.weak(if parts_current {
+                "Références audio à jour"
+            } else {
+                "Actualisation des références audio…"
+            });
             let page = selected.audio_parts_page.as_ref().unwrap();
             egui::ScrollArea::vertical()
                 .max_height(150.0)
@@ -288,7 +351,10 @@ impl<A: Application> DesktopApp<A> {
                     }
                 });
             ui.horizontal(|ui| {
-                if ui.button("Parties précédentes").clicked() {
+                if ui
+                    .add_enabled(parts_current, egui::Button::new("Parties précédentes"))
+                    .clicked()
+                {
                     let offset = page.offset.saturating_sub(128);
                     self.last_unified_audio_request = Some((
                         identity.0,
@@ -307,7 +373,9 @@ impl<A: Application> DesktopApp<A> {
                     });
                 }
                 if let Some(next) = page.next_offset
-                    && ui.button("Parties suivantes").clicked()
+                    && ui
+                        .add_enabled(parts_current, egui::Button::new("Parties suivantes"))
+                        .clicked()
                 {
                     self.last_unified_audio_request = Some((
                         identity.0,
@@ -326,7 +394,13 @@ impl<A: Application> DesktopApp<A> {
                     });
                 }
             });
-        } else if let Some(error) = selected.audio_parts_error.as_deref() {
+        } else if let Some(error) = selected.audio_parts_error.as_deref().filter(|message| {
+            !matches!(
+                *message,
+                "StaleResponse: unified audio parts changed"
+                    | "StaleResponse: unified audio parts changed during read"
+            )
+        }) {
             ui.colored_label(egui::Color32::YELLOW, error);
         } else {
             ui.label("Chargement des références de parties…");

@@ -1,6 +1,5 @@
-use crate::record_r7_timing;
 use sha2::{Digest, Sha256};
-use std::{fs::File, io, path::Path, time::Instant};
+use std::{fs::File, io, path::Path};
 
 pub(crate) fn runtime_sha256(native_dir: &Path, native_version: &str) -> Result<String, String> {
     let mut hasher = Sha256::new();
@@ -29,20 +28,10 @@ pub(crate) fn runtime_sha256(native_dir: &Path, native_version: &str) -> Result<
 }
 
 pub(crate) fn sha256_file(path: &Path) -> Result<String, String> {
-    let started = Instant::now();
     let mut file = File::open(path).map_err(|e| format!("HashOpen: {e}"))?;
     let mut hasher = Sha256::new();
-    let bytes = io::copy(&mut file, &mut hasher).map_err(|e| format!("HashRead: {e}"))?;
+    io::copy(&mut file, &mut hasher).map_err(|e| format!("HashRead: {e}"))?;
     let sha = format!("{:x}", hasher.finalize());
-    record_r7_timing(
-        "sha256",
-        started.elapsed(),
-        serde_json::json!({
-            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
-            "bytes": bytes,
-            "sha256": sha,
-        }),
-    );
     Ok(sha)
 }
 

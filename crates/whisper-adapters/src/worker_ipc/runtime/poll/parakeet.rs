@@ -846,21 +846,13 @@ impl ImportRuntime {
                     completed_samples: duration_samples,
                     total_samples: duration_samples,
                 });
-                let validation_started = Instant::now();
+
                 let validated_words =
                     match validate_single_pass_parakeet_words(&words, duration_samples) {
                         Ok(words) => words,
                         Err(error) => return Some(Err(PortError::Failed(error))),
                     };
-                crate::diagnostics::record_stage_timing(
-                    "application_word_validation",
-                    validation_started.elapsed(),
-                    serde_json::json!({
-                        "input_words": words.len(),
-                        "validated_words": validated_words.len(),
-                    }),
-                );
-                let grouping_started = Instant::now();
+
                 let mut groups: Vec<(u64, u64, Vec<String>)> = Vec::new();
                 for (start, end, token) in validated_words {
                     if let Err(error) =
@@ -869,11 +861,6 @@ impl ImportRuntime {
                         return Some(Err(PortError::Failed(error)));
                     }
                 }
-                crate::diagnostics::record_stage_timing(
-                    "application_word_grouping",
-                    grouping_started.elapsed(),
-                    serde_json::json!({ "groups": groups.len() }),
-                );
                 let last_sequence = groups.len() as u64;
                 for (sequence, (start, end, tokens)) in groups.into_iter().enumerate() {
                     let Some(range) = whisper_core::SourceRange::new(start, end, 16_000) else {

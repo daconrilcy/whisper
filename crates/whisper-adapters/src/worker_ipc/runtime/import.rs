@@ -284,12 +284,6 @@ impl ImportRuntime {
         events: &mut VecDeque<ImportEvent>,
         publication_gate: &PublicationGate,
     ) -> Result<(), (JobId, Generation, String)> {
-        let destination = self.archive.root_path();
-        let _timing_context = TimingContextGuard::enter(
-            "publish-import",
-            format!("{:032x}-{}", job.0, generation.get()),
-            &destination,
-        );
         let result = (|| {
             if let Some(progress) = self.progress.as_mut() {
                 progress.close(ProgressPhase::Draining);

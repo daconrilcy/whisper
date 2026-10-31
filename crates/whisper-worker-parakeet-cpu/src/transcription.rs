@@ -3,9 +3,9 @@ use crate::reference_decoder::decode_reference_wav;
 use crate::{
     decoder,
     integrity::{constant_time_eq, sha256_file},
-    native_engine, record_r7_timing,
+    native_engine,
 };
-use std::{path::Path, time::Instant};
+use std::path::Path;
 use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;
 
 #[cfg(test)]
@@ -49,7 +49,6 @@ pub(crate) fn transcribe_one(
             "source SHA-256 differs from request".into(),
         ));
     }
-    let decode_started = Instant::now();
     let decoded = if profile == PROFILE_QUALIFICATION_REFERENCE {
         #[cfg(feature = "parakeet-qualification-reference")]
         {
@@ -65,13 +64,6 @@ pub(crate) fn transcribe_one(
     } else {
         decoder::decode_file(&canonical).map_err(|error| ("DecodeFailed", error))?
     };
-    record_r7_timing(
-        "audio_decode",
-        decode_started.elapsed(),
-        serde_json::json!({
-            "samples": decoded.samples.len(), "source_sha256": actual_sha,
-        }),
-    );
     let duration_samples = decoded.samples.len() as u64;
     let result = if profile == PROFILE_QUALIFICATION_REFERENCE {
         #[cfg(feature = "parakeet-qualification-reference")]

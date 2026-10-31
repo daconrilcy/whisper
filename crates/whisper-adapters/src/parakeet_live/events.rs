@@ -21,16 +21,6 @@ impl ParakeetLive {
                         "backend":backend.clone(),
                         "at_unix_ms":unix_time_ms(),
                     }));
-                    if self.trace.enabled() {
-                        self.trace.record(serde_json::json!({
-                            "event": "worker_ready",
-                            "job_id": format!("{:032x}", self.request.job_id.0),
-                            "generation": self.request.generation.get(),
-                            "session_id": self.session_id,
-                            "backend": backend,
-                            "at_unix_ms": unix_time_ms(),
-                        }));
-                    }
                     if !self.ready_sent {
                         self.ready_sent = true;
                         self.pending_events
@@ -50,7 +40,6 @@ impl ParakeetLive {
                     words,
                     captured_at_unix_ms,
                     available_at_unix_ms,
-                    native,
                     recovery_for,
                 }) => {
                     #[cfg(test)]
@@ -64,7 +53,6 @@ impl ParakeetLive {
                         "recovery_for":recovery_for.as_ref().map(|range| format!("{range:?}")),
                         "at_unix_ms":unix_time_ms(),
                     }));
-                    let received_at_unix_ms = unix_time_ms();
                     self.inflight = false;
                     let global_start = self
                         .request
@@ -101,49 +89,12 @@ impl ParakeetLive {
                             word
                         })
                         .collect();
-                    let unresolved_before = self.confirmation.unresolved().to_vec();
-                    match self.confirmation.ingest_observed(
-                        Hypothesis {
-                            sequence,
-                            range,
-                            words: global_words,
-                        },
-                        self.trace.enabled(),
-                    ) {
+                    match self.confirmation.ingest_observed(Hypothesis {
+                        sequence,
+                        range,
+                        words: global_words,
+                    }) {
                         Ok(decision) => {
-                            if self.trace.enabled() {
-                                self.trace.record(serde_json::json!({
-                                    "event": "window_confirmation",
-                                    "job_id": format!("{:032x}", self.request.job_id.0),
-                                    "generation": self.request.generation.get(),
-                                    "session_id": self.session_id,
-                                    "window_sequence": sequence,
-                                    "recovery_for": recovery_for.as_ref().map(range_trace_json),
-                                    "window_start_sample": range.start_sample,
-                                    "window_end_sample": range.end_sample,
-                                    "sample_rate_hz": range.sample_rate_hz,
-                                    "received_at_unix_ms": received_at_unix_ms,
-                                    "captured_at_unix_ms": captured_at_unix_ms,
-                                    "available_at_unix_ms": available_at_unix_ms,
-                                    "native": native.as_ref().map(native_trace_json),
-                                    "cursor_before_sample": decision.cursor_before,
-                                    "cursor_after_sample": decision.cursor_after,
-                                    "published_at_unix_ms": unix_time_ms(),
-                                    "publication_phase": self.publication_phase(),
-                                    "candidate_word_count": native.as_ref().map_or(0, |trace| trace.words.len()),
-                                    "published_blocks": decision.published.iter().map(block_trace_json).collect::<Vec<_>>(),
-                                    "first_refusal": decision.first_refusal.as_ref().map(refusal_trace_json).or_else(|| {
-                                        native.as_ref().filter(|trace| trace.words.is_empty()).map(|_| serde_json::json!({
-                                            "code": "no_words_returned",
-                                            "range": range_trace_json(&range),
-                                            "gaps": [],
-                                        }))
-                                    }),
-                                    "unresolved_before": decision.unresolved_before.iter().map(range_trace_json).collect::<Vec<_>>(),
-                                    "unresolved_after": decision.unresolved_after.iter().map(range_trace_json).collect::<Vec<_>>(),
-                                    "unresolved_ranges_at_receive": unresolved_before.iter().map(range_trace_json).collect::<Vec<_>>(),
-                                }));
-                            }
                             for resolved in decision
                                 .unresolved_before
                                 .iter()
@@ -188,29 +139,6 @@ impl ParakeetLive {
                             }
                         }
                         Err(message) => {
-                            if self.trace.enabled() {
-                                self.trace.record(serde_json::json!({
-                                    "event": "window_confirmation_rejected",
-                                    "job_id": format!("{:032x}", self.request.job_id.0),
-                                    "generation": self.request.generation.get(),
-                                    "session_id": self.session_id,
-                                    "window_sequence": sequence,
-                                    "recovery_for": recovery_for.as_ref().map(range_trace_json),
-                                    "window_start_sample": range.start_sample,
-                                    "window_end_sample": range.end_sample,
-                                    "received_at_unix_ms": received_at_unix_ms,
-                                    "native": native.as_ref().map(native_trace_json),
-                                    "cursor_before_sample": self.confirmation.confirmed_end(),
-                                    "cursor_after_sample": self.confirmation.confirmed_end(),
-                                    "first_refusal": {
-                                        "code": confirmation_error_code(&message),
-                                        "message": message,
-                                        "range": range_trace_json(&range),
-                                        "gaps": unresolved_before.iter().map(range_trace_json).collect::<Vec<_>>(),
-                                    },
-                                    "publication_phase": self.publication_phase(),
-                                }));
-                            }
                             if recovery_for.is_none() {
                                 self.queue_audio_unusable(Some(sequence), range, message);
                             }
@@ -223,7 +151,6 @@ impl ParakeetLive {
                     start_sample,
                     end_sample,
                     message,
-                    native,
                     recovery_for,
                 }) => {
                     #[cfg(test)]
@@ -248,29 +175,6 @@ impl ParakeetLive {
                         .ok_or_else(|| "Fin de fenêtre hors chronologie".to_owned())?;
                     let range = SourceRange::new(start, end, SAMPLE_RATE as u32)
                         .ok_or_else(|| "Fenêtre Parakeet hors chronologie".to_owned())?;
-                    if self.trace.enabled() {
-                        self.trace.record(serde_json::json!({
-                            "event": "window_unusable",
-                            "job_id": format!("{:032x}", self.request.job_id.0),
-                            "generation": self.request.generation.get(),
-                            "session_id": self.session_id,
-                            "window_sequence": sequence,
-                            "recovery_for": recovery_for.as_ref().map(range_trace_json),
-                            "window_start_sample": start,
-                            "window_end_sample": end,
-                            "received_at_unix_ms": unix_time_ms(),
-                            "native": native.as_ref().map(native_trace_json),
-                            "cursor_before_sample": self.confirmation.confirmed_end(),
-                            "cursor_after_sample": self.confirmation.confirmed_end(),
-                            "first_refusal": {
-                                "code": window_error_code(&message),
-                                "message": message,
-                                "range": range_trace_json(&range),
-                            },
-                            "unresolved_ranges": self.confirmation.unresolved().iter().map(range_trace_json).collect::<Vec<_>>(),
-                            "publication_phase": self.publication_phase(),
-                        }));
-                    }
                     if recovery_for.is_none() {
                         self.queue_audio_unusable(Some(sequence), range, message);
                     }
@@ -285,17 +189,6 @@ impl ParakeetLive {
                     }));
                     self.inflight = false;
                     self.unavailable = true;
-                    if self.trace.enabled() {
-                        self.trace.record(serde_json::json!({
-                            "event": "worker_unavailable",
-                            "job_id": format!("{:032x}", self.request.job_id.0),
-                            "generation": self.request.generation.get(),
-                            "session_id": self.session_id,
-                            "message": bounded_text(&message, TRACE_MAX_TEXT_BYTES).0,
-                            "at_unix_ms": unix_time_ms(),
-                            "publication_phase": self.publication_phase(),
-                        }));
-                    }
                     self.pending_events
                         .push_back(ImportEvent::ParakeetInferenceUnavailable {
                             job_id: self.request.job_id,
@@ -311,16 +204,6 @@ impl ParakeetLive {
                         "event":"parakeet-live-poll-stopped",
                         "at_unix_ms":unix_time_ms(),
                     }));
-                    if self.trace.enabled() {
-                        self.trace.record(serde_json::json!({
-                            "event": "worker_stopped",
-                            "job_id": format!("{:032x}", self.request.job_id.0),
-                            "generation": self.request.generation.get(),
-                            "session_id": self.session_id,
-                            "at_unix_ms": unix_time_ms(),
-                            "publication_phase": self.publication_phase(),
-                        }));
-                    }
                     break;
                 }
                 Err(TryRecvError::Empty) => break,
@@ -371,22 +254,6 @@ impl ParakeetLive {
         range: SourceRange,
         message: String,
     ) {
-        if self.trace.enabled() {
-            self.trace.record(serde_json::json!({
-                "event": "audio_range_unusable",
-                "job_id": format!("{:032x}", self.request.job_id.0),
-                "generation": self.request.generation.get(),
-                "session_id": self.session_id,
-                "window_sequence": sequence,
-                "range": range_trace_json(&range),
-                "at_unix_ms": unix_time_ms(),
-                "reason_code": window_error_code(&message),
-                "message": bounded_text(&message, TRACE_MAX_TEXT_BYTES).0,
-                "cursor_sample": self.confirmation.confirmed_end(),
-                "unresolved_ranges": self.confirmation.unresolved().iter().map(range_trace_json).collect::<Vec<_>>(),
-                "publication_phase": self.publication_phase(),
-            }));
-        }
         self.confirmation.mark_unresolved(range);
         self.pending_events
             .push_back(ImportEvent::ParakeetUnresolved {
@@ -406,53 +273,8 @@ impl ParakeetLive {
             });
     }
 
-    pub(super) fn publication_phase(&self) -> &'static str {
-        if self.finalizing {
-            "stop_finalization"
-        } else {
-            "capture_active"
-        }
-    }
-
     pub(super) fn pop_pending_event(&mut self) -> Option<ImportEvent> {
         let event = self.pending_events.pop_front()?;
-        if self.trace.enabled() {
-            match &event {
-                ImportEvent::ParakeetHypothesis {
-                    session_id,
-                    sequence,
-                    range,
-                    text,
-                    captured_at_unix_ms,
-                    available_at_unix_ms,
-                    ..
-                } => self.trace.record(serde_json::json!({
-                    "event": "hypothesis_event_returned",
-                    "session_id": session_id,
-                    "window_sequence": sequence,
-                    "range": range_trace_json(range),
-                    "text": bounded_text(text, TRACE_MAX_TEXT_BYTES).0,
-                    "captured_at_unix_ms": captured_at_unix_ms,
-                    "available_at_unix_ms": available_at_unix_ms,
-                    "returned_at_unix_ms": unix_time_ms(),
-                    "publication_phase": self.publication_phase(),
-                })),
-                ImportEvent::ParakeetConfirmed {
-                    session_id,
-                    segment,
-                    ..
-                } => self.trace.record(serde_json::json!({
-                    "event": "confirmed_event_returned",
-                    "session_id": session_id,
-                    "segment_id": segment.segment_id.0,
-                    "range": range_trace_json(&segment.range),
-                    "text": bounded_text(&segment.text, TRACE_MAX_TEXT_BYTES).0,
-                    "returned_at_unix_ms": unix_time_ms(),
-                    "publication_phase": self.publication_phase(),
-                })),
-                _ => {}
-            }
-        }
         Some(event)
     }
 }

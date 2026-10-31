@@ -1,11 +1,11 @@
 use super::{
     ActiveArchive, ArchiveQualificationKey, ArchiveStore, Digest, DuplicateImportChoice,
-    ImportRequest, ImportVadWindowPayload, ImportVadWindowRecord, Instant, OpenOptions, Path,
-    PathBuf, PendingRecord, PublicationIdentity, PublicationIntent, Sha256, Write,
-    assert_campaign_archive, fs, hex, initialize_pending, is_r5_2_vad_recipe_destination,
-    is_registered_model, publication_reservation_path, read_import_vad_windows, read_segments,
-    reserve_export_basename, segmented_pcm_manifest, sha256_file, source_output_samples,
-    validate_pending, write_publication_intent, write_replace_synced,
+    ImportRequest, ImportVadWindowPayload, ImportVadWindowRecord, OpenOptions, Path, PathBuf,
+    PendingRecord, PublicationIdentity, PublicationIntent, Sha256, Write, assert_campaign_archive,
+    fs, hex, initialize_pending, is_r5_2_vad_recipe_destination, is_registered_model,
+    publication_reservation_path, read_import_vad_windows, read_segments, reserve_export_basename,
+    segmented_pcm_manifest, sha256_file, source_output_samples, validate_pending,
+    write_publication_intent, write_replace_synced,
 };
 
 impl ArchiveStore {
@@ -205,7 +205,6 @@ impl ArchiveStore {
         qualification: Option<ArchiveQualificationKey>,
         binding: &crate::source_binding::SourceBinding,
     ) -> Result<ImportRequest, String> {
-        let started = Instant::now();
         let result = self.prepare_inner_impl(
             request,
             executable_model_path,
@@ -213,11 +212,6 @@ impl ArchiveStore {
             Some(binding),
             None,
             None,
-        );
-        crate::diagnostics::record_stage_timing(
-            "archive_prepare_pending",
-            started.elapsed(),
-            serde_json::json!({ "success": result.is_ok(), "source_binding": true }),
         );
         result
     }
@@ -243,7 +237,6 @@ impl ArchiveStore {
         qualification: Option<ArchiveQualificationKey>,
         locked_destination: Option<&Path>,
     ) -> Result<ImportRequest, String> {
-        let started = Instant::now();
         let result = self.prepare_inner_impl(
             request,
             executable_model_path,
@@ -251,11 +244,6 @@ impl ArchiveStore {
             None,
             None,
             locked_destination,
-        );
-        crate::diagnostics::record_stage_timing(
-            "archive_prepare_pending",
-            started.elapsed(),
-            serde_json::json!({ "success": result.is_ok() }),
         );
         result
     }

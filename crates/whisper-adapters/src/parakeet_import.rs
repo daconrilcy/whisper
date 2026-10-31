@@ -1,5 +1,7 @@
 //! Isolated process client for the qualified Parakeet import worker.
 
+mod historical_runtime;
+
 use sha2::{Digest, Sha256};
 #[cfg(feature = "recette-hooks")]
 use std::sync::mpsc::SyncSender;
@@ -10,7 +12,7 @@ use std::{
     process::{Child, ChildStdin, Command, Stdio},
     sync::mpsc::{self, Receiver, TryRecvError},
     thread,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 use whisper_core::parakeet_ipc::{
     Command as WorkerCommand, Envelope, Event, PARAKEET_IPC_VERSION, PARAKEET_MAX_FRAME_BYTES,
@@ -55,20 +57,7 @@ impl ParakeetWorkerPaths {
             .model
             .canonicalize()
             .map_err(|error| format!("model unavailable: {error}"))?;
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .canonicalize()
-            .map_err(|error| format!("RepositoryRoot: {error}"))?;
-        let l2b_root = repository.join("target/parakeet-tests/l2/l2b");
-        let l3b_root = repository.join("target/parakeet-tests/l3/l3b");
-        let shared_model = repository
-            .join("models/parakeet-tdt-0.6b-v3.q8_0.gguf")
-            .canonicalize()
-            .ok()
-            .is_some_and(|expected| model == expected)
-            && (l2b_root.canonicalize().ok().as_ref() == Some(&root)
-                || l3b_root.canonicalize().ok().as_ref() == Some(&root));
+        let shared_model = historical_runtime::is_shared_model(&root, &model)?;
         if !model.starts_with(&root) && !shared_model {
             return Err("PathOutsideRuntime: model must be under runtime or the read-only qualified models directory".into());
         }
@@ -113,74 +102,6 @@ impl ParakeetWorkerPaths {
             .canonicalize()
             .ok()
             .is_some_and(|root| self.matches_personal_layout(&root))
-    }
-
-    fn is_canonical_l3b_reference(&self, label: &str, canonical: &Path) -> bool {
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .canonicalize();
-        let Ok(repository) = repository else {
-            return false;
-        };
-        let expected_runtime = repository.join("target/parakeet-tests/l3/l3b");
-        let Ok(expected_runtime) = expected_runtime.canonicalize() else {
-            return false;
-        };
-        if self.runtime_root.canonicalize().ok().as_ref() != Some(&expected_runtime)
-            || std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
-                .and_then(|path| PathBuf::from(path).canonicalize().ok())
-                .as_ref()
-                != Some(&expected_runtime)
-        {
-            return false;
-        }
-        let env_name = match label {
-            "worker"
-                if self
-                    .executable
-                    .file_name()
-                    .is_some_and(|name| name == "whisper-worker-parakeet-gpu.exe") =>
-            {
-                "PARAKEET_L2_WORKER"
-            }
-            "worker" => "PARAKEET_L2_CPU_WORKER",
-            "native directory"
-                if self.native_dir.as_path()
-                    == Path::new(
-                        &std::env::var_os("PARAKEET_L2_NATIVE_DIR").unwrap_or_default(),
-                    ) =>
-            {
-                "PARAKEET_L2_NATIVE_DIR"
-            }
-            "native directory" => "PARAKEET_L2_CPU_NATIVE_DIR",
-            _ => return false,
-        };
-        let Some(configured) = std::env::var_os(env_name).map(PathBuf::from) else {
-            return false;
-        };
-        configured
-            .canonicalize()
-            .ok()
-            .is_some_and(|path| path == canonical)
-    }
-
-    #[cfg(feature = "recette-hooks")]
-    fn is_canonical_l3c_test_artifact(&self, canonical: &Path) -> bool {
-        if !cfg!(feature = "l3-gpu-qualification")
-            || option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_none()
-        {
-            return false;
-        }
-        let Some(root) = l3_acceptance_execution_root() else {
-            return false;
-        };
-        canonical.starts_with(root)
-    }
-
-    #[cfg(not(feature = "recette-hooks"))]
-    fn is_canonical_l3c_test_artifact(&self, _canonical: &Path) -> bool {
-        false
     }
 
     pub fn verify_qualification(
@@ -262,32 +183,7 @@ impl ParakeetWorkerPaths {
         if self.is_personal_runtime() {
             return self.personal_qualification_key("CUDA0");
         }
-        let runtime = self
-            .runtime_root
-            .canonicalize()
-            .map_err(|error| error.to_string())?;
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .canonicalize()
-            .map_err(|error| error.to_string())?;
-        let expected = repository
-            .join("target/parakeet-tests/l3/l3b")
-            .canonicalize()
-            .map_err(|error| error.to_string())?;
-        if runtime != expected
-            || std::env::var_os("PARAKEET_L2_WORKER")
-                .and_then(|path| PathBuf::from(path).canonicalize().ok())
-                != Some(
-                    self.executable
-                        .canonicalize()
-                        .map_err(|error| error.to_string())?,
-                )
-        {
-            return Err(
-                "ProfileUnavailable: GPU qualification requires the canonical L3b route".into(),
-            );
-        }
+        historical_runtime::validate_gpu_qualification(self)?;
         let record = whisper_core::model_registry::model(
             whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
         );
@@ -387,21 +283,6 @@ impl ParakeetWorkerPaths {
         candidates
     }
 
-    fn is_l2b_runtime(&self) -> Result<bool, String> {
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .canonicalize()
-            .map_err(|error| format!("RepositoryRoot: {error}"))?;
-        let expected = repository.join("target/parakeet-tests/l2/l2b");
-        Ok(
-            self.runtime_root.canonicalize().ok() == expected.canonicalize().ok()
-                && std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
-                    .and_then(|root| PathBuf::from(root).canonicalize().ok())
-                    == expected.canonicalize().ok(),
-        )
-    }
-
     /// Rechecks the mutable native runtime key without rehashing the large model artifact.
     pub fn verify_worker_runtime(
         &self,
@@ -426,28 +307,6 @@ fn personal_runtime_path_is_allowed(root: &Path, personal_root: &Path) -> bool {
     root == personal_root
         || (root.parent() == Some(personal_root.join(".staging").as_path())
             && root.file_name().is_some_and(|name| !name.is_empty()))
-}
-
-#[cfg(feature = "recette-hooks")]
-fn l3_acceptance_execution_root() -> Option<PathBuf> {
-    let l3c = std::env::var_os("PARAKEET_L3C_EXEC_ROOT").map(PathBuf::from);
-    let l3d = std::env::var_os("PARAKEET_L3D_EXEC_ROOT").map(PathBuf::from);
-    let (configured, lot) = match (l3c, l3d) {
-        (Some(path), None) => (path, "l3c"),
-        (None, Some(path)) => (path, "l3d"),
-        _ => return None,
-    };
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .canonicalize()
-        .ok()?;
-    let expected = repository
-        .join(format!("target/parakeet-tests/l3/{lot}"))
-        .canonicalize()
-        .ok()?;
-    let configured = configured.canonicalize().ok()?;
-    (configured == expected).then_some(expected)
 }
 
 fn runtime_sha256(native_dir: &Path) -> Result<String, String> {
@@ -479,24 +338,12 @@ fn runtime_sha256(native_dir: &Path) -> Result<String, String> {
 }
 
 pub(crate) fn sha256_file(path: &Path) -> Result<String, String> {
-    let started = Instant::now();
-    let (bytes, digest, full_read) = crate::model_catalog::cached_artifact_sha256_with_read(path)
+    let (_, digest, _) = crate::model_catalog::cached_artifact_sha256_with_read(path)
         .map_err(|error| format!("HashRead: {error}"))?;
     let sha = digest
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
-    crate::diagnostics::record_stage_timing(
-        "sha256",
-        started.elapsed(),
-        serde_json::json!({
-            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
-            "role": if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("dll")) { "runtime_dll" } else if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("gguf")) { "model" } else if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("wav")) { "audio" } else if path.file_name().is_some_and(|name| name.to_string_lossy().contains("worker")) { "worker" } else { "other" },
-            "bytes": bytes,
-            "sha256": sha,
-            "full_read": full_read,
-        }),
-    );
     Ok(sha)
 }
 
@@ -513,9 +360,6 @@ pub struct ParakeetProcess {
     identity: Option<WorkerIdentity>,
     expected_profile: String,
     request_id: u64,
-    spawned_at: Instant,
-    spawn_elapsed: Duration,
-    request_started_at: Option<Instant>,
 }
 
 impl ParakeetProcess {
@@ -545,26 +389,7 @@ impl ParakeetProcess {
         if ![PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE].contains(&profile) {
             return Err("ProfileUnavailable: unsupported private qualification profile".into());
         }
-        let runtime = paths
-            .runtime_root
-            .canonicalize()
-            .map_err(|error| format!("MissingRuntime: {error}"))?;
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .canonicalize()
-            .map_err(|error| format!("RepositoryRoot: {error}"))?;
-        let l2b_root = repository
-            .join("target/parakeet-tests/l2/l2b")
-            .canonicalize()
-            .map_err(|error| format!("MissingRuntime: {error}"))?;
-        let configured = std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
-            .ok_or("MissingRuntime: PARAKEET_L2_RUNTIME_ROOT")?;
-        if runtime != l2b_root || PathBuf::from(configured).canonicalize().ok() != Some(l2b_root) {
-            return Err(
-                "PathOutsideRuntime: qualification profile requires canonical L2b root".into(),
-            );
-        }
+        historical_runtime::validate_qualification_runtime(paths)?;
         Self::spawn_profile(paths, profile)
     }
 
@@ -596,7 +421,24 @@ impl ParakeetProcess {
         } else if profile == PROFILE_QUALIFICATION_REFERENCE {
             command.arg("--qualification-reference");
         }
-        let cpu_read_runtime = l3b_r6_cpu_read_runtime_root(paths)?;
+        if paths.is_personal_runtime() {
+            for name in [
+                "PARAKEET_R6_TIMING_LOG",
+                "PARAKEET_R6_CASE",
+                "PARAKEET_R7_TIMING_ACTIVE",
+                "PARAKEET_R7_EXEC_ROOT",
+                "PARAKEET_R7_TIMING_LOG",
+                "PARAKEET_L3C_EXEC_ROOT",
+                "PARAKEET_L3D_EXEC_ROOT",
+            ] {
+                command.env_remove(name);
+            }
+        }
+        let cpu_read_runtime = if paths.is_personal_runtime() {
+            None
+        } else {
+            historical_runtime::l3b_r6_cpu_read_runtime_root(paths)?
+        };
         let (stderr, worker_log) =
             worker_stderr_log(paths, cpu_read_runtime.is_some(), session_log_root)?;
         let worker_runtime_root = cpu_read_runtime.unwrap_or_else(|| paths.runtime_root.clone());
@@ -608,7 +450,6 @@ impl ParakeetProcess {
         {
             command.env("PARAKEET_L3_ASR_LOG", asr_log);
         }
-        let spawn_started = Instant::now();
         let mut child = command
             .env("PARAKEET_L2_RUNTIME_ROOT", worker_runtime_root)
             .stdin(Stdio::piped())
@@ -616,14 +457,6 @@ impl ParakeetProcess {
             .stderr(stderr)
             .spawn()
             .map_err(|error| format!("WorkerStart: {error}"))?;
-        let spawn_elapsed = spawn_started.elapsed();
-        crate::diagnostics::record_stage_timing(
-            "worker_spawn",
-            spawn_elapsed,
-            serde_json::json!({
-                "worker": paths.executable.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
-            }),
-        );
         let input = child
             .stdin
             .take()
@@ -681,9 +514,6 @@ impl ParakeetProcess {
             identity: None,
             expected_profile: profile.to_owned(),
             request_id: 0,
-            spawned_at: spawn_started,
-            spawn_elapsed,
-            request_started_at: None,
         })
     }
 
@@ -696,31 +526,6 @@ impl ParakeetProcess {
         match self.events.try_recv() {
             Ok(event) => {
                 let event = event?;
-                match &event {
-                    Event::Ready {
-                        identity, backend, ..
-                    } => {
-                        crate::diagnostics::record_stage_timing(
-                            "worker_start_to_ready",
-                            self.spawned_at.elapsed(),
-                            serde_json::json!({
-                                "spawn_elapsed_ms": self.spawn_elapsed.as_secs_f64() * 1000.0,
-                                "backend": backend,
-                                "worker_sha256": identity.build_sha256,
-                            }),
-                        );
-                    }
-                    Event::Result { request_id, .. } => {
-                        if let Some(started) = self.request_started_at.take() {
-                            crate::diagnostics::record_stage_timing(
-                                "worker_request_to_result",
-                                started.elapsed(),
-                                serde_json::json!({ "request_id": request_id }),
-                            );
-                        }
-                    }
-                    _ => {}
-                }
                 Ok(Some(event))
             }
             Err(TryRecvError::Empty) => Ok(None),
@@ -788,7 +593,6 @@ impl ParakeetProcess {
             .request_id
             .checked_add(1)
             .ok_or_else(|| "RequestIdentityExhausted".to_owned())?;
-        let started = Instant::now();
         let request_id = self.request_id;
         self.write(&Envelope::new(WorkerCommand::Transcribe {
             request_id,
@@ -800,20 +604,13 @@ impl ParakeetProcess {
             source_sha256,
             expected_gpu,
         }))?;
-        self.request_started_at = Some(started);
         Ok(request_id)
     }
 
     pub fn accept_ready(&mut self, identity: WorkerIdentity) -> Result<(), String> {
-        let started = Instant::now();
         if identity.profile != self.expected_profile {
             return Err("ProfileMismatch".into());
         }
-        crate::diagnostics::record_stage_timing(
-            "worker_ready_identity_validation",
-            started.elapsed(),
-            serde_json::json!({ "profile": identity.profile, "worker_sha256": identity.build_sha256 }),
-        );
         self.identity = Some(identity);
         Ok(())
     }
@@ -828,17 +625,7 @@ impl ParakeetProcess {
 
     #[cfg(feature = "recette-hooks")]
     pub(crate) fn inject_incomplete_result_for_acceptance(&self) -> Result<(), String> {
-        if option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_none() {
-            return Err("InvalidInput: acceptance transport seam is disabled".into());
-        }
-        let runtime = std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
-            .ok_or_else(|| "MissingRuntime: acceptance runtime root is required".to_owned())?;
-        let runtime = PathBuf::from(runtime)
-            .canonicalize()
-            .map_err(|error| format!("MissingRuntime: {error}"))?;
-        if runtime != self.runtime_root {
-            return Err("PathOutsideRuntime: acceptance runtime differs from worker root".into());
-        }
+        historical_runtime::validate_acceptance_runtime(&self.runtime_root)?;
         let malformed = br#"{"version":1,"message":{"type":"result"}}"#;
         let error = decode_worker_frame(malformed)
             .expect_err("acceptance fixture must be an incomplete Result frame");
@@ -905,87 +692,18 @@ fn worker_stderr_log(
         .runtime_root
         .canonicalize()
         .map_err(|error| format!("WorkerLogPath: runtime root: {error}"))?;
-    let configured_l3c = if session_log_root.is_none()
-        && let Some(configured) = std::env::var_os("PARAKEET_L3C_EXEC_ROOT")
-    {
-        let configured = PathBuf::from(configured)
-            .canonicalize()
-            .map_err(|error| format!("WorkerLogPath: L3c execution root: {error}"))?;
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .canonicalize()
-            .map_err(|error| format!("WorkerLogPath: repository root: {error}"))?;
-        let expected = repository
-            .join("target/parakeet-tests/l3/l3c")
-            .canonicalize()
-            .map_err(|error| format!("WorkerLogPath: canonical L3c root: {error}"))?;
-        if configured != expected {
-            return Err("PathOutsideRuntime: L3c execution root is not canonical".into());
-        }
-        Some(configured)
-    } else {
-        None
-    };
-    let configured_l3d = if session_log_root.is_none()
-        && let Some(configured) = std::env::var_os("PARAKEET_L3D_EXEC_ROOT")
-    {
-        let configured = PathBuf::from(configured)
-            .canonicalize()
-            .map_err(|error| format!("WorkerLogPath: L3d execution root: {error}"))?;
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .canonicalize()
-            .map_err(|error| format!("WorkerLogPath: repository root: {error}"))?;
-        let expected = repository
-            .join("target/parakeet-tests/l3/l3d")
-            .canonicalize()
-            .map_err(|error| format!("WorkerLogPath: canonical L3d root: {error}"))?;
-        if configured != expected {
-            return Err("PathOutsideRuntime: L3d execution root is not canonical".into());
-        }
-        Some(configured)
-    } else {
-        None
-    };
-    if configured_l3c.is_some() && configured_l3d.is_some() {
-        return Err("PathOutsideRuntime: only one L3 campaign root may be configured".into());
-    }
-    let l3_gpu_log = is_gpu_worker && (configured_l3c.is_some() || configured_l3d.is_some());
-    let configured_campaign = configured_l3d.clone().or(configured_l3c.clone());
-    let log_root = if let Some(session_root) = session_log_root {
+    let (log_root, l3c_log, l3d_log) = if let Some(session_root) = session_log_root {
         let canonical = session_root
             .canonicalize()
             .map_err(|error| format!("WorkerLogPath: session root: {error}"))?;
         if !canonical.is_dir() {
             return Err("WorkerLogPath: session root is not a directory".into());
         }
-        canonical
-    } else if is_gpu_worker && configured_campaign.is_some() {
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .canonicalize()
-            .map_err(|error| format!("WorkerLogPath: repository root: {error}"))?;
-        let expected_runtime = repository
-            .join("target/parakeet-tests/l3/l3b")
-            .canonicalize()
-            .map_err(|error| format!("WorkerLogPath: canonical L3b root: {error}"))?;
-        if runtime != expected_runtime || !l3_gpu_log {
-            return Err(
-                "PathOutsideRuntime: GPU ASR log requires canonical L3b/L3c/L3d roots".into(),
-            );
-        }
-        runtime.clone()
+        (canonical, false, false)
+    } else if paths.is_personal_runtime() {
+        (runtime.join("settings"), false, false)
     } else {
-        configured_campaign
-            .or_else(|| {
-                paths
-                    .is_personal_runtime()
-                    .then(|| runtime.join("settings"))
-            })
-            .unwrap_or_else(|| runtime.clone())
+        historical_runtime::historical_log_root(&runtime, is_gpu_worker)?
     };
     let log_dir = log_root.join("logs");
     match std::fs::create_dir(&log_dir) {
@@ -1005,11 +723,7 @@ fn worker_stderr_log(
         .unwrap_or_default()
         .as_millis();
     let sequence = LOG_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let prefix = worker_log_prefix(
-        is_gpu_worker,
-        configured_l3c.is_some(),
-        configured_l3d.is_some(),
-    );
+    let prefix = worker_log_prefix(is_gpu_worker, l3c_log, l3d_log);
     let path = log_dir.join(format!(
         "{prefix}-{timestamp_ms}-{}-{sequence}.log",
         std::process::id()
@@ -1054,76 +768,12 @@ mod worker_log_mode_tests {
     }
 }
 
-/// The immutable R6 CPU worker authorizes only the canonical L2b runtime. During L3b,
-/// keep adapter-owned writes under L3b while giving that exact worker its read-only L2b root.
-/// The environment inputs are accepted only for the exact frozen worker and canonical roots.
-fn l3b_r6_cpu_read_runtime_root(paths: &ParakeetWorkerPaths) -> Result<Option<PathBuf>, String> {
-    const R6_CPU_WORKER_SHA256: &str =
-        "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0";
+#[cfg(test)]
+#[path = "parakeet_import/legacy_runtime_tests.rs"]
+mod legacy_runtime_tests;
 
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .canonicalize()
-        .map_err(|error| format!("RepositoryRoot: {error}"))?;
-    let l3b_root = repository
-        .join("target/parakeet-tests/l3/l3b")
-        .canonicalize()
-        .map_err(|error| format!("RuntimeRootInvalid: L3b: {error}"))?;
-    let active_root = paths
-        .runtime_root
-        .canonicalize()
-        .map_err(|error| format!("RuntimeRootInvalid: active: {error}"))?;
-    if active_root != l3b_root {
-        return Ok(None);
-    }
-
-    let l2b_root = repository
-        .join("target/parakeet-tests/l2/l2b")
-        .canonicalize()
-        .map_err(|error| format!("RuntimeRootInvalid: L2b: {error}"))?;
-    let expected_worker = l2b_root.join("r6/worker/whisper-worker-parakeet-cpu.exe");
-    let worker = paths
-        .executable
-        .canonicalize()
-        .map_err(|error| format!("WorkerPath: {error}"))?;
-    if worker != expected_worker {
-        return Ok(None);
-    }
-
-    let configured_worker = std::env::var_os("PARAKEET_L2_CPU_WORKER")
-        .map(PathBuf::from)
-        .ok_or_else(|| {
-            "WorkerPathMissing: PARAKEET_L2_CPU_WORKER is required for the frozen R6 worker"
-                .to_owned()
-        })?
-        .canonicalize()
-        .map_err(|error| format!("WorkerPathInvalid: PARAKEET_L2_CPU_WORKER: {error}"))?;
-    if configured_worker != worker {
-        return Err(
-            "WorkerPathMismatch: frozen R6 worker differs from configured CPU worker".into(),
-        );
-    }
-    let worker_sha256 = sha256_file(&worker)?;
-    if !worker_sha256.eq_ignore_ascii_case(R6_CPU_WORKER_SHA256) {
-        return Err("WorkerHashMismatch: frozen R6 CPU worker SHA-256 differs".into());
-    }
-
-    let configured_root = std::env::var_os("PARAKEET_L2_CPU_RUNTIME_ROOT")
-        .map(PathBuf::from)
-        .ok_or_else(|| {
-            "RuntimeRootMissing: PARAKEET_L2_CPU_RUNTIME_ROOT is required for the frozen R6 worker"
-                .to_owned()
-        })?
-        .canonicalize()
-        .map_err(|error| format!("RuntimeRootInvalid: PARAKEET_L2_CPU_RUNTIME_ROOT: {error}"))?;
-    if configured_root != l2b_root {
-        return Err(
-            "RuntimeRootMismatch: frozen R6 CPU worker requires canonical L2b read root".into(),
-        );
-    }
-    Ok(Some(l2b_root))
-}
+#[cfg(test)]
+mod runtime_isolation_tests;
 
 pub fn expected_gpu_for_candidate(
     candidate: &whisper_core::gpu_inventory::GpuRuntimeIdentity,

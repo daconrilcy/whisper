@@ -84,8 +84,6 @@ impl ParakeetLive {
         ));
         fs::create_dir(&window_root)
             .map_err(|error| format!("Fenêtres Parakeet non créées : {error}"))?;
-        let trace = TraceSink::from_environment();
-        let trace_enabled = trace.enabled();
 
         let (inference_request, request_rx) = mpsc::sync_channel(1);
         let (event_tx, inference_events) = mpsc::sync_channel(2);
@@ -120,7 +118,6 @@ impl ParakeetLive {
                     worker_cancel,
                     request_rx,
                     event_tx,
-                    trace_enabled,
                     worker_diagnostics,
                 )
             })
@@ -155,7 +152,6 @@ impl ParakeetLive {
             pending_events: std::collections::VecDeque::from([initial_event]),
             confirmation: Confirmation::default(),
             recovery_attempts: RecoveryAttemptLedger::default(),
-            trace,
             #[cfg(test)]
             d2_worker_diagnostics,
         })
@@ -296,23 +292,7 @@ impl ParakeetLive {
         if self.inflight && !failures.iter().any(|item| item.contains("Délai")) {
             failures.push("Délai de finalisation Parakeet dépassé".into());
         }
-        let finalization = self.confirmation.finalize_observed(self.trace.enabled());
-        if self.trace.enabled() {
-            self.trace.record(serde_json::json!({
-                "event": "confirmation_finalized",
-                "job_id": format!("{:032x}", self.request.job_id.0),
-                "generation": self.request.generation.get(),
-                "session_id": self.session_id,
-                "at_unix_ms": unix_time_ms(),
-                "cursor_before_sample": finalization.cursor_before,
-                "cursor_after_sample": finalization.cursor_after,
-                "published_blocks": finalization.published.iter().map(block_trace_json).collect::<Vec<_>>(),
-                "first_refusal": finalization.first_refusal.as_ref().map(refusal_trace_json),
-                "unresolved_before": finalization.unresolved_before.iter().map(range_trace_json).collect::<Vec<_>>(),
-                "unresolved_after": finalization.unresolved_after.iter().map(range_trace_json).collect::<Vec<_>>(),
-                "publication_phase": "after_capture_stopped",
-            }));
-        }
+        self.confirmation.finalize_observed();
         self.cancel_inference.store(true, Ordering::Release);
         let path = match self.wav.take() {
             Some(wav) => match wav.finish() {
@@ -357,20 +337,6 @@ impl ParakeetLive {
         );
         complete = outputs.complete;
         diagnostic.extend(outputs.diagnostics);
-        if self.trace.enabled() {
-            self.trace.record(serde_json::json!({
-                "event": "capture_stopped_returned",
-                "job_id": format!("{:032x}", self.request.job_id.0),
-                "generation": self.request.generation.get(),
-                "session_id": self.session_id,
-                "at_unix_ms": unix_time_ms(),
-                "complete": complete && diagnostic.is_empty(),
-                "confirmed_segment_count": segments.len(),
-                "unresolved_ranges": self.confirmation.remaining_ranges(global_durable_end).iter().map(range_trace_json).collect::<Vec<_>>(),
-                "publication_phase": "after_capture_stopped",
-            }));
-            self.trace.finish();
-        }
         Ok(ImportEvent::ParakeetCaptureStopped {
             job_id: self.request.job_id,
             generation: self.request.generation,
@@ -439,22 +405,6 @@ impl ParakeetLive {
             &unresolved,
             false,
         );
-        if self.trace.enabled() {
-            self.trace.record(serde_json::json!({
-                "event": "capture_stopped_after_error",
-                "job_id": format!("{:032x}", self.request.job_id.0),
-                "generation": self.request.generation.get(),
-                "session_id": self.session_id,
-                "at_unix_ms": unix_time_ms(),
-                "error": bounded_text(&error, TRACE_MAX_TEXT_BYTES).0,
-                "confirmed_segment_count": segments.len(),
-                "unresolved_ranges": self.confirmation.remaining_ranges(
-                    self.request.group_offset_samples.saturating_add(durable_end),
-                ).iter().map(range_trace_json).collect::<Vec<_>>(),
-                "publication_phase": "after_capture_error",
-            }));
-            self.trace.finish();
-        }
         ImportEvent::ParakeetCaptureStopped {
             job_id: self.request.job_id,
             generation: self.request.generation,

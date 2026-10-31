@@ -995,3 +995,152 @@
         }
         assert_eq!(submitted, 1_206);
     }
+
+    #[test]
+    fn stale_audio_pages_reset_revision_and_preserve_real_errors_and_request_identity() {
+        for stale in [
+            "StaleResponse: unified audio parts changed",
+            "StaleResponse: unified audio parts changed during read",
+        ] {
+            let mut app = ImportApplication::new(ScanTestIo::default());
+            let key = (JobId(99181), Generation::first());
+            app.add_unified_session_card(key.0, key.1, "archive".into(), "audio.wav".into(), true);
+            app.dispatch(AppCommand::SelectUnifiedSession {
+                job_id: key.0,
+                generation: key.1,
+            })
+            .unwrap();
+            app.view.unified_parakeet_sessions[0].audio_parts_revision = 41;
+        app.view.selected_unified_session.as_mut().unwrap().audio_parts_page = Some(crate::ports::UnifiedAudioPartPage {
+            revision: 41, offset: 0, entries: vec![], next_offset: None,
+        });
+            app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+                job_id: key.0,
+                generation: key.1,
+                expected_revision: 41,
+                offset: 0,
+            })
+            .unwrap();
+            let request_id = match app.io.effects.last().unwrap() {
+                ImportEffect::ReadUnifiedAudioPartsPage { request_id, .. } => *request_id,
+                other => panic!("unexpected effect {other:?}"),
+            };
+            app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
+                job_id: key.0,
+                generation: key.1,
+                request_id: request_id + 1,
+                result: Err(stale.into()),
+            })
+            .unwrap();
+            assert_eq!(
+                app.view.unified_parakeet_sessions[0].audio_parts_revision,
+                41
+            );
+            app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
+                job_id: key.0,
+                generation: key.1,
+                request_id,
+                result: Err(stale.into()),
+            })
+            .unwrap();
+            assert_eq!(
+                app.view.unified_parakeet_sessions[0].audio_parts_revision,
+                0
+            );
+            assert_eq!(
+                app.view
+                    .selected_unified_session
+                    .as_ref()
+                    .unwrap()
+                    .audio_parts_error
+                    .as_deref(),
+                Some(stale)
+            );
+            assert_eq!(app.view.selected_unified_session.as_ref().unwrap().audio_parts_page.as_ref().unwrap().revision, 41);
+        app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+                job_id: key.0,
+                generation: key.1,
+                expected_revision: 0,
+                offset: 0,
+            })
+            .unwrap();
+            let fresh_id = match app.io.effects.last().unwrap() {
+                ImportEffect::ReadUnifiedAudioPartsPage {
+                    request_id,
+                    expected_revision: 0,
+                    ..
+                } => *request_id,
+                other => panic!("fresh revision request missing: {other:?}"),
+            };
+            assert_eq!(
+                app.view
+                    .selected_unified_session
+                    .as_ref()
+                    .unwrap()
+                    .audio_parts_error,
+                None
+            );
+            app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
+                job_id: key.0,
+                generation: key.1,
+                request_id: fresh_id,
+                result: Ok(crate::ports::UnifiedAudioPartPage {
+                    revision: 72,
+                    offset: 0,
+                    entries: vec![],
+                    next_offset: None,
+                }),
+            })
+            .unwrap();
+            assert_eq!(
+                app.view.unified_parakeet_sessions[0].audio_parts_revision,
+                72
+            );
+            assert_eq!(
+                app.view
+                    .selected_unified_session
+                    .as_ref()
+                    .unwrap()
+                    .audio_parts_page
+                    .as_ref()
+                    .unwrap()
+                    .revision,
+                72
+            );
+            app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+                job_id: key.0,
+                generation: key.1,
+                expected_revision: 72,
+                offset: 0,
+            })
+            .unwrap();
+            let corrupt_id = match app.io.effects.last().unwrap() {
+                ImportEffect::ReadUnifiedAudioPartsPage { request_id, .. } => *request_id,
+                _ => unreachable!(),
+            };
+            app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
+                job_id: key.0,
+                generation: key.1,
+                request_id: corrupt_id,
+                result: Err("StorageCorrupt: damaged index".into()),
+            })
+            .unwrap();
+            app.handle_unified_capture_event(ImportEvent::ParakeetCaptureProgress {
+                job_id: key.0,
+                generation: key.1,
+                session_id: 1,
+                captured_samples: 100,
+                audio_durable_samples: 100,
+            })
+            .unwrap();
+            assert_eq!(
+                app.view
+                    .selected_unified_session
+                    .as_ref()
+                    .unwrap()
+                    .audio_parts_error
+                    .as_deref(),
+                Some("StorageCorrupt: damaged index")
+            );
+        }
+    }

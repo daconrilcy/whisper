@@ -70,7 +70,6 @@ fn parakeet_capture_pump_publishes_frequency_spectrum_and_preserves_wav() {
         pending_events: VecDeque::new(),
         confirmation: Confirmation::default(),
         recovery_attempts: RecoveryAttemptLedger::default(),
-        trace: TraceSink::disabled(),
         d2_worker_diagnostics: D2WorkerDiagnostics::default(),
     };
     let input_blocks = (0..5)

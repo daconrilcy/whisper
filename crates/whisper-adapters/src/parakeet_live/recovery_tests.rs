@@ -1,6 +1,70 @@
 use super::*;
 
 #[test]
+fn unified_capture_recycles_slots_and_preserves_audio_beyond_ring_capacity() {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let root = env::temp_dir().join(format!("whisper-unified-recycling-{stamp}"));
+    fs::create_dir_all(&root).unwrap();
+    let path = root.join("capture.wav");
+    let mut pump = UnifiedCapturePump::from_capture(
+        CaptureStream::empty_test_capture(16_000, 1, "test:synthetic"),
+        path.clone(),
+    )
+    .unwrap();
+    pump.enable_probe(JobId(101), Generation::first()).unwrap();
+    let mut reference_capture = CaptureStream::empty_test_capture(16_000, 1, "test:synthetic");
+    let mut reference_converter = Pcm16Converter::new(16_000, 1).unwrap();
+    let mut expected = Vec::new();
+    let mut acknowledgements = Vec::new();
+    let mut gain_events = Vec::new();
+    let blocks = crate::capture::CAPTURE_SLOTS * 2 + 3;
+    for index in 0..blocks {
+        if index == crate::capture::CAPTURE_SLOTS + 1 {
+            let gain = whisper_core::microphone_level::GainDb::new(6).unwrap();
+            pump.set_gain("test:synthetic", 0, gain).unwrap();
+            reference_capture.set_gain(0, gain).unwrap();
+        }
+        let input = vec![if index % 2 == 0 { 0.1 } else { -0.1 }; 16];
+        reference_capture.enqueue_test_block(input.clone());
+        let reference_block = reference_capture.try_next_block().unwrap();
+        expected.extend(reference_converter.push(&reference_block).unwrap());
+        reference_capture.recycle_block(reference_block).unwrap();
+        pump.enqueue_test_block(input);
+        if index < blocks - 3 {
+            acknowledgements.extend(pump.pump().unwrap());
+            gain_events.extend(pump.take_gain_events());
+        }
+    }
+    expected.extend(reference_converter.finish().unwrap());
+    let (total_samples, final_acknowledgements) = pump.stop().unwrap();
+    acknowledgements.extend(final_acknowledgements);
+    gain_events.extend(pump.take_gain_events());
+    assert_eq!(total_samples, (blocks * 16) as u64);
+    assert_eq!(total_samples as usize, expected.len());
+    let stored = crate::parakeet_audio::PcmPartStore::open(path)
+        .read_range(0..total_samples)
+        .unwrap();
+    assert_eq!(stored, expected);
+    assert!(!acknowledgements.is_empty());
+    assert_eq!(acknowledgements.last().unwrap().range.end, total_samples);
+    assert!(acknowledgements.iter().all(|ack| {
+        ack.range.end <= total_samples && ack.written_samples == ack.flushed_samples
+    }));
+    assert_eq!(gain_events.len(), 2);
+    assert_eq!(
+        (gain_events[0].gain_revision, gain_events[0].first_frame),
+        (0, 0)
+    );
+    assert_eq!(
+        (gain_events[1].gain_revision, gain_events[1].first_frame),
+        (1, ((crate::capture::CAPTURE_SLOTS + 1) * 16) as u64)
+    );
+}
+
+#[test]
 fn unified_capture_pump_converts_synthetic_input_and_closes_the_complete_source() {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)

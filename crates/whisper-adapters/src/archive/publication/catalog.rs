@@ -5,10 +5,84 @@ use super::super::{
     PublishedImport, TreatmentIdentity, attach_empty_container_proofs, capture_cleanup_target,
     export_install_temporary_path, fs, generation_path, hex, install_publication_exports,
     installed_export_ownership_path, io, load_or_migrate_publication_index,
-    persisted_file_identity, sha256_file, verify_artifact, write_new_synced, write_replace_synced,
+    persisted_file_identity, sha256_file, validate_pending, verify_artifact, write_new_synced,
+    write_replace_synced,
 };
 use crate::archive::PublicationReconfirmation;
 
+fn corrupt_entry_is_foreign(
+    root: &Path,
+    job_id: JobId,
+    diagnostic: &str,
+    source_sha256: &str,
+    index: &PublicationIndex,
+) -> bool {
+    if job_id.0 == 0 {
+        return false;
+    }
+    let Some((folder, _)) = diagnostic
+        .strip_prefix("StorageCorrupt: ")
+        .and_then(|value| value.split_once(": "))
+    else {
+        return false;
+    };
+    let Ok(number) = folder.parse::<u64>() else {
+        return false;
+    };
+    if number == 0 || number.to_string() != folder {
+        return false;
+    }
+    let mut records = index
+        .records
+        .iter()
+        .filter(|record| record.job_id == job_id && record.generation.get() == number);
+    let Some(record) = records.next() else {
+        return false;
+    };
+    if records.next().is_some() || record.source_sha256.eq_ignore_ascii_case(source_sha256) {
+        return false;
+    }
+    let canonical_job = format!("{:032x}", job_id.0);
+    let Ok(entries) = fs::read_dir(root.join("transcriptions")) else {
+        return false;
+    };
+    let mut matching_jobs = 0;
+    for entry in entries {
+        let Ok(entry) = entry else {
+            return false;
+        };
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            return false;
+        };
+        if u128::from_str_radix(name, 16).ok() == Some(job_id.0) {
+            if name != canonical_job {
+                return false;
+            }
+            matching_jobs += 1;
+        }
+    }
+    if matching_jobs != 1 {
+        return false;
+    }
+    let dir = generation_path(root, job_id, record.generation);
+    let pending = fs::read(dir.join("pending.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<PendingRecord>(&bytes).ok());
+    let manifest = fs::read(dir.join("manifest.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<CompleteRecord>(&bytes).ok());
+    let (Some(pending), Some(manifest)) = (pending, manifest) else {
+        return false;
+    };
+    fs::read(dir.join("CURRENT")).ok().as_deref() == Some(b"manifest.json\n")
+        && validate_pending(&pending, job_id, number).is_ok()
+        && manifest.version == 1
+        && manifest.job_id == job_id
+        && manifest.generation == record.generation
+        && pending.source_sha256 == record.source_sha256
+        && manifest.source_sha256 == record.source_sha256
+}
 impl ArchiveStore {
     pub fn lock_publications(root: &Path) -> Result<PublicationLock, String> {
         fs::create_dir_all(root.join(".whisper-publications"))
@@ -43,16 +117,16 @@ impl ArchiveStore {
         strategy: whisper_core::parakeet_session::TranscriptionStrategy,
     ) -> Result<Vec<PublishedImport>, String> {
         let entries = Self::scan(root)?;
-        if let Some(diagnostic) = entries.iter().find_map(|entry| {
-            entry
-                .diagnostic
-                .as_deref()
-                .filter(|message| message.starts_with("StorageCorrupt:"))
-        }) {
-            return Err(diagnostic.to_owned());
+        let index = load_or_migrate_publication_index(root)?;
+        for entry in &entries {
+            if let Some(diagnostic) = entry.diagnostic.as_deref()
+                && diagnostic.starts_with("StorageCorrupt:")
+                && !corrupt_entry_is_foreign(root, entry.job_id, diagnostic, source_sha256, &index)
+            {
+                return Err(diagnostic.to_owned());
+            }
         }
         let mut found = Vec::new();
-        let index = load_or_migrate_publication_index(root)?;
         for entry in entries.into_iter().filter(|entry| {
             entry.complete && entry.source_sha256 == source_sha256 && entry.strategy == strategy
         }) {

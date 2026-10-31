@@ -1,11 +1,10 @@
 use super::{
-    ArchiveStore, BufRead, BufReader, File, Generation, Instant, JobId, OpenOptions, Path, Read,
-    Seek, SeekFrom, SegmentRecord, SourceRange, WorkerSegment, Write,
+    ArchiveStore, BufRead, BufReader, File, Generation, JobId, OpenOptions, Path, Read, Seek,
+    SeekFrom, SegmentRecord, SourceRange, WorkerSegment, Write,
 };
 
 impl ArchiveStore {
     pub fn persist_segment(&mut self, segment: &WorkerSegment) -> Result<u64, String> {
-        let started = Instant::now();
         let active = self
             .current
             .as_mut()
@@ -36,11 +35,6 @@ impl ArchiveStore {
         file.sync_all()
             .map_err(|e| format!("StorageUnavailable: segment sync failed: {e}"))?;
         active.expected_sequence += 1;
-        crate::diagnostics::record_stage_timing(
-            "archive_persist_segment",
-            started.elapsed(),
-            serde_json::json!({ "sequence": record.sequence, "text_bytes": record.text.len() }),
-        );
         Ok(record.sequence)
     }
 }

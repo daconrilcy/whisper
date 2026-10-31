@@ -122,7 +122,7 @@ impl ImportRuntime {
         fs::create_dir_all(&work)
             .map_err(|error| format!("StorageUnavailable: unified workspace: {error}"))?;
         let source_path = work.join("source.wav");
-        let capture = if let Some(limit) = test_part_limit {
+        let mut capture = if let Some(limit) = test_part_limit {
             #[cfg(test)]
             {
                 crate::parakeet_live::UnifiedCapturePump::from_capture_with_test_part_limit(
@@ -140,6 +140,9 @@ impl ImportRuntime {
             crate::parakeet_live::UnifiedCapturePump::from_capture(capture, source_path.clone())
         }
         .map_err(|error| format!("CaptureStart: {error}"))?;
+        capture
+            .enable_probe(request.job_id, request.generation)
+            .map_err(|error| format!("CaptureStart: {error}"))?;
         let document = crate::parakeet_document::ParakeetDocumentStore::create(
             work.join("document"),
             request.job_id,
@@ -1172,9 +1175,7 @@ impl ImportRuntime {
             .gpu_candidates
             .remove(&(request.job_id, request.generation.get()))
             .flatten();
-        if self.publication_gate.is_cancelled() {
-            Ok(())
-        } else if self.native_unified_candidate_enabled {
+        if self.native_unified_candidate_enabled {
             let result = (|| {
                 let bound = self
                             .model_catalog

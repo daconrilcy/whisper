@@ -4,11 +4,11 @@ use crate::{
     gpu_identity::{build_gpu_evidence, configured_backend, worker_gpu_identity},
     integrity::{constant_time_eq, runtime_sha256, sha256_file},
     ipc::write_event,
-    native_engine, record_r7_timing,
+    native_engine,
     runtime_paths::{ensure_inside, required_runtime_root, shared_model_runtime_allowed},
     session,
 };
-use std::{env, path::Path, time::Instant};
+use std::{env, path::Path};
 use whisper_core::parakeet_ipc::{Event, WorkerIdentity};
 
 pub(crate) fn run() -> Result<(), String> {
@@ -50,13 +50,7 @@ pub(crate) fn run() -> Result<(), String> {
     }
 
     let gpu_identity = worker_gpu_identity(configured_backend())?;
-    let engine_started = Instant::now();
     let engine = native_engine::Engine::load(&native_dir, &model)?;
-    record_r7_timing(
-        "engine_load_model_and_dll",
-        engine_started.elapsed(),
-        serde_json::json!({}),
-    );
     let gpu_evidence = build_gpu_evidence(&runtime, engine.backend(), gpu_identity.as_ref())?;
     let executable = env::current_exe().map_err(|e| format!("WorkerPath: {e}"))?;
     let worker_sha256 = sha256_file(&executable)?;

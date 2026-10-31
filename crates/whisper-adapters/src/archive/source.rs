@@ -1,6 +1,6 @@
 use super::{
-    ArchiveStore, CapturedPartReference, CapturedSourceManifest, Digest, File, ImportRequest,
-    Instant, Path, Read, Sha256, fs,
+    ArchiveStore, CapturedPartReference, CapturedSourceManifest, Digest, File, ImportRequest, Path,
+    Read, Sha256, fs,
 };
 use symphonia::core::audio::Channels;
 use symphonia::core::codecs::CODEC_TYPE_MP3;
@@ -112,7 +112,6 @@ pub(super) fn segmented_pcm_manifest(
 }
 
 pub fn sha256_file(path: &Path) -> Result<[u8; 32], String> {
-    let started = Instant::now();
     let mut file = File::open(path).map_err(|e| e.to_string())?;
     let mut hash = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];
@@ -124,30 +123,11 @@ pub fn sha256_file(path: &Path) -> Result<[u8; 32], String> {
         hash.update(&buffer[..count]);
     }
     let digest: [u8; 32] = hash.finalize().into();
-    crate::diagnostics::record_stage_timing(
-        "archive_sha256",
-        started.elapsed(),
-        serde_json::json!({
-            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
-            "bytes": file.metadata().map(|meta| meta.len()).unwrap_or(0),
-            "sha256": hex(&digest),
-        }),
-    );
     Ok(digest)
 }
 
 pub(crate) fn source_output_samples(path: &Path) -> Result<u64, String> {
-    let started = Instant::now();
     let result = source_output_samples_inner(path);
-    crate::diagnostics::record_stage_timing(
-        "archive_audio_probe",
-        started.elapsed(),
-        serde_json::json!({
-            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
-            "samples": result.as_ref().ok().copied(),
-            "error": result.as_ref().err(),
-        }),
-    );
     result
 }
 

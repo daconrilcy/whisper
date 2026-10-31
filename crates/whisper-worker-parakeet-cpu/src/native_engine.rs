@@ -1,9 +1,4 @@
-use std::{
-    fs::OpenOptions,
-    io::Write,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::{path::Path, time::Instant};
 
 use whisper_core::parakeet_ipc::Word;
 
@@ -87,22 +82,8 @@ impl Engine {
         let started = Instant::now();
         let result = self.recognizer.transcribe(&audio.samples);
         let inference_elapsed = started.elapsed();
-        crate::record_r7_timing(
-            "native_inference",
-            inference_elapsed,
-            serde_json::json!({ "samples": audio.samples.len() }),
-        );
-        if let Some(log) = std::env::var_os("PARAKEET_R6_TIMING_LOG") {
-            log_native_timing(PathBuf::from(log), audio.samples.len(), inference_elapsed)?;
-        }
         let result = result?;
-        let normalize_started = Instant::now();
         let words = normalize_words(&result.words, duration_ms)?;
-        crate::record_r7_timing(
-            "word_normalization",
-            normalize_started.elapsed(),
-            serde_json::json!({ "words": words.len() }),
-        );
         let text = words
             .iter()
             .map(|word| word.text.as_str())
@@ -326,57 +307,6 @@ fn raw_word_list(words: &[LexicalWord]) -> String {
         })
         .collect::<Vec<_>>()
         .join("; ")
-}
-
-fn log_native_timing(
-    path: PathBuf,
-    sample_count: usize,
-    elapsed: std::time::Duration,
-) -> Result<(), String> {
-    let runtime = std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
-        .map(PathBuf::from)
-        .ok_or_else(|| "R6 timing log requires PARAKEET_L2_RUNTIME_ROOT".to_owned())?
-        .canonicalize()
-        .map_err(|error| format!("R6 timing runtime root: {error}"))?;
-    let r6_root = runtime
-        .join("r6")
-        .canonicalize()
-        .map_err(|error| format!("R6 timing root: {error}"))?;
-    let parent = path
-        .parent()
-        .ok_or_else(|| "R6 timing log path has no parent".to_owned())?
-        .canonicalize()
-        .map_err(|error| format!("R6 timing log parent: {error}"))?;
-    if !parent.starts_with(&r6_root) {
-        return Err("R6 timing log path is outside the R6 execution root".into());
-    }
-    let canonical_file = parent.join(
-        path.file_name()
-            .ok_or_else(|| "R6 timing log path has no file name".to_owned())?,
-    );
-    if canonical_file.exists()
-        && !canonical_file
-            .canonicalize()
-            .map_err(|error| format!("R6 timing log file: {error}"))?
-            .starts_with(&r6_root)
-    {
-        return Err("R6 timing log file resolves outside the R6 execution root".into());
-    }
-    let case = std::env::var("PARAKEET_R6_CASE").unwrap_or_else(|_| "unspecified".into());
-    let record = serde_json::json!({
-        "case": case,
-        "sample_count": sample_count,
-        "inference_elapsed_ms": elapsed.as_millis(),
-    });
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(canonical_file)
-        .map_err(|error| format!("R6 timing log write: {error}"))?;
-    serde_json::to_writer(&mut file, &record)
-        .map_err(|error| format!("R6 timing log serialize: {error}"))?;
-    file.write_all(b"\n")
-        .map_err(|error| format!("R6 timing log write: {error}"))
 }
 
 fn is_punctuation_only(text: &str) -> bool {

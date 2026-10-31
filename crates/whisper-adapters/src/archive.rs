@@ -6,7 +6,6 @@ use std::{
     io::{self, BufRead, BufReader, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     sync::Arc,
-    time::Instant,
 };
 use whisper_core::{
     Generation, JobId, SourceRange,

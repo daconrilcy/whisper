@@ -166,6 +166,20 @@ impl<P: ImportIoPort> ImportApplication<P> {
         event: ImportEvent,
     ) -> Result<(), ApplicationError> {
         let key = event.identity();
+        let identity = CommandIdentity {
+            job_id: key.0,
+            generation: key.1,
+        };
+        let owned = self
+            .view
+            .microphone_acquisition
+            .as_ref()
+            .is_some_and(|owner| (owner.job_id, owner.generation) == key);
+        self.invalidate_microphone_acquisition(&event, identity);
+        if owned && self.view.microphone_acquisition.is_none() {
+            self.view.microphone_meter = None;
+            self.view.microphone_source_identity = None;
+        }
         match event {
             event @ (ImportEvent::ParakeetLiveStarted { .. }
             | ImportEvent::ParakeetInferenceReady { .. }
@@ -177,6 +191,22 @@ impl<P: ImportIoPort> ImportApplication<P> {
             | ImportEvent::ParakeetConfirmed { .. }
             | ImportEvent::ParakeetCaptureStopped { .. }) => {
                 self.handle_unified_capture_text(event, key)
+            }
+            event @ (ImportEvent::MicrophoneMeter(_) | ImportEvent::MicrophoneSpectrum(_)) => {
+                if self
+                    .unified_captures
+                    .get(&key)
+                    .is_some_and(|capture| !capture.stop_submitted)
+                    && self
+                        .view
+                        .microphone_acquisition
+                        .as_ref()
+                        .is_some_and(|owner| (owner.job_id, owner.generation) == key)
+                {
+                    self.handle_microphone_event(event, identity)
+                } else {
+                    Ok(())
+                }
             }
             event @ (ImportEvent::MicrophoneGainApplied { .. }
             | ImportEvent::MicrophoneGainRejected { .. }) => {
@@ -257,11 +287,6 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     ) {
                         session.phase = crate::ports::UnifiedSessionPhase::Capturing;
                     }
-                }
-                if let Some(selected) = self.view.selected_unified_session.as_mut()
-                    && (selected.job_id, selected.generation) == key
-                {
-                    selected.audio_parts_error = None;
                 }
             }
             _ => unreachable!("unified event group already selected"),
@@ -608,7 +633,23 @@ impl<P: ImportIoPort> ImportApplication<P> {
                         }
                     }
                     Err(message) => {
-                        if let Some(selected) = self.view.selected_unified_session.as_mut()
+                        if matches!(
+                            message.as_str(),
+                            "StaleResponse: unified audio parts changed"
+                                | "StaleResponse: unified audio parts changed during read"
+                        ) {
+                            if let Some(session) = self
+                                .view
+                                .unified_parakeet_sessions
+                                .iter_mut()
+                                .find(|session| (session.job_id, session.generation) == key)
+                            {
+                                session.audio_parts_revision = 0;
+                            }
+                            if let Some(selected) = self.view.selected_unified_session.as_mut() {
+                                selected.audio_parts_error = Some(message);
+                            }
+                        } else if let Some(selected) = self.view.selected_unified_session.as_mut()
                             && (selected.job_id, selected.generation) == key
                         {
                             selected.audio_parts_error = Some(message);
@@ -918,6 +959,17 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     .map_err(|error| self.fail(error))?;
                 self.next_unified_page_request_id = request_id;
                 self.current_unified_audio_request = Some(((job_id, generation), request_id));
+                if let Some(selected) = self.view.selected_unified_session.as_mut()
+                    && matches!(
+                        selected.audio_parts_error.as_deref(),
+                        Some(
+                            "StaleResponse: unified audio parts changed"
+                                | "StaleResponse: unified audio parts changed during read"
+                        )
+                    )
+                {
+                    selected.audio_parts_error = None;
+                }
             }
             _ => unreachable!("unified command already selected"),
         }
@@ -989,6 +1041,14 @@ impl<P: ImportIoPort> ImportApplication<P> {
                 self.io
                     .submit(ImportEffect::StartUnifiedLive(request))
                     .map_err(|error| self.fail(error))?;
+                self.view.microphone_acquisition =
+                    Some(crate::microphone_level::MicrophoneAcquisitionContext::new(
+                        identity.job_id,
+                        identity.generation,
+                        &microphone,
+                    ));
+                self.view.microphone_meter = None;
+                self.view.microphone_spectrum = None;
                 self.view.microphone_source_identity = match microphone {
                     crate::microphone::MicrophoneChoice::Device(identity) => Some(identity),
                     crate::microphone::MicrophoneChoice::WindowsDefault => None,
@@ -1047,6 +1107,17 @@ impl<P: ImportIoPort> ImportApplication<P> {
                         .map_err(|error| self.fail(error))?;
                     if let Some(capture) = self.unified_captures.get_mut(&key) {
                         capture.stop_submitted = true;
+                    }
+                    if self
+                        .view
+                        .microphone_acquisition
+                        .as_ref()
+                        .is_some_and(|owner| (owner.job_id, owner.generation) == key)
+                    {
+                        self.view.microphone_acquisition = None;
+                        self.view.microphone_meter = None;
+                        self.view.microphone_spectrum = None;
+                        self.view.microphone_source_identity = None;
                     }
                 }
             }

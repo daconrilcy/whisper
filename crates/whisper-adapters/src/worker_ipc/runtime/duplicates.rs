@@ -224,12 +224,7 @@ impl ImportRuntime {
             return DuplicateEffect::Return;
         }
         let submitted = (prompt.request.job_id, prompt.request.generation);
-        let _timing_context = TimingContextGuard::enter(
-            "confirm-duplicate-import",
-            format!("{:032x}-{}", submitted.0.0, submitted.1.get()),
-            Path::new(&prompt.request.destination),
-        );
-        let started = Instant::now();
+
         let mut request = prompt.request.clone();
         let mut binding_key = submitted;
         let binding_destination = PathBuf::from(&request.destination);
@@ -397,27 +392,6 @@ impl ImportRuntime {
                             entries: queue.entries(),
                         })
                     });
-        record_stage_timing(
-            "import-confirmation",
-            started.elapsed(),
-            serde_json::json!({
-                "operation": format!("{:032x}-{}", submitted.0.0, submitted.1.get()),
-                "pid": std::process::id(),
-                "phase": "confirmation",
-                "choice": match choice {
-                    DuplicateImportChoice::CreateNew => "create-new",
-                    DuplicateImportChoice::Replace => "replace",
-                    DuplicateImportChoice::ReplaceLatest => "replace-latest",
-                    DuplicateImportChoice::ReplaceAll => "replace-all",
-                    DuplicateImportChoice::ReplaceSelectedPath(_) => "replace-selected",
-                },
-                "outcome": match result.as_ref() {
-                    Ok(PreflightResult::Duplicate(_)) => "reconfirmation-required",
-                    Ok(PreflightResult::Queued { .. }) => "queued",
-                    Err(_) => "error",
-                },
-            }),
-        );
         DuplicateEffect::Continue(match result {
             Ok(PreflightResult::Duplicate(prompt)) => {
                 events.push_back(ImportEvent::DuplicateImportFound(*prompt));

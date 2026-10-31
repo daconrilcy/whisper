@@ -91,6 +91,15 @@ impl ArchiveQualificationKey {
         (cpu_ready && self == &cpu) || (gpu_ready && self == &gpu)
     }
 
+    pub(crate) fn is_historical_personal_import(&self) -> bool {
+        let mut cpu = Self::parakeet_personal(whisper_core::model_catalog::Backend::Cpu);
+        cpu.worker_build =
+            "84c371d4df55043ada4a1d96b80180ed0c03b208410c599262c8ea3762304e60".into();
+        let mut gpu = Self::parakeet_personal(whisper_core::model_catalog::Backend::Gpu);
+        gpu.worker_build =
+            "bf58eb9d7300c444864347496b5a27e8584da3d30d634a759be99a598eda5ce4".into();
+        self == &cpu || self == &gpu
+    }
     pub(crate) fn is_personal_candidate(&self) -> bool {
         #[cfg(feature = "personal-qualification")]
         {

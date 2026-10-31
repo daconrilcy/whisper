@@ -1,6 +1,6 @@
 use super::{
     ArchiveEntry, ArchiveQualificationKey, ArchiveStore, CompleteRecord, Digest, Generation,
-    ImportRequest, ImportVadWindowPayload, ImportVadWindowRecord, Instant, JobId, Path, PathBuf,
+    ImportRequest, ImportVadWindowPayload, ImportVadWindowRecord, JobId, Path, PathBuf,
     PendingRecord, PublicationIdentity, PublicationIntent, SegmentRecord, Sha256,
     UnifiedArchiveResumeCheckpoint, WorkerSegment, assert_campaign_archive, fs, generation_path,
     hex, is_registered_model, is_sha256, legacy_transcription_strategy, parse_job_id,
@@ -378,18 +378,7 @@ impl ArchiveStore {
     }
 
     pub fn scan(root: &Path) -> Result<Vec<ArchiveEntry>, String> {
-        let started = Instant::now();
         let result = Self::scan_publications(root);
-        crate::diagnostics::record_stage_timing(
-            "archive-publication-scan",
-            started.elapsed(),
-            serde_json::json!({
-                "scan_operation": "ArchiveStore::scan",
-                "destination": root.to_string_lossy(),
-                "phase": "publication-scan",
-                "outcome": if result.is_ok() { "ok" } else { "error" },
-            }),
-        );
         result
     }
 
@@ -635,6 +624,7 @@ pub(super) fn validate_pending(
                 key == &ArchiveQualificationKey::parakeet_cpu_test()
                     || key == &ArchiveQualificationKey::parakeet_gpu_test()
                     || key.is_registered_personal_import()
+                    || key.is_historical_personal_import()
                     || key.is_retired_l2a_key()
                     || key.is_retired_r5_2_key()
                     || key.is_personal_candidate()

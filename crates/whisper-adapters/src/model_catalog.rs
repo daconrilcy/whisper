@@ -1,4 +1,3 @@
-use std::time::Instant;
 use std::{
     fs::File,
     io,
@@ -131,7 +130,7 @@ impl ModelFileHashCache {
 /// Returns the cached SHA-256 for a regular model file after checking the current
 /// handle identity, size, and modification time. Changed identities are hashed again.
 pub fn cached_model_sha256(path: &Path) -> io::Result<(u64, [u8; 32])> {
-    let (size, sha256, full_read) = cached_file_sha256(path, "adapter_model_sha256")?;
+    let (size, sha256, full_read) = cached_file_sha256(path)?;
     if full_read {
         MODEL_HASH_FULL_READS.fetch_add(1, Ordering::Relaxed);
     }
@@ -148,35 +147,20 @@ pub fn cached_artifact_sha256(path: &Path) -> io::Result<(u64, [u8; 32])> {
 
 #[doc(hidden)]
 pub fn cached_artifact_sha256_with_read(path: &Path) -> io::Result<(u64, [u8; 32], bool)> {
-    let (size, sha256, full_read) = cached_file_sha256(path, "adapter_artifact_sha256")?;
+    let (size, sha256, full_read) = cached_file_sha256(path)?;
     if full_read {
         ARTIFACT_HASH_FULL_READS.fetch_add(1, Ordering::Relaxed);
     }
     Ok((size, sha256, full_read))
 }
 
-fn cached_file_sha256(
-    path: &Path,
-    timing_stage: &'static str,
-) -> io::Result<(u64, [u8; 32], bool)> {
-    let started = Instant::now();
+fn cached_file_sha256(path: &Path) -> io::Result<(u64, [u8; 32], bool)> {
     let mut cache = ARTIFACT_HASH_CACHE
         .get_or_init(|| Mutex::new(ModelFileHashCache::default()))
         .lock()
         .map_err(|_| io::Error::other("model hash cache is poisoned"))?;
     let result = cache.sha256(path);
     drop(cache);
-    let full_read = result.as_ref().is_ok_and(|(_, _, full_read)| *full_read);
-    crate::diagnostics::record_stage_timing(
-        timing_stage,
-        started.elapsed(),
-        serde_json::json!({
-            "file": path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown"),
-            "cache_hit": !full_read,
-            "full_reads": u64::from(full_read),
-            "success": result.is_ok(),
-        }),
-    );
     result
 }
 

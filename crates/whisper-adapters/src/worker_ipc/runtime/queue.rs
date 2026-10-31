@@ -7,12 +7,7 @@ impl ImportRuntime {
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
         let submitted = (request.job_id, request.generation);
-        let _timing_context = TimingContextGuard::enter(
-            "enqueue-import",
-            format!("{:032x}-{}", submitted.0.0, submitted.1.get()),
-            Path::new(&request.destination),
-        );
-        let started = Instant::now();
+
         let mut binding_key = submitted;
         let binding_destination = PathBuf::from(&request.destination);
         let result = self
@@ -141,20 +136,6 @@ impl ImportRuntime {
                             entries: queue.entries(),
                         })
                     });
-        record_stage_timing(
-            "import-admission",
-            started.elapsed(),
-            serde_json::json!({
-                "operation": format!("{:032x}-{}", submitted.0.0, submitted.1.get()),
-                "pid": std::process::id(),
-                "phase": "admission",
-                "outcome": match result.as_ref() {
-                    Ok(PreflightResult::Duplicate(_)) => "duplicate",
-                    Ok(PreflightResult::Queued { .. }) => "queued",
-                    Err(_) => "error",
-                },
-            }),
-        );
         match result {
             Ok(PreflightResult::Duplicate(prompt)) => {
                 events.push_back(ImportEvent::DuplicateImportFound(*prompt));
@@ -214,11 +195,6 @@ impl ImportRuntime {
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
-        let _timing_context = TimingContextGuard::enter(
-            "process-queued-import",
-            format!("{:032x}-{}", id.0.0, id.1.get()),
-            Path::new(&request.destination),
-        );
         let model_catalog = self.model_catalog.as_ref().map(|catalog| {
             (
                 catalog.snapshot(),

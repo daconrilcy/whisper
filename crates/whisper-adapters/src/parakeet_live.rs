@@ -15,18 +15,18 @@ use crate::{
     parakeet_audio::{CapturePcmWriter, CaptureWriteAck},
     parakeet_import::{ParakeetProcess, ParakeetWorkerPaths},
 };
+#[cfg(test)]
+use std::env;
 use std::{
-    env,
-    fs::{self, File, OpenOptions},
+    fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, Ordering},
     },
     thread,
-    thread::JoinHandle,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use whisper_core::{
@@ -42,15 +42,6 @@ const MAX_WINDOW_LAG_SAMPLES: u64 = WINDOW_SAMPLES * 2;
 const MAX_CAPTURE_BLOCKS_PER_PUMP: usize = 32;
 const FIRST_ATTEMPT: u64 = 1;
 const FINALIZE_TIMEOUT: Duration = Duration::from_secs(30);
-const TRACE_ENV: &str = "WHISPER_PARAKEET_CONFIRMATION_TRACE";
-const TRACE_ROOT: &str = r"C:\dev\whisper\target\parakeet-tests\parakeet-micro-lot1";
-const TRACE_QUEUE_CAPACITY: usize = 16;
-const TRACE_MAX_RECORD_BYTES: usize = 64 * 1024;
-const TRACE_MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
-const TRACE_MAX_WORDS: usize = 128;
-const TRACE_MAX_TEXT_BYTES: usize = 2 * 1024;
-const TRACE_MAX_WORD_TEXT_BYTES: usize = 128;
-const TRACE_TERMINAL_RESERVE: u64 = 1024;
 const MAX_RECOVERY_ATTEMPTS: usize = 4;
 const RECOVERY_MIN_CONTEXT_SAMPLES: u64 = SAMPLE_RATE / 2;
 
@@ -66,6 +57,8 @@ use inference::*;
 use trace::*;
 use windows::*;
 
+#[cfg(test)]
+mod diagnostics_absence_tests;
 #[cfg(test)]
 mod microphone_spectrum_tests;
 #[cfg(test)]
@@ -99,7 +92,6 @@ enum InferenceEvent {
         words: Vec<TimedWord>,
         captured_at_unix_ms: u64,
         available_at_unix_ms: u64,
-        native: Option<NativeHypothesisTrace>,
         recovery_for: Option<SourceRange>,
     },
     WindowUnusable {
@@ -107,7 +99,6 @@ enum InferenceEvent {
         start_sample: u64,
         end_sample: u64,
         message: String,
-        native: Option<NativeHypothesisTrace>,
         recovery_for: Option<SourceRange>,
     },
     Unavailable(String),
@@ -115,37 +106,8 @@ enum InferenceEvent {
 }
 
 enum WindowTranscription {
-    Usable {
-        text: String,
-        words: Vec<TimedWord>,
-        native: Option<NativeHypothesisTrace>,
-    },
-    Unusable {
-        message: String,
-        native: Option<NativeHypothesisTrace>,
-    },
-}
-
-#[derive(Debug)]
-struct NativeWordTrace {
-    text: String,
-    start_ms: u32,
-    end_ms: u32,
-    raw_global_start_sample: u64,
-    raw_global_end_sample: u64,
-    effective_global_start_sample: Option<u64>,
-    effective_global_end_sample: Option<u64>,
-    native_span_shape_valid: bool,
-    accepted_by_validation: bool,
-    ordered_in_hypothesis: bool,
-}
-
-#[derive(Debug)]
-struct NativeHypothesisTrace {
-    text: String,
-    words: Vec<NativeWordTrace>,
-    timestamp_error: Option<String>,
-    truncated: bool,
+    Usable { text: String, words: Vec<TimedWord> },
+    Unusable { message: String },
 }
 
 pub(crate) struct ParakeetLive {
@@ -177,7 +139,6 @@ pub(crate) struct ParakeetLive {
     pending_events: std::collections::VecDeque<ImportEvent>,
     confirmation: Confirmation,
     recovery_attempts: RecoveryAttemptLedger,
-    trace: TraceSink,
     #[cfg(test)]
     d2_worker_diagnostics: D2WorkerDiagnostics,
 }

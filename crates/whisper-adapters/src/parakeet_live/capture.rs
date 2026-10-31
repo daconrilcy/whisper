@@ -6,6 +6,10 @@ use super::*;
 pub(crate) struct UnifiedCapturePump {
     capture: Option<CaptureStream>,
     converter: Option<Pcm16Converter>,
+    probe: Option<MicrophoneProbe>,
+    spectrum_reader: crate::microphone_probe::MicrophoneSpectrumReader,
+    last_meter_sequence: u64,
+    next_spectrum_telemetry: bool,
     writer: Option<CapturePcmWriter>,
     source_identity: Option<String>,
     last_acknowledged_gain_revision: Option<u64>,
@@ -78,6 +82,10 @@ impl UnifiedCapturePump {
         Ok(Self {
             capture: Some(capture),
             converter: Some(converter),
+            probe: None,
+            spectrum_reader: crate::microphone_probe::MicrophoneSpectrumReader::default(),
+            last_meter_sequence: 0,
+            next_spectrum_telemetry: false,
             writer: Some(writer),
             source_identity,
             last_acknowledged_gain_revision: None,
@@ -87,6 +95,47 @@ impl UnifiedCapturePump {
         })
     }
 
+    pub(crate) fn enable_probe(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+    ) -> Result<(), String> {
+        let capture = self.capture.as_ref().ok_or("Capture Parakeet arrêtée")?;
+        self.probe = Some(MicrophoneProbe::start(
+            capture.sample_rate_hz(),
+            capture.source_identity().map(str::to_owned),
+            job_id,
+            generation,
+        )?);
+        Ok(())
+    }
+
+    pub(crate) fn take_next_probe_telemetry(&mut self) -> Option<ImportEvent> {
+        let probe = self.probe.as_ref()?;
+        let meter = |last_sequence: &mut u64| {
+            let snapshot = probe.latest_at(Instant::now())?;
+            if snapshot.sequence <= *last_sequence {
+                return None;
+            }
+            let meter = snapshot.meter()?;
+            *last_sequence = snapshot.sequence;
+            Some(ImportEvent::MicrophoneMeter(meter))
+        };
+        if self.next_spectrum_telemetry {
+            self.next_spectrum_telemetry = false;
+            self.spectrum_reader
+                .poll(probe, Instant::now())
+                .map(ImportEvent::MicrophoneSpectrum)
+                .or_else(|| meter(&mut self.last_meter_sequence))
+        } else {
+            self.next_spectrum_telemetry = true;
+            meter(&mut self.last_meter_sequence).or_else(|| {
+                self.spectrum_reader
+                    .poll(probe, Instant::now())
+                    .map(ImportEvent::MicrophoneSpectrum)
+            })
+        }
+    }
     pub(crate) fn pump(&mut self) -> Result<Vec<CaptureWriteAck>, String> {
         if self.closed.is_some() {
             return Err("Capture Parakeet arrêtée".into());
@@ -105,11 +154,18 @@ impl UnifiedCapturePump {
             };
             let block_gain = block.gain();
             let block_first_frame = block.first_frame();
-            let samples = self
+            let converter = self
                 .converter
                 .as_mut()
-                .ok_or("Capture converter already drained")?
-                .push(&block)?;
+                .ok_or("Capture converter already drained")?;
+            let samples = if let Some(probe) = self.probe.as_ref() {
+                let converted = converter.push_with_probe(&block)?;
+                probe.submit(converted.probe);
+                converted.samples
+            } else {
+                converter.push(&block)?
+            };
+            capture.recycle_block(block)?;
             if !samples.is_empty() {
                 self.writer
                     .as_mut()
@@ -194,6 +250,7 @@ impl UnifiedCapturePump {
                     .as_mut()
                     .ok_or("Capture converter already drained")?
                     .push(&block)?;
+                capture.recycle_block(block)?;
                 if !samples.is_empty() {
                     self.append_during_stop(&samples)?;
                 }

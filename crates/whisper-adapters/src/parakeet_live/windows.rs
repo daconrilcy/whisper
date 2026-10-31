@@ -46,42 +46,12 @@ impl ParakeetLive {
                 match self.submit_window(start, count, false, Some(target)) {
                     Ok(true) => {
                         self.recovery_attempts.record(target);
-                        if self.trace.enabled() {
-                            self.trace.record(serde_json::json!({
-                                "event": "recovery_scheduled",
-                                "job_id": format!("{:032x}", self.request.job_id.0),
-                                "generation": self.request.generation.get(),
-                                "session_id": self.session_id,
-                                "target_range": range_trace_json(&target),
-                                "window_start_sample": self.request.group_offset_samples.saturating_add(start),
-                                "window_end_sample": self.request.group_offset_samples.saturating_add(start).saturating_add(count),
-                                "attempt_for_range": 1,
-                                "attempt_limit_per_range": 1,
-                                "session_attempt": self.recovery_attempts.len(),
-                                "session_attempt_limit": MAX_RECOVERY_ATTEMPTS,
-                                "at_unix_ms": unix_time_ms(),
-                                "publication_phase": "capture_active",
-                            }));
-                        }
                         return Ok(());
                     }
                     Ok(false) if self.unavailable => return Ok(()),
                     Ok(false) => {}
-                    Err(error) => {
+                    Err(_) => {
                         self.recovery_attempts.record(target);
-                        if self.trace.enabled() {
-                            self.trace.record(serde_json::json!({
-                                "event": "recovery_not_submitted",
-                                "job_id": format!("{:032x}", self.request.job_id.0),
-                                "generation": self.request.generation.get(),
-                                "session_id": self.session_id,
-                                "target_range": range_trace_json(&target),
-                                "reason_code": "recovery_window_preparation_failed",
-                                "error": bounded_text(&error, TRACE_MAX_TEXT_BYTES).0,
-                                "at_unix_ms": unix_time_ms(),
-                                "publication_phase": "capture_active",
-                            }));
-                        }
                     }
                 }
             }
@@ -186,25 +156,6 @@ impl ParakeetLive {
                     } else {
                         start.saturating_add(WINDOW_STEP_SAMPLES)
                     };
-                }
-                if self.trace.enabled() {
-                    let global_start = self.request.group_offset_samples.saturating_add(start);
-                    let global_end = self.request.group_offset_samples.saturating_add(end);
-                    self.trace.record(serde_json::json!({
-                        "event": "window_submitted",
-                        "job_id": format!("{:032x}", self.request.job_id.0),
-                        "generation": self.request.generation.get(),
-                        "session_id": self.session_id,
-                        "window_sequence": sequence,
-                        "window_kind": if recovery_for.is_some() { "recovery" } else { "regular" },
-                        "recovery_for": recovery_for.as_ref().map(range_trace_json),
-                        "window_start_sample": global_start,
-                        "window_end_sample": global_end,
-                        "sample_rate_hz": SAMPLE_RATE,
-                        "captured_at_unix_ms": captured_at_unix_ms,
-                        "submitted_at_unix_ms": unix_time_ms(),
-                        "publication_phase": self.publication_phase(),
-                    }));
                 }
                 Ok(true)
             }
