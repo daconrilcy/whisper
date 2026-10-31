@@ -1,6 +1,6 @@
-Avancée : baseline T2 réussie ; corrections des erreurs de raccord et poursuite du plan autorisées.
-Blocage : contrôle T3 à réussir avant le raccord MVC et la validation consolidée.
-Décision : corriger dans les chemins prévus et relancer les contrôles concernés ; autres motifs d'arrêt inchangés, sans push.
+Avancée : MVC raccordé ; tests et builds des deux profils réussis ; découpage des tests T3 terminé.
+Blocage : fonctions longues UI à achever selon le design ; V7 strict échoue dans core inchangé, hors périmètre.
+Décision : candidat conservé, T4/T5 incomplets et T6 non validé ; arbitrage V7 avant reprise, sans push.
 
 # Refactorisation de ui.rs — plan PLAN-UI v1
 
@@ -216,3 +216,15 @@ Correction proposée dans les seuls chemins P-T : déplacer cet attribut au-dess
 L'utilisateur répond « oui je t'autorise » à la demande précise : « Autorisez-vous la correction des erreurs de raccord liées aux déplacements, avec relance des contrôles jusqu'à réussite, puis poursuite T4–T7 ? » La demande précisait que cela permet de traiter ces erreurs ordinaires sans nouvelle confirmation à chaque essai, les autres motifs d'arrêt restant applicables.
 
 Pour cette refonte et dans les seuls chemins prévus, les erreurs de raccord introduites par les déplacements peuvent donc être corrigées puis les contrôles affectés relancés jusqu'à réussite. Cette décision aménage l'arrêt du §9 pour ce seul cas ; elle ne dispense d'aucune validation, n'élargit ni les chemins ni les fonctionnalités et ne couvre ni une fuite d'écriture, ni une modification inexpliquée, ni un défaut fonctionnel indépendant. Les corrections de revue T7 restent soumises à la limite de deux cycles. Le bilan est commité avant la reprise des commandes gardées.
+
+### Candidat MVC intermédiaire — finitions et décision V7
+
+Après correction du derive et des fins de ligne, T3 passe : **81 tests réussis, 1 ignoré préexistant**. Le raccord MVC est compilé ; façade explicite, modèle privé, contrôleur/vues descendants et présentation répartis dans les chemins du plan. Rapprochement statique : **39 symboles publics**, **40 tests UI**, mêmes comptes d'assertions (107 `assert`, 79 `assert_eq`, 1 `assert_ne`, 45 `matches`), aucun nouvel ignore UI. Inventaire exécuté V2 : **82 noms correspondants** après renommage prévu du préfixe. Maximum physique UI après formatage : **567 lignes**.
+
+Commandes du §7 exécutées depuis `C:\dev\whisper`, avec les variables prévues et la garde UI : V1 format PASS (`20261031T045541772-0a0a7267`) ; V2 inventaire PASS (`20261031T045613655-4a260657`) ; V3 défaut PASS, **81 réussis/1 ignoré hérité** (`20261031T045628036-81592e22`) ; V4 personnel PASS, **82 réussis/1 ignoré hérité** (`20261031T045632624-8b77e480`) ; V5 build défaut PASS (`20261031T045546531-58611bfc`) ; V6 build personnel PASS (`20261031T045642002-cef92069`) ; V8 Clippy structurel exit 0 avec avertissements (`20261031T045645340-fda82342`) ; V9 `git diff --check` PASS. Journaux sous `target/parakeet-tests/refacto-ui/logs/`. Aucun événement hors racine bloquant signalé pour ces commandes.
+
+V7 strict : **FAIL, exit 101**, run `20261031T045723893-798bc559`, dix erreurs dans `whisper-core` inchangé, dont import `SAMPLE_RATE` dans `parakeet_session.rs:6` et `large_enum_variant`. Core est hors périmètre ; aucune correction ni neutralisation de lint effectuée. Ce contrôle s'arrête avant de qualifier le desktop : il ne prouve pas l'absence de nouveaux avertissements UI. Les cinq avertissements usuels du build UI de référence sont encore présents dans le build final, sans que ce seul compte suffise à qualifier tous les lints.
+
+Exigence encore inachevée du design §6 : découper sémantiquement les fonctions longues. V8 relève notamment `prepare_frame` et `active_job_ui` (111 lignes), `history_ui` (126), `settings_ui` (206), et les fonctions de microphone/unifié/capture (214/302/308). Le respect de la taille des fichiers ne ferme pas cette exigence. T4/T5 ne sont pas déclarés terminés ; candidat non soumis à T7. Finitions attendues dans les seuls fichiers prévus, en conservant ordre, closures/scopes et effets.
+
+Arrêt après V7 ; modifications UI et preuves conservées, aucun changement core/adapters/manifeste/Cargo.lock, pas de revue consommée, pas de validation Windows ni remise de binaire. Espace final rapporté : **62,55 Gio**. Décision nécessaire : autoriser la poursuite des finitions prévues et conserver V7 en réserve héritée hors périmètre, puis contrôles affectés et revue T7 ; aucune revendication de V7 PASS.
