@@ -1,6 +1,6 @@
-Avancée : P3-T2/P3-T3 couplés implémentés et relus CLEAN ; six inférences natives comparatives CPU/GPU réussies et release locale préparée.
-Blocage : aucun pour la remise locale ; essai utilisateur de cette nouvelle release dans la fenêtre Windows restant.
-Décision : utiliser la recette isolée sous p3-workers ; la version P3-T1 déclarée fonctionnelle par l'utilisateur est conservée, sans installation ni push.
+Avancée : phases 1 à 3 et correctifs micro validés par l'utilisateur, commit local 778ef0bc ; lot L3D du cœur autorisé.
+Blocage : aucun pour préparer et exécuter le lot L3D décrit en section 12.
+Décision : retirer uniquement cette trace historique, vérifier sous garde, faire relire et reconstruire une release locale distincte, sans installation ni push.
 
 ## Header
 
@@ -329,3 +329,33 @@ Pas de code dans cette tâche de planification. Pas de suppression L2/L3/R5/R6 s
 ## 11. Implementation Agent Prompt
 
 Après G0 seulement, déléguer à `rust_implementer` en mode IMPLEMENT : « Appliquer uniquement P1-T1 du plan `docs/cadrage/plan-nettoyage-environnements-historiques.md`, appuyé par l'audit associé. Préserver les correctifs et tous les changements préexistants, notamment non suivis. Budget : `parakeet_import.rs` et tests directs nommés au plan. Ne pas modifier workers, manifestes, identités, archives ou garde. Vérifier V1/V2/V4 sous garde autorisée et signaler tout NOT RUN. Arrêter au premier échec de campagne. Ne pas commencer P2/P3, committer ni pousser sans autorisation. » Puis revue via `rust_review_coordinator`, au plus deux cycles ; recette Windows séparée réservée à l'utilisateur.
+
+## 12. Lot distinct : retrait de la trace L3D du cœur
+
+Autorisation : le 31 octobre 2026, après validation utilisateur de la release `p3-workers/release-fix-parakeet-micro/` et commit local `778ef0bc`, l'utilisateur confirme le périmètre proposé : retrait de la trace L3D du cœur, plan existant actualisé, implémentation déléguée, tests sous garde, revue indépendante et nouvelle release locale, sans installation ni push. Cette section remplace uniquement le report de L3D pour ce lot ; les autres exclusions et contrats restent applicables.
+
+Objectif produit : supprimer la lecture de la variable de chronométrage et les sorties historiques sur stderr pendant les commandes, événements et rafraîchissements, sans changer les états visibles, les effets métier ou le journal ASR GPU. Aucune amélioration chiffrée de performances n'est revendiquée.
+
+### P4-T1 : retirer la trace et ses appels
+
+- Auteur Rust : `rust_implementer`, mode IMPLEMENT ; baseline produit `778ef0bc`.
+- Six fichiers de production autorisés, tous sous `crates/whisper-core/src/` : `application.rs`, `application/diagnostics.rs`, `application/runtime/mod.rs`, `application/runtime/commands.rs`, `application/runtime/import.rs`, `application/runtime/poll.rs`.
+- Retirer le module de diagnostic, ses imports et ses appels ; ne pas laisser de fonctions vides ni de nouvelle branche de configuration. Préserver l'ordre et le contenu des commandes, événements, effets et transitions.
+- Critères : aucune référence à `PARAKEET_L3D_TIMING_ACTIVE`, `L3D_APP_TRACE`, `record_application_timing` ou `trace_application_event` dans le code de production du cœur ; API, formats persistants, protocoles et dépendances inchangés.
+- Tests associés seulement dans les supports existants ou fichiers de tests séparés du cœur si une lacune de couverture concrète le justifie ; pas de hook de production ni de nouveau framework.
+
+### P4-T2 : vérifier et faire relire
+
+- Préflight : relever l'espace libre (>30 Gio), l'état Git et l'absence d'un écrivain Git concurrent avant lancement de la garde. Préserver les non-suivis `docs/architecture/`, `models/` et `sound example/`.
+- Racines inchangées : garde `target/parakeet-tests/refacto-parakeet-live/guard.ps1`, sorties et temporaires dans sa racine autorisée avec les preuves du lot sous `p3-workers/core-l3d/`, compilation uniquement dans `target/parakeet-tests/cargo-shared/`. Variables isolées, auto-tests et surveillance obligatoires ; aucune modification de garde.
+- Vérifications utiles : contrôle statique des quatre identifiants et `git diff --check` ; garde SelfTest puis Run pour `fmt --all -- --check`, `test --offline --locked -p whisper-core --lib`, suites desktop pertinentes, `clippy --offline --locked -p whisper-core --lib --tests` et compilation personnelle du desktop. Exercer la suite cœur avec la variable historique à `1` dans l'environnement de campagne pour vérifier qu'elle ne réactive aucune trace ; ne pas modifier les variables persistantes Windows.
+- Revue via `rust_review_coordinator` et reviewer indépendant en lecture seule ; corrections exclusivement par le même implémenteur, deux cycles maximum. Un échec réel de compilation, test, préflight ou garde arrête la campagne ; diagnostic en lecture seule et arbitrage utilisateur avant correction/reprise.
+- Aucun essai natif CPU/GPU nouveau : workers, modèles, moteurs et routage inchangés. Distinguer les tests contrôlés de la validation dans la fenêtre Windows.
+
+### P4-T3 : remettre une release locale distincte
+
+- Après revue, compilation via garde : `build --release --offline --locked -p whisper-desktop --features personal-install`.
+- Nouveau dossier sous `target/parakeet-tests/refacto-parakeet-live/p3-workers/`, sans remplacer `release-fix-parakeet-micro/` ni les autres versions validées. Réutiliser les workers Turbo livrés et les ressources Parakeet qualifiées de `p3-workers/localappdata/Whisper/` ; aucune reconstruction de worker.
+- Vérifier présence et SHA-256 des ressources effectives et des copies remises ; contrôler le lanceur avec `--check` sans ouvrir la fenêtre. Ne pas annoncer un paquet autonome.
+- Archiver les petites preuves en conservant leur arborescence et en vérifiant nombre et SHA-256 ; relever l'espace libre final. Aucun nettoyage de cache ou WAV sans manifeste approuvé.
+- Compte rendu dans ce document et la remise : fichiers changés, checks réellement exécutés, verdict, réserves et validation Windows restant à l'utilisateur. Aucun nouveau rapport séparé, installation, push ou modification d'archive utilisateur. Le commit du code de ce nouveau lot nécessite un accord distinct ; seul le plan est versionné localement avant implémentation.
