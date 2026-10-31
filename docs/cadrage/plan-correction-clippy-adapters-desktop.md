@@ -1,6 +1,6 @@
-Avancée : P, S, T, E et C livrés CLEAN ; D n'a pas de modification source.
-Blocage : baseline D arrêtée après une commande de test assemblée hors sélection, avec neuf échecs de prérequis.
-Décision : conserver les journaux et demander arbitrage sur une reprise à appels explicites, garde inchangée et sans push.
+Avancée : P, S, T, E et C livrés CLEAN ; reprise D autorisée à appels explicites vérifiés.
+Blocage : baseline D valide à établir avant corrections, résultats accidentels exclus.
+Décision : garde et arrêts inchangés, revue indépendante et commit local D après contrôles, sans push.
 
 # Analyse et plan de correction Clippy — adaptateurs et desktop
 
@@ -860,6 +860,8 @@ Reprise technique **proposée, NON EXÉCUTÉE et soumise à arbitrage** : dix ap
 10. `test --offline --locked -p whisper-desktop --test gpu_inventory_ui --features personal-install`
 
 Même sélection baseline/candidat, profils défaut et personal-install distincts ; filtres non vides vérifiés. Les scénarios de racines historiques retournant tôt ne sont pas des PASS de qualification. Après baseline valable seulement, D1–D5 puis contrôles finaux et revue indépendante avant commit. Tous autres arrêts et l'exclusion des recettes natives/UI restent maintenus ; pas de push. Aucun lancement de cette reprise avant arbitrage utilisateur après l'exécution hors périmètre et les échecs.
+
+Accord courant de l'utilisateur : « oui je t'autorise », répondant à la demande précise de reprendre D avec un appel explicite et contrôlé par commande, sans boucle d'arguments, garde et arrêts inchangés. Les dix commandes proposées deviennent la sélection technique autorisée, avec contrôle préalable du tableau littéral complet à chaque appel. Refaire espace/SelfTest, établir la baseline admissible puis D1–D5 et contrôles finaux ; aucune commande accidentelle antérieure ne vaut preuve. La reprise ne donne pas d'autorisation de test global non filtré, recette native/UI ou push.
 
 
 
