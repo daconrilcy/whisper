@@ -1,6 +1,6 @@
-Avancée : baseline T2 réussie dans les deux configurations ; découpage des tests T3 effectué.
-Blocage : compilation du contrôle T3 échouée après extraction des tests ; candidat incomplet.
-Décision : arrêt conformément au plan, correction ciblée à autoriser avant reprise ; sans push.
+Avancée : baseline T2 réussie ; corrections des erreurs de raccord et poursuite du plan autorisées.
+Blocage : contrôle T3 à réussir avant le raccord MVC et la validation consolidée.
+Décision : corriger dans les chemins prévus et relancer les contrôles concernés ; autres motifs d'arrêt inchangés, sans push.
 
 # Refactorisation de ui.rs — plan PLAN-UI v1
 
@@ -210,3 +210,9 @@ Après disparition du processus Git observé, V2, V3 et V4 ont terminé avec **e
 Le découpage T3 des tests a ensuite été effectué, mais son contrôle de compilation desktop a échoué avec **exit 101, 21 erreurs**, sans fuite signalée. Diagnostic de l'implémenteur : l'attribut `#[derive(Clone, Default)]` de `RecordingApplication` est resté à la fin de `ui/tests/import_and_lifecycle.rs`, alors que la structure a été déplacée dans `ui/tests/support.rs`. Erreurs E0599 et E0614 en cascade rapportées ; leur fermeture reste à vérifier après correction.
 
 Correction proposée dans les seuls chemins P-T : déplacer cet attribut au-dessus de la structure, puis reprendre le contrôle T3 sous garde ; examiner les diagnostics résiduels et poursuivre T4–T6 seulement après succès. Le candidat et les journaux sont conservés ; aucun reset ni nouvelle commande Cargo après l'arrêt. Le raccord MVC T4, la validation consolidée T6 et la revue indépendante T7 restent non exécutés. Arbitrage demandé en application du §9 (arrêt sur échec test/build), sans nouvelle dérogation de chemins.
+
+### Autorisation de corriger les erreurs de raccord
+
+L'utilisateur répond « oui je t'autorise » à la demande précise : « Autorisez-vous la correction des erreurs de raccord liées aux déplacements, avec relance des contrôles jusqu'à réussite, puis poursuite T4–T7 ? » La demande précisait que cela permet de traiter ces erreurs ordinaires sans nouvelle confirmation à chaque essai, les autres motifs d'arrêt restant applicables.
+
+Pour cette refonte et dans les seuls chemins prévus, les erreurs de raccord introduites par les déplacements peuvent donc être corrigées puis les contrôles affectés relancés jusqu'à réussite. Cette décision aménage l'arrêt du §9 pour ce seul cas ; elle ne dispense d'aucune validation, n'élargit ni les chemins ni les fonctionnalités et ne couvre ni une fuite d'écriture, ni une modification inexpliquée, ni un défaut fonctionnel indépendant. Les corrections de revue T7 restent soumises à la limite de deux cycles. Le bilan est commité avant la reprise des commandes gardées.
