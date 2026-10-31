@@ -2,7 +2,7 @@ Avancée : cadrage du refactoring structurel établi sur les sources actuelles.
 Blocage : aucune implémentation autorisée ; prérequis de campagne à résoudre avant Cargo.
 Décision : cible indicative d’environ 600 lignes validée ; conception candidate pour revue indépendante.
 
-# Refactoring du direct microphone — DESIGN-DL v1
+# Refactoring du direct microphone — DESIGN-DL v2
 
 ## 1. Mandat, sources et contenu
 
@@ -25,7 +25,7 @@ Contributions en lecture seule, fusionnées par la session principale, auteur du
 | `rust_product_framer` | DL-REF-17cd4927-v1 | Brief, capacités et parcours ; proposition achevée |
 | `rust_requirements_analyst` | REQ-DL-v1 | REQ/UC/AC et risques fonctionnels ; proposition achevée |
 | `rust_domain_architect` | DOM-DL-v1 | Concepts, transitions et invariants ; proposition achevée |
-| `rust_architect` | ARCH-DL-v1 | Découpage, visibilité et contrats ; contribution achevée |
+| `rust_architect` | ARCH-DL-v2 | Découpage, visibilité et contrats ; correction de DL-D01 après ARCH-DL-v1 |
 
 Content map : §2 brief/exigences/acceptation ; §3 domaine/états ; §4 architecture/contrats ; §5 risques/preuves/décisions ; §6 readiness. Le plan associé sera `plan-refacto-direct-live.md` et le compte rendu indépendant `revue-refacto-direct-live.md`. Aucun document dans `docs/predev/` n’est modifié.
 
@@ -91,16 +91,16 @@ DEC-T01 : extraire des modules privés sous `src/direct_live/`, en conservant l�
 
 Les estimations ne sont pas des décomptes après extraction. `window_size` reste dans le parent car il décide l’admission ; le helper libre `fill_pending_from_wav` va dans wav.rs et peut être importé au parent pour conserver le nom utilisé par les tests. Aucun déplacement hors de cette famille n’est nécessaire. Ne pas compacter pour atteindre 600.
 
-DEC-T02 : préserver les chemins crate existants via réexports `pub(crate)` explicites dans le parent, notamment WavOutput et les exports Parakeet. État DirectLive privé parent, méthodes transverses d’impl en `pub(super)` au plus. Modules de tests/support sous cfg(test), jamais inclus dans le produit. Pas d’API publique ou de trait créé pour les fixtures. Le getter existant `sample_count` permet d’éviter d’exposer les champs WAV.
+DEC-T02 : préserver les chemins, signatures et visibilités des API existantes, via réexports `pub(crate)` explicites dans le parent pour WavOutput et les exports Parakeet. Les méthodes existantes `pub(crate)` le restent après déplacement : notamment `DirectLive::pump_capture` dans capture.rs. Seuls les nouveaux accès nécessaires entre sous-modules et parent sont limités à `pub(super)` ; aucun helper privé n’est élargi à la crate sans besoin établi. État DirectLive privé parent. Modules de tests/support sous cfg(test), jamais inclus dans le produit. Pas d’API publique ou de trait créé pour les fixtures. Le getter existant `sample_count` permet d’éviter d’exposer les champs WAV.
 
 DEC-T03 : conserver les modules nommés `tests` et `d2_corpus` et les noms de fonctions, donc les filtres complets existants. Déplacer les cinq méthodes initiales de test dans test_support.rs entièrement cfg(test). Le relevé lexical actuel contient 25 attributs test : 18 dans tests, un scénario natif D2 et six tests purs imbriqués dans D2 ; à comparer au vrai inventaire de compilation lors du lot, ce relevé n’étant pas un test exécuté.
 
-Consommateurs à préserver sans édition : `worker_ipc/runtime/mod.rs:79`, `worker_ipc/runtime/live.rs:1149`, `worker_ipc/tests/microphone_and_finalization.rs:482`, `parakeet_live.rs:14,930,1557,1638,3109`, `microphone_probe.rs:716`. Les numéros décrivent la base, à revalider sur le candidat.
+Consommateurs à préserver sans édition : `worker_ipc/runtime/mod.rs:79`, `worker_ipc/runtime/live.rs:1149`, `worker_ipc/runtime/support.rs:437` (pompage temps réel par pump_capture), `worker_ipc/tests/microphone_and_finalization.rs:482,515,542`, `parakeet_live.rs:14,930,1557,1638,3109`, `microphone_probe.rs:716`. Les numéros décrivent la base, à revalider sur le candidat.
 
 | Consommateur | Dépendance autorisée | Contrôle futur |
 | --- | --- | --- |
 | worker_ipc, parakeet_live, microphone_probe | API crate direct_live inchangée | Imports, compilation des consommateurs et tests concernés |
-| Parent DirectLive | capture/worker/outputs/wav privés | Visibilités minimales et revue des appels |
+| Parent DirectLive | capture/worker/outputs/wav privés | API existante pub(crate) conservée, nouveaux helpers pub(super), revue des appels |
 | capture/worker | État parent, adaptateurs existants et types core | Pas d’état session parallèle, pas de cycle de responsabilité |
 | outputs/wav | Types core et IO existantes | Aucune dépendance retour vers worker_ipc ni appel UI |
 | Tests/support cfg(test) | API privée par hiérarchie du module | Pas de chemin ou branche de production ajouté pour tester |
