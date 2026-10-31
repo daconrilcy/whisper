@@ -87,7 +87,7 @@ pub(in crate::worker_ipc) fn acceptance_barrier(
     fs::write(root.join(format!("{phase}.entered")), b"entered")
         .map_err(|error| format!("StorageUnavailable: {error}"))?;
     while !root.join(format!("{phase}.release")).is_file() {
-        thread::sleep(Duration::from_millis(5));
+        std::thread::sleep(std::time::Duration::from_millis(5));
     }
     Ok(())
 }

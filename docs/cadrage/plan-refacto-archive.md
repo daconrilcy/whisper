@@ -1,6 +1,6 @@
-Avancée : T1–T10 terminées ; revue cumulée indépendante CLEAN sur le code 53642633.
-Blocage : aucun constat ouvert ; limites des contrôles et qualifications ci-dessous.
-Décision : livrer en commits locaux, sans push ni validation Windows revendiquée.
+Avancée : T1–T10 terminées ; correctif CRLF/compilation recette-hooks revu CLEAN le 31 octobre.
+Blocage : aucun constat ouvert ; limites de qualification conservées ci-dessous.
+Décision : livrer le correctif en commit local, sans push ni validation Windows revendiquée.
 
 # Plan de refactorisation d’archive.rs
 
@@ -404,3 +404,23 @@ Base `170f175e`, branche evo-startup-perf, aucun suivi modifié, seuls non suivi
 Quatre étapes : (1) préflight et normalisation/fix minimal ; (2) vérification du diff réel et contrôles gardés utiles ; (3) revue indépendante du candidat avec deux cycles correction maximum ; (4) bilan et commits locaux, sans push. Vérifications attendues : absence de CR dans les trois modules, contenu identique après seule normalisation, diff brut depuis 7fdd329b et diff du correctif sans configuration cr-at-eol, format, suite archive concernée, compilation/check avec recette-hooks et lints utiles. Compiler les cibles de test de la feature si pertinent ; les scénarios conditionnels non activés ne valent pas validation de leurs effets. Préserver les gardes d’activation et de refus release, ne pas lancer de campagne L04 ni de test ignoré. Choix exacts et preuves attribués par l’implémenteur puis jugés par le reviewer.
 
 Continuité de la campagne archive : G/R/C existants et dérogation Temp de §11 restent applicables ; sorties de ce correctif sous R/corrections-20261031/, Cargo partagé C, cache/TEMP/TMP internes R. Aucun nouvel outil, technologie ou mécanisme d’isolation ; garde existante et auto-tests avant Cargo. Pas de nettoyage des caches/fixtures ; petites preuves archivées sous la racine du correctif avec compte/SHA, originaux préservés. Résultats du correctif : NOT RUN à l’ouverture.
+
+### Résultats du correctif — CLEAN
+
+Candidat de correctif sur base `1bde93c5` (ce commit n’ajoutait que le périmètre documentaire au code `170f175e`). Préflight implémenteur 66,04 Gio, final 65,97 Gio ; quatre sources prévues seulement. Conversion de 484/220/75 fins CRLF dans campaign.rs/cleanup.rs/storage.rs : aucun CR restant, octets identiques à la base après seule normalisation CRLF→LF. support.rs : unique ligne d’appel qualifiée `std::thread::sleep(std::time::Duration::from_millis(5))` dans la branche feature existante. Aucun corps/hook/API/feature/manifeste/lock/configuration Git ou refus release modifié autrement.
+
+| Vérification gardée | Run / résultat |
+| --- | --- |
+| SelfTest G | PASS, sortie 0 ; console et événements guard-events, dérogation Temp inchangée |
+| Format | `20261031T040510369-fe12a468` : PASS |
+| Tests archive | `20261031T040514999-59b019e8` : 38 réussis, zéro échec, un ignoré L04 historique |
+| Check cibles tests avec recette-hooks | `20261031T040546137-c721693c` : `check --offline --locked -p whisper-adapters --tests --features recette-hooks`, PASS |
+| Build normal adapters/desktop | `20261031T040552547-9feb2f8c` : PASS ; avertissements 16/5 historiques |
+| Clippy all-targets recette-hooks | `20261031T040615715-1058e863` : PASS ; 263 avertissements test/137 doublons, configuration feature distincte de la baseline sans feature |
+| Diff brut correctif et cumulé | `git diff --check` et `git diff --check 7fdd329b` : PASS sans réglage cr-at-eol ni changement de configuration |
+
+Revue indépendante par le même rust_reviewer via `/root/review_archive` : **CLEAN**, zéro constat/demande/lacune ; un passage sans correction. Le reviewer confirme l’identité octet après normalisation des trois fichiers, l’unique qualification std, la conservation des cfg/default=[]/gardes release et la portée des vérifications. Candidat source SHA-256 : campaign `3159EFAA0EE59C0E57E841071DD3C27CFF95BA1E6858860BFD98552A4F708CAE`, cleanup `C2DF8D9F3097C71C10571592B0173251F72B74498249D666B99DA39C1A9541C9`, storage `86A3245A405433C1FB26867E22403D7B36301ED3BB87FF5A70666E9C95F6EAE2`, support `1DA7515FB8CE86CBBFBEB2B32BBFA112E9A57F7B6EE63F0CAB03941CD48BB676`.
+
+Les deux réserves corrigées sont closes : diff brut désormais réussi, compilation des cibles de test recette-hooks désormais réussie. Cela ne vaut pas validation des effets des hooks, de recette L04 ou du refus release en exécution : contrôles des gardes statiques seulement. Pas de campagne ignorée, native, non-Windows, GPU ou fenêtre Windows ajoutée. Les qualifications historiques non réalisées restent telles quelles.
+
+Petites preuves dans `target/parakeet-tests/refacto-archive/corrections-20261031/archive/` : 13 fichiers, 338 285 octets, SHA-256 de chaque copie vérifié contre source ; agrégat rapporté `9F8B39279DD0C8E7FBD8842E8EE3E961821B1297C0A7B931CD507CAE651FFE8D`. Originaux/caches/fixtures et trois non suivis initiaux conservés ; aucun push.
