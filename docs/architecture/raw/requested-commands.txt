@@ -1,0 +1,27 @@
+Dernieres mesures conservees : HEAD 88850e8afd45e3b4c827914fad4c55a796b479db ; voir cargo-guard-runs.json pour dates/commandes.
+
+{
+  "cargo": "C:\\Users\\cyril\\.cargo\\bin\\cargo.EXE",
+  "cargo-clippy": "C:\\Users\\cyril\\.cargo\\bin\\cargo-clippy.EXE",
+  "tokei": null,
+  "scc": null,
+  "cargo-modules": null,
+  "cargo-depgraph": null
+}
+
+cargo metadata --offline --locked --format-version 1 --no-deps
+EXECUTE : code 0 ; cargo-metadata.stdout.jsonl et cargo-metadata.stderr.txt.
+
+cargo clippy --offline --locked --workspace --all-targets --message-format=json -- -W clippy::too_many_lines -W clippy::cognitive_complexity
+EXECUTE : code 0, build-finished=true ; 436 warnings emis (doublons de cibles inclus), 0 erreur. cargo-clippy.stdout.jsonl et cargo-clippy.stderr.txt.
+
+cargo modules structure --package <chacune des 8 crates>
+[Non vérifié] Indisponible dans le PATH ; aucune installation.
+
+cargo depgraph --workspace-only
+[Non vérifié] Indisponible dans le PATH ; aucune installation.
+
+tokei ou scc
+[Non vérifié] Indisponibles dans le PATH ; mesures lexicales distinctes dans files.tsv.
+
+Historique : auto-test initial et premiere tentative Clippy interrompus par evenements Git d’origine inconnue. Reprises autorisees avec garde inchangee ; auto-tests puis metadata et relance Clippy reussis. Les interruptions restent des echecs, pas des PASS. Voir cargo-attempt.json, cargo-guard-event.json, cargo-clippy-interruption-event.json, cargo-guard-runs.json et cargo-results.json.

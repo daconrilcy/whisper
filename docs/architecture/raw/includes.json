@@ -1,0 +1,224 @@
+[
+  {
+    "source": "crates/whisper-adapters/src/archive/tests.rs",
+    "line": 1,
+    "target": "crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/tests.rs",
+    "line": 2,
+    "target": "crates/whisper-adapters/src/archive/tests/recovery.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/tests.rs",
+    "line": 3,
+    "target": "crates/whisper-adapters/src/archive/tests/campaign.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/tests.rs",
+    "line": 4,
+    "target": "crates/whisper-adapters/src/archive/tests/replacement_and_segmented.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/tests.rs",
+    "line": 5,
+    "target": "crates/whisper-adapters/src/archive/tests/publication_characterization.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/tests.rs",
+    "line": 6,
+    "target": "crates/whisper-adapters/src/archive/tests/export_ownership_characterization.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/tests.rs",
+    "line": 7,
+    "target": "crates/whisper-adapters/src/archive/tests/recovery_characterization.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/tests.rs",
+    "line": 8,
+    "target": "crates/whisper-adapters/src/archive/tests/cleanup_characterization.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 92,
+    "target": "crates/whisper-adapters/src/archive/tests/publication_support.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_import/runtime_isolation_tests.rs",
+    "line": 1,
+    "target": "crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 1,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 2,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 3,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 4,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 5,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 6,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 7,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 8,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/queue_characterization.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 9,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/duplicate_characterization.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 10,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/effect_characterization.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 11,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/source_binding_entry.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 12,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/worker_command_poll.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "line": 14,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "line": 134,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/stopped_ack.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "line": 137,
+    "target": "crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_runtime_isolation.rs",
+    "line": 6,
+    "target": "crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/tests.rs",
+    "line": 1,
+    "target": "crates/whisper-core/src/application/runtime/tests/closing_and_recovery.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/tests.rs",
+    "line": 2,
+    "target": "crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/tests.rs",
+    "line": 3,
+    "target": "crates/whisper-core/src/application/runtime/tests/live_lifecycle.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/tests.rs",
+    "line": 4,
+    "target": "crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests.rs",
+    "line": 1,
+    "target": "crates/whisper-desktop/src/ui/tests/root_support.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests.rs",
+    "line": 2,
+    "target": "crates/whisper-desktop/src/ui/tests/support.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests.rs",
+    "line": 3,
+    "target": "crates/whisper-desktop/src/ui/tests/import_and_lifecycle.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests.rs",
+    "line": 4,
+    "target": "crates/whisper-desktop/src/ui/tests/microphone_controls.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests.rs",
+    "line": 5,
+    "target": "crates/whisper-desktop/src/ui/tests/unified_sessions.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests.rs",
+    "line": 6,
+    "target": "crates/whisper-desktop/src/ui/tests/compute_and_catalog.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests.rs",
+    "line": 7,
+    "target": "crates/whisper-desktop/src/ui/tests/document_presentation.rs",
+    "test": false
+  }
+]

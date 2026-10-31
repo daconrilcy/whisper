@@ -1,0 +1,8 @@
+{
+  "expected_harnesses": 73,
+  "observed_harnesses": 73,
+  "missing": [],
+  "unexpected": [],
+  "all_matched": true,
+  "method": "Rapprochement multiensemble des cibles test/doc de metadata avec les noms des executables et Doc-tests des 4 commandes de couverture ; noms repetes comptes avec multiplicite. Pas une preuve de chaque branche interne."
+}

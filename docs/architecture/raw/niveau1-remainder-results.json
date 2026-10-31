@@ -1,0 +1,310 @@
+{
+  "status": "VALIDATION_COMPLETED_WITH_KNOWN_FAILURE",
+  "verdict": "FAILED",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "remainder_jobs": [
+    {
+      "name": "niveau1-remainder-core",
+      "exit_code": 0,
+      "run_id": "20261031T223110283-d38ec304",
+      "seconds": 7,
+      "passed": 15,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "summaries": [
+        {
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.01,
+          "target": "tests\\parakeet_ipc.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\parakeet_ipc-9e9ddf0fa1f5b258.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 8,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.37,
+          "target": "tests\\parakeet_windows.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\parakeet_windows-9d25d4b48a3006e0.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.0,
+          "target": "tests\\scheduler_contract.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\scheduler_contract-7c233a7fccf1a77d.exe)"
+        }
+      ],
+      "not_run_messages": []
+    },
+    {
+      "name": "niveau1-remainder-desktop-workers",
+      "exit_code": 0,
+      "run_id": "20261031T223117138-0429ea4a",
+      "seconds": 44,
+      "passed": 173,
+      "failed": 0,
+      "ignored": 17,
+      "filtered_out": 0,
+      "summaries": [
+        {
+          "status": "ok",
+          "passed": 48,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.67,
+          "target": "unittests src\\lib.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\whisper_desktop-d4150c1be1b7de5e.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 12,
+          "failed": 0,
+          "ignored": 1,
+          "filtered_out": 0,
+          "seconds": 0.03,
+          "target": "unittests src\\main.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\whisper_desktop-746aa2a2c4148f01.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 6,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.07,
+          "target": "tests\\gpu_inventory_ui.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\gpu_inventory_ui-29ff2016fe9ed27d.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 6,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.02,
+          "target": "tests\\gpu_selection_ui.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\gpu_selection_ui-4b55632413b2550f.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.0,
+          "target": "tests\\microphone_level_ui.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\microphone_level_ui-70f0fa3d1310c41f.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 10,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.04,
+          "target": "tests\\model_selection_ui.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\model_selection_ui-a58931032f16cec3.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.03,
+          "target": "tests\\reprocessing_recovery_ui.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\reprocessing_recovery_ui-c2326459daa99fbd.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 12,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.53,
+          "target": "unittests src\\lib.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\whisper_worker_common-d36246b1c281aacd.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 9,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.08,
+          "target": "unittests src\\main.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\whisper_worker_cpu-54c6075f67497d58.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.12,
+          "target": "tests\\live_worker.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\live_worker-510a4888428be71a.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 1,
+          "filtered_out": 0,
+          "seconds": 6.07,
+          "target": "tests\\reusable_imports.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\reusable_imports-141505af30aba07a.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 7,
+          "failed": 0,
+          "ignored": 3,
+          "filtered_out": 0,
+          "seconds": 12.43,
+          "target": "tests\\worker_contract.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\worker_contract-a08cfbf41fadcaec.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 19,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.03,
+          "target": "unittests src\\main.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\whisper_worker_gpu-5ee0e8e201ea8158.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.13,
+          "target": "tests\\gpu_selection_native.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\gpu_selection_native-a6021b0e467c7b44.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 2,
+          "filtered_out": 0,
+          "seconds": 6.48,
+          "target": "tests\\worker_contract.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\worker_contract-92c8782b4b4c6f3c.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 23,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.01,
+          "target": "unittests src\\main.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\whisper_worker_parakeet_cpu-ef7b271965068a06.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 1,
+          "filtered_out": 0,
+          "seconds": 0.0,
+          "target": "tests\\decoder_parity.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\decoder_parity-ddb525035a391051.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 1,
+          "filtered_out": 0,
+          "seconds": 6.07,
+          "target": "tests\\native_diagnostics_absence.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\native_diagnostics_absence-c28886efc079e81b.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 8,
+          "filtered_out": 0,
+          "seconds": 0.0,
+          "target": "tests\\native_import.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\native_import-16862a36162f2cdf.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 6.06,
+          "target": "tests\\worker_contract.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\worker_contract-c908ea05c5999a4e.exe)"
+        },
+        {
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.0,
+          "target": "whisper_desktop"
+        },
+        {
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.0,
+          "target": "whisper_worker_common"
+        }
+      ],
+      "not_run_messages": [
+        "NOT RUN: WHISPER_DESKTOP_TEST_ROOT is not set",
+        "NOT RUN: WHISPER_DESKTOP_TEST_ROOT is not set",
+        "V-IMPORT-MP3 decoder proof NOT RUN: set WHISPER_L02_GAPLESS_MP3"
+      ]
+    },
+    {
+      "name": "niveau1-remainder-doc",
+      "exit_code": 0,
+      "run_id": "20261031T223201545-b725fd65",
+      "seconds": 10,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "summaries": [
+        {
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.0,
+          "target": "whisper_adapters"
+        },
+        {
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0,
+          "filtered_out": 0,
+          "seconds": 0.0,
+          "target": "whisper_core"
+        }
+      ],
+      "not_run_messages": []
+    }
+  ],
+  "remainder_passed": 188,
+  "remainder_ignored": 17,
+  "remainder_failed": 0,
+  "consolidated_passed": 772,
+  "consolidated_failed": 1,
+  "consolidated_ignored": 66,
+  "consolidation": "Somme de la poursuite workspace après correction L1B, des seules cibles restantes et de 1 test D2 réutilisé (16 cas natifs). Test ciblé de reprise non ajouté car déjà rejoué dans la poursuite ; anciennes tentatives échouées non additionnées.",
+  "all_default_workspace_targets_reached": true,
+  "scope": "Features par défaut ; unités, intégrations et doctests des huit crates ; ignored non forcés et NOT RUN anticipés conservés comme limites.",
+  "known_failure": "personal_release_keys_match_the_qualified_candidate_b_workers_and_dll_sets",
+  "known_failure_source": "crates/whisper-core/tests/parakeet_import_contract.rs:224-227",
+  "d2_reused_test_count": 1,
+  "d2_cases": 16,
+  "no_source_or_test_modification": true,
+  "guard_unchanged": true,
+  "remaining_not_run_targets": [],
+  "free_gib": 183.82
+}

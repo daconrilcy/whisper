@@ -1,0 +1,75 @@
+{
+  "status": "INCOMPLETE_ENVIRONMENT_FAILURE",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "command": "cargo test --offline --locked --workspace -- --test-threads=1 --nocapture",
+  "guard_exit_code": -1,
+  "exit_explanation": "Processus Cargo et descendants arretes explicitement apres observation de FAILED ; -1 n’est pas un verdict final produit naturellement par Cargo.",
+  "compilation_completed": true,
+  "compilation_seconds": 43.79,
+  "observed_passed": 224,
+  "observed_failed": 8,
+  "observed_ignored": 4,
+  "failed_tests": [
+    "direct_live::d2_corpus::d2_corpus_real_cpu_turbo_and_parakeet",
+    "direct_live::d2_corpus::tests::test_status_writer_preserves_diagnostics",
+    "source_binding::recovery_tests::recovery_refuses_reserved_operation_while_acquire_holds_the_cross_process_lock",
+    "source_binding::recovery_tests::retirement_intent_replays_after_each_disposition_boundary",
+    "source_binding::recovery_tests::snapshot_v2_preserves_strategy_and_rejects_request_mismatch",
+    "worker_ipc::tests::browse_accepts_only_exact_verified_treatment_in_current_destination",
+    "worker_ipc::tests::emptied_transcriptions_keeps_history_but_offers_no_duplicate_targets",
+    "worker_ipc::tests::import_application_decodes_real_mp3_and_publishes_full_unified_coverage"
+  ],
+  "panics": [
+    [
+      "direct_live::d2_corpus::d2_corpus_real_cpu_turbo_and_parakeet",
+      "crates\\whisper-adapters\\src\\direct_live\\d2_corpus.rs:146:69",
+      "guarded D2 root"
+    ],
+    [
+      "direct_live::d2_corpus::tests::test_status_writer_preserves_diagnostics",
+      "crates\\whisper-adapters\\src\\direct_live\\d2_corpus.rs:542:73",
+      "guarded D2 root"
+    ],
+    [
+      "source_binding::recovery_tests::recovery_refuses_reserved_operation_while_acquire_holds_the_cross_process_lock",
+      "crates\\whisper-adapters\\src\\source_binding.rs:1527:68",
+      "campaign archive root"
+    ],
+    [
+      "source_binding::recovery_tests::retirement_intent_replays_after_each_disposition_boundary",
+      "crates\\whisper-adapters\\src\\source_binding.rs:1527:68",
+      "campaign archive root"
+    ],
+    [
+      "source_binding::recovery_tests::snapshot_v2_preserves_strategy_and_rejects_request_mismatch",
+      "crates\\whisper-adapters\\src\\source_binding.rs:1527:68",
+      "campaign archive root"
+    ],
+    [
+      "worker_ipc::tests::browse_accepts_only_exact_verified_treatment_in_current_destination",
+      "crates\\whisper-adapters\\src\\worker_ipc\\tests/reprocessing_and_transport.rs:21:72",
+      "RTC-02 root"
+    ],
+    [
+      "worker_ipc::tests::emptied_transcriptions_keeps_history_but_offers_no_duplicate_targets",
+      "crates\\whisper-adapters\\src\\worker_ipc\\tests/reprocessing_and_transport.rs:21:72",
+      "RTC-02 root"
+    ],
+    [
+      "worker_ipc::tests::import_application_decodes_real_mp3_and_publishes_full_unified_coverage",
+      "crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:1059:14",
+      "WHISPER_PU_L1_MP3_FIXTURE must name the guarded MP3 fixture"
+    ]
+  ],
+  "final_harness_summary_present": false,
+  "limitations": "Comptages partiels avant interruption du premier binaire de tests ; aucune conclusion sur les crates et tests restants.",
+  "missing_runtime_inputs": [
+    "WHISPER_MIC_LEVEL_D2_ROOT",
+    "PARAKEET_L2_ARCHIVE_ROOT",
+    "PARAKEET_RTC02_EXEC_ROOT",
+    "WHISPER_PU_L1_MP3_FIXTURE"
+  ],
+  "additional_d2_requirement": "WHISPER_MIC_LEVEL_D2_ENGINE=parakeet-cpu ; le test non ignore execute un corpus natif de 16 cas",
+  "no_test_modification": true,
+  "tracked_inputs_match_target": true
+}

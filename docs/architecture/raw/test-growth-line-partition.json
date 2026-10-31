@@ -1,0 +1,2393 @@
+{
+  "before": {
+    "totals": {
+      "fonctions_test": 40408,
+      "autres_types_constantes_modules_blancs_commentaires": 2745,
+      "fonctions_support": 14341,
+      "imports_hors_fonctions": 721
+    },
+    "files": [
+      {
+        "path": "crates/whisper-adapters/src/archive.rs",
+        "fonctions_test": 2098,
+        "autres_types_constantes_modules_blancs_commentaires": 45,
+        "fonctions_support": 38,
+        "imports_hors_fonctions": 2
+      },
+      {
+        "path": "crates/whisper-adapters/src/capture.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 27,
+        "fonctions_support": 106,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 349
+      },
+      {
+        "path": "crates/whisper-adapters/src/decoder.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "imports_hors_fonctions": 6,
+        "fonctions_support": 26,
+        "fonctions_test": 105
+      },
+      {
+        "path": "crates/whisper-adapters/src/direct_live.rs",
+        "fonctions_support": 560,
+        "autres_types_constantes_modules_blancs_commentaires": 90,
+        "imports_hors_fonctions": 29,
+        "fonctions_test": 1181
+      },
+      {
+        "path": "crates/whisper-adapters/src/gpu_inventory.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "imports_hors_fonctions": 8,
+        "fonctions_test": 192,
+        "fonctions_support": 12
+      },
+      {
+        "path": "crates/whisper-adapters/src/gpu_inventory/windows_native.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 17
+      },
+      {
+        "path": "crates/whisper-adapters/src/journal.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/lib.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/microphone_probe.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 27,
+        "fonctions_support": 10,
+        "imports_hors_fonctions": 5,
+        "fonctions_test": 492
+      },
+      {
+        "path": "crates/whisper-adapters/src/model_catalog.rs",
+        "fonctions_test": 59,
+        "autres_types_constantes_modules_blancs_commentaires": 15,
+        "imports_hors_fonctions": 8,
+        "fonctions_support": 12
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_audio.rs",
+        "fonctions_test": 164,
+        "autres_types_constantes_modules_blancs_commentaires": 19,
+        "fonctions_support": 15,
+        "imports_hors_fonctions": 2
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_confirmation.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 32,
+        "imports_hors_fonctions": 1,
+        "fonctions_support": 9,
+        "fonctions_test": 795
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_document.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 11,
+        "fonctions_test": 308
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_import.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "fonctions_test": 54,
+        "imports_hors_fonctions": 1,
+        "fonctions_support": 15
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live.rs",
+        "fonctions_support": 76,
+        "autres_types_constantes_modules_blancs_commentaires": 98,
+        "imports_hors_fonctions": 9,
+        "fonctions_test": 307
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_pipeline.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 27,
+        "imports_hors_fonctions": 10,
+        "fonctions_support": 61,
+        "fonctions_test": 365
+      },
+      {
+        "path": "crates/whisper-adapters/src/path_settings.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 10,
+        "fonctions_test": 31,
+        "imports_hors_fonctions": 3,
+        "fonctions_support": 19
+      },
+      {
+        "path": "crates/whisper-adapters/src/queue_store.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 26,
+        "fonctions_test": 168
+      },
+      {
+        "path": "crates/whisper-adapters/src/recovery.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/source_binding.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 44,
+        "fonctions_test": 142
+      },
+      {
+        "path": "crates/whisper-adapters/src/staging.rs",
+        "fonctions_test": 88,
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "imports_hors_fonctions": 1
+      },
+      {
+        "path": "crates/whisper-adapters/src/supervisor.rs",
+        "fonctions_test": 164,
+        "autres_types_constantes_modules_blancs_commentaires": 22,
+        "imports_hors_fonctions": 6,
+        "fonctions_support": 22
+      },
+      {
+        "path": "crates/whisper-adapters/src/vad.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/windows_file_identity.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 12,
+        "fonctions_test": 56
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 914,
+        "imports_hors_fonctions": 10,
+        "fonctions_test": 11251,
+        "fonctions_support": 4833
+      },
+      {
+        "path": "crates/whisper-adapters/tests/decoder_proxy.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 14,
+        "fonctions_support": 35,
+        "fonctions_test": 56
+      },
+      {
+        "path": "crates/whisper-adapters/tests/durability.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_support": 17,
+        "fonctions_test": 154
+      },
+      {
+        "path": "crates/whisper-adapters/tests/gpu_inventory.rs",
+        "imports_hors_fonctions": 2,
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "fonctions_test": 38
+      },
+      {
+        "path": "crates/whisper-adapters/tests/gpu_qualification_transport.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 22
+      },
+      {
+        "path": "crates/whisper-adapters/tests/gpu_selection_worker.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "fonctions_support": 55,
+        "fonctions_test": 268
+      },
+      {
+        "path": "crates/whisper-adapters/tests/gpu_settings.rs",
+        "imports_hors_fonctions": 17,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "fonctions_support": 39,
+        "fonctions_test": 140
+      },
+      {
+        "path": "crates/whisper-adapters/tests/import_cpu.rs",
+        "imports_hors_fonctions": 20,
+        "autres_types_constantes_modules_blancs_commentaires": 59,
+        "fonctions_test": 762,
+        "fonctions_support": 1408
+      },
+      {
+        "path": "crates/whisper-adapters/tests/import_mp3.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "fonctions_test": 410,
+        "fonctions_support": 45
+      },
+      {
+        "path": "crates/whisper-adapters/tests/legacy_model_requests.rs",
+        "imports_hors_fonctions": 11,
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "fonctions_support": 50,
+        "fonctions_test": 91
+      },
+      {
+        "path": "crates/whisper-adapters/tests/live_archive.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "fonctions_support": 10,
+        "fonctions_test": 595
+      },
+      {
+        "path": "crates/whisper-adapters/tests/live_capture.rs",
+        "imports_hors_fonctions": 5,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_test": 70
+      },
+      {
+        "path": "crates/whisper-adapters/tests/microphone_level.rs",
+        "imports_hors_fonctions": 2,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 9
+      },
+      {
+        "path": "crates/whisper-adapters/tests/microphone_probe.rs",
+        "imports_hors_fonctions": 14,
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "fonctions_support": 39,
+        "fonctions_test": 141
+      },
+      {
+        "path": "crates/whisper-adapters/tests/microphone_settings.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_test": 24
+      },
+      {
+        "path": "crates/whisper-adapters/tests/model_catalog.rs",
+        "imports_hors_fonctions": 8,
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "fonctions_support": 49,
+        "fonctions_test": 163
+      },
+      {
+        "path": "crates/whisper-adapters/tests/model_preferences.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 15,
+        "fonctions_support": 49,
+        "fonctions_test": 243
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_archive.rs",
+        "imports_hors_fonctions": 44,
+        "autres_types_constantes_modules_blancs_commentaires": 83,
+        "fonctions_test": 1159,
+        "fonctions_support": 810
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_control.rs",
+        "imports_hors_fonctions": 17,
+        "autres_types_constantes_modules_blancs_commentaires": 14,
+        "fonctions_test": 739,
+        "fonctions_support": 170
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_import.rs",
+        "imports_hors_fonctions": 20,
+        "autres_types_constantes_modules_blancs_commentaires": 62,
+        "fonctions_test": 1768,
+        "fonctions_support": 1391
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_long.rs",
+        "imports_hors_fonctions": 21,
+        "autres_types_constantes_modules_blancs_commentaires": 52,
+        "fonctions_support": 538,
+        "fonctions_test": 58
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_unified_native.rs",
+        "imports_hors_fonctions": 17,
+        "autres_types_constantes_modules_blancs_commentaires": 44,
+        "fonctions_support": 771,
+        "fonctions_test": 101
+      },
+      {
+        "path": "crates/whisper-adapters/tests/reprocessing_baseline.rs",
+        "imports_hors_fonctions": 15,
+        "autres_types_constantes_modules_blancs_commentaires": 27,
+        "fonctions_test": 168,
+        "fonctions_support": 335
+      },
+      {
+        "path": "crates/whisper-adapters/tests/reprocessing_cleanup.rs",
+        "imports_hors_fonctions": 19,
+        "autres_types_constantes_modules_blancs_commentaires": 42,
+        "fonctions_support": 446,
+        "fonctions_test": 985
+      },
+      {
+        "path": "crates/whisper-adapters/tests/reprocessing_create.rs",
+        "imports_hors_fonctions": 19,
+        "autres_types_constantes_modules_blancs_commentaires": 10,
+        "fonctions_support": 171,
+        "fonctions_test": 203
+      },
+      {
+        "path": "crates/whisper-adapters/tests/source_binding.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 18,
+        "fonctions_support": 52,
+        "fonctions_test": 558
+      },
+      {
+        "path": "crates/whisper-adapters/tests/vad_contract.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 6
+      },
+      {
+        "path": "crates/whisper-adapters/tests/worker_control.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 8,
+        "fonctions_support": 13,
+        "fonctions_test": 72
+      },
+      {
+        "path": "crates/whisper-bootstrap/src/main.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 60,
+        "imports_hors_fonctions": 3,
+        "fonctions_support": 46,
+        "fonctions_test": 2926
+      },
+      {
+        "path": "crates/whisper-core/src/audio.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 5,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 13
+      },
+      {
+        "path": "crates/whisper-core/src/compute_policy.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/domain.rs",
+        "fonctions_test": 40,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 1
+      },
+      {
+        "path": "crates/whisper-core/src/engine_capabilities.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/gpu_inventory.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/gpu_inventory_app.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/gpu_selection.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/ipc.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 12
+      },
+      {
+        "path": "crates/whisper-core/src/lib.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/microphone.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 17,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 13,
+        "fonctions_test": 54
+      },
+      {
+        "path": "crates/whisper-core/src/microphone_level.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 5,
+        "fonctions_test": 68
+      },
+      {
+        "path": "crates/whisper-core/src/model_catalog.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/model_registry.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/model_selection_app.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/parakeet_ipc.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/parakeet_scheduler.rs",
+        "fonctions_test": 228,
+        "autres_types_constantes_modules_blancs_commentaires": 13,
+        "imports_hors_fonctions": 1,
+        "fonctions_support": 6
+      },
+      {
+        "path": "crates/whisper-core/src/parakeet_session.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 8,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 115
+      },
+      {
+        "path": "crates/whisper-core/src/parakeet_windows.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 8,
+        "imports_hors_fonctions": 1,
+        "fonctions_support": 3,
+        "fonctions_test": 48
+      },
+      {
+        "path": "crates/whisper-core/src/path_settings.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 31,
+        "imports_hors_fonctions": 7,
+        "fonctions_support": 41,
+        "fonctions_test": 156
+      },
+      {
+        "path": "crates/whisper-core/src/ports.rs"
+      },
+      {
+        "path": "crates/whisper-core/tests/compute_policy.rs",
+        "imports_hors_fonctions": 3,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_test": 57
+      },
+      {
+        "path": "crates/whisper-core/tests/engine_capabilities.rs",
+        "imports_hors_fonctions": 11,
+        "autres_types_constantes_modules_blancs_commentaires": 19,
+        "fonctions_support": 91,
+        "fonctions_test": 597
+      },
+      {
+        "path": "crates/whisper-core/tests/gpu_inventory.rs",
+        "imports_hors_fonctions": 10,
+        "autres_types_constantes_modules_blancs_commentaires": 43,
+        "fonctions_support": 41,
+        "fonctions_test": 306
+      },
+      {
+        "path": "crates/whisper-core/tests/gpu_selection.rs",
+        "imports_hors_fonctions": 12,
+        "autres_types_constantes_modules_blancs_commentaires": 10,
+        "fonctions_support": 28,
+        "fonctions_test": 247
+      },
+      {
+        "path": "crates/whisper-core/tests/import_contract.rs",
+        "imports_hors_fonctions": 7,
+        "autres_types_constantes_modules_blancs_commentaires": 24,
+        "fonctions_support": 27,
+        "fonctions_test": 844
+      },
+      {
+        "path": "crates/whisper-core/tests/live_contract.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 20,
+        "fonctions_support": 24,
+        "fonctions_test": 183
+      },
+      {
+        "path": "crates/whisper-core/tests/microphone_level.rs",
+        "imports_hors_fonctions": 5,
+        "autres_types_constantes_modules_blancs_commentaires": 15,
+        "fonctions_test": 212,
+        "fonctions_support": 6
+      },
+      {
+        "path": "crates/whisper-core/tests/model_catalog.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "fonctions_support": 43,
+        "fonctions_test": 179
+      },
+      {
+        "path": "crates/whisper-core/tests/model_preferences.rs",
+        "imports_hors_fonctions": 8,
+        "autres_types_constantes_modules_blancs_commentaires": 13,
+        "fonctions_support": 30,
+        "fonctions_test": 69
+      },
+      {
+        "path": "crates/whisper-core/tests/model_selection_app.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "fonctions_support": 14,
+        "fonctions_test": 398
+      },
+      {
+        "path": "crates/whisper-core/tests/parakeet_import_contract.rs",
+        "imports_hors_fonctions": 8,
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "fonctions_support": 63,
+        "fonctions_test": 196
+      },
+      {
+        "path": "crates/whisper-core/tests/parakeet_ipc.rs",
+        "imports_hors_fonctions": 5,
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "fonctions_test": 96,
+        "fonctions_support": 8
+      },
+      {
+        "path": "crates/whisper-core/tests/parakeet_windows.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 10,
+        "fonctions_support": 7,
+        "fonctions_test": 171
+      },
+      {
+        "path": "crates/whisper-core/tests/scheduler_contract.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 14,
+        "fonctions_support": 24,
+        "fonctions_test": 110
+      },
+      {
+        "path": "crates/whisper-desktop/src/lib.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/main.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/reactivity_log.rs",
+        "fonctions_support": 11,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 3,
+        "fonctions_test": 71
+      },
+      {
+        "path": "crates/whisper-desktop/src/root.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 34,
+        "imports_hors_fonctions": 8,
+        "fonctions_support": 120,
+        "fonctions_test": 716
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 175,
+        "fonctions_support": 499,
+        "imports_hors_fonctions": 27,
+        "fonctions_test": 1709
+      },
+      {
+        "path": "crates/whisper-desktop/tests/gpu_inventory_ui.rs",
+        "imports_hors_fonctions": 7,
+        "autres_types_constantes_modules_blancs_commentaires": 8,
+        "fonctions_support": 45,
+        "fonctions_test": 215
+      },
+      {
+        "path": "crates/whisper-desktop/tests/gpu_selection_ui.rs",
+        "imports_hors_fonctions": 12,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "fonctions_test": 188,
+        "fonctions_support": 17
+      },
+      {
+        "path": "crates/whisper-desktop/tests/microphone_level_ui.rs",
+        "imports_hors_fonctions": 4,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_support": 34,
+        "fonctions_test": 123
+      },
+      {
+        "path": "crates/whisper-desktop/tests/model_selection_ui.rs",
+        "imports_hors_fonctions": 15,
+        "autres_types_constantes_modules_blancs_commentaires": 10,
+        "fonctions_test": 337,
+        "fonctions_support": 10
+      },
+      {
+        "path": "crates/whisper-desktop/tests/reprocessing_recovery_ui.rs",
+        "imports_hors_fonctions": 3,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_test": 75
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/decoder.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 6,
+        "imports_hors_fonctions": 6,
+        "fonctions_test": 103,
+        "fonctions_support": 24
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/encoder.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/ipc.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 5,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 26
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/main.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 5,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 23
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/native_engine.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/tests/live_worker.rs",
+        "imports_hors_fonctions": 8,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 35
+      },
+      {
+        "path": "crates/whisper-worker-cpu/tests/reusable_imports.rs",
+        "imports_hors_fonctions": 14,
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "fonctions_support": 86,
+        "fonctions_test": 84
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/gpu_attestation.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 1,
+        "fonctions_support": 26,
+        "fonctions_test": 7
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/gpu_qualification.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 2,
+        "fonctions_test": 151
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/main.rs",
+        "fonctions_test": 215,
+        "autres_types_constantes_modules_blancs_commentaires": 17,
+        "imports_hors_fonctions": 9,
+        "fonctions_support": 24
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/native_engine.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/native_ffi.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 6,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 59
+      },
+      {
+        "path": "crates/whisper-worker-gpu/tests/gpu_selection_native.rs",
+        "imports_hors_fonctions": 5,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 25
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/decoder.rs"
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 17,
+        "imports_hors_fonctions": 4,
+        "fonctions_test": 188
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/native_engine.rs",
+        "fonctions_test": 228,
+        "autres_types_constantes_modules_blancs_commentaires": 20,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 7
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/native_ffi.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 24
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/tests/decoder_parity.rs",
+        "imports_hors_fonctions": 15,
+        "autres_types_constantes_modules_blancs_commentaires": 12,
+        "fonctions_test": 99,
+        "fonctions_support": 98
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/tests/native_import.rs",
+        "imports_hors_fonctions": 19,
+        "autres_types_constantes_modules_blancs_commentaires": 84,
+        "fonctions_test": 993,
+        "fonctions_support": 425
+      }
+    ]
+  },
+  "after": {
+    "totals": {
+      "autres_types_constantes_modules_blancs_commentaires": 3221,
+      "imports_hors_fonctions": 976,
+      "fonctions_test": 44629,
+      "fonctions_support": 16661
+    },
+    "files": [
+      {
+        "path": "crates/whisper-adapters/src/archive.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 8,
+        "imports_hors_fonctions": 7
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/campaign.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/cleanup.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/cleanup/execution.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/cleanup/proofs.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/identity.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/import.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/journal.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/live.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/publication.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "imports_hors_fonctions": 2
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/publication/catalog.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/publication/exports.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 1
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/recovery.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/recovery/live.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/source.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/storage.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/tests.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 8
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs",
+        "imports_hors_fonctions": 2,
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "fonctions_test": 704
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/tests/campaign.rs",
+        "fonctions_test": 146
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/tests/cleanup_characterization.rs",
+        "fonctions_test": 26
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/tests/export_ownership_characterization.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "fonctions_support": 10,
+        "fonctions_test": 245
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/tests/publication_characterization.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "fonctions_support": 73,
+        "fonctions_test": 251
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/tests/publication_support.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 21,
+        "fonctions_support": 38
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/tests/recovery.rs",
+        "fonctions_test": 842,
+        "autres_types_constantes_modules_blancs_commentaires": 5
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/tests/recovery_characterization.rs",
+        "fonctions_test": 83,
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-adapters/src/archive/tests/replacement_and_segmented.rs",
+        "fonctions_test": 408,
+        "autres_types_constantes_modules_blancs_commentaires": 5
+      },
+      {
+        "path": "crates/whisper-adapters/src/capture.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 27,
+        "fonctions_support": 106,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 361
+      },
+      {
+        "path": "crates/whisper-adapters/src/decoder.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "imports_hors_fonctions": 6,
+        "fonctions_support": 26,
+        "fonctions_test": 105
+      },
+      {
+        "path": "crates/whisper-adapters/src/direct_live.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 8,
+        "imports_hors_fonctions": 4
+      },
+      {
+        "path": "crates/whisper-adapters/src/direct_live/capture.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/direct_live/d2_corpus.rs",
+        "imports_hors_fonctions": 17,
+        "autres_types_constantes_modules_blancs_commentaires": 62,
+        "fonctions_support": 302,
+        "fonctions_test": 241
+      },
+      {
+        "path": "crates/whisper-adapters/src/direct_live/outputs.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/direct_live/test_support.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "fonctions_support": 121
+      },
+      {
+        "path": "crates/whisper-adapters/src/direct_live/tests.rs",
+        "imports_hors_fonctions": 12,
+        "autres_types_constantes_modules_blancs_commentaires": 25,
+        "fonctions_support": 132,
+        "fonctions_test": 1093
+      },
+      {
+        "path": "crates/whisper-adapters/src/direct_live/wav.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/direct_live/worker.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/gpu_inventory.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "imports_hors_fonctions": 9,
+        "fonctions_test": 210,
+        "fonctions_support": 12
+      },
+      {
+        "path": "crates/whisper-adapters/src/gpu_inventory/windows_native.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 17
+      },
+      {
+        "path": "crates/whisper-adapters/src/journal.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/lib.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/microphone_probe.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 29,
+        "fonctions_support": 10,
+        "imports_hors_fonctions": 5,
+        "fonctions_test": 518
+      },
+      {
+        "path": "crates/whisper-adapters/src/microphone_probe/retry_epoch_regression.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_support": 12,
+        "fonctions_test": 54
+      },
+      {
+        "path": "crates/whisper-adapters/src/model_catalog.rs",
+        "fonctions_test": 59,
+        "autres_types_constantes_modules_blancs_commentaires": 15,
+        "imports_hors_fonctions": 8,
+        "fonctions_support": 12
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_audio.rs",
+        "fonctions_test": 164,
+        "autres_types_constantes_modules_blancs_commentaires": 19,
+        "fonctions_support": 15,
+        "imports_hors_fonctions": 2
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_confirmation.rs",
+        "fonctions_support": 26,
+        "autres_types_constantes_modules_blancs_commentaires": 32,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 795
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_document.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 11,
+        "fonctions_test": 308
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_import.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 14,
+        "fonctions_test": 54,
+        "imports_hors_fonctions": 1,
+        "fonctions_support": 15
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_import/historical_runtime.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_import/legacy_runtime_tests.rs",
+        "imports_hors_fonctions": 4,
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "fonctions_support": 18,
+        "fonctions_test": 98
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_import/runtime_isolation_tests.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 5,
+        "fonctions_test": 4
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "imports_hors_fonctions": 1
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live/capture.rs",
+        "fonctions_support": 15,
+        "autres_types_constantes_modules_blancs_commentaires": 8
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live/diagnostics_absence_tests.rs",
+        "imports_hors_fonctions": 5,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_test": 87
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live/events.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 42
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live/inference.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live/lifecycle.rs",
+        "fonctions_support": 16,
+        "autres_types_constantes_modules_blancs_commentaires": 6
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live/microphone_spectrum_tests.rs",
+        "imports_hors_fonctions": 8,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 207
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live/recovery_tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 5,
+        "fonctions_test": 133
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live/trace.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 21,
+        "imports_hors_fonctions": 1,
+        "fonctions_support": 24
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live/window_result_contract_tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 6,
+        "fonctions_support": 21,
+        "fonctions_test": 29
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_live/windows.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/parakeet_pipeline.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 27,
+        "imports_hors_fonctions": 10,
+        "fonctions_support": 61,
+        "fonctions_test": 365
+      },
+      {
+        "path": "crates/whisper-adapters/src/path_settings.rs",
+        "fonctions_support": 19,
+        "autres_types_constantes_modules_blancs_commentaires": 10,
+        "fonctions_test": 31,
+        "imports_hors_fonctions": 3
+      },
+      {
+        "path": "crates/whisper-adapters/src/queue_store.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 26,
+        "fonctions_test": 168
+      },
+      {
+        "path": "crates/whisper-adapters/src/recovery.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/source_binding.rs",
+        "fonctions_support": 44,
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "fonctions_test": 142,
+        "imports_hors_fonctions": 2
+      },
+      {
+        "path": "crates/whisper-adapters/src/staging.rs",
+        "fonctions_test": 88,
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "imports_hors_fonctions": 1
+      },
+      {
+        "path": "crates/whisper-adapters/src/supervisor.rs",
+        "fonctions_test": 164,
+        "autres_types_constantes_modules_blancs_commentaires": 22,
+        "imports_hors_fonctions": 6,
+        "fonctions_support": 22
+      },
+      {
+        "path": "crates/whisper-adapters/src/vad.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/windows_file_identity.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 12,
+        "fonctions_test": 56
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 18,
+        "imports_hors_fonctions": 37
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/backends/mod.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/backends/native.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/ipc/framing.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/ipc/mod.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 10,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 4
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/executor.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 140,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 15
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/mod.rs",
+        "fonctions_support": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "imports_hors_fonctions": 1
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 111,
+        "imports_hors_fonctions": 4,
+        "fonctions_support": 8
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/publication/mod.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/publication/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_test": 26
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/effects.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/import.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 39,
+        "fonctions_support": 194
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/live.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 27
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 56,
+        "imports_hors_fonctions": 11,
+        "fonctions_support": 31
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/poll.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "imports_hors_fonctions": 5
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/poll/capture.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 62
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/queue.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 18
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 6
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/runtime/support.rs",
+        "fonctions_support": 91
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/service/automatic_final.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/service/mod.rs",
+        "fonctions_support": 45
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/support.rs"
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 14
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/duplicate_characterization.rs",
+        "fonctions_test": 50
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/effect_characterization.rs",
+        "fonctions_test": 104,
+        "autres_types_constantes_modules_blancs_commentaires": 1
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+        "fonctions_test": 1640,
+        "autres_types_constantes_modules_blancs_commentaires": 78,
+        "fonctions_support": 350
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs",
+        "fonctions_test": 1621,
+        "autres_types_constantes_modules_blancs_commentaires": 45,
+        "fonctions_support": 2314
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/queue_characterization.rs",
+        "fonctions_test": 74
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs",
+        "fonctions_support": 397,
+        "autres_types_constantes_modules_blancs_commentaires": 65,
+        "fonctions_test": 1834
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs",
+        "fonctions_support": 402,
+        "autres_types_constantes_modules_blancs_commentaires": 26,
+        "fonctions_test": 973
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 114,
+        "fonctions_support": 75
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/source_binding_entry.rs",
+        "fonctions_test": 61
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/stopped_ack.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 12
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "fonctions_test": 3012,
+        "autres_types_constantes_modules_blancs_commentaires": 22
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+        "fonctions_test": 2152,
+        "autres_types_constantes_modules_blancs_commentaires": 15,
+        "fonctions_support": 399
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 15,
+        "fonctions_support": 73,
+        "fonctions_test": 476
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 95,
+        "fonctions_test": 13,
+        "fonctions_support": 539
+      },
+      {
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/worker_command_poll.rs",
+        "fonctions_test": 40
+      },
+      {
+        "path": "crates/whisper-adapters/tests/decoder_proxy.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 14,
+        "fonctions_support": 35,
+        "fonctions_test": 56
+      },
+      {
+        "path": "crates/whisper-adapters/tests/durability.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_support": 17,
+        "fonctions_test": 154
+      },
+      {
+        "path": "crates/whisper-adapters/tests/gpu_inventory.rs",
+        "imports_hors_fonctions": 2,
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "fonctions_test": 38
+      },
+      {
+        "path": "crates/whisper-adapters/tests/gpu_qualification_transport.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 22
+      },
+      {
+        "path": "crates/whisper-adapters/tests/gpu_selection_worker.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "fonctions_support": 55,
+        "fonctions_test": 268
+      },
+      {
+        "path": "crates/whisper-adapters/tests/gpu_settings.rs",
+        "imports_hors_fonctions": 17,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "fonctions_support": 39,
+        "fonctions_test": 140
+      },
+      {
+        "path": "crates/whisper-adapters/tests/import_cpu.rs",
+        "imports_hors_fonctions": 20,
+        "autres_types_constantes_modules_blancs_commentaires": 59,
+        "fonctions_test": 762,
+        "fonctions_support": 1408
+      },
+      {
+        "path": "crates/whisper-adapters/tests/import_mp3.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "fonctions_test": 410,
+        "fonctions_support": 45
+      },
+      {
+        "path": "crates/whisper-adapters/tests/legacy_model_requests.rs",
+        "imports_hors_fonctions": 11,
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "fonctions_support": 50,
+        "fonctions_test": 91
+      },
+      {
+        "path": "crates/whisper-adapters/tests/live_archive.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 15,
+        "fonctions_support": 32,
+        "fonctions_test": 794
+      },
+      {
+        "path": "crates/whisper-adapters/tests/live_capture.rs",
+        "imports_hors_fonctions": 5,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_test": 70
+      },
+      {
+        "path": "crates/whisper-adapters/tests/microphone_level.rs",
+        "imports_hors_fonctions": 2,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 9
+      },
+      {
+        "path": "crates/whisper-adapters/tests/microphone_probe.rs",
+        "imports_hors_fonctions": 14,
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "fonctions_support": 39,
+        "fonctions_test": 141
+      },
+      {
+        "path": "crates/whisper-adapters/tests/microphone_settings.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_test": 24
+      },
+      {
+        "path": "crates/whisper-adapters/tests/model_catalog.rs",
+        "imports_hors_fonctions": 8,
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "fonctions_support": 49,
+        "fonctions_test": 163
+      },
+      {
+        "path": "crates/whisper-adapters/tests/model_preferences.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 15,
+        "fonctions_support": 49,
+        "fonctions_test": 243
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_archive.rs",
+        "imports_hors_fonctions": 44,
+        "autres_types_constantes_modules_blancs_commentaires": 83,
+        "fonctions_test": 1159,
+        "fonctions_support": 810
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_archive_personal_history.rs",
+        "imports_hors_fonctions": 7,
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "fonctions_support": 42,
+        "fonctions_test": 145
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_command_wire.rs",
+        "imports_hors_fonctions": 2,
+        "autres_types_constantes_modules_blancs_commentaires": 23,
+        "fonctions_support": 20,
+        "fonctions_test": 47
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_control.rs",
+        "imports_hors_fonctions": 17,
+        "autres_types_constantes_modules_blancs_commentaires": 14,
+        "fonctions_test": 739,
+        "fonctions_support": 170
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_import.rs",
+        "imports_hors_fonctions": 20,
+        "autres_types_constantes_modules_blancs_commentaires": 62,
+        "fonctions_test": 1768,
+        "fonctions_support": 1391
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_long.rs",
+        "imports_hors_fonctions": 21,
+        "autres_types_constantes_modules_blancs_commentaires": 52,
+        "fonctions_support": 538,
+        "fonctions_test": 58
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_runtime_isolation.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 73
+      },
+      {
+        "path": "crates/whisper-adapters/tests/parakeet_unified_native.rs",
+        "imports_hors_fonctions": 17,
+        "autres_types_constantes_modules_blancs_commentaires": 44,
+        "fonctions_support": 771,
+        "fonctions_test": 101
+      },
+      {
+        "path": "crates/whisper-adapters/tests/publication_lock_contract.rs",
+        "imports_hors_fonctions": 5,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_test": 30
+      },
+      {
+        "path": "crates/whisper-adapters/tests/reprocessing_baseline.rs",
+        "imports_hors_fonctions": 15,
+        "autres_types_constantes_modules_blancs_commentaires": 27,
+        "fonctions_test": 168,
+        "fonctions_support": 338
+      },
+      {
+        "path": "crates/whisper-adapters/tests/reprocessing_cleanup.rs",
+        "imports_hors_fonctions": 19,
+        "autres_types_constantes_modules_blancs_commentaires": 45,
+        "fonctions_support": 455,
+        "fonctions_test": 1079
+      },
+      {
+        "path": "crates/whisper-adapters/tests/reprocessing_create.rs",
+        "imports_hors_fonctions": 19,
+        "autres_types_constantes_modules_blancs_commentaires": 10,
+        "fonctions_support": 171,
+        "fonctions_test": 203
+      },
+      {
+        "path": "crates/whisper-adapters/tests/source_binding.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 18,
+        "fonctions_support": 52,
+        "fonctions_test": 558
+      },
+      {
+        "path": "crates/whisper-adapters/tests/support/parakeet_fake_worker.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_support": 29
+      },
+      {
+        "path": "crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs",
+        "imports_hors_fonctions": 7,
+        "autres_types_constantes_modules_blancs_commentaires": 12,
+        "fonctions_support": 178
+      },
+      {
+        "path": "crates/whisper-adapters/tests/vad_contract.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 6
+      },
+      {
+        "path": "crates/whisper-adapters/tests/worker_control.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 8,
+        "fonctions_support": 13,
+        "fonctions_test": 72
+      },
+      {
+        "path": "crates/whisper-bootstrap/src/main.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/contracts.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/event_metadata.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/automatic_final.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/closing.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/commands.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/events.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/import.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/live.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/microphone.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/mod.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "imports_hors_fonctions": 7
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/parakeet_views.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/poll.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/queue.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/tests.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 4
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/tests/closing_and_recovery.rs",
+        "imports_hors_fonctions": 3,
+        "autres_types_constantes_modules_blancs_commentaires": 18,
+        "fonctions_support": 10,
+        "fonctions_test": 282
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/tests/live_lifecycle.rs",
+        "fonctions_test": 752,
+        "autres_types_constantes_modules_blancs_commentaires": 13
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs",
+        "fonctions_test": 906,
+        "autres_types_constantes_modules_blancs_commentaires": 12,
+        "fonctions_support": 36
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs",
+        "fonctions_test": 1134,
+        "autres_types_constantes_modules_blancs_commentaires": 12
+      },
+      {
+        "path": "crates/whisper-core/src/application/runtime/unified.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/audio.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 5,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 13
+      },
+      {
+        "path": "crates/whisper-core/src/compute_policy.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/domain.rs",
+        "fonctions_test": 40,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 1
+      },
+      {
+        "path": "crates/whisper-core/src/engine_capabilities.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/gpu_inventory.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/gpu_inventory_app.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/gpu_selection.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/ipc.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 12
+      },
+      {
+        "path": "crates/whisper-core/src/lib.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/microphone.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 17,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 13,
+        "fonctions_test": 54
+      },
+      {
+        "path": "crates/whisper-core/src/microphone_level.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 5,
+        "fonctions_test": 68
+      },
+      {
+        "path": "crates/whisper-core/src/model_catalog.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/model_registry.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/model_selection_app.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/parakeet_ipc.rs"
+      },
+      {
+        "path": "crates/whisper-core/src/parakeet_scheduler.rs",
+        "fonctions_test": 228,
+        "autres_types_constantes_modules_blancs_commentaires": 13,
+        "imports_hors_fonctions": 1,
+        "fonctions_support": 6
+      },
+      {
+        "path": "crates/whisper-core/src/parakeet_session.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 8,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 115
+      },
+      {
+        "path": "crates/whisper-core/src/parakeet_windows.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 8,
+        "imports_hors_fonctions": 1,
+        "fonctions_support": 3,
+        "fonctions_test": 48
+      },
+      {
+        "path": "crates/whisper-core/src/path_settings.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 31,
+        "imports_hors_fonctions": 7,
+        "fonctions_support": 41,
+        "fonctions_test": 156
+      },
+      {
+        "path": "crates/whisper-core/src/ports.rs"
+      },
+      {
+        "path": "crates/whisper-core/tests/application_routing.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 16,
+        "fonctions_support": 7,
+        "fonctions_test": 41
+      },
+      {
+        "path": "crates/whisper-core/tests/compute_policy.rs",
+        "imports_hors_fonctions": 3,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_test": 57
+      },
+      {
+        "path": "crates/whisper-core/tests/engine_capabilities.rs",
+        "imports_hors_fonctions": 11,
+        "autres_types_constantes_modules_blancs_commentaires": 19,
+        "fonctions_support": 91,
+        "fonctions_test": 597
+      },
+      {
+        "path": "crates/whisper-core/tests/gpu_inventory.rs",
+        "imports_hors_fonctions": 10,
+        "autres_types_constantes_modules_blancs_commentaires": 43,
+        "fonctions_support": 41,
+        "fonctions_test": 306
+      },
+      {
+        "path": "crates/whisper-core/tests/gpu_selection.rs",
+        "imports_hors_fonctions": 12,
+        "autres_types_constantes_modules_blancs_commentaires": 10,
+        "fonctions_support": 28,
+        "fonctions_test": 247
+      },
+      {
+        "path": "crates/whisper-core/tests/import_contract.rs",
+        "imports_hors_fonctions": 7,
+        "autres_types_constantes_modules_blancs_commentaires": 24,
+        "fonctions_support": 27,
+        "fonctions_test": 844
+      },
+      {
+        "path": "crates/whisper-core/tests/live_contract.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 20,
+        "fonctions_support": 24,
+        "fonctions_test": 183
+      },
+      {
+        "path": "crates/whisper-core/tests/microphone_level.rs",
+        "imports_hors_fonctions": 5,
+        "autres_types_constantes_modules_blancs_commentaires": 15,
+        "fonctions_test": 212,
+        "fonctions_support": 6
+      },
+      {
+        "path": "crates/whisper-core/tests/model_catalog.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "fonctions_support": 43,
+        "fonctions_test": 179
+      },
+      {
+        "path": "crates/whisper-core/tests/model_preferences.rs",
+        "imports_hors_fonctions": 8,
+        "autres_types_constantes_modules_blancs_commentaires": 13,
+        "fonctions_support": 30,
+        "fonctions_test": 69
+      },
+      {
+        "path": "crates/whisper-core/tests/model_selection_app.rs",
+        "imports_hors_fonctions": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "fonctions_support": 14,
+        "fonctions_test": 398
+      },
+      {
+        "path": "crates/whisper-core/tests/parakeet_import_contract.rs",
+        "imports_hors_fonctions": 8,
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "fonctions_support": 63,
+        "fonctions_test": 196
+      },
+      {
+        "path": "crates/whisper-core/tests/parakeet_ipc.rs",
+        "imports_hors_fonctions": 5,
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "fonctions_test": 96,
+        "fonctions_support": 8
+      },
+      {
+        "path": "crates/whisper-core/tests/parakeet_windows.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 10,
+        "fonctions_support": 7,
+        "fonctions_test": 171
+      },
+      {
+        "path": "crates/whisper-core/tests/scheduler_contract.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 14,
+        "fonctions_support": 24,
+        "fonctions_test": 110
+      },
+      {
+        "path": "crates/whisper-desktop/src/lib.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/main.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/reactivity_log.rs",
+        "fonctions_support": 11,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 3,
+        "fonctions_test": 71
+      },
+      {
+        "path": "crates/whisper-desktop/src/root.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 34,
+        "imports_hors_fonctions": 8,
+        "fonctions_support": 120,
+        "fonctions_test": 716
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 37,
+        "imports_hors_fonctions": 1
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/controller.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/controller/actions.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/controller/observability.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/preferences.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/view.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/view/actions.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 9
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/view/active_job.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/view/capture.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/view/dialogs.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/view/history.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/view/microphone.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 16
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/view/notices.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/view/queue.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/view/settings.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/model/view/unified.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/presentation.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/presentation/gpu.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/presentation/language.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/presentation/microphone.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/presentation/paths.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/presentation/recovery.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/presentation/selection.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/presentation/text.rs"
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/tests.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 7
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/tests/catalog_fixture.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_support": 24
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/tests/compute_and_catalog.rs",
+        "fonctions_test": 422,
+        "autres_types_constantes_modules_blancs_commentaires": 14
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/tests/document_presentation.rs",
+        "fonctions_test": 357,
+        "autres_types_constantes_modules_blancs_commentaires": 3
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/tests/import_and_lifecycle.rs",
+        "fonctions_test": 90,
+        "autres_types_constantes_modules_blancs_commentaires": 3
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/tests/microphone_controls.rs",
+        "fonctions_test": 477,
+        "autres_types_constantes_modules_blancs_commentaires": 9
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/tests/root_support.rs",
+        "fonctions_support": 4
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/tests/support.rs",
+        "imports_hors_fonctions": 27,
+        "autres_types_constantes_modules_blancs_commentaires": 79,
+        "fonctions_support": 463
+      },
+      {
+        "path": "crates/whisper-desktop/src/ui/tests/unified_sessions.rs",
+        "fonctions_test": 788,
+        "autres_types_constantes_modules_blancs_commentaires": 10
+      },
+      {
+        "path": "crates/whisper-desktop/tests/gpu_inventory_ui.rs",
+        "imports_hors_fonctions": 7,
+        "autres_types_constantes_modules_blancs_commentaires": 8,
+        "fonctions_support": 45,
+        "fonctions_test": 215
+      },
+      {
+        "path": "crates/whisper-desktop/tests/gpu_selection_ui.rs",
+        "imports_hors_fonctions": 12,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "fonctions_test": 188,
+        "fonctions_support": 17
+      },
+      {
+        "path": "crates/whisper-desktop/tests/microphone_level_ui.rs",
+        "imports_hors_fonctions": 4,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_support": 34,
+        "fonctions_test": 123
+      },
+      {
+        "path": "crates/whisper-desktop/tests/model_selection_ui.rs",
+        "imports_hors_fonctions": 15,
+        "autres_types_constantes_modules_blancs_commentaires": 11,
+        "fonctions_test": 348,
+        "fonctions_support": 10
+      },
+      {
+        "path": "crates/whisper-desktop/tests/reprocessing_recovery_ui.rs",
+        "imports_hors_fonctions": 3,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_test": 75
+      },
+      {
+        "path": "crates/whisper-worker-common/src/decoder.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-common/src/decoder/tests.rs",
+        "imports_hors_fonctions": 6,
+        "fonctions_support": 33,
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "fonctions_test": 261
+      },
+      {
+        "path": "crates/whisper-worker-common/src/encoder.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-common/src/encoder/tests.rs",
+        "imports_hors_fonctions": 2,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 268
+      },
+      {
+        "path": "crates/whisper-worker-common/src/integrity.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-common/src/integrity/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 13
+      },
+      {
+        "path": "crates/whisper-worker-common/src/ipc.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-common/src/ipc/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_test": 70
+      },
+      {
+        "path": "crates/whisper-worker-common/src/lib.rs"
+      },
+      {
+        "path": "crates/whisper-worker-common/src/observation.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-common/src/observation/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 5,
+        "fonctions_support": 9,
+        "fonctions_test": 62
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/decoder.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/decoder/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 9
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/diagnostics.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/encoder.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/encoder/tests.rs",
+        "imports_hors_fonctions": 2,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 31
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/engine_cache.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/integrity.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/ipc.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "imports_hors_fonctions": 1
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/ipc/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_test": 26
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/ipc_output.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 4
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/ipc_output/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 13
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/main.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/memory_qualification.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/native_engine.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/qualification.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/session/control.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/session/control/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_test": 43
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/session/decode.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/session/import.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/session/live.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/session/mod.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/startup.rs"
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/worker.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-cpu/src/worker/tests.rs",
+        "imports_hors_fonctions": 3,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 10
+      },
+      {
+        "path": "crates/whisper-worker-cpu/tests/live_worker.rs",
+        "imports_hors_fonctions": 8,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 35
+      },
+      {
+        "path": "crates/whisper-worker-cpu/tests/reusable_imports.rs",
+        "imports_hors_fonctions": 14,
+        "autres_types_constantes_modules_blancs_commentaires": 10,
+        "fonctions_support": 191,
+        "fonctions_test": 5
+      },
+      {
+        "path": "crates/whisper-worker-cpu/tests/support/worker.rs",
+        "imports_hors_fonctions": 12,
+        "autres_types_constantes_modules_blancs_commentaires": 28,
+        "fonctions_support": 178,
+        "fonctions_test": 64
+      },
+      {
+        "path": "crates/whisper-worker-cpu/tests/worker_contract.rs",
+        "imports_hors_fonctions": 13,
+        "autres_types_constantes_modules_blancs_commentaires": 12,
+        "fonctions_support": 156,
+        "fonctions_test": 65
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/decoder.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/decoder/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 9
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/diagnostics.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/diagnostics/tests.rs",
+        "imports_hors_fonctions": 3,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_test": 71
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/encoder.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/engine_cache.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/engine_cache/tests.rs",
+        "imports_hors_fonctions": 2,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_support": 11,
+        "fonctions_test": 28
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/gpu_attestation.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 1,
+        "fonctions_support": 26,
+        "fonctions_test": 7
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/gpu_commands.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/gpu_qualification.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 7,
+        "imports_hors_fonctions": 2,
+        "fonctions_test": 151
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/integrity.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/ipc.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "imports_hors_fonctions": 1
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/ipc/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 2,
+        "fonctions_test": 31
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/main.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/memory_qualification.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/native_engine.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/native_ffi.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 6,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 59
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/qualification.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/session/control.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/session/control/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_test": 43
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/session/decode.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/session/import.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/session/live.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/session/mod.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/startup.rs"
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/worker.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-gpu/src/worker/tests.rs",
+        "imports_hors_fonctions": 3,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 10
+      },
+      {
+        "path": "crates/whisper-worker-gpu/tests/gpu_selection_native.rs",
+        "imports_hors_fonctions": 5,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 25
+      },
+      {
+        "path": "crates/whisper-worker-gpu/tests/support/worker.rs",
+        "imports_hors_fonctions": 12,
+        "autres_types_constantes_modules_blancs_commentaires": 28,
+        "fonctions_support": 178,
+        "fonctions_test": 64
+      },
+      {
+        "path": "crates/whisper-worker-gpu/tests/worker_contract.rs",
+        "imports_hors_fonctions": 28,
+        "autres_types_constantes_modules_blancs_commentaires": 21,
+        "fonctions_support": 347,
+        "fonctions_test": 104
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/args.rs"
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/decode_only.rs"
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/decoder.rs"
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/gpu_identity.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/gpu_identity/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 22
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/integrity.rs"
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/ipc.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/ipc/tests.rs",
+        "imports_hors_fonctions": 2,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 15
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/main.rs"
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/native_engine.rs",
+        "fonctions_test": 228,
+        "autres_types_constantes_modules_blancs_commentaires": 20,
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 7
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/native_ffi.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 9,
+        "imports_hors_fonctions": 1,
+        "fonctions_test": 24
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/reference_decoder.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/reference_decoder/tests.rs",
+        "imports_hors_fonctions": 6,
+        "autres_types_constantes_modules_blancs_commentaires": 3,
+        "fonctions_test": 97
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 4
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/runtime_paths/personal_tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 17
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/runtime_paths/tests.rs",
+        "imports_hors_fonctions": 2,
+        "fonctions_support": 9,
+        "autres_types_constantes_modules_blancs_commentaires": 4,
+        "fonctions_test": 91
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/session.rs"
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/startup.rs"
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/transcription.rs",
+        "autres_types_constantes_modules_blancs_commentaires": 2
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/src/transcription/tests.rs",
+        "imports_hors_fonctions": 1,
+        "autres_types_constantes_modules_blancs_commentaires": 1,
+        "fonctions_test": 13
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/tests/decoder_parity.rs",
+        "imports_hors_fonctions": 15,
+        "autres_types_constantes_modules_blancs_commentaires": 12,
+        "fonctions_test": 99,
+        "fonctions_support": 98
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs",
+        "imports_hors_fonctions": 13,
+        "autres_types_constantes_modules_blancs_commentaires": 41,
+        "fonctions_support": 268,
+        "fonctions_test": 26
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/tests/native_import.rs",
+        "imports_hors_fonctions": 19,
+        "autres_types_constantes_modules_blancs_commentaires": 84,
+        "fonctions_test": 993,
+        "fonctions_support": 425
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/tests/support/worker.rs",
+        "imports_hors_fonctions": 12,
+        "autres_types_constantes_modules_blancs_commentaires": 28,
+        "fonctions_support": 178,
+        "fonctions_test": 64
+      },
+      {
+        "path": "crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs",
+        "imports_hors_fonctions": 10,
+        "autres_types_constantes_modules_blancs_commentaires": 28,
+        "fonctions_support": 359,
+        "fonctions_test": 44
+      }
+    ]
+  },
+  "delta": {
+    "autres_types_constantes_modules_blancs_commentaires": 476,
+    "fonctions_test": 4221,
+    "imports_hors_fonctions": 255,
+    "fonctions_support": 2320
+  }
+}

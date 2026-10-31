@@ -1,0 +1,11 @@
+{
+  "result": "FAIL",
+  "mode": "SelfTest-in-root-write",
+  "path": "C:\\dev\\whisper\\docs\\architecture\\raw",
+  "old_path": "",
+  "event": "Changed",
+  "event_at": "2026-10-31T21:47:48.141017+01:00",
+  "detected_at": "2026-10-31T21:47:48.1908256+01:00",
+  "action": "process-tree-terminated",
+  "detail": ""
+}

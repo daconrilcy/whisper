@@ -1,0 +1,21 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling syn v2.0.119
+   Compiling serde_derive v1.0.228
+   Compiling serde v1.0.228
+   Compiling whisper-core v0.1.0 (C:\dev\whisper\crates\whisper-core)
+warning: method `kind_name` is never used
+ --> crates\whisper-core\src\application\event_metadata.rs:5:19
+  |
+4 | impl ImportEvent {
+  | ---------------- method in this implementation
+5 |     pub(super) fn kind_name(&self) -> &'static str {
+  |                   ^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `whisper-core` (lib) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.39s
+     Running tests\parakeet_ipc.rs (target\parakeet-tests\cargo-shared\debug\deps\parakeet_ipc-9e9ddf0fa1f5b258.exe)
+     Running tests\parakeet_windows.rs (target\parakeet-tests\cargo-shared\debug\deps\parakeet_windows-9d25d4b48a3006e0.exe)
+     Running tests\scheduler_contract.rs (target\parakeet-tests\cargo-shared\debug\deps\scheduler_contract-7c233a7fccf1a77d.exe)

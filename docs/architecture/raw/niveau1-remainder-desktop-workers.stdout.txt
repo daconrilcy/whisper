@@ -1,0 +1,364 @@
+
+running 48 tests
+test reactivity_log::tests::dropping_logger_drains_all_previously_sent_entries ... ok
+test reactivity_log::tests::formats_absolute_timestamp_and_duration_without_multiline_fields ... ok
+test reactivity_log::tests::records_each_milestone_once_per_session ... ok
+test reactivity_log::tests::writer_preserves_event_order ... ok
+test ui::model::tests::actual_probe_spectra_stay_visible_across_discarded_egui_passes ... ok
+test ui::model::tests::asynchronous_gpu_probe_sets_the_existing_startup_choice ... ok
+test ui::model::tests::auto_preference_is_sent_to_both_paths_without_becoming_cpu ... ok
+test ui::model::tests::auto_stop_is_disabled_by_default_and_uses_speech_sample_clock_when_enabled ... ok
+test ui::model::tests::changing_catalog_snapshots_regray_and_restore_parakeet_in_the_open_ui ... ok
+test ui::model::tests::cuda_startup_selects_gpu_for_import_and_microphone ... ok
+test ui::model::tests::desktop_parakeet_handlers_select_unified_routes_only_for_enabled_candidate ... ok
+test ui::model::tests::direct_live_request_uses_explicit_microphone_without_changing_compute ... ok
+test ui::model::tests::empty_snapshot_recovery_result_does_not_render_a_blank_modal ... ok
+test ui::model::tests::enqueue_then_stop_still_targets_the_live_identity ... ok
+test ui::model::tests::first_effective_action_is_not_recorded_when_application_rejects_start ... ok
+test ui::model::tests::first_render_timestamp_is_recorded_after_the_label_in_an_egui_frame ... ok
+test ui::model::tests::gain_gesture_during_capture_open_targets_the_pinned_identity ... ok
+test ui::model::tests::gpu_compute_control_requires_a_ready_qualified_runtime_catalog_entry ... ok
+test ui::model::tests::import_enqueue_waits_during_live_capture ... ok
+test ui::model::tests::import_uses_selected_gpu ... ok
+test ui::model::tests::manual_stop_is_available_while_micro_is_capturing ... ok
+test ui::model::tests::microphone_labels_changed_windows_default_notice_keeps_identity_and_gain ... ok
+test ui::model::tests::microphone_labels_keep_unique_names_and_hide_missing_names ... ok
+test ui::model::tests::microphone_labels_number_homonyms_by_sorted_identity ... ok
+test ui::model::tests::microphone_labels_selection_keeps_the_full_identity_in_commands ... ok
+test ui::model::tests::microphone_saturation_badge_requires_current_identity_and_fresh_limiter_data ... ok
+test ui::model::tests::microphone_test_button_stops_after_neutral_gain_ack_and_reopens ... ok
+test ui::model::tests::microphone_uses_selected_gpu ... ok
+test ui::model::tests::new_microphone_start_gets_a_new_group_while_continuation_keeps_its_identity ... ok
+test ui::model::tests::parakeet_preserves_the_selected_compute_preference ... ok
+test ui::model::tests::pending_and_late_gpu_inventory_does_not_change_compute_or_gate_transcription ... ok
+test ui::model::tests::provisional_display_removes_only_a_proven_confirmed_prefix ... ok
+test ui::model::tests::queued_import_uses_current_compute_and_preserves_the_durable_request ... ok
+test ui::model::tests::refused_ui_model_command_has_no_gpu_candidate_io_effect ... ok
+test ui::model::tests::rejected_quit_admission_does_not_latch_pending_close ... ok
+test ui::model::tests::resumed_import_uses_its_durable_compute_instead_of_the_global_selector ... ok
+test ui::model::tests::stale_audio_page_retries_are_delayed_and_corruption_does_not_retry ... ok
+test ui::model::tests::starting_a_new_microphone_job_hides_the_previous_publication ... ok
+test ui::model::tests::turbo_completed_capture_allows_unified_parakeet_button_and_dispatch ... ok
+test ui::model::tests::unavailable_cuda_leaves_cpu_usable_and_explains_choice ... ok
+test ui::model::tests::unified_admission_keeps_direct_capture_and_other_busy_guards ... ok
+test ui::model::tests::unified_audio_page_stays_visible_at_same_position_while_progress_refreshes ... ok
+test ui::model::tests::unified_capture_gain_slider_targets_the_current_source_and_revision ... ok
+test ui::model::tests::unified_finalizing_capture_keeps_live_button_available_for_second_capture_only ... ok
+test ui::model::tests::unified_ui_renders_one_bounded_page_preview_parts_outputs_and_wait_state ... ok
+test ui::model::tests::unified_ui_requests_only_the_selected_identity_pages ... ok
+test ui::model::tests::unified_wait_tracking_prunes_finished_evicted_sessions_and_keeps_selected_wait ... ok
+test ui::model::tests::window_stays_open_through_capture_and_drain ... ok
+
+test result: ok. 48 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+
+
+running 13 tests
+test root::tests::active_job_refuses_interrupted_resume_without_gpu_candidate_effect ... ok
+test root::tests::artifact_metadata_detects_replacement_with_same_size_and_modified_time ... ok
+test root::tests::composed_catalog_rejects_turbo_changed_after_admission_before_worker_start ... ok
+test root::tests::composed_guard_rejects_direct_unknown_model_before_any_effect ... ok
+test root::tests::fixture_root_accepts_only_the_canonical_l3c_campaign_root ... ok
+test root::tests::fixture_root_uses_canonical_l3b_campaign_root_when_configured ... ok
+test root::tests::observed_missing_model_is_refused_before_any_effect ... ok
+test root::tests::parakeet_selection_and_admission_require_the_exact_test_key ... ok
+test root::tests::parakeet_worker_key_changes_regray_and_readmit_without_restarting ... ignored, mutates a worker copy inside the scoped L2a-2 runtime
+test root::tests::refused_ui_request_drops_staged_gpu_candidate_and_refresh_keeps_notice ... ok
+test root::tests::terminal_job_state_allows_new_gpu_start_with_candidate_before_start_effect ... ok
+test root::tests::unified_live_start_applies_its_staged_candidate_before_the_start_effect ... ok
+test root::tests::valid_cpu_route_remains_ready_when_gpu_route_is_missing_or_mismatched ... ok
+
+test result: ok. 12 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 6 tests
+test disabled_ambiguous_or_unranked_devices_are_never_green ... ok
+test inventory_status_does_not_render_the_removed_fixed_card_list ... ok
+test qualified_catalogue_uses_green_gray_and_neutral_text_without_color_only_meaning ... ok
+test qualified_loading_and_uncertain_support_are_accessible_and_cpu_remains_available ... ok
+test status_area_distinguishes_loading_empty_partial_and_failure ... ok
+test widget_shows_disabled_and_unknown_device_properties ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+
+running 6 tests
+test homonymous_devices_get_numbered_labels_and_keep_distinct_internal_identity ... ok
+test only_confirmed_available_and_unambiguous_gpu_is_selectable ... ok
+test selected_and_resolution_text_use_the_same_numbered_name ... ok
+test selection_messages_are_plain_and_never_expose_internal_identity ... ok
+test uncertain_selection_is_neutral_and_save_acknowledgement_is_revisioned ... ok
+test unique_names_have_no_suffix_and_real_combo_has_no_clear_preference_option ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 2 tests
+test meter_presentation_distinguishes_waiting_absent_silence_stale_and_old_capture ... ok
+test microphone_labels_changed_default_notice_uses_names_and_keeps_identity_comparison ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 10 tests
+test disconnected_preference_worker_reports_failed_model_and_compute_saves ... ok
+test language_availability_uses_selected_backend_and_auto_intersection ... ok
+test late_saved_preferences_do_not_overwrite_a_newer_user_choice ... ok
+test parakeet_language_projection_follows_qualified_gpu_or_auto_preference ... ok
+test parakeet_preserves_import_compute_preferences_and_legacy_live_availability_without_changing_turbo ... ok
+test preference_mailbox_is_bounded_and_keeps_the_latest_choice_per_field ... ok
+test preference_receiver_reports_disconnected_after_last_sender_drops ... ok
+test same_value_cpu_click_blocks_late_saved_auto_preference ... ok
+test selection_ui_rendering_does_not_hash_model_or_runtime_files ... ok
+test snapshot_renders_catalog_models_and_all_turbo_languages_without_model_path_input ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+
+running 2 tests
+test capacity_action_is_available_only_when_the_application_offers_recovery ... ok
+test recovery_ui_displays_protected_and_recoverable_entries_without_implicit_recovery ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 12 tests
+test decoder::tests::capture_non_silent_pcm_baseline ... ok
+test decoder::tests::existing_invalid_audio_source_reports_unsupported_format ... ok
+test decoder::tests::invalid_range_missing_source_and_callback_failure_are_preserved ... ok
+test decoder::tests::lame_gapless_delay_and_padding_are_trimmed_once ... ok
+test decoder::tests::long_source_is_streamed_as_bounded_contiguous_windows ... ok
+test decoder::tests::range_crossing_source_end_returns_available_pcm ... ok
+test encoder::tests::packet_sequence_matches_original_encoder ... ok
+test integrity::tests::accepts_expected_digest_and_rejects_mismatch_and_missing_file ... ok
+test ipc::tests::frames_and_limits_are_preserved ... ok
+test ipc::tests::serialization_and_io_errors_are_propagated ... ok
+test observation::tests::decoder_observer_preserves_stages ... ok
+test observation::tests::observation_is_optional_and_feature_gated ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+
+running 9 tests
+test decoder::tests::inaccessible_source_propagates_error ... ok
+test encoder::tests::capture_encoder_baseline ... ORACLE empty count=0
+ORACLE first count=12
+ORACLE first len=288 sha=dd66a40cf5aad51ee9fa93ccad802b2532b8e3aa30041c6bb5a5529228f9b99f
+ORACLE first len=288 sha=ae47fdf8fef61db348278f0e732d93c136842ab535e0d833990138574538415d
+ORACLE first len=288 sha=8fc4532e859094213931a862b72265ed45c19e9ef56772e675dc1e18df91e4eb
+ORACLE first len=288 sha=c89ffc8319f901469eb315cd740de43a6e4de094db4baba6ccc12542b99ed3bd
+ORACLE first len=288 sha=2a8c35769d0f2ed80947db406950f3172a2e72b789384cea3f494a3c8aca5ee7
+ORACLE first len=288 sha=3ef6b9af5e8c4ea47c2f1a25e53d401e2b32a1603321681d79adda4db284edba
+ORACLE first len=288 sha=72b83f3b9186d0ee4db0ba509e99a701a82d2e72a9f3ca878deb824a5e82d025
+ORACLE first len=288 sha=186cf98370af8c1617f68cafc21d68138ce9dbbaa4ddfa0445fe015ad7d346cb
+ORACLE first len=288 sha=517982c8f97bd1eda840e2f45a3df73da0bfc79abe6737bf10cd93912dcb3ad3
+ORACLE first len=288 sha=7ba5aa8955df91a39f9df669f19d1ef32445979da1dc6ed4e83d696d4d47d585
+ORACLE first len=288 sha=32202523cf65b81086e716125a1bd10a407b4cd054ba3683b1541ff9ddee9ab1
+ORACLE first len=288 sha=8cc16881c94acb45d282d5051d864fb4d654bf1014b8da85e11a233847bbcf68
+ORACLE cross count=31
+ORACLE cross len=288 sha=6cd99b195991f1aee3dda4a7f5efed87999439facc04a6dfa8ac8b601c30e72d
+ORACLE cross len=288 sha=24f8b174c2f7a499079a9e26f406c9350d427d996a98c6ad513b29b8d2141a9e
+ORACLE cross len=288 sha=98ce5082c31051e3992a55b3ef82f6d656cefa0a091f6b54c6d336f55fcc008f
+ORACLE cross len=288 sha=46730afc019dae6e19e5f500d7c4d06dd175776fd39c51ee9b1de226426cad5e
+ORACLE cross len=288 sha=32e5aee7f82a1b07d85a6a6a6f9b619dc0a2f49b581b91fa00506282f7f15651
+ORACLE cross len=288 sha=5f2b71b71a00758add2aa8acad52ae92c71aa25695a631ef50984e76d2ac1d1f
+ORACLE cross len=288 sha=91f0f5be31973c47a0f36ca9a86dfa1e9814603b90c79ec25b807f4dbff4ad29
+ORACLE cross len=288 sha=9097cbbf95d012cf481c1193b6558a5819a9d9ec06963494971566eff2e9101c
+ORACLE cross len=288 sha=400e79a0c92964c281dbae95900552becdc53eaedae28c8e33b480a4fd3c0008
+ORACLE cross len=288 sha=2d1b5d83c0ad9332823d737b5bf91c8feddf2560da9ddbd9ee40b971d5d24f0e
+ORACLE cross len=288 sha=71a41f7aa2dfd6c3a0229c46d01d38f185f2192572ca2bf26c4b5ddc309ef7e0
+ORACLE cross len=288 sha=03eaf6b30ba40ce6aa0b7e0fda9300ae2f4d92ce0afaf6b0cd1089a538196f2d
+ORACLE cross len=288 sha=befd85f37bbcd796adfb5da2b957bec9e7cff17c697e6aecbc1a65627201a3e4
+ORACLE cross len=288 sha=baf5b0d47839ba52d024f4ca61c7dee795c96ee76d039a4f743b288b97034a65
+ORACLE cross len=288 sha=0c5f3d0f208f2c6ef170623490494aeed257afe851e57db18f7549ed5f21cf92
+ORACLE cross len=288 sha=021c9d8882d933a3ba87e53e369faed9bbe524d64eec8438460c03cfdfffbccd
+ORACLE cross len=288 sha=bd2dd3f77c9f177653fe935836cbb556e84e2ed5762946da10e59eb09076afd9
+ORACLE cross len=288 sha=45379a17a002cb19e82dd70631b2071bd8da1d65d0b4fd6aa294797c81a54524
+ORACLE cross len=288 sha=8654c5cf41f21b2227f393e547f2315bf291a920816f8ddaf7b7cce3b94efa71
+ORACLE cross len=288 sha=1c3e42dbc7b26b9171ac889815536c0f609c585dba5e34eedc3ab5e30eb96e07
+ORACLE cross len=288 sha=07f6f18c455d5d58403431566c99f0efec759fbd3e50370e4f9ea1cd8870f226
+ORACLE cross len=288 sha=88280d19722b48224ad56c70de0d72e6679142af0778f573e514681f62effb01
+ORACLE cross len=288 sha=ee2af76dbe3aeeb395b65d3278eda6b9885bc33f8608a454361c266c76ea6081
+ORACLE cross len=288 sha=403acff7e5cd478a3204763a6483f0596c035c07b9e20145b4bf36e83c6f8544
+ORACLE cross len=288 sha=17ed2361cc0f074bab43140b81c73f2594056424c376c7ac5d57bab4a125fbbd
+ORACLE cross len=288 sha=d670f908a10011279d6e7ec03989f0417d1418d6c11131713714117ba3a3d556
+ORACLE cross len=288 sha=4a257eb8a045ea9427764434b90847d20fdc89a8416e768197ebebdac28755fe
+ORACLE cross len=288 sha=1714a36b7ff11b8ba9f9a7be1939a73045d3e1a432592a11b659cfb17c9d61e7
+ORACLE cross len=288 sha=2f308a7be20bd7ccebc60fc13c63439205514c08f2f52bb5d8979e336c79f722
+ORACLE cross len=288 sha=4bbdff236fa7a26e3d24a4b24a2071e30834c6729fc651587830f7259d5ea592
+ORACLE cross len=288 sha=fcc712ea57a05f88e5cb11444b45458d2d444e623918c758250f7297f67a6375
+ORACLE last count=12
+ORACLE last len=288 sha=f19500fe7a994de75a1cc8d770d67d2d08c08bf1ebceacec30d6b809ef554c2c
+ORACLE last len=288 sha=f4b02d6017141788f0d9290b4de26294b00ac0940d3bac948e753853f135cd16
+ORACLE last len=288 sha=d4287e22b88243a0f27b9b640ff8d7fcbd341c814f2280d2d2c00f6eeff45d96
+ORACLE last len=288 sha=b77957a26028f98a98e2c8bae91bc329cff2f95410ddd65e0222b8ded59c889e
+ORACLE last len=288 sha=868fa8e4be9ea2ea398bfca6d5ad9b1686cfc0dee8d17a854a59e8b3964af8ee
+ORACLE last len=288 sha=854757c6d31fb2dac9b144990e05e4c87d3ba4f14a405ef64cb79276c78463fc
+ORACLE last len=288 sha=5b8acefb697be7cc418adda808f6224aab20c8415de3a8df25e3060e1714c7c7
+ORACLE last len=288 sha=3db53120d2e1975fa3a3264c7bbc9159a034ea15663f8bfa5243f53175a7d43f
+ORACLE last len=288 sha=544a3272d5d1b3e94ea7666183c4a51abd44489eb1b8337ac0593186e7525a35
+ORACLE last len=288 sha=c255dde788e6df67ecc3072d6ab9cb7159b7801ab0b098f40c578491b2621e25
+ORACLE last len=288 sha=6432863c27c34c2ad18fb8f193d48ad20522210bce14b6d21d0889d162f96c61
+ORACLE last len=288 sha=9ad41afa5b8200a645055485b39af33844f08b2433153abfe25282e73c45d625
+ORACLE finish count=2
+ORACLE finish len=288 sha=30767ea132f30828e6ca9c2a3042f94f140bb2a28404e4e30e007d4a5994e105
+ORACLE finish len=288 sha=28b56700cdd236998e6f2bba26075bc4ba6c35669888fa01d6a019aab7657154
+ORACLE finish_again count=0
+ORACLE after_finish error=InvalidRequest: live MP3 encoder is already finalized
+ok
+test ipc::tests::rejects_oversized_and_incomplete_frames_before_deserialization ... ok
+test ipc::tests::rejects_serialized_frames_over_one_mibibyte ... ok
+test ipc_output::tests::writer_accepts_limit_and_rejects_limit_plus_one_without_growing_past_it ... ok
+test session::control::tests::empty_and_disconnected_channels_do_not_stop_the_session ... ok
+test session::control::tests::wrong_protocol_emits_correlated_failure_before_stopping ... ok
+test session::control::tests::wrong_stop_is_ignored_and_matching_stop_is_consumed ... ok
+test worker::tests::idle_worker_shutdown_exits_without_an_error_frame ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+
+running 1 test
+test live_worker_rejects_an_unverified_model_before_reporting_ready ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+
+running 4 tests
+test cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache ... ignored, charge le modèle large-v3-turbo ; lancer explicitement en Release avec WHISPER_TEST_REUSE_MODEL
+test support::tests::deadline_child_fixture ... ok
+test support::tests::deadline_stops_child_after_expected_output ... ok
+test support::tests::timed_out_output_retains_the_captured_stdout ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 6.07s
+
+
+running 10 tests
+test reusable_imports::cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache ... ignored, charge le modèle large-v3-turbo ; lancer explicitement en Release avec WHISPER_TEST_REUSE_MODEL
+test reusable_imports::support::tests::deadline_child_fixture ... ok
+test reusable_imports::support::tests::deadline_stops_child_after_expected_output ... ok
+test reusable_imports::support::tests::timed_out_output_retains_the_captured_stdout ... ok
+test support::tests::deadline_child_fixture ... ok
+test support::tests::deadline_stops_child_after_expected_output ... ok
+test support::tests::timed_out_output_retains_the_captured_stdout ... ok
+test turbo_idle_and_refusal_contract ... ok
+test turbo_live_stop_and_shutdown_contract ... ignored, requires the local Turbo model
+test turbo_reusable_import_contract ... ignored, requires the local Turbo model and an explicit campaign work root
+
+test result: ok. 7 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 12.43s
+
+
+running 19 tests
+test decoder::tests::inaccessible_source_propagates_error ... ok
+test diagnostics::tests::gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt ... ok
+test diagnostics::tests::verified_model_gpu_initialization_failure_is_retryable_and_correlated ... ok
+test engine_cache::tests::cache_target_matches_complete_device_identity ... ok
+test engine_cache::tests::cached_engine_is_attested_again_and_evicted_on_failure ... ok
+test gpu_attestation::tests::reattestation_requires_exact_cuda_and_ggml_ordinals_and_identity ... ok
+test gpu_qualification::tests::duplicate_or_missing_join_endpoints_never_become_supported ... ok
+test gpu_qualification::tests::intel_exclusion_uses_windows_identity_and_build_capability_without_cuda_join ... ok
+test gpu_qualification::tests::missing_driver_or_required_symbol_is_unavailable_without_support_claim ... ok
+test gpu_qualification::tests::unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend ... ok
+test ipc::tests::rejects_oversized_and_incomplete_frames_before_deserialization ... ok
+test ipc::tests::writer_accepts_limit_and_rejects_limit_plus_one ... ok
+test native_ffi::tests::native_gpu_attestation_rejects_failure_after_using_backend ... ok
+test native_ffi::tests::native_gpu_attestation_requires_a_fresh_matching_log ... ok
+test native_ffi::tests::whisper_position_counts_gpu_and_integrated_gpu_not_cuda_ordinals ... ok
+test session::control::tests::empty_and_disconnected_channels_do_not_stop_the_session ... ok
+test session::control::tests::wrong_protocol_emits_correlated_failure_before_stopping ... ok
+test session::control::tests::wrong_stop_is_ignored_and_matching_stop_is_consumed ... ok
+test worker::tests::idle_worker_shutdown_exits_without_an_error_frame ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 1 test
+test linked_gpu_worker_answers_a_native_cuda_probe_without_loading_a_model ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+
+running 7 tests
+test gpu_identity_contract ... ok
+test support::tests::deadline_child_fixture ... ok
+test support::tests::deadline_stops_child_after_expected_output ... ok
+test support::tests::timed_out_output_retains_the_captured_stdout ... ok
+test turbo_idle_and_refusal_contract ... ok
+test turbo_live_stop_and_shutdown_contract ... ignored, requires the local Turbo model
+test turbo_reusable_import_contract ... ignored, requires the local Turbo model and an explicit campaign work root
+
+test result: ok. 5 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 6.48s
+
+
+running 23 tests
+test ipc::tests::oversized_and_truncated_frames_are_rejected_before_json_handling ... ok
+test native_engine::tests::eighty_ms_overlap_moves_the_next_start_when_duration_remains_positive ... ok
+test native_engine::tests::eighty_ms_overlap_shrinks_previous_when_next_would_become_empty ... ok
+test native_engine::tests::eighty_one_ms_overlap_is_rejected ... ok
+test native_engine::tests::final_word_can_be_bounded_by_one_tdt_frame ... ok
+test native_engine::tests::interval_shorter_than_word_count_is_rejected_with_raw_bounds ... ok
+test native_engine::tests::native_call_marker_is_not_emitted_for_duration_rejection_and_emitted_once_when_valid ... ok
+test native_engine::tests::nested_words_with_an_unseparable_suffix_share_the_common_interval ... ok
+test native_engine::tests::non_positive_raw_timestamps_are_reported_with_text_and_bounds ... ok
+test native_engine::tests::overlap_over_eighty_ms_reports_both_raw_intervals ... ok
+test native_engine::tests::punctuation_is_attached_without_changing_its_predecessor_interval ... ok
+test native_engine::tests::real_en60_the_eye_same_frame_is_split_at_618880_ms ... ok
+test native_engine::tests::same_tdt_frame_is_shared_as_equal_integer_millisecond_parts ... ok
+test native_engine::tests::shareable_suffix_is_split_without_changing_the_preceding_word ... ok
+test native_engine::tests::three_words_in_one_tdt_frame_share_remainder_in_order ... ok
+test native_engine::tests::timestamps_reject_invalid_order_and_non_final_overrun ... ok
+test native_engine::tests::zero_overlap_preserves_both_intervals ... ok
+test native_ffi::backend_selection_tests::native_backend_uses_only_the_authorized_ordinal ... ok
+test native_ffi::tests::invalid_word_utf8_is_attributed_without_replacement ... ok
+test native_ffi::tests::literal_replacement_character_is_rejected ... ok
+test native_ffi::tests::utf8_character_split_between_tokens_is_decoded_after_word_assembly ... ok
+test runtime_paths::tests::accepts_only_the_two_canonical_l2_test_roots ... ok
+test transcription::tests::native_error_classes_preserve_the_original_message ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 1 test
+test worker_decoder_matches_turbo_decoder_for_wav_and_mp3_within_one_i16_unit ... ignored, compares the real Turbo decoder and Parakeet worker decoder on WAV and MP3
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 4 tests
+test native_workers_preserve_transcription_without_historical_diagnostics ... ignored, requires frozen personal workers, native CPU/GPU and the local audio fixture
+test support::tests::deadline_child_fixture ... ok
+test support::tests::deadline_stops_child_after_expected_output ... ok
+test support::tests::timed_out_output_retains_the_captured_stdout ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 6.07s
+
+
+running 9 tests
+test additive_gpu_fields_default_when_reading_existing_cpu_ipc_frames ... ok
+test cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload ... ignored, runs real Parakeet CPU inference with locally installed native DLLs
+test cpu_worker_normalizes_fr87_fr27_and_en15_short_fixtures ... ignored, runs the R5 short FR/EN normalization fixtures with the locally qualified CPU DLL set
+test gpu_worker_fr_en_single_pass ... ignored, L3a GPU single-pass recipe; requires the exact release worker and verified CUDA DLLs
+test gpu_worker_rejects_wrong_device_before_audio ... ignored, L3a wrong-device recipe; requires the exact release worker and verified CUDA DLLs
+test gpu_worker_twenty_calls ... ignored, L3a GPU 20-call recipe; requires the exact release worker and verified CUDA DLLs
+test r6_reference_en60 ... ignored, informative private EN60 reference recipe; not product qualification
+test r7_private_worker_timing ... ignored, R7 private diagnostic worker recipe; has a parent-enforced duration deadline
+test r7_private_worker_timing_child ... ignored, nested child for the parent-enforced R7 private timing recipe
+
+test result: ok. 1 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 3 tests
+test support::tests::deadline_child_fixture ... ok
+test support::tests::deadline_stops_child_after_expected_output ... ok
+test support::tests::timed_out_output_retains_the_captured_stdout ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.06s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,6 @@
+$ git --no-optional-locks -c maintenance.auto=false -c gc.auto=0 rev-parse HEAD
+exit=0
+STDOUT
+88850e8afd45e3b4c827914fad4c55a796b479db
+
+STDERR

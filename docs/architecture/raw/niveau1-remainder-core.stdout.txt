@@ -1,0 +1,30 @@
+
+running 3 tests
+test parakeet_protocol_is_versioned_and_caps_are_explicit ... ok
+test result_contract_keeps_request_identity_and_owned_word_times ... ok
+test transcribe_command_carries_complete_build_runtime_profile_and_attempt_identity ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 8 tests
+test chooses_earliest_of_equal_distance_silences_near_ninety_seconds ... ok
+test eof_short_tail_and_integral_silence_are_processed_without_forced_cuts ... ok
+test extends_after_one_hundred_twenty_seconds_to_the_next_silence ... ok
+test no_silence_before_native_bound_returns_an_explicit_error ... ok
+test only_the_final_file_word_can_be_capped_by_one_tdt_frame ... ok
+test reference_profile_duration_is_bounded_and_window_margins_are_joint ... ok
+test silence_threshold_and_minimum_duration_are_inclusive ... ok
+test timestamps_use_cumulative_sample_offsets_and_reject_internal_overflow ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+
+running 4 tests
+test admission_and_restoration_never_start_a_worker_without_user_choice ... ok
+test enqueue_failure_is_visible_without_marking_a_job_active ... ok
+test enqueue_is_acknowledged_only_after_the_durable_queue_event ... ok
+test interrupted_resume_requires_an_explicit_command_and_advances_generation ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

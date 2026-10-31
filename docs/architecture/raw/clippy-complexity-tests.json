@@ -1,0 +1,1051 @@
+[
+  {
+    "stream_index": 788,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (171/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs",
+    "line": 1467,
+    "end": 1467,
+    "source_test": true,
+    "function": "run_native_personal_ab_c",
+    "function_start": 1467,
+    "function_end": 3109,
+    "metric": 171,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (171/25)\n    --> crates\\whisper-adapters\\src\\worker_ipc\\tests/native_execution.rs:1467:8\n     |\n1467 |     fn run_native_personal_ab_c(\n     |        ^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 579,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "reprocessing_cleanup",
+    "target_kind": [
+      "test"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (94/25)",
+    "path": "crates/whisper-adapters/tests/reprocessing_cleanup.rs",
+    "line": 845,
+    "end": 845,
+    "source_test": true,
+    "function": "replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request",
+    "function_start": 845,
+    "function_end": 1598,
+    "metric": 94,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (94/25)\n   --> crates\\whisper-adapters\\tests\\reprocessing_cleanup.rs:845:4\n    |\n845 | fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request() {\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n    = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 588
+  },
+  {
+    "stream_index": 791,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (84/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs",
+    "line": 3313,
+    "end": 3313,
+    "source_test": true,
+    "function": "native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot",
+    "function_start": 3313,
+    "function_end": 3945,
+    "metric": 84,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (84/25)\n    --> crates\\whisper-adapters\\src\\worker_ipc\\tests/native_execution.rs:3313:8\n     |\n3313 |     fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot() {\n     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 777,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (79/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+    "line": 2023,
+    "end": 2023,
+    "source_test": true,
+    "function": "unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready",
+    "function_start": 2023,
+    "function_end": 2472,
+    "metric": 79,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (79/25)\n    --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:2023:8\n     |\n2023 |     fn unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready() {\n     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 782,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (71/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs",
+    "line": 117,
+    "end": 117,
+    "source_test": true,
+    "function": "native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call",
+    "function_start": 117,
+    "function_end": 561,
+    "metric": 71,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (71/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\tests/native_execution.rs:117:8\n    |\n117 |     fn native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call() {\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 763,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (65/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+    "line": 2,
+    "end": 2,
+    "source_test": true,
+    "function": "import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio",
+    "function_start": 2,
+    "function_end": 390,
+    "metric": 65,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (65/25)\n --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:2:8\n  |\n2 |     fn import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio()\n  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = help: you could split it up into multiple smaller functions\n  = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 323,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-worker-parakeet-cpu#0.1.0",
+    "target": "native_import",
+    "target_kind": [
+      "test"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (58/25)",
+    "path": "crates/whisper-worker-parakeet-cpu/tests/native_import.rs",
+    "line": 67,
+    "end": 67,
+    "source_test": true,
+    "function": "cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload",
+    "function_start": 67,
+    "function_end": 355,
+    "metric": 58,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (58/25)\n  --> crates\\whisper-worker-parakeet-cpu\\tests\\native_import.rs:67:4\n   |\n67 | fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload() {\n   |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n   |\n   = help: you could split it up into multiple smaller functions\n   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n   = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 335
+  },
+  {
+    "stream_index": 784,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (51/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs",
+    "line": 968,
+    "end": 968,
+    "source_test": true,
+    "function": "run_native_queued_unified_import",
+    "function_start": 968,
+    "function_end": 1341,
+    "metric": 51,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (51/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\tests/native_execution.rs:968:8\n    |\n968 |     fn run_native_queued_unified_import(\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 559,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "parakeet_unified_native",
+    "target_kind": [
+      "test"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (49/25)",
+    "path": "crates/whisper-adapters/tests/parakeet_unified_native.rs",
+    "line": 147,
+    "end": 147,
+    "source_test": true,
+    "function": "run_native_import",
+    "function_start": 147,
+    "function_end": 398,
+    "metric": 49,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (49/25)\n   --> crates\\whisper-adapters\\tests\\parakeet_unified_native.rs:147:4\n    |\n147 | fn run_native_import(\n    |    ^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n    = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 570
+  },
+  {
+    "stream_index": 757,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (45/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+    "line": 1562,
+    "end": 1562,
+    "source_test": true,
+    "function": "import_application_resumes_a_verified_interrupted_unified_import",
+    "function_start": 1562,
+    "function_end": 1964,
+    "metric": 45,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (45/25)\n    --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:1562:8\n     |\n1562 |     fn import_application_resumes_a_verified_interrupted_unified_import() {\n     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 595,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "parakeet_import",
+    "target_kind": [
+      "test"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (43/25)",
+    "path": "crates/whisper-adapters/tests/parakeet_import.rs",
+    "line": 1703,
+    "end": 1703,
+    "source_test": true,
+    "function": "r9_application_recipe",
+    "function_start": 1703,
+    "function_end": 2108,
+    "metric": 43,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (43/25)\n    --> crates\\whisper-adapters\\tests\\parakeet_import.rs:1703:4\n     |\n1703 | fn r9_application_recipe() {\n     |    ^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n     = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 611
+  },
+  {
+    "stream_index": 804,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (43/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+    "line": 1483,
+    "end": 1483,
+    "source_test": true,
+    "function": "live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish",
+    "function_start": 1483,
+    "function_end": 1859,
+    "metric": 43,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (43/25)\n    --> crates\\whisper-adapters\\src\\worker_ipc\\tests/microphone_and_finalization.rs:1483:8\n     |\n1483 |     fn live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish() {\n     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 750,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (42/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+    "line": 254,
+    "end": 254,
+    "source_test": true,
+    "function": "assert_app_view_external_publication",
+    "function_start": 254,
+    "function_end": 463,
+    "metric": 42,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (42/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:254:8\n    |\n254 |     fn assert_app_view_external_publication(\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 561,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "parakeet_unified_native",
+    "target_kind": [
+      "test"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (39/25)",
+    "path": "crates/whisper-adapters/tests/parakeet_unified_native.rs",
+    "line": 423,
+    "end": 423,
+    "source_test": true,
+    "function": "run_native_long_case",
+    "function_start": 423,
+    "function_end": 581,
+    "metric": 39,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (39/25)\n   --> crates\\whisper-adapters\\tests\\parakeet_unified_native.rs:423:4\n    |\n423 | fn run_native_long_case(language: &str, compute: ComputeChoice, minimum_samples: u64) {\n    |    ^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 570
+  },
+  {
+    "stream_index": 816,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (39/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+    "line": 87,
+    "end": 87,
+    "source_test": true,
+    "function": "unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio",
+    "function_start": 87,
+    "function_end": 364,
+    "metric": 39,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (39/25)\n  --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_restart_and_pages.rs:87:4\n   |\n87 | fn unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio() {\n   |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n   |\n   = help: you could split it up into multiple smaller functions\n   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 754,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (38/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+    "line": 976,
+    "end": 976,
+    "source_test": true,
+    "function": "resumed_create_only_publication_paths_reach_app_view",
+    "function_start": 976,
+    "function_end": 1405,
+    "metric": 38,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (38/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:976:8\n    |\n976 |     fn resumed_create_only_publication_paths_reach_app_view() {\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 627,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-desktop#0.1.0",
+    "target": "whisper_desktop",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (37/25)",
+    "path": "crates/whisper-desktop/src/ui/tests/microphone_controls.rs",
+    "line": 32,
+    "end": 32,
+    "source_test": true,
+    "function": "microphone_test_button_stops_after_neutral_gain_ack_and_reopens",
+    "function_start": 32,
+    "function_end": 251,
+    "metric": 37,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (37/25)\n  --> crates\\whisper-desktop\\src\\ui\\tests/microphone_controls.rs:32:4\n   |\n32 | fn microphone_test_button_stops_after_neutral_gain_ack_and_reopens() {\n   |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n   |\n   = help: you could split it up into multiple smaller functions\n   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n   = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 634
+  },
+  {
+    "stream_index": 761,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (37/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+    "line": 2369,
+    "end": 2369,
+    "source_test": true,
+    "function": "controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts",
+    "function_start": 2369,
+    "function_end": 2566,
+    "metric": 37,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (37/25)\n    --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:2369:8\n     |\n2369 |     fn controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts() {\n     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 303,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-core#0.1.0",
+    "target": "whisper_core",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (36/25)",
+    "path": "crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs",
+    "line": 81,
+    "end": 81,
+    "source_test": true,
+    "function": "parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text",
+    "function_start": 81,
+    "function_end": 383,
+    "metric": 36,
+    "threshold": 25,
+    "compilation_test": false,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (36/25)\n  --> crates\\whisper-core\\src\\application\\runtime\\tests/parakeet_sessions.rs:81:8\n   |\n81 |     fn parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text() {\n   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n   |\n   = help: you could split it up into multiple smaller functions\n   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [],
+    "artifact_stream_index": 309
+  },
+  {
+    "stream_index": 548,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "import_cpu",
+    "target_kind": [
+      "test"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (36/25)",
+    "path": "crates/whisper-adapters/tests/import_cpu.rs",
+    "line": 1903,
+    "end": 1903,
+    "source_test": true,
+    "function": "finish",
+    "function_start": 1903,
+    "function_end": 2196,
+    "metric": 36,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (36/25)\n    --> crates\\whisper-adapters\\tests\\import_cpu.rs:1903:8\n     |\n1903 |     fn finish(mut self, expected_windows: usize) {\n     |        ^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 558
+  },
+  {
+    "stream_index": 767,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (36/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+    "line": 628,
+    "end": 628,
+    "source_test": true,
+    "function": "import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published",
+    "function_start": 628,
+    "function_end": 835,
+    "metric": 36,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (36/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:628:8\n    |\n628 |     fn import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published() {\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 809,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (36/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs",
+    "line": 120,
+    "end": 120,
+    "source_test": true,
+    "function": "run_integrated_copy_resume_case",
+    "function_start": 120,
+    "function_end": 389,
+    "metric": 36,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (36/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\tests/resume_and_admission.rs:120:8\n    |\n120 |     fn run_integrated_copy_resume_case(root: &Path, replace_existing: bool, model: &Path) {\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 585,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "live_archive",
+    "target_kind": [
+      "test"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (35/25)",
+    "path": "crates/whisper-adapters/tests/live_archive.rs",
+    "line": 328,
+    "end": 328,
+    "source_test": true,
+    "function": "passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation",
+    "function_start": 328,
+    "function_end": 564,
+    "metric": 35,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (35/25)\n   --> crates\\whisper-adapters\\tests\\live_archive.rs:328:4\n    |\n328 | fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation() {\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n    = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 589
+  },
+  {
+    "stream_index": 765,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (34/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+    "line": 393,
+    "end": 393,
+    "source_test": true,
+    "function": "global_close_waits_for_both_capture_publications_and_refuses_new_admission",
+    "function_start": 393,
+    "function_end": 625,
+    "metric": 34,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (34/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:393:8\n    |\n393 |     fn global_close_waits_for_both_capture_publications_and_refuses_new_admission() {\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 666,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (33/25)",
+    "path": "crates/whisper-adapters/src/archive/tests/recovery.rs",
+    "line": 2,
+    "end": 2,
+    "source_test": true,
+    "function": "r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision",
+    "function_start": 2,
+    "function_end": 327,
+    "metric": 33,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (33/25)\n --> crates\\whisper-adapters\\src\\archive\\tests/recovery.rs:2:8\n  |\n2 |     fn r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision() {\n  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |\n  = help: you could split it up into multiple smaller functions\n  = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 718,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (32/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/runtime/import.rs",
+    "line": 1254,
+    "end": 1254,
+    "source_test": true,
+    "function": "run_controlled_unified_import",
+    "function_start": 1254,
+    "function_end": 1427,
+    "metric": 32,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (32/25)\n    --> crates\\whisper-adapters\\src\\worker_ipc\\runtime\\import.rs:1254:34\n     |\n1254 |     pub(in crate::worker_ipc) fn run_controlled_unified_import(\n     |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 801,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (30/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+    "line": 1247,
+    "end": 1247,
+    "source_test": true,
+    "function": "live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav",
+    "function_start": 1247,
+    "function_end": 1467,
+    "metric": 30,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (30/25)\n    --> crates\\whisper-adapters\\src\\worker_ipc\\tests/microphone_and_finalization.rs:1247:8\n     |\n1247 |     fn live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav() {\n     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 769,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (28/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+    "line": 838,
+    "end": 838,
+    "source_test": true,
+    "function": "unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail",
+    "function_start": 838,
+    "function_end": 1024,
+    "metric": 28,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (28/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:838:8\n    |\n838 |     fn unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail() {\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 786,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (28/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs",
+    "line": 1344,
+    "end": 1344,
+    "source_test": true,
+    "function": "native_spoken_prefix",
+    "function_start": 1344,
+    "function_end": 1431,
+    "metric": 28,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (28/25)\n    --> crates\\whisper-adapters\\src\\worker_ipc\\tests/native_execution.rs:1344:8\n     |\n1344 |     fn native_spoken_prefix(execution_root: &Path) -> Vec<f32> {\n     |        ^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 345,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-worker-parakeet-cpu#0.1.0",
+    "target": "native_diagnostics_absence",
+    "target_kind": [
+      "test"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (27/25)",
+    "path": "crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs",
+    "line": 127,
+    "end": 127,
+    "source_test": true,
+    "function": "run",
+    "function_start": 127,
+    "function_end": 321,
+    "metric": 27,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (27/25)\n   --> crates\\whisper-worker-parakeet-cpu\\tests\\native_diagnostics_absence.rs:127:4\n    |\n127 | fn run(root: &Path, wav: &Path, backend: &str, case: &str, poisoned: bool) -> Outcome {\n    |    ^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n    = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 371
+  },
+  {
+    "stream_index": 773,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (27/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+    "line": 1453,
+    "end": 1453,
+    "source_test": true,
+    "function": "unrecycled_controlled_child_rejects_third_job_with_bounded_table",
+    "function_start": 1453,
+    "function_end": 1564,
+    "metric": 27,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (27/25)\n    --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:1453:8\n     |\n1453 |     fn unrecycled_controlled_child_rejects_third_job_with_bounded_table() {\n     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 781,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (27/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+    "line": 2935,
+    "end": 2935,
+    "source_test": true,
+    "function": "unified_import_and_capture_without_controlled_injection_are_refused_before_hardware_start",
+    "function_start": 2935,
+    "function_end": 3034,
+    "metric": 27,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (27/25)\n    --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:2935:8\n     |\n2935 |     fn unified_import_and_capture_without_controlled_injection_are_refused_before_hardware_start() {\n     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: you could split it up into multiple smaller functions\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 299,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-core#0.1.0",
+    "target": "whisper_core",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (26/25)",
+    "path": "crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs",
+    "line": 451,
+    "end": 451,
+    "source_test": true,
+    "function": "microphone_test_owns_one_capture_then_releases_before_live_restart",
+    "function_start": 451,
+    "function_end": 663,
+    "metric": 26,
+    "threshold": 25,
+    "compilation_test": false,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (26/25)\n   --> crates\\whisper-core\\src\\application\\runtime\\tests/selection_and_microphone.rs:451:8\n    |\n451 |     fn microphone_test_owns_one_capture_then_releases_before_live_restart() {\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n    = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [],
+    "artifact_stream_index": 309
+  },
+  {
+    "stream_index": 539,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "import_cpu",
+    "target_kind": [
+      "test"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (26/25)",
+    "path": "crates/whisper-adapters/tests/import_cpu.rs",
+    "line": 26,
+    "end": 26,
+    "source_test": true,
+    "function": "r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives",
+    "function_start": 26,
+    "function_end": 345,
+    "metric": 26,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (26/25)\n  --> crates\\whisper-adapters\\tests\\import_cpu.rs:26:4\n   |\n26 | fn r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives() {\n   |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n   |\n   = help: you could split it up into multiple smaller functions\n   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n   = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 558
+  },
+  {
+    "stream_index": 565,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "parakeet_runtime_isolation",
+    "target_kind": [
+      "test"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (26/25)",
+    "path": "crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs",
+    "line": 20,
+    "end": 20,
+    "source_test": true,
+    "function": "run_matrix",
+    "function_start": 20,
+    "function_end": 197,
+    "metric": 26,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (26/25)\n  --> C:\\dev\\whisper\\crates\\whisper-adapters/tests/support/parakeet_runtime_isolation.rs:20:4\n   |\n20 | fn run_matrix(spawn: impl Fn(&ParakeetWorkerPaths, &Path) -> Result<ParakeetProcess, String>) {\n   |    ^^^^^^^^^^\n   |\n   = help: you could split it up into multiple smaller functions\n   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n   = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 567
+  },
+  {
+    "stream_index": 604,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "parakeet_archive",
+    "target_kind": [
+      "test"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (26/25)",
+    "path": "crates/whisper-adapters/tests/parakeet_archive.rs",
+    "line": 445,
+    "end": 445,
+    "source_test": true,
+    "function": "pending_scan_and_resume_require_the_exact_qualified_test_key",
+    "function_start": 445,
+    "function_end": 608,
+    "metric": 26,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (26/25)\n   --> crates\\whisper-adapters\\tests\\parakeet_archive.rs:445:4\n    |\n445 | fn pending_scan_and_resume_require_the_exact_qualified_test_key() {\n    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n    = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 612
+  },
+  {
+    "stream_index": 691,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (26/25)",
+    "path": "crates/whisper-adapters/src/parakeet_confirmation.rs",
+    "line": 659,
+    "end": 659,
+    "source_test": true,
+    "function": "provisional_revision_needs_two_later_witnesses",
+    "function_start": 659,
+    "function_end": 736,
+    "metric": 26,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (26/25)\n   --> crates\\whisper-adapters\\src\\parakeet_confirmation.rs:659:8\n    |\n659 |     fn provisional_revision_needs_two_later_witnesses() {\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 748,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (26/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+    "line": 145,
+    "end": 145,
+    "source_test": true,
+    "function": "assert_app_view_internal_publication",
+    "function_start": 145,
+    "function_end": 252,
+    "metric": 26,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (26/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:145:8\n    |\n145 |     fn assert_app_view_internal_publication(\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 794,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (26/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+    "line": 193,
+    "end": 193,
+    "source_test": true,
+    "function": "microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end",
+    "function_start": 193,
+    "function_end": 430,
+    "metric": 26,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (26/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\tests/microphone_and_finalization.rs:193:8\n    |\n193 |     fn microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end() {\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  }
+]

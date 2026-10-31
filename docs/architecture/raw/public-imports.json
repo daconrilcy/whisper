@@ -1,0 +1,2495 @@
+[
+  {
+    "source": "crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 512,
+    "end": 512,
+    "text": "use whisper_core::ports::ParakeetDocumentPort;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/tests/recovery.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 543,
+    "end": 543,
+    "text": "use whisper_core::SegmentId;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/tests/recovery.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 725,
+    "end": 725,
+    "text": "use whisper_core::SegmentId;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 10,
+    "end": 16,
+    "text": "use whisper_core::{ Generation, JobId, SourceRange, ports::{ DuplicateImportChoice, ImportRequest, LiveRequest, PublishedImport, ReplacementCleanupInfo, TreatmentIdentity, WorkerSegment, }, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/capture.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 11,
+    "end": 11,
+    "text": "use whisper_core::microphone::{MicrophoneChoice, MicrophoneDevice, MicrophonePort};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/capture.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 12,
+    "end": 12,
+    "text": "use whisper_core::microphone_level::{GainDb, GainRevision};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/decoder.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 6,
+    "text": "use whisper_core::{ ipc::{WorkerCommand, WorkerEvent}, ports::{DecodeRequest, DecodedPcmBlock, DecoderPort, PortError}, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/decoder.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 107,
+    "end": 111,
+    "text": "use whisper_core::{ Generation, JobId, SourceRange, ipc::WorkerEvent, ports::{DecodedPcmBlock, PcmBlock, SourceIdentity}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live/d2_corpus.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 13,
+    "end": 16,
+    "text": "use whisper_core::{ ComputeChoice, Generation, ImportEvent, JobConfig, JobId, LanguageChoice, LiveRequest, microphone_level::GainDb, model_catalog::ModelId, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live/tests.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 11,
+    "end": 11,
+    "text": "use whisper_core::ports::WorkerSegment;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live/tests.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 12,
+    "end": 12,
+    "text": "use whisper_core::{ComputeChoice, JobConfig, LanguageChoice, SegmentId, SourceRange};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live/tests.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 1104,
+    "end": 1104,
+    "text": "use whisper_core::ipc::{BackendKind, WorkerEvent, WorkerSegmentDto};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live/tests.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 1174,
+    "end": 1174,
+    "text": "use whisper_core::ipc::{BackendKind, WorkerErrorCode, WorkerEvent};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 36,
+    "end": 40,
+    "text": "use whisper_core::{ ComputeChoice, Generation, ImportEvent, JobId, LiveRequest, SegmentId, SourceRange, ipc::{BackendKind, WorkerCommand, WorkerErrorCode, WorkerEvent}, ports::WorkerSegment, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/gpu_inventory.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 7,
+    "end": 9,
+    "text": "use whisper_core::gpu_inventory::{ GpuAvailability, GpuCause, GpuIdentityMatch, GpuQualifiedObservation, GpuSupport, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/gpu_inventory.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 10,
+    "end": 10,
+    "text": "use whisper_core::gpu_inventory::{GpuObservation, GpuPresence, GpuState};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/gpu_inventory.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 11,
+    "end": 11,
+    "text": "use whisper_core::gpu_inventory_app::{GpuCollection, GpuInventoryPort, GpuQualifiedCollection};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/gpu_inventory.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 621,
+    "end": 624,
+    "text": "use whisper_core::gpu_inventory::{ GpuAvailability, GpuCatalogueCoverage, GpuCause, GpuIdentityMatch, GpuObservation, GpuPresence, GpuState, GpuSupport, qualify, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/microphone_probe.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 13,
+    "end": 19,
+    "text": "use whisper_core::{ Generation, JobId, microphone_level::{ GainRevision, LevelMeasurement, MeterLevel, MicrophoneMeter, MicrophoneSpectrum, MicrophoneSpectrumUpdate, SpectrumBin, monotonic_millis, monotonic_millis_at, }, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/model_catalog.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 14,
+    "end": 14,
+    "text": "use whisper_core::{model_catalog::ModelAvailability, model_registry::MODELS};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/model_catalog.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 290,
+    "end": 290,
+    "text": "use whisper_core::model_catalog::ModelId;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/model_catalog.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 310,
+    "end": 310,
+    "text": "use whisper_core::model_catalog::ModelId;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/model_catalog.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 331,
+    "end": 331,
+    "text": "use whisper_core::{model_catalog::ModelId, model_registry::model};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/model_catalog.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 365,
+    "end": 365,
+    "text": "use whisper_core::{model_catalog::ModelId, model_selection_app::is_known_historical_path};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_confirmation.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 7,
+    "end": 7,
+    "text": "use whisper_core::SourceRange;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_document.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 8,
+    "end": 15,
+    "text": "use whisper_core::{ Generation, JobId, parakeet_windows::{WINDOW_MAX_SAMPLES, WINDOW_MIN_SAMPLES}, ports::{ ParakeetDocumentEntry, ParakeetDocumentPage, ParakeetDocumentPort, ParakeetPreview, ParakeetWindowCoverage, PortError, WorkerSegment, }, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_import.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 17,
+    "end": 20,
+    "text": "use whisper_core::parakeet_ipc::{ Command as WorkerCommand, Envelope, Event, PARAKEET_IPC_VERSION, PARAKEET_MAX_FRAME_BYTES, PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_import.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 21,
+    "end": 21,
+    "text": "use whisper_core::parakeet_windows::{PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_import.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 781,
+    "end": 783,
+    "text": "use whisper_core::model_registry::{ PARAKEET_TEST_GPU_PCI_BUS_ID, PARAKEET_TEST_GPU_PNP_INSTANCE_ID, PARAKEET_TEST_GPU_UUID, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live/microphone_spectrum_tests.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 8,
+    "end": 8,
+    "text": "use whisper_core::microphone_level::{MicrophoneSpectrumUpdate, SpectrumBin};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 32,
+    "end": 36,
+    "text": "use whisper_core::{ ComputeChoice, Generation, ImportEvent, JobId, LiveRequest, SegmentId, SourceRange, parakeet_ipc::{Event as WorkerEvent, Word}, parakeet_windows::{AbsoluteWordSamples, Window, absolute_word_samples}, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_pipeline.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 8,
+    "text": "use whisper_core::{ Generation, JobId, SourceRange, parakeet_session::{AudioWindow, SessionIdentity, TranscriptionStrategy, WindowCursor}, parakeet_windows::{MARGIN_SAMPLES, WINDOW_MAX_SAMPLES}, ports::{ParakeetDocumentPort, ParakeetWindowCoverage, PortError, WorkerSegment}, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/path_settings.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 9,
+    "end": 9,
+    "text": "use whisper_core::path_settings::{PathField, PathPort, SaveAcknowledgement, StoredPaths};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/path_settings.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 10,
+    "end": 17,
+    "text": "use whisper_core::{ model_catalog::ModelId, model_selection_app::is_known_historical_path, path_settings::{ LegacyModelPath, ModelPreferenceAcknowledgement, ModelPreferencePort, ModelPreferenceSnapshot, StartupComputePreference, }, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/path_settings.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 493,
+    "end": 493,
+    "text": "use whisper_core::path_settings::{PathDefaults, PathPort, PathSettingsApp};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/queue_store.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 9,
+    "end": 9,
+    "text": "use whisper_core::{ComputeChoice, Generation, JobId, ports::ImportRequest};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/queue_store.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 27,
+    "end": 27,
+    "text": "use whisper_core::ports::{ImportQueueEntry as QueueEntry, ImportQueueStatus as QueueStatus};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/queue_store.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 564,
+    "end": 564,
+    "text": "use whisper_core::{JobConfig, ports::ImportRequest};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/recovery.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 6,
+    "end": 6,
+    "text": "use whisper_core::ports::{ImportQueueEntry as QueueEntry, ImportQueueStatus as QueueStatus};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/source_binding.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 11,
+    "end": 11,
+    "text": "use whisper_core::ports::SourceSnapshotRecoveryCandidate;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/source_binding.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 12,
+    "end": 12,
+    "text": "use whisper_core::{Generation, JobId, ports::ImportRequest};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/source_binding.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 1523,
+    "end": 1523,
+    "text": "use whisper_core::ports::ImportRequest;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/supervisor.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 14,
+    "end": 14,
+    "text": "use whisper_core::{BackendAttempt, ComputeChoice, ComputePolicy, ComputePolicyError};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/backends/mod.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 8,
+    "end": 12,
+    "text": "use whisper_core::{ ComputeChoice, ipc::{WorkerCommand, WorkerEvent}, ports::{ImportRequest, LiveRequest}, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/backends/mod.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 123,
+    "end": 123,
+    "text": "use whisper_core::model_catalog::ModelId;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/backends/mod.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 237,
+    "end": 237,
+    "text": "use whisper_core::model_catalog::ModelId;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/backends/mod.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 272,
+    "end": 272,
+    "text": "use whisper_core::model_catalog::ModelId;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/backends/native.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_core::{ComputeChoice, ports::ImportRequest};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/ipc/mod.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 23,
+    "end": 27,
+    "text": "use whisper_core::{ Generation, JobId, ipc::{BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerEvent}, ports::PortError, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/executor.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 15,
+    "end": 15,
+    "text": "use whisper_core::Generation;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/mod.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 6,
+    "text": "use whisper_core::{ Generation, JobId, ports::{ImportRequest, WorkerSegment}, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/mod.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 32,
+    "end": 32,
+    "text": "use whisper_core::ports::ParakeetDocumentPort;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 12,
+    "end": 12,
+    "text": "use whisper_core::ComputeChoice;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/publication/mod.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_core::ports::PortError;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 322,
+    "end": 322,
+    "text": "use whisper_core::ports::ParakeetDocumentPort;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/service/automatic_final.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 9,
+    "end": 9,
+    "text": "use whisper_core::{ImportEvent, JobId};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/service/mod.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 20,
+    "end": 23,
+    "text": "use whisper_core::{ Generation, ImportEffect, ImportEvent, ImportIoPort, JobId, ports::{PortError, WorkerSegment}, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 779,
+    "end": 779,
+    "text": "use whisper_core::gpu_inventory_app::GpuInventoryPort;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 121,
+    "end": 121,
+    "text": "use whisper_core::ports::DuplicateImportChoice;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 2476,
+    "end": 2476,
+    "text": "use whisper_core::parakeet_scheduler::{ScheduledCall, ScheduledWork, SchedulerSession};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 5,
+    "end": 5,
+    "text": "use whisper_core::ports::ParakeetDocumentPort;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 6,
+    "end": 9,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest, JobConfig, JobId, JobState, LanguageChoice, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 109,
+    "end": 109,
+    "text": "use whisper_core::ImportIoPort;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 111,
+    "end": 111,
+    "text": "use whisper_core::ipc::IpcEnvelope;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 112,
+    "end": 120,
+    "text": "use whisper_core::{ ArchiveHistoryItem, ComputeChoice, DiagnosticNotice, Generation, ImportEffect, ImportEvent, JobId, ipc::{BackendKind, WorkerCommand, WorkerEvent}, ports::{ DecodeRequest, DecoderPort, DuplicateImportChoice, DuplicateImportPrompt, ImportRequest, LiveRequest, PortError, PublishedImport, SourceIdentity, TreatmentIdentity, WorkerSegment, }, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/tests/decoder_proxy.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_adapters::{WorkerTransport, decoder::DecoderProxy};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/decoder_proxy.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 6,
+    "text": "use whisper_core::{ domain::{Generation, JobId, SourceRange}, ipc::{WorkerCommand, WorkerEvent}, ports::{DecodeRequest, DecodedPcmBlock, DecoderPort, PcmBlock, PortError, SourceIdentity}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/durability.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 2,
+    "end": 5,
+    "text": "use whisper_adapters::{ queue_store::{QueueStatus, QueueStore}, recovery, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/durability.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 6,
+    "end": 9,
+    "text": "use whisper_core::{ ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, ports::{ImportQueueStatus, ImportRequest}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/gpu_inventory.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_adapters::gpu_inventory::map_device_fields;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/gpu_inventory.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_core::gpu_inventory::{GpuPresence, GpuState};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/gpu_qualification_transport.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_core::ipc::{GpuQualificationResult, WorkerEvent};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/gpu_selection_worker.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 5,
+    "text": "use whisper_core::{ ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, gpu_inventory::GpuRuntimeIdentity, ipc::{BackendKind, IpcEnvelope, WorkerCommand, WorkerEvent}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/gpu_selection_worker.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 88,
+    "end": 88,
+    "text": "use whisper_adapters::{WorkerTransport, worker_ipc::ChildWorkerTransport};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/gpu_selection_worker.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 89,
+    "end": 89,
+    "text": "use whisper_core::gpu_inventory_app::GpuInventoryApp;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/gpu_settings.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 7,
+    "end": 7,
+    "text": "use whisper_adapters::path_settings::WindowsPathPort;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/gpu_settings.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 8,
+    "end": 17,
+    "text": "use whisper_core::{ ComputeChoice, MicrophoneChoice, gpu_inventory::{ GpuAvailability, GpuIdentityMatch, GpuObservation, GpuPresence, GpuQualifiedObservation, GpuRankSource, GpuState, GpuSupport, GpuWindowsRank, qualify, }, gpu_inventory_app::GpuQualifiedInventoryState, gpu_selection::{SelectionResolution, SessionCandidate, resolve}, path_settings::{PathDefaults, PathField, PathSettingsApp, SaveStatus, StoredPaths}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/import_cpu.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 9,
+    "end": 9,
+    "text": "use whisper_adapters::WorkerTransport;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/import_cpu.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 10,
+    "end": 14,
+    "text": "use whisper_adapters::{ archive::{ArchiveStore, sha256_file}, decoder::DecoderProxy, worker_ipc::{AsyncImportIo, ChildWorkerTransport}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/import_cpu.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 15,
+    "end": 20,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest, JobConfig, JobId, JobState, LanguageChoice, SourceRange, ipc::{WorkerCommand, WorkerEvent}, ports::{DecodeRequest, DecoderPort, DuplicateImportChoice, PortError, SourceIdentity}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/import_mp3.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 5,
+    "end": 5,
+    "text": "use whisper_adapters::{archive::sha256_file, worker_ipc::AsyncImportIo};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/import_mp3.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 6,
+    "end": 9,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest, JobConfig, JobId, JobState, LanguageChoice, SourceRange, ports::WorkerSegment, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/legacy_model_requests.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 4,
+    "end": 7,
+    "text": "use whisper_adapters::{ model_catalog::LocalModelCatalog, queue_store::{QueueStatus, QueueStore}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/legacy_model_requests.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 8,
+    "end": 12,
+    "text": "use whisper_core::{ domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice}, model_catalog::ModelId, ports::ImportRequest, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/live_archive.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_adapters::{archive::LiveArchive, staging::PcmStaging};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/live_archive.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 6,
+    "text": "use whisper_core::{ ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, LiveRequest, SegmentId, SourceRange, ports::WorkerSegment, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/live_capture.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 2,
+    "end": 5,
+    "text": "use whisper_adapters::{ capture::{CAPTURE_SLOTS, Pcm16Converter}, staging::PcmStaging, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/microphone_level.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_adapters::capture::{CAPTURE_SLOTS, Pcm16Converter};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/microphone_level.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_core::microphone_level::{GainDb, MAX_GAIN_DB, MIN_GAIN_DB};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/microphone_probe.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 8,
+    "end": 8,
+    "text": "use whisper_adapters::capture::ProbeAudioBlock;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/microphone_probe.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 9,
+    "end": 11,
+    "text": "use whisper_adapters::microphone_probe::{ MicrophoneProbe, MicrophoneSpectrumReader, ProbeSnapshot, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/microphone_probe.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 12,
+    "end": 15,
+    "text": "use whisper_core::{ GainDb, Generation, JobId, microphone_level::{GainRevision, MicrophoneSpectrumUpdate}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/microphone_settings.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_core::path_settings::StoredPaths;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/model_catalog.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_adapters::model_catalog::LocalModelCatalog;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/model_catalog.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 4,
+    "end": 9,
+    "text": "use whisper_core::{ domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice}, model_catalog::{ModelAvailability, ModelId}, model_registry::MODELS, ports::ImportRequest, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/model_catalog.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 157,
+    "end": 157,
+    "text": "use whisper_adapters::model_catalog::{cached_model_sha256, model_sha256_full_read_count};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/model_catalog.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 203,
+    "end": 203,
+    "text": "use whisper_adapters::model_catalog::{cached_model_sha256, model_sha256_full_read_count};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/model_preferences.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_adapters::path_settings::{WindowsModelPreferencePort, WindowsPathPort};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/model_preferences.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 4,
+    "end": 7,
+    "text": "use whisper_core::{ model_catalog::ModelId, path_settings::{LegacyModelPath, ModelPreferencePort, PathPort, StartupComputePreference}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_archive.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 10,
+    "end": 15,
+    "text": "use whisper_adapters::{ archive::{ArchiveQualificationKey, ArchiveStore}, queue_store::{QueueStatus, QueueStore}, supervisor::WorkerPaths, worker_ipc::AsyncImportIo, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_archive.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 16,
+    "end": 22,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, JobConfig, JobId, LanguageChoice, SegmentId, SourceRange, model_catalog::ModelId, model_registry::model, ports::{ImportRequest, WorkerSegment}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_archive.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 336,
+    "end": 336,
+    "text": "use whisper_adapters::model_catalog::cached_model_sha256;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_archive.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 1453,
+    "end": 1453,
+    "text": "use whisper_adapters::parakeet_import::{ParakeetProcess, ParakeetWorkerPaths};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_archive.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 1454,
+    "end": 1456,
+    "text": "use whisper_adapters::{ archive::ArchiveStore, supervisor::WorkerPaths, worker_ipc::AsyncImportIo, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_archive.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 1457,
+    "end": 1468,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest, JobConfig, JobId, LanguageChoice, model_catalog::{ModelAvailability, ModelId}, model_registry, model_selection_app::ModelCommandGuard, parakeet_ipc::{Event, WorkerIdentity}, parakeet_windows::{ MAX_NATIVE_SAMPLES, PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE, Window, absolute_word_samples, plan_windows, word_belongs_to_central_range, }, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_archive_personal_history.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_adapters::archive::{ArchiveQualificationKey, ArchiveStore};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_archive_personal_history.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 4,
+    "end": 8,
+    "text": "use whisper_core::{ ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, model_catalog::{Backend, ModelId}, model_registry::{self, model}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_command_wire.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_core::parakeet_ipc::{Command, Envelope, ExpectedGpu, WorkerIdentity};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_control.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 8,
+    "end": 8,
+    "text": "use whisper_adapters::parakeet_import::{ParakeetProcess, ParakeetWorkerPaths};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_control.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 9,
+    "end": 14,
+    "text": "use whisper_adapters::{ archive::ArchiveStore, queue_store::{QueueStatus, QueueStore}, supervisor::WorkerPaths, worker_ipc::AsyncImportIo, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_control.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 15,
+    "end": 18,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest, JobConfig, JobId, LanguageChoice, model_catalog::ModelId, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_import.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 11,
+    "end": 17,
+    "text": "use whisper_adapters::{ archive::ArchiveStore, model_catalog::LocalModelCatalog, parakeet_import::{ParakeetProcess, ParakeetWorkerPaths}, supervisor::WorkerPaths, worker_ipc::AsyncImportIo, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_import.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 18,
+    "end": 21,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest, JobConfig, JobId, LanguageChoice, model_catalog::ModelId, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_long.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 9,
+    "end": 9,
+    "text": "use whisper_adapters::parakeet_import::{ParakeetProcess, ParakeetWorkerPaths};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_long.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 10,
+    "end": 10,
+    "text": "use whisper_adapters::{archive::ArchiveStore, supervisor::WorkerPaths, worker_ipc::AsyncImportIo};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_long.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 11,
+    "end": 22,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest, JobConfig, JobId, LanguageChoice, model_catalog::{ModelAvailability, ModelId}, model_registry, model_selection_app::ModelCommandGuard, parakeet_ipc::{Event, WorkerIdentity}, parakeet_windows::{ MAX_NATIVE_SAMPLES, PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE, Window, absolute_word_samples, admissible_silences, plan_windows, word_belongs_to_central_range, }, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_runtime_isolation.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_adapters::parakeet_import::{ParakeetProcess, ParakeetWorkerPaths};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_unified_native.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 9,
+    "end": 12,
+    "text": "use whisper_adapters::{ archive::ArchiveStore, parakeet_import::ParakeetWorkerPaths, supervisor::WorkerPaths, worker_ipc::AsyncImportIo, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_unified_native.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 13,
+    "end": 18,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest, JobConfig, JobId, JobState, LanguageChoice, model_catalog::ModelId, model_registry::{PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID, model}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/parakeet_unified_native.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 825,
+    "end": 825,
+    "text": "use whisper_core::gpu_inventory_app::GpuInventoryPort;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/publication_lock_contract.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 6,
+    "end": 6,
+    "text": "use whisper_adapters::archive::ArchiveStore;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/reprocessing_baseline.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 9,
+    "end": 12,
+    "text": "use whisper_adapters::{ archive::ArchiveStore, parakeet_import::ParakeetWorkerPaths, supervisor::WorkerPaths, worker_ipc::AsyncImportIo, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/reprocessing_baseline.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 13,
+    "end": 16,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest, JobConfig, JobId, LanguageChoice, model_catalog::ModelId, ports::DuplicateImportChoice, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/reprocessing_cleanup.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 11,
+    "end": 15,
+    "text": "use whisper_adapters::{ archive::{ArchiveStore, sha256_file}, model_catalog::LocalModelCatalog, source_binding::SourceBinding, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/reprocessing_cleanup.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 16,
+    "end": 19,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, JobConfig, JobId, JobState, LanguageChoice, ports::DuplicateImportChoice, ports::ImportRequest, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/reprocessing_create.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 11,
+    "end": 15,
+    "text": "use whisper_adapters::{ archive::{ArchiveStore, sha256_file}, model_catalog::LocalModelCatalog, source_binding::SourceBinding, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/reprocessing_create.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 16,
+    "end": 16,
+    "text": "use whisper_core::ports::DuplicateImportChoice;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/reprocessing_create.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 17,
+    "end": 20,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, JobConfig, JobId, JobState, ports::ImportRequest, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/source_binding.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 9,
+    "end": 9,
+    "text": "use whisper_adapters::source_binding::SourceBinding;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/source_binding.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 10,
+    "end": 10,
+    "text": "use whisper_core::{Generation, JobConfig, JobId, ports::ImportRequest};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/vad_contract.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_adapters::vad::VoiceActivity;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/worker_control.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 7,
+    "end": 7,
+    "text": "use whisper_adapters::supervisor::ProgressPhase;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/worker_control.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-adapters",
+    "line": 8,
+    "end": 8,
+    "text": "use whisper_adapters::supervisor::{ProgressSupervisor, ProgressWatch, WorkerPaths};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/tests/worker_control.rs",
+    "crate": "whisper-adapters",
+    "dependency": "whisper-core",
+    "line": 9,
+    "end": 9,
+    "text": "use whisper_core::{BackendAttempt, ComputeChoice, ComputePolicyError};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-bootstrap/src/main.rs",
+    "crate": "whisper-bootstrap",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_core::{AppView, ipc::IPC_PROTOCOL_VERSION};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/tests/application_routing.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 7,
+    "text": "use whisper_core::{ AppCommand, Application, ApplicationError, ComputeChoice, Generation, ImportApplication, ImportEffect, ImportEvent, ImportIoPort, JobConfig, JobId, LanguageChoice, ports::{ArchiveHistoryItem, PortError}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/compute_policy.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 3,
+    "text": "use whisper_core::{ BackendAttempt, BackendDecision, ComputeChoice, ComputePolicy, ComputePolicyError, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/engine_capabilities.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 9,
+    "text": "use whisper_core::engine_capabilities::{ Admission, Capability, CapabilityTarget, ConfigurationCapabilities, EngineProjection, EngineSnapshot, InferenceRequest, LanguageCapability, LanguageChoice, LanguageCode, Qualification, Refusal, RefusalCause, ResourceKind, ResourceObservation, ResourceRequirement, Support, project as project_at_generation, project_with_existing_recognized, validate as validate_at_generation, validate_with_existing_recognized, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/engine_capabilities.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 10,
+    "end": 12,
+    "text": "use whisper_core::model_catalog::{ Backend, ConfigurationKey, ModelAvailability, ModelDefinition, ModelId, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/gpu_inventory.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 6,
+    "text": "use whisper_core::gpu_inventory::{ Coverage, GpuAvailability, GpuCatalogueCoverage, GpuCause, GpuDevice, GpuIdentityMatch, GpuInventory, GpuObservation, GpuPresence, GpuQualifiedObservation, GpuRankSource, GpuState, GpuSupport, GpuWindowsRank, normalize, qualify, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/gpu_inventory.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 7,
+    "end": 10,
+    "text": "use whisper_core::gpu_inventory_app::{ GpuCollection, GpuInventoryApp, GpuInventoryPort, GpuInventoryState, GpuQualifiedCollection, GpuQualifiedInventoryState, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/gpu_selection.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 12,
+    "text": "use whisper_core::{ domain::ComputeChoice, gpu_inventory::{ GpuAvailability, GpuCatalogueCoverage, GpuIdentityMatch, GpuObservation, GpuPresence, GpuQualifiedObservation, GpuRankSource, GpuState, GpuSupport, GpuWindowsRank, qualify, }, gpu_inventory_app::GpuQualifiedInventoryState, gpu_selection::{ AttestedBackend, EffectiveEngine, GpuSelectionEvent, SelectionReason, SelectionResolution, SessionCandidate, attest, attestation_event, candidate_event, resolve, }, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/import_contract.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 7,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportEffect, ImportEvent, ImportIoPort, ImportRequest, JobConfig, JobId, JobState, LanguageChoice, SegmentId, SourceRange, ports::{PortError, WorkerSegment}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/live_contract.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 6,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, DiagnosticNotice, DiagnosticPhase, Generation, ImportApplication, ImportEffect, ImportEvent, JobConfig, JobId, LanguageChoice, LiveRequest, ports::{ImportIoPort, PortError}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/live_contract.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 113,
+    "end": 113,
+    "text": "use whisper_core::ports::{ArchiveHistoryItem, LiveRecoveryInfo};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/microphone_level.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_core::microphone::MicrophoneChoice;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/microphone_level.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 5,
+    "text": "use whisper_core::microphone_level::{ GainDb, LevelMeasurement, MeasurementStatus, MicrophoneAcquisitionContext, MicrophoneIdentity, MicrophoneSpectrum, MicrophoneSpectrumUpdate, SelectionContext, SelectionRevision, SpectrumBin, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/microphone_level.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 14,
+    "end": 14,
+    "text": "use whisper_core::{Generation, JobId};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/microphone_level.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 85,
+    "end": 85,
+    "text": "use whisper_core::{Generation, JobId};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/microphone_level.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 205,
+    "end": 205,
+    "text": "use whisper_core::microphone::{MicrophoneChoice, MicrophoneDevice, MicrophoneSettings};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/model_catalog.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 7,
+    "text": "use whisper_core::engine_capabilities::{ Admission, Capability, ConfigurationCapabilities, EngineProjection, EngineSnapshot, InferenceRequest, LanguageChoice, Refusal, RefusalCause, project as project_at_generation, validate as validate_at_generation, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/model_catalog.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 8,
+    "end": 10,
+    "text": "use whisper_core::model_catalog::{ Backend, ConfigurationKey, ModelAvailability, ModelDefinition, ModelId, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/model_preferences.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 8,
+    "text": "use whisper_core::{ model_catalog::ModelId, path_settings::{ LegacyModelPath, ModelPreferenceAcknowledgement, ModelPreferencePort, ModelPreferenceSaveStatus, ModelPreferenceSnapshot, ModelPreferencesApp, StartupComputePreference, }, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/model_selection_app.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 9,
+    "text": "use whisper_core::{ engine_capabilities::{LanguageChoice, LanguageCode}, model_catalog::{Backend, ModelAvailability, ModelId}, model_registry::TURBO_LANGUAGE_INPUTS, model_selection_app::{ ComputePreference, InferencePath, ModelCommandGuard, ModelSelectionApp, SelectionIntent, SelectionRefusal, is_known_historical_path, }, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/model_selection_app.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 65,
+    "end": 69,
+    "text": "use whisper_core::{ domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice as RequestLanguage}, model_registry::model, ports::{ImportRequest, LiveRequest}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/model_selection_app.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 148,
+    "end": 150,
+    "text": "use whisper_core::engine_capabilities::{ Capability, LanguageCapability, LanguageCode, Qualification, Support, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/model_selection_app.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 372,
+    "end": 376,
+    "text": "use whisper_core::{ domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice as RequestLanguage}, model_registry::model, ports::{ImportRequest, LiveRequest}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/parakeet_import_contract.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 8,
+    "text": "use whisper_core::{ domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice}, engine_capabilities::{Capability, LanguageCapability, LanguageCode}, model_catalog::{Backend, ModelAvailability, ModelId}, model_registry::{engine_snapshot, model, personal_configuration_key}, model_selection_app::{InferencePath, ModelCommandGuard}, ports::{ImportRequest, LiveRequest}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/parakeet_ipc.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 5,
+    "text": "use whisper_core::parakeet_ipc::{ Command, Envelope, Event, ExpectedGpu, GpuEvidence, PARAKEET_IPC_VERSION, PARAKEET_MAX_AUDIO_SAMPLES, PARAKEET_MAX_FRAME_BYTES, PARAKEET_PROFILE_IMPORT_SINGLE_PASS, Word, WorkerIdentity, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/parakeet_windows.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_core::parakeet_ipc::Word;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/parakeet_windows.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 6,
+    "text": "use whisper_core::parakeet_windows::{ AbsoluteWordSamples, FRAME_SAMPLES, MARGIN_SAMPLES, MAX_NATIVE_SAMPLES, MAX_REFERENCE_SAMPLES, SAMPLE_RATE, Silence, TimingError, Window, WindowError, absolute_word_samples, admissible_silences, plan_windows, word_belongs_to_central_range, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/tests/scheduler_contract.rs",
+    "crate": "whisper-core",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 6,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportEffect, ImportEvent, ImportIoPort, ImportRequest, JobConfig, JobId, LanguageChoice, ports::{ImportQueueEntry, ImportQueueStatus, PortError}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-adapters",
+    "line": 6,
+    "end": 6,
+    "text": "use whisper_adapters::model_catalog::CatalogSnapshot;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-adapters",
+    "line": 7,
+    "end": 14,
+    "text": "use whisper_adapters::{ gpu_inventory::WindowsGpuInventoryPort, model_catalog::LocalModelCatalog, path_settings::WindowsModelPreferencePort, path_settings::WindowsPathPort, supervisor::WorkerPaths, worker_ipc::{AsyncImportIo, probe_cuda_worker}, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 15,
+    "end": 15,
+    "text": "use whisper_core::gpu_inventory_app::GpuInventoryApp;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 16,
+    "end": 16,
+    "text": "use whisper_core::model_selection_app::ModelCommandGuard;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 17,
+    "end": 19,
+    "text": "use whisper_core::path_settings::{ ModelPreferenceSaveStatus, ModelPreferencesApp, StartupComputePreference, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 20,
+    "end": 20,
+    "text": "use whisper_core::path_settings::{PathDefaults, PathSettingsApp};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 21,
+    "end": 26,
+    "text": "use whisper_core::{ AppCommand, AppView, Application, ApplicationError, ComputeChoice, ImportApplication, ImportIoPort, model_catalog::{ModelAvailability, ModelId}, model_registry, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-desktop",
+    "line": 27,
+    "end": 30,
+    "text": "use whisper_desktop::ui::{ ModelPreferenceCommand, ModelPreferenceEvent, ModelSelectionRuntime, model_preference_command_channel, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 408,
+    "end": 408,
+    "text": "use whisper_core::model_catalog::{Backend, ModelId};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 517,
+    "end": 517,
+    "text": "use whisper_core::model_catalog::ModelId;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 784,
+    "end": 784,
+    "text": "use whisper_core::ports::{ImportEvent, PortError};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 785,
+    "end": 788,
+    "text": "use whisper_core::{ AppCommand, Application, ComputeChoice, Generation, ImportEffect, ImportRequest, JobConfig, JobId, LanguageChoice, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/root.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-adapters",
+    "line": 1146,
+    "end": 1146,
+    "text": "use whisper_adapters::parakeet_import::ParakeetWorkerPaths;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/view/microphone.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 9,
+    "end": 9,
+    "text": "use whisper_core::microphone_level::SpectrumBin;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-adapters",
+    "line": 9,
+    "end": 9,
+    "text": "use whisper_adapters::model_catalog::CatalogSnapshot;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 10,
+    "end": 10,
+    "text": "use whisper_core::engine_capabilities::EngineProjection;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 11,
+    "end": 11,
+    "text": "use whisper_core::gpu_inventory_app::{GpuInventoryApp, GpuInventoryState};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 12,
+    "end": 12,
+    "text": "use whisper_core::gpu_selection::{SelectionResolution, SessionCandidate};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 13,
+    "end": 13,
+    "text": "use whisper_core::model_catalog::ModelId;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 14,
+    "end": 14,
+    "text": "use whisper_core::model_selection_app::ModelSelectionApp;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 15,
+    "end": 15,
+    "text": "use whisper_core::path_settings::{PathDefaults, PathField, PathSettingsApp};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 16,
+    "end": 16,
+    "text": "use whisper_core::ports::DuplicateImportChoice;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 17,
+    "end": 21,
+    "text": "use whisper_core::{ AppCommand, AppFacade, AppView, Application, ApplicationError, ComputeChoice, Generation, ImportRequest, JobConfig, JobId, JobState, LiveRequest, MicrophoneChoice, MicrophonePort, MicrophoneSettings, NullMicrophonePort, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation/gpu.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 15,
+    "end": 15,
+    "text": "use whisper_core::gpu_inventory::GpuCatalogueCoverage;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation/gpu.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 130,
+    "end": 130,
+    "text": "use whisper_core::gpu_inventory::{GpuAvailability, GpuIdentityMatch, GpuState, GpuSupport};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation/gpu.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 180,
+    "end": 182,
+    "text": "use whisper_core::gpu_inventory::{ GpuAvailability as Availability, GpuIdentityMatch, GpuState, GpuSupport as Support, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation/language.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 16,
+    "end": 16,
+    "text": "use whisper_core::engine_capabilities::{LanguageOption, RefusalCause};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation/microphone.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 49,
+    "end": 49,
+    "text": "use whisper_core::microphone_level::MeasurementStatus;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation/selection.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 94,
+    "end": 94,
+    "text": "use whisper_core::ports::UnifiedSessionPhase as Phase;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-adapters",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_adapters::model_catalog::CatalogSnapshot;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 4,
+    "end": 4,
+    "text": "use whisper_core::engine_capabilities::EngineProjection;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 5,
+    "end": 5,
+    "text": "use whisper_core::gpu_inventory::GpuQualifiedDevice;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 6,
+    "end": 6,
+    "text": "use whisper_core::gpu_inventory_app::{GpuInventoryState, GpuQualifiedInventoryState};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 7,
+    "end": 7,
+    "text": "use whisper_core::gpu_selection::{SelectionResolution, SessionCandidate};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 8,
+    "end": 8,
+    "text": "use whisper_core::model_catalog::{Backend, ModelId};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 9,
+    "end": 9,
+    "text": "use whisper_core::model_registry::TURBO_LANGUAGE_INPUTS;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 10,
+    "end": 10,
+    "text": "use whisper_core::path_settings::SaveStatus;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 11,
+    "end": 14,
+    "text": "use whisper_core::{ AppCommand, AppView, ComputeChoice, Generation, JobId, JobState, LanguageChoice, MicrophoneChoice, MicrophoneDevice, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/support.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 19,
+    "end": 19,
+    "text": "use whisper_core::gpu_inventory::{GpuObservation, GpuPresence, GpuState};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/support.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 20,
+    "end": 22,
+    "text": "use whisper_core::gpu_inventory_app::{ GpuCollection, GpuInventoryApp, GpuInventoryPort, GpuInventoryState, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/support.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 23,
+    "end": 27,
+    "text": "use whisper_core::{ AppCommand, AppView, Application, ApplicationError, ComputeChoice, Generation, ImportEffect, ImportRequest, JobConfig, JobId, LanguageChoice, MicrophoneChoice, MicrophoneDevice, MicrophonePort, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/support.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 220,
+    "end": 220,
+    "text": "use whisper_core::ports::ImportEvent;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/support.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-adapters",
+    "line": 343,
+    "end": 346,
+    "text": "use whisper_adapters::{ capture::ProbeAudioBlock, microphone_probe::{MicrophoneProbe, MicrophoneSpectrumReader}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/support.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 347,
+    "end": 347,
+    "text": "use whisper_core::microphone_level::GainRevision;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/unified_sessions.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 86,
+    "end": 86,
+    "text": "use whisper_core::ports::{UnifiedParakeetSessionView, UnifiedSessionPhase as Phase};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/unified_sessions.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 176,
+    "end": 176,
+    "text": "use whisper_core::ports::{UnifiedParakeetSessionView, UnifiedSessionPhase as Phase};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/unified_sessions.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 369,
+    "end": 373,
+    "text": "use whisper_core::{ ImportApplication, JobState, application::{DirectCapturePhase, DirectEnginePhase}, ports::{ImportEvent, ImportIoPort, PortError}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/unified_sessions.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 516,
+    "end": 519,
+    "text": "use whisper_core::{ JobState, application::{DirectCapturePhase as Capture, DirectEnginePhase as Engine}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/unified_sessions.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 562,
+    "end": 565,
+    "text": "use whisper_core::ports::{ UnifiedAudioPartPage, UnifiedParakeetSelectionView, UnifiedParakeetSessionView, UnifiedSessionPhase, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/tests/unified_sessions.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 692,
+    "end": 695,
+    "text": "use whisper_core::ports::{ UnifiedAudioPart, UnifiedAudioPartPage, UnifiedParakeetSelectionView, UnifiedParakeetSessionView, UnifiedSessionPhase, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/gpu_inventory_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 5,
+    "text": "use whisper_core::gpu_inventory::{ Coverage, GpuAvailability, GpuCatalogueCoverage, GpuDevice, GpuIdentityMatch, GpuInventory, GpuQualifiedCatalogue, GpuQualifiedDevice, GpuRankSource, GpuState, GpuSupport, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/gpu_inventory_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 6,
+    "end": 6,
+    "text": "use whisper_core::gpu_inventory_app::{GpuInventoryState, GpuQualifiedInventoryState};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/gpu_inventory_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-desktop",
+    "line": 7,
+    "end": 7,
+    "text": "use whisper_desktop::ui::{gpu_inventory_status, gpu_qualified_presentation, gpu_qualified_status};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/gpu_selection_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 8,
+    "text": "use whisper_core::{ gpu_inventory::{ GpuAvailability, GpuDevice, GpuIdentityMatch, GpuQualifiedDevice, GpuState, GpuSupport, }, gpu_selection::{GpuCandidate, SelectionReason, SelectionResolution, SessionCandidate}, path_settings::SaveStatus, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/gpu_selection_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-desktop",
+    "line": 9,
+    "end": 12,
+    "text": "use whisper_desktop::ui::{ gpu_preference_combo, gpu_preference_labels, gpu_preference_options, gpu_preference_selectable, gpu_selection_resolution_label, path_save_status_label, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/microphone_level_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_core::{Generation, JobId, MicrophoneDevice, microphone_level::MeterLevel};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/microphone_level_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-desktop",
+    "line": 2,
+    "end": 4,
+    "text": "use whisper_desktop::ui::{ MicrophoneMeterPresentation, microphone_meter_presentation, microphone_source_change_notice, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/model_selection_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 8,
+    "text": "use whisper_core::{ ComputeChoice, engine_capabilities::ResourceObservation, model_catalog::{Backend, ModelAvailability, ModelId}, model_registry, path_settings::StartupComputePreference, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/model_selection_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-desktop",
+    "line": 9,
+    "end": 15,
+    "text": "use whisper_desktop::ui::{ ModelPreferenceCommand, ModelPreferenceEvent, PreferenceChannelError, SelectionWidgetState, apply_initial_model, apply_preference_event, apply_startup_preference, compute_for_model, language_choices_for_compute, language_option_labels, language_selection_combo, model_preference_command_channel, model_selection_combo, model_supports_live, record_compute_selection_interaction, record_preference_delivery, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/model_selection_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 108,
+    "end": 108,
+    "text": "use whisper_core::engine_capabilities::RefusalCause;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/reprocessing_recovery_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_core::{Generation, JobId, ports::SourceSnapshotRecoveryCandidate};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/tests/reprocessing_recovery_ui.rs",
+    "crate": "whisper-desktop",
+    "dependency": "whisper-desktop",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_desktop::ui::source_snapshot_recovery_widget;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-common/src/decoder/tests.rs",
+    "crate": "whisper-worker-common",
+    "dependency": "whisper-core",
+    "line": 12,
+    "end": 15,
+    "text": "use whisper_core::{ Generation, JobId, SourceRange, ports::{DecodeRequest, SourceIdentity}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-common/src/decoder.rs",
+    "crate": "whisper-worker-common",
+    "dependency": "whisper-core",
+    "line": 11,
+    "end": 11,
+    "text": "use whisper_core::ports::DecodeRequest;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/decoder.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_core::ports::DecodeRequest;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/decoder.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-worker-common",
+    "line": 4,
+    "end": 4,
+    "text": "use whisper_worker_common::decoder::{MAX_WINDOW_SAMPLES, OUTPUT_RATE};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/diagnostics.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_core::ipc::{IpcEnvelope, WorkerErrorCode, WorkerEvent};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/encoder.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-worker-common",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_worker_common::encoder::LiveMp3Encoder;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/integrity.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-worker-common",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_worker_common::integrity::verify_sha256;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/ipc.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-worker-common",
+    "line": 5,
+    "end": 5,
+    "text": "use whisper_worker_common::ipc::MAX_FRAME_BYTES;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/native_engine.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-rs",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/session/mod.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-core",
+    "line": 19,
+    "end": 27,
+    "text": "use whisper_core::{ Generation, JobConfig, JobId, SegmentId, domain::{ComputeChoice, SourceRange}, ipc::{ BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent, WorkerSegmentDto, }, ports::{DecodeRequest, DecodedPcmBlock, PcmBlock, WorkerSegment}, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/startup.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-core",
+    "line": 15,
+    "end": 15,
+    "text": "use whisper_core::ipc::{IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/worker/tests.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_core::ipc::IpcEnvelope;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/worker.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_core::ipc::{IPC_PROTOCOL_VERSION, WorkerCommand};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/tests/live_worker.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-core",
+    "line": 5,
+    "end": 8,
+    "text": "use whisper_core::{ ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, ipc::{IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/tests/reusable_imports.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-core",
+    "line": 15,
+    "end": 18,
+    "text": "use whisper_core::{ ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, ipc::{BackendKind, IpcEnvelope, WorkerCommand, WorkerEvent}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/tests/worker_contract.rs",
+    "crate": "whisper-worker-cpu",
+    "dependency": "whisper-core",
+    "line": 10,
+    "end": 13,
+    "text": "use whisper_core::{ ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, SourceRange, ipc::{IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/decoder.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_core::ports::DecodeRequest;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/decoder.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-worker-common",
+    "line": 4,
+    "end": 4,
+    "text": "use whisper_worker_common::decoder::{MAX_WINDOW_SAMPLES, OUTPUT_RATE};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/diagnostics.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_core::ipc::{IpcEnvelope, WorkerErrorCode, WorkerEvent};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/encoder.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-worker-common",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_worker_common::encoder::LiveMp3Encoder;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/engine_cache/tests.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_core::gpu_inventory::GpuRuntimeIdentity;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/gpu_attestation.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_core::gpu_inventory::GpuRuntimeIdentity;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/gpu_commands.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 5,
+    "end": 5,
+    "text": "use whisper_core::ipc::{IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/gpu_qualification.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_core::ipc::{GpuQualificationResult, GpuQualificationTarget};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/integrity.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-worker-common",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_worker_common::integrity::verify_sha256;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/ipc.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-worker-common",
+    "line": 5,
+    "end": 5,
+    "text": "use whisper_worker_common::ipc::MAX_FRAME_BYTES;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/native_engine.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-rs",
+    "line": 1,
+    "end": 1,
+    "text": "use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/native_ffi.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-rs",
+    "line": 238,
+    "end": 238,
+    "text": "use whisper_rs::whisper_rs_sys as sys;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/native_ffi.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-rs",
+    "line": 287,
+    "end": 287,
+    "text": "use whisper_rs::whisper_rs_sys as sys;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/native_ffi.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-rs",
+    "line": 444,
+    "end": 444,
+    "text": "use whisper_rs::whisper_rs_sys as sys;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/session/mod.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 20,
+    "end": 29,
+    "text": "use whisper_core::{ Generation, JobConfig, JobId, SegmentId, domain::{ComputeChoice, SourceRange}, gpu_inventory::GpuRuntimeIdentity, ipc::{ BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent, WorkerSegmentDto, }, ports::{DecodeRequest, DecodedPcmBlock, PcmBlock, WorkerSegment}, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/startup.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 12,
+    "end": 12,
+    "text": "use whisper_core::ipc::{IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/worker/tests.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_core::ipc::IpcEnvelope;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/worker.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_core::ipc::{IPC_PROTOCOL_VERSION, WorkerCommand};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/tests/gpu_selection_native.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 5,
+    "end": 5,
+    "text": "use whisper_core::ipc::{IpcEnvelope, WorkerCommand, WorkerEvent};",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/tests/worker_contract.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 10,
+    "end": 13,
+    "text": "use whisper_core::{ ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, SourceRange, ipc::{IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/tests/worker_contract.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 67,
+    "end": 67,
+    "text": "use whisper_core::gpu_inventory::GpuRuntimeIdentity;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/tests/worker_contract.rs",
+    "crate": "whisper-worker-gpu",
+    "dependency": "whisper-core",
+    "line": 300,
+    "end": 303,
+    "text": "use whisper_core::{ ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, ipc::{BackendKind, IpcEnvelope, WorkerCommand, WorkerEvent}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/args.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/args.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_core::parakeet_windows::{PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/decode_only.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 7,
+    "end": 7,
+    "text": "use whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/gpu_identity.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 6,
+    "end": 6,
+    "text": "use whisper_core::parakeet_ipc::{ExpectedGpu, GpuEvidence};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/ipc.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 2,
+    "end": 2,
+    "text": "use whisper_core::parakeet_ipc::{Envelope, Event, PARAKEET_MAX_FRAME_BYTES, WorkerIdentity};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/native_engine.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 3,
+    "end": 3,
+    "text": "use whisper_core::parakeet_ipc::Word;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/runtime_paths/tests.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 12,
+    "end": 12,
+    "text": "use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 5,
+    "end": 5,
+    "text": "use whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/session.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 9,
+    "end": 11,
+    "text": "use whisper_core::parakeet_ipc::{ Command, Envelope, Event, ExpectedGpu, PARAKEET_IPC_VERSION, WorkerIdentity, };",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/startup.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 12,
+    "end": 12,
+    "text": "use whisper_core::parakeet_ipc::{Event, WorkerIdentity};",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/transcription.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 9,
+    "end": 9,
+    "text": "use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/tests/decoder_parity.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 11,
+    "end": 16,
+    "text": "use whisper_core::{ Generation, JobId, SourceRange, ipc::{IpcEnvelope, WorkerCommand, WorkerEvent}, parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES, ports::{DecodeRequest, SourceIdentity}, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 11,
+    "end": 14,
+    "text": "use whisper_core::parakeet_ipc::{ Command as WorkerCommand, Envelope, Event, ExpectedGpu, GpuEvidence, PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/tests/native_import.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 16,
+    "end": 19,
+    "text": "use whisper_core::parakeet_ipc::{ Command as WorkerCommand, Envelope, Event, ExpectedGpu, GpuEvidence, PARAKEET_IPC_VERSION, PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity, };",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/tests/native_import.rs",
+    "crate": "whisper-worker-parakeet-cpu",
+    "dependency": "whisper-core",
+    "line": 20,
+    "end": 20,
+    "text": "use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;",
+    "test": true
+  }
+]

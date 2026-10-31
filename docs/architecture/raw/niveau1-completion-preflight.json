@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-31T22:20:08.1351086+01:00",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "source_test_diff": [],
+  "guard_sha256": "0f8f692456aba2c9884f080cd38f1a5e0be1c5cb0ac2f85d7f4f82685f009323",
+  "model_destination": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\l1b\\models\\ggml-large-v3-turbo.bin",
+  "model_sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+  "reused_d2_run": "20261031T215801649-2f4a5577",
+  "reused_d2_cases": 16,
+  "authorized_skip": "direct_live::d2_corpus::d2_corpus_real_cpu_turbo_and_parakeet",
+  "free_gib": 183.97,
+  "test_environment": {
+    "WHISPER_L1B_RUNTIME_ROOT": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\l1b",
+    "WHISPER_MIC_LEVEL_D2_ROOT": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\d2-native",
+    "WHISPER_MIC_LEVEL_D2_ENGINE": "parakeet-cpu",
+    "PARAKEET_L2_ARCHIVE_ROOT": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\l2-archive",
+    "PARAKEET_RTC02_EXEC_ROOT": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\rtc02",
+    "WHISPER_PU_L1_MP3_FIXTURE": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\retry-eight\\fixtures\\pu-l1-input.mp3"
+  },
+  "cargo_config_overrides": [
+    "env.LOCALAPPDATA.value='C:/dev/whisper/target/parakeet-tests/refacto-parakeet-live/niveau1-88850e8/retry-20261031T215723/localappdata'",
+    "env.LOCALAPPDATA.force=true"
+  ]
+}

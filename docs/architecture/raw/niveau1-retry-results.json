@@ -1,0 +1,54 @@
+{
+  "status": "FAILED_ENVIRONMENT_PRECONDITION",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "cargo_exit_code": 101,
+  "seconds": 1079,
+  "command": [
+    "test",
+    "--offline",
+    "--locked",
+    "--workspace",
+    "--config",
+    "env.LOCALAPPDATA.value='C:/dev/whisper/target/parakeet-tests/refacto-parakeet-live/niveau1-88850e8/retry-20261031T215723/localappdata'",
+    "--config",
+    "env.LOCALAPPDATA.force=true",
+    "--",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "suite_summaries": [
+    [
+      "FAILED",
+      "306",
+      "1",
+      "16",
+      "0",
+      "0",
+      "1077.26"
+    ]
+  ],
+  "passed": 306,
+  "failed": 1,
+  "ignored": 16,
+  "filtered_out": 0,
+  "scope": "Premier binaire whisper-adapters uniquement ; Cargo a termine normalement avec 101 et n’a pas poursuivi le reste du workspace.",
+  "failed_test": "worker_ipc::tests::resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution",
+  "failure_source": "crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs:1180",
+  "failure_message": "fs::hard_link source absent, OS code 3 NotFound",
+  "missing_prerequisite": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\l1b\\models\\ggml-large-v3-turbo.bin",
+  "model_exists": false,
+  "accepted_audio_exists": true,
+  "classification": "[Déduction] ENVIRONMENT : le modele n’est pas copie sous WHISPER_L1B_RUNTIME_ROOT/models ; le test echoue avant ses assertions de reprise. La ressource est presente et verifiee dans le LOCALAPPDATA de test.",
+  "d2_test_passed": true,
+  "d2_completed_cases": 16,
+  "d2_all_frames_equal": true,
+  "d2_has_campaign_complete": true,
+  "no_source_or_test_modification": true,
+  "guard_unchanged": true,
+  "not_run_messages": [
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_EN_WAV, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR"
+  ],
+  "next_step": "Copier le modele approuve sous l1b/models puis relancer apres arbitrage exige par AGENTS.md ; aucun test ni garde a modifier.",
+  "no_retry_after_failure": true
+}

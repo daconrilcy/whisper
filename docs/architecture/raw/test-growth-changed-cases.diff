@@ -1,0 +1,1885 @@
+--- crates/whisper-adapters/src/archive.rs:7973
++++ crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs:4
+@@ -3,7 +3,7 @@
+     fn recette_policy_l04_requires_the_feature() {
+         assert_eq!(option_env!("WHISPER_L04_CAMPAIGN_BUILD"), Some("1"));
+         assert!(std::env::var_os("WHISPER_L04_CAMPAIGN_RUN").is_some());
+-        let result = l04_campaign_gate("not-a-campaign-hook", 1, 1, 0);
++        let result = campaign_gate("not-a-campaign-hook", 1, 1, 0);
+         #[cfg(feature = "recette-hooks")]
+         assert!(result.unwrap_err().starts_with("CampaignGuard:"));
+         #[cfg(not(feature = "recette-hooks"))]
+--- crates/whisper-adapters/src/archive.rs:8659
++++ crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs:690
+@@ -15,7 +15,7 @@
+         lock.try_lock().unwrap();
+         fs::write(archive.join("passage-1.pcm"), b"durable pcm").unwrap();
+ 
+-        let snapshot = l04_campaign_snapshot(&root).unwrap();
++        let snapshot = campaign_archive_snapshot(&root).unwrap();
+         assert_eq!(snapshot.len(), 1);
+         assert_eq!(snapshot[0]["path"], "passage-1.pcm");
+         assert_eq!(snapshot[0]["bytes"], 11);
+--- crates/whisper-adapters/src/archive.rs:9532
++++ crates/whisper-adapters/src/archive/tests/campaign.rs:1
+@@ -2,18 +2,18 @@
+     #[test]
+     fn l04_campaign_gate_rejects_escape_and_duplicate_trigger() {
+         if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {
+-            assert!(l04_campaign_gate("coverage.after_sync", 1, 1, 0).is_ok());
++            assert!(campaign_gate("coverage.after_sync", 1, 1, 0).is_ok());
+             return;
+         }
+         if let Ok(mode) = std::env::var("WHISPER_L04_GATE_TEST_CHILD") {
+             if mode == "outside" {
+                 assert!(
+-                    l04_campaign_gate("coverage.after_sync", 1, 1, 0)
++                    campaign_gate("coverage.after_sync", 1, 1, 0)
+                         .unwrap_err()
+                         .contains("direct child")
+                 );
+             } else if mode == "zero" {
+-                assert!(l04_campaign_gate("recovery.before_scan_live", 1, 0, 0).is_ok());
++                assert!(campaign_gate("recovery.before_scan_live", 1, 0, 0).is_ok());
+             } else {
+                 let control_path = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
+                     .map(PathBuf::from)
+@@ -21,15 +21,15 @@
+                     .join("run.json");
+                 let original_control = fs::read(&control_path).unwrap();
+                 let archive = control_path.parent().unwrap().join("archive");
+-                assert!(l04_campaign_assert_archive(&archive).is_ok());
+-                assert!(l04_campaign_assert_archive(control_path.parent().unwrap()).is_err());
++                assert!(assert_campaign_archive(&archive).is_ok());
++                assert!(assert_campaign_archive(control_path.parent().unwrap()).is_err());
+                 fs::write(
+                     &control_path,
+                     br#"{"schema":"whisper-l04-fault/1","hook":"coverage.after_sync","job_id":"1","generation":1,"instance_id":0,"binary":{"sha256":"invalid"}}"#,
+                 )
+                 .unwrap();
+                 assert!(
+-                    l04_campaign_gate("coverage.before_record", 1, 1, 0)
++                    campaign_gate("coverage.before_record", 1, 1, 0)
+                         .unwrap_err()
+                         .contains("missing trigger count")
+                 );
+@@ -39,20 +39,20 @@
+                 )
+                 .unwrap();
+                 assert!(
+-                    l04_campaign_gate("coverage.before_record", 1, 1, 0)
++                    campaign_gate("coverage.before_record", 1, 1, 0)
+                         .unwrap_err()
+                         .contains("binary hash mismatch")
+                 );
+                 fs::write(&control_path, original_control).unwrap();
+-                assert!(l04_campaign_gate("coverage.before_record", 1, 1, 0).is_ok());
+-                assert!(l04_campaign_gate("coverage.after_sync", 1, 1, 0).is_ok());
++                assert!(campaign_gate("coverage.before_record", 1, 1, 0).is_ok());
++                assert!(campaign_gate("coverage.after_sync", 1, 1, 0).is_ok());
+                 assert!(
+-                    l04_campaign_gate("coverage.after_sync", 1, 1, 0)
++                    campaign_gate("coverage.after_sync", 1, 1, 0)
+                         .unwrap_err()
+                         .contains("duplicate trigger")
+                 );
+                 assert!(
+-                    l04_campaign_gate("coverage.after_sync", 2, 1, 0)
++                    campaign_gate("coverage.after_sync", 2, 1, 0)
+                         .unwrap_err()
+                         .contains("identity mismatch")
+                 );
+@@ -65,7 +65,7 @@
+                 )
+                 .unwrap();
+                 assert!(
+-                    l04_campaign_gate("coverage.after_sync", 1, 1, 0)
++                    campaign_gate("coverage.after_sync", 1, 1, 0)
+                         .unwrap_err()
+                         .contains("unknown hook")
+                 );
+--- crates/whisper-adapters/src/archive.rs:8686
++++ crates/whisper-adapters/src/archive/tests/recovery.rs:1
+@@ -255,12 +255,14 @@
+         ArchiveStore::reconfirm_interrupted_publication(
+             &root,
+             &previous,
+-            &intent.source_sha256,
+-            intent.source_samples,
+-            &prior_publications,
+-            DuplicateImportChoice::Replace,
+-            "r7-audio",
+-            &new_basename,
++            PublicationReconfirmation {
++                source_sha256: &intent.source_sha256,
++                source_samples: intent.source_samples,
++                expected_active: &prior_publications,
++                choice: DuplicateImportChoice::Replace,
++                reserved_basename: "r7-audio",
++                confirmed_basename: &new_basename,
++            },
+         )
+         .unwrap();
+         let confirmed_intent: PublicationIntent = serde_json::from_slice(
+--- crates/whisper-adapters/src/capture.rs:821
++++ crates/whisper-adapters/src/capture.rs:839
+@@ -22,12 +22,14 @@
+                 &data,
+                 |sample| sample,
+                 2,
+-                4,
+-                &mut free_rx,
+-                &mut captured_tx,
+-                &status,
+-                &gain_state,
+-                &next_frame,
++                CaptureCallbackState {
++                    capacity: 4,
++                    free: &mut free_rx,
++                    ready: &mut captured_tx,
++                    status: &status,
++                    gain_state: &gain_state,
++                    next_frame: &next_frame,
++                },
+             );
+             let block = captured_rx
+                 .pop()
+--- crates/whisper-adapters/src/capture.rs:863
++++ crates/whisper-adapters/src/capture.rs:883
+@@ -18,12 +18,14 @@
+             &[0.0f32; 3],
+             |sample| sample,
+             2,
+-            4,
+-            &mut free_rx,
+-            &mut captured_tx,
+-            &status,
+-            &gain_state,
+-            &next_frame,
++            CaptureCallbackState {
++                capacity: 4,
++                free: &mut free_rx,
++                ready: &mut captured_tx,
++                status: &status,
++                gain_state: &gain_state,
++                next_frame: &next_frame,
++            },
+         );
+ 
+         assert_ne!(status.flags.load(Ordering::Acquire) & CAPTURE_FAILED, 0);
+--- crates/whisper-adapters/src/capture.rs:894
++++ crates/whisper-adapters/src/capture.rs:916
+@@ -20,12 +20,14 @@
+             &[0.1_f32; 4],
+             |sample| sample,
+             2,
+-            4,
+-            &mut free_rx,
+-            &mut captured_tx,
+-            &status,
+-            &gain_state,
+-            &next_frame,
++            CaptureCallbackState {
++                capacity: 4,
++                free: &mut free_rx,
++                ready: &mut captured_tx,
++                status: &status,
++                gain_state: &gain_state,
++                next_frame: &next_frame,
++            },
+         );
+         let first = captured_rx.pop().unwrap();
+         assert_eq!(first.first_frame, 0);
+@@ -42,12 +44,14 @@
+             &[0.2_f32; 4],
+             |sample| sample,
+             2,
+-            4,
+-            &mut free_rx,
+-            &mut captured_tx,
+-            &status,
+-            &gain_state,
+-            &next_frame,
++            CaptureCallbackState {
++                capacity: 4,
++                free: &mut free_rx,
++                ready: &mut captured_tx,
++                status: &status,
++                gain_state: &gain_state,
++                next_frame: &next_frame,
++            },
+         );
+         let second = captured_rx.pop().unwrap();
+         assert_eq!(second.first_frame, 2);
+--- crates/whisper-adapters/src/capture.rs:951
++++ crates/whisper-adapters/src/capture.rs:977
+@@ -29,12 +29,14 @@
+                 sample
+             },
+             2,
+-            4,
+-            &mut free_rx,
+-            &mut captured_tx,
+-            &status,
+-            &gain_state,
+-            &next_frame,
++            CaptureCallbackState {
++                capacity: 4,
++                free: &mut free_rx,
++                ready: &mut captured_tx,
++                status: &status,
++                gain_state: &gain_state,
++                next_frame: &next_frame,
++            },
+         );
+         let first = captured_rx.pop().unwrap();
+         assert_eq!(first.gain, GainRevision::neutral());
+@@ -43,12 +45,14 @@
+             &[0.2_f32; 4],
+             |sample| sample,
+             2,
+-            4,
+-            &mut free_rx,
+-            &mut captured_tx,
+-            &status,
+-            &gain_state,
+-            &next_frame,
++            CaptureCallbackState {
++                capacity: 4,
++                free: &mut free_rx,
++                ready: &mut captured_tx,
++                status: &status,
++                gain_state: &gain_state,
++                next_frame: &next_frame,
++            },
+         );
+         assert_eq!(captured_rx.pop().unwrap().gain, changed);
+     }
+--- crates/whisper-adapters/src/direct_live.rs:2693
++++ crates/whisper-adapters/src/direct_live/d2_corpus.rs:142
+@@ -1,145 +1,141 @@
+-    #[test]
+-    fn d2_corpus_real_cpu_turbo_and_parakeet() {
+-        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+-        let root =
+-            PathBuf::from(std::env::var_os("WHISPER_MIC_LEVEL_D2_ROOT").expect("guarded D2 root"));
+-        fs::create_dir_all(&root).unwrap();
+-        let checkpoint = root.join("checkpoint.jsonl");
+-        let engine_filter =
+-            std::env::var("WHISPER_MIC_LEVEL_D2_ENGINE").expect("guarded D2 engine filter");
+-        assert_eq!(engine_filter, "parakeet-cpu", "D2 replay is Parakeet-only");
+-        record(
+-            &checkpoint,
+-            serde_json::json!({"event":"campaign-start","engine_filter":engine_filter,"cases":16,"timeout_seconds":1162}),
+-        );
+-        assert!(
+-            std::env::var_os("CUDA_CACHE_PATH").is_none(),
+-            "CPU D2 must not redirect CUDA cache"
+-        );
+-        let local = PathBuf::from(std::env::var_os("LOCALAPPDATA").expect("LOCALAPPDATA"));
+-        let turbo_worker = local.join("Whisper/app/whisper-worker-cpu.exe");
+-        let turbo_model = local.join("Whisper/models/ggml-large-v3-turbo.bin");
+-        assert!(turbo_worker.is_file() && turbo_model.is_file());
+-        let parakeet = ParakeetWorkerPaths {
+-            executable: local.join("Whisper/worker/whisper-worker-parakeet-cpu.exe"),
+-            native_dir: local.join("Whisper/native/cpu"),
+-            model: local.join("Whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf"),
+-            runtime_root: local.join("Whisper"),
+-        };
+-        parakeet.validate().expect("personal Parakeet CPU route");
+-        let engines = [
+-            ("turbo-cpu", turbo_model, ModelId::WhisperLargeV3Turbo),
+-            (
+-                "parakeet-cpu",
+-                parakeet.model.clone(),
+-                ModelId::ParakeetTdt06BV3,
+-            ),
+-        ];
+-        for (engine, model_path, model_id) in engines
+-            .into_iter()
+-            .filter(|(engine, _, _)| *engine == engine_filter.as_str())
+-        {
+-            for (corpus, wav_rel, ref_rel, wav_hash, ref_hash) in INPUTS {
+-                let input = repo.join(wav_rel);
+-                let reference_path = repo.join(ref_rel);
+-                assert_eq!(
+-                    hash(&input),
+-                    wav_hash,
+-                    "approved WAV hash changed: {corpus}"
++#[test]
++fn d2_corpus_real_cpu_turbo_and_parakeet() {
++    let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
++    let root =
++        PathBuf::from(std::env::var_os("WHISPER_MIC_LEVEL_D2_ROOT").expect("guarded D2 root"));
++    fs::create_dir_all(&root).unwrap();
++    let checkpoint = root.join("checkpoint.jsonl");
++    let engine_filter =
++        std::env::var("WHISPER_MIC_LEVEL_D2_ENGINE").expect("guarded D2 engine filter");
++    assert_eq!(engine_filter, "parakeet-cpu", "D2 replay is Parakeet-only");
++    record(
++        &checkpoint,
++        serde_json::json!({"event":"campaign-start","engine_filter":engine_filter,"cases":16,"timeout_seconds":1162}),
++    );
++    assert!(
++        std::env::var_os("CUDA_CACHE_PATH").is_none(),
++        "CPU D2 must not redirect CUDA cache"
++    );
++    let local = PathBuf::from(std::env::var_os("LOCALAPPDATA").expect("LOCALAPPDATA"));
++    let turbo_worker = local.join("Whisper/app/whisper-worker-cpu.exe");
++    let turbo_model = local.join("Whisper/models/ggml-large-v3-turbo.bin");
++    assert!(turbo_worker.is_file() && turbo_model.is_file());
++    let parakeet = ParakeetWorkerPaths {
++        executable: local.join("Whisper/worker/whisper-worker-parakeet-cpu.exe"),
++        native_dir: local.join("Whisper/native/cpu"),
++        model: local.join("Whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf"),
++        runtime_root: local.join("Whisper"),
++    };
++    parakeet.validate().expect("personal Parakeet CPU route");
++    let engines = [
++        ("turbo-cpu", turbo_model, ModelId::WhisperLargeV3Turbo),
++        (
++            "parakeet-cpu",
++            parakeet.model.clone(),
++            ModelId::ParakeetTdt06BV3,
++        ),
++    ];
++    for (engine, model_path, model_id) in engines
++        .into_iter()
++        .filter(|(engine, _, _)| *engine == engine_filter.as_str())
++    {
++        for (corpus, wav_rel, ref_rel, wav_hash, ref_hash) in INPUTS {
++            let input = repo.join(wav_rel);
++            let reference_path = repo.join(ref_rel);
++            assert_eq!(
++                hash(&input),
++                wav_hash,
++                "approved WAV hash changed: {corpus}"
++            );
++            assert_eq!(
++                hash(&reference_path),
++                ref_hash,
++                "approved reference hash changed: {corpus}"
++            );
++            let reference = fs::read_to_string(reference_path).unwrap();
++            let (rate, channels, samples) = read_wav16(&input);
++            assert_eq!(
++                (rate, channels),
++                (16_000, 1),
++                "approved corpus WAV format changed"
++            );
++            for (condition, initial, transition) in CONDITIONS {
++                let ordinal = CASE_ID.fetch_add(1, Ordering::Relaxed);
++                let case_root = root.join(format!("{ordinal:02}-{engine}-{corpus}-{condition}"));
++                fs::create_dir_all(&case_root).unwrap();
++                record(
++                    &checkpoint,
++                    serde_json::json!({"event":"case-start","ordinal":ordinal,"engine":engine,"corpus":corpus,"condition":condition,"input_frames":samples.len()}),
++                );
++                let req = LiveRequest {
++                    job_id: JobId(((std::process::id() as u128) << 64) | u128::from(ordinal)),
++                    generation: Generation::first(),
++                    model_path: model_path.to_string_lossy().into_owned(),
++                    model_sha256: decode_sha256(
++                        whisper_core::model_registry::model(model_id)
++                            .artifact
++                            .sha256,
++                    ),
++                    destination: case_root.to_string_lossy().into_owned(),
++                    group_offset_samples: 0,
++                    auto_stop_after_speech_samples: None,
++                    microphone: whisper_core::MicrophoneChoice::Device("d2:approved-wav".into()),
++                    microphone_gain_db: initial,
++                    config: JobConfig {
++                        language: LanguageChoice::Automatic,
++                        compute: ComputeChoice::Cpu,
++                    },
++                };
++                let capture = CaptureStream::empty_test_capture_with_gain(
++                    rate,
++                    channels,
++                    "d2:approved-wav",
++                    GainDb::new(initial).unwrap(),
++                );
++                let start = Instant::now();
++                let (wav, txt, srt, frames, transcript, gain_frames) = if engine == "turbo-cpu" {
++                    turbo_case(req, capture, &turbo_worker, &samples, transition)
++                } else {
++                    parakeet_case(req, capture, &parakeet, &samples, transition)
++                };
++                assert!(
++                    Path::new(&wav).is_file()
++                        && Path::new(&txt).is_file()
++                        && Path::new(&srt).is_file()
+                 );
+                 assert_eq!(
+-                    hash(&reference_path),
+-                    ref_hash,
+-                    "approved reference hash changed: {corpus}"
++                    frames,
++                    samples.len() as u64,
++                    "output frame continuity mismatch"
+                 );
+-                let reference = fs::read_to_string(reference_path).unwrap();
+-                let (rate, channels, samples) = read_wav16(&input);
+                 assert_eq!(
+-                    (rate, channels),
+-                    (16_000, 1),
+-                    "approved corpus WAV format changed"
++                    gain_frames.len(),
++                    if transition.is_some() { 2 } else { 1 },
++                    "gain application acknowledgements"
+                 );
+-                for (condition, initial, transition) in CONDITIONS {
+-                    let ordinal = CASE_ID.fetch_add(1, Ordering::Relaxed);
+-                    let case_root =
+-                        root.join(format!("{ordinal:02}-{engine}-{corpus}-{condition}"));
+-                    fs::create_dir_all(&case_root).unwrap();
+-                    record(
+-                        &checkpoint,
+-                        serde_json::json!({"event":"case-start","ordinal":ordinal,"engine":engine,"corpus":corpus,"condition":condition,"input_frames":samples.len()}),
+-                    );
+-                    let req = LiveRequest {
+-                        job_id: JobId(((std::process::id() as u128) << 64) | u128::from(ordinal)),
+-                        generation: Generation::first(),
+-                        model_path: model_path.to_string_lossy().into_owned(),
+-                        model_sha256: decode_sha256(
+-                            whisper_core::model_registry::model(model_id)
+-                                .artifact
+-                                .sha256,
+-                        ),
+-                        destination: case_root.to_string_lossy().into_owned(),
+-                        group_offset_samples: 0,
+-                        auto_stop_after_speech_samples: None,
+-                        microphone: whisper_core::MicrophoneChoice::Device(
+-                            "d2:approved-wav".into(),
+-                        ),
+-                        microphone_gain_db: initial,
+-                        config: JobConfig {
+-                            language: LanguageChoice::Automatic,
+-                            compute: ComputeChoice::Cpu,
+-                        },
+-                    };
+-                    let capture = CaptureStream::empty_test_capture_with_gain(
+-                        rate,
+-                        channels,
+-                        "d2:approved-wav",
+-                        GainDb::new(initial).unwrap(),
+-                    );
+-                    let start = Instant::now();
+-                    let (wav, txt, srt, frames, transcript, gain_frames) = if engine == "turbo-cpu"
+-                    {
+-                        turbo_case(req, capture, &turbo_worker, &samples, transition)
+-                    } else {
+-                        parakeet_case(req, capture, &parakeet, &samples, transition)
+-                    };
+-                    assert!(
+-                        Path::new(&wav).is_file()
+-                            && Path::new(&txt).is_file()
+-                            && Path::new(&srt).is_file()
+-                    );
+-                    assert_eq!(
+-                        frames,
+-                        samples.len() as u64,
+-                        "output frame continuity mismatch"
+-                    );
+-                    assert_eq!(
+-                        gain_frames.len(),
+-                        if transition.is_some() { 2 } else { 1 },
+-                        "gain application acknowledgements"
+-                    );
+-                    assert_eq!(gain_frames[0]["gain_db"], initial);
+-                    assert_eq!(gain_frames[0]["revision"], 0);
+-                    assert_eq!(gain_frames[0]["first_frame"], 0);
+-                    if let Some(gain) = transition {
+-                        assert_eq!(gain_frames[1]["gain_db"], gain);
+-                        assert_eq!(gain_frames[1]["revision"], 1);
+-                        assert_eq!(gain_frames[1]["first_frame"], samples.len() / 2);
+-                    }
+-                    record(
+-                        &checkpoint,
+-                        serde_json::json!({
+-                            "event":"case-complete","ordinal":ordinal,"engine":engine,"corpus":corpus,"condition":condition,
+-                            "input_wav_sha256":wav_hash,"reference_sha256":ref_hash,"output_wav_sha256":hash(Path::new(&wav)),"input_frames":samples.len(),"output_frames":frames,
+-                            "wav":wav,"txt":txt,"srt":srt,"elapsed_ms":start.elapsed().as_millis(),
+-                            "approved_reference":reference,"transcript":transcript,"gain_frame_revisions":gain_frames,"comparison":"descriptive only; no WER threshold"
+-                        }),
+-                    );
+-                    eprintln!("D2_CASE_DONE {ordinal}/16 {engine} {corpus} {condition}");
++                assert_eq!(gain_frames[0]["gain_db"], initial);
++                assert_eq!(gain_frames[0]["revision"], 0);
++                assert_eq!(gain_frames[0]["first_frame"], 0);
++                if let Some(gain) = transition {
++                    assert_eq!(gain_frames[1]["gain_db"], gain);
++                    assert_eq!(gain_frames[1]["revision"], 1);
++                    assert_eq!(gain_frames[1]["first_frame"], samples.len() / 2);
+                 }
++                record(
++                    &checkpoint,
++                    serde_json::json!({
++                        "event":"case-complete","ordinal":ordinal,"engine":engine,"corpus":corpus,"condition":condition,
++                        "input_wav_sha256":wav_hash,"reference_sha256":ref_hash,"output_wav_sha256":hash(Path::new(&wav)),"input_frames":samples.len(),"output_frames":frames,
++                        "wav":wav,"txt":txt,"srt":srt,"elapsed_ms":start.elapsed().as_millis(),
++                        "approved_reference":reference,"transcript":transcript,"gain_frame_revisions":gain_frames,"comparison":"descriptive only; no WER threshold"
++                    }),
++                );
++                eprintln!("D2_CASE_DONE {ordinal}/16 {engine} {corpus} {condition}");
+             }
+         }
+-        record(
+-            &checkpoint,
+-            serde_json::json!({"event":"campaign-complete","engine_filter":engine_filter,"cases":16}),
+-        );
+     }
++    record(
++        &checkpoint,
++        serde_json::json!({"event":"campaign-complete","engine_filter":engine_filter,"cases":16}),
++    );
++}
+--- crates/whisper-adapters/src/direct_live.rs:3096
++++ crates/whisper-adapters/src/direct_live/d2_corpus.rs:539
+@@ -1,21 +1,20 @@
+-        #[test]
+-        fn test_status_writer_preserves_diagnostics() {
+-            let root = PathBuf::from(
+-                std::env::var_os("WHISPER_MIC_LEVEL_D2_ROOT").expect("guarded D2 root"),
+-            );
+-            fs::create_dir_all(&root).unwrap();
+-            let case_root = root.join(format!("status-selftest-{}", std::process::id()));
+-            fs::create_dir_all(&case_root).unwrap();
+-            let status = serde_json::json!({
+-                "engine":"parakeet-cpu",
+-                "complete":false,
+-                "confirmed_segments":0,
+-                "diagnostic":"synthetic worker failure",
+-                "worker_events_path":"synthetic-events.jsonl",
+-            });
+-            record_engine_status(&case_root, status.clone());
+-            let saved: serde_json::Value =
+-                serde_json::from_slice(&fs::read(case_root.join("d2-engine-status.json")).unwrap())
+-                    .unwrap();
+-            assert_eq!(saved, status);
+-        }
++    #[test]
++    fn test_status_writer_preserves_diagnostics() {
++        let root =
++            PathBuf::from(std::env::var_os("WHISPER_MIC_LEVEL_D2_ROOT").expect("guarded D2 root"));
++        fs::create_dir_all(&root).unwrap();
++        let case_root = root.join(format!("status-selftest-{}", std::process::id()));
++        fs::create_dir_all(&case_root).unwrap();
++        let status = serde_json::json!({
++            "engine":"parakeet-cpu",
++            "complete":false,
++            "confirmed_segments":0,
++            "diagnostic":"synthetic worker failure",
++            "worker_events_path":"synthetic-events.jsonl",
++        });
++        record_engine_status(&case_root, status.clone());
++        let saved: serde_json::Value =
++            serde_json::from_slice(&fs::read(case_root.join("d2-engine-status.json")).unwrap())
++                .unwrap();
++        assert_eq!(saved, status);
++    }
+--- crates/whisper-adapters/src/gpu_inventory.rs:728
++++ crates/whisper-adapters/src/gpu_inventory.rs:744
+@@ -9,24 +9,28 @@
+         };
+         append_inventory_log(
+             &path,
+-            4,
+-            &[observation.clone()],
+-            &[],
+-            &[],
+-            None,
+-            Some("partial"),
+-            None,
++            InventoryLogSnapshot {
++                generation: 4,
++                observations: &[observation.clone()],
++                dxgi: &[],
++                targets: &[],
++                results: None,
++                error: Some("partial"),
++                qualification_error: None,
++            },
+         )
+         .unwrap();
+         append_inventory_log(
+             &path,
+-            5,
+-            &[observation],
+-            &[],
+-            &[],
+-            None,
+-            Some("second partial"),
+-            None,
++            InventoryLogSnapshot {
++                generation: 5,
++                observations: &[observation],
++                dxgi: &[],
++                targets: &[],
++                results: None,
++                error: Some("second partial"),
++                qualification_error: None,
++            },
+         )
+         .unwrap();
+ 
+--- crates/whisper-adapters/src/gpu_inventory.rs:772
++++ crates/whisper-adapters/src/gpu_inventory.rs:792
+@@ -5,13 +5,15 @@
+         assert!(
+             append_inventory_log(
+                 &path,
+-                1,
+-                &[],
+-                &[],
+-                &[],
+-                None,
+-                Some("collection failed"),
+-                None,
++                InventoryLogSnapshot {
++                    generation: 1,
++                    observations: &[],
++                    dxgi: &[],
++                    targets: &[],
++                    results: None,
++                    error: Some("collection failed"),
++                    qualification_error: None,
++                },
+             )
+             .is_err()
+         );
+--- crates/whisper-adapters/src/gpu_inventory.rs:791
++++ crates/whisper-adapters/src/gpu_inventory.rs:813
+@@ -7,7 +7,19 @@
+             luid: 0x1234,
+             identity_error: Some("SetupAPI join failed".into()),
+         };
+-        append_inventory_log(&path, 7, &[], &[entry], &[], None, None, None).unwrap();
++        append_inventory_log(
++            &path,
++            InventoryLogSnapshot {
++                generation: 7,
++                observations: &[],
++                dxgi: &[entry],
++                targets: &[],
++                results: None,
++                error: None,
++                qualification_error: None,
++            },
++        )
++        .unwrap();
+         let text = std::fs::read_to_string(path).unwrap();
+         let value: serde_json::Value = serde_json::from_str(text.trim()).unwrap();
+         assert_eq!(value["dxgi"][0]["identity"], serde_json::Value::Null);
+--- crates/whisper-adapters/src/microphone_probe.rs:875
++++ crates/whisper-adapters/src/microphone_probe.rs:878
+@@ -7,7 +7,9 @@
+             Generation::first(),
+         )
+         .unwrap();
+-        let acquired_before_retry = Instant::now();
++        // Windows can report the same clock tick for consecutive reads. Ensure
++        // the simulated capture predates the retry barrier even in that case.
++        let acquired_before_retry = Instant::now() - Duration::from_millis(1);
+         let (epoch, barrier_ms) = probe.advance_epoch();
+         assert_eq!(epoch, 1);
+         let block = |first_frame, acquired_at| {
+@@ -35,10 +37,22 @@
+         old_block.limiter_mask.resize(4_800, false);
+         probe.submit(old_block);
+         assert!(probe.latest_spectrum_at(Instant::now()).is_none());
++        assert_eq!(probe.dropped_updates(), 1, "old audio must be rejected");
++        assert_eq!(probe.processed_chunks(), 0);
++        assert_eq!(probe.epoch(), epoch);
+ 
+-        for frame in [0, 600, 1_200, 1_800, 2_400, 3_000, 3_600, 4_200] {
++        for (index, frame) in [0, 600, 1_200, 1_800, 2_400, 3_000, 3_600, 4_200]
++            .into_iter()
++            .enumerate()
++        {
+             probe.submit(block(frame, Instant::now()));
+-            thread::sleep(Duration::from_millis(10));
++            let deadline = Instant::now() + Duration::from_secs(2);
++            while probe.processed_chunks() < (index + 1) as u64 {
++                assert!(Instant::now() < deadline, "fresh audio was not processed");
++                thread::yield_now();
++            }
++            assert_eq!(probe.epoch(), epoch, "fresh audio must not be dropped");
++            assert_eq!(probe.dropped_updates(), 1);
+         }
+         let deadline = Instant::now() + Duration::from_secs(2);
+         let spectrum = loop {
+@@ -47,7 +61,19 @@
+             }
+             assert!(
+                 Instant::now() < deadline,
+-                "fresh retry spectrum did not arrive"
++                "fresh retry spectrum did not arrive: epoch={}, dropped={}, processed={}, valid={}, latest={:?}",
++                probe.epoch(),
++                probe.dropped_updates(),
++                probe.processed_chunks(),
++                probe.valid.load(Ordering::Acquire),
++                probe.latest.read().unwrap().as_ref().map(|snapshot| (
++                    snapshot.epoch,
++                    snapshot.last_frame,
++                    snapshot
++                        .spectrum
++                        .as_ref()
++                        .map(|spectrum| spectrum.captured_at.elapsed())
++                ))
+             );
+             thread::sleep(Duration::from_millis(2));
+         };
+--- crates/whisper-adapters/src/parakeet_live.rs:2912
++++ crates/whisper-adapters/src/parakeet_live/microphone_spectrum_tests.rs:10
+@@ -1,208 +1,207 @@
+-    #[test]
+-    fn parakeet_capture_pump_publishes_frequency_spectrum_and_preserves_wav() {
+-        let directory = std::env::temp_dir().join(format!(
+-            "parakeet-spectrum-{}-{}",
+-            std::process::id(),
+-            unix_time_ms()
+-        ));
+-        fs::create_dir_all(&directory).unwrap();
+-        let job_id = JobId(7201);
+-        let generation = Generation::first();
+-        let request = LiveRequest {
+-            job_id,
+-            generation,
+-            model_path: "unused-model".into(),
+-            model_sha256: [0; 32],
+-            destination: directory.to_string_lossy().into_owned(),
+-            group_offset_samples: 0,
+-            auto_stop_after_speech_samples: None,
+-            microphone: whisper_core::MicrophoneChoice::Device("test:mic".into()),
+-            microphone_gain_db: 0,
+-            config: whisper_core::JobConfig {
+-                language: whisper_core::LanguageChoice::Automatic,
+-                compute: ComputeChoice::Cpu,
+-            },
+-        };
+-        let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+-        let probe =
+-            MicrophoneProbe::start(16_000, Some("test:mic".into()), job_id, generation).unwrap();
+-        let converter = Pcm16Converter::new(16_000, 1).unwrap();
+-        let wav = WavOutput::create(&request).unwrap();
+-        let (inference_request, _request_rx) = mpsc::sync_channel(1);
+-        let (_event_tx, inference_events) = mpsc::sync_channel(2);
+-        let window_root = directory.join("windows");
+-        fs::create_dir(&window_root).unwrap();
+-        let mut live = ParakeetLive {
+-            request,
+-            gpu_candidate: None,
+-            session_id: 1,
+-            inference_request,
+-            inference_events,
+-            cancel_inference: Arc::new(AtomicBool::new(false)),
+-            capture: Some(capture),
+-            probe,
+-            last_meter_sequence: 0,
+-            spectrum_reader: MicrophoneSpectrumReader::default(),
+-            next_spectrum_telemetry: false,
+-            telemetry_due_after_event: false,
+-            last_acknowledged_gain_revision: None,
+-            converter: Some(converter),
+-            wav: Some(wav),
+-            window_root,
+-            next_window_start: 0,
+-            next_sequence: 1,
+-            last_reported_samples: 0,
+-            capture_origin_unix_ms: None,
+-            inflight: false,
+-            stopped: false,
+-            unavailable: false,
+-            ready_sent: false,
+-            finalizing: false,
+-            pending_events: VecDeque::new(),
+-            confirmation: Confirmation::default(),
+-            recovery_attempts: RecoveryAttemptLedger::default(),
+-            trace: TraceSink::disabled(),
+-            d2_worker_diagnostics: D2WorkerDiagnostics::default(),
+-        };
+-        let input_blocks = (0..5)
+-            .map(|block| {
+-                (block * 960..(block + 1) * 960)
+-                    .map(|frame| 0.5 * (std::f32::consts::TAU * 64.0 * frame as f32 / 2048.0).sin())
+-                    .collect::<Vec<_>>()
+-            })
+-            .collect::<Vec<_>>();
+-        for samples in &input_blocks {
+-            live.capture
+-                .as_mut()
+-                .unwrap()
+-                .enqueue_test_block(samples.clone());
+-            live.pump_capture().unwrap();
+-            thread::sleep(Duration::from_millis(20));
+-        }
+-        let deadline = Instant::now() + Duration::from_secs(2);
+-        let ready = ImportEvent::ParakeetInferenceReady {
++#[test]
++fn parakeet_capture_pump_publishes_frequency_spectrum_and_preserves_wav() {
++    let directory = std::env::temp_dir().join(format!(
++        "parakeet-spectrum-{}-{}",
++        std::process::id(),
++        unix_time_ms()
++    ));
++    fs::create_dir_all(&directory).unwrap();
++    let job_id = JobId(7201);
++    let generation = Generation::first();
++    let request = LiveRequest {
++        job_id,
++        generation,
++        model_path: "unused-model".into(),
++        model_sha256: [0; 32],
++        destination: directory.to_string_lossy().into_owned(),
++        group_offset_samples: 0,
++        auto_stop_after_speech_samples: None,
++        microphone: whisper_core::MicrophoneChoice::Device("test:mic".into()),
++        microphone_gain_db: 0,
++        config: whisper_core::JobConfig {
++            language: whisper_core::LanguageChoice::Automatic,
++            compute: ComputeChoice::Cpu,
++        },
++    };
++    let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
++    let probe =
++        MicrophoneProbe::start(16_000, Some("test:mic".into()), job_id, generation).unwrap();
++    let converter = Pcm16Converter::new(16_000, 1).unwrap();
++    let wav = WavOutput::create(&request).unwrap();
++    let (inference_request, _request_rx) = mpsc::sync_channel(1);
++    let (_event_tx, inference_events) = mpsc::sync_channel(2);
++    let window_root = directory.join("windows");
++    fs::create_dir(&window_root).unwrap();
++    let mut live = ParakeetLive {
++        request,
++        gpu_candidate: None,
++        session_id: 1,
++        inference_request,
++        inference_events,
++        cancel_inference: Arc::new(AtomicBool::new(false)),
++        capture: Some(capture),
++        probe,
++        last_meter_sequence: 0,
++        spectrum_reader: MicrophoneSpectrumReader::default(),
++        next_spectrum_telemetry: false,
++        telemetry_due_after_event: false,
++        last_acknowledged_gain_revision: None,
++        converter: Some(converter),
++        wav: Some(wav),
++        window_root,
++        next_window_start: 0,
++        next_sequence: 1,
++        last_reported_samples: 0,
++        capture_origin_unix_ms: None,
++        inflight: false,
++        stopped: false,
++        unavailable: false,
++        ready_sent: false,
++        finalizing: false,
++        pending_events: VecDeque::new(),
++        confirmation: Confirmation::default(),
++        recovery_attempts: RecoveryAttemptLedger::default(),
++        d2_worker_diagnostics: D2WorkerDiagnostics::default(),
++    };
++    let input_blocks = (0..5)
++        .map(|block| {
++            (block * 960..(block + 1) * 960)
++                .map(|frame| 0.5 * (std::f32::consts::TAU * 64.0 * frame as f32 / 2048.0).sin())
++                .collect::<Vec<_>>()
++        })
++        .collect::<Vec<_>>();
++    for samples in &input_blocks {
++        live.capture
++            .as_mut()
++            .unwrap()
++            .enqueue_test_block(samples.clone());
++        live.pump_capture().unwrap();
++        thread::sleep(Duration::from_millis(20));
++    }
++    let deadline = Instant::now() + Duration::from_secs(2);
++    let ready = ImportEvent::ParakeetInferenceReady {
++        job_id,
++        generation,
++        session_id: 1,
++        backend: "CPU".into(),
++    };
++    live.pending_events.extend([
++        ready.clone(),
++        ImportEvent::ParakeetConfirmed {
+             job_id,
+             generation,
+             session_id: 1,
+-            backend: "CPU".into(),
+-        };
+-        live.pending_events.extend([
+-            ready.clone(),
+-            ImportEvent::ParakeetConfirmed {
++            segment: whisper_core::ports::WorkerSegment {
+                 job_id,
+                 generation,
+-                session_id: 1,
+-                segment: whisper_core::ports::WorkerSegment {
+-                    job_id,
+-                    generation,
+-                    instance_id: 1,
+-                    segment_id: whisper_core::SegmentId(1),
+-                    range: whisper_core::SourceRange::new(0, 160, 16_000).unwrap(),
+-                    text: "continuité".into(),
+-                },
++                instance_id: 1,
++                segment_id: whisper_core::SegmentId(1),
++                range: whisper_core::SourceRange::new(0, 160, 16_000).unwrap(),
++                text: "continuité".into(),
+             },
+-            ready.clone(),
+-            ImportEvent::ParakeetCaptureStopped {
+-                job_id,
+-                generation,
+-                session_id: 1,
+-                wav_path: "test.wav".into(),
+-                txt_path: None,
+-                srt_path: None,
+-                complete: false,
+-                final_segments: Vec::new(),
+-                unresolved: Vec::new(),
+-                diagnostic: None,
+-                automatic_final: None,
+-            },
+-        ]);
+-        let mut ready_count = 0;
+-        let mut saw_confirmed = false;
+-        let mut saw_stopped = false;
+-        let mut saw_meter = false;
+-        let mut event = None;
+-        while Instant::now() < deadline
+-            && (ready_count < 2 || !saw_confirmed || !saw_stopped || !saw_meter || event.is_none())
+-        {
+-            if let Some(next) = live.poll().unwrap() {
+-                match next {
+-                    ImportEvent::ParakeetInferenceReady { .. } => ready_count += 1,
+-                    ImportEvent::ParakeetConfirmed { .. } => saw_confirmed = true,
+-                    ImportEvent::ParakeetCaptureStopped { .. } => saw_stopped = true,
+-                    ImportEvent::MicrophoneMeter(_) => saw_meter = true,
+-                    spectrum @ ImportEvent::MicrophoneSpectrum(
+-                        MicrophoneSpectrumUpdate::Available(_),
+-                    ) => event = Some(spectrum),
+-                    _ => {}
+-                }
+-            } else {
+-                thread::sleep(Duration::from_millis(5));
++        },
++        ready.clone(),
++        ImportEvent::ParakeetCaptureStopped {
++            job_id,
++            generation,
++            session_id: 1,
++            wav_path: "test.wav".into(),
++            txt_path: None,
++            srt_path: None,
++            complete: false,
++            final_segments: Vec::new(),
++            unresolved: Vec::new(),
++            diagnostic: None,
++            automatic_final: None,
++        },
++    ]);
++    let mut ready_count = 0;
++    let mut saw_confirmed = false;
++    let mut saw_stopped = false;
++    let mut saw_meter = false;
++    let mut event = None;
++    while Instant::now() < deadline
++        && (ready_count < 2 || !saw_confirmed || !saw_stopped || !saw_meter || event.is_none())
++    {
++        if let Some(next) = live.poll().unwrap() {
++            match next {
++                ImportEvent::ParakeetInferenceReady { .. } => ready_count += 1,
++                ImportEvent::ParakeetConfirmed { .. } => saw_confirmed = true,
++                ImportEvent::ParakeetCaptureStopped { .. } => saw_stopped = true,
++                ImportEvent::MicrophoneMeter(_) => saw_meter = true,
++                spectrum @ ImportEvent::MicrophoneSpectrum(MicrophoneSpectrumUpdate::Available(
++                    _,
++                )) => event = Some(spectrum),
++                _ => {}
+             }
++        } else {
++            thread::sleep(Duration::from_millis(5));
+         }
+-        assert_eq!(ready_count, 2, "Parakeet control events did not progress");
+-        assert!(saw_confirmed, "confirmed Parakeet text did not progress");
+-        assert!(saw_stopped, "Parakeet terminal event did not progress");
+-        assert!(saw_meter, "Parakeet RMS telemetry did not progress");
+-        let event = event.expect("Parakeet spectrum did not progress");
+-        let ImportEvent::MicrophoneSpectrum(MicrophoneSpectrumUpdate::Available(spectrum)) = event
+-        else {
+-            panic!("expected a current Parakeet spectrum")
+-        };
+-        assert_eq!(spectrum.source_identity, "test:mic");
+-        let peak = spectrum
+-            .pre_gain
+-            .iter()
+-            .enumerate()
+-            .filter_map(|(index, bin)| match bin {
+-                SpectrumBin::MilliDb(value) => Some((index, value)),
+-                SpectrumBin::Silence => None,
+-            })
+-            .max_by_key(|(_, value)| *value)
+-            .unwrap()
+-            .0;
+-        let hz = peak as f64 * f64::from(spectrum.sample_rate_hz) / 2048.0;
+-        assert!((hz - 500.0).abs() < 10.0, "expected 500 Hz, got {hz} Hz");
+-        let tail = live.converter.as_mut().unwrap().finish().unwrap();
+-        live.wav.as_mut().unwrap().append(&tail).unwrap();
+-        assert_eq!(live.wav.as_ref().unwrap().sample_count(), 4_800);
+-        let with_probe_path = live.wav.take().unwrap().finish().unwrap();
+-        let baseline_dir = directory.join("without-probe");
+-        fs::create_dir_all(&baseline_dir).unwrap();
+-        let baseline_request = LiveRequest {
+-            job_id: JobId(7202),
+-            generation,
+-            model_path: "unused-model".into(),
+-            model_sha256: [0; 32],
+-            destination: baseline_dir.to_string_lossy().into_owned(),
+-            group_offset_samples: 0,
+-            auto_stop_after_speech_samples: None,
+-            microphone: whisper_core::MicrophoneChoice::Device("test:mic".into()),
+-            microphone_gain_db: 0,
+-            config: whisper_core::JobConfig {
+-                language: whisper_core::LanguageChoice::Automatic,
+-                compute: ComputeChoice::Cpu,
+-            },
+-        };
+-        let mut baseline_capture = CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+-        let mut baseline_converter = Pcm16Converter::new(16_000, 1).unwrap();
+-        let mut baseline_wav = crate::direct_live::WavOutput::create(&baseline_request).unwrap();
+-        for samples in &input_blocks {
+-            baseline_capture.enqueue_test_block(samples.clone());
+-            let block = baseline_capture.try_next_block().unwrap();
+-            baseline_wav
+-                .append(&baseline_converter.push(&block).unwrap())
+-                .unwrap();
+-            baseline_capture.recycle_block(block).unwrap();
+-        }
++    }
++    assert_eq!(ready_count, 2, "Parakeet control events did not progress");
++    assert!(saw_confirmed, "confirmed Parakeet text did not progress");
++    assert!(saw_stopped, "Parakeet terminal event did not progress");
++    assert!(saw_meter, "Parakeet RMS telemetry did not progress");
++    let event = event.expect("Parakeet spectrum did not progress");
++    let ImportEvent::MicrophoneSpectrum(MicrophoneSpectrumUpdate::Available(spectrum)) = event
++    else {
++        panic!("expected a current Parakeet spectrum")
++    };
++    assert_eq!(spectrum.source_identity, "test:mic");
++    let peak = spectrum
++        .pre_gain
++        .iter()
++        .enumerate()
++        .filter_map(|(index, bin)| match bin {
++            SpectrumBin::MilliDb(value) => Some((index, value)),
++            SpectrumBin::Silence => None,
++        })
++        .max_by_key(|(_, value)| *value)
++        .unwrap()
++        .0;
++    let hz = peak as f64 * f64::from(spectrum.sample_rate_hz) / 2048.0;
++    assert!((hz - 500.0).abs() < 10.0, "expected 500 Hz, got {hz} Hz");
++    let tail = live.converter.as_mut().unwrap().finish().unwrap();
++    live.wav.as_mut().unwrap().append(&tail).unwrap();
++    assert_eq!(live.wav.as_ref().unwrap().sample_count(), 4_800);
++    let with_probe_path = live.wav.take().unwrap().finish().unwrap();
++    let baseline_dir = directory.join("without-probe");
++    fs::create_dir_all(&baseline_dir).unwrap();
++    let baseline_request = LiveRequest {
++        job_id: JobId(7202),
++        generation,
++        model_path: "unused-model".into(),
++        model_sha256: [0; 32],
++        destination: baseline_dir.to_string_lossy().into_owned(),
++        group_offset_samples: 0,
++        auto_stop_after_speech_samples: None,
++        microphone: whisper_core::MicrophoneChoice::Device("test:mic".into()),
++        microphone_gain_db: 0,
++        config: whisper_core::JobConfig {
++            language: whisper_core::LanguageChoice::Automatic,
++            compute: ComputeChoice::Cpu,
++        },
++    };
++    let mut baseline_capture = CaptureStream::empty_test_capture(16_000, 1, "test:mic");
++    let mut baseline_converter = Pcm16Converter::new(16_000, 1).unwrap();
++    let mut baseline_wav = crate::direct_live::WavOutput::create(&baseline_request).unwrap();
++    for samples in &input_blocks {
++        baseline_capture.enqueue_test_block(samples.clone());
++        let block = baseline_capture.try_next_block().unwrap();
+         baseline_wav
+-            .append(&baseline_converter.finish().unwrap())
++            .append(&baseline_converter.push(&block).unwrap())
+             .unwrap();
+-        let without_probe_path = baseline_wav.finish().unwrap();
+-        assert_eq!(
+-            fs::read(with_probe_path).unwrap(),
+-            fs::read(without_probe_path).unwrap(),
+-            "Parakeet WAV with spectrum reader is byte-identical to the no-reader baseline"
+-        );
+-        drop(live);
+-        let _ = fs::remove_dir_all(directory);
++        baseline_capture.recycle_block(block).unwrap();
+     }
++    baseline_wav
++        .append(&baseline_converter.finish().unwrap())
++        .unwrap();
++    let without_probe_path = baseline_wav.finish().unwrap();
++    assert_eq!(
++        fs::read(with_probe_path).unwrap(),
++        fs::read(without_probe_path).unwrap(),
++        "Parakeet WAV with spectrum reader is byte-identical to the no-reader baseline"
++    );
++    drop(live);
++    let _ = fs::remove_dir_all(directory);
++}
+--- crates/whisper-adapters/src/worker_ipc.rs:19890
++++ crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:116
+@@ -112,7 +112,7 @@
+         let manual_state = UnifiedSessionState {
+             request: manual_request.clone(),
+             document_drain_start_sequence: 1,
+-            source: UnifiedSessionSource::Capture(manual_source),
++            source: UnifiedSessionSource::Capture(Box::new(manual_source)),
+             available_samples: initial_written_samples,
+             durable_samples: initial_durable_samples,
+             source_closed: false,
+@@ -185,11 +185,13 @@
+         let calls = Arc::new(AtomicU64::new(0));
+         let mut cpu_route_requests = Vec::new();
+         let retry = retry_native_gpu_startup_on_cpu(
+-            &mut scheduler,
+-            &mut sessions,
+-            &mut archives,
+-            &mut executor_route,
+-            &mut executor,
++            runtime::NativeRetryState {
++                scheduler: &mut scheduler,
++                sessions: &mut sessions,
++                archives: &mut archives,
++                executor_route: &mut executor_route,
++                executor: &mut executor,
++            },
+             &mut state,
+             call,
+             &startup_error,
+@@ -318,7 +320,7 @@
+             assert_eq!(reference["sha256"].as_str().unwrap().len(), 64);
+             let part_bytes = std::fs::read(&part.path).unwrap();
+             assert_eq!(reference["bytes"].as_u64(), Some(part_bytes.len() as u64));
+-            let expected_part_sha = r7_hex(&Sha256::digest(&part_bytes));
++            let expected_part_sha = copy_resume_hex(&Sha256::digest(&part_bytes));
+             assert_eq!(
+                 reference["sha256"].as_str(),
+                 Some(expected_part_sha.as_str())
+--- crates/whisper-adapters/src/worker_ipc.rs:22902
++++ crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:3134
+@@ -56,11 +56,13 @@
+             workers,
+             Arc::new(PublicationGate::default()),
+             model_catalog,
+-            Some(cpu_paths.clone()),
+-            None,
+-            Some(execution_root.join("settings")),
+-            true,
+-            true,
++            WorkerRuntimeConfig {
++                parakeet_paths: Some(cpu_paths.clone()),
++                gpu_parakeet_paths: None,
++                snapshot_registry_root: Some(execution_root.join("settings")),
++                require_snapshot_registry: true,
++                native_unified_candidate_enabled: true,
++            },
+         )
+         .with_controlled_capture(
+             CaptureStream::empty_test_capture(16_000, 1, "test:pu-l4-synthetic-capture"),
+--- crates/whisper-adapters/src/worker_ipc.rs:23076
++++ crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:3310
+@@ -240,11 +240,13 @@
+             workers,
+             Arc::new(PublicationGate::default()),
+             model_catalog,
+-            Some(cpu_paths),
+-            Some(gpu_paths.clone()),
+-            Some(settings_root.clone()),
+-            true,
+-            true,
++            WorkerRuntimeConfig {
++                parakeet_paths: Some(cpu_paths),
++                gpu_parakeet_paths: Some(gpu_paths.clone()),
++                snapshot_registry_root: Some(settings_root.clone()),
++                require_snapshot_registry: true,
++                native_unified_candidate_enabled: true,
++            },
+         )
+         .with_native_harness_observer(observer);
+         runtime
+--- crates/whisper-adapters/src/worker_ipc.rs:27265
++++ crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs:1451
+@@ -41,7 +41,7 @@
+             else {
+                 panic!("expected a queued normal command");
+             };
+-            write_frame(&mut wire, &IpcEnvelope::new(command)).unwrap();
++            write_frame(&mut wire, &IpcEnvelope::new(*command)).unwrap();
+         }
+         assert!(matches!(emergency_rx.try_recv(), Err(TryRecvError::Empty)));
+ 
+--- crates/whisper-adapters/src/worker_ipc.rs:28511
++++ crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs:403
+@@ -15,8 +15,8 @@
+                 .as_nanos()
+         ));
+         std::fs::create_dir_all(&root).unwrap();
+-        run_r7_integrated_copy_resume_case(&root, false, &model);
+-        run_r7_integrated_copy_resume_case(&root, true, &model);
++        run_integrated_copy_resume_case(&root, false, &model);
++        run_integrated_copy_resume_case(&root, true, &model);
+         crate::archive::clear_copy_fallback_publication_cut();
+         std::fs::remove_dir_all(root).unwrap();
+     }
+--- crates/whisper-adapters/src/worker_ipc.rs:29050
++++ crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs:942
+@@ -2,7 +2,7 @@
+     #[test]
+     fn l3c_acceptance_fault_is_confined_to_its_canonical_execution_root() {
+         assert!(option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_some());
+-        let root = canonical_l3_acceptance_root(
++        let root = canonical_extended_acceptance_root(
+             std::env::var_os("PARAKEET_L3C_EXEC_ROOT").map(PathBuf::from),
+             std::env::var_os("PARAKEET_L3D_EXEC_ROOT").map(PathBuf::from),
+         )
+@@ -15,7 +15,7 @@
+         )
+         .unwrap();
+         assert!(
+-            l2a2_acceptance_take_worker_fault(&destination, true)
++            take_acceptance_worker_fault(&destination, true)
+                 .unwrap()
+                 .is_some()
+         );
+@@ -27,7 +27,7 @@
+             .canonicalize()
+             .expect("existing L3a root is a canonical path outside L3c and L3b");
+         assert!(
+-            l2a2_acceptance_take_worker_fault(&outside, true)
++            take_acceptance_worker_fault(&outside, true)
+                 .unwrap_err()
+                 .starts_with("PathOutsideRuntime")
+         );
+@@ -43,7 +43,7 @@
+                 .canonicalize()
+                 .unwrap();
+             assert_eq!(
+-                canonical_l3_acceptance_root(
++                canonical_extended_acceptance_root(
+                     (lot == "l3c").then(|| canonical.clone()),
+                     (lot == "l3d").then(|| canonical.clone()),
+                 ),
+--- crates/whisper-adapters/src/worker_ipc.rs:29263
++++ crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs:1155
+@@ -20,7 +20,8 @@
+                 ));
+         fs::create_dir_all(root.join("legacy")).unwrap();
+         let repository_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+-        let model = repository_root.join("models/ggml-large-v3-turbo.bin");
++        let model = PathBuf::from(std::env::var_os("WHISPER_L1B_RUNTIME_ROOT").expect("bounded runtime"))
++            .join("models/ggml-large-v3-turbo.bin");
+         let legacy_model = root.join("legacy/ggml-large-v3-turbo.bin");
+         fs::hard_link(&model, &legacy_model).unwrap();
+         let source = repository_root.join("sound example/spkr0.wav");
+@@ -67,7 +68,7 @@
+             Arc::new(PublicationGate::default()),
+             Some(RuntimeModelCatalog {
+                 catalog: crate::model_catalog::LocalModelCatalog::new(
+-                    repository_root.join("models"),
++                    model.parent().unwrap().to_path_buf(),
+                 ),
+                 known_historical_turbo_path: legacy_model.to_string_lossy().into_owned(),
+                 parakeet_paths: None,
+--- crates/whisper-adapters/src/worker_ipc.rs:18757
++++ crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:2022
+@@ -49,11 +49,7 @@
+             },
+             Arc::new(PublicationGate::default()),
+             None,
+-            None,
+-            None,
+-            None,
+-            false,
+-            false,
++            WorkerRuntimeConfig::default(),
+         )
+         .with_controlled_transcriber(worker)
+         .with_child_observer(Arc::clone(&child_observations));
+--- crates/whisper-adapters/src/worker_ipc.rs:15042
++++ crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:871
+@@ -26,11 +26,11 @@
+             },
+             Arc::new(PublicationGate::default()),
+             None,
+-            None,
+-            None,
+-            Some(settings_root),
+-            true,
+-            false,
++            WorkerRuntimeConfig {
++                snapshot_registry_root: Some(settings_root),
++                require_snapshot_registry: true,
++                ..WorkerRuntimeConfig::default()
++            },
+         )
+         .with_controlled_transcriber(worker);
+         let mut app = ImportApplication::new(RuntimeImportPort {
+--- crates/whisper-adapters/src/worker_ipc.rs:15146
++++ crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:975
+@@ -101,11 +101,11 @@
+             },
+             Arc::new(PublicationGate::default()),
+             None,
+-            None,
+-            None,
+-            Some(settings_root.clone()),
+-            true,
+-            false,
++            WorkerRuntimeConfig {
++                snapshot_registry_root: Some(settings_root.clone()),
++                require_snapshot_registry: true,
++                ..WorkerRuntimeConfig::default()
++            },
+         )
+         .with_controlled_transcriber(worker);
+         let mut app = ImportApplication::new(RuntimeImportPort {
+--- crates/whisper-adapters/src/worker_ipc.rs:15578
++++ crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:1407
+@@ -25,11 +25,11 @@
+             },
+             Arc::new(PublicationGate::default()),
+             None,
+-            None,
+-            None,
+-            Some(settings_root),
+-            true,
+-            false,
++            WorkerRuntimeConfig {
++                snapshot_registry_root: Some(settings_root),
++                require_snapshot_registry: true,
++                ..WorkerRuntimeConfig::default()
++            },
+         )
+         .with_controlled_transcriber(worker);
+         let mut app = ImportApplication::new(RuntimeImportPort {
+@@ -58,8 +58,11 @@
+                     let choice = confirmation
+                         .take()
+                         .expect("only repeated source imports require a choice");
+-                    app.dispatch(AppCommand::ResolveDuplicateImport { prompt, choice })
+-                        .expect("confirm duplicate or reprocessing choice");
++                    app.dispatch(AppCommand::ResolveDuplicateImport {
++                        prompt: Box::new(prompt),
++                        choice,
++                    })
++                    .expect("confirm duplicate or reprocessing choice");
+                     continue;
+                 }
+                 if let Some(entry) = view.queue.iter().find(|entry| {
+--- crates/whisper-adapters/src/worker_ipc.rs:15729
++++ crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:1561
+@@ -136,11 +136,11 @@
+             },
+             Arc::new(PublicationGate::default()),
+             None,
+-            None,
+-            None,
+-            Some(settings_root.clone()),
+-            true,
+-            false,
++            WorkerRuntimeConfig {
++                snapshot_registry_root: Some(settings_root.clone()),
++                require_snapshot_registry: true,
++                ..WorkerRuntimeConfig::default()
++            },
+         )
+         .with_controlled_transcriber(worker)
+         .with_native_harness_observer(observer);
+--- crates/whisper-adapters/src/worker_ipc.rs:16134
++++ crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:1966
+@@ -46,11 +46,11 @@
+             },
+             Arc::new(PublicationGate::default()),
+             None,
+-            None,
+-            None,
+-            Some(settings_root.clone()),
+-            true,
+-            false,
++            WorkerRuntimeConfig {
++                snapshot_registry_root: Some(settings_root.clone()),
++                require_snapshot_registry: true,
++                ..WorkerRuntimeConfig::default()
++            },
+         )
+         .with_controlled_transcriber(controlled_worker().0)
+         .with_native_harness_observer(observer);
+--- crates/whisper-adapters/src/worker_ipc.rs:16289
++++ crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:2121
+@@ -65,11 +65,11 @@
+             },
+             Arc::new(PublicationGate::default()),
+             None,
+-            None,
+-            None,
+-            Some(settings_root.clone()),
+-            true,
+-            false,
++            WorkerRuntimeConfig {
++                snapshot_registry_root: Some(settings_root.clone()),
++                require_snapshot_registry: true,
++                ..WorkerRuntimeConfig::default()
++            },
+         )
+         .with_controlled_transcriber(controlled_worker().0)
+         .with_resume_binding_transfer_gate(Arc::clone(&transfer_gate))
+--- crates/whisper-adapters/src/worker_ipc.rs:13525
++++ crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs:11
+@@ -2,7 +2,7 @@
+     #[ignore = "requires the CI legacy build variables"]
+     fn recette_policy_l2a2_requires_the_feature() {
+         assert_eq!(option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD"), Some("1"));
+-        let result = l2a2_acceptance_barrier("not-an-acceptance-phase", Path::new("."));
++        let result = acceptance_barrier("not-an-acceptance-phase", Path::new("."));
+         #[cfg(feature = "recette-hooks")]
+         assert_eq!(
+             result.unwrap_err(),
+--- crates/whisper-adapters/tests/import_cpu.rs:25
++++ crates/whisper-adapters/tests/import_cpu.rs:25
+@@ -149,7 +149,7 @@
+     .unwrap();
+     let prompt = wait_r11_prompt(&mut app);
+     app.dispatch(AppCommand::ResolveDuplicateImport {
+-        prompt,
++        prompt: Box::new(prompt),
+         choice: DuplicateImportChoice::CreateNew,
+     })
+     .unwrap();
+@@ -184,7 +184,7 @@
+     assert_eq!(prompt.publications.len(), 3);
+     let preexisting_export = std::fs::read(destination.join("exports/renamed-audio.txt")).unwrap();
+     app.dispatch(AppCommand::ResolveDuplicateImport {
+-        prompt: prompt.clone(),
++        prompt: Box::new(prompt.clone()),
+         choice: DuplicateImportChoice::Replace,
+     })
+     .unwrap();
+@@ -264,7 +264,7 @@
+     let prompt = wait_r11_prompt(&mut app);
+     assert_eq!(prompt.publications.len(), 4);
+     app.dispatch(AppCommand::ResolveDuplicateImport {
+-        prompt,
++        prompt: Box::new(prompt),
+         choice: DuplicateImportChoice::Replace,
+     })
+     .unwrap();
+--- crates/whisper-adapters/tests/reprocessing_cleanup.rs:738
++++ crates/whisper-adapters/tests/reprocessing_cleanup.rs:844
+@@ -172,7 +172,7 @@
+         vec![Some(1), Some(2), Some(3), Some(4)]
+     );
+     app.dispatch(AppCommand::ResolveDuplicateImport {
+-        prompt,
++        prompt: Box::new(prompt),
+         choice: DuplicateImportChoice::ReplaceAll,
+     })
+     .unwrap();
+--- crates/whisper-adapters/tests/reprocessing_create.rs:238
++++ crates/whisper-adapters/tests/reprocessing_create.rs:238
+@@ -87,7 +87,7 @@
+         thread::sleep(std::time::Duration::from_millis(10));
+     };
+     app.dispatch(AppCommand::ResolveDuplicateImport {
+-        prompt,
++        prompt: Box::new(prompt),
+         choice: DuplicateImportChoice::CreateNew,
+     })
+     .unwrap();
+--- crates/whisper-core/src/application.rs:4543
++++ crates/whisper-core/src/application/runtime/tests/closing_and_recovery.rs:26
+@@ -79,7 +79,7 @@
+                 gain_db: 0,
+             },
+             AppCommand::ResolveDuplicateImport {
+-                prompt,
++                prompt: Box::new(prompt),
+                 choice: DuplicateImportChoice::CreateNew,
+             },
+         ];
+--- crates/whisper-core/src/application.rs:5621
++++ crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs:790
+@@ -30,7 +30,7 @@
+         app.view.duplicate_import_prompt = Some(current);
+ 
+         let result = app.dispatch(AppCommand::ResolveDuplicateImport {
+-            prompt: stale,
++            prompt: Box::new(stale),
+             choice: DuplicateImportChoice::ReplaceAll,
+         });
+ 
+--- crates/whisper-core/tests/parakeet_ipc.rs:15
++++ crates/whisper-core/tests/parakeet_ipc.rs:15
+@@ -6,7 +6,7 @@
+         job_id: "job-a".into(),
+         generation: 4,
+         attempt: 2,
+-        identity: identity.clone(),
++        identity: Box::new(identity.clone()),
+         source_path: "audio.wav".into(),
+         source_sha256: "ef".repeat(32),
+         expected_gpu: Some(ExpectedGpu {
+@@ -27,7 +27,7 @@
+         unreachable!()
+     };
+     assert_eq!((request_id, generation, attempt), (11, 4, 2));
+-    assert_eq!(decoded_identity, identity);
++    assert_eq!(*decoded_identity, identity);
+     assert_eq!(
+         expected_gpu.as_ref().unwrap().pci_bus_id,
+         "00000000:01:00.0"
+--- crates/whisper-desktop/tests/model_selection_ui.rs:306
++++ crates/whisper-desktop/tests/model_selection_ui.rs:306
+@@ -8,6 +8,7 @@
+     let result = sender.send(ModelPreferenceCommand::ChooseModel(
+         ModelId::WhisperLargeV3Turbo,
+     ));
++    assert_eq!(result, Err(PreferenceChannelError::Disconnected));
+     record_preference_delivery(&mut save_notice, result);
+     assert_eq!(
+         save_notice.as_deref(),
+@@ -21,6 +22,7 @@
+     let result = sender.send(ModelPreferenceCommand::ChooseStartupCompute(
+         StartupComputePreference::Auto,
+     ));
++    assert_eq!(result, Err(PreferenceChannelError::Disconnected));
+     record_preference_delivery(&mut save_notice, result);
+     assert_eq!(
+         save_notice.as_deref(),
+--- crates/whisper-worker-cpu/tests/reusable_imports.rs:112
++++ crates/whisper-worker-cpu/tests/reusable_imports.rs:112
+@@ -1,84 +1,5 @@
+ #[test]
+ #[ignore = "charge le modèle large-v3-turbo ; lancer explicitement en Release avec WHISPER_TEST_REUSE_MODEL"]
+-fn cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache() {
+-    let model_path = std::env::var_os("WHISPER_TEST_REUSE_MODEL")
+-        .map(PathBuf::from)
+-        .expect("set WHISPER_TEST_REUSE_MODEL to the local model path");
+-    assert!(model_path.is_file(), "the configured model must exist");
+-
+-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+-        .join("../../target")
+-        .join(format!("whisper-reusable-imports-{}", std::process::id()));
+-    fs::create_dir_all(&root).unwrap();
+-    let source_path = root.join("silent.wav");
+-    write_silent_wav(&source_path);
+-    let source_sha256 = hash_file(&source_path);
+-    let model_sha256 = hash_file(&model_path);
+-    let mut child = KillOnDrop(
+-        Command::new(env!("CARGO_BIN_EXE_whisper-worker-cpu"))
+-            .stdin(Stdio::piped())
+-            .stdout(Stdio::piped())
+-            .stderr(Stdio::piped())
+-            .spawn()
+-            .unwrap(),
+-    );
+-    let mut input = child.0.stdin.take().unwrap();
+-    let stdout = child.0.stdout.take().unwrap();
+-    let mut stderr = child.0.stderr.take().unwrap();
+-    let stderr_reader = thread::spawn(move || {
+-        let mut bytes = Vec::new();
+-        stderr.read_to_end(&mut bytes).unwrap();
+-        bytes
+-    });
+-    let (event_tx, event_rx) = mpsc::channel();
+-    let stdout_reader = thread::spawn(move || {
+-        let mut output = BufReader::new(stdout);
+-        let mut line = String::new();
+-        loop {
+-            line.clear();
+-            match output.read_line(&mut line) {
+-                Ok(0) => return,
+-                Ok(_) => {
+-                    let event = serde_json::from_str(&line).map_err(|error| error.to_string());
+-                    if event_tx.send(event).is_err() {
+-                        return;
+-                    }
+-                }
+-                Err(error) => {
+-                    let _ = event_tx.send(Err(error.to_string()));
+-                    return;
+-                }
+-            }
+-        }
+-    });
+-
+-    for (job, instance) in [(JobId(901), 61), (JobId(902), 62)] {
+-        send(
+-            &mut input,
+-            WorkerCommand::StartImport {
+-                retain_after_publish: true,
+-                job_id: job,
+-                generation: Generation::first(),
+-                instance_id: instance,
+-                source_path: source_path.to_string_lossy().into_owned(),
+-                source_sha256,
+-                expected_source_samples: 16_000,
+-                model_path: model_path.to_string_lossy().into_owned(),
+-                model_sha256,
+-                config: JobConfig {
+-                    language: LanguageChoice::Automatic,
+-                    compute: ComputeChoice::Cpu,
+-                },
+-            },
+-        );
+-        await_end(&event_rx, job, instance);
+-    }
+-    send(&mut input, WorkerCommand::Shutdown);
+-    drop(input);
+-    assert!(child.0.wait().unwrap().success());
+-    stdout_reader.join().unwrap();
+-    let stderr = String::from_utf8(stderr_reader.join().unwrap()).unwrap();
+-    assert!(stderr.contains("startup_perf model_cache=load backend=cpu"));
+-    assert!(stderr.contains("startup_perf model_cache=hit backend=cpu"));
+-    fs::remove_dir_all(root).unwrap();
++pub(crate) fn cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache() {
++    let _ = run_for_exe(Path::new(env!("CARGO_BIN_EXE_whisper-worker-cpu")));
+ }
+--- crates/whisper-worker-parakeet-cpu/src/main.rs:1194
++++ crates/whisper-worker-parakeet-cpu/src/reference_decoder/tests.rs:56
+@@ -1,16 +1,15 @@
+-    #[cfg(feature = "parakeet-qualification-reference")]
+-    #[test]
+-    fn reference_wav_decoder_matches_product_decoder_and_reads_sixty_minutes() {
+-        let short = PathBuf::from(
+-            env::var_os("PARAKEET_L2_FR_WAV").expect("PARAKEET_L2_FR_WAV is required"),
+-        );
+-        let product = decoder::decode_file(&short).unwrap();
+-        let reference = decode_reference_wav(&short).unwrap();
+-        assert_eq!(reference.samples, product.samples);
++#[cfg(feature = "parakeet-qualification-reference")]
++#[test]
++fn reference_wav_decoder_matches_product_decoder_and_reads_sixty_minutes() {
++    let short =
++        PathBuf::from(env::var_os("PARAKEET_L2_FR_WAV").expect("PARAKEET_L2_FR_WAV is required"));
++    let product = decoder::decode_file(&short).unwrap();
++    let reference = decode_reference_wav(&short).unwrap();
++    assert_eq!(reference.samples, product.samples);
+ 
+-        let long = PathBuf::from(
+-            env::var_os("PARAKEET_L2_EN_LONG_WAV").expect("PARAKEET_L2_EN_LONG_WAV is required"),
+-        );
+-        let decoded = decode_reference_wav(&long).unwrap();
+-        assert_eq!(decoded.samples.len(), 3_600 * 16_000);
+-    }
++    let long = PathBuf::from(
++        env::var_os("PARAKEET_L2_EN_LONG_WAV").expect("PARAKEET_L2_EN_LONG_WAV is required"),
++    );
++    let decoded = decode_reference_wav(&long).unwrap();
++    assert_eq!(decoded.samples.len(), 3_600 * 16_000);
++}
+--- crates/whisper-worker-parakeet-cpu/src/main.rs:758
++++ crates/whisper-worker-parakeet-cpu/src/runtime_paths/tests.rs:14
+@@ -1,28 +1,37 @@
+-    #[cfg(not(feature = "parakeet-cuda"))]
+-    #[test]
+-    fn accepts_only_the_two_canonical_l2_test_roots() {
+-        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+-        let l2a_roots = allowed_runtime_roots_for(&repository, &["l2a-1", "l2a-2"]);
+-        let l2a1 = repository
+-            .join("target/parakeet-tests/l2/l2a-1")
+-            .canonicalize()
+-            .unwrap();
+-        let l2a2 = repository
+-            .join("target/parakeet-tests/l2/l2a-2")
+-            .canonicalize()
+-            .unwrap();
+-        let l2b = repository
+-            .join("target/parakeet-tests/l2/l2b")
+-            .canonicalize()
+-            .unwrap();
+-        let l3a = repository
+-            .join("target/parakeet-tests/l3/l3a")
+-            .canonicalize()
+-            .unwrap();
+-        assert_eq!(l2a_roots, vec![l2a1.clone(), l2a2.clone()]);
+-        assert!(allowed_runtime_roots(&repository).contains(&l2a1));
+-        assert!(allowed_runtime_roots(&repository).contains(&l2a2));
+-        assert!(!allowed_runtime_roots(&repository).contains(&l2b));
+-        assert!(!allowed_runtime_roots(&repository).contains(&l3a));
+-        assert!(!allowed_runtime_roots(&repository).contains(&repository));
+-    }
++#[cfg(not(feature = "parakeet-cuda"))]
++#[test]
++fn accepts_only_the_two_canonical_l2_test_roots() {
++    let repository = fixture_repository();
++    let l2a_roots = allowed_runtime_roots_for(&repository, &["l2a-1", "l2a-2"]);
++    let l2a1 = repository
++        .join("target/parakeet-tests/l2/l2a-1")
++        .canonicalize()
++        .unwrap();
++    let l2a2 = repository
++        .join("target/parakeet-tests/l2/l2a-2")
++        .canonicalize()
++        .unwrap();
++    let l2b = repository
++        .join("target/parakeet-tests/l2/l2b")
++        .canonicalize()
++        .unwrap();
++    let l3a = repository
++        .join("target/parakeet-tests/l3/l3a")
++        .canonicalize()
++        .unwrap();
++    assert_eq!(l2a_roots, vec![l2a1.clone(), l2a2.clone()]);
++    assert_eq!(
++        allowed_runtime_roots(&repository).contains(&l2a1),
++        !cfg!(feature = "parakeet-personal")
++    );
++    assert_eq!(
++        allowed_runtime_roots(&repository).contains(&l2a2),
++        !cfg!(feature = "parakeet-personal")
++    );
++    assert_eq!(
++        allowed_runtime_roots(&repository).contains(&l2b),
++        cfg!(feature = "parakeet-qualification-reference") && !cfg!(feature = "parakeet-personal")
++    );
++    assert!(!allowed_runtime_roots(&repository).contains(&l3a));
++    assert!(!allowed_runtime_roots(&repository).contains(&repository));
++}
+--- crates/whisper-worker-parakeet-cpu/src/main.rs:787
++++ crates/whisper-worker-parakeet-cpu/src/runtime_paths/tests.rs:52
+@@ -1,26 +1,26 @@
+-    #[cfg(all(feature = "parakeet-cuda", not(feature = "parakeet-personal")))]
+-    #[test]
+-    fn gpu_worker_allows_only_the_canonical_l3_runtime_roots() {
+-        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+-        let l3a = repository
+-            .join("target/parakeet-tests/l3/l3a")
+-            .canonicalize()
+-            .unwrap();
+-        let l3a_expected = repository.join("target/parakeet-tests/l3/l3a");
+-        let l3b_expected = repository.join("target/parakeet-tests/l3/l3b");
+-        let l2a1 = repository
+-            .join("target/parakeet-tests/l2/l2a-1")
+-            .canonicalize()
+-            .unwrap();
+-        let l2b = repository
+-            .join("target/parakeet-tests/l2/l2b")
+-            .canonicalize()
+-            .unwrap();
+-        assert_eq!(
+-            allowed_runtime_root_candidates(&repository),
+-            vec![l3a_expected, l3b_expected]
+-        );
+-        assert!(allowed_runtime_roots(&repository).contains(&l3a));
+-        assert!(!allowed_runtime_roots(&repository).contains(&l2a1));
+-        assert!(!allowed_runtime_roots(&repository).contains(&l2b));
+-    }
++#[cfg(all(feature = "parakeet-cuda", not(feature = "parakeet-personal")))]
++#[test]
++fn gpu_worker_allows_only_the_canonical_l3_runtime_roots() {
++    let repository = fixture_repository();
++    let l3a = repository
++        .join("target/parakeet-tests/l3/l3a")
++        .canonicalize()
++        .unwrap();
++    let l3a_expected = repository.join("target/parakeet-tests/l3/l3a");
++    let l3b_expected = repository.join("target/parakeet-tests/l3/l3b");
++    let l2a1 = repository
++        .join("target/parakeet-tests/l2/l2a-1")
++        .canonicalize()
++        .unwrap();
++    let l2b = repository
++        .join("target/parakeet-tests/l2/l2b")
++        .canonicalize()
++        .unwrap();
++    assert_eq!(
++        allowed_runtime_root_candidates(&repository),
++        vec![l3a_expected, l3b_expected]
++    );
++    assert!(allowed_runtime_roots(&repository).contains(&l3a));
++    assert!(!allowed_runtime_roots(&repository).contains(&l2a1));
++    assert!(!allowed_runtime_roots(&repository).contains(&l2b));
++}
+--- crates/whisper-worker-parakeet-cpu/src/main.rs:837
++++ crates/whisper-worker-parakeet-cpu/src/runtime_paths/tests.rs:79
+@@ -1,29 +1,28 @@
+-    #[cfg(feature = "parakeet-qualification-reference")]
+-    #[test]
+-    fn qualification_profiles_are_confined_to_l2b() {
+-        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+-        let l2a2 = repository
+-            .join("target/parakeet-tests/l2/l2a-2")
+-            .canonicalize()
+-            .unwrap();
+-        let l2b = repository
+-            .join("target/parakeet-tests/l2/l2b")
+-            .canonicalize()
+-            .unwrap();
+-        assert_ne!(l2a2, l2b);
+-        assert!(qualification_root_is_valid(
+-            PROFILE_QUALIFICATION_REFERENCE,
+-            &l2b,
+-            &repository
+-        ));
+-        assert!(!qualification_root_is_valid(
+-            PROFILE_QUALIFICATION_REFERENCE,
+-            &l2a2,
+-            &repository
+-        ));
+-        assert!(qualification_root_is_valid(
+-            PARAKEET_PROFILE_IMPORT_SINGLE_PASS,
+-            &l2a2,
+-            &repository
+-        ));
+-    }
++#[cfg(feature = "parakeet-qualification-reference")]
++#[test]
++fn qualification_profiles_are_confined_to_l2b() {
++    let repository = fixture_repository();
++    let l2a2 = repository
++        .join("target/parakeet-tests/l2/l2a-2")
++        .canonicalize()
++        .unwrap();
++    let l2b = repository
++        .join("target/parakeet-tests/l2/l2b")
++        .canonicalize()
++        .unwrap();
++    assert_ne!(l2a2, l2b);
++    assert!(qualification_root_is_valid(
++        PROFILE_QUALIFICATION_REFERENCE,
++        &l2b,
++        &repository
++    ));
++    assert!(!qualification_root_is_valid(
++        PROFILE_QUALIFICATION_REFERENCE,
++        &l2a2,
++        &repository
++    ));
++    assert_eq!(
++        qualification_root_is_valid(PARAKEET_PROFILE_IMPORT_SINGLE_PASS, &l2a2, &repository),
++        !cfg!(feature = "parakeet-cuda") && !cfg!(feature = "parakeet-personal")
++    );
++}
+--- crates/whisper-worker-parakeet-cpu/tests/native_import.rs:1078
++++ crates/whisper-worker-parakeet-cpu/tests/native_import.rs:1078
+@@ -37,7 +37,7 @@
+             job_id: "wrong-device".into(),
+             generation: 1,
+             attempt: 1,
+-            identity,
++            identity: Box::new(identity),
+             source_path: missing_audio.to_string_lossy().into_owned(),
+             source_sha256: "00".repeat(32),
+             expected_gpu: Some(wrong_gpu),

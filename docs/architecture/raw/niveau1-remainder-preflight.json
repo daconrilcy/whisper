@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-31T22:30:35.9908585+01:00",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "source_test_diff": [],
+  "guard_sha256": "0f8f692456aba2c9884f080cd38f1a5e0be1c5cb0ac2f85d7f4f82685f009323",
+  "free_gib": 183.93,
+  "pending_core_targets": [
+    "parakeet_ipc",
+    "parakeet_windows",
+    "scheduler_contract"
+  ],
+  "pending_packages": [
+    "whisper-desktop",
+    "whisper-worker-common",
+    "whisper-worker-cpu",
+    "whisper-worker-gpu",
+    "whisper-worker-parakeet-cpu"
+  ],
+  "pending_doctests": [
+    "whisper-core",
+    "whisper-adapters"
+  ],
+  "preserved_failure": "whisper-core::personal_release_keys_match_the_qualified_candidate_b_workers_and_dll_sets",
+  "reused_d2_run": "20261031T215801649-2f4a5577",
+  "scope": "Poursuite autorisee des cibles restantes ; aucun changement de code, tests ou garde, aucune transformation du verdict global en PASS."
+}

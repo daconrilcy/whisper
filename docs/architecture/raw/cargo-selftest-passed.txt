@@ -1,0 +1,18 @@
+PASS cargo arguments reject source-writing fmt and --fix
+PASS live watcher authorized in-root process completed
+PASS Temp Created recorded UNATTRIBUTED
+PASS Temp Changed recorded UNATTRIBUTED
+PASS Temp Deleted recorded UNATTRIBUTED
+PASS Temp Renamed recorded UNATTRIBUTED
+PASS live watcher attributed-user-temp: terminated fake child and recorded Created C:\Users\cyril\AppData\Local\Temp\ui-selftest-not-created at 10/31/2026 21:36:42
+PASS live watcher git-objects-before-write: terminated fake child and recorded Created C:\dev\whisper\.git\objects\selftest-not-created at 10/31/2026 21:36:42
+PASS live watcher outside-root-before-write: terminated fake child and recorded Created C:\Users\cyril\Downloads\worker-common-selftest-not-created.txt at 10/31/2026 21:36:42
+PASS live watcher project-office-before-write: terminated fake child and recorded Created C:\Users\cyril\Downloads\whisper-selftest-not-created.pptx at 10/31/2026 21:36:42
+PASS live watcher model-before-write: terminated fake child and recorded Created C:\dev\whisper\models\selftest-not-created at 10/31/2026 21:36:43
+PASS live watcher cargo-cache-before-write: terminated fake child and recorded Created C:\Users\cyril\.cargo\selftest-not-created at 10/31/2026 21:36:43
+PASS live watcher git-index-before-write: terminated fake child and recorded Created C:\dev\whisper\.git\index at 10/31/2026 21:36:43
+PASS live watcher rename-internal-to-external: terminated fake child and recorded Renamed C:\Users\cyril\AppData\Local\Temp\archive-selftest-not-created at 10/31/2026 21:36:44
+PASS live watcher rename-external-to-internal: terminated fake child and recorded Renamed C:\dev\whisper\target\parakeet-tests\refacto-ui\selftest-positive\not-created.txt at 10/31/2026 21:36:44
+PASS live watcher rename-external-to-temp: terminated fake child and recorded Renamed C:\Users\cyril\AppData\Local\Temp\etilqs-selftest-not-created at 10/31/2026 21:36:44
+PASS live watcher rename-temp-to-external: terminated fake child and recorded Renamed C:\Users\cyril\Downloads\worker-common-selftest-not-created.txt at 10/31/2026 21:36:44
+UI guard self-tests passed: only unattributed Temp events continue, other external events stop, paths validated, no external file created.

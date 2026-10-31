@@ -1,0 +1,56 @@
+{
+  "reports": 19,
+  "crates": 8,
+  "files": 339,
+  "module_declarations": 280,
+  "external_modules": 236,
+  "inline_modules": 44,
+  "literal_or_manifest_inclusions": 37,
+  "source_references": 9443,
+  "invalid_source_ranges": [],
+  "broken_local_links": [],
+  "missing_files": [],
+  "missing_module_declarations": [],
+  "unresolved_external_modules": [],
+  "missing_include_targets": [],
+  "source_files_without_root_declaration_or_include": [],
+  "trailing_whitespace": [],
+  "mermaid_structure_errors": [],
+  "production_lines": 58664,
+  "test_lines": 65487,
+  "production_functions": 1570,
+  "functions_over150": 39,
+  "counts_consistent": true,
+  "unmatched_braces": 0,
+  "scope": {
+    "head_at_measurement": "88850e8afd45e3b4c827914fad4c55a796b479db",
+    "head_final": "88850e8afd45e3b4c827914fad4c55a796b479db",
+    "head_unchanged": true,
+    "tracked_changes_outside_architecture": [
+      "crates/whisper-core/tests/parakeet_import_contract.rs"
+    ],
+    "initial_untracked_roots": [
+      "docs/architecture/",
+      "models/",
+      "sound example/"
+    ],
+    "outside_status_unchanged": false,
+    "documentary_write_root": "docs/architecture/",
+    "authorized_followup_execution_roots": [
+      "target/parakeet-tests/refacto-ui/",
+      "target/parakeet-tests/refacto-parakeet-live/",
+      "target/parakeet-tests/cargo-shared/"
+    ],
+    "cargo_attempt_status": "COMPLETED_WITH_WARNINGS",
+    "niveau1_status": "PASSED_WITH_AUTHORIZED_D2_REUSE",
+    "all_tracked_changes_within_architecture": false,
+    "git_diff_check_exit": 0,
+    "limits": "Git ne détecte pas les changements de contenu dans les fichiers déjà non suivis ; aucune empreinte de ces fichiers préexistants n’a été créée.",
+    "authorized_followup_source_paths": [
+      "crates/whisper-core/tests/parakeet_import_contract.rs"
+    ],
+    "unexpected_tracked_changes": [],
+    "all_tracked_changes_within_authorized_scope": true
+  },
+  "limitations": "Références/plages/couverture vérifiées lexicalement, pas de preuve sémantique ni de rendu Mermaid par un moteur graphique."
+}

@@ -1,0 +1,22 @@
+{
+  "cargo_args": [
+    "test",
+    "--offline",
+    "--locked",
+    "--workspace",
+    "--config",
+    "env.LOCALAPPDATA.value='C:/dev/whisper/target/parakeet-tests/refacto-parakeet-live/niveau1-88850e8/retry-20261031T215723/localappdata'",
+    "--config",
+    "env.LOCALAPPDATA.force=true",
+    "--",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "mode": "Run",
+  "run_id": "20261031T215801649-2f4a5577",
+  "stdout": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\logs\\Run-20261031T215801649-2f4a5577.stdout.log",
+  "stderr": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\logs\\Run-20261031T215801649-2f4a5577.stderr.log",
+  "seconds": 1079,
+  "exit_code": 101,
+  "at": "2026-10-31T22:16:00.1896242+01:00"
+}

@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-31T21:47:47.0569129+01:00",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "command": "cargo test --offline --locked --workspace -- --test-threads=1 --nocapture",
+  "scope": "Workspace complet, tests non ignores, features par defaut, sans filtre, sans modification de tests",
+  "source_diff": [],
+  "untracked_sources": [],
+  "guard": "target/parakeet-tests/refacto-parakeet-live/guard.ps1",
+  "execution_root": "target/parakeet-tests/refacto-parakeet-live/",
+  "cargo_target": "target/parakeet-tests/cargo-shared/",
+  "free_gib": 190.08,
+  "test_environment": {
+    "WHISPER_L1B_RUNTIME_ROOT": "sera fixe sous la racine execution pour exercer les tests catalogue/preferences locaux"
+  }
+}

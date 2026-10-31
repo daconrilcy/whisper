@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-31T21:49:31.6655714+01:00",
+  "run_id": "20261031T214816919-31409809",
+  "cargo_args": [
+    "test",
+    "--offline",
+    "--locked",
+    "--workspace",
+    "--",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "seconds": 75,
+  "mode": "Run",
+  "exit_code": -1,
+  "stdout": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\logs\\Run-20261031T214816919-31409809.stdout.log",
+  "stderr": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\logs\\Run-20261031T214816919-31409809.stderr.log"
+}

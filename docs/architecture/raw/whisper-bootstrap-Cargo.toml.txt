@@ -1,0 +1,13 @@
+[package]
+name = "whisper-bootstrap"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+whisper-core.workspace = true
+whisper-adapters.workspace = true
+
+[lints]
+workspace = true

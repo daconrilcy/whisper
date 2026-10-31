@@ -1,0 +1,4 @@
+ M crates/whisper-core/tests/parakeet_import_contract.rs
+?? docs/architecture/
+?? models/
+?? "sound example/"

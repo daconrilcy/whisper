@@ -1,0 +1,437 @@
+level	code	path	line	end	function	source_test	compilation_test	metric	threshold	message
+warning	dead_code	crates/whisper-core/src/application/event_metadata.rs	5	5	kind_name	False	False			method `kind_name` is never used
+warning	clippy::too_many_lines	crates/whisper-core/src/application/event_metadata.rs	60	60	identity	False	False	108	100	this function has too many lines (108/100)
+warning	clippy::too_many_lines	crates/whisper-core/src/application/runtime/unified.rs	979	982	start_unified_live_command	False	False	107	100	this function has too many lines (107/100)
+warning	clippy::too_many_lines	crates/whisper-core/src/engine_capabilities.rs	184	187	project	False	False	121	100	this function has too many lines (121/100)
+warning	clippy::too_many_lines	crates/whisper-core/src/gpu_inventory.rs	140	143	qualify	False	False	113	100	this function has too many lines (113/100)
+warning	dead_code	crates/whisper-core/src/application/event_metadata.rs	5	5	kind_name	False	False			method `kind_name` is never used
+warning	clippy::too_many_lines	crates/whisper-core/src/application/event_metadata.rs	60	60	identity	False	False	108	100	this function has too many lines (108/100)
+warning	clippy::too_many_lines	crates/whisper-core/src/application/runtime/unified.rs	979	982	start_unified_live_command	False	False	107	100	this function has too many lines (107/100)
+warning	clippy::field_reassign_with_default	crates/whisper-core/src/application/runtime/tests/closing_and_recovery.rs	281	281	request_close_waits_for_an_already_committing_import_result	True	False			field assignment outside of initializer for an instance created with Default::default()
+warning	clippy::too_many_lines	crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs	2	2	unified_page_responses_and_errors_follow_latest_selection_request	True	False	208	100	this function has too many lines (208/100)
+warning	clippy::too_many_lines	crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs	246	246	microphone_gain_command_is_scoped_to_the_active_direct_capture	True	False	118	100	this function has too many lines (118/100)
+warning	clippy::cognitive_complexity	crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs	451	451	microphone_test_owns_one_capture_then_releases_before_live_restart	True	False	26	25	the function has a cognitive complexity of (26/25)
+warning	clippy::too_many_lines	crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs	451	451	microphone_test_owns_one_capture_then_releases_before_live_restart	True	False	208	100	this function has too many lines (208/100)
+warning	clippy::too_many_lines	crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs	1000	1000	stale_audio_pages_reset_revision_and_preserve_real_errors_and_request_identity	True	False	145	100	this function has too many lines (145/100)
+warning	clippy::cognitive_complexity	crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs	81	81	parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text	True	False	36	25	the function has a cognitive complexity of (36/25)
+warning	clippy::too_many_lines	crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs	81	81	parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text	True	False	297	100	this function has too many lines (297/100)
+warning	clippy::too_many_lines	crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs	386	386	late_automatic_import_failure_updates_only_its_capture_row	True	False	163	100	this function has too many lines (163/100)
+warning	clippy::too_many_lines	crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs	553	553	direct_start_failure_before_live_started_keeps_a_capture_row_without_wav	True	False	101	100	this function has too many lines (101/100)
+warning	clippy::too_many_lines	crates/whisper-core/src/engine_capabilities.rs	184	187	project	False	False	121	100	this function has too many lines (121/100)
+warning	clippy::too_many_lines	crates/whisper-core/src/gpu_inventory.rs	140	143	qualify	False	False	113	100	this function has too many lines (113/100)
+warning	unused_imports	crates/whisper-worker-parakeet-cpu/src/args.rs	3	3		False	True			unused import: `PROFILE_QUALIFICATION_REFERENCE`
+warning	clippy::too_many_lines	crates/whisper-core/tests/import_contract.rs	171	171	refresh_drains_at_most_four_events_and_waits_for_every_persisted_ack	True	True	118	100	this function has too many lines (118/100)
+warning	clippy::too_many_lines	crates/whisper-core/tests/engine_capabilities.rs	115	115	auto_and_manual_language_are_independent_and_projection_matches_admission	True	True	107	100	this function has too many lines (107/100)
+warning	clippy::too_many_lines	crates/whisper-core/tests/import_contract.rs	296	296	persist_backpressure_retains_ninth_segment_until_queue_capacity_returns	True	True	143	100	this function has too many lines (143/100)
+warning	unused_imports	crates/whisper-worker-parakeet-cpu/src/args.rs	3	3		False	True			unused import: `PROFILE_QUALIFICATION_REFERENCE`
+warning	clippy::cognitive_complexity	crates/whisper-worker-parakeet-cpu/tests/native_import.rs	67	67	cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload	True	True	58	25	the function has a cognitive complexity of (58/25)
+warning	clippy::too_many_lines	crates/whisper-worker-parakeet-cpu/tests/native_import.rs	67	67	cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload	True	True	280	100	this function has too many lines (280/100)
+warning	clippy::too_many_lines	crates/whisper-worker-parakeet-cpu/tests/native_import.rs	474	474	cpu_worker_normalizes_fr87_fr27_and_en15_short_fixtures	True	True	105	100	this function has too many lines (105/100)
+warning	clippy::too_many_lines	crates/whisper-worker-parakeet-cpu/tests/native_import.rs	784	784	gpu_worker_fr_en_single_pass	True	True	196	100	this function has too many lines (196/100)
+warning	unused_mut	crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs	116	116	allowed_runtime_root_candidates	False	True			variable does not need to be mutable
+warning	clippy::too_many_arguments	crates/whisper-worker-parakeet-cpu/tests/native_import.rs	1403	1412	request_with_hash	True	True	8	7	this function has too many arguments (8/7)
+warning	dead_code	crates/whisper-worker-parakeet-cpu/src/native_engine.rs	42	42	transcribe	False	True			method `transcribe` is never used
+warning	clippy::too_many_lines	crates/whisper-worker-parakeet-cpu/src/decoder.rs	25	25	decode_file	False	True	118	100	this function has too many lines (118/100)
+warning	clippy::too_many_lines	crates/whisper-worker-parakeet-cpu/src/native_engine.rs	112	115	normalize_words	False	True	133	100	this function has too many lines (133/100)
+warning	clippy::manual_contains	crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs	54	54	required_runtime_root	False	True			using `contains()` instead of `iter().any()` is more efficient
+warning	clippy::into_iter_on_ref	crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs	134	134	allowed_runtime_roots_for	False	True			this `.into_iter()` call is equivalent to `.iter()` and will not consume the `slice`
+warning	clippy::too_many_lines	crates/whisper-worker-parakeet-cpu/src/session.rs	13	18	run	False	True	214	100	this function has too many lines (214/100)
+warning	clippy::while_let_loop	crates/whisper-worker-parakeet-cpu/src/session.rs	23	231	run	False	True			this loop could be written as a `while let` loop
+warning	clippy::type_complexity	crates/whisper-worker-parakeet-cpu/src/transcription.rs	29	38	transcribe_one	False	True			very complex type used. Consider factoring parts into `type` definitions
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/support/worker.rs	13	13		True	True			constant `CONTROLLED_TIMEOUT` is never used
+warning	clippy::ok_expect	crates/whisper-worker-parakeet-cpu/tests/support/worker.rs	142	142	finish_reader	True	True			called `ok().expect()` on a `Result` value
+warning	clippy::cognitive_complexity	crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs	127	127	run	True	True	27	25	the function has a cognitive complexity of (27/25)
+warning	clippy::too_many_lines	crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs	127	127	run	True	True	193	100	this function has too many lines (193/100)
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	15	15	campaign_root	True	True			function `campaign_root` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	27	27	decode_case	True	True			function `decode_case` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	85	85		True	True			struct `NativeWorker` is never constructed
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	92	92	sha256	True	True			function `sha256` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	106	106	start_worker	True	True			function `start_worker` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	193	193	send	True	True			methods `send`, `event`, and `finish` are never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	220	220	worker_paths	True	True			function `worker_paths` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	231	231	ready	True	True			function `ready` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	253	253	normalize	True	True			function `normalize` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	275	275	request	True	True			function `request` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	288	288	refusal_case	True	True			function `refusal_case` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	357	357	errors_case	True	True			function `errors_case` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs	398	398	native_case	True	True			function `native_case` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/support/worker.rs	13	13		True	True			constant `CONTROLLED_TIMEOUT` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/support/worker.rs	14	14		True	True			constant `NATIVE_TIMEOUT` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/support/worker.rs	52	52	id	True	True			method `id` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/tests/support/worker.rs	134	134	finish_reader	True	True			function `finish_reader` is never used
+warning	clippy::ok_expect	crates/whisper-worker-parakeet-cpu/tests/support/worker.rs	142	142	finish_reader	True	True			called `ok().expect()` on a `Result` value
+warning	clippy::too_many_lines	crates/whisper-worker-common/src/encoder/tests.rs	5	5	packet_sequence_matches_original_encoder	True	True	265	100	this function has too many lines (265/100)
+warning	unused_mut	crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs	116	116	allowed_runtime_root_candidates	False	False			variable does not need to be mutable
+warning	clippy::assertions_on_constants	crates/whisper-core/tests/parakeet_windows.rs	80	80	reference_profile_duration_is_bounded_and_window_margins_are_joint	True	True			this assertion has a constant value
+warning	dead_code	crates/whisper-worker-parakeet-cpu/src/native_engine.rs	42	42	transcribe	False	False			method `transcribe` is never used
+warning	dead_code	crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs	133	133	allowed_runtime_roots_for	False	False			function `allowed_runtime_roots_for` is never used
+warning	clippy::too_many_lines	crates/whisper-worker-parakeet-cpu/src/decoder.rs	25	25	decode_file	False	False	118	100	this function has too many lines (118/100)
+warning	clippy::too_many_lines	crates/whisper-worker-parakeet-cpu/src/native_engine.rs	112	115	normalize_words	False	False	133	100	this function has too many lines (133/100)
+warning	clippy::manual_contains	crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs	54	54	required_runtime_root	False	False			using `contains()` instead of `iter().any()` is more efficient
+warning	clippy::into_iter_on_ref	crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs	134	134	allowed_runtime_roots_for	False	False			this `.into_iter()` call is equivalent to `.iter()` and will not consume the `slice`
+warning	clippy::too_many_lines	crates/whisper-worker-parakeet-cpu/src/session.rs	13	18	run	False	False	214	100	this function has too many lines (214/100)
+warning	clippy::while_let_loop	crates/whisper-worker-parakeet-cpu/src/session.rs	23	231	run	False	False			this loop could be written as a `while let` loop
+warning	clippy::type_complexity	crates/whisper-worker-parakeet-cpu/src/transcription.rs	29	38	transcribe_one	False	False			very complex type used. Consider factoring parts into `type` definitions
+warning	clippy::duplicate_mod	crates/whisper-worker-cpu/tests/reusable_imports.rs	11	12		True	True			file is loaded as a module multiple times: `crates\whisper-worker-cpu\tests\support\worker.rs`
+warning	unused_imports	crates/whisper-adapters/src/direct_live.rs	15	15		False	False			unused imports: `ParakeetExportOutcome` and `export_parakeet_manifest`
+warning	dead_code	crates/whisper-worker-cpu/tests/support/worker.rs	13	13		True	True			constant `CONTROLLED_TIMEOUT` is never used
+warning	dead_code	crates/whisper-worker-cpu/tests/support/worker.rs	52	52	id	True	True			method `id` is never used
+warning	clippy::ok_expect	crates/whisper-worker-cpu/tests/support/worker.rs	142	142	finish_reader	True	True			called `ok().expect()` on a `Result` value
+warning	clippy::too_many_lines	crates/whisper-worker-cpu/tests/worker_contract.rs	100	105	live_case	True	True	122	100	this function has too many lines (122/100)
+warning	dead_code	crates/whisper-worker-gpu/tests/support/worker.rs	52	52	id	True	True			method `id` is never used
+warning	clippy::ok_expect	crates/whisper-worker-gpu/tests/support/worker.rs	142	142	finish_reader	True	True			called `ok().expect()` on a `Result` value
+warning	clippy::too_many_lines	crates/whisper-worker-gpu/tests/worker_contract.rs	138	143	live_case	True	True	122	100	this function has too many lines (122/100)
+warning	clippy::too_many_lines	crates/whisper-worker-cpu/src/native_engine.rs	56	60	transcribe	False	False	128	100	this function has too many lines (128/100)
+warning	clippy::too_many_lines	crates/whisper-worker-cpu/src/session/import.rs	4	9	run_import	False	False	283	100	this function has too many lines (283/100)
+warning	clippy::too_many_arguments	crates/whisper-worker-cpu/src/session/live.rs	4	13	run_live_service	False	False	8	7	this function has too many arguments (8/7)
+warning	clippy::too_many_lines	crates/whisper-worker-cpu/src/session/live.rs	4	13	run_live_service	False	False	240	100	this function has too many lines (240/100)
+warning	clippy::too_many_lines	crates/whisper-worker-cpu/src/session/mod.rs	47	52	run_session	False	False	116	100	this function has too many lines (116/100)
+warning	clippy::too_many_lines	crates/whisper-worker-cpu/src/native_engine.rs	56	60	transcribe	False	False	128	100	this function has too many lines (128/100)
+warning	clippy::too_many_lines	crates/whisper-worker-cpu/src/session/import.rs	4	9	run_import	False	False	283	100	this function has too many lines (283/100)
+warning	clippy::too_many_arguments	crates/whisper-worker-cpu/src/session/live.rs	4	13	run_live_service	False	False	8	7	this function has too many arguments (8/7)
+warning	clippy::too_many_lines	crates/whisper-worker-cpu/src/session/live.rs	4	13	run_live_service	False	False	240	100	this function has too many lines (240/100)
+warning	clippy::too_many_lines	crates/whisper-worker-cpu/src/session/mod.rs	47	52	run_session	False	False	116	100	this function has too many lines (116/100)
+warning	dead_code	crates/whisper-worker-cpu/tests/support/worker.rs	13	13		True	True			constant `CONTROLLED_TIMEOUT` is never used
+warning	dead_code	crates/whisper-worker-cpu/tests/support/worker.rs	52	52	id	True	True			method `id` is never used
+warning	clippy::ok_expect	crates/whisper-worker-cpu/tests/support/worker.rs	142	142	finish_reader	True	True			called `ok().expect()` on a `Result` value
+warning	clippy::field_reassign_with_default	crates/whisper-worker-gpu/src/native_ffi.rs	575	575	device_interface_instance_id	False	False			field assignment outside of initializer for an instance created with Default::default()
+warning	clippy::field_reassign_with_default	crates/whisper-worker-gpu/src/native_ffi.rs	598	598	device_interface_instance_id	False	False			field assignment outside of initializer for an instance created with Default::default()
+warning	clippy::too_many_lines	crates/whisper-worker-gpu/src/session/import.rs	2	7	run_import	False	False	361	100	this function has too many lines (361/100)
+warning	clippy::too_many_arguments	crates/whisper-worker-gpu/src/session/live.rs	3	12	run_live_service	False	False	8	7	this function has too many arguments (8/7)
+warning	clippy::too_many_lines	crates/whisper-worker-gpu/src/session/live.rs	3	12	run_live_service	False	False	241	100	this function has too many lines (241/100)
+warning	clippy::too_many_lines	crates/whisper-worker-gpu/src/session/mod.rs	50	55	run_session	False	False	279	100	this function has too many lines (279/100)
+warning	clippy::field_reassign_with_default	crates/whisper-worker-gpu/src/native_ffi.rs	575	575	device_interface_instance_id	False	True			field assignment outside of initializer for an instance created with Default::default()
+warning	clippy::field_reassign_with_default	crates/whisper-worker-gpu/src/native_ffi.rs	598	598	device_interface_instance_id	False	True			field assignment outside of initializer for an instance created with Default::default()
+warning	clippy::too_many_lines	crates/whisper-worker-gpu/src/session/import.rs	2	7	run_import	False	True	361	100	this function has too many lines (361/100)
+warning	clippy::too_many_arguments	crates/whisper-worker-gpu/src/session/live.rs	3	12	run_live_service	False	True	8	7	this function has too many arguments (8/7)
+warning	clippy::too_many_lines	crates/whisper-worker-gpu/src/session/live.rs	3	12	run_live_service	False	True	241	100	this function has too many lines (241/100)
+warning	clippy::too_many_lines	crates/whisper-worker-gpu/src/session/mod.rs	50	55	run_session	False	True	279	100	this function has too many lines (279/100)
+warning	unused_imports	crates/whisper-adapters/src/direct_live.rs	15	15		False	False			unused import: `ParakeetExportOutcome`
+warning	unused_imports	crates/whisper-adapters/src/parakeet_pipeline.rs	624	624		True	False			unused import: `path::PathBuf`
+warning	unused_imports	crates/whisper-adapters/src/worker_ipc.rs	9	9		True	False			unused imports: `FinishedLiveWindow`, `LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL`, `ParakeetVadRun`, `PendingLiveState`, `PreflightResult`, `append_vad_parakeet_word_group`, `campaign_reserve_attempt`, `collision_free_job_id`, `pending_unified_event_identity`, and `scan_archive_history`
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/archive/cleanup/execution.rs	27	27	run_cleanup_plan_locked	False	False	32	25	the function has a cognitive complexity of (32/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/cleanup/execution.rs	27	30	run_cleanup_plan_locked	False	False	500	100	this function has too many lines (500/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/cleanup/proofs.rs	19	22	capture_cleanup_target	False	False	169	100	this function has too many lines (169/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/cleanup/proofs.rs	378	381	recover_published_cleanup_successor	False	False	133	100	this function has too many lines (133/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/identity.rs	358	362	published_unified_files	False	False	139	100	this function has too many lines (139/100)
+warning	clippy::let_and_return	crates/whisper-adapters/src/archive/import.rs	216	216	prepare_with_source_binding	False	False			returning the result of a `let` binding from a block
+warning	clippy::let_and_return	crates/whisper-adapters/src/archive/import.rs	248	248	prepare_inner_with_publication_lock	False	False			returning the result of a `let` binding from a block
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/import.rs	251	259	prepare_inner_impl	False	False	256	100	this function has too many lines (256/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/live.rs	12	12	prepare	False	False	118	100	this function has too many lines (118/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/live.rs	463	468	publish	False	False	169	100	this function has too many lines (169/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/publication/catalog.rs	428	432	reconfirm_interrupted_publication	False	False	107	100	this function has too many lines (107/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/publication/exports.rs	50	56	install_publication_exports_with_copy_hook	False	False	172	100	this function has too many lines (172/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/publication.rs	135	135	commit_publish	False	False	144	100	this function has too many lines (144/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/recovery/live.rs	185	187	scan_live_recoveries	False	False	105	100	this function has too many lines (105/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/recovery.rs	39	45	resume_from_with_qualification	False	False	266	100	this function has too many lines (266/100)
+warning	clippy::let_and_return	crates/whisper-adapters/src/archive/recovery.rs	382	382	scan	False	False			returning the result of a `let` binding from a block
+warning	clippy::let_and_return	crates/whisper-adapters/src/archive/source.rs	131	131	source_output_samples	False	False			returning the result of a `let` binding from a block
+warning	clippy::too_many_lines	crates/whisper-adapters/src/capture.rs	451	456	start_device_with_buffer	False	False	137	100	this function has too many lines (137/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/direct_live/worker.rs	4	7	handle_worker	False	False	205	100	this function has too many lines (205/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/direct_live.rs	97	103	start	False	False	146	100	this function has too many lines (146/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/gpu_inventory.rs	99	99	start	False	False	129	100	this function has too many lines (129/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/microphone_probe.rs	542	542	push	False	False	130	100	this function has too many lines (130/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_import.rs	400	404	spawn_profile_with_log_root	False	False	112	100	this function has too many lines (112/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_confirmation.rs	176	179	ingest_observed	False	False	143	100	this function has too many lines (143/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_live/events.rs	4	4	poll	False	False	232	100	this function has too many lines (232/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_live/inference.rs	17	23	inference_thread	False	False	342	100	this function has too many lines (342/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_live/inference.rs	376	383	transcribe_window	False	False	114	100	this function has too many lines (114/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_live/lifecycle.rs	23	29	start_with_capture	False	False	124	100	this function has too many lines (124/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/parakeet_live/lifecycle.rs	199	199	stop	False	False	26	25	the function has a cognitive complexity of (26/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_live/lifecycle.rs	199	199	stop	False	False	146	100	this function has too many lines (146/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/source_binding.rs	101	107	acquire_with_hook	False	False	223	100	this function has too many lines (223/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/source_binding.rs	675	680	recovery_candidate	False	False	129	100	this function has too many lines (129/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/parakeet_unified/executor.rs	134	134	start_instance	False	False	184	100	this function has too many lines (184/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs	283	289	transcribe_scheduled	False	False	174	100	this function has too many lines (174/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs	96	101	confirm_interrupted_publication	False	False	112	100	this function has too many lines (112/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs	216	221	confirm_duplicate_import	False	False	199	100	this function has too many lines (199/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/effects.rs	4	8	effect	False	False	227	100	this function has too many lines (227/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs	20	25	start_worker_with_candidate_override	False	False	162	100	this function has too many lines (162/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs	190	195	start_parakeet_worker	False	False	254	100	this function has too many lines (254/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs	494	500	handle_worker_failure	False	False	163	100	this function has too many lines (163/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	6	11	prepare	False	False	115	100	this function has too many lines (115/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	279	286	publish_inner	False	False	127	100	this function has too many lines (127/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	421	426	stop	False	False	155	100	this function has too many lines (155/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	872	877	stop_effect	False	False	111	100	this function has too many lines (111/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	1115	1118	start_controlled_unified_import	False	False	132	100	this function has too many lines (132/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/live.rs	644	648	start_live	False	False	103	100	this function has too many lines (103/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/live.rs	822	826	start_cpu_live_attempt	False	False	120	100	this function has too many lines (120/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll/capture.rs	108	108	pump_live_windows	False	False	125	100	this function has too many lines (125/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs	192	194	advance_parakeet_vad_decode	False	False	102	100	this function has too many lines (102/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs	506	506	poll_parakeet_worker	False	False	30	25	the function has a cognitive complexity of (30/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs	506	506	poll_parakeet_worker	False	False	486	100	this function has too many lines (486/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/runtime/poll.rs	134	134	poll	False	False	102	25	the function has a cognitive complexity of (102/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll.rs	134	136	poll	False	False	1085	100	this function has too many lines (1085/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs	32	41	retry_native_gpu_startup_on_cpu	False	False	173	100	this function has too many lines (173/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs	382	382	poll_unified_sessions	False	False	64	25	the function has a cognitive complexity of (64/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs	382	384	poll_unified_sessions	False	False	986	100	this function has too many lines (986/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/queue.rs	4	8	enqueue	False	False	156	100	this function has too many lines (156/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/queue.rs	192	196	process_queued	False	False	212	100	this function has too many lines (212/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs	9	14	resume_interrupted	False	False	332	100	this function has too many lines (332/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs	97	101	transfer_resume_source_binding_inner	False	False	136	100	this function has too many lines (136/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs	322	327	release_source_binding_inner	False	False	122	100	this function has too many lines (122/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/service/mod.rs	411	411	submit	False	False	184	100	this function has too many lines (184/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/service/mod.rs	663	668	service_loop	False	False	143	100	this function has too many lines (143/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/reprocessing_create.rs	239	239	application_create_new_processes_the_bound_snapshot_and_preserves_prior_publication	True	True	153	100	this function has too many lines (153/100)
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/tests/reprocessing_create.rs	283	283	application_create_new_processes_the_bound_snapshot_and_preserves_prior_publication	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/gpu_selection_worker.rs	86	86	real_gpu_import_uses_current_windows_candidate_and_local_model_when_enabled	True	True	199	100	this function has too many lines (199/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_archive_personal_history.rs	55	55	personal_archives_recognize_previous_workers_without_admitting_them_for_execution	True	True	142	100	this function has too many lines (142/100)
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/tests/parakeet_long.rs	220	220	read_pcm16_mono	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::if_same_then_else	crates/whisper-adapters/tests/parakeet_long.rs	516	518	normalized_tokens	True	True			this `if` has identical blocks
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/import_mp3.rs	12	12	r11_mp3_content_identity_is_independent_of_filename_and_destination	True	True	103	100	this function has too many lines (103/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/import_mp3.rs	367	367	real_mp3_runs_through_durable_choice_cpu_worker_and_txt_srt_archive	True	True	103	100	this function has too many lines (103/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_control.rs	53	53	stop_during_parakeet_inference_waits_for_exit_and_preserves_pending_without_publication	True	True	107	100	this function has too many lines (107/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_control.rs	231	231	stop_queue_journal_failure_settles_runtime_and_allows_next_import	True	True	169	100	this function has too many lines (169/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_control.rs	408	408	resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once	True	True	149	100	this function has too many lines (149/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_control.rs	566	566	resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once	True	True	191	100	this function has too many lines (191/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_control.rs	773	781	run_barrier_case	True	True	104	100	this function has too many lines (104/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/tests/import_cpu.rs	26	26	r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives	True	True	26	25	the function has a cognitive complexity of (26/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/import_cpu.rs	26	26	r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives	True	True	310	100	this function has too many lines (310/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/import_cpu.rs	411	415	r11_resume_keeps_replace_reservation	True	True	124	100	this function has too many lines (124/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/import_cpu.rs	639	643	r11_byte_identical_post_reservation_collision_is_never_claimed	True	True	116	100	this function has too many lines (116/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/import_cpu.rs	828	832	r11_recover_after_single_export_collision	True	True	120	100	this function has too many lines (120/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/import_cpu.rs	960	964	r11_recover_after_both_exports_before_current	True	True	133	100	this function has too many lines (133/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/import_cpu.rs	1290	1290	real_wav_runs_through_cpu_worker_and_verified_archive	True	True	118	100	this function has too many lines (118/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/import_cpu.rs	1540	1540	stop_during_native_inference_is_prompt_and_never_publishes_complete	True	True	115	100	this function has too many lines (115/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/import_cpu.rs	1786	1786	start	True	True	113	100	this function has too many lines (113/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/tests/import_cpu.rs	1903	1903	finish	True	True	36	25	the function has a cognitive complexity of (36/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/import_cpu.rs	1903	1903	finish	True	True	290	100	this function has too many lines (290/100)
+warning	unused_mut	crates/whisper-adapters/src/direct_live/tests.rs	31	31	direct_capture_publishes_frequency_spectrum_without_changing_wav_audio	True	True			variable does not need to be mutable
+warning	clippy::cognitive_complexity	crates/whisper-adapters/tests/parakeet_unified_native.rs	147	147	run_native_import	True	True	49	25	the function has a cognitive complexity of (49/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_unified_native.rs	147	154	run_native_import	True	True	241	100	this function has too many lines (241/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/tests/parakeet_unified_native.rs	423	423	run_native_long_case	True	True	39	25	the function has a cognitive complexity of (39/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_unified_native.rs	423	423	run_native_long_case	True	True	155	100	this function has too many lines (155/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_unified_native.rs	584	584	build_long_fixture	True	True	148	100	this function has too many lines (148/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs	20	20	run_matrix	True	True	26	25	the function has a cognitive complexity of (26/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs	20	20	run_matrix	True	True	175	100	this function has too many lines (175/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/reprocessing_baseline.rs	26	26	r11_application_baseline	True	True	161	100	this function has too many lines (161/100)
+warning	clippy::too_many_arguments	crates/whisper-adapters/tests/reprocessing_baseline.rs	238	247	run_import_with_duplicate_choice	True	True	8	7	this function has too many arguments (8/7)
+warning	clippy::too_many_arguments	crates/whisper-adapters/tests/reprocessing_baseline.rs	260	269	run_import_with_choice	True	True	8	7	this function has too many arguments (8/7)
+warning	clippy::too_many_lines	crates/whisper-desktop/src/ui/model/view/unified.rs	145	150	request_unified_pages	False	False	103	100	this function has too many lines (103/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/reprocessing_cleanup.rs	346	346	create_failed_cleanup_fixture	True	True	148	100	this function has too many lines (148/100)
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/tests/reprocessing_cleanup.rs	371	371	create_failed_cleanup_fixture	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::cognitive_complexity	crates/whisper-adapters/tests/reprocessing_cleanup.rs	845	845	replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	True	True	94	25	the function has a cognitive complexity of (94/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/reprocessing_cleanup.rs	845	845	replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	True	True	697	100	this function has too many lines (697/100)
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/tests/reprocessing_cleanup.rs	972	972	replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::collapsible_if	crates/whisper-adapters/tests/reprocessing_cleanup.rs	1304	1314	replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	True	True			this `if` statement can be collapsed
+warning	clippy::cognitive_complexity	crates/whisper-adapters/tests/live_archive.rs	328	328	passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation	True	True	35	25	the function has a cognitive complexity of (35/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/live_archive.rs	328	328	passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation	True	True	225	100	this function has too many lines (225/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_import.rs	824	824	gpu_app_en5_twice_release	True	True	254	100	this function has too many lines (254/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_import.rs	1098	1105	run_gpu_application_import_with_native	True	True	225	100	this function has too many lines (225/100)
+warning	clippy::question_mark	crates/whisper-adapters/tests/parakeet_import.rs	1385	1387	personal_worker_build	True	True			this block may be rewritten with the `?` operator
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_import.rs	1416	1416	r6_application_single_pass_recipe	True	True	133	100	this function has too many lines (133/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_import.rs	1554	1554	r7_application_timing	True	True	144	100	this function has too many lines (144/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/tests/parakeet_import.rs	1703	1703	r9_application_recipe	True	True	43	25	the function has a cognitive complexity of (43/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_import.rs	1703	1703	r9_application_recipe	True	True	397	100	this function has too many lines (397/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_import.rs	2157	2157	incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary	True	True	218	100	this function has too many lines (218/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_import.rs	2502	2505	assert_cpu_incompatible_native_refusal	True	True	127	100	this function has too many lines (127/100)
+warning	clippy::needless_borrows_for_generic_args	crates/whisper-adapters/tests/parakeet_import.rs	2712	2712	assert_worker_death	True	True			the borrowed expression implements the required traits
+warning	clippy::needless_borrow	crates/whisper-adapters/tests/parakeet_import.rs	2715	2715	assert_worker_death	True	True			this expression creates a reference which is immediately dereferenced by the compiler
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_import.rs	2866	2872	run_product_transport_failure	True	True	131	100	this function has too many lines (131/100)
+warning	clippy::collapsible_if	crates/whisper-adapters/tests/parakeet_import.rs	3171	3194	r8_exec_root	True	True			this `if` statement can be collapsed
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_archive.rs	91	91	archive_root	True	True	122	100	this function has too many lines (122/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/tests/parakeet_archive.rs	445	445	pending_scan_and_resume_require_the_exact_qualified_test_key	True	True	26	25	the function has a cognitive complexity of (26/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_archive.rs	445	445	pending_scan_and_resume_require_the_exact_qualified_test_key	True	True	155	100	this function has too many lines (155/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_archive.rs	993	993	parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix	True	True	105	100	this function has too many lines (105/100)
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/tests/parakeet_archive.rs	1264	1264	pcm16_mono_wav	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/parakeet_archive.rs	1305	1305	r5_2_a4_product_route_publishes_french_and_english_txt_srt	True	True	128	100	this function has too many lines (128/100)
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/tests/parakeet_archive.rs	1671	1671	read_pcm16_mono	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::if_same_then_else	crates/whisper-adapters/tests/parakeet_archive.rs	1974	1976	normalized_tokens	True	True			this `if` has identical blocks
+warning	unused_mut	crates/whisper-adapters/src/parakeet_live/microphone_spectrum_tests.rs	35	35	parakeet_capture_pump_publishes_frequency_spectrum_and_preserves_wav	True	True			variable does not need to be mutable
+warning	clippy::too_many_lines	crates/whisper-desktop/src/root.rs	43	43	compose	False	False	274	100	this function has too many lines (274/100)
+warning	unused_variables	crates/whisper-adapters/src/parakeet_pipeline.rs	1003	1003	finalization_advances_from_acknowledged_capture_then_closes_the_tail	True	True			unused variable: `source`
+warning	clippy::too_many_lines	crates/whisper-desktop/src/root.rs	43	43	compose	False	True	274	100	this function has too many lines (274/100)
+warning	clippy::too_many_lines	crates/whisper-desktop/src/root.rs	1144	1144	parakeet_worker_key_changes_regray_and_readmit_without_restarting	True	True	117	100	this function has too many lines (117/100)
+warning	clippy::too_many_lines	crates/whisper-desktop/src/ui/model/view/unified.rs	145	150	request_unified_pages	False	True	103	100	this function has too many lines (103/100)
+warning	clippy::too_many_lines	crates/whisper-desktop/src/ui/tests/support.rs	51	51	dispatch	True	True	160	100	this function has too many lines (160/100)
+warning	clippy::cognitive_complexity	crates/whisper-desktop/src/ui/tests/microphone_controls.rs	32	32	microphone_test_button_stops_after_neutral_gain_ack_and_reopens	True	True	37	25	the function has a cognitive complexity of (37/25)
+warning	clippy::too_many_lines	crates/whisper-desktop/src/ui/tests/microphone_controls.rs	32	32	microphone_test_button_stops_after_neutral_gain_ack_and_reopens	True	True	210	100	this function has too many lines (210/100)
+warning	clippy::too_many_lines	crates/whisper-desktop/src/ui/tests/unified_sessions.rs	368	368	turbo_completed_capture_allows_unified_parakeet_button_and_dispatch	True	True	141	100	this function has too many lines (141/100)
+warning	clippy::too_many_lines	crates/whisper-desktop/src/ui/tests/unified_sessions.rs	561	561	stale_audio_page_retries_are_delayed_and_corruption_does_not_retry	True	True	126	100	this function has too many lines (126/100)
+warning	clippy::too_many_lines	crates/whisper-desktop/src/ui/tests/unified_sessions.rs	691	691	unified_audio_page_stays_visible_at_same_position_while_progress_refreshes	True	True	106	100	this function has too many lines (106/100)
+warning	clippy::too_many_lines	crates/whisper-desktop/src/ui/tests/document_presentation.rs	57	57	unified_ui_renders_one_bounded_page_preview_parts_outputs_and_wait_state	True	True	105	100	this function has too many lines (105/100)
+warning	clippy::too_many_lines	crates/whisper-desktop/src/ui/tests/document_presentation.rs	245	245	unified_wait_tracking_prunes_finished_evicted_sessions_and_keeps_selected_wait	True	True	111	100	this function has too many lines (111/100)
+warning	unused_assignments	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	513	513	process_queued_import_to_app_view	True	True			value assigned to `last_message` is never read
+warning	unused_assignments	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	1490	1490	reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result	True	True			value assigned to `last_message` is never read
+warning	unused_assignments	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	2226	2226	run_native_personal_ab_c	True	True			value assigned to `first_text_available` is never read
+warning	unused_assignments	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	2991	2991	run_native_personal_ab_c	True	True			value assigned to `c_published_at` is never read
+warning	unused_assignments	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	177	177	microphone_legacy_capture_budget_forces_worker_poll_within_four_ui_events	True	True			value assigned to `capture_events_since_worker` is never read
+warning	unused_mut	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	219	219	microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end	True	True			variable does not need to be mutable
+warning	unused_mut	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	634	634	microphone_test_capture_owns_only_capture_conversion_and_probe_until_stop	True	True			variable does not need to be mutable
+warning	unused_assignments	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	1189	1189	live_slow_automatic_final_failure_does_not_block_another_capture_wav	True	True			value assigned to `final_failure_at` is never read
+warning	dead_code	crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs	20	20		True	True			fields `incarnation` and `pid` are never read
+warning	dead_code	crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs	50	50		True	True			field `word_count` is never read
+warning	dead_code	crates/whisper-adapters/src/worker_ipc/runtime/support.rs	357	357	hold_next_reserved_call_once	True	True			method `hold_next_reserved_call_once` is never used
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/archive/cleanup/execution.rs	27	27	run_cleanup_plan_locked	False	True	32	25	the function has a cognitive complexity of (32/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/cleanup/execution.rs	27	30	run_cleanup_plan_locked	False	True	500	100	this function has too many lines (500/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/cleanup/proofs.rs	19	22	capture_cleanup_target	False	True	169	100	this function has too many lines (169/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/cleanup/proofs.rs	378	381	recover_published_cleanup_successor	False	True	133	100	this function has too many lines (133/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/identity.rs	358	362	published_unified_files	False	True	139	100	this function has too many lines (139/100)
+warning	clippy::let_and_return	crates/whisper-adapters/src/archive/import.rs	216	216	prepare_with_source_binding	False	True			returning the result of a `let` binding from a block
+warning	clippy::let_and_return	crates/whisper-adapters/src/archive/import.rs	248	248	prepare_inner_with_publication_lock	False	True			returning the result of a `let` binding from a block
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/import.rs	251	259	prepare_inner_impl	False	True	256	100	this function has too many lines (256/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/live.rs	12	12	prepare	False	True	118	100	this function has too many lines (118/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/live.rs	463	468	publish	False	True	169	100	this function has too many lines (169/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/publication/catalog.rs	428	432	reconfirm_interrupted_publication	False	True	107	100	this function has too many lines (107/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/publication/exports.rs	50	56	install_publication_exports_with_copy_hook	False	True	172	100	this function has too many lines (172/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/publication.rs	135	135	commit_publish	False	True	144	100	this function has too many lines (144/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/recovery/live.rs	185	187	scan_live_recoveries	False	True	105	100	this function has too many lines (105/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/recovery.rs	39	45	resume_from_with_qualification	False	True	266	100	this function has too many lines (266/100)
+warning	clippy::let_and_return	crates/whisper-adapters/src/archive/recovery.rs	382	382	scan	False	True			returning the result of a `let` binding from a block
+warning	clippy::let_and_return	crates/whisper-adapters/src/archive/source.rs	131	131	source_output_samples	False	True			returning the result of a `let` binding from a block
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs	30	30	create_only_publication_returns_verified_internal_unified_artifacts_without_external_exports	True	True	207	100	this function has too many lines (207/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs	253	253	reprocessing_reservation_tracks_only_current_strategy_publications_for_resume	True	True	212	100	this function has too many lines (212/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs	511	511	unified_archive_pages_cap_text_and_audio_entries_at_128_with_real_cursors	True	True	105	100	this function has too many lines (105/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/archive/tests/recovery.rs	2	2	r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision	True	True	33	25	the function has a cognitive complexity of (33/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/tests/recovery.rs	2	2	r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision	True	True	319	100	this function has too many lines (319/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/tests/recovery.rs	354	354	scan_preserves_healthy_entries_and_reports_each_corrupt_generation	True	True	179	100	this function has too many lines (179/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/tests/recovery.rs	541	541	published_running_row_is_removed_durably_and_recovery_scans_are_stable	True	True	105	100	this function has too many lines (105/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/tests/recovery.rs	724	724	resumed_prefix_copy_retries_after_pending_creation_without_duplication	True	True	120	100	this function has too many lines (120/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/archive/tests/replacement_and_segmented.rs	237	237	r11_recovery_between_current_and_index_keeps_legacy_visible_until_explicit_activation	True	True	130	100	this function has too many lines (130/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/capture.rs	451	456	start_device_with_buffer	False	True	137	100	this function has too many lines (137/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/direct_live/worker.rs	4	7	handle_worker	False	True	205	100	this function has too many lines (205/100)
+warning	clippy::items_after_test_module	crates/whisper-adapters/src/direct_live/d2_corpus.rs	451	451		True	True			items after a test module
+warning	clippy::too_many_lines	crates/whisper-adapters/src/direct_live/d2_corpus.rs	143	143	d2_corpus_real_cpu_turbo_and_parakeet	True	True	138	100	this function has too many lines (138/100)
+warning	clippy::collapsible_if	crates/whisper-adapters/src/direct_live/d2_corpus.rs	299	305	turbo_case	True	True			this `if` statement can be collapsed
+warning	clippy::collapsible_if	crates/whisper-adapters/src/direct_live/d2_corpus.rs	373	379	parakeet_case	True	True			this `if` statement can be collapsed
+warning	clippy::drop_non_drop	crates/whisper-adapters/src/direct_live/d2_corpus.rs	480	480	d2_event_drain_stops_after_its_bounded_batch	True	True			call to `std::mem::drop` with a value that does not implement `Drop`. Dropping such a type only extends its contained lifetimes
+warning	clippy::drop_non_drop	crates/whisper-adapters/src/direct_live/d2_corpus.rs	481	481	d2_event_drain_stops_after_its_bounded_batch	True	True			call to `std::mem::drop` with a value that does not implement `Drop`. Dropping such a type only extends its contained lifetimes
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/src/direct_live/d2_corpus.rs	596	596	read_wav16	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::too_many_lines	crates/whisper-adapters/src/direct_live.rs	97	103	start	False	True	146	100	this function has too many lines (146/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/gpu_inventory.rs	99	99	start	False	True	129	100	this function has too many lines (129/100)
+warning	clippy::cloned_ref_to_slice_refs	crates/whisper-adapters/src/gpu_inventory.rs	757	757	inventory_log_appends_timestamped_partial_snapshots_and_escapes_names	True	True			unnecessary use of `clone` to create a slice from a reference
+warning	clippy::too_many_lines	crates/whisper-adapters/src/microphone_probe.rs	542	542	push	False	True	130	100	this function has too many lines (130/100)
+warning	clippy::single_element_loop	crates/whisper-adapters/src/parakeet_audio.rs	963	965	linear_resampler_drains_a_short_44100_source_without_resetting_at_packet_boundary	True	True			for loop over a single element
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_document.rs	892	892	resume_coverage_rejects_impossible_window_geometry_and_accepts_short_terminal_eof	True	True	106	100	this function has too many lines (106/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_import.rs	400	404	spawn_profile_with_log_root	False	True	112	100	this function has too many lines (112/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs	20	20	run_matrix	True	True	26	25	the function has a cognitive complexity of (26/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs	20	20	run_matrix	True	True	175	100	this function has too many lines (175/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_confirmation.rs	176	179	ingest_observed	False	True	143	100	this function has too many lines (143/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/parakeet_confirmation.rs	659	659	provisional_revision_needs_two_later_witnesses	True	True	26	25	the function has a cognitive complexity of (26/25)
+warning	clippy::cloned_ref_to_slice_refs	crates/whisper-adapters/src/parakeet_confirmation.rs	689	689	provisional_revision_needs_two_later_witnesses	True	True			unnecessary use of `clone` to create a slice from a reference
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_live/events.rs	4	4	poll	False	True	232	100	this function has too many lines (232/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_live/inference.rs	17	23	inference_thread	False	True	342	100	this function has too many lines (342/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_live/inference.rs	376	383	transcribe_window	False	True	114	100	this function has too many lines (114/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_live/lifecycle.rs	23	29	start_with_capture	False	True	124	100	this function has too many lines (124/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/parakeet_live/lifecycle.rs	199	199	stop	False	True	26	25	the function has a cognitive complexity of (26/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_live/lifecycle.rs	199	199	stop	False	True	146	100	this function has too many lines (146/100)
+warning	clippy::needless_return	crates/whisper-adapters/src/parakeet_live/trace.rs	46	46	enabled	True	True			unneeded `return` statement
+warning	clippy::collapsible_if	crates/whisper-adapters/src/parakeet_live/trace.rs	54	61	record	True	True			this `if` statement can be collapsed
+warning	clippy::too_many_lines	crates/whisper-adapters/src/parakeet_live/microphone_spectrum_tests.rs	11	11	parakeet_capture_pump_publishes_frequency_spectrum_and_preserves_wav	True	True	204	100	this function has too many lines (204/100)
+warning	clippy::items_after_test_module	crates/whisper-adapters/src/queue_store.rs	562	562		True	True			items after a test module
+warning	clippy::too_many_lines	crates/whisper-adapters/src/source_binding.rs	101	107	acquire_with_hook	False	True	223	100	this function has too many lines (223/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/source_binding.rs	675	680	recovery_candidate	False	True	129	100	this function has too many lines (129/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/parakeet_unified/executor.rs	134	134	start_instance	False	True	184	100	this function has too many lines (184/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs	283	289	transcribe_scheduled	False	True	174	100	this function has too many lines (174/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs	96	101	confirm_interrupted_publication	False	True	112	100	this function has too many lines (112/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs	216	221	confirm_duplicate_import	False	True	199	100	this function has too many lines (199/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/effects.rs	4	8	effect	False	True	227	100	this function has too many lines (227/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs	20	25	start_worker_with_candidate_override	False	True	162	100	this function has too many lines (162/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs	190	195	start_parakeet_worker	False	True	254	100	this function has too many lines (254/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs	494	500	handle_worker_failure	False	True	163	100	this function has too many lines (163/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	6	11	prepare	False	True	115	100	this function has too many lines (115/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	279	286	publish_inner	False	True	127	100	this function has too many lines (127/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	421	426	stop	False	True	155	100	this function has too many lines (155/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	872	877	stop_effect	False	True	111	100	this function has too many lines (111/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	1115	1118	start_controlled_unified_import	False	True	132	100	this function has too many lines (132/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	1254	1254	run_controlled_unified_import	True	True	32	25	the function has a cognitive complexity of (32/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/import.rs	1254	1257	run_controlled_unified_import	True	True	169	100	this function has too many lines (169/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/live.rs	644	648	start_live	False	True	103	100	this function has too many lines (103/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/live.rs	822	826	start_cpu_live_attempt	False	True	120	100	this function has too many lines (120/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll/capture.rs	108	108	pump_live_windows	False	True	125	100	this function has too many lines (125/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs	192	194	advance_parakeet_vad_decode	False	True	102	100	this function has too many lines (102/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs	506	506	poll_parakeet_worker	False	True	30	25	the function has a cognitive complexity of (30/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs	506	506	poll_parakeet_worker	False	True	486	100	this function has too many lines (486/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/runtime/poll.rs	134	134	poll	False	True	102	25	the function has a cognitive complexity of (102/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll.rs	134	136	poll	False	True	1085	100	this function has too many lines (1085/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs	32	41	retry_native_gpu_startup_on_cpu	False	True	173	100	this function has too many lines (173/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs	382	382	poll_unified_sessions	False	True	71	25	the function has a cognitive complexity of (71/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs	382	384	poll_unified_sessions	False	True	986	100	this function has too many lines (986/100)
+warning	clippy::collapsible_if	crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs	474	482	poll_unified_sessions	True	True			this `if` statement can be collapsed
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/queue.rs	4	8	enqueue	False	True	156	100	this function has too many lines (156/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/queue.rs	192	196	process_queued	False	True	212	100	this function has too many lines (212/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs	9	14	resume_interrupted	False	True	332	100	this function has too many lines (332/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs	97	101	transfer_resume_source_binding_inner	False	True	136	100	this function has too many lines (136/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs	322	327	release_source_binding_inner	False	True	122	100	this function has too many lines (122/100)
+warning	clippy::type_complexity	crates/whisper-adapters/src/worker_ipc/service/mod.rs	261	269	for_test	True	True			very complex type used. Consider factoring parts into `type` definitions
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/service/mod.rs	411	411	submit	False	True	184	100	this function has too many lines (184/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/service/mod.rs	663	668	service_loop	False	True	143	100	this function has too many lines (143/100)
+warning	clippy::too_many_arguments	crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs	140	149	observe_controlled_child	True	True	8	7	this function has too many arguments (8/7)
+warning	clippy::missing_const_for_thread_local	crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs	26	26		True	True			initializer for `thread_local` value can be made `const`
+warning	clippy::type_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs	182	182		True	True			very complex type used. Consider factoring parts into `type` definitions
+warning	clippy::collapsible_if	crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs	227	239	poll	True	True			this `if` statement can be collapsed
+warning	clippy::collapsible_if	crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs	240	251	poll	True	True			this `if` statement can be collapsed
+warning	clippy::type_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs	402	409	held_worker	True	True			very complex type used. Consider factoring parts into `type` definitions
+warning	clippy::type_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs	413	420	held_final_a_worker	True	True			very complex type used. Consider factoring parts into `type` definitions
+warning	clippy::type_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs	427	434	held_worker_with_mode	True	True			very complex type used. Consider factoring parts into `type` definitions
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	145	145	assert_app_view_internal_publication	True	True	26	25	the function has a cognitive complexity of (26/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	145	148	assert_app_view_internal_publication	True	True	101	100	this function has too many lines (101/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	254	254	assert_app_view_external_publication	True	True	42	25	the function has a cognitive complexity of (42/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	254	260	assert_app_view_external_publication	True	True	191	100	this function has too many lines (191/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	542	542	import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports	True	True	171	100	this function has too many lines (171/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	717	717	import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio	True	True	148	100	this function has too many lines (148/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	976	976	resumed_create_only_publication_paths_reach_app_view	True	True	38	25	the function has a cognitive complexity of (38/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	976	976	resumed_create_only_publication_paths_reach_app_view	True	True	420	100	this function has too many lines (420/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	1409	1409	reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result	True	True	144	100	this function has too many lines (144/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	1562	1562	import_application_resumes_a_verified_interrupted_unified_import	True	True	45	25	the function has a cognitive complexity of (45/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	1562	1562	import_application_resumes_a_verified_interrupted_unified_import	True	True	398	100	this function has too many lines (398/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	1967	1967	failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity	True	True	149	100	this function has too many lines (149/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	2122	2122	failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity	True	True	232	100	this function has too many lines (232/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	2369	2369	controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts	True	True	37	25	the function has a cognitive complexity of (37/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs	2369	2369	controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts	True	True	194	100	this function has too many lines (194/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	2	2	import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio	True	True	65	25	the function has a cognitive complexity of (65/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	2	2	import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio	True	True	372	100	this function has too many lines (372/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	393	393	global_close_waits_for_both_capture_publications_and_refuses_new_admission	True	True	34	25	the function has a cognitive complexity of (34/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	393	393	global_close_waits_for_both_capture_publications_and_refuses_new_admission	True	True	225	100	this function has too many lines (225/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	628	628	import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published	True	True	36	25	the function has a cognitive complexity of (36/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	628	628	import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published	True	True	200	100	this function has too many lines (200/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	838	838	unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail	True	True	28	25	the function has a cognitive complexity of (28/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	838	838	unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail	True	True	179	100	this function has too many lines (179/100)
+warning	clippy::collapsible_if	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	897	909	unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail	True	True			this `if` statement can be collapsed
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	1056	1056	import_application_decodes_real_mp3_and_publishes_full_unified_coverage	True	True	151	100	this function has too many lines (151/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	1453	1453	unrecycled_controlled_child_rejects_third_job_with_bounded_table	True	True	27	25	the function has a cognitive complexity of (27/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	1453	1453	unrecycled_controlled_child_rejects_third_job_with_bounded_table	True	True	106	100	this function has too many lines (106/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	1567	1567	unified_document_finalization_failure_releases_session_and_allows_replacement	True	True	114	100	this function has too many lines (114/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	1761	1761	capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state	True	True	154	100	this function has too many lines (154/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	2023	2023	unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready	True	True	79	25	the function has a cognitive complexity of (79/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	2023	2023	unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready	True	True	443	100	this function has too many lines (443/100)
+warning	clippy::len_zero	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	2658	2658	unified_document_drains_are_included_in_the_two_session_admission_bound	True	True			length comparison to zero
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	2780	2780	unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets	True	True	148	100	this function has too many lines (148/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs	2935	2935	unified_import_and_capture_without_controlled_injection_are_refused_before_hardware_start	True	True	27	25	the function has a cognitive complexity of (27/25)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	117	117	native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call	True	True	71	25	the function has a cognitive complexity of (71/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	117	117	native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call	True	True	439	100	this function has too many lines (439/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	968	968	run_native_queued_unified_import	True	True	51	25	the function has a cognitive complexity of (51/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	968	972	run_native_queued_unified_import	True	True	363	100	this function has too many lines (363/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	1344	1344	native_spoken_prefix	True	True	28	25	the function has a cognitive complexity of (28/25)
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	1428	1428	native_spoken_prefix	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	1467	1467	run_native_personal_ab_c	True	True	171	25	the function has a cognitive complexity of (171/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	1467	1470	run_native_personal_ab_c	True	True	1623	100	this function has too many lines (1623/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	3137	3137	native_personal_cpu_finalizes_a_synthetic_capture_without_opening_hardware	True	True	153	100	this function has too many lines (153/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	3313	3313	native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot	True	True	84	25	the function has a cognitive complexity of (84/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	3313	3313	native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot	True	True	619	100	this function has too many lines (619/100)
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs	3436	3436	native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	193	193	microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end	True	True	26	25	the function has a cognitive complexity of (26/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	193	193	microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end	True	True	234	100	this function has too many lines (234/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	433	433	microphone_gain_command_reaches_acquisition_and_finalized_wav_while_worker_is_delayed	True	True	169	100	this function has too many lines (169/100)
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	596	596	microphone_gain_command_reaches_acquisition_and_finalized_wav_while_worker_is_delayed	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::type_complexity	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	868	868		True	True			very complex type used. Consider factoring parts into `type` definitions
+warning	clippy::type_complexity	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	939	939		True	True			very complex type used. Consider factoring parts into `type` definitions
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	1125	1125	live_slow_automatic_final_failure_does_not_block_another_capture_wav	True	True	112	100	this function has too many lines (112/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	1247	1247	live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav	True	True	30	25	the function has a cognitive complexity of (30/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	1247	1247	live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav	True	True	212	100	this function has too many lines (212/100)
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	1454	1454	live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	1483	1483	live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish	True	True	43	25	the function has a cognitive complexity of (43/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	1483	1483	live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish	True	True	364	100	this function has too many lines (364/100)
+warning	clippy::chunks_exact_to_as_chunks	crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs	1837	1837	live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish	True	True			using `chunks_exact` with a constant chunk size
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs	1787	1787	saturated_pending_queue_cannot_start_a_live_job_after_stop_and_allows_next_start	True	True	129	100	this function has too many lines (129/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs	2043	2043	event_65_backpressures_all_production_stages_then_delivers_in_order	True	True	145	100	this function has too many lines (145/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs	120	120	run_integrated_copy_resume_case	True	True	36	25	the function has a cognitive complexity of (36/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs	120	120	run_integrated_copy_resume_case	True	True	257	100	this function has too many lines (257/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs	557	557	queued_unified_gpu_refusal_preserves_durable_entry_and_source_before_preparation	True	True	128	100	this function has too many lines (128/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs	691	691	queued_unified_non_candidate_refusal_does_not_prepare_or_start	True	True	111	100	this function has too many lines (111/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs	807	807	queued_unified_capacity_refusal_keeps_fifo_entry_without_preparing_route	True	True	131	100	this function has too many lines (131/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs	1156	1156	resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution	True	True	113	100	this function has too many lines (113/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs	1289	1289	stop_during_blocked_commit_returns_promptly_and_reports_finalizing	True	True	108	100	this function has too many lines (108/100)
+warning	clippy::cognitive_complexity	crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs	87	87	unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio	True	True	39	25	the function has a cognitive complexity of (39/25)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs	87	87	unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio	True	True	275	100	this function has too many lines (275/100)
+warning	clippy::too_many_lines	crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs	421	421	unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events	True	True	117	100	this function has too many lines (117/100)

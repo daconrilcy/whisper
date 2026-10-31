@@ -1,0 +1,137 @@
+[
+  {
+    "stream_index": 726,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (102/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/runtime/poll.rs",
+    "line": 134,
+    "end": 134,
+    "source_test": false,
+    "function": "poll",
+    "function_start": 134,
+    "function_end": 1231,
+    "metric": 102,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (102/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\runtime\\poll.rs:134:34\n    |\n134 |     pub(in crate::worker_ipc) fn poll(\n    |                                  ^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 729,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (71/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs",
+    "line": 382,
+    "end": 382,
+    "source_test": false,
+    "function": "poll_unified_sessions",
+    "function_start": 382,
+    "function_end": 1373,
+    "metric": 71,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (71/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\runtime\\poll_unified.rs:382:34\n    |\n382 |     pub(in crate::worker_ipc) fn poll_unified_sessions(\n    |                                  ^^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 646,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (32/25)",
+    "path": "crates/whisper-adapters/src/archive/cleanup/execution.rs",
+    "line": 27,
+    "end": 27,
+    "source_test": false,
+    "function": "run_cleanup_plan_locked",
+    "function_start": 27,
+    "function_end": 540,
+    "metric": 32,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (32/25)\n  --> crates\\whisper-adapters\\src\\archive\\cleanup\\execution.rs:27:27\n   |\n27 | pub(in crate::archive) fn run_cleanup_plan_locked(\n   |                           ^^^^^^^^^^^^^^^^^^^^^^^\n   |\n   = help: you could split it up into multiple smaller functions\n   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n   = note: requested on the command line with `-W clippy::cognitive-complexity`\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 724,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (30/25)",
+    "path": "crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs",
+    "line": 506,
+    "end": 506,
+    "source_test": false,
+    "function": "poll_parakeet_worker",
+    "function_start": 506,
+    "function_end": 995,
+    "metric": 30,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (30/25)\n   --> crates\\whisper-adapters\\src\\worker_ipc\\runtime\\poll\\parakeet.rs:506:19\n    |\n506 |     pub(super) fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {\n    |                   ^^^^^^^^^^^^^^^^^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  },
+  {
+    "stream_index": 697,
+    "package_id": "path+file:///C:/dev/whisper/crates/whisper-adapters#0.1.0",
+    "target": "whisper_adapters",
+    "target_kind": [
+      "lib"
+    ],
+    "level": "warning",
+    "code": "clippy::cognitive_complexity",
+    "message": "the function has a cognitive complexity of (26/25)",
+    "path": "crates/whisper-adapters/src/parakeet_live/lifecycle.rs",
+    "line": 199,
+    "end": 199,
+    "source_test": false,
+    "function": "stop",
+    "function_start": 199,
+    "function_end": 353,
+    "metric": 26,
+    "threshold": 25,
+    "compilation_test": true,
+    "context_attribution": "[Déduction] même package/cible, artefact suivant dans le flux Cargo",
+    "rendered": "warning: the function has a cognitive complexity of (26/25)\n   --> crates\\whisper-adapters\\src\\parakeet_live\\lifecycle.rs:199:19\n    |\n199 |     pub(crate) fn stop(&mut self) -> Result<ImportEvent, String> {\n    |                   ^^^^\n    |\n    = help: you could split it up into multiple smaller functions\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#cognitive_complexity\n\n",
+    "features": [
+      "default"
+    ],
+    "artifact_stream_index": 819
+  }
+]

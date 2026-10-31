@@ -1,0 +1,63 @@
+[
+  {
+    "exit_code": 0,
+    "mode": "Run",
+    "stdout": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-ui\\logs\\Run-20261031T213658092-19ecd9f0.stdout.log",
+    "run_id": "20261031T213658092-19ecd9f0",
+    "seconds": 0,
+    "at": "2026-10-31T21:36:58.5808077+01:00",
+    "cargo_args": [
+      "metadata",
+      "--offline",
+      "--locked",
+      "--format-version",
+      "1",
+      "--no-deps"
+    ],
+    "stderr": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-ui\\logs\\Run-20261031T213658092-19ecd9f0.stderr.log"
+  },
+  {
+    "stdout": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-ui\\logs\\Run-20261031T213715879-b60887c7.stdout.log",
+    "cargo_args": [
+      "clippy",
+      "--offline",
+      "--locked",
+      "--workspace",
+      "--all-targets",
+      "--message-format=json",
+      "--",
+      "-W",
+      "clippy::too_many_lines",
+      "-W",
+      "clippy::cognitive_complexity"
+    ],
+    "mode": "Run",
+    "at": "2026-10-31T21:37:22.2403889+01:00",
+    "run_id": "20261031T213715879-b60887c7",
+    "exit_code": 1,
+    "stderr": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-ui\\logs\\Run-20261031T213715879-b60887c7.stderr.log",
+    "seconds": 6
+  },
+  {
+    "stdout": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-ui\\logs\\Run-20261031T213744579-8951648b.stdout.log",
+    "mode": "Run",
+    "cargo_args": [
+      "clippy",
+      "--offline",
+      "--locked",
+      "--workspace",
+      "--all-targets",
+      "--message-format=json",
+      "--",
+      "-W",
+      "clippy::too_many_lines",
+      "-W",
+      "clippy::cognitive_complexity"
+    ],
+    "stderr": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-ui\\logs\\Run-20261031T213744579-8951648b.stderr.log",
+    "exit_code": 0,
+    "seconds": 28,
+    "at": "2026-10-31T21:38:12.703159+01:00",
+    "run_id": "20261031T213744579-8951648b"
+  }
+]

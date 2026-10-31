@@ -1,0 +1,219 @@
+{
+  "at": "2026-10-31T21:57:29.027035+01:00",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "guard": "target/parakeet-tests/refacto-parakeet-live/guard.ps1",
+  "guard_sha256": "0f8f692456aba2c9884f080cd38f1a5e0be1c5cb0ac2f85d7f4f82685f009323",
+  "execution_root": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723",
+  "test_environment": {
+    "WHISPER_L1B_RUNTIME_ROOT": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\l1b",
+    "WHISPER_MIC_LEVEL_D2_ROOT": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\d2-native",
+    "WHISPER_MIC_LEVEL_D2_ENGINE": "parakeet-cpu",
+    "PARAKEET_L2_ARCHIVE_ROOT": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\l2-archive",
+    "PARAKEET_RTC02_EXEC_ROOT": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\rtc02",
+    "WHISPER_PU_L1_MP3_FIXTURE": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\retry-eight\\fixtures\\pu-l1-input.mp3"
+  },
+  "test_localappdata": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\localappdata",
+  "guard_host_localappdata": "C:\\Users\\cyril\\AppData\\Local",
+  "cargo_config_overrides": [
+    "env.LOCALAPPDATA.value='C:/dev/whisper/target/parakeet-tests/refacto-parakeet-live/niveau1-88850e8/retry-20261031T215723/localappdata'",
+    "env.LOCALAPPDATA.force=true"
+  ],
+  "original_personal_installation_present": false,
+  "all_resource_checks_matched": true,
+  "resource_checks": [
+    {
+      "path": "C:\\dev\\whisper\\sound example\\voxpopuli\\clips\\long_examples\\fr_long_2020.wav",
+      "size": 2080718,
+      "sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
+      "expected_sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\docs\\cadrage\\feas-pm-01-corpus\\candidate_fr_pauses_copie.txt",
+      "size": 1259,
+      "sha256": "abd2ac3ec6bc0fceb7c044f56d8ee0c29c4b2ca4a2ba8ca364ee169cb47e78cf",
+      "expected_sha256": "abd2ac3ec6bc0fceb7c044f56d8ee0c29c4b2ca4a2ba8ca364ee169cb47e78cf",
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\sound example\\voxpopuli\\clips\\long_examples\\en_long_2020.wav",
+      "size": 2080078,
+      "sha256": "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a",
+      "expected_sha256": "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a",
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\docs\\cadrage\\feas-pm-01-corpus\\candidate_en_pauses_copie.txt",
+      "size": 1105,
+      "sha256": "c2971f66c57658ca613d578df807559604b5581c8b5ef72102900700fcf33cb1",
+      "expected_sha256": "c2971f66c57658ca613d578df807559604b5581c8b5ef72102900700fcf33cb1",
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\sound example\\voxpopuli\\clips\\long_examples\\fr_continuous60_2020_CANDIDATE.wav",
+      "size": 1920078,
+      "sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+      "expected_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\docs\\cadrage\\feas-pm-01-corpus\\candidate_fr_continu_copie.txt",
+      "size": 1374,
+      "sha256": "ed150b6360d409b4d575b23253db5849dd709ab4f1b99416f29ba7d18a921ca7",
+      "expected_sha256": "ed150b6360d409b4d575b23253db5849dd709ab4f1b99416f29ba7d18a921ca7",
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\sound example\\voxpopuli\\clips\\long_examples\\en_continuous60_2020_CANDIDATE.wav",
+      "size": 1920078,
+      "sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "expected_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\docs\\cadrage\\feas-pm-01-corpus\\candidate_en_continu_copie.txt",
+      "size": 1039,
+      "sha256": "93a7ae7ac4c940f98d64eecf5ef6ce0bed883da4202a4df5762b4f4782bf8bad",
+      "expected_sha256": "93a7ae7ac4c940f98d64eecf5ef6ce0bed883da4202a4df5762b4f4782bf8bad",
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\worker\\whisper-worker-parakeet-cpu.exe",
+      "size": 979456,
+      "sha256": "a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d",
+      "expected_sha256": "a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d",
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\native\\cpu\\nemo_speech_asr_c.dll",
+      "size": 56320,
+      "sha256": "9d67b716fe53accf05c8a1bb43fcac0a83f22c8425641f432ce1ed9dc871e764",
+      "expected_sha256": null,
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\native\\cpu\\nemo_speech_asr.dll",
+      "size": 4192256,
+      "sha256": "923a3a5258b196de6122e6ccc9b5cdd3e48c379dc53461e38921826b75f43019",
+      "expected_sha256": null,
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\native\\cpu\\ggml.dll",
+      "size": 61952,
+      "sha256": "2eff3c476a9796580ec788429c87e479dc33e1066c74a77cbe3a7a909734b794",
+      "expected_sha256": null,
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\native\\cpu\\ggml-base.dll",
+      "size": 680960,
+      "sha256": "398cf89332451b547b44256d5e84bb5895a7c0fe97727e597be8989230544e0a",
+      "expected_sha256": null,
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\native\\cpu\\ggml-cpu.dll",
+      "size": 947200,
+      "sha256": "f7546413e1e6e248df0bc8a0745a414de4c36532b201b3ba219d86864b5f1ab0",
+      "expected_sha256": null,
+      "expected_size": null,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\models\\ggml-large-v3-turbo.bin",
+      "size": 1624555275,
+      "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+      "expected_sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+      "expected_size": 1624555275,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "size": 713975456,
+      "sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+      "expected_sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+      "expected_size": 713975456,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\retry-eight\\fixtures\\pu-l1-input.mp3",
+      "size": 22822,
+      "sha256": "eebce5a2af18d4f929af5c243c50a6bc31b0910a583577cb940e0e4895e7cd80",
+      "expected_sha256": "eebce5a2af18d4f929af5c243c50a6bc31b0910a583577cb940e0e4895e7cd80",
+      "expected_size": 22822,
+      "matched": true
+    },
+    {
+      "path": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared\\release\\whisper-worker-cpu.exe",
+      "size": 20834816,
+      "sha256": "67e668ff75c0c59522c1e3cdb3529518938209d962e3c66aa5662bbad7001cf4",
+      "expected_sha256": null,
+      "expected_size": null,
+      "matched": true
+    }
+  ],
+  "copied_resources": [
+    {
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\worker\\whisper-worker-parakeet-cpu.exe",
+      "destination": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\localappdata\\Whisper\\worker\\whisper-worker-parakeet-cpu.exe",
+      "sha256": "a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d"
+    },
+    {
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared\\release\\whisper-worker-cpu.exe",
+      "destination": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\localappdata\\Whisper\\app\\whisper-worker-cpu.exe",
+      "sha256": "67e668ff75c0c59522c1e3cdb3529518938209d962e3c66aa5662bbad7001cf4"
+    },
+    {
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\native\\cpu\\nemo_speech_asr_c.dll",
+      "destination": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\localappdata\\Whisper\\native\\cpu\\nemo_speech_asr_c.dll",
+      "sha256": "9d67b716fe53accf05c8a1bb43fcac0a83f22c8425641f432ce1ed9dc871e764"
+    },
+    {
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\native\\cpu\\nemo_speech_asr.dll",
+      "destination": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\localappdata\\Whisper\\native\\cpu\\nemo_speech_asr.dll",
+      "sha256": "923a3a5258b196de6122e6ccc9b5cdd3e48c379dc53461e38921826b75f43019"
+    },
+    {
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\native\\cpu\\ggml.dll",
+      "destination": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\localappdata\\Whisper\\native\\cpu\\ggml.dll",
+      "sha256": "2eff3c476a9796580ec788429c87e479dc33e1066c74a77cbe3a7a909734b794"
+    },
+    {
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\native\\cpu\\ggml-base.dll",
+      "destination": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\localappdata\\Whisper\\native\\cpu\\ggml-base.dll",
+      "sha256": "398cf89332451b547b44256d5e84bb5895a7c0fe97727e597be8989230544e0a"
+    },
+    {
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\native\\cpu\\ggml-cpu.dll",
+      "destination": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\localappdata\\Whisper\\native\\cpu\\ggml-cpu.dll",
+      "sha256": "f7546413e1e6e248df0bc8a0745a414de4c36532b201b3ba219d86864b5f1ab0"
+    },
+    {
+      "source": "C:\\dev\\whisper\\models\\ggml-large-v3-turbo.bin",
+      "destination": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\localappdata\\Whisper\\models\\ggml-large-v3-turbo.bin",
+      "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69"
+    },
+    {
+      "source": "C:\\dev\\whisper\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "destination": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\localappdata\\Whisper\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e"
+    }
+  ],
+  "free_gib": 185.81,
+  "scope": "Tests du commit courant ; le worker natif D2 est la ressource gelee a965c950 attendue par le registre, pas un worker reconstruit ou remplace.",
+  "resources_modified_outside_execution_root": false
+}

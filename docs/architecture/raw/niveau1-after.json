@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-31T21:50:51.3226506+01:00",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "source_test_diff": [],
+  "untracked_sources": [],
+  "free_gib": 189.58,
+  "unchanged_inputs": true,
+  "no_test_modification": true,
+  "interrupted_after_observed_test_failure": true
+}

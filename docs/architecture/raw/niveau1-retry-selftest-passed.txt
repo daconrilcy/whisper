@@ -1,0 +1,19 @@
+PASS cargo arguments reject source-writing fmt and --fix
+PASS retry paths, fixture and exact test selection reject invalid inputs
+PASS live watcher authorized in-root process completed
+PASS unattributed Temp Created recorded; child continues
+PASS unattributed Temp Changed recorded; child continues
+PASS unattributed Temp Deleted recorded; child continues
+PASS unattributed Temp Renamed recorded; child continues
+PASS live watcher temp-attributed: terminated fake child and recorded Created C:\Users\cyril\AppData\Local\Temp\direct-live-selftest-attributed at 10/31/2026 21:57:38
+PASS live watcher git-objects-before-write: terminated fake child and recorded Created C:\dev\whisper\.git\objects\selftest-not-created at 10/31/2026 21:57:39
+PASS live watcher outside-root-before-write: terminated fake child and recorded Created C:\Users\cyril\Downloads\worker-common-selftest-not-created.txt at 10/31/2026 21:57:39
+PASS live watcher project-office-before-write: terminated fake child and recorded Created C:\Users\cyril\Downloads\whisper-selftest-not-created.pptx at 10/31/2026 21:57:39
+PASS live watcher model-before-write: terminated fake child and recorded Created C:\dev\whisper\models\selftest-not-created at 10/31/2026 21:57:40
+PASS live watcher cargo-cache-before-write: terminated fake child and recorded Created C:\Users\cyril\.cargo\selftest-not-created at 10/31/2026 21:57:40
+PASS live watcher git-index-before-write: terminated fake child and recorded Created C:\dev\whisper\.git\index at 10/31/2026 21:57:40
+PASS live watcher rename-internal-to-external: terminated fake child and recorded Renamed C:\Users\cyril\AppData\Local\Temp\archive-selftest-not-created at 10/31/2026 21:57:40
+PASS live watcher rename-external-to-internal: terminated fake child and recorded Renamed C:\dev\whisper\target\parakeet-tests\refacto-parakeet-live\selftest-positive\not-created.txt at 10/31/2026 21:57:41
+PASS live watcher rename-external-to-temp: terminated fake child and recorded Renamed C:\Users\cyril\AppData\Local\Temp\etilqs-selftest-not-created at 10/31/2026 21:57:41
+PASS live watcher rename-temp-to-external: terminated fake child and recorded Renamed C:\Users\cyril\Downloads\worker-common-selftest-not-created.txt at 10/31/2026 21:57:41
+PARAKEET_LIVE guard self-tests passed: unattributed Temp recorded, attributed and crossing events stop, paths validated, no external file created.

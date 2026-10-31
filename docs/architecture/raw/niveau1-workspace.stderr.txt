@@ -1,0 +1,564 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+   Compiling serde_core v1.0.228
+   Compiling serde v1.0.228
+   Compiling version_check v0.9.5
+   Compiling rustversion v1.0.23
+   Compiling autocfg v1.5.1
+   Compiling multiversion_no_op v1.0.0
+   Compiling serde_json v1.0.145
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.14
+   Compiling thiserror v2.0.21
+   Compiling cpal v0.18.2
+   Compiling rfd v0.17.2
+   Compiling whisper-adapters v0.1.0 (C:\dev\whisper\crates\whisper-adapters)
+   Compiling log v0.4.34
+   Compiling cfg_aliases v0.2.2
+   Compiling khronos_api v3.1.0
+   Compiling windows_x86_64_msvc v0.52.6
+   Compiling xml-rs v0.8.29
+   Compiling icu_normalizer_data v2.3.0
+   Compiling icu_properties_data v2.3.0
+   Compiling glob v0.3.4
+   Compiling libc v0.2.190
+   Compiling zerocopy v0.8.59
+   Compiling parking_lot_core v0.9.12
+   Compiling crc32fast v1.5.2
+   Compiling prettyplease v0.2.37
+   Compiling unicode-general-category v1.1.0
+   Compiling memchr v2.8.3
+   Compiling windows_x86_64_msvc v0.53.1
+   Compiling regex-syntax v0.8.11
+   Compiling minimal-lexical v0.2.1
+   Compiling winit v0.30.13
+   Compiling either v1.18.0
+   Compiling generic-array v0.14.7
+   Compiling ahash v0.8.12
+   Compiling bindgen v0.72.1
+   Compiling num-traits v0.2.19
+   Compiling shlex v1.3.0
+   Compiling cc v1.6.0
+   Compiling itertools v0.13.0
+   Compiling clang-sys v1.9.1
+   Compiling rustc-hash v2.1.3
+   Compiling nom v7.1.3
+   Compiling memoffset v0.9.1
+   Compiling glutin v0.32.3
+   Compiling fs_extra v1.3.0
+   Compiling semver v1.0.28
+   Compiling glutin-winit v0.5.0
+   Compiling regex-automata v0.4.18
+   Compiling litrs v1.0.0
+   Compiling rusty_mp3 v0.8.0
+   Compiling whisper-rs v0.16.0
+   Compiling cmake v0.1.58
+   Compiling whisper-worker-cpu v0.1.0 (C:\dev\whisper\crates\whisper-worker-cpu)
+   Compiling whisper-worker-gpu v0.1.0 (C:\dev\whisper\crates\whisper-worker-gpu)
+   Compiling windows-targets v0.52.6
+   Compiling gl_generator v0.14.0
+   Compiling windows-targets v0.53.5
+   Compiling flate2 v1.1.10
+   Compiling parking_lot v0.12.5
+   Compiling syn v3.0.6
+   Compiling syn v2.0.119
+   Compiling webrtc-vad v0.4.0
+   Compiling windows-sys v0.52.0
+   Compiling encoding_rs v0.8.42
+   Compiling windows-sys v0.60.2
+   Compiling document-features v0.2.12
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling png v0.18.1
+   Compiling cexpr v0.6.0
+   Compiling glutin_egl_sys v0.7.1
+   Compiling glutin_wgl_sys v0.6.1
+   Compiling digest v0.10.7
+   Compiling sha2 v0.10.9
+   Compiling num-integer v0.1.47
+   Compiling num-complex v0.4.6
+   Compiling euclid v0.22.14
+   Compiling moxcms v0.8.1
+   Compiling regex v1.13.1
+   Compiling primal-check v0.3.4
+   Compiling transpose v0.2.3
+   Compiling rustfft v6.4.1
+   Compiling guillotiere v0.7.0
+   Compiling synstructure v0.14.0
+   Compiling bytemuck_derive v1.12.1
+   Compiling thiserror-impl v2.0.21
+   Compiling zerovec-derive v0.11.6
+   Compiling displaydoc v0.2.7
+   Compiling zerofrom-derive v0.1.8
+   Compiling yoke-derive v0.8.4
+   Compiling zerofrom v0.1.8
+   Compiling bytemuck v1.25.2
+   Compiling yoke v0.8.3
+   Compiling serde_derive v1.0.228
+   Compiling windows-implement v0.60.2
+   Compiling windows-interface v0.59.3
+   Compiling futures-macro v0.3.33
+   Compiling symphonia-core v0.5.5
+   Compiling color v0.3.3
+   Compiling font-types v0.11.3
+   Compiling emath v0.35.0
+   Compiling zerovec v0.11.8
+   Compiling zerotrie v0.2.5
+   Compiling read-fonts v0.39.2
+   Compiling ecolor v0.35.0
+   Compiling peniko v0.6.1
+   Compiling windows-core v0.62.2
+   Compiling tinystr v0.8.4
+   Compiling potential_utf v0.1.6
+   Compiling futures-util v0.3.33
+   Compiling image v0.25.10
+   Compiling vello_common v0.0.9
+   Compiling icu_collections v2.3.0
+   Compiling icu_locale_core v2.3.0
+   Compiling symphonia-metadata v0.5.5
+   Compiling symphonia-codec-pcm v0.5.5
+   Compiling windows-collections v0.3.2
+   Compiling windows-future v0.3.2
+   Compiling windows-numerics v0.3.1
+   Compiling symphonia-bundle-mp3 v0.5.5
+   Compiling symphonia-format-riff v0.5.5
+   Compiling icu_provider v2.3.1
+   Compiling windows v0.62.2
+   Compiling vello_cpu v0.0.9
+   Compiling symphonia v0.5.5
+   Compiling icu_properties v2.3.0
+   Compiling icu_normalizer v2.3.0
+   Compiling realfft v3.5.0
+   Compiling rubato v0.16.2
+   Compiling arboard v3.6.1
+   Compiling whisper-core v0.1.0 (C:\dev\whisper\crates\whisper-core)
+   Compiling chrono v0.4.45
+   Compiling idna_adapter v1.2.2
+   Compiling idna v1.1.0
+   Compiling futures-executor v0.3.33
+   Compiling url v2.5.8
+   Compiling futures v0.3.33
+   Compiling webbrowser v1.2.4
+   Compiling whisper-rs-sys v0.15.0
+   Compiling skrifa v0.42.1
+   Compiling harfrust v0.7.0
+warning: method `kind_name` is never used
+ --> crates\whisper-core\src\application\event_metadata.rs:5:19
+  |
+4 | impl ImportEvent {
+  | ---------------- method in this implementation
+5 |     pub(super) fn kind_name(&self) -> &'static str {
+  |                   ^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling whisper-worker-common v0.1.0 (C:\dev\whisper\crates\whisper-worker-common)
+warning: `whisper-core` (lib) generated 1 warning
+   Compiling whisper-worker-parakeet-cpu v0.1.0 (C:\dev\whisper\crates\whisper-worker-parakeet-cpu)
+warning: constant `CONTROLLED_TIMEOUT` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\support\worker.rs:13:11
+   |
+13 | pub const CONTROLLED_TIMEOUT: Duration = Duration::from_secs(300);
+   |           ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `PROFILE_QUALIFICATION_REFERENCE`
+ --> crates\whisper-worker-parakeet-cpu\src\args.rs:3:58
+  |
+3 | use whisper_core::parakeet_windows::{PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE};
+  |                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `campaign_root` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:15:4
+   |
+15 | fn campaign_root() -> PathBuf {
+   |    ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `decode_case` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:27:4
+   |
+27 | fn decode_case(
+   |    ^^^^^^^^^^^
+
+warning: struct `NativeWorker` is never constructed
+  --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:85:8
+   |
+85 | struct NativeWorker {
+   |        ^^^^^^^^^^^^
+
+warning: function `sha256` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:92:4
+   |
+92 | fn sha256(path: &Path) -> String {
+   |    ^^^^^^
+
+warning: function `start_worker` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:106:4
+    |
+106 | fn start_worker(executable: &Path) -> NativeWorker {
+    |    ^^^^^^^^^^^^
+
+warning: methods `send`, `event`, and `finish` are never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:193:8
+    |
+192 | impl NativeWorker {
+    | ----------------- methods in this implementation
+193 |     fn send(&mut self, message: serde_json::Value) {
+    |        ^^^^
+...
+199 |     fn event(&self) -> serde_json::Value {
+    |        ^^^^^
+...
+208 |     fn finish(mut self) -> std::process::ExitStatus {
+    |        ^^^^^^
+
+warning: function `worker_paths` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:220:4
+    |
+220 | fn worker_paths() -> (PathBuf, PathBuf) {
+    |    ^^^^^^^^^^^^
+
+warning: function `ready` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:231:4
+    |
+231 | fn ready(
+    |    ^^^^^
+
+warning: function `normalize` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:253:4
+    |
+253 | fn normalize(mut event: serde_json::Value) -> serde_json::Value {
+    |    ^^^^^^^^^
+
+warning: function `request` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:275:4
+    |
+275 | fn request(
+    |    ^^^^^^^
+
+warning: function `refusal_case` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:288:4
+    |
+288 | fn refusal_case(executable: &Path) -> Vec<serde_json::Value> {
+    |    ^^^^^^^^^^^^
+
+warning: function `errors_case` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:357:4
+    |
+357 | fn errors_case(executable: &Path) -> Vec<serde_json::Value> {
+    |    ^^^^^^^^^^^
+
+warning: function `native_case` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:398:4
+    |
+398 | fn native_case(executable: &Path) -> serde_json::Value {
+    |    ^^^^^^^^^^^
+
+warning: constant `CONTROLLED_TIMEOUT` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\support\worker.rs:13:11
+   |
+13 | pub const CONTROLLED_TIMEOUT: Duration = Duration::from_secs(300);
+   |           ^^^^^^^^^^^^^^^^^^
+
+warning: constant `NATIVE_TIMEOUT` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\support\worker.rs:14:11
+   |
+14 | pub const NATIVE_TIMEOUT: Duration = Duration::from_secs(600);
+   |           ^^^^^^^^^^^^^^
+
+warning: method `id` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\support\worker.rs:52:12
+   |
+24 | impl BoundedChild {
+   | ----------------- method in this implementation
+...
+52 |     pub fn id(&self) -> u32 {
+   |            ^^
+
+warning: function `finish_reader` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\support\worker.rs:134:8
+    |
+134 | pub fn finish_reader<T>(reader: JoinHandle<T>, child: &BoundedChild) -> T {
+    |        ^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> crates\whisper-worker-parakeet-cpu\src\runtime_paths.rs:116:13
+    |
+116 |         let mut roots = ["l2a-1", "l2a-2"]
+    |             ----^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `transcribe` is never used
+  --> crates\whisper-worker-parakeet-cpu\src\native_engine.rs:42:12
+   |
+17 | impl Engine {
+   | ----------- method in this implementation
+...
+42 |     pub fn transcribe(&mut self, audio: &DecodedAudio) -> Result<(String, Vec<Word>, u64), String> {
+   |            ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `allowed_runtime_roots_for` is never used
+   --> crates\whisper-worker-parakeet-cpu\src\runtime_paths.rs:133:4
+    |
+133 | fn allowed_runtime_roots_for(repository: &Path, lots: &[&str]) -> Vec<PathBuf> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+   Compiling epaint v0.35.0
+warning: `whisper-worker-parakeet-cpu` (test "worker_contract") generated 17 warnings
+warning: `whisper-core` (lib test) generated 1 warning (1 duplicate)
+warning: `whisper-worker-parakeet-cpu` (bin "whisper-worker-parakeet-cpu" test) generated 3 warnings (run `cargo fix --bin "whisper-worker-parakeet-cpu" -p whisper-worker-parakeet-cpu --tests` to apply 2 suggestions)
+warning: `whisper-worker-parakeet-cpu` (test "native_diagnostics_absence") generated 1 warning
+warning: `whisper-worker-parakeet-cpu` (bin "whisper-worker-parakeet-cpu") generated 4 warnings (3 duplicates)
+   Compiling egui v0.35.0
+   Compiling egui_glow v0.35.0
+warning: constant `CONTROLLED_TIMEOUT` is never used
+  --> crates\whisper-worker-cpu\tests\support\worker.rs:13:11
+   |
+13 | pub const CONTROLLED_TIMEOUT: Duration = Duration::from_secs(300);
+   |           ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `id` is never used
+  --> crates\whisper-worker-cpu\tests\support\worker.rs:52:12
+   |
+24 | impl BoundedChild {
+   | ----------------- method in this implementation
+...
+52 |     pub fn id(&self) -> u32 {
+   |            ^^
+
+warning: `whisper-worker-cpu` (test "reusable_imports") generated 2 warnings
+warning: `whisper-worker-cpu` (test "worker_contract") generated 2 warnings (2 duplicates)
+   Compiling wmi v0.18.4
+   Compiling accesskit_windows v0.32.1
+   Compiling accesskit_winit v0.32.2
+   Compiling egui-winit v0.35.0
+warning: unused imports: `ParakeetExportOutcome` and `export_parakeet_manifest`
+  --> crates\whisper-adapters\src\direct_live.rs:15:5
+   |
+15 |     ParakeetExportOutcome, automatic_final_output_paths, export_parakeet_manifest,
+   |     ^^^^^^^^^^^^^^^^^^^^^                                ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling eframe v0.35.0
+warning: method `id` is never used
+  --> crates\whisper-worker-gpu\tests\support\worker.rs:52:12
+   |
+24 | impl BoundedChild {
+   | ----------------- method in this implementation
+...
+52 |     pub fn id(&self) -> u32 {
+   |            ^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ParakeetExportOutcome`
+  --> crates\whisper-adapters\src\direct_live.rs:15:5
+   |
+15 |     ParakeetExportOutcome, automatic_final_output_paths, export_parakeet_manifest,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `path::PathBuf`
+   --> crates\whisper-adapters\src\parakeet_pipeline.rs:624:9
+    |
+624 |         path::PathBuf,
+    |         ^^^^^^^^^^^^^
+
+warning: unused imports: `FinishedLiveWindow`, `LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL`, `ParakeetVadRun`, `PendingLiveState`, `PreflightResult`, `append_vad_parakeet_word_group`, `campaign_reserve_attempt`, `collision_free_job_id`, `pending_unified_event_identity`, and `scan_archive_history`
+  --> crates\whisper-adapters\src\worker_ipc.rs:9:5
+   |
+ 9 |     FinishedLiveWindow, ImportRequestState, LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL,
+   |     ^^^^^^^^^^^^^^^^^^                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+10 |     LiveCaptureState, LiveRecoveryState, ParakeetStoppedExit, ParakeetVadRun, PendingLiveState,
+   |                                                               ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^
+11 |     PreflightResult, TDT_FRAME_OVERLAP_SAMPLES, acceptance_barrier,
+   |     ^^^^^^^^^^^^^^^
+12 |     append_single_pass_parakeet_word_group, append_vad_parakeet_word_group,
+   |                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+13 |     bind_unidentified_startup_failure, campaign_reserve_attempt, collision_free_job_id,
+   |                                        ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+14 |     live_capture_poll_allowed, map_attempt_sequence, parakeet_stopped_exit, parakeet_vad_segments,
+15 |     pending_unified_event_identity, queued_request_identity_matches, recovery_stop_counters,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+16 |     scan_archive_history, take_ready_live_stop, unix_time_ms,
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: `whisper-worker-gpu` (test "worker_contract") generated 1 warning
+   Compiling whisper-desktop v0.1.0 (C:\dev\whisper\crates\whisper-desktop)
+warning: variable does not need to be mutable
+  --> crates\whisper-adapters\src\direct_live\tests.rs:31:9
+   |
+31 |     let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+   |         ----^^^^^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> crates\whisper-adapters\src\parakeet_live\microphone_spectrum_tests.rs:35:9
+   |
+35 |     let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+   |         ----^^^^^^^
+   |         |
+   |         help: remove this `mut`
+
+warning: unused variable: `source`
+    --> crates\whisper-adapters\src\parakeet_pipeline.rs:1003:13
+     |
+1003 |         let source = PcmPartStore::open(&audio_path);
+     |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_source`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `last_message` is never read
+   --> crates\whisper-adapters\src\worker_ipc\tests/unified_import.rs:513:32
+    |
+513 |         let mut last_message = None;
+    |                                ^^^^ this value is reassigned later and never used
+...
+518 |             last_message = view.message.clone();
+    |             ------------ `last_message` is overwritten here before the previous value is read
+    |
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `last_message` is never read
+    --> crates\whisper-adapters\src\worker_ipc\tests/unified_import.rs:1490:36
+     |
+1490 |             let mut last_message = None;
+     |                                    ^^^^ this value is reassigned later and never used
+...
+1495 |                 last_message = view.message.clone();
+     |                 ------------ `last_message` is overwritten here before the previous value is read
+
+warning: value assigned to `first_text_available` is never read
+    --> crates\whisper-adapters\src\worker_ipc\tests/native_execution.rs:2226:40
+     |
+2226 |         let mut first_text_available = None;
+     |                                        ^^^^ this value is reassigned later and never used
+...
+2502 |                     first_text_available = Some(Instant::now());
+     |                     ------------------------------------------- `first_text_available` is overwritten here before the previous value is read
+
+warning: value assigned to `c_published_at` is never read
+    --> crates\whisper-adapters\src\worker_ipc\tests/native_execution.rs:2991:34
+     |
+2991 |         let mut c_published_at = None;
+     |                                  ^^^^ this value is reassigned later and never used
+...
+3029 |                     c_published_at = Some(now);
+     |                     -------------------------- `c_published_at` is overwritten here before the previous value is read
+
+warning: value assigned to `capture_events_since_worker` is never read
+   --> crates\whisper-adapters\src\worker_ipc\tests/microphone_and_finalization.rs:177:9
+    |
+177 |         capture_events_since_worker = 0;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+   --> crates\whisper-adapters\src\worker_ipc\tests/microphone_and_finalization.rs:219:13
+    |
+219 |         let mut capture = CaptureStream::empty_test_capture(16_000, 1, "test:legacy");
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates\whisper-adapters\src\worker_ipc\tests/microphone_and_finalization.rs:634:13
+    |
+634 |         let mut capture =
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: value assigned to `final_failure_at` is never read
+    --> crates\whisper-adapters\src\worker_ipc\tests/microphone_and_finalization.rs:1189:36
+     |
+1189 |         let mut final_failure_at = None;
+     |                                    ^^^^ this value is reassigned later and never used
+...
+1197 |                     final_failure_at = Some(Instant::now());
+     |                     --------------------------------------- `final_failure_at` is overwritten here before the previous value is read
+
+warning: fields `incarnation` and `pid` are never read
+  --> crates\whisper-adapters\src\worker_ipc/tests/runtime_support.rs:20:9
+   |
+19 |     Spawned {
+   |     ------- fields in this variant
+20 |         incarnation: u64,
+   |         ^^^^^^^^^^^
+21 |         pid: u32,
+   |         ^^^
+   |
+   = note: `NativeQualificationEventKind` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `word_count` is never read
+  --> crates\whisper-adapters\src\worker_ipc/tests/runtime_support.rs:50:9
+   |
+42 |     Result {
+   |     ------ field in this variant
+...
+50 |         word_count: usize,
+   |         ^^^^^^^^^^
+   |
+   = note: `NativeQualificationEventKind` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: method `hold_next_reserved_call_once` is never used
+   --> crates\whisper-adapters\src\worker_ipc\runtime\support.rs:357:34
+    |
+297 | impl ImportRuntime {
+    | ------------------ method in this implementation
+...
+357 |     pub(in crate::worker_ipc) fn hold_next_reserved_call_once(&mut self) {
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `whisper-adapters` (lib) generated 1 warning (run `cargo fix --lib -p whisper-adapters` to apply 1 suggestion)
+   Compiling whisper-bootstrap v0.1.0 (C:\dev\whisper\crates\whisper-bootstrap)
+warning: `whisper-adapters` (lib test) generated 17 warnings (run `cargo fix --lib -p whisper-adapters --tests` to apply 8 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 43.79s
+     Running unittests src\lib.rs (target\parakeet-tests\cargo-shared\debug\deps\whisper_adapters-819f8b8279e3d135.exe)
+Preserved internal publication test artifacts at C:\dev\whisper\target\parakeet-tests\refacto-parakeet-live\tmp\whisper-create-only-publication-53084-1793479741664162500
+
+thread 'direct_live::d2_corpus::d2_corpus_real_cpu_turbo_and_parakeet' (143608) panicked at crates\whisper-adapters\src\direct_live\d2_corpus.rs:146:69:
+guarded D2 root
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'direct_live::d2_corpus::tests::test_status_writer_preserves_diagnostics' (93360) panicked at crates\whisper-adapters\src\direct_live\d2_corpus.rs:542:73:
+guarded D2 root
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT
+
+thread 'source_binding::recovery_tests::recovery_refuses_reserved_operation_while_acquire_holds_the_cross_process_lock' (167048) panicked at crates\whisper-adapters\src\source_binding.rs:1527:68:
+campaign archive root
+
+thread 'source_binding::recovery_tests::retirement_intent_replays_after_each_disposition_boundary' (147760) panicked at crates\whisper-adapters\src\source_binding.rs:1527:68:
+campaign archive root
+
+thread 'source_binding::recovery_tests::snapshot_v2_preserves_strategy_and_rejects_request_mismatch' (94936) panicked at crates\whisper-adapters\src\source_binding.rs:1527:68:
+campaign archive root
+
+thread 'worker_ipc::tests::browse_accepts_only_exact_verified_treatment_in_current_destination' (26688) panicked at crates\whisper-adapters\src\worker_ipc\tests/reprocessing_and_transport.rs:21:72:
+RTC-02 root
+
+thread 'worker_ipc::tests::emptied_transcriptions_keeps_history_but_offers_no_duplicate_targets' (95900) panicked at crates\whisper-adapters\src\worker_ipc\tests/reprocessing_and_transport.rs:21:72:
+RTC-02 root
+
+thread 'worker_ipc::tests::import_application_decodes_real_mp3_and_publishes_full_unified_coverage' (118276) panicked at crates\whisper-adapters\src\worker_ipc\tests/unified_capture.rs:1059:14:
+WHISPER_PU_L1_MP3_FIXTURE must name the guarded MP3 fixture

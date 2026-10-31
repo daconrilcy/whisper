@@ -1,0 +1,50 @@
+[
+  {
+    "stdout": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\logs\\Run-20261031T223949813-77486dc7.stdout.log",
+    "exit_code": 1,
+    "mode": "Run",
+    "seconds": 14,
+    "run_id": "20261031T223949813-77486dc7",
+    "at": "2026-10-31T22:40:03.9997694+01:00",
+    "cargo_args": [
+      "test",
+      "--offline",
+      "--locked",
+      "--workspace",
+      "--config",
+      "env.LOCALAPPDATA.value='C:/dev/whisper/target/parakeet-tests/refacto-parakeet-live/niveau1-88850e8/retry-20261031T215723/localappdata'",
+      "--config",
+      "env.LOCALAPPDATA.force=true",
+      "--",
+      "--test-threads=1",
+      "--nocapture",
+      "--skip",
+      "direct_live::d2_corpus::d2_corpus_real_cpu_turbo_and_parakeet"
+    ],
+    "stderr": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\logs\\Run-20261031T223949813-77486dc7.stderr.log"
+  },
+  {
+    "mode": "Run",
+    "exit_code": 0,
+    "stdout": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\logs\\Run-20261031T224038228-3c26d9fe.stdout.log",
+    "stderr": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\logs\\Run-20261031T224038228-3c26d9fe.stderr.log",
+    "cargo_args": [
+      "test",
+      "--offline",
+      "--locked",
+      "--workspace",
+      "--config",
+      "env.LOCALAPPDATA.value='C:/dev/whisper/target/parakeet-tests/refacto-parakeet-live/niveau1-88850e8/retry-20261031T215723/localappdata'",
+      "--config",
+      "env.LOCALAPPDATA.force=true",
+      "--",
+      "--test-threads=1",
+      "--nocapture",
+      "--skip",
+      "direct_live::d2_corpus::d2_corpus_real_cpu_turbo_and_parakeet"
+    ],
+    "run_id": "20261031T224038228-3c26d9fe",
+    "seconds": 279,
+    "at": "2026-10-31T22:45:17.1552348+01:00"
+  }
+]

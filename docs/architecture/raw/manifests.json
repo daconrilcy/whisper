@@ -1,0 +1,825 @@
+{
+  "workspace": {
+    "workspace": {
+      "members": [
+        "crates/whisper-core",
+        "crates/whisper-adapters",
+        "crates/whisper-worker-common",
+        "crates/whisper-worker-cpu",
+        "crates/whisper-worker-gpu",
+        "crates/whisper-worker-parakeet-cpu",
+        "crates/whisper-desktop",
+        "crates/whisper-bootstrap"
+      ],
+      "default-members": [
+        "crates/whisper-core",
+        "crates/whisper-adapters",
+        "crates/whisper-desktop",
+        "crates/whisper-bootstrap"
+      ],
+      "resolver": "3",
+      "package": {
+        "edition": "2024",
+        "rust-version": "1.98.1",
+        "publish": false
+      },
+      "dependencies": {
+        "whisper-core": {
+          "path": "crates/whisper-core"
+        },
+        "whisper-worker-common": {
+          "path": "crates/whisper-worker-common"
+        },
+        "whisper-adapters": {
+          "path": "crates/whisper-adapters"
+        },
+        "serde": {
+          "version": "=1.0.228",
+          "features": [
+            "derive"
+          ]
+        },
+        "serde_json": "=1.0.145",
+        "sha2": "=0.10.9",
+        "symphonia": {
+          "version": "=0.5.5",
+          "default-features": false,
+          "features": [
+            "wav",
+            "pcm",
+            "mp3"
+          ]
+        },
+        "libloading": "=0.8.9"
+      },
+      "lints": {
+        "rust": {
+          "unsafe_code": "forbid"
+        },
+        "clippy": {
+          "all": "warn"
+        }
+      }
+    }
+  },
+  "packages": [
+    {
+      "package": {
+        "name": "whisper-core",
+        "version": "0.1.0",
+        "edition": {
+          "workspace": true
+        },
+        "rust-version": {
+          "workspace": true
+        },
+        "publish": {
+          "workspace": true
+        }
+      },
+      "dependencies": {
+        "serde": {
+          "workspace": true
+        }
+      },
+      "lints": {
+        "workspace": true
+      },
+      "manifest_path": "crates/whisper-core/Cargo.toml",
+      "rust_source_files": [
+        "crates/whisper-core/src/application/contracts.rs",
+        "crates/whisper-core/src/application/event_metadata.rs",
+        "crates/whisper-core/src/application/runtime/automatic_final.rs",
+        "crates/whisper-core/src/application/runtime/closing.rs",
+        "crates/whisper-core/src/application/runtime/commands.rs",
+        "crates/whisper-core/src/application/runtime/events.rs",
+        "crates/whisper-core/src/application/runtime/import.rs",
+        "crates/whisper-core/src/application/runtime/live.rs",
+        "crates/whisper-core/src/application/runtime/microphone.rs",
+        "crates/whisper-core/src/application/runtime/mod.rs",
+        "crates/whisper-core/src/application/runtime/parakeet_views.rs",
+        "crates/whisper-core/src/application/runtime/poll.rs",
+        "crates/whisper-core/src/application/runtime/queue.rs",
+        "crates/whisper-core/src/application/runtime/tests/closing_and_recovery.rs",
+        "crates/whisper-core/src/application/runtime/tests/live_lifecycle.rs",
+        "crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs",
+        "crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs",
+        "crates/whisper-core/src/application/runtime/tests.rs",
+        "crates/whisper-core/src/application/runtime/unified.rs",
+        "crates/whisper-core/src/application.rs",
+        "crates/whisper-core/src/audio.rs",
+        "crates/whisper-core/src/compute_policy.rs",
+        "crates/whisper-core/src/domain.rs",
+        "crates/whisper-core/src/engine_capabilities.rs",
+        "crates/whisper-core/src/gpu_inventory.rs",
+        "crates/whisper-core/src/gpu_inventory_app.rs",
+        "crates/whisper-core/src/gpu_selection.rs",
+        "crates/whisper-core/src/ipc.rs",
+        "crates/whisper-core/src/lib.rs",
+        "crates/whisper-core/src/microphone.rs",
+        "crates/whisper-core/src/microphone_level.rs",
+        "crates/whisper-core/src/model_catalog.rs",
+        "crates/whisper-core/src/model_registry.rs",
+        "crates/whisper-core/src/model_selection_app.rs",
+        "crates/whisper-core/src/parakeet_ipc.rs",
+        "crates/whisper-core/src/parakeet_scheduler.rs",
+        "crates/whisper-core/src/parakeet_session.rs",
+        "crates/whisper-core/src/parakeet_windows.rs",
+        "crates/whisper-core/src/path_settings.rs",
+        "crates/whisper-core/src/ports.rs",
+        "crates/whisper-core/tests/application_routing.rs",
+        "crates/whisper-core/tests/compute_policy.rs",
+        "crates/whisper-core/tests/engine_capabilities.rs",
+        "crates/whisper-core/tests/gpu_inventory.rs",
+        "crates/whisper-core/tests/gpu_selection.rs",
+        "crates/whisper-core/tests/import_contract.rs",
+        "crates/whisper-core/tests/live_contract.rs",
+        "crates/whisper-core/tests/microphone_level.rs",
+        "crates/whisper-core/tests/model_catalog.rs",
+        "crates/whisper-core/tests/model_preferences.rs",
+        "crates/whisper-core/tests/model_selection_app.rs",
+        "crates/whisper-core/tests/parakeet_import_contract.rs",
+        "crates/whisper-core/tests/parakeet_ipc.rs",
+        "crates/whisper-core/tests/parakeet_windows.rs",
+        "crates/whisper-core/tests/scheduler_contract.rs"
+      ]
+    },
+    {
+      "package": {
+        "name": "whisper-adapters",
+        "version": "0.1.0",
+        "edition": {
+          "workspace": true
+        },
+        "rust-version": {
+          "workspace": true
+        },
+        "publish": {
+          "workspace": true
+        },
+        "build": "../../scripts/recette-build.rs"
+      },
+      "features": {
+        "default": [],
+        "recette-hooks": [],
+        "l01-memory-qualification": [],
+        "l3-gpu-qualification": [],
+        "personal-qualification": []
+      },
+      "dependencies": {
+        "whisper-core": {
+          "workspace": true
+        },
+        "serde": {
+          "version": "=1.0.228",
+          "features": [
+            "derive"
+          ]
+        },
+        "serde_json": {
+          "workspace": true
+        },
+        "sha2": "=0.10.9",
+        "same-file": "=1.0.6",
+        "symphonia": {
+          "version": "=0.5.5",
+          "default-features": false,
+          "features": [
+            "wav",
+            "pcm",
+            "mp3"
+          ]
+        },
+        "cpal": {
+          "version": "=0.18.2",
+          "default-features": false
+        },
+        "rubato": {
+          "version": "=0.16.2",
+          "default-features": false,
+          "features": [
+            "fft_resampler"
+          ]
+        },
+        "webrtc-vad": "=0.4.0",
+        "rtrb": "=0.4.0",
+        "rustfft": "=6.4.1"
+      },
+      "target": {
+        "cfg(target_os = \"windows\")": {
+          "dependencies": {
+            "rfd": {
+              "version": "=0.17.2",
+              "default-features": false
+            },
+            "wmi": "=0.18.4",
+            "windows": {
+              "version": "=0.62.2",
+              "features": [
+                "Win32_Foundation",
+                "Win32_Storage_FileSystem",
+                "Win32_Graphics_Dxgi",
+                "Win32_Graphics_Dxgi_Common",
+                "Win32_Devices_Display",
+                "Win32_Devices_DeviceAndDriverInstallation"
+              ]
+            }
+          }
+        }
+      },
+      "lints": {
+        "rust": {
+          "unsafe_code": "deny"
+        },
+        "clippy": {
+          "all": "warn"
+        }
+      },
+      "manifest_path": "crates/whisper-adapters/Cargo.toml",
+      "rust_source_files": [
+        "crates/whisper-adapters/src/archive/campaign.rs",
+        "crates/whisper-adapters/src/archive/cleanup/execution.rs",
+        "crates/whisper-adapters/src/archive/cleanup/proofs.rs",
+        "crates/whisper-adapters/src/archive/cleanup.rs",
+        "crates/whisper-adapters/src/archive/identity.rs",
+        "crates/whisper-adapters/src/archive/import.rs",
+        "crates/whisper-adapters/src/archive/journal.rs",
+        "crates/whisper-adapters/src/archive/live.rs",
+        "crates/whisper-adapters/src/archive/publication/catalog.rs",
+        "crates/whisper-adapters/src/archive/publication/exports.rs",
+        "crates/whisper-adapters/src/archive/publication.rs",
+        "crates/whisper-adapters/src/archive/recovery/live.rs",
+        "crates/whisper-adapters/src/archive/recovery.rs",
+        "crates/whisper-adapters/src/archive/source.rs",
+        "crates/whisper-adapters/src/archive/storage.rs",
+        "crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs",
+        "crates/whisper-adapters/src/archive/tests/campaign.rs",
+        "crates/whisper-adapters/src/archive/tests/cleanup_characterization.rs",
+        "crates/whisper-adapters/src/archive/tests/export_ownership_characterization.rs",
+        "crates/whisper-adapters/src/archive/tests/publication_characterization.rs",
+        "crates/whisper-adapters/src/archive/tests/publication_support.rs",
+        "crates/whisper-adapters/src/archive/tests/recovery.rs",
+        "crates/whisper-adapters/src/archive/tests/recovery_characterization.rs",
+        "crates/whisper-adapters/src/archive/tests/replacement_and_segmented.rs",
+        "crates/whisper-adapters/src/archive/tests.rs",
+        "crates/whisper-adapters/src/archive.rs",
+        "crates/whisper-adapters/src/capture.rs",
+        "crates/whisper-adapters/src/decoder.rs",
+        "crates/whisper-adapters/src/direct_live/capture.rs",
+        "crates/whisper-adapters/src/direct_live/d2_corpus.rs",
+        "crates/whisper-adapters/src/direct_live/outputs.rs",
+        "crates/whisper-adapters/src/direct_live/test_support.rs",
+        "crates/whisper-adapters/src/direct_live/tests.rs",
+        "crates/whisper-adapters/src/direct_live/wav.rs",
+        "crates/whisper-adapters/src/direct_live/worker.rs",
+        "crates/whisper-adapters/src/direct_live.rs",
+        "crates/whisper-adapters/src/gpu_inventory/windows_native.rs",
+        "crates/whisper-adapters/src/gpu_inventory.rs",
+        "crates/whisper-adapters/src/journal.rs",
+        "crates/whisper-adapters/src/lib.rs",
+        "crates/whisper-adapters/src/microphone_probe/retry_epoch_regression.rs",
+        "crates/whisper-adapters/src/microphone_probe.rs",
+        "crates/whisper-adapters/src/model_catalog.rs",
+        "crates/whisper-adapters/src/parakeet_audio.rs",
+        "crates/whisper-adapters/src/parakeet_confirmation.rs",
+        "crates/whisper-adapters/src/parakeet_document.rs",
+        "crates/whisper-adapters/src/parakeet_import/historical_runtime.rs",
+        "crates/whisper-adapters/src/parakeet_import/legacy_runtime_tests.rs",
+        "crates/whisper-adapters/src/parakeet_import/runtime_isolation_tests.rs",
+        "crates/whisper-adapters/src/parakeet_import.rs",
+        "crates/whisper-adapters/src/parakeet_live/capture.rs",
+        "crates/whisper-adapters/src/parakeet_live/diagnostics_absence_tests.rs",
+        "crates/whisper-adapters/src/parakeet_live/events.rs",
+        "crates/whisper-adapters/src/parakeet_live/inference.rs",
+        "crates/whisper-adapters/src/parakeet_live/lifecycle.rs",
+        "crates/whisper-adapters/src/parakeet_live/microphone_spectrum_tests.rs",
+        "crates/whisper-adapters/src/parakeet_live/recovery_tests.rs",
+        "crates/whisper-adapters/src/parakeet_live/trace.rs",
+        "crates/whisper-adapters/src/parakeet_live/window_result_contract_tests.rs",
+        "crates/whisper-adapters/src/parakeet_live/windows.rs",
+        "crates/whisper-adapters/src/parakeet_live.rs",
+        "crates/whisper-adapters/src/parakeet_pipeline.rs",
+        "crates/whisper-adapters/src/path_settings.rs",
+        "crates/whisper-adapters/src/queue_store.rs",
+        "crates/whisper-adapters/src/recovery.rs",
+        "crates/whisper-adapters/src/source_binding.rs",
+        "crates/whisper-adapters/src/staging.rs",
+        "crates/whisper-adapters/src/supervisor.rs",
+        "crates/whisper-adapters/src/vad.rs",
+        "crates/whisper-adapters/src/windows_file_identity.rs",
+        "crates/whisper-adapters/src/worker_ipc/backends/mod.rs",
+        "crates/whisper-adapters/src/worker_ipc/backends/native.rs",
+        "crates/whisper-adapters/src/worker_ipc/ipc/framing.rs",
+        "crates/whisper-adapters/src/worker_ipc/ipc/mod.rs",
+        "crates/whisper-adapters/src/worker_ipc/parakeet_unified/executor.rs",
+        "crates/whisper-adapters/src/worker_ipc/parakeet_unified/mod.rs",
+        "crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs",
+        "crates/whisper-adapters/src/worker_ipc/publication/mod.rs",
+        "crates/whisper-adapters/src/worker_ipc/publication/tests.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/effects.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/import.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/live.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/poll/capture.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/poll.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/queue.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs",
+        "crates/whisper-adapters/src/worker_ipc/runtime/support.rs",
+        "crates/whisper-adapters/src/worker_ipc/service/automatic_final.rs",
+        "crates/whisper-adapters/src/worker_ipc/service/mod.rs",
+        "crates/whisper-adapters/src/worker_ipc/support.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/duplicate_characterization.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/effect_characterization.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/queue_characterization.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/source_binding_entry.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/stopped_ack.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests/worker_command_poll.rs",
+        "crates/whisper-adapters/src/worker_ipc/tests.rs",
+        "crates/whisper-adapters/src/worker_ipc.rs",
+        "crates/whisper-adapters/tests/decoder_proxy.rs",
+        "crates/whisper-adapters/tests/durability.rs",
+        "crates/whisper-adapters/tests/gpu_inventory.rs",
+        "crates/whisper-adapters/tests/gpu_qualification_transport.rs",
+        "crates/whisper-adapters/tests/gpu_selection_worker.rs",
+        "crates/whisper-adapters/tests/gpu_settings.rs",
+        "crates/whisper-adapters/tests/import_cpu.rs",
+        "crates/whisper-adapters/tests/import_mp3.rs",
+        "crates/whisper-adapters/tests/legacy_model_requests.rs",
+        "crates/whisper-adapters/tests/live_archive.rs",
+        "crates/whisper-adapters/tests/live_capture.rs",
+        "crates/whisper-adapters/tests/microphone_level.rs",
+        "crates/whisper-adapters/tests/microphone_probe.rs",
+        "crates/whisper-adapters/tests/microphone_settings.rs",
+        "crates/whisper-adapters/tests/model_catalog.rs",
+        "crates/whisper-adapters/tests/model_preferences.rs",
+        "crates/whisper-adapters/tests/parakeet_archive.rs",
+        "crates/whisper-adapters/tests/parakeet_archive_personal_history.rs",
+        "crates/whisper-adapters/tests/parakeet_command_wire.rs",
+        "crates/whisper-adapters/tests/parakeet_control.rs",
+        "crates/whisper-adapters/tests/parakeet_import.rs",
+        "crates/whisper-adapters/tests/parakeet_long.rs",
+        "crates/whisper-adapters/tests/parakeet_runtime_isolation.rs",
+        "crates/whisper-adapters/tests/parakeet_unified_native.rs",
+        "crates/whisper-adapters/tests/publication_lock_contract.rs",
+        "crates/whisper-adapters/tests/reprocessing_baseline.rs",
+        "crates/whisper-adapters/tests/reprocessing_cleanup.rs",
+        "crates/whisper-adapters/tests/reprocessing_create.rs",
+        "crates/whisper-adapters/tests/source_binding.rs",
+        "crates/whisper-adapters/tests/support/parakeet_fake_worker.rs",
+        "crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs",
+        "crates/whisper-adapters/tests/vad_contract.rs",
+        "crates/whisper-adapters/tests/worker_control.rs"
+      ]
+    },
+    {
+      "package": {
+        "name": "whisper-worker-common",
+        "version": "0.1.0",
+        "edition": {
+          "workspace": true
+        },
+        "rust-version": {
+          "workspace": true
+        },
+        "publish": {
+          "workspace": true
+        }
+      },
+      "features": {
+        "default": [],
+        "l01-memory-qualification": []
+      },
+      "dependencies": {
+        "whisper-core": {
+          "workspace": true
+        },
+        "serde": {
+          "workspace": true
+        },
+        "serde_json": {
+          "workspace": true
+        },
+        "sha2": {
+          "workspace": true
+        },
+        "symphonia": {
+          "workspace": true
+        },
+        "rusty_mp3": "=0.8.0"
+      },
+      "lints": {
+        "workspace": true
+      },
+      "manifest_path": "crates/whisper-worker-common/Cargo.toml",
+      "rust_source_files": [
+        "crates/whisper-worker-common/src/decoder/tests.rs",
+        "crates/whisper-worker-common/src/decoder.rs",
+        "crates/whisper-worker-common/src/encoder/tests.rs",
+        "crates/whisper-worker-common/src/encoder.rs",
+        "crates/whisper-worker-common/src/integrity/tests.rs",
+        "crates/whisper-worker-common/src/integrity.rs",
+        "crates/whisper-worker-common/src/ipc/tests.rs",
+        "crates/whisper-worker-common/src/ipc.rs",
+        "crates/whisper-worker-common/src/lib.rs",
+        "crates/whisper-worker-common/src/observation/tests.rs",
+        "crates/whisper-worker-common/src/observation.rs"
+      ]
+    },
+    {
+      "package": {
+        "name": "whisper-worker-cpu",
+        "version": "0.1.0",
+        "edition": {
+          "workspace": true
+        },
+        "rust-version": {
+          "workspace": true
+        },
+        "publish": {
+          "workspace": true
+        },
+        "build": "../../scripts/recette-build.rs"
+      },
+      "features": {
+        "default": [],
+        "recette-hooks": [],
+        "l01-memory-qualification": [
+          "whisper-worker-common/l01-memory-qualification"
+        ]
+      },
+      "dependencies": {
+        "whisper-worker-common": {
+          "workspace": true
+        },
+        "whisper-core": {
+          "workspace": true
+        },
+        "serde_json": {
+          "workspace": true
+        },
+        "serde": {
+          "version": "=1.0.228",
+          "features": [
+            "derive"
+          ]
+        },
+        "sha2": "=0.10.9",
+        "whisper-rs": {
+          "version": "=0.16.0",
+          "default-features": false
+        }
+      },
+      "lints": {
+        "workspace": true
+      },
+      "manifest_path": "crates/whisper-worker-cpu/Cargo.toml",
+      "rust_source_files": [
+        "crates/whisper-worker-cpu/src/decoder/tests.rs",
+        "crates/whisper-worker-cpu/src/decoder.rs",
+        "crates/whisper-worker-cpu/src/diagnostics.rs",
+        "crates/whisper-worker-cpu/src/encoder/tests.rs",
+        "crates/whisper-worker-cpu/src/encoder.rs",
+        "crates/whisper-worker-cpu/src/engine_cache.rs",
+        "crates/whisper-worker-cpu/src/integrity.rs",
+        "crates/whisper-worker-cpu/src/ipc/tests.rs",
+        "crates/whisper-worker-cpu/src/ipc.rs",
+        "crates/whisper-worker-cpu/src/ipc_output/tests.rs",
+        "crates/whisper-worker-cpu/src/ipc_output.rs",
+        "crates/whisper-worker-cpu/src/main.rs",
+        "crates/whisper-worker-cpu/src/memory_qualification.rs",
+        "crates/whisper-worker-cpu/src/native_engine.rs",
+        "crates/whisper-worker-cpu/src/qualification.rs",
+        "crates/whisper-worker-cpu/src/session/control/tests.rs",
+        "crates/whisper-worker-cpu/src/session/control.rs",
+        "crates/whisper-worker-cpu/src/session/decode.rs",
+        "crates/whisper-worker-cpu/src/session/import.rs",
+        "crates/whisper-worker-cpu/src/session/live.rs",
+        "crates/whisper-worker-cpu/src/session/mod.rs",
+        "crates/whisper-worker-cpu/src/startup.rs",
+        "crates/whisper-worker-cpu/src/worker/tests.rs",
+        "crates/whisper-worker-cpu/src/worker.rs",
+        "crates/whisper-worker-cpu/tests/live_worker.rs",
+        "crates/whisper-worker-cpu/tests/reusable_imports.rs",
+        "crates/whisper-worker-cpu/tests/support/worker.rs",
+        "crates/whisper-worker-cpu/tests/worker_contract.rs"
+      ]
+    },
+    {
+      "package": {
+        "name": "whisper-worker-gpu",
+        "version": "0.1.0",
+        "edition": {
+          "workspace": true
+        },
+        "rust-version": {
+          "workspace": true
+        },
+        "publish": {
+          "workspace": true
+        },
+        "build": "../../scripts/recette-build.rs"
+      },
+      "features": {
+        "default": [],
+        "recette-hooks": [],
+        "l01-memory-qualification": [
+          "whisper-worker-common/l01-memory-qualification"
+        ]
+      },
+      "dependencies": {
+        "whisper-worker-common": {
+          "workspace": true
+        },
+        "whisper-core": {
+          "workspace": true
+        },
+        "serde_json": {
+          "workspace": true
+        },
+        "serde": {
+          "version": "=1.0.228",
+          "features": [
+            "derive"
+          ]
+        },
+        "sha2": "=0.10.9",
+        "whisper-rs": {
+          "version": "=0.16.0",
+          "default-features": false,
+          "features": [
+            "cuda",
+            "raw-api"
+          ]
+        }
+      },
+      "target": {
+        "cfg(target_os = \"windows\")": {
+          "dependencies": {
+            "windows": {
+              "version": "=0.62.2",
+              "features": [
+                "Win32_Foundation",
+                "Win32_System_LibraryLoader",
+                "Win32_Graphics_Dxgi",
+                "Win32_Graphics_Dxgi_Common",
+                "Win32_Devices_Display",
+                "Win32_Devices_DeviceAndDriverInstallation"
+              ]
+            }
+          }
+        }
+      },
+      "lints": {
+        "rust": {
+          "unsafe_code": "deny"
+        },
+        "clippy": {
+          "all": "warn"
+        }
+      },
+      "manifest_path": "crates/whisper-worker-gpu/Cargo.toml",
+      "rust_source_files": [
+        "crates/whisper-worker-gpu/src/decoder/tests.rs",
+        "crates/whisper-worker-gpu/src/decoder.rs",
+        "crates/whisper-worker-gpu/src/diagnostics/tests.rs",
+        "crates/whisper-worker-gpu/src/diagnostics.rs",
+        "crates/whisper-worker-gpu/src/encoder.rs",
+        "crates/whisper-worker-gpu/src/engine_cache/tests.rs",
+        "crates/whisper-worker-gpu/src/engine_cache.rs",
+        "crates/whisper-worker-gpu/src/gpu_attestation.rs",
+        "crates/whisper-worker-gpu/src/gpu_commands.rs",
+        "crates/whisper-worker-gpu/src/gpu_qualification.rs",
+        "crates/whisper-worker-gpu/src/integrity.rs",
+        "crates/whisper-worker-gpu/src/ipc/tests.rs",
+        "crates/whisper-worker-gpu/src/ipc.rs",
+        "crates/whisper-worker-gpu/src/main.rs",
+        "crates/whisper-worker-gpu/src/memory_qualification.rs",
+        "crates/whisper-worker-gpu/src/native_engine.rs",
+        "crates/whisper-worker-gpu/src/native_ffi.rs",
+        "crates/whisper-worker-gpu/src/qualification.rs",
+        "crates/whisper-worker-gpu/src/session/control/tests.rs",
+        "crates/whisper-worker-gpu/src/session/control.rs",
+        "crates/whisper-worker-gpu/src/session/decode.rs",
+        "crates/whisper-worker-gpu/src/session/import.rs",
+        "crates/whisper-worker-gpu/src/session/live.rs",
+        "crates/whisper-worker-gpu/src/session/mod.rs",
+        "crates/whisper-worker-gpu/src/startup.rs",
+        "crates/whisper-worker-gpu/src/worker/tests.rs",
+        "crates/whisper-worker-gpu/src/worker.rs",
+        "crates/whisper-worker-gpu/tests/gpu_selection_native.rs",
+        "crates/whisper-worker-gpu/tests/support/worker.rs",
+        "crates/whisper-worker-gpu/tests/worker_contract.rs"
+      ]
+    },
+    {
+      "package": {
+        "name": "whisper-worker-parakeet-cpu",
+        "version": "0.1.0",
+        "edition": {
+          "workspace": true
+        },
+        "rust-version": {
+          "workspace": true
+        },
+        "publish": {
+          "workspace": true
+        }
+      },
+      "features": {
+        "default": [],
+        "parakeet-qualification-reference": [],
+        "parakeet-cuda": [],
+        "parakeet-personal": []
+      },
+      "dependencies": {
+        "whisper-core": {
+          "workspace": true
+        },
+        "serde": {
+          "workspace": true
+        },
+        "serde_json": {
+          "workspace": true
+        },
+        "sha2": {
+          "workspace": true
+        },
+        "symphonia": {
+          "workspace": true
+        },
+        "libloading": {
+          "workspace": true
+        }
+      },
+      "lints": {
+        "rust": {
+          "unsafe_code": "allow"
+        },
+        "clippy": {
+          "all": "warn"
+        }
+      },
+      "manifest_path": "crates/whisper-worker-parakeet-cpu/Cargo.toml",
+      "rust_source_files": [
+        "crates/whisper-worker-parakeet-cpu/src/args.rs",
+        "crates/whisper-worker-parakeet-cpu/src/decode_only.rs",
+        "crates/whisper-worker-parakeet-cpu/src/decoder.rs",
+        "crates/whisper-worker-parakeet-cpu/src/gpu_identity/tests.rs",
+        "crates/whisper-worker-parakeet-cpu/src/gpu_identity.rs",
+        "crates/whisper-worker-parakeet-cpu/src/integrity.rs",
+        "crates/whisper-worker-parakeet-cpu/src/ipc/tests.rs",
+        "crates/whisper-worker-parakeet-cpu/src/ipc.rs",
+        "crates/whisper-worker-parakeet-cpu/src/main.rs",
+        "crates/whisper-worker-parakeet-cpu/src/native_engine.rs",
+        "crates/whisper-worker-parakeet-cpu/src/native_ffi.rs",
+        "crates/whisper-worker-parakeet-cpu/src/reference_decoder/tests.rs",
+        "crates/whisper-worker-parakeet-cpu/src/reference_decoder.rs",
+        "crates/whisper-worker-parakeet-cpu/src/runtime_paths/personal_tests.rs",
+        "crates/whisper-worker-parakeet-cpu/src/runtime_paths/tests.rs",
+        "crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs",
+        "crates/whisper-worker-parakeet-cpu/src/session.rs",
+        "crates/whisper-worker-parakeet-cpu/src/startup.rs",
+        "crates/whisper-worker-parakeet-cpu/src/transcription/tests.rs",
+        "crates/whisper-worker-parakeet-cpu/src/transcription.rs",
+        "crates/whisper-worker-parakeet-cpu/tests/decoder_parity.rs",
+        "crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs",
+        "crates/whisper-worker-parakeet-cpu/tests/native_import.rs",
+        "crates/whisper-worker-parakeet-cpu/tests/support/worker.rs",
+        "crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs"
+      ]
+    },
+    {
+      "package": {
+        "name": "whisper-desktop",
+        "version": "0.1.0",
+        "edition": {
+          "workspace": true
+        },
+        "rust-version": {
+          "workspace": true
+        },
+        "publish": {
+          "workspace": true
+        }
+      },
+      "dependencies": {
+        "whisper-core": {
+          "workspace": true
+        },
+        "whisper-adapters": {
+          "workspace": true
+        },
+        "eframe": {
+          "version": "=0.35.0",
+          "default-features": false,
+          "features": [
+            "accesskit",
+            "default_fonts",
+            "glow"
+          ]
+        }
+      },
+      "features": {
+        "default": [],
+        "recette-hooks": [
+          "whisper-adapters/recette-hooks"
+        ],
+        "personal-install": []
+      },
+      "lints": {
+        "workspace": true
+      },
+      "manifest_path": "crates/whisper-desktop/Cargo.toml",
+      "rust_source_files": [
+        "crates/whisper-desktop/src/lib.rs",
+        "crates/whisper-desktop/src/main.rs",
+        "crates/whisper-desktop/src/reactivity_log.rs",
+        "crates/whisper-desktop/src/root.rs",
+        "crates/whisper-desktop/src/ui/model/controller/actions.rs",
+        "crates/whisper-desktop/src/ui/model/controller/observability.rs",
+        "crates/whisper-desktop/src/ui/model/controller.rs",
+        "crates/whisper-desktop/src/ui/model/preferences.rs",
+        "crates/whisper-desktop/src/ui/model/view/actions.rs",
+        "crates/whisper-desktop/src/ui/model/view/active_job.rs",
+        "crates/whisper-desktop/src/ui/model/view/capture.rs",
+        "crates/whisper-desktop/src/ui/model/view/dialogs.rs",
+        "crates/whisper-desktop/src/ui/model/view/history.rs",
+        "crates/whisper-desktop/src/ui/model/view/microphone.rs",
+        "crates/whisper-desktop/src/ui/model/view/notices.rs",
+        "crates/whisper-desktop/src/ui/model/view/queue.rs",
+        "crates/whisper-desktop/src/ui/model/view/settings.rs",
+        "crates/whisper-desktop/src/ui/model/view/unified.rs",
+        "crates/whisper-desktop/src/ui/model/view.rs",
+        "crates/whisper-desktop/src/ui/model.rs",
+        "crates/whisper-desktop/src/ui/presentation/gpu.rs",
+        "crates/whisper-desktop/src/ui/presentation/language.rs",
+        "crates/whisper-desktop/src/ui/presentation/microphone.rs",
+        "crates/whisper-desktop/src/ui/presentation/paths.rs",
+        "crates/whisper-desktop/src/ui/presentation/recovery.rs",
+        "crates/whisper-desktop/src/ui/presentation/selection.rs",
+        "crates/whisper-desktop/src/ui/presentation/text.rs",
+        "crates/whisper-desktop/src/ui/presentation.rs",
+        "crates/whisper-desktop/src/ui/tests/catalog_fixture.rs",
+        "crates/whisper-desktop/src/ui/tests/compute_and_catalog.rs",
+        "crates/whisper-desktop/src/ui/tests/document_presentation.rs",
+        "crates/whisper-desktop/src/ui/tests/import_and_lifecycle.rs",
+        "crates/whisper-desktop/src/ui/tests/microphone_controls.rs",
+        "crates/whisper-desktop/src/ui/tests/root_support.rs",
+        "crates/whisper-desktop/src/ui/tests/support.rs",
+        "crates/whisper-desktop/src/ui/tests/unified_sessions.rs",
+        "crates/whisper-desktop/src/ui/tests.rs",
+        "crates/whisper-desktop/src/ui.rs",
+        "crates/whisper-desktop/tests/gpu_inventory_ui.rs",
+        "crates/whisper-desktop/tests/gpu_selection_ui.rs",
+        "crates/whisper-desktop/tests/microphone_level_ui.rs",
+        "crates/whisper-desktop/tests/model_selection_ui.rs",
+        "crates/whisper-desktop/tests/reprocessing_recovery_ui.rs"
+      ]
+    },
+    {
+      "package": {
+        "name": "whisper-bootstrap",
+        "version": "0.1.0",
+        "edition": {
+          "workspace": true
+        },
+        "rust-version": {
+          "workspace": true
+        },
+        "publish": {
+          "workspace": true
+        }
+      },
+      "dependencies": {
+        "whisper-core": {
+          "workspace": true
+        },
+        "whisper-adapters": {
+          "workspace": true
+        }
+      },
+      "lints": {
+        "workspace": true
+      },
+      "manifest_path": "crates/whisper-bootstrap/Cargo.toml",
+      "rust_source_files": [
+        "crates/whisper-bootstrap/src/main.rs"
+      ]
+    }
+  ],
+  "warning": "Lecture des Cargo.toml, pas une sortie cargo metadata; aucune resolution Cargo."
+}

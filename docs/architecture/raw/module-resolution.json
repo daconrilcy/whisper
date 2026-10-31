@@ -1,0 +1,1654 @@
+[
+  {
+    "source": "crates/whisper-adapters/src/archive/cleanup.rs",
+    "line": 5,
+    "name": "execution",
+    "target": "crates/whisper-adapters/src/archive/cleanup/execution.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/cleanup.rs",
+    "line": 6,
+    "name": "proofs",
+    "target": "crates/whisper-adapters/src/archive/cleanup/proofs.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/publication.rs",
+    "line": 14,
+    "name": "catalog",
+    "target": "crates/whisper-adapters/src/archive/publication/catalog.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/publication.rs",
+    "line": 15,
+    "name": "exports",
+    "target": "crates/whisper-adapters/src/archive/publication/exports.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive/recovery.rs",
+    "line": 12,
+    "name": "live",
+    "target": "crates/whisper-adapters/src/archive/recovery/live.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 27,
+    "name": "campaign",
+    "target": "crates/whisper-adapters/src/archive/campaign.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 28,
+    "name": "cleanup",
+    "target": "crates/whisper-adapters/src/archive/cleanup.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 29,
+    "name": "identity",
+    "target": "crates/whisper-adapters/src/archive/identity.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 30,
+    "name": "import",
+    "target": "crates/whisper-adapters/src/archive/import.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 31,
+    "name": "journal",
+    "target": "crates/whisper-adapters/src/archive/journal.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 32,
+    "name": "live",
+    "target": "crates/whisper-adapters/src/archive/live.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 33,
+    "name": "publication",
+    "target": "crates/whisper-adapters/src/archive/publication.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 34,
+    "name": "recovery",
+    "target": "crates/whisper-adapters/src/archive/recovery.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 35,
+    "name": "source",
+    "target": "crates/whisper-adapters/src/archive/source.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 36,
+    "name": "storage",
+    "target": "crates/whisper-adapters/src/archive/storage.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/archive.rs",
+    "line": 581,
+    "name": "tests",
+    "target": "crates/whisper-adapters/src/archive/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live.rs",
+    "line": 1,
+    "name": "capture",
+    "target": "crates/whisper-adapters/src/direct_live/capture.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live.rs",
+    "line": 2,
+    "name": "outputs",
+    "target": "crates/whisper-adapters/src/direct_live/outputs.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live.rs",
+    "line": 3,
+    "name": "wav",
+    "target": "crates/whisper-adapters/src/direct_live/wav.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live.rs",
+    "line": 4,
+    "name": "worker",
+    "target": "crates/whisper-adapters/src/direct_live/worker.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live.rs",
+    "line": 7,
+    "name": "d2_corpus",
+    "target": "crates/whisper-adapters/src/direct_live/d2_corpus.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live.rs",
+    "line": 9,
+    "name": "test_support",
+    "target": "crates/whisper-adapters/src/direct_live/test_support.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/direct_live.rs",
+    "line": 11,
+    "name": "tests",
+    "target": "crates/whisper-adapters/src/direct_live/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/gpu_inventory.rs",
+    "line": 14,
+    "name": "windows_native",
+    "target": "crates/whisper-adapters/src/gpu_inventory/windows_native.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 1,
+    "name": "archive",
+    "target": "crates/whisper-adapters/src/archive.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 2,
+    "name": "capture",
+    "target": "crates/whisper-adapters/src/capture.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 3,
+    "name": "decoder",
+    "target": "crates/whisper-adapters/src/decoder.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 4,
+    "name": "direct_live",
+    "target": "crates/whisper-adapters/src/direct_live.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 5,
+    "name": "gpu_inventory",
+    "target": "crates/whisper-adapters/src/gpu_inventory.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 6,
+    "name": "journal",
+    "target": "crates/whisper-adapters/src/journal.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 7,
+    "name": "microphone_probe",
+    "target": "crates/whisper-adapters/src/microphone_probe.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 8,
+    "name": "model_catalog",
+    "target": "crates/whisper-adapters/src/model_catalog.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 9,
+    "name": "parakeet_audio",
+    "target": "crates/whisper-adapters/src/parakeet_audio.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 10,
+    "name": "parakeet_document",
+    "target": "crates/whisper-adapters/src/parakeet_document.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 11,
+    "name": "parakeet_import",
+    "target": "crates/whisper-adapters/src/parakeet_import.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 12,
+    "name": "parakeet_live",
+    "target": "crates/whisper-adapters/src/parakeet_live.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 13,
+    "name": "parakeet_pipeline",
+    "target": "crates/whisper-adapters/src/parakeet_pipeline.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 14,
+    "name": "path_settings",
+    "target": "crates/whisper-adapters/src/path_settings.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 15,
+    "name": "queue_store",
+    "target": "crates/whisper-adapters/src/queue_store.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 16,
+    "name": "recovery",
+    "target": "crates/whisper-adapters/src/recovery.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 17,
+    "name": "source_binding",
+    "target": "crates/whisper-adapters/src/source_binding.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 18,
+    "name": "staging",
+    "target": "crates/whisper-adapters/src/staging.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 19,
+    "name": "supervisor",
+    "target": "crates/whisper-adapters/src/supervisor.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 20,
+    "name": "vad",
+    "target": "crates/whisper-adapters/src/vad.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 22,
+    "name": "windows_file_identity",
+    "target": "crates/whisper-adapters/src/windows_file_identity.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/lib.rs",
+    "line": 23,
+    "name": "worker_ipc",
+    "target": "crates/whisper-adapters/src/worker_ipc.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/microphone_probe.rs",
+    "line": 24,
+    "name": "retry_epoch_regression",
+    "target": "crates/whisper-adapters/src/microphone_probe/retry_epoch_regression.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_import.rs",
+    "line": 3,
+    "name": "historical_runtime",
+    "target": "crates/whisper-adapters/src/parakeet_import/historical_runtime.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_import.rs",
+    "line": 773,
+    "name": "legacy_runtime_tests",
+    "target": "crates/whisper-adapters/src/parakeet_import/legacy_runtime_tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_import.rs",
+    "line": 776,
+    "name": "runtime_isolation_tests",
+    "target": "crates/whisper-adapters/src/parakeet_import/runtime_isolation_tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "line": 7,
+    "name": "confirmation",
+    "target": "crates/whisper-adapters/src/parakeet_confirmation.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "line": 48,
+    "name": "capture",
+    "target": "crates/whisper-adapters/src/parakeet_live/capture.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "line": 49,
+    "name": "events",
+    "target": "crates/whisper-adapters/src/parakeet_live/events.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "line": 50,
+    "name": "inference",
+    "target": "crates/whisper-adapters/src/parakeet_live/inference.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "line": 51,
+    "name": "lifecycle",
+    "target": "crates/whisper-adapters/src/parakeet_live/lifecycle.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "line": 52,
+    "name": "trace",
+    "target": "crates/whisper-adapters/src/parakeet_live/trace.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "line": 53,
+    "name": "windows",
+    "target": "crates/whisper-adapters/src/parakeet_live/windows.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "line": 61,
+    "name": "diagnostics_absence_tests",
+    "target": "crates/whisper-adapters/src/parakeet_live/diagnostics_absence_tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "line": 63,
+    "name": "microphone_spectrum_tests",
+    "target": "crates/whisper-adapters/src/parakeet_live/microphone_spectrum_tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "line": 65,
+    "name": "recovery_tests",
+    "target": "crates/whisper-adapters/src/parakeet_live/recovery_tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/parakeet_live.rs",
+    "line": 67,
+    "name": "window_result_contract_tests",
+    "target": "crates/whisper-adapters/src/parakeet_live/window_result_contract_tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/backends/mod.rs",
+    "line": 13,
+    "name": "native",
+    "target": "crates/whisper-adapters/src/worker_ipc/backends/native.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/ipc/mod.rs",
+    "line": 1,
+    "name": "framing",
+    "target": "crates/whisper-adapters/src/worker_ipc/ipc/framing.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/mod.rs",
+    "line": 7,
+    "name": "executor",
+    "target": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/executor.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/mod.rs",
+    "line": 8,
+    "name": "native",
+    "target": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/publication/mod.rs",
+    "line": 73,
+    "name": "tests",
+    "target": "crates/whisper-adapters/src/worker_ipc/publication/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/import.rs",
+    "line": 3,
+    "name": "worker_start",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+    "line": 3,
+    "name": "duplicates",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+    "line": 4,
+    "name": "effects",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/effects.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+    "line": 5,
+    "name": "import",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/import.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+    "line": 6,
+    "name": "live",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/live.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+    "line": 7,
+    "name": "poll",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/poll.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+    "line": 8,
+    "name": "poll_unified",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+    "line": 11,
+    "name": "queue",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/queue.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+    "line": 12,
+    "name": "recovery",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+    "line": 13,
+    "name": "source_binding",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+    "line": 14,
+    "name": "support",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/support.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/poll.rs",
+    "line": 3,
+    "name": "capture",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/poll/capture.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/runtime/poll.rs",
+    "line": 4,
+    "name": "parakeet",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc/service/mod.rs",
+    "line": 1,
+    "name": "automatic_final",
+    "target": "crates/whisper-adapters/src/worker_ipc/service/automatic_final.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "line": 1,
+    "name": "backends",
+    "target": "crates/whisper-adapters/src/worker_ipc/backends/mod.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "line": 2,
+    "name": "ipc",
+    "target": "crates/whisper-adapters/src/worker_ipc/ipc/mod.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "line": 3,
+    "name": "parakeet_unified",
+    "target": "crates/whisper-adapters/src/worker_ipc/parakeet_unified/mod.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "line": 4,
+    "name": "publication",
+    "target": "crates/whisper-adapters/src/worker_ipc/publication/mod.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "line": 5,
+    "name": "runtime",
+    "target": "crates/whisper-adapters/src/worker_ipc/runtime/mod.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "line": 29,
+    "name": "service",
+    "target": "crates/whisper-adapters/src/worker_ipc/service/mod.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "line": 30,
+    "name": "support",
+    "target": "crates/whisper-adapters/src/worker_ipc/support.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-adapters/src/worker_ipc.rs",
+    "line": 140,
+    "name": "tests",
+    "target": "crates/whisper-adapters/src/worker_ipc/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 22,
+    "name": "automatic_final",
+    "target": "crates/whisper-core/src/application/runtime/automatic_final.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 23,
+    "name": "closing",
+    "target": "crates/whisper-core/src/application/runtime/closing.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 24,
+    "name": "commands",
+    "target": "crates/whisper-core/src/application/runtime/commands.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 25,
+    "name": "events",
+    "target": "crates/whisper-core/src/application/runtime/events.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 26,
+    "name": "import",
+    "target": "crates/whisper-core/src/application/runtime/import.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 27,
+    "name": "live",
+    "target": "crates/whisper-core/src/application/runtime/live.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 28,
+    "name": "microphone",
+    "target": "crates/whisper-core/src/application/runtime/microphone.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 29,
+    "name": "parakeet_views",
+    "target": "crates/whisper-core/src/application/runtime/parakeet_views.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 30,
+    "name": "poll",
+    "target": "crates/whisper-core/src/application/runtime/poll.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 31,
+    "name": "queue",
+    "target": "crates/whisper-core/src/application/runtime/queue.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 32,
+    "name": "unified",
+    "target": "crates/whisper-core/src/application/runtime/unified.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application/runtime/mod.rs",
+    "line": 150,
+    "name": "tests",
+    "target": "crates/whisper-core/src/application/runtime/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-core/src/application.rs",
+    "line": 1,
+    "name": "contracts",
+    "target": "crates/whisper-core/src/application/contracts.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application.rs",
+    "line": 2,
+    "name": "event_metadata",
+    "target": "crates/whisper-core/src/application/event_metadata.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/application.rs",
+    "line": 3,
+    "name": "runtime",
+    "target": "crates/whisper-core/src/application/runtime/mod.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 3,
+    "name": "application",
+    "target": "crates/whisper-core/src/application.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 4,
+    "name": "audio",
+    "target": "crates/whisper-core/src/audio.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 5,
+    "name": "compute_policy",
+    "target": "crates/whisper-core/src/compute_policy.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 6,
+    "name": "domain",
+    "target": "crates/whisper-core/src/domain.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 7,
+    "name": "engine_capabilities",
+    "target": "crates/whisper-core/src/engine_capabilities.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 8,
+    "name": "gpu_inventory",
+    "target": "crates/whisper-core/src/gpu_inventory.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 9,
+    "name": "gpu_inventory_app",
+    "target": "crates/whisper-core/src/gpu_inventory_app.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 10,
+    "name": "gpu_selection",
+    "target": "crates/whisper-core/src/gpu_selection.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 11,
+    "name": "ipc",
+    "target": "crates/whisper-core/src/ipc.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 12,
+    "name": "microphone",
+    "target": "crates/whisper-core/src/microphone.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 13,
+    "name": "microphone_level",
+    "target": "crates/whisper-core/src/microphone_level.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 14,
+    "name": "model_catalog",
+    "target": "crates/whisper-core/src/model_catalog.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 15,
+    "name": "model_registry",
+    "target": "crates/whisper-core/src/model_registry.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 16,
+    "name": "model_selection_app",
+    "target": "crates/whisper-core/src/model_selection_app.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 17,
+    "name": "parakeet_ipc",
+    "target": "crates/whisper-core/src/parakeet_ipc.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 18,
+    "name": "parakeet_scheduler",
+    "target": "crates/whisper-core/src/parakeet_scheduler.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 19,
+    "name": "parakeet_session",
+    "target": "crates/whisper-core/src/parakeet_session.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 20,
+    "name": "parakeet_windows",
+    "target": "crates/whisper-core/src/parakeet_windows.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 21,
+    "name": "path_settings",
+    "target": "crates/whisper-core/src/path_settings.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-core/src/lib.rs",
+    "line": 22,
+    "name": "ports",
+    "target": "crates/whisper-core/src/ports.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/lib.rs",
+    "line": 3,
+    "name": "reactivity_log",
+    "target": "crates/whisper-desktop/src/reactivity_log.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/lib.rs",
+    "line": 4,
+    "name": "ui",
+    "target": "crates/whisper-desktop/src/ui.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/main.rs",
+    "line": 3,
+    "name": "root",
+    "target": "crates/whisper-desktop/src/root.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/controller.rs",
+    "line": 2,
+    "name": "actions",
+    "target": "crates/whisper-desktop/src/ui/model/controller/actions.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/controller.rs",
+    "line": 3,
+    "name": "observability",
+    "target": "crates/whisper-desktop/src/ui/model/controller/observability.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/view.rs",
+    "line": 2,
+    "name": "actions",
+    "target": "crates/whisper-desktop/src/ui/model/view/actions.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/view.rs",
+    "line": 3,
+    "name": "active_job",
+    "target": "crates/whisper-desktop/src/ui/model/view/active_job.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/view.rs",
+    "line": 4,
+    "name": "capture",
+    "target": "crates/whisper-desktop/src/ui/model/view/capture.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/view.rs",
+    "line": 5,
+    "name": "dialogs",
+    "target": "crates/whisper-desktop/src/ui/model/view/dialogs.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/view.rs",
+    "line": 6,
+    "name": "history",
+    "target": "crates/whisper-desktop/src/ui/model/view/history.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/view.rs",
+    "line": 7,
+    "name": "microphone",
+    "target": "crates/whisper-desktop/src/ui/model/view/microphone.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/view.rs",
+    "line": 8,
+    "name": "notices",
+    "target": "crates/whisper-desktop/src/ui/model/view/notices.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/view.rs",
+    "line": 9,
+    "name": "queue",
+    "target": "crates/whisper-desktop/src/ui/model/view/queue.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/view.rs",
+    "line": 10,
+    "name": "settings",
+    "target": "crates/whisper-desktop/src/ui/model/view/settings.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model/view.rs",
+    "line": 11,
+    "name": "unified",
+    "target": "crates/whisper-desktop/src/ui/model/view/unified.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "line": 23,
+    "name": "controller",
+    "target": "crates/whisper-desktop/src/ui/model/controller.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "line": 24,
+    "name": "preferences",
+    "target": "crates/whisper-desktop/src/ui/model/preferences.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "line": 31,
+    "name": "view",
+    "target": "crates/whisper-desktop/src/ui/model/view.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "line": 39,
+    "name": "catalog_fixture",
+    "target": "crates/whisper-desktop/src/ui/tests/catalog_fixture.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/model.rs",
+    "line": 42,
+    "name": "tests",
+    "target": "crates/whisper-desktop/src/ui/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "line": 16,
+    "name": "gpu",
+    "target": "crates/whisper-desktop/src/ui/presentation/gpu.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "line": 17,
+    "name": "language",
+    "target": "crates/whisper-desktop/src/ui/presentation/language.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "line": 18,
+    "name": "microphone",
+    "target": "crates/whisper-desktop/src/ui/presentation/microphone.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "line": 19,
+    "name": "paths",
+    "target": "crates/whisper-desktop/src/ui/presentation/paths.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "line": 20,
+    "name": "recovery",
+    "target": "crates/whisper-desktop/src/ui/presentation/recovery.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "line": 21,
+    "name": "selection",
+    "target": "crates/whisper-desktop/src/ui/presentation/selection.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui/presentation.rs",
+    "line": 22,
+    "name": "text",
+    "target": "crates/whisper-desktop/src/ui/presentation/text.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui.rs",
+    "line": 1,
+    "name": "model",
+    "target": "crates/whisper-desktop/src/ui/model.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-desktop/src/ui.rs",
+    "line": 2,
+    "name": "presentation",
+    "target": "crates/whisper-desktop/src/ui/presentation.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-common/src/decoder.rs",
+    "line": 438,
+    "name": "tests",
+    "target": "crates/whisper-worker-common/src/decoder/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-common/src/encoder.rs",
+    "line": 61,
+    "name": "tests",
+    "target": "crates/whisper-worker-common/src/encoder/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-common/src/integrity.rs",
+    "line": 22,
+    "name": "tests",
+    "target": "crates/whisper-worker-common/src/integrity/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-common/src/ipc.rs",
+    "line": 111,
+    "name": "tests",
+    "target": "crates/whisper-worker-common/src/ipc/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-common/src/lib.rs",
+    "line": 1,
+    "name": "decoder",
+    "target": "crates/whisper-worker-common/src/decoder.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-common/src/lib.rs",
+    "line": 2,
+    "name": "encoder",
+    "target": "crates/whisper-worker-common/src/encoder.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-common/src/lib.rs",
+    "line": 3,
+    "name": "integrity",
+    "target": "crates/whisper-worker-common/src/integrity.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-common/src/lib.rs",
+    "line": 4,
+    "name": "ipc",
+    "target": "crates/whisper-worker-common/src/ipc.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-common/src/lib.rs",
+    "line": 5,
+    "name": "observation",
+    "target": "crates/whisper-worker-common/src/observation.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-common/src/observation.rs",
+    "line": 4,
+    "name": "tests",
+    "target": "crates/whisper-worker-common/src/observation/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/decoder.rs",
+    "line": 29,
+    "name": "tests",
+    "target": "crates/whisper-worker-cpu/src/decoder/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/encoder.rs",
+    "line": 4,
+    "name": "tests",
+    "target": "crates/whisper-worker-cpu/src/encoder/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/ipc.rs",
+    "line": 30,
+    "name": "tests",
+    "target": "crates/whisper-worker-cpu/src/ipc/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/ipc_output.rs",
+    "line": 14,
+    "name": "tests",
+    "target": "crates/whisper-worker-cpu/src/ipc_output/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 1,
+    "name": "decoder",
+    "target": "crates/whisper-worker-cpu/src/decoder.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 2,
+    "name": "diagnostics",
+    "target": "crates/whisper-worker-cpu/src/diagnostics.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 3,
+    "name": "encoder",
+    "target": "crates/whisper-worker-cpu/src/encoder.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 4,
+    "name": "engine_cache",
+    "target": "crates/whisper-worker-cpu/src/engine_cache.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 5,
+    "name": "integrity",
+    "target": "crates/whisper-worker-cpu/src/integrity.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 7,
+    "name": "ipc",
+    "target": "crates/whisper-worker-cpu/src/ipc.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 8,
+    "name": "ipc_output",
+    "target": "crates/whisper-worker-cpu/src/ipc_output.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 10,
+    "name": "memory_qualification",
+    "target": "crates/whisper-worker-cpu/src/memory_qualification.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 11,
+    "name": "native_engine",
+    "target": "crates/whisper-worker-cpu/src/native_engine.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 12,
+    "name": "qualification",
+    "target": "crates/whisper-worker-cpu/src/qualification.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 13,
+    "name": "session",
+    "target": "crates/whisper-worker-cpu/src/session/mod.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 14,
+    "name": "startup",
+    "target": "crates/whisper-worker-cpu/src/startup.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/main.rs",
+    "line": 15,
+    "name": "worker",
+    "target": "crates/whisper-worker-cpu/src/worker.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/session/control.rs",
+    "line": 44,
+    "name": "tests",
+    "target": "crates/whisper-worker-cpu/src/session/control/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/session/mod.rs",
+    "line": 28,
+    "name": "control",
+    "target": "crates/whisper-worker-cpu/src/session/control.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/session/mod.rs",
+    "line": 29,
+    "name": "decode",
+    "target": "crates/whisper-worker-cpu/src/session/decode.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/session/mod.rs",
+    "line": 30,
+    "name": "import",
+    "target": "crates/whisper-worker-cpu/src/session/import.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/session/mod.rs",
+    "line": 31,
+    "name": "live",
+    "target": "crates/whisper-worker-cpu/src/session/live.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-cpu/src/worker.rs",
+    "line": 34,
+    "name": "tests",
+    "target": "crates/whisper-worker-cpu/src/worker/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/tests/reusable_imports.rs",
+    "line": 12,
+    "name": "support",
+    "target": "crates/whisper-worker-cpu/tests/support/worker.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/tests/worker_contract.rs",
+    "line": 16,
+    "name": "reusable_imports",
+    "target": "crates/whisper-worker-cpu/tests/reusable_imports.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-cpu/tests/worker_contract.rs",
+    "line": 18,
+    "name": "support",
+    "target": "crates/whisper-worker-cpu/tests/support/worker.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/decoder.rs",
+    "line": 29,
+    "name": "tests",
+    "target": "crates/whisper-worker-gpu/src/decoder/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/diagnostics.rs",
+    "line": 61,
+    "name": "tests",
+    "target": "crates/whisper-worker-gpu/src/diagnostics/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/engine_cache.rs",
+    "line": 4,
+    "name": "tests",
+    "target": "crates/whisper-worker-gpu/src/engine_cache/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/ipc.rs",
+    "line": 30,
+    "name": "tests",
+    "target": "crates/whisper-worker-gpu/src/ipc/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 1,
+    "name": "decoder",
+    "target": "crates/whisper-worker-gpu/src/decoder.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 2,
+    "name": "diagnostics",
+    "target": "crates/whisper-worker-gpu/src/diagnostics.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 3,
+    "name": "encoder",
+    "target": "crates/whisper-worker-gpu/src/encoder.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 4,
+    "name": "engine_cache",
+    "target": "crates/whisper-worker-gpu/src/engine_cache.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 5,
+    "name": "gpu_attestation",
+    "target": "crates/whisper-worker-gpu/src/gpu_attestation.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 6,
+    "name": "gpu_commands",
+    "target": "crates/whisper-worker-gpu/src/gpu_commands.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 7,
+    "name": "gpu_qualification",
+    "target": "crates/whisper-worker-gpu/src/gpu_qualification.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 8,
+    "name": "integrity",
+    "target": "crates/whisper-worker-gpu/src/integrity.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 9,
+    "name": "ipc",
+    "target": "crates/whisper-worker-gpu/src/ipc.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 11,
+    "name": "memory_qualification",
+    "target": "crates/whisper-worker-gpu/src/memory_qualification.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 12,
+    "name": "native_engine",
+    "target": "crates/whisper-worker-gpu/src/native_engine.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 13,
+    "name": "native_ffi",
+    "target": "crates/whisper-worker-gpu/src/native_ffi.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 14,
+    "name": "qualification",
+    "target": "crates/whisper-worker-gpu/src/qualification.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 15,
+    "name": "session",
+    "target": "crates/whisper-worker-gpu/src/session/mod.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 16,
+    "name": "startup",
+    "target": "crates/whisper-worker-gpu/src/startup.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/main.rs",
+    "line": 17,
+    "name": "worker",
+    "target": "crates/whisper-worker-gpu/src/worker.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/session/control.rs",
+    "line": 44,
+    "name": "tests",
+    "target": "crates/whisper-worker-gpu/src/session/control/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/session/mod.rs",
+    "line": 30,
+    "name": "control",
+    "target": "crates/whisper-worker-gpu/src/session/control.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/session/mod.rs",
+    "line": 31,
+    "name": "decode",
+    "target": "crates/whisper-worker-gpu/src/session/decode.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/session/mod.rs",
+    "line": 32,
+    "name": "import",
+    "target": "crates/whisper-worker-gpu/src/session/import.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/session/mod.rs",
+    "line": 33,
+    "name": "live",
+    "target": "crates/whisper-worker-gpu/src/session/live.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-gpu/src/worker.rs",
+    "line": 40,
+    "name": "tests",
+    "target": "crates/whisper-worker-gpu/src/worker/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-gpu/tests/worker_contract.rs",
+    "line": 16,
+    "name": "support",
+    "target": "crates/whisper-worker-gpu/tests/support/worker.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/gpu_identity.rs",
+    "line": 174,
+    "name": "tests",
+    "target": "crates/whisper-worker-parakeet-cpu/src/gpu_identity/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/ipc.rs",
+    "line": 64,
+    "name": "tests",
+    "target": "crates/whisper-worker-parakeet-cpu/src/ipc/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 1,
+    "name": "args",
+    "target": "crates/whisper-worker-parakeet-cpu/src/args.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 2,
+    "name": "decode_only",
+    "target": "crates/whisper-worker-parakeet-cpu/src/decode_only.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 3,
+    "name": "decoder",
+    "target": "crates/whisper-worker-parakeet-cpu/src/decoder.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 4,
+    "name": "gpu_identity",
+    "target": "crates/whisper-worker-parakeet-cpu/src/gpu_identity.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 5,
+    "name": "integrity",
+    "target": "crates/whisper-worker-parakeet-cpu/src/integrity.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 6,
+    "name": "ipc",
+    "target": "crates/whisper-worker-parakeet-cpu/src/ipc.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 7,
+    "name": "native_engine",
+    "target": "crates/whisper-worker-parakeet-cpu/src/native_engine.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 8,
+    "name": "native_ffi",
+    "target": "crates/whisper-worker-parakeet-cpu/src/native_ffi.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 10,
+    "name": "reference_decoder",
+    "target": "crates/whisper-worker-parakeet-cpu/src/reference_decoder.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 11,
+    "name": "runtime_paths",
+    "target": "crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 12,
+    "name": "session",
+    "target": "crates/whisper-worker-parakeet-cpu/src/session.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 13,
+    "name": "startup",
+    "target": "crates/whisper-worker-parakeet-cpu/src/startup.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/main.rs",
+    "line": 14,
+    "name": "transcription",
+    "target": "crates/whisper-worker-parakeet-cpu/src/transcription.rs",
+    "test": false
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/reference_decoder.rs",
+    "line": 65,
+    "name": "tests",
+    "target": "crates/whisper-worker-parakeet-cpu/src/reference_decoder/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs",
+    "line": 155,
+    "name": "personal_tests",
+    "target": "crates/whisper-worker-parakeet-cpu/src/runtime_paths/personal_tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/runtime_paths.rs",
+    "line": 157,
+    "name": "tests",
+    "target": "crates/whisper-worker-parakeet-cpu/src/runtime_paths/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/src/transcription.rs",
+    "line": 12,
+    "name": "tests",
+    "target": "crates/whisper-worker-parakeet-cpu/src/transcription/tests.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs",
+    "line": 17,
+    "name": "support",
+    "target": "crates/whisper-worker-parakeet-cpu/tests/support/worker.rs",
+    "test": true
+  },
+  {
+    "source": "crates/whisper-worker-parakeet-cpu/tests/worker_contract.rs",
+    "line": 13,
+    "name": "support",
+    "target": "crates/whisper-worker-parakeet-cpu/tests/support/worker.rs",
+    "test": true
+  }
+]

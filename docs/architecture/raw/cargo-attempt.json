@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-31T21:35:21.4641325+01:00",
+  "status": "STOPPED_BEFORE_CARGO",
+  "selftest_exit_code": 1,
+  "completed_selftests": [
+    "Cargo arguments reject source-writing fmt and --fix"
+  ],
+  "failure": {
+    "result": "FAIL",
+    "mode": "SelfTest-in-root-write",
+    "path": "C:\\dev\\whisper\\.git",
+    "old_path": "",
+    "event": "Changed",
+    "event_at": "2026-10-31T21:34:48.4626266+01:00",
+    "detected_at": "2026-10-31T21:34:48.6781257+01:00",
+    "action": "process-tree-terminated",
+    "detail": ""
+  },
+  "attribution": "Origine inconnue. Aucun Cargo lance. Evenement hors racine pendant SelfTest-in-root-write.",
+  "cargo_metadata": "NOT RUN",
+  "cargo_clippy": "NOT RUN",
+  "guard_modified": false,
+  "tracked_diff": [],
+  "free_gib_after": 190.09,
+  "next_step": "Arbitrage utilisateur requis avant nouvelle tentative, selon AGENTS.md."
+}

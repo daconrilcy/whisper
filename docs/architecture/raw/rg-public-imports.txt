@@ -1,0 +1,730 @@
+$ rg -n -U \b(?:pub\s+)?use\s+whisper_[a-z_]+\s*::[^;]+; crates -g *.rs
+exit=0
+STDOUT
+crates\whisper-bootstrap\src\main.rs:3:use whisper_core::{AppView, ipc::IPC_PROTOCOL_VERSION};
+crates\whisper-worker-parakeet-cpu\tests\native_import.rs:16:use whisper_core::parakeet_ipc::{
+crates\whisper-worker-parakeet-cpu\tests\native_import.rs:17:    Command as WorkerCommand, Envelope, Event, ExpectedGpu, GpuEvidence, PARAKEET_IPC_VERSION,
+crates\whisper-worker-parakeet-cpu\tests\native_import.rs:18:    PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity,
+crates\whisper-worker-parakeet-cpu\tests\native_import.rs:19:};
+crates\whisper-worker-parakeet-cpu\tests\native_import.rs:20:use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;
+crates\whisper-worker-gpu\tests\worker_contract.rs:10:use whisper_core::{
+crates\whisper-worker-gpu\tests\worker_contract.rs:11:    ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, SourceRange,
+crates\whisper-worker-gpu\tests\worker_contract.rs:12:    ipc::{IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent},
+crates\whisper-worker-gpu\tests\worker_contract.rs:13:};
+crates\whisper-worker-gpu\tests\worker_contract.rs:67:    use whisper_core::gpu_inventory::GpuRuntimeIdentity;
+crates\whisper-worker-gpu\tests\worker_contract.rs:300:    use whisper_core::{
+crates\whisper-worker-gpu\tests\worker_contract.rs:301:        ComputeChoice, Generation, JobConfig, JobId, LanguageChoice,
+crates\whisper-worker-gpu\tests\worker_contract.rs:302:        ipc::{BackendKind, IpcEnvelope, WorkerCommand, WorkerEvent},
+crates\whisper-worker-gpu\tests\worker_contract.rs:303:    };
+crates\whisper-core\tests\scheduler_contract.rs:2:use whisper_core::{
+crates\whisper-core\tests\scheduler_contract.rs:3:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportEffect,
+crates\whisper-core\tests\scheduler_contract.rs:4:    ImportEvent, ImportIoPort, ImportRequest, JobConfig, JobId, LanguageChoice,
+crates\whisper-core\tests\scheduler_contract.rs:5:    ports::{ImportQueueEntry, ImportQueueStatus, PortError},
+crates\whisper-core\tests\scheduler_contract.rs:6:};
+crates\whisper-worker-parakeet-cpu\tests\decoder_parity.rs:11:use whisper_core::{
+crates\whisper-worker-parakeet-cpu\tests\decoder_parity.rs:12:    Generation, JobId, SourceRange,
+crates\whisper-worker-parakeet-cpu\tests\decoder_parity.rs:13:    ipc::{IpcEnvelope, WorkerCommand, WorkerEvent},
+crates\whisper-worker-parakeet-cpu\tests\decoder_parity.rs:14:    parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES,
+crates\whisper-worker-parakeet-cpu\tests\decoder_parity.rs:15:    ports::{DecodeRequest, SourceIdentity},
+crates\whisper-worker-parakeet-cpu\tests\decoder_parity.rs:16:};
+crates\whisper-worker-parakeet-cpu\tests\native_diagnostics_absence.rs:11:use whisper_core::parakeet_ipc::{
+crates\whisper-worker-parakeet-cpu\tests\native_diagnostics_absence.rs:12:    Command as WorkerCommand, Envelope, Event, ExpectedGpu, GpuEvidence,
+crates\whisper-worker-parakeet-cpu\tests\native_diagnostics_absence.rs:13:    PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity,
+crates\whisper-worker-parakeet-cpu\tests\native_diagnostics_absence.rs:14:};
+crates\whisper-core\tests\parakeet_windows.rs:1:use whisper_core::parakeet_ipc::Word;
+crates\whisper-core\tests\parakeet_windows.rs:2:use whisper_core::parakeet_windows::{
+crates\whisper-core\tests\parakeet_windows.rs:3:    AbsoluteWordSamples, FRAME_SAMPLES, MARGIN_SAMPLES, MAX_NATIVE_SAMPLES, MAX_REFERENCE_SAMPLES,
+crates\whisper-core\tests\parakeet_windows.rs:4:    SAMPLE_RATE, Silence, TimingError, Window, WindowError, absolute_word_samples,
+crates\whisper-core\tests\parakeet_windows.rs:5:    admissible_silences, plan_windows, word_belongs_to_central_range,
+crates\whisper-core\tests\parakeet_windows.rs:6:};
+crates\whisper-core\tests\live_contract.rs:2:use whisper_core::{
+crates\whisper-core\tests\live_contract.rs:3:    AppCommand, Application, ComputeChoice, DiagnosticNotice, DiagnosticPhase, Generation,
+crates\whisper-core\tests\live_contract.rs:4:    ImportApplication, ImportEffect, ImportEvent, JobConfig, JobId, LanguageChoice, LiveRequest,
+crates\whisper-core\tests\live_contract.rs:5:    ports::{ImportIoPort, PortError},
+crates\whisper-core\tests\live_contract.rs:6:};
+crates\whisper-core\tests\live_contract.rs:113:    use whisper_core::ports::{ArchiveHistoryItem, LiveRecoveryInfo};
+crates\whisper-worker-cpu\tests\worker_contract.rs:10:use whisper_core::{
+crates\whisper-worker-cpu\tests\worker_contract.rs:11:    ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, SourceRange,
+crates\whisper-worker-cpu\tests\worker_contract.rs:12:    ipc::{IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent},
+crates\whisper-worker-cpu\tests\worker_contract.rs:13:};
+crates\whisper-core\tests\model_preferences.rs:1:use whisper_core::{
+crates\whisper-core\tests\model_preferences.rs:2:    model_catalog::ModelId,
+crates\whisper-core\tests\model_preferences.rs:3:    path_settings::{
+crates\whisper-core\tests\model_preferences.rs:4:        LegacyModelPath, ModelPreferenceAcknowledgement, ModelPreferencePort,
+crates\whisper-core\tests\model_preferences.rs:5:        ModelPreferenceSaveStatus, ModelPreferenceSnapshot, ModelPreferencesApp,
+crates\whisper-core\tests\model_preferences.rs:6:        StartupComputePreference,
+crates\whisper-core\tests\model_preferences.rs:7:    },
+crates\whisper-core\tests\model_preferences.rs:8:};
+crates\whisper-core\tests\parakeet_ipc.rs:1:use whisper_core::parakeet_ipc::{
+crates\whisper-core\tests\parakeet_ipc.rs:2:    Command, Envelope, Event, ExpectedGpu, GpuEvidence, PARAKEET_IPC_VERSION,
+crates\whisper-core\tests\parakeet_ipc.rs:3:    PARAKEET_MAX_AUDIO_SAMPLES, PARAKEET_MAX_FRAME_BYTES, PARAKEET_PROFILE_IMPORT_SINGLE_PASS,
+crates\whisper-core\tests\parakeet_ipc.rs:4:    Word, WorkerIdentity,
+crates\whisper-core\tests\parakeet_ipc.rs:5:};
+crates\whisper-core\tests\import_contract.rs:2:use whisper_core::{
+crates\whisper-core\tests\import_contract.rs:3:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportEffect,
+crates\whisper-core\tests\import_contract.rs:4:    ImportEvent, ImportIoPort, ImportRequest, JobConfig, JobId, JobState, LanguageChoice,
+crates\whisper-core\tests\import_contract.rs:5:    SegmentId, SourceRange,
+crates\whisper-core\tests\import_contract.rs:6:    ports::{PortError, WorkerSegment},
+crates\whisper-core\tests\import_contract.rs:7:};
+crates\whisper-core\tests\model_catalog.rs:3:use whisper_core::engine_capabilities::{
+crates\whisper-core\tests\model_catalog.rs:4:    Admission, Capability, ConfigurationCapabilities, EngineProjection, EngineSnapshot,
+crates\whisper-core\tests\model_catalog.rs:5:    InferenceRequest, LanguageChoice, Refusal, RefusalCause, project as project_at_generation,
+crates\whisper-core\tests\model_catalog.rs:6:    validate as validate_at_generation,
+crates\whisper-core\tests\model_catalog.rs:7:};
+crates\whisper-core\tests\model_catalog.rs:8:use whisper_core::model_catalog::{
+crates\whisper-core\tests\model_catalog.rs:9:    Backend, ConfigurationKey, ModelAvailability, ModelDefinition, ModelId,
+crates\whisper-core\tests\model_catalog.rs:10:};
+crates\whisper-core\tests\parakeet_import_contract.rs:1:use whisper_core::{
+crates\whisper-core\tests\parakeet_import_contract.rs:2:    domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice},
+crates\whisper-core\tests\parakeet_import_contract.rs:3:    engine_capabilities::{Capability, LanguageCapability, LanguageCode},
+crates\whisper-core\tests\parakeet_import_contract.rs:4:    model_catalog::{Backend, ModelAvailability, ModelId},
+crates\whisper-core\tests\parakeet_import_contract.rs:5:    model_registry::{engine_snapshot, model, personal_configuration_key},
+crates\whisper-core\tests\parakeet_import_contract.rs:6:    model_selection_app::{InferencePath, ModelCommandGuard},
+crates\whisper-core\tests\parakeet_import_contract.rs:7:    ports::{ImportRequest, LiveRequest},
+crates\whisper-core\tests\parakeet_import_contract.rs:8:};
+crates\whisper-core\tests\gpu_selection.rs:1:use whisper_core::{
+crates\whisper-core\tests\gpu_selection.rs:2:    domain::ComputeChoice,
+crates\whisper-core\tests\gpu_selection.rs:3:    gpu_inventory::{
+crates\whisper-core\tests\gpu_selection.rs:4:        GpuAvailability, GpuCatalogueCoverage, GpuIdentityMatch, GpuObservation, GpuPresence,
+crates\whisper-core\tests\gpu_selection.rs:5:        GpuQualifiedObservation, GpuRankSource, GpuState, GpuSupport, GpuWindowsRank, qualify,
+crates\whisper-core\tests\gpu_selection.rs:6:    },
+crates\whisper-core\tests\gpu_selection.rs:7:    gpu_inventory_app::GpuQualifiedInventoryState,
+crates\whisper-core\tests\gpu_selection.rs:8:    gpu_selection::{
+crates\whisper-core\tests\gpu_selection.rs:9:        AttestedBackend, EffectiveEngine, GpuSelectionEvent, SelectionReason, SelectionResolution,
+crates\whisper-core\tests\gpu_selection.rs:10:        SessionCandidate, attest, attestation_event, candidate_event, resolve,
+crates\whisper-core\tests\gpu_selection.rs:11:    },
+crates\whisper-core\tests\gpu_selection.rs:12:};
+crates\whisper-core\tests\microphone_level.rs:1:use whisper_core::microphone::MicrophoneChoice;
+crates\whisper-core\tests\microphone_level.rs:2:use whisper_core::microphone_level::{
+crates\whisper-core\tests\microphone_level.rs:3:    GainDb, LevelMeasurement, MeasurementStatus, MicrophoneAcquisitionContext, MicrophoneIdentity,
+crates\whisper-core\tests\microphone_level.rs:4:    MicrophoneSpectrum, MicrophoneSpectrumUpdate, SelectionContext, SelectionRevision, SpectrumBin,
+crates\whisper-core\tests\microphone_level.rs:5:};
+crates\whisper-core\tests\microphone_level.rs:14:    use whisper_core::{Generation, JobId};
+crates\whisper-core\tests\microphone_level.rs:85:    use whisper_core::{Generation, JobId};
+crates\whisper-core\tests\microphone_level.rs:205:    use whisper_core::microphone::{MicrophoneChoice, MicrophoneDevice, MicrophoneSettings};
+crates\whisper-core\tests\gpu_inventory.rs:2:use whisper_core::gpu_inventory::{
+crates\whisper-core\tests\gpu_inventory.rs:3:    Coverage, GpuAvailability, GpuCatalogueCoverage, GpuCause, GpuDevice, GpuIdentityMatch,
+crates\whisper-core\tests\gpu_inventory.rs:4:    GpuInventory, GpuObservation, GpuPresence, GpuQualifiedObservation, GpuRankSource, GpuState,
+crates\whisper-core\tests\gpu_inventory.rs:5:    GpuSupport, GpuWindowsRank, normalize, qualify,
+crates\whisper-core\tests\gpu_inventory.rs:6:};
+crates\whisper-core\tests\gpu_inventory.rs:7:use whisper_core::gpu_inventory_app::{
+crates\whisper-core\tests\gpu_inventory.rs:8:    GpuCollection, GpuInventoryApp, GpuInventoryPort, GpuInventoryState, GpuQualifiedCollection,
+crates\whisper-core\tests\gpu_inventory.rs:9:    GpuQualifiedInventoryState,
+crates\whisper-core\tests\gpu_inventory.rs:10:};
+crates\whisper-core\tests\model_selection_app.rs:1:use whisper_core::{
+crates\whisper-core\tests\model_selection_app.rs:2:    engine_capabilities::{LanguageChoice, LanguageCode},
+crates\whisper-core\tests\model_selection_app.rs:3:    model_catalog::{Backend, ModelAvailability, ModelId},
+crates\whisper-core\tests\model_selection_app.rs:4:    model_registry::TURBO_LANGUAGE_INPUTS,
+crates\whisper-core\tests\model_selection_app.rs:5:    model_selection_app::{
+crates\whisper-core\tests\model_selection_app.rs:6:        ComputePreference, InferencePath, ModelCommandGuard, ModelSelectionApp, SelectionIntent,
+crates\whisper-core\tests\model_selection_app.rs:7:        SelectionRefusal, is_known_historical_path,
+crates\whisper-core\tests\model_selection_app.rs:8:    },
+crates\whisper-core\tests\model_selection_app.rs:9:};
+crates\whisper-core\tests\model_selection_app.rs:65:    use whisper_core::{
+crates\whisper-core\tests\model_selection_app.rs:66:        domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice as RequestLanguage},
+crates\whisper-core\tests\model_selection_app.rs:67:        model_registry::model,
+crates\whisper-core\tests\model_selection_app.rs:68:        ports::{ImportRequest, LiveRequest},
+crates\whisper-core\tests\model_selection_app.rs:69:    };
+crates\whisper-core\tests\model_selection_app.rs:148:    use whisper_core::engine_capabilities::{
+crates\whisper-core\tests\model_selection_app.rs:149:        Capability, LanguageCapability, LanguageCode, Qualification, Support,
+crates\whisper-core\tests\model_selection_app.rs:150:    };
+crates\whisper-core\tests\model_selection_app.rs:372:    use whisper_core::{
+crates\whisper-core\tests\model_selection_app.rs:373:        domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice as RequestLanguage},
+crates\whisper-core\tests\model_selection_app.rs:374:        model_registry::model,
+crates\whisper-core\tests\model_selection_app.rs:375:        ports::{ImportRequest, LiveRequest},
+crates\whisper-core\tests\model_selection_app.rs:376:    };
+crates\whisper-core\tests\engine_capabilities.rs:3:use whisper_core::engine_capabilities::{
+crates\whisper-core\tests\engine_capabilities.rs:4:    Admission, Capability, CapabilityTarget, ConfigurationCapabilities, EngineProjection,
+crates\whisper-core\tests\engine_capabilities.rs:5:    EngineSnapshot, InferenceRequest, LanguageCapability, LanguageChoice, LanguageCode,
+crates\whisper-core\tests\engine_capabilities.rs:6:    Qualification, Refusal, RefusalCause, ResourceKind, ResourceObservation, ResourceRequirement,
+crates\whisper-core\tests\engine_capabilities.rs:7:    Support, project as project_at_generation, project_with_existing_recognized,
+crates\whisper-core\tests\engine_capabilities.rs:8:    validate as validate_at_generation, validate_with_existing_recognized,
+crates\whisper-core\tests\engine_capabilities.rs:9:};
+crates\whisper-core\tests\engine_capabilities.rs:10:use whisper_core::model_catalog::{
+crates\whisper-core\tests\engine_capabilities.rs:11:    Backend, ConfigurationKey, ModelAvailability, ModelDefinition, ModelId,
+crates\whisper-core\tests\engine_capabilities.rs:12:};
+crates\whisper-desktop\tests\reprocessing_recovery_ui.rs:2:use whisper_core::{Generation, JobId, ports::SourceSnapshotRecoveryCandidate};
+crates\whisper-desktop\tests\reprocessing_recovery_ui.rs:3:use whisper_desktop::ui::source_snapshot_recovery_widget;
+crates\whisper-worker-gpu\tests\gpu_selection_native.rs:5:use whisper_core::ipc::{IpcEnvelope, WorkerCommand, WorkerEvent};
+crates\whisper-core\tests\compute_policy.rs:1:use whisper_core::{
+crates\whisper-core\tests\compute_policy.rs:2:    BackendAttempt, BackendDecision, ComputeChoice, ComputePolicy, ComputePolicyError,
+crates\whisper-core\tests\compute_policy.rs:3:};
+crates\whisper-core\tests\application_routing.rs:3:use whisper_core::{
+crates\whisper-core\tests\application_routing.rs:4:    AppCommand, Application, ApplicationError, ComputeChoice, Generation, ImportApplication,
+crates\whisper-core\tests\application_routing.rs:5:    ImportEffect, ImportEvent, ImportIoPort, JobConfig, JobId, LanguageChoice,
+crates\whisper-core\tests\application_routing.rs:6:    ports::{ArchiveHistoryItem, PortError},
+crates\whisper-core\tests\application_routing.rs:7:};
+crates\whisper-desktop\tests\model_selection_ui.rs:2:use whisper_core::{
+crates\whisper-desktop\tests\model_selection_ui.rs:3:    ComputeChoice,
+crates\whisper-desktop\tests\model_selection_ui.rs:4:    engine_capabilities::ResourceObservation,
+crates\whisper-desktop\tests\model_selection_ui.rs:5:    model_catalog::{Backend, ModelAvailability, ModelId},
+crates\whisper-desktop\tests\model_selection_ui.rs:6:    model_registry,
+crates\whisper-desktop\tests\model_selection_ui.rs:7:    path_settings::StartupComputePreference,
+crates\whisper-desktop\tests\model_selection_ui.rs:8:};
+crates\whisper-desktop\tests\model_selection_ui.rs:9:use whisper_desktop::ui::{
+crates\whisper-desktop\tests\model_selection_ui.rs:10:    ModelPreferenceCommand, ModelPreferenceEvent, PreferenceChannelError, SelectionWidgetState,
+crates\whisper-desktop\tests\model_selection_ui.rs:11:    apply_initial_model, apply_preference_event, apply_startup_preference, compute_for_model,
+crates\whisper-desktop\tests\model_selection_ui.rs:12:    language_choices_for_compute, language_option_labels, language_selection_combo,
+crates\whisper-desktop\tests\model_selection_ui.rs:13:    model_preference_command_channel, model_selection_combo, model_supports_live,
+crates\whisper-desktop\tests\model_selection_ui.rs:14:    record_compute_selection_interaction, record_preference_delivery,
+crates\whisper-desktop\tests\model_selection_ui.rs:15:};
+crates\whisper-desktop\tests\model_selection_ui.rs:108:    use whisper_core::engine_capabilities::RefusalCause;
+crates\whisper-worker-cpu\tests\reusable_imports.rs:15:use whisper_core::{
+crates\whisper-worker-cpu\tests\reusable_imports.rs:16:    ComputeChoice, Generation, JobConfig, JobId, LanguageChoice,
+crates\whisper-worker-cpu\tests\reusable_imports.rs:17:    ipc::{BackendKind, IpcEnvelope, WorkerCommand, WorkerEvent},
+crates\whisper-worker-cpu\tests\reusable_imports.rs:18:};
+crates\whisper-worker-parakeet-cpu\src\transcription.rs:9:use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;
+crates\whisper-desktop\tests\microphone_level_ui.rs:1:use whisper_core::{Generation, JobId, MicrophoneDevice, microphone_level::MeterLevel};
+crates\whisper-desktop\tests\microphone_level_ui.rs:2:use whisper_desktop::ui::{
+crates\whisper-desktop\tests\microphone_level_ui.rs:3:    MicrophoneMeterPresentation, microphone_meter_presentation, microphone_source_change_notice,
+crates\whisper-desktop\tests\microphone_level_ui.rs:4:};
+crates\whisper-worker-cpu\tests\live_worker.rs:5:use whisper_core::{
+crates\whisper-worker-cpu\tests\live_worker.rs:6:    ComputeChoice, Generation, JobConfig, JobId, LanguageChoice,
+crates\whisper-worker-cpu\tests\live_worker.rs:7:    ipc::{IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent},
+crates\whisper-worker-cpu\tests\live_worker.rs:8:};
+crates\whisper-desktop\tests\gpu_selection_ui.rs:2:use whisper_core::{
+crates\whisper-desktop\tests\gpu_selection_ui.rs:3:    gpu_inventory::{
+crates\whisper-desktop\tests\gpu_selection_ui.rs:4:        GpuAvailability, GpuDevice, GpuIdentityMatch, GpuQualifiedDevice, GpuState, GpuSupport,
+crates\whisper-desktop\tests\gpu_selection_ui.rs:5:    },
+crates\whisper-desktop\tests\gpu_selection_ui.rs:6:    gpu_selection::{GpuCandidate, SelectionReason, SelectionResolution, SessionCandidate},
+crates\whisper-desktop\tests\gpu_selection_ui.rs:7:    path_settings::SaveStatus,
+crates\whisper-desktop\tests\gpu_selection_ui.rs:8:};
+crates\whisper-desktop\tests\gpu_selection_ui.rs:9:use whisper_desktop::ui::{
+crates\whisper-desktop\tests\gpu_selection_ui.rs:10:    gpu_preference_combo, gpu_preference_labels, gpu_preference_options, gpu_preference_selectable,
+crates\whisper-desktop\tests\gpu_selection_ui.rs:11:    gpu_selection_resolution_label, path_save_status_label,
+crates\whisper-desktop\tests\gpu_selection_ui.rs:12:};
+crates\whisper-worker-common\src\decoder.rs:11:use whisper_core::ports::DecodeRequest;
+crates\whisper-desktop\tests\gpu_inventory_ui.rs:2:use whisper_core::gpu_inventory::{
+crates\whisper-desktop\tests\gpu_inventory_ui.rs:3:    Coverage, GpuAvailability, GpuCatalogueCoverage, GpuDevice, GpuIdentityMatch, GpuInventory,
+crates\whisper-desktop\tests\gpu_inventory_ui.rs:4:    GpuQualifiedCatalogue, GpuQualifiedDevice, GpuRankSource, GpuState, GpuSupport,
+crates\whisper-desktop\tests\gpu_inventory_ui.rs:5:};
+crates\whisper-desktop\tests\gpu_inventory_ui.rs:6:use whisper_core::gpu_inventory_app::{GpuInventoryState, GpuQualifiedInventoryState};
+crates\whisper-desktop\tests\gpu_inventory_ui.rs:7:use whisper_desktop::ui::{gpu_inventory_status, gpu_qualified_presentation, gpu_qualified_status};
+crates\whisper-worker-parakeet-cpu\src\ipc.rs:2:use whisper_core::parakeet_ipc::{Envelope, Event, PARAKEET_MAX_FRAME_BYTES, WorkerIdentity};
+crates\whisper-worker-parakeet-cpu\src\startup.rs:12:use whisper_core::parakeet_ipc::{Event, WorkerIdentity};
+crates\whisper-worker-common\src\decoder\tests.rs:12:use whisper_core::{
+crates\whisper-worker-common\src\decoder\tests.rs:13:    Generation, JobId, SourceRange,
+crates\whisper-worker-common\src\decoder\tests.rs:14:    ports::{DecodeRequest, SourceIdentity},
+crates\whisper-worker-common\src\decoder\tests.rs:15:};
+crates\whisper-worker-parakeet-cpu\src\session.rs:9:use whisper_core::parakeet_ipc::{
+crates\whisper-worker-parakeet-cpu\src\session.rs:10:    Command, Envelope, Event, ExpectedGpu, PARAKEET_IPC_VERSION, WorkerIdentity,
+crates\whisper-worker-parakeet-cpu\src\session.rs:11:};
+crates\whisper-worker-cpu\src\decoder.rs:2:use whisper_core::ports::DecodeRequest;
+crates\whisper-worker-cpu\src\decoder.rs:4:pub use whisper_worker_common::decoder::{MAX_WINDOW_SAMPLES, OUTPUT_RATE};
+crates\whisper-worker-parakeet-cpu\src\runtime_paths.rs:5:use whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
+crates\whisper-worker-parakeet-cpu\src\gpu_identity.rs:6:use whisper_core::parakeet_ipc::{ExpectedGpu, GpuEvidence};
+crates\whisper-desktop\src\root.rs:6:use whisper_adapters::model_catalog::CatalogSnapshot;
+crates\whisper-desktop\src\root.rs:7:use whisper_adapters::{
+crates\whisper-desktop\src\root.rs:8:    gpu_inventory::WindowsGpuInventoryPort,
+crates\whisper-desktop\src\root.rs:9:    model_catalog::LocalModelCatalog,
+crates\whisper-desktop\src\root.rs:10:    path_settings::WindowsModelPreferencePort,
+crates\whisper-desktop\src\root.rs:11:    path_settings::WindowsPathPort,
+crates\whisper-desktop\src\root.rs:12:    supervisor::WorkerPaths,
+crates\whisper-desktop\src\root.rs:13:    worker_ipc::{AsyncImportIo, probe_cuda_worker},
+crates\whisper-desktop\src\root.rs:14:};
+crates\whisper-desktop\src\root.rs:15:use whisper_core::gpu_inventory_app::GpuInventoryApp;
+crates\whisper-desktop\src\root.rs:16:use whisper_core::model_selection_app::ModelCommandGuard;
+crates\whisper-desktop\src\root.rs:17:use whisper_core::path_settings::{
+crates\whisper-desktop\src\root.rs:18:    ModelPreferenceSaveStatus, ModelPreferencesApp, StartupComputePreference,
+crates\whisper-desktop\src\root.rs:19:};
+crates\whisper-desktop\src\root.rs:20:use whisper_core::path_settings::{PathDefaults, PathSettingsApp};
+crates\whisper-desktop\src\root.rs:21:use whisper_core::{
+crates\whisper-desktop\src\root.rs:22:    AppCommand, AppView, Application, ApplicationError, ComputeChoice, ImportApplication,
+crates\whisper-desktop\src\root.rs:23:    ImportIoPort,
+crates\whisper-desktop\src\root.rs:24:    model_catalog::{ModelAvailability, ModelId},
+crates\whisper-desktop\src\root.rs:25:    model_registry,
+crates\whisper-desktop\src\root.rs:26:};
+crates\whisper-desktop\src\root.rs:27:use whisper_desktop::ui::{
+crates\whisper-desktop\src\root.rs:28:    ModelPreferenceCommand, ModelPreferenceEvent, ModelSelectionRuntime,
+crates\whisper-desktop\src\root.rs:29:    model_preference_command_channel,
+crates\whisper-desktop\src\root.rs:30:};
+crates\whisper-desktop\src\root.rs:408:    use whisper_core::model_catalog::{Backend, ModelId};
+crates\whisper-desktop\src\root.rs:517:    use whisper_core::model_catalog::ModelId;
+crates\whisper-desktop\src\root.rs:784:    use whisper_core::ports::{ImportEvent, PortError};
+crates\whisper-desktop\src\root.rs:785:    use whisper_core::{
+crates\whisper-desktop\src\root.rs:786:        AppCommand, Application, ComputeChoice, Generation, ImportEffect, ImportRequest, JobConfig,
+crates\whisper-desktop\src\root.rs:787:        JobId, LanguageChoice,
+crates\whisper-desktop\src\root.rs:788:    };
+crates\whisper-desktop\src\root.rs:1146:        use whisper_adapters::parakeet_import::ParakeetWorkerPaths;
+crates\whisper-worker-cpu\src\encoder.rs:1:pub use whisper_worker_common::encoder::LiveMp3Encoder;
+crates\whisper-worker-cpu\src\integrity.rs:1:pub(crate) use whisper_worker_common::integrity::verify_sha256;
+crates\whisper-adapters\tests\gpu_settings.rs:7:use whisper_adapters::path_settings::WindowsPathPort;
+crates\whisper-adapters\tests\gpu_settings.rs:8:use whisper_core::{
+crates\whisper-adapters\tests\gpu_settings.rs:9:    ComputeChoice, MicrophoneChoice,
+crates\whisper-adapters\tests\gpu_settings.rs:10:    gpu_inventory::{
+crates\whisper-adapters\tests\gpu_settings.rs:11:        GpuAvailability, GpuIdentityMatch, GpuObservation, GpuPresence, GpuQualifiedObservation,
+crates\whisper-adapters\tests\gpu_settings.rs:12:        GpuRankSource, GpuState, GpuSupport, GpuWindowsRank, qualify,
+crates\whisper-adapters\tests\gpu_settings.rs:13:    },
+crates\whisper-adapters\tests\gpu_settings.rs:14:    gpu_inventory_app::GpuQualifiedInventoryState,
+crates\whisper-adapters\tests\gpu_settings.rs:15:    gpu_selection::{SelectionResolution, SessionCandidate, resolve},
+crates\whisper-adapters\tests\gpu_settings.rs:16:    path_settings::{PathDefaults, PathField, PathSettingsApp, SaveStatus, StoredPaths},
+crates\whisper-adapters\tests\gpu_settings.rs:17:};
+crates\whisper-adapters\tests\legacy_model_requests.rs:4:use whisper_adapters::{
+crates\whisper-adapters\tests\legacy_model_requests.rs:5:    model_catalog::LocalModelCatalog,
+crates\whisper-adapters\tests\legacy_model_requests.rs:6:    queue_store::{QueueStatus, QueueStore},
+crates\whisper-adapters\tests\legacy_model_requests.rs:7:};
+crates\whisper-adapters\tests\legacy_model_requests.rs:8:use whisper_core::{
+crates\whisper-adapters\tests\legacy_model_requests.rs:9:    domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice},
+crates\whisper-adapters\tests\legacy_model_requests.rs:10:    model_catalog::ModelId,
+crates\whisper-adapters\tests\legacy_model_requests.rs:11:    ports::ImportRequest,
+crates\whisper-adapters\tests\legacy_model_requests.rs:12:};
+crates\whisper-adapters\tests\gpu_selection_worker.rs:1:use whisper_core::{
+crates\whisper-adapters\tests\gpu_selection_worker.rs:2:    ComputeChoice, Generation, JobConfig, JobId, LanguageChoice,
+crates\whisper-adapters\tests\gpu_selection_worker.rs:3:    gpu_inventory::GpuRuntimeIdentity,
+crates\whisper-adapters\tests\gpu_selection_worker.rs:4:    ipc::{BackendKind, IpcEnvelope, WorkerCommand, WorkerEvent},
+crates\whisper-adapters\tests\gpu_selection_worker.rs:5:};
+crates\whisper-adapters\tests\gpu_selection_worker.rs:88:    use whisper_adapters::{WorkerTransport, worker_ipc::ChildWorkerTransport};
+crates\whisper-adapters\tests\gpu_selection_worker.rs:89:    use whisper_core::gpu_inventory_app::GpuInventoryApp;
+crates\whisper-worker-parakeet-cpu\src\decode_only.rs:7:use whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
+crates\whisper-worker-cpu\src\ipc.rs:5:pub use whisper_worker_common::ipc::MAX_FRAME_BYTES;
+crates\whisper-adapters\tests\gpu_qualification_transport.rs:1:use whisper_core::ipc::{GpuQualificationResult, WorkerEvent};
+crates\whisper-worker-cpu\src\diagnostics.rs:3:use whisper_core::ipc::{IpcEnvelope, WorkerErrorCode, WorkerEvent};
+crates\whisper-adapters\tests\gpu_inventory.rs:1:use whisper_adapters::gpu_inventory::map_device_fields;
+crates\whisper-adapters\tests\gpu_inventory.rs:2:use whisper_core::gpu_inventory::{GpuPresence, GpuState};
+crates\whisper-worker-parakeet-cpu\src\runtime_paths\tests.rs:12:use whisper_core::parakeet_windows::PROFILE_QUALIFICATION_REFERENCE;
+crates\whisper-worker-parakeet-cpu\src\args.rs:2:use whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS;
+crates\whisper-worker-parakeet-cpu\src\args.rs:3:use whisper_core::parakeet_windows::{PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE};
+crates\whisper-adapters\tests\import_mp3.rs:5:use whisper_adapters::{archive::sha256_file, worker_ipc::AsyncImportIo};
+crates\whisper-adapters\tests\import_mp3.rs:6:use whisper_core::{
+crates\whisper-adapters\tests\import_mp3.rs:7:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
+crates\whisper-adapters\tests\import_mp3.rs:8:    JobConfig, JobId, JobState, LanguageChoice, SourceRange, ports::WorkerSegment,
+crates\whisper-adapters\tests\import_mp3.rs:9:};
+crates\whisper-adapters\tests\durability.rs:2:use whisper_adapters::{
+crates\whisper-adapters\tests\durability.rs:3:    queue_store::{QueueStatus, QueueStore},
+crates\whisper-adapters\tests\durability.rs:4:    recovery,
+crates\whisper-adapters\tests\durability.rs:5:};
+crates\whisper-adapters\tests\durability.rs:6:use whisper_core::{
+crates\whisper-adapters\tests\durability.rs:7:    ComputeChoice, Generation, JobConfig, JobId, LanguageChoice,
+crates\whisper-adapters\tests\durability.rs:8:    ports::{ImportQueueStatus, ImportRequest},
+crates\whisper-adapters\tests\durability.rs:9:};
+crates\whisper-worker-gpu\src\gpu_attestation.rs:1:use whisper_core::gpu_inventory::GpuRuntimeIdentity;
+crates\whisper-adapters\tests\decoder_proxy.rs:1:use whisper_adapters::{WorkerTransport, decoder::DecoderProxy};
+crates\whisper-adapters\tests\decoder_proxy.rs:2:use whisper_core::{
+crates\whisper-adapters\tests\decoder_proxy.rs:3:    domain::{Generation, JobId, SourceRange},
+crates\whisper-adapters\tests\decoder_proxy.rs:4:    ipc::{WorkerCommand, WorkerEvent},
+crates\whisper-adapters\tests\decoder_proxy.rs:5:    ports::{DecodeRequest, DecodedPcmBlock, DecoderPort, PcmBlock, PortError, SourceIdentity},
+crates\whisper-adapters\tests\decoder_proxy.rs:6:};
+crates\whisper-desktop\src\ui\model.rs:9:use whisper_adapters::model_catalog::CatalogSnapshot;
+crates\whisper-desktop\src\ui\model.rs:10:use whisper_core::engine_capabilities::EngineProjection;
+crates\whisper-desktop\src\ui\model.rs:11:use whisper_core::gpu_inventory_app::{GpuInventoryApp, GpuInventoryState};
+crates\whisper-desktop\src\ui\model.rs:12:use whisper_core::gpu_selection::{SelectionResolution, SessionCandidate};
+crates\whisper-desktop\src\ui\model.rs:13:use whisper_core::model_catalog::ModelId;
+crates\whisper-desktop\src\ui\model.rs:14:use whisper_core::model_selection_app::ModelSelectionApp;
+crates\whisper-desktop\src\ui\model.rs:15:use whisper_core::path_settings::{PathDefaults, PathField, PathSettingsApp};
+crates\whisper-desktop\src\ui\model.rs:16:use whisper_core::ports::DuplicateImportChoice;
+crates\whisper-desktop\src\ui\model.rs:17:use whisper_core::{
+crates\whisper-desktop\src\ui\model.rs:18:    AppCommand, AppFacade, AppView, Application, ApplicationError, ComputeChoice, Generation,
+crates\whisper-desktop\src\ui\model.rs:19:    ImportRequest, JobConfig, JobId, JobState, LiveRequest, MicrophoneChoice, MicrophonePort,
+crates\whisper-desktop\src\ui\model.rs:20:    MicrophoneSettings, NullMicrophonePort,
+crates\whisper-desktop\src\ui\model.rs:21:};
+crates\whisper-desktop\src\ui\presentation.rs:3:use whisper_adapters::model_catalog::CatalogSnapshot;
+crates\whisper-desktop\src\ui\presentation.rs:4:use whisper_core::engine_capabilities::EngineProjection;
+crates\whisper-desktop\src\ui\presentation.rs:5:use whisper_core::gpu_inventory::GpuQualifiedDevice;
+crates\whisper-desktop\src\ui\presentation.rs:6:use whisper_core::gpu_inventory_app::{GpuInventoryState, GpuQualifiedInventoryState};
+crates\whisper-desktop\src\ui\presentation.rs:7:use whisper_core::gpu_selection::{SelectionResolution, SessionCandidate};
+crates\whisper-desktop\src\ui\presentation.rs:8:use whisper_core::model_catalog::{Backend, ModelId};
+crates\whisper-desktop\src\ui\presentation.rs:9:use whisper_core::model_registry::TURBO_LANGUAGE_INPUTS;
+crates\whisper-desktop\src\ui\presentation.rs:10:use whisper_core::path_settings::SaveStatus;
+crates\whisper-desktop\src\ui\presentation.rs:11:use whisper_core::{
+crates\whisper-desktop\src\ui\presentation.rs:12:    AppCommand, AppView, ComputeChoice, Generation, JobId, JobState, LanguageChoice,
+crates\whisper-desktop\src\ui\presentation.rs:13:    MicrophoneChoice, MicrophoneDevice,
+crates\whisper-desktop\src\ui\presentation.rs:14:};
+crates\whisper-adapters\tests\import_cpu.rs:9:use whisper_adapters::WorkerTransport;
+crates\whisper-adapters\tests\import_cpu.rs:10:use whisper_adapters::{
+crates\whisper-adapters\tests\import_cpu.rs:11:    archive::{ArchiveStore, sha256_file},
+crates\whisper-adapters\tests\import_cpu.rs:12:    decoder::DecoderProxy,
+crates\whisper-adapters\tests\import_cpu.rs:13:    worker_ipc::{AsyncImportIo, ChildWorkerTransport},
+crates\whisper-adapters\tests\import_cpu.rs:14:};
+crates\whisper-adapters\tests\import_cpu.rs:15:use whisper_core::{
+crates\whisper-adapters\tests\import_cpu.rs:16:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
+crates\whisper-adapters\tests\import_cpu.rs:17:    JobConfig, JobId, JobState, LanguageChoice, SourceRange,
+crates\whisper-adapters\tests\import_cpu.rs:18:    ipc::{WorkerCommand, WorkerEvent},
+crates\whisper-adapters\tests\import_cpu.rs:19:    ports::{DecodeRequest, DecoderPort, DuplicateImportChoice, PortError, SourceIdentity},
+crates\whisper-adapters\tests\import_cpu.rs:20:};
+crates\whisper-worker-cpu\src\worker.rs:3:use whisper_core::ipc::{IPC_PROTOCOL_VERSION, WorkerCommand};
+crates\whisper-worker-cpu\src\native_engine.rs:2:use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+crates\whisper-worker-gpu\src\engine_cache\tests.rs:2:use whisper_core::gpu_inventory::GpuRuntimeIdentity;
+crates\whisper-worker-gpu\src\encoder.rs:1:pub use whisper_worker_common::encoder::LiveMp3Encoder;
+crates\whisper-worker-gpu\src\diagnostics.rs:3:use whisper_core::ipc::{IpcEnvelope, WorkerErrorCode, WorkerEvent};
+crates\whisper-worker-cpu\src\worker\tests.rs:3:use whisper_core::ipc::IpcEnvelope;
+crates\whisper-worker-cpu\src\startup.rs:15:use whisper_core::ipc::{IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent};
+crates\whisper-adapters\tests\parakeet_archive_personal_history.rs:3:use whisper_adapters::archive::{ArchiveQualificationKey, ArchiveStore};
+crates\whisper-adapters\tests\parakeet_archive_personal_history.rs:4:use whisper_core::{
+crates\whisper-adapters\tests\parakeet_archive_personal_history.rs:5:    ComputeChoice, Generation, JobConfig, JobId, LanguageChoice,
+crates\whisper-adapters\tests\parakeet_archive_personal_history.rs:6:    model_catalog::{Backend, ModelId},
+crates\whisper-adapters\tests\parakeet_archive_personal_history.rs:7:    model_registry::{self, model},
+crates\whisper-adapters\tests\parakeet_archive_personal_history.rs:8:};
+crates\whisper-adapters\tests\parakeet_runtime_isolation.rs:2:    pub use whisper_adapters::parakeet_import::{ParakeetProcess, ParakeetWorkerPaths};
+crates\whisper-worker-gpu\src\worker.rs:3:use whisper_core::ipc::{IPC_PROTOCOL_VERSION, WorkerCommand};
+crates\whisper-adapters\tests\parakeet_long.rs:9:use whisper_adapters::parakeet_import::{ParakeetProcess, ParakeetWorkerPaths};
+crates\whisper-adapters\tests\parakeet_long.rs:10:use whisper_adapters::{archive::ArchiveStore, supervisor::WorkerPaths, worker_ipc::AsyncImportIo};
+crates\whisper-adapters\tests\parakeet_long.rs:11:use whisper_core::{
+crates\whisper-adapters\tests\parakeet_long.rs:12:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
+crates\whisper-adapters\tests\parakeet_long.rs:13:    JobConfig, JobId, LanguageChoice,
+crates\whisper-adapters\tests\parakeet_long.rs:14:    model_catalog::{ModelAvailability, ModelId},
+crates\whisper-adapters\tests\parakeet_long.rs:15:    model_registry,
+crates\whisper-adapters\tests\parakeet_long.rs:16:    model_selection_app::ModelCommandGuard,
+crates\whisper-adapters\tests\parakeet_long.rs:17:    parakeet_ipc::{Event, WorkerIdentity},
+crates\whisper-adapters\tests\parakeet_long.rs:18:    parakeet_windows::{
+crates\whisper-adapters\tests\parakeet_long.rs:19:        MAX_NATIVE_SAMPLES, PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE, Window,
+crates\whisper-adapters\tests\parakeet_long.rs:20:        absolute_word_samples, admissible_silences, plan_windows, word_belongs_to_central_range,
+crates\whisper-adapters\tests\parakeet_long.rs:21:    },
+crates\whisper-adapters\tests\parakeet_long.rs:22:};
+crates\whisper-adapters\tests\parakeet_archive.rs:10:use whisper_adapters::{
+crates\whisper-adapters\tests\parakeet_archive.rs:11:    archive::{ArchiveQualificationKey, ArchiveStore},
+crates\whisper-adapters\tests\parakeet_archive.rs:12:    queue_store::{QueueStatus, QueueStore},
+crates\whisper-adapters\tests\parakeet_archive.rs:13:    supervisor::WorkerPaths,
+crates\whisper-adapters\tests\parakeet_archive.rs:14:    worker_ipc::AsyncImportIo,
+crates\whisper-adapters\tests\parakeet_archive.rs:15:};
+crates\whisper-adapters\tests\parakeet_archive.rs:16:use whisper_core::{
+crates\whisper-adapters\tests\parakeet_archive.rs:17:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, JobConfig, JobId,
+crates\whisper-adapters\tests\parakeet_archive.rs:18:    LanguageChoice, SegmentId, SourceRange,
+crates\whisper-adapters\tests\parakeet_archive.rs:19:    model_catalog::ModelId,
+crates\whisper-adapters\tests\parakeet_archive.rs:20:    model_registry::model,
+crates\whisper-adapters\tests\parakeet_archive.rs:21:    ports::{ImportRequest, WorkerSegment},
+crates\whisper-adapters\tests\parakeet_archive.rs:22:};
+crates\whisper-adapters\tests\parakeet_archive.rs:336:    use whisper_adapters::model_catalog::cached_model_sha256;
+crates\whisper-adapters\tests\parakeet_archive.rs:1453:    use whisper_adapters::parakeet_import::{ParakeetProcess, ParakeetWorkerPaths};
+crates\whisper-adapters\tests\parakeet_archive.rs:1454:    use whisper_adapters::{
+crates\whisper-adapters\tests\parakeet_archive.rs:1455:        archive::ArchiveStore, supervisor::WorkerPaths, worker_ipc::AsyncImportIo,
+crates\whisper-adapters\tests\parakeet_archive.rs:1456:    };
+crates\whisper-adapters\tests\parakeet_archive.rs:1457:    use whisper_core::{
+crates\whisper-adapters\tests\parakeet_archive.rs:1458:        AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
+crates\whisper-adapters\tests\parakeet_archive.rs:1459:        JobConfig, JobId, LanguageChoice,
+crates\whisper-adapters\tests\parakeet_archive.rs:1460:        model_catalog::{ModelAvailability, ModelId},
+crates\whisper-adapters\tests\parakeet_archive.rs:1461:        model_registry,
+crates\whisper-adapters\tests\parakeet_archive.rs:1462:        model_selection_app::ModelCommandGuard,
+crates\whisper-adapters\tests\parakeet_archive.rs:1463:        parakeet_ipc::{Event, WorkerIdentity},
+crates\whisper-adapters\tests\parakeet_archive.rs:1464:        parakeet_windows::{
+crates\whisper-adapters\tests\parakeet_archive.rs:1465:            MAX_NATIVE_SAMPLES, PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE, Window,
+crates\whisper-adapters\tests\parakeet_archive.rs:1466:            absolute_word_samples, plan_windows, word_belongs_to_central_range,
+crates\whisper-adapters\tests\parakeet_archive.rs:1467:        },
+crates\whisper-adapters\tests\parakeet_archive.rs:1468:    };
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:86:    use whisper_core::ports::{UnifiedParakeetSessionView, UnifiedSessionPhase as Phase};
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:176:    use whisper_core::ports::{UnifiedParakeetSessionView, UnifiedSessionPhase as Phase};
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:369:    use whisper_core::{
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:370:        ImportApplication, JobState,
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:371:        application::{DirectCapturePhase, DirectEnginePhase},
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:372:        ports::{ImportEvent, ImportIoPort, PortError},
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:373:    };
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:516:    use whisper_core::{
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:517:        JobState,
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:518:        application::{DirectCapturePhase as Capture, DirectEnginePhase as Engine},
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:519:    };
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:562:    use whisper_core::ports::{
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:563:        UnifiedAudioPartPage, UnifiedParakeetSelectionView, UnifiedParakeetSessionView,
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:564:        UnifiedSessionPhase,
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:565:    };
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:692:    use whisper_core::ports::{
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:693:        UnifiedAudioPart, UnifiedAudioPartPage, UnifiedParakeetSelectionView,
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:694:        UnifiedParakeetSessionView, UnifiedSessionPhase,
+crates\whisper-desktop\src\ui\tests\unified_sessions.rs:695:    };
+crates\whisper-worker-gpu\src\decoder.rs:2:use whisper_core::ports::DecodeRequest;
+crates\whisper-worker-gpu\src\decoder.rs:4:pub use whisper_worker_common::decoder::{MAX_WINDOW_SAMPLES, OUTPUT_RATE};
+crates\whisper-adapters\tests\model_preferences.rs:3:use whisper_adapters::path_settings::{WindowsModelPreferencePort, WindowsPathPort};
+crates\whisper-adapters\tests\model_preferences.rs:4:use whisper_core::{
+crates\whisper-adapters\tests\model_preferences.rs:5:    model_catalog::ModelId,
+crates\whisper-adapters\tests\model_preferences.rs:6:    path_settings::{LegacyModelPath, ModelPreferencePort, PathPort, StartupComputePreference},
+crates\whisper-adapters\tests\model_preferences.rs:7:};
+crates\whisper-adapters\tests\parakeet_import.rs:11:use whisper_adapters::{
+crates\whisper-adapters\tests\parakeet_import.rs:12:    archive::ArchiveStore,
+crates\whisper-adapters\tests\parakeet_import.rs:13:    model_catalog::LocalModelCatalog,
+crates\whisper-adapters\tests\parakeet_import.rs:14:    parakeet_import::{ParakeetProcess, ParakeetWorkerPaths},
+crates\whisper-adapters\tests\parakeet_import.rs:15:    supervisor::WorkerPaths,
+crates\whisper-adapters\tests\parakeet_import.rs:16:    worker_ipc::AsyncImportIo,
+crates\whisper-adapters\tests\parakeet_import.rs:17:};
+crates\whisper-adapters\tests\parakeet_import.rs:18:use whisper_core::{
+crates\whisper-adapters\tests\parakeet_import.rs:19:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
+crates\whisper-adapters\tests\parakeet_import.rs:20:    JobConfig, JobId, LanguageChoice, model_catalog::ModelId,
+crates\whisper-adapters\tests\parakeet_import.rs:21:};
+crates\whisper-adapters\tests\model_catalog.rs:3:use whisper_adapters::model_catalog::LocalModelCatalog;
+crates\whisper-adapters\tests\model_catalog.rs:4:use whisper_core::{
+crates\whisper-adapters\tests\model_catalog.rs:5:    domain::{ComputeChoice, Generation, JobConfig, JobId, LanguageChoice},
+crates\whisper-adapters\tests\model_catalog.rs:6:    model_catalog::{ModelAvailability, ModelId},
+crates\whisper-adapters\tests\model_catalog.rs:7:    model_registry::MODELS,
+crates\whisper-adapters\tests\model_catalog.rs:8:    ports::ImportRequest,
+crates\whisper-adapters\tests\model_catalog.rs:9:};
+crates\whisper-adapters\tests\model_catalog.rs:157:    use whisper_adapters::model_catalog::{cached_model_sha256, model_sha256_full_read_count};
+crates\whisper-adapters\tests\model_catalog.rs:203:    use whisper_adapters::model_catalog::{cached_model_sha256, model_sha256_full_read_count};
+crates\whisper-desktop\src\ui\tests\support.rs:19:use whisper_core::gpu_inventory::{GpuObservation, GpuPresence, GpuState};
+crates\whisper-desktop\src\ui\tests\support.rs:20:use whisper_core::gpu_inventory_app::{
+crates\whisper-desktop\src\ui\tests\support.rs:21:    GpuCollection, GpuInventoryApp, GpuInventoryPort, GpuInventoryState,
+crates\whisper-desktop\src\ui\tests\support.rs:22:};
+crates\whisper-desktop\src\ui\tests\support.rs:23:use whisper_core::{
+crates\whisper-desktop\src\ui\tests\support.rs:24:    AppCommand, AppView, Application, ApplicationError, ComputeChoice, Generation, ImportEffect,
+crates\whisper-desktop\src\ui\tests\support.rs:25:    ImportRequest, JobConfig, JobId, LanguageChoice, MicrophoneChoice, MicrophoneDevice,
+crates\whisper-desktop\src\ui\tests\support.rs:26:    MicrophonePort,
+crates\whisper-desktop\src\ui\tests\support.rs:27:};
+crates\whisper-desktop\src\ui\tests\support.rs:220:    use whisper_core::ports::ImportEvent;
+crates\whisper-desktop\src\ui\tests\support.rs:343:    use whisper_adapters::{
+crates\whisper-desktop\src\ui\tests\support.rs:344:        capture::ProbeAudioBlock,
+crates\whisper-desktop\src\ui\tests\support.rs:345:        microphone_probe::{MicrophoneProbe, MicrophoneSpectrumReader},
+crates\whisper-desktop\src\ui\tests\support.rs:346:    };
+crates\whisper-desktop\src\ui\tests\support.rs:347:    use whisper_core::microphone_level::GainRevision;
+crates\whisper-adapters\tests\parakeet_control.rs:8:use whisper_adapters::parakeet_import::{ParakeetProcess, ParakeetWorkerPaths};
+crates\whisper-adapters\tests\parakeet_control.rs:9:use whisper_adapters::{
+crates\whisper-adapters\tests\parakeet_control.rs:10:    archive::ArchiveStore,
+crates\whisper-adapters\tests\parakeet_control.rs:11:    queue_store::{QueueStatus, QueueStore},
+crates\whisper-adapters\tests\parakeet_control.rs:12:    supervisor::WorkerPaths,
+crates\whisper-adapters\tests\parakeet_control.rs:13:    worker_ipc::AsyncImportIo,
+crates\whisper-adapters\tests\parakeet_control.rs:14:};
+crates\whisper-adapters\tests\parakeet_control.rs:15:use whisper_core::{
+crates\whisper-adapters\tests\parakeet_control.rs:16:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
+crates\whisper-adapters\tests\parakeet_control.rs:17:    JobConfig, JobId, LanguageChoice, model_catalog::ModelId,
+crates\whisper-adapters\tests\parakeet_control.rs:18:};
+crates\whisper-adapters\tests\microphone_settings.rs:1:use whisper_core::path_settings::StoredPaths;
+crates\whisper-worker-cpu\src\session\mod.rs:19:use whisper_core::{
+crates\whisper-worker-cpu\src\session\mod.rs:20:    Generation, JobConfig, JobId, SegmentId,
+crates\whisper-worker-cpu\src\session\mod.rs:21:    domain::{ComputeChoice, SourceRange},
+crates\whisper-worker-cpu\src\session\mod.rs:22:    ipc::{
+crates\whisper-worker-cpu\src\session\mod.rs:23:        BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode,
+crates\whisper-worker-cpu\src\session\mod.rs:24:        WorkerEvent, WorkerSegmentDto,
+crates\whisper-worker-cpu\src\session\mod.rs:25:    },
+crates\whisper-worker-cpu\src\session\mod.rs:26:    ports::{DecodeRequest, DecodedPcmBlock, PcmBlock, WorkerSegment},
+crates\whisper-worker-cpu\src\session\mod.rs:27:};
+crates\whisper-adapters\tests\parakeet_command_wire.rs:2:use whisper_core::parakeet_ipc::{Command, Envelope, ExpectedGpu, WorkerIdentity};
+crates\whisper-worker-parakeet-cpu\src\native_engine.rs:3:use whisper_core::parakeet_ipc::Word;
+crates\whisper-worker-gpu\src\worker\tests.rs:3:use whisper_core::ipc::IpcEnvelope;
+crates\whisper-adapters\tests\microphone_probe.rs:8:use whisper_adapters::capture::ProbeAudioBlock;
+crates\whisper-adapters\tests\microphone_probe.rs:9:use whisper_adapters::microphone_probe::{
+crates\whisper-adapters\tests\microphone_probe.rs:10:    MicrophoneProbe, MicrophoneSpectrumReader, ProbeSnapshot,
+crates\whisper-adapters\tests\microphone_probe.rs:11:};
+crates\whisper-adapters\tests\microphone_probe.rs:12:use whisper_core::{
+crates\whisper-adapters\tests\microphone_probe.rs:13:    GainDb, Generation, JobId,
+crates\whisper-adapters\tests\microphone_probe.rs:14:    microphone_level::{GainRevision, MicrophoneSpectrumUpdate},
+crates\whisper-adapters\tests\microphone_probe.rs:15:};
+crates\whisper-adapters\tests\reprocessing_cleanup.rs:11:use whisper_adapters::{
+crates\whisper-adapters\tests\reprocessing_cleanup.rs:12:    archive::{ArchiveStore, sha256_file},
+crates\whisper-adapters\tests\reprocessing_cleanup.rs:13:    model_catalog::LocalModelCatalog,
+crates\whisper-adapters\tests\reprocessing_cleanup.rs:14:    source_binding::SourceBinding,
+crates\whisper-adapters\tests\reprocessing_cleanup.rs:15:};
+crates\whisper-adapters\tests\reprocessing_cleanup.rs:16:use whisper_core::{
+crates\whisper-adapters\tests\reprocessing_cleanup.rs:17:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, JobConfig, JobId,
+crates\whisper-adapters\tests\reprocessing_cleanup.rs:18:    JobState, LanguageChoice, ports::DuplicateImportChoice, ports::ImportRequest,
+crates\whisper-adapters\tests\reprocessing_cleanup.rs:19:};
+crates\whisper-worker-gpu\src\startup.rs:12:use whisper_core::ipc::{IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent};
+crates\whisper-adapters\tests\reprocessing_baseline.rs:9:use whisper_adapters::{
+crates\whisper-adapters\tests\reprocessing_baseline.rs:10:    archive::ArchiveStore, parakeet_import::ParakeetWorkerPaths, supervisor::WorkerPaths,
+crates\whisper-adapters\tests\reprocessing_baseline.rs:11:    worker_ipc::AsyncImportIo,
+crates\whisper-adapters\tests\reprocessing_baseline.rs:12:};
+crates\whisper-adapters\tests\reprocessing_baseline.rs:13:use whisper_core::{
+crates\whisper-adapters\tests\reprocessing_baseline.rs:14:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
+crates\whisper-adapters\tests\reprocessing_baseline.rs:15:    JobConfig, JobId, LanguageChoice, model_catalog::ModelId, ports::DuplicateImportChoice,
+crates\whisper-adapters\tests\reprocessing_baseline.rs:16:};
+crates\whisper-adapters\tests\publication_lock_contract.rs:6:use whisper_adapters::archive::ArchiveStore;
+crates\whisper-adapters\tests\microphone_level.rs:1:use whisper_adapters::capture::{CAPTURE_SLOTS, Pcm16Converter};
+crates\whisper-adapters\tests\microphone_level.rs:2:use whisper_core::microphone_level::{GainDb, MAX_GAIN_DB, MIN_GAIN_DB};
+crates\whisper-adapters\tests\parakeet_unified_native.rs:9:use whisper_adapters::{
+crates\whisper-adapters\tests\parakeet_unified_native.rs:10:    archive::ArchiveStore, parakeet_import::ParakeetWorkerPaths, supervisor::WorkerPaths,
+crates\whisper-adapters\tests\parakeet_unified_native.rs:11:    worker_ipc::AsyncImportIo,
+crates\whisper-adapters\tests\parakeet_unified_native.rs:12:};
+crates\whisper-adapters\tests\parakeet_unified_native.rs:13:use whisper_core::{
+crates\whisper-adapters\tests\parakeet_unified_native.rs:14:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
+crates\whisper-adapters\tests\parakeet_unified_native.rs:15:    JobConfig, JobId, JobState, LanguageChoice,
+crates\whisper-adapters\tests\parakeet_unified_native.rs:16:    model_catalog::ModelId,
+crates\whisper-adapters\tests\parakeet_unified_native.rs:17:    model_registry::{PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID, model},
+crates\whisper-adapters\tests\parakeet_unified_native.rs:18:};
+crates\whisper-adapters\tests\parakeet_unified_native.rs:825:    use whisper_core::gpu_inventory_app::GpuInventoryPort;
+crates\whisper-adapters\tests\worker_control.rs:7:use whisper_adapters::supervisor::ProgressPhase;
+crates\whisper-adapters\tests\worker_control.rs:8:use whisper_adapters::supervisor::{ProgressSupervisor, ProgressWatch, WorkerPaths};
+crates\whisper-adapters\tests\worker_control.rs:9:use whisper_core::{BackendAttempt, ComputeChoice, ComputePolicyError};
+crates\whisper-adapters\tests\source_binding.rs:9:use whisper_adapters::source_binding::SourceBinding;
+crates\whisper-adapters\tests\source_binding.rs:10:use whisper_core::{Generation, JobConfig, JobId, ports::ImportRequest};
+crates\whisper-desktop\src\ui\presentation\selection.rs:94:    use whisper_core::ports::UnifiedSessionPhase as Phase;
+crates\whisper-desktop\src\ui\model\view\microphone.rs:9:    use whisper_core::microphone_level::SpectrumBin;
+crates\whisper-worker-gpu\src\ipc.rs:5:pub use whisper_worker_common::ipc::MAX_FRAME_BYTES;
+crates\whisper-adapters\tests\live_capture.rs:2:use whisper_adapters::{
+crates\whisper-adapters\tests\live_capture.rs:3:    capture::{CAPTURE_SLOTS, Pcm16Converter},
+crates\whisper-adapters\tests\live_capture.rs:4:    staging::PcmStaging,
+crates\whisper-adapters\tests\live_capture.rs:5:};
+crates\whisper-adapters\tests\reprocessing_create.rs:11:use whisper_adapters::{
+crates\whisper-adapters\tests\reprocessing_create.rs:12:    archive::{ArchiveStore, sha256_file},
+crates\whisper-adapters\tests\reprocessing_create.rs:13:    model_catalog::LocalModelCatalog,
+crates\whisper-adapters\tests\reprocessing_create.rs:14:    source_binding::SourceBinding,
+crates\whisper-adapters\tests\reprocessing_create.rs:15:};
+crates\whisper-adapters\tests\reprocessing_create.rs:16:use whisper_core::ports::DuplicateImportChoice;
+crates\whisper-adapters\tests\reprocessing_create.rs:17:use whisper_core::{
+crates\whisper-adapters\tests\reprocessing_create.rs:18:    AppCommand, Application, ComputeChoice, Generation, ImportApplication, JobConfig, JobId,
+crates\whisper-adapters\tests\reprocessing_create.rs:19:    JobState, ports::ImportRequest,
+crates\whisper-adapters\tests\reprocessing_create.rs:20:};
+crates\whisper-adapters\tests\vad_contract.rs:1:use whisper_adapters::vad::VoiceActivity;
+crates\whisper-desktop\src\ui\presentation\microphone.rs:49:    use whisper_core::microphone_level::MeasurementStatus;
+crates\whisper-worker-gpu\src\gpu_qualification.rs:1:use whisper_core::ipc::{GpuQualificationResult, GpuQualificationTarget};
+crates\whisper-adapters\tests\live_archive.rs:2:use whisper_adapters::{archive::LiveArchive, staging::PcmStaging};
+crates\whisper-adapters\tests\live_archive.rs:3:use whisper_core::{
+crates\whisper-adapters\tests\live_archive.rs:4:    ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, LiveRequest, SegmentId,
+crates\whisper-adapters\tests\live_archive.rs:5:    SourceRange, ports::WorkerSegment,
+crates\whisper-adapters\tests\live_archive.rs:6:};
+crates\whisper-desktop\src\ui\presentation\language.rs:16:    use whisper_core::engine_capabilities::{LanguageOption, RefusalCause};
+crates\whisper-worker-gpu\src\gpu_commands.rs:5:use whisper_core::ipc::{IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent};
+crates\whisper-adapters\src\path_settings.rs:9:use whisper_core::path_settings::{PathField, PathPort, SaveAcknowledgement, StoredPaths};
+crates\whisper-adapters\src\path_settings.rs:10:use whisper_core::{
+crates\whisper-adapters\src\path_settings.rs:11:    model_catalog::ModelId,
+crates\whisper-adapters\src\path_settings.rs:12:    model_selection_app::is_known_historical_path,
+crates\whisper-adapters\src\path_settings.rs:13:    path_settings::{
+crates\whisper-adapters\src\path_settings.rs:14:        LegacyModelPath, ModelPreferenceAcknowledgement, ModelPreferencePort,
+crates\whisper-adapters\src\path_settings.rs:15:        ModelPreferenceSnapshot, StartupComputePreference,
+crates\whisper-adapters\src\path_settings.rs:16:    },
+crates\whisper-adapters\src\path_settings.rs:17:};
+crates\whisper-adapters\src\path_settings.rs:493:    use whisper_core::path_settings::{PathDefaults, PathPort, PathSettingsApp};
+crates\whisper-worker-gpu\src\integrity.rs:1:pub(crate) use whisper_worker_common::integrity::verify_sha256;
+crates\whisper-adapters\src\model_catalog.rs:14:use whisper_core::{model_catalog::ModelAvailability, model_registry::MODELS};
+crates\whisper-adapters\src\model_catalog.rs:290:        use whisper_core::model_catalog::ModelId;
+crates\whisper-adapters\src\model_catalog.rs:310:        use whisper_core::model_catalog::ModelId;
+crates\whisper-adapters\src\model_catalog.rs:331:        use whisper_core::{model_catalog::ModelId, model_registry::model};
+crates\whisper-adapters\src\model_catalog.rs:365:        use whisper_core::{model_catalog::ModelId, model_selection_app::is_known_historical_path};
+crates\whisper-adapters\src\worker_ipc.rs:109:use whisper_core::ImportIoPort;
+crates\whisper-adapters\src\worker_ipc.rs:111:use whisper_core::ipc::IpcEnvelope;
+crates\whisper-adapters\src\worker_ipc.rs:112:use whisper_core::{
+crates\whisper-adapters\src\worker_ipc.rs:113:    ArchiveHistoryItem, ComputeChoice, DiagnosticNotice, Generation, ImportEffect, ImportEvent,
+crates\whisper-adapters\src\worker_ipc.rs:114:    JobId,
+crates\whisper-adapters\src\worker_ipc.rs:115:    ipc::{BackendKind, WorkerCommand, WorkerEvent},
+crates\whisper-adapters\src\worker_ipc.rs:116:    ports::{
+crates\whisper-adapters\src\worker_ipc.rs:117:        DecodeRequest, DecoderPort, DuplicateImportChoice, DuplicateImportPrompt, ImportRequest,
+crates\whisper-adapters\src\worker_ipc.rs:118:        LiveRequest, PortError, PublishedImport, SourceIdentity, TreatmentIdentity, WorkerSegment,
+crates\whisper-adapters\src\worker_ipc.rs:119:    },
+crates\whisper-adapters\src\worker_ipc.rs:120:};
+crates\whisper-desktop\src\ui\presentation\gpu.rs:15:    use whisper_core::gpu_inventory::GpuCatalogueCoverage;
+crates\whisper-desktop\src\ui\presentation\gpu.rs:130:    use whisper_core::gpu_inventory::{GpuAvailability, GpuIdentityMatch, GpuState, GpuSupport};
+crates\whisper-desktop\src\ui\presentation\gpu.rs:180:    use whisper_core::gpu_inventory::{
+crates\whisper-desktop\src\ui\presentation\gpu.rs:181:        GpuAvailability as Availability, GpuIdentityMatch, GpuState, GpuSupport as Support,
+crates\whisper-desktop\src\ui\presentation\gpu.rs:182:    };
+crates\whisper-adapters\src\microphone_probe.rs:13:use whisper_core::{
+crates\whisper-adapters\src\microphone_probe.rs:14:    Generation, JobId,
+crates\whisper-adapters\src\microphone_probe.rs:15:    microphone_level::{
+crates\whisper-adapters\src\microphone_probe.rs:16:        GainRevision, LevelMeasurement, MeterLevel, MicrophoneMeter, MicrophoneSpectrum,
+crates\whisper-adapters\src\microphone_probe.rs:17:        MicrophoneSpectrumUpdate, SpectrumBin, monotonic_millis, monotonic_millis_at,
+crates\whisper-adapters\src\microphone_probe.rs:18:    },
+crates\whisper-adapters\src\microphone_probe.rs:19:};
+crates\whisper-adapters\src\parakeet_pipeline.rs:3:use whisper_core::{
+crates\whisper-adapters\src\parakeet_pipeline.rs:4:    Generation, JobId, SourceRange,
+crates\whisper-adapters\src\parakeet_pipeline.rs:5:    parakeet_session::{AudioWindow, SessionIdentity, TranscriptionStrategy, WindowCursor},
+crates\whisper-adapters\src\parakeet_pipeline.rs:6:    parakeet_windows::{MARGIN_SAMPLES, WINDOW_MAX_SAMPLES},
+crates\whisper-adapters\src\parakeet_pipeline.rs:7:    ports::{ParakeetDocumentPort, ParakeetWindowCoverage, PortError, WorkerSegment},
+crates\whisper-adapters\src\parakeet_pipeline.rs:8:};
+crates\whisper-adapters\src\archive.rs:10:use whisper_core::{
+crates\whisper-adapters\src\archive.rs:11:    Generation, JobId, SourceRange,
+crates\whisper-adapters\src\archive.rs:12:    ports::{
+crates\whisper-adapters\src\archive.rs:13:        DuplicateImportChoice, ImportRequest, LiveRequest, PublishedImport, ReplacementCleanupInfo,
+crates\whisper-adapters\src\archive.rs:14:        TreatmentIdentity, WorkerSegment,
+crates\whisper-adapters\src\archive.rs:15:    },
+crates\whisper-adapters\src\archive.rs:16:};
+crates\whisper-adapters\src\parakeet_live.rs:32:use whisper_core::{
+crates\whisper-adapters\src\parakeet_live.rs:33:    ComputeChoice, Generation, ImportEvent, JobId, LiveRequest, SegmentId, SourceRange,
+crates\whisper-adapters\src\parakeet_live.rs:34:    parakeet_ipc::{Event as WorkerEvent, Word},
+crates\whisper-adapters\src\parakeet_live.rs:35:    parakeet_windows::{AbsoluteWordSamples, Window, absolute_word_samples},
+crates\whisper-adapters\src\parakeet_live.rs:36:};
+crates\whisper-worker-gpu\src\native_engine.rs:1:use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+crates\whisper-worker-gpu\src\native_ffi.rs:238:    use whisper_rs::whisper_rs_sys as sys;
+crates\whisper-worker-gpu\src\native_ffi.rs:287:    use whisper_rs::whisper_rs_sys as sys;
+crates\whisper-worker-gpu\src\native_ffi.rs:444:    use whisper_rs::whisper_rs_sys as sys;
+crates\whisper-adapters\src\capture.rs:11:use whisper_core::microphone::{MicrophoneChoice, MicrophoneDevice, MicrophonePort};
+crates\whisper-adapters\src\capture.rs:12:use whisper_core::microphone_level::{GainDb, GainRevision};
+crates\whisper-adapters\src\decoder.rs:3:use whisper_core::{
+crates\whisper-adapters\src\decoder.rs:4:    ipc::{WorkerCommand, WorkerEvent},
+crates\whisper-adapters\src\decoder.rs:5:    ports::{DecodeRequest, DecodedPcmBlock, DecoderPort, PortError},
+crates\whisper-adapters\src\decoder.rs:6:};
+crates\whisper-adapters\src\decoder.rs:107:    use whisper_core::{
+crates\whisper-adapters\src\decoder.rs:108:        Generation, JobId, SourceRange,
+crates\whisper-adapters\src\decoder.rs:109:        ipc::WorkerEvent,
+crates\whisper-adapters\src\decoder.rs:110:        ports::{DecodedPcmBlock, PcmBlock, SourceIdentity},
+crates\whisper-adapters\src\decoder.rs:111:    };
+crates\whisper-worker-gpu\src\session\mod.rs:20:use whisper_core::{
+crates\whisper-worker-gpu\src\session\mod.rs:21:    Generation, JobConfig, JobId, SegmentId,
+crates\whisper-worker-gpu\src\session\mod.rs:22:    domain::{ComputeChoice, SourceRange},
+crates\whisper-worker-gpu\src\session\mod.rs:23:    gpu_inventory::GpuRuntimeIdentity,
+crates\whisper-worker-gpu\src\session\mod.rs:24:    ipc::{
+crates\whisper-worker-gpu\src\session\mod.rs:25:        BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode,
+crates\whisper-worker-gpu\src\session\mod.rs:26:        WorkerEvent, WorkerSegmentDto,
+crates\whisper-worker-gpu\src\session\mod.rs:27:    },
+crates\whisper-worker-gpu\src\session\mod.rs:28:    ports::{DecodeRequest, DecodedPcmBlock, PcmBlock, WorkerSegment},
+crates\whisper-worker-gpu\src\session\mod.rs:29:};
+crates\whisper-adapters\src\direct_live.rs:36:use whisper_core::{
+crates\whisper-adapters\src\direct_live.rs:37:    ComputeChoice, Generation, ImportEvent, JobId, LiveRequest, SegmentId, SourceRange,
+crates\whisper-adapters\src\direct_live.rs:38:    ipc::{BackendKind, WorkerCommand, WorkerErrorCode, WorkerEvent},
+crates\whisper-adapters\src\direct_live.rs:39:    ports::WorkerSegment,
+crates\whisper-adapters\src\direct_live.rs:40:};
+crates\whisper-adapters\src\gpu_inventory.rs:7:use whisper_core::gpu_inventory::{
+crates\whisper-adapters\src\gpu_inventory.rs:8:    GpuAvailability, GpuCause, GpuIdentityMatch, GpuQualifiedObservation, GpuSupport,
+crates\whisper-adapters\src\gpu_inventory.rs:9:};
+crates\whisper-adapters\src\gpu_inventory.rs:10:use whisper_core::gpu_inventory::{GpuObservation, GpuPresence, GpuState};
+crates\whisper-adapters\src\gpu_inventory.rs:11:use whisper_core::gpu_inventory_app::{GpuCollection, GpuInventoryPort, GpuQualifiedCollection};
+crates\whisper-adapters\src\gpu_inventory.rs:621:    use whisper_core::gpu_inventory::{
+crates\whisper-adapters\src\gpu_inventory.rs:622:        GpuAvailability, GpuCatalogueCoverage, GpuCause, GpuIdentityMatch, GpuObservation,
+crates\whisper-adapters\src\gpu_inventory.rs:623:        GpuPresence, GpuState, GpuSupport, qualify,
+crates\whisper-adapters\src\gpu_inventory.rs:624:    };
+crates\whisper-adapters\src\direct_live\d2_corpus.rs:13:use whisper_core::{
+crates\whisper-adapters\src\direct_live\d2_corpus.rs:14:    ComputeChoice, Generation, ImportEvent, JobConfig, JobId, LanguageChoice, LiveRequest,
+crates\whisper-adapters\src\direct_live\d2_corpus.rs:15:    microphone_level::GainDb, model_catalog::ModelId,
+crates\whisper-adapters\src\direct_live\d2_corpus.rs:16:};
+crates\whisper-adapters\src\parakeet_document.rs:8:use whisper_core::{
+crates\whisper-adapters\src\parakeet_document.rs:9:    Generation, JobId,
+crates\whisper-adapters\src\parakeet_document.rs:10:    parakeet_windows::{WINDOW_MAX_SAMPLES, WINDOW_MIN_SAMPLES},
+crates\whisper-adapters\src\parakeet_document.rs:11:    ports::{
+crates\whisper-adapters\src\parakeet_document.rs:12:        ParakeetDocumentEntry, ParakeetDocumentPage, ParakeetDocumentPort, ParakeetPreview,
+crates\whisper-adapters\src\parakeet_document.rs:13:        ParakeetWindowCoverage, PortError, WorkerSegment,
+crates\whisper-adapters\src\parakeet_document.rs:14:    },
+crates\whisper-adapters\src\parakeet_document.rs:15:};
+crates\whisper-adapters\src\parakeet_confirmation.rs:7:use whisper_core::SourceRange;
+crates\whisper-adapters\src\direct_live\tests.rs:11:use whisper_core::ports::WorkerSegment;
+crates\whisper-adapters\src\direct_live\tests.rs:12:use whisper_core::{ComputeChoice, JobConfig, LanguageChoice, SegmentId, SourceRange};
+crates\whisper-adapters\src\direct_live\tests.rs:1104:    use whisper_core::ipc::{BackendKind, WorkerEvent, WorkerSegmentDto};
+crates\whisper-adapters\src\direct_live\tests.rs:1174:    use whisper_core::ipc::{BackendKind, WorkerErrorCode, WorkerEvent};
+crates\whisper-adapters\src\parakeet_import.rs:17:use whisper_core::parakeet_ipc::{
+crates\whisper-adapters\src\parakeet_import.rs:18:    Command as WorkerCommand, Envelope, Event, PARAKEET_IPC_VERSION, PARAKEET_MAX_FRAME_BYTES,
+crates\whisper-adapters\src\parakeet_import.rs:19:    PARAKEET_PROFILE_IMPORT_SINGLE_PASS, WorkerIdentity,
+crates\whisper-adapters\src\parakeet_import.rs:20:};
+crates\whisper-adapters\src\parakeet_import.rs:21:use whisper_core::parakeet_windows::{PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE};
+crates\whisper-adapters\src\parakeet_import.rs:781:    use whisper_core::model_registry::{
+crates\whisper-adapters\src\parakeet_import.rs:782:        PARAKEET_TEST_GPU_PCI_BUS_ID, PARAKEET_TEST_GPU_PNP_INSTANCE_ID, PARAKEET_TEST_GPU_UUID,
+crates\whisper-adapters\src\parakeet_import.rs:783:    };
+crates\whisper-adapters\src\source_binding.rs:11:use whisper_core::ports::SourceSnapshotRecoveryCandidate;
+crates\whisper-adapters\src\source_binding.rs:12:use whisper_core::{Generation, JobId, ports::ImportRequest};
+crates\whisper-adapters\src\source_binding.rs:1523:    use whisper_core::ports::ImportRequest;
+crates\whisper-adapters\src\recovery.rs:6:use whisper_core::ports::{ImportQueueEntry as QueueEntry, ImportQueueStatus as QueueStatus};
+crates\whisper-adapters\src\queue_store.rs:9:use whisper_core::{ComputeChoice, Generation, JobId, ports::ImportRequest};
+crates\whisper-adapters\src\queue_store.rs:27:pub use whisper_core::ports::{ImportQueueEntry as QueueEntry, ImportQueueStatus as QueueStatus};
+crates\whisper-adapters\src\queue_store.rs:564:    use whisper_core::{JobConfig, ports::ImportRequest};
+crates\whisper-adapters\src\parakeet_live\microphone_spectrum_tests.rs:8:use whisper_core::microphone_level::{MicrophoneSpectrumUpdate, SpectrumBin};
+crates\whisper-adapters\src\worker_ipc\backends\native.rs:3:use whisper_core::{ComputeChoice, ports::ImportRequest};
+crates\whisper-adapters\src\supervisor.rs:14:use whisper_core::{BackendAttempt, ComputeChoice, ComputePolicy, ComputePolicyError};
+crates\whisper-adapters\src\worker_ipc\backends\mod.rs:8:use whisper_core::{
+crates\whisper-adapters\src\worker_ipc\backends\mod.rs:9:    ComputeChoice,
+crates\whisper-adapters\src\worker_ipc\backends\mod.rs:10:    ipc::{WorkerCommand, WorkerEvent},
+crates\whisper-adapters\src\worker_ipc\backends\mod.rs:11:    ports::{ImportRequest, LiveRequest},
+crates\whisper-adapters\src\worker_ipc\backends\mod.rs:12:};
+crates\whisper-adapters\src\worker_ipc\backends\mod.rs:123:        use whisper_core::model_catalog::ModelId;
+crates\whisper-adapters\src\worker_ipc\backends\mod.rs:237:        use whisper_core::model_catalog::ModelId;
+crates\whisper-adapters\src\worker_ipc\backends\mod.rs:272:        use whisper_core::model_catalog::ModelId;
+crates\whisper-adapters\src\worker_ipc\parakeet_unified\executor.rs:15:use whisper_core::Generation;
+crates\whisper-adapters\src\worker_ipc\parakeet_unified\native.rs:12:use whisper_core::ComputeChoice;
+crates\whisper-adapters\src\worker_ipc\parakeet_unified\mod.rs:3:use whisper_core::{
+crates\whisper-adapters\src\worker_ipc\parakeet_unified\mod.rs:4:    Generation, JobId,
+crates\whisper-adapters\src\worker_ipc\parakeet_unified\mod.rs:5:    ports::{ImportRequest, WorkerSegment},
+crates\whisper-adapters\src\worker_ipc\parakeet_unified\mod.rs:6:};
+crates\whisper-adapters\src\worker_ipc\parakeet_unified\mod.rs:32:    use whisper_core::ports::ParakeetDocumentPort;
+crates\whisper-adapters\src\worker_ipc\publication\mod.rs:2:use whisper_core::ports::PortError;
+crates\whisper-adapters\src\worker_ipc\ipc\mod.rs:23:use whisper_core::{
+crates\whisper-adapters\src\worker_ipc\ipc\mod.rs:24:    Generation, JobId,
+crates\whisper-adapters\src\worker_ipc\ipc\mod.rs:25:    ipc::{BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerEvent},
+crates\whisper-adapters\src\worker_ipc\ipc\mod.rs:26:    ports::PortError,
+crates\whisper-adapters\src\worker_ipc\ipc\mod.rs:27:};
+crates\whisper-adapters\src\worker_ipc\service\automatic_final.rs:9:use whisper_core::{ImportEvent, JobId};
+crates\whisper-adapters\src\worker_ipc\service\mod.rs:20:use whisper_core::{
+crates\whisper-adapters\src\worker_ipc\service\mod.rs:21:    Generation, ImportEffect, ImportEvent, ImportIoPort, JobId,
+crates\whisper-adapters\src\worker_ipc\service\mod.rs:22:    ports::{PortError, WorkerSegment},
+crates\whisper-adapters\src\worker_ipc\service\mod.rs:23:};
+crates\whisper-adapters\src\archive\tests\archive_and_contracts.rs:512:        use whisper_core::ports::ParakeetDocumentPort;
+crates\whisper-adapters\src\worker_ipc\tests\native_execution.rs:779:        use whisper_core::gpu_inventory_app::GpuInventoryPort;
+crates\whisper-adapters\src\worker_ipc\runtime\poll_unified.rs:322:        use whisper_core::ports::ParakeetDocumentPort;
+crates\whisper-adapters\src\archive\tests\recovery.rs:543:        use whisper_core::SegmentId;
+crates\whisper-adapters\src\archive\tests\recovery.rs:725:        use whisper_core::SegmentId;
+crates\whisper-adapters\src\worker_ipc\tests\resume_and_admission.rs:121:        use whisper_core::ports::DuplicateImportChoice;
+crates\whisper-adapters\src\worker_ipc\tests\unified_capture.rs:2476:        use whisper_core::parakeet_scheduler::{ScheduledCall, ScheduledWork, SchedulerSession};
+crates\whisper-adapters\src\worker_ipc\tests\unified_support.rs:5:    use whisper_core::ports::ParakeetDocumentPort;
+crates\whisper-adapters\src\worker_ipc\tests\unified_support.rs:6:    use whisper_core::{
+crates\whisper-adapters\src\worker_ipc\tests\unified_support.rs:7:        AppCommand, Application, ComputeChoice, Generation, ImportApplication, ImportRequest,
+crates\whisper-adapters\src\worker_ipc\tests\unified_support.rs:8:        JobConfig, JobId, JobState, LanguageChoice,
+crates\whisper-adapters\src\worker_ipc\tests\unified_support.rs:9:    };
+
+STDERR

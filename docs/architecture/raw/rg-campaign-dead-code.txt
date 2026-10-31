@@ -1,0 +1,58 @@
+$ rg -n \br7_|\bl2a2_|\bl3c_|l04_campaign|allow\(dead_code\)|\bClock\b|\bJobRepository\b|\bWorkerPort\b crates -g *.rs
+exit=0
+STDOUT
+crates\whisper-worker-parakeet-cpu\tests\native_import.rs:359:fn r7_private_worker_timing() {
+crates\whisper-worker-parakeet-cpu\tests\native_import.rs:374:            "r7_private_worker_timing_child",
+crates\whisper-worker-parakeet-cpu\tests\native_import.rs:409:fn r7_private_worker_timing_child() {
+crates\whisper-core\src\ports.rs:16:pub trait Clock {
+crates\whisper-core\src\ports.rs:20:pub trait JobRepository {
+crates\whisper-core\src\ports.rs:80:pub trait WorkerPort {
+crates\whisper-worker-common\src\decoder.rs:432:#[allow(dead_code)]
+crates\whisper-core\src\lib.rs:41:    ArchiveHistoryItem, Clock, DecodeRequest, DecodedPcmBlock, DecoderPort, DiagnosticNotice,
+crates\whisper-core\src\lib.rs:42:    DiagnosticPhase, ImportEffect, ImportEvent, ImportIoPort, ImportRequest, JobRepository,
+crates\whisper-core\src\lib.rs:44:    ParakeetDocumentPort, ParakeetPreview, ParakeetWindowCoverage, SourceIdentity, WorkerPort,
+crates\whisper-worker-cpu\src\main.rs:6:#[allow(dead_code)]
+crates\whisper-worker-cpu\src\qualification.rs:8:pub(crate) fn l04_campaign_worker_result<T, E: std::fmt::Display>(
+crates\whisper-worker-cpu\src\qualification.rs:74:pub(crate) fn l04_campaign_worker_result<T, E: std::fmt::Display>(
+crates\whisper-worker-cpu\src\qualification.rs:85:pub(crate) fn l04_campaign_gate(
+crates\whisper-worker-cpu\src\qualification.rs:300:pub(crate) fn l04_campaign_gate(
+crates\whisper-worker-parakeet-cpu\src\decoder.rs:146:#[allow(dead_code)]
+crates\whisper-adapters\tests\parakeet_import.rs:1554:fn r7_application_timing() {
+crates\whisper-adapters\tests\parakeet_import.rs:3207:    let l3c_r8 = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+crates\whisper-adapters\tests\parakeet_import.rs:3216:        root == r8 || root == r9 || root == l3c_r8 || root == l3d_r8,
+crates\whisper-worker-cpu\src\session\mod.rs:12:    qualification::{l04_campaign_gate, l04_campaign_worker_result},
+crates\whisper-worker-cpu\src\session\live.rs:26:        l04_campaign_gate(
+crates\whisper-worker-cpu\src\session\live.rs:70:                        l04_campaign_gate(
+crates\whisper-worker-cpu\src\session\live.rs:77:                        l04_campaign_worker_result(
+crates\whisper-worker-cpu\src\session\live.rs:173:                l04_campaign_gate(
+crates\whisper-worker-cpu\src\session\live.rs:184:                l04_campaign_gate(
+crates\whisper-worker-cpu\src\session\live.rs:193:                l04_campaign_worker_result(
+crates\whisper-worker-cpu\src\session\live.rs:217:                l04_campaign_gate(
+crates\whisper-worker-cpu\src\session\live.rs:232:                l04_campaign_worker_result(
+crates\whisper-worker-gpu\src\qualification.rs:8:pub(crate) fn l04_campaign_worker_result<T, E: std::fmt::Display>(
+crates\whisper-worker-gpu\src\qualification.rs:74:pub(crate) fn l04_campaign_worker_result<T, E: std::fmt::Display>(
+crates\whisper-worker-gpu\src\qualification.rs:85:pub(crate) fn l04_campaign_gate(
+crates\whisper-worker-gpu\src\qualification.rs:300:pub(crate) fn l04_campaign_gate(
+crates\whisper-worker-gpu\src\session\mod.rs:13:    qualification::{l04_campaign_gate, l04_campaign_worker_result},
+crates\whisper-worker-gpu\src\session\live.rs:25:        l04_campaign_gate(
+crates\whisper-worker-gpu\src\session\live.rs:70:                        l04_campaign_gate(
+crates\whisper-worker-gpu\src\session\live.rs:77:                        l04_campaign_worker_result(
+crates\whisper-worker-gpu\src\session\live.rs:173:                l04_campaign_gate(
+crates\whisper-worker-gpu\src\session\live.rs:184:                l04_campaign_gate(
+crates\whisper-worker-gpu\src\session\live.rs:193:                l04_campaign_worker_result(
+crates\whisper-worker-gpu\src\session\live.rs:217:                l04_campaign_gate(
+crates\whisper-worker-gpu\src\session\live.rs:232:                l04_campaign_worker_result(
+crates\whisper-adapters\src\parakeet_import.rs:695:    let (log_root, l3c_log, l3d_log) = if let Some(session_root) = session_log_root {
+crates\whisper-adapters\src\parakeet_import.rs:726:    let prefix = worker_log_prefix(is_gpu_worker, l3c_log, l3d_log);
+crates\whisper-adapters\src\parakeet_import.rs:739:fn worker_log_prefix(is_gpu_worker: bool, l3c_gpu_log: bool, l3d_gpu_log: bool) -> &'static str {
+crates\whisper-adapters\src\parakeet_import.rs:742:    } else if l3c_gpu_log {
+crates\whisper-adapters\src\parakeet_live\diagnostics_absence_tests.rs:26:    let r7_log = root.join("r7.jsonl");
+crates\whisper-adapters\src\parakeet_live\diagnostics_absence_tests.rs:39:            .env("PARAKEET_R7_TIMING_LOG", &r7_log)
+crates\whisper-adapters\src\parakeet_live\diagnostics_absence_tests.rs:53:        assert!(!r7_log.exists(), "legacy R7 log was created");
+crates\whisper-adapters\src\archive\tests\campaign.rs:3:    fn l04_campaign_gate_rejects_escape_and_duplicate_trigger() {
+crates\whisper-adapters\src\archive\tests\campaign.rs:79:        let test_name = "archive::tests::l04_campaign_gate_rejects_escape_and_duplicate_trigger";
+crates\whisper-adapters\src\archive\tests\recovery.rs:2:    fn r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision() {
+crates\whisper-adapters\src\worker_ipc\tests\resume_and_admission.rs:404:    fn r7_restart_resume_integrates_copy_crash_dialog_queue_and_publication() {
+crates\whisper-adapters\src\worker_ipc\tests\resume_and_admission.rs:944:    fn l3c_acceptance_fault_is_confined_to_its_canonical_execution_root() {
+
+STDERR

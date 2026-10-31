@@ -1,0 +1,52 @@
+$ rg -n include!|#\[path crates -g *.rs
+exit=0
+STDOUT
+crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:12:#[path = "support/worker.rs"]
+crates\whisper-worker-cpu\tests\worker_contract.rs:15:#[path = "reusable_imports.rs"]
+crates\whisper-worker-cpu\tests\worker_contract.rs:17:#[path = "support/worker.rs"]
+crates\whisper-worker-parakeet-cpu\tests\native_diagnostics_absence.rs:16:#[path = "support/worker.rs"]
+crates\whisper-worker-gpu\tests\worker_contract.rs:15:#[path = "support/worker.rs"]
+crates\whisper-worker-cpu\tests\reusable_imports.rs:11:#[path = "support/worker.rs"]
+crates\whisper-desktop\src\ui\tests.rs:1:include!("tests/root_support.rs");
+crates\whisper-desktop\src\ui\tests.rs:2:include!("tests/support.rs");
+crates\whisper-desktop\src\ui\tests.rs:3:include!("tests/import_and_lifecycle.rs");
+crates\whisper-desktop\src\ui\tests.rs:4:include!("tests/microphone_controls.rs");
+crates\whisper-desktop\src\ui\tests.rs:5:include!("tests/unified_sessions.rs");
+crates\whisper-desktop\src\ui\tests.rs:6:include!("tests/compute_and_catalog.rs");
+crates\whisper-desktop\src\ui\tests.rs:7:include!("tests/document_presentation.rs");
+crates\whisper-adapters\tests\parakeet_runtime_isolation.rs:6:    include!(concat!(
+crates\whisper-desktop\src\ui\model.rs:38:#[path = "tests/catalog_fixture.rs"]
+crates\whisper-desktop\src\ui\model.rs:41:#[path = "tests.rs"]
+crates\whisper-adapters\src\archive.rs:92:include!("archive/tests/publication_support.rs");
+crates\whisper-adapters\src\parakeet_live.rs:6:#[path = "parakeet_confirmation.rs"]
+crates\whisper-adapters\src\parakeet_import.rs:772:#[path = "parakeet_import/legacy_runtime_tests.rs"]
+crates\whisper-adapters\src\worker_ipc.rs:134:include!("worker_ipc/tests/stopped_ack.rs");
+crates\whisper-adapters\src\worker_ipc.rs:137:include!("worker_ipc/tests/runtime_support.rs");
+crates\whisper-adapters\src\parakeet_import\runtime_isolation_tests.rs:1:include!(concat!(
+crates\whisper-adapters\src\archive\tests.rs:1:include!("tests/archive_and_contracts.rs");
+crates\whisper-adapters\src\archive\tests.rs:2:include!("tests/recovery.rs");
+crates\whisper-adapters\src\archive\tests.rs:3:include!("tests/campaign.rs");
+crates\whisper-adapters\src\archive\tests.rs:4:include!("tests/replacement_and_segmented.rs");
+crates\whisper-adapters\src\archive\tests.rs:5:include!("tests/publication_characterization.rs");
+crates\whisper-adapters\src\archive\tests.rs:6:include!("tests/export_ownership_characterization.rs");
+crates\whisper-adapters\src\archive\tests.rs:7:include!("tests/recovery_characterization.rs");
+crates\whisper-adapters\src\archive\tests.rs:8:include!("tests/cleanup_characterization.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:1:include!("tests/unified_support.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:2:include!("tests/unified_import.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:3:include!("tests/unified_capture.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:4:include!("tests/native_execution.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:5:include!("tests/microphone_and_finalization.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:6:include!("tests/reprocessing_and_transport.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:7:include!("tests/resume_and_admission.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:8:include!("tests/queue_characterization.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:9:include!("tests/duplicate_characterization.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:10:include!("tests/effect_characterization.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:11:include!("tests/source_binding_entry.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:12:include!("tests/worker_command_poll.rs");
+crates\whisper-adapters\src\worker_ipc\tests.rs:14:include!("tests/unified_restart_and_pages.rs");
+crates\whisper-core\src\application\runtime\tests.rs:1:include!("tests/closing_and_recovery.rs");
+crates\whisper-core\src\application\runtime\tests.rs:2:include!("tests/selection_and_microphone.rs");
+crates\whisper-core\src\application\runtime\tests.rs:3:include!("tests/live_lifecycle.rs");
+crates\whisper-core\src\application\runtime\tests.rs:4:include!("tests/parakeet_sessions.rs");
+
+STDERR

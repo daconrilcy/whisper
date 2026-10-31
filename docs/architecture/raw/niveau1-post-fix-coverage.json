@@ -1,0 +1,8 @@
+{
+  "expected_harnesses": 73,
+  "observed_harnesses": 73,
+  "missing": [],
+  "unexpected": [],
+  "all_matched": true,
+  "method": "Multiensemble des cibles test/doctest metadata et libelles du run workspace unique ; noms homonymes comptes avec multiplicite."
+}

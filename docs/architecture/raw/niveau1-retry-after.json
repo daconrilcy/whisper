@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-31T22:18:03.2210515+01:00",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "source_test_diff": [],
+  "untracked_sources": [],
+  "guard_sha256": "0f8f692456aba2c9884f080cd38f1a5e0be1c5cb0ac2f85d7f4f82685f009323",
+  "free_gib": 185.49,
+  "missing_model_for_failed_test": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\niveau1-88850e8\\retry-20261031T215723\\l1b\\models\\ggml-large-v3-turbo.bin",
+  "missing_model_exists": false,
+  "accepted_audio_exists": true
+}

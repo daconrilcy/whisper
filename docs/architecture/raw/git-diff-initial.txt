@@ -1,0 +1,5 @@
+$ git --no-optional-locks -c maintenance.auto=false -c gc.auto=0 diff --stat
+exit=0
+STDOUT
+
+STDERR

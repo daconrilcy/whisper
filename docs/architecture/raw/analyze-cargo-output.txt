@@ -1,0 +1,118 @@
+{
+  "status": "COMPLETED_WITH_WARNINGS",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "metadata_exit_code": 0,
+  "clippy_exit_code": 0,
+  "clippy_seconds": 28,
+  "build_finished": true,
+  "workspace_packages": 8,
+  "warnings_emitted": 436,
+  "errors_emitted": 0,
+  "unique_diagnostics": 339,
+  "by_code": {
+    "dead_code": 31,
+    "clippy::too_many_lines": 257,
+    "clippy::field_reassign_with_default": 5,
+    "clippy::cognitive_complexity": 50,
+    "unused_imports": 6,
+    "unused_mut": 6,
+    "clippy::too_many_arguments": 8,
+    "clippy::manual_contains": 2,
+    "clippy::into_iter_on_ref": 2,
+    "clippy::while_let_loop": 2,
+    "clippy::type_complexity": 9,
+    "clippy::ok_expect": 5,
+    "clippy::assertions_on_constants": 1,
+    "clippy::duplicate_mod": 1,
+    "clippy::let_and_return": 8,
+    "clippy::chunks_exact_to_as_chunks": 12,
+    "clippy::if_same_then_else": 2,
+    "clippy::collapsible_if": 9,
+    "clippy::question_mark": 1,
+    "clippy::needless_borrows_for_generic_args": 1,
+    "clippy::needless_borrow": 1,
+    "unused_variables": 1,
+    "unused_assignments": 6,
+    "clippy::items_after_test_module": 2,
+    "clippy::drop_non_drop": 2,
+    "clippy::cloned_ref_to_slice_refs": 2,
+    "clippy::single_element_loop": 1,
+    "clippy::needless_return": 1,
+    "clippy::missing_const_for_thread_local": 1,
+    "clippy::len_zero": 1
+  },
+  "by_source_context": {
+    "production": 185,
+    "tests": 251,
+    "unknown": 0
+  },
+  "by_compilation_context": {
+    "non_test": 115,
+    "test": 321,
+    "unknown": 0
+  },
+  "cognitive_production_functions": 5,
+  "cognitive_test_source_functions": 39,
+  "source_scope": "workspace --all-targets ; pas --all-features ; aucun test execute",
+  "attribution": "[Déduction] Le profil test des diagnostics est relié à l’artefact suivant du même package/cible dans le flux JSON. Les spans et métriques viennent directement de Clippy.",
+  "guard_history": [
+    "Premier SelfTest interrompu : Changed sur .git, origine inconnue.",
+    "SelfTest de reprise réussi, garde inchangée.",
+    "Metadata réussie.",
+    "Premier Clippy interrompu : Changed sur .git/objects/pack/tmp_pack_XL5c72, origine inconnue.",
+    "Relance Clippy réussie avec la garde inchangée, autorisation de retenter malgré les événements extérieurs."
+  ],
+  "excluded_tools": [
+    "cargo-modules absent du PATH",
+    "cargo-depgraph absent du PATH",
+    "tokei et scc absents du PATH"
+  ],
+  "metadata_members_match_static_inventory": true,
+  "metadata_normal_internal_edges_match_static_graph": true,
+  "normal_internal_edges": [
+    [
+      "whisper-adapters",
+      "whisper-core"
+    ],
+    [
+      "whisper-bootstrap",
+      "whisper-adapters"
+    ],
+    [
+      "whisper-bootstrap",
+      "whisper-core"
+    ],
+    [
+      "whisper-desktop",
+      "whisper-adapters"
+    ],
+    [
+      "whisper-desktop",
+      "whisper-core"
+    ],
+    [
+      "whisper-worker-common",
+      "whisper-core"
+    ],
+    [
+      "whisper-worker-cpu",
+      "whisper-core"
+    ],
+    [
+      "whisper-worker-cpu",
+      "whisper-worker-common"
+    ],
+    [
+      "whisper-worker-gpu",
+      "whisper-core"
+    ],
+    [
+      "whisper-worker-gpu",
+      "whisper-worker-common"
+    ],
+    [
+      "whisper-worker-parakeet-cpu",
+      "whisper-core"
+    ]
+  ]
+}

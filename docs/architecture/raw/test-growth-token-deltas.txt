@@ -1,0 +1,449 @@
+crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs:4 recette_policy_l04_requires_the_feature
+ - l04_campaign_gate
+ + campaign_gate
+crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs:690 campaign_snapshot_skips_an_active_writer_lock
+ - l04_campaign_snapshot
+ + campaign_archive_snapshot
+crates/whisper-adapters/src/archive/tests/campaign.rs:1 l04_campaign_gate_rejects_escape_and_duplicate_trigger
+ - l04_campaign_gate
+ + campaign_gate
+ - l04_campaign_gate
+ + campaign_gate
+ - l04_campaign_gate
+ + campaign_gate
+ - l04_campaign_assert_archive
+ + assert_campaign_archive
+ - l04_campaign_assert_archive
+ + assert_campaign_archive
+ - l04_campaign_gate
+ + campaign_gate
+ - l04_campaign_gate
+ + campaign_gate
+ - l04_campaign_gate
+ + campaign_gate
+ - l04_campaign_gate
+ + campaign_gate
+ - l04_campaign_gate
+ + campaign_gate
+ - l04_campaign_gate
+ + campaign_gate
+ - l04_campaign_gate
+ + campaign_gate
+crates/whisper-adapters/src/archive/tests/recovery.rs:1 r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision
+ - 
+ + PublicationReconfirmation { source_sha256 :
+ - 
+ + source_samples :
+ - 
+ + expected_active :
+ - 
+ + choice :
+ - 
+ + reserved_basename :
+ - 
+ + confirmed_basename :
+ - 
+ + , }
+crates/whisper-adapters/src/capture.rs:839 callback_reuses_recycled_slots_without_blocking_or_saturating
+ - 
+ + CaptureCallbackState { capacity :
+ - 
+ + free :
+ - 
+ + ready :
+ - 
+ + status :
+ - 
+ + gain_state :
+ - 
+ + next_frame :
+ - 
+ + , }
+crates/whisper-adapters/src/capture.rs:883 callback_marks_partial_channel_frames_as_failed
+ - 
+ + CaptureCallbackState { capacity :
+ - 
+ + free :
+ - 
+ + ready :
+ - 
+ + status :
+ - 
+ + gain_state :
+ - 
+ + next_frame :
+ - 
+ + , }
+crates/whisper-adapters/src/capture.rs:916 callback_stamps_each_block_with_the_gain_active_at_its_acquisition_boundary
+ - 
+ + CaptureCallbackState { capacity :
+ - 
+ + free :
+ - 
+ + ready :
+ - 
+ + status :
+ - 
+ + gain_state :
+ - 
+ + next_frame :
+ - 
+ + , }
+ - 
+ + CaptureCallbackState { capacity :
+ - 
+ + free :
+ - 
+ + ready :
+ - 
+ + status :
+ - 
+ + gain_state :
+ - 
+ + next_frame :
+ - 
+ + , }
+crates/whisper-adapters/src/capture.rs:977 gain_published_during_sample_copy_belongs_to_the_next_callback_block
+ - 
+ + CaptureCallbackState { capacity :
+ - 
+ + free :
+ - 
+ + ready :
+ - 
+ + status :
+ - 
+ + gain_state :
+ - 
+ + next_frame :
+ - 
+ + , }
+ - 
+ + CaptureCallbackState { capacity :
+ - 
+ + free :
+ - 
+ + ready :
+ - 
+ + status :
+ - 
+ + gain_state :
+ - 
+ + next_frame :
+ - 
+ + , }
+crates/whisper-adapters/src/direct_live/d2_corpus.rs:142 d2_corpus_real_cpu_turbo_and_parakeet
+ - ,
+ + 
+crates/whisper-adapters/src/direct_live/d2_corpus.rs:539 test_status_writer_preserves_diagnostics
+ - ,
+ + 
+crates/whisper-adapters/src/gpu_inventory.rs:744 inventory_log_appends_timestamped_partial_snapshots_and_escapes_names
+ - 
+ + InventoryLogSnapshot { generation :
+ - 
+ + observations :
+ - 
+ + dxgi :
+ - 
+ + targets :
+ - 
+ + results :
+ - 
+ + error :
+ - 
+ + qualification_error :
+ - 
+ + , }
+ - 
+ + InventoryLogSnapshot { generation :
+ - 
+ + observations :
+ - 
+ + dxgi :
+ - 
+ + targets :
+ - 
+ + results :
+ - 
+ + error :
+ - 
+ + qualification_error :
+ - 
+ + , }
+crates/whisper-adapters/src/gpu_inventory.rs:792 inventory_log_write_failure_is_reportable_without_panicking
+ - 
+ + InventoryLogSnapshot { generation :
+ - 
+ + observations :
+ - 
+ + dxgi :
+ - 
+ + targets :
+ - 
+ + results :
+ - 
+ + error :
+ - 
+ + qualification_error :
+ - 
+ + , }
+crates/whisper-adapters/src/gpu_inventory.rs:813 inventory_log_keeps_dxgi_adapters_that_failed_identity_join
+ - 
+ + InventoryLogSnapshot { generation :
+ - 
+ + observations :
+ - 
+ + dxgi :
+ - 
+ + targets :
+ - 
+ + results :
+ - 
+ + error :
+ - 
+ + qualification_error :
+ - 
+ + , } ,
+crates/whisper-adapters/src/microphone_probe.rs:878 retry_epoch_discards_audio_acquired_before_the_retry_barrier
+ - 
+ + ) - Duration : : from_millis ( 1
+ - 
+ + assert_eq ! ( probe . dropped_updates ( ) , 1 , "old audio must be rejected" ) ; assert_eq ! ( probe . processed_chunks ( ) , 0 ) ; assert_eq ! ( probe . epoch ( ) , epoch ) ;
+ - 
+ + ( index ,
+ - 
+ + )
+ - 
+ + . into_iter ( ) . enumerate ( )
+ - 
+ + let deadline = Instant : : now ( ) + Duration : : from_secs ( 2 ) ; while probe . processed_chunks ( ) < ( index + 1 ) as u64 { assert ! ( Instant : : now ( ) < deadline , "fresh audio was not processed" ) ;
+ - sleep
+ + yield_now
+ - Duration : : from_millis
+ + ) ; } assert_eq !
+ - 10
+ + probe . epoch (
+ - 
+ + , epoch , "fresh audio must not be dropped" ) ; assert_eq ! ( probe . dropped_updates ( ) , 1
+ - "fresh retry spectrum did not arrive"
+ + "fresh retry spectrum did not arrive: epoch={}, dropped={}, processed={}, valid={}, latest={:?}" , probe . epoch ( ) , probe . dropped_updates ( ) , probe . processed_chunks ( ) , probe . valid . load ( Ordering : : Acquire ) , probe . latest . read ( ) . unwrap ( ) . as_ref ( ) . map ( | snapshot | ( snapshot . epoch , snapshot . last_frame , snapshot . spectrum . as_ref ( ) . map ( | spectrum | spectrum . captured_at . elapsed ( ) ) ) )
+crates/whisper-adapters/src/parakeet_live/microphone_spectrum_tests.rs:10 parakeet_capture_pump_publishes_frequency_spectrum_and_preserves_wav
+ - ( ) , trace : TraceSink : : disabled
+ + 
+ - 
+ + ,
+ - ,
+ + 
+crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:116 native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call
+ - 
+ + Box : : new (
+ - 
+ + )
+ - 
+ + runtime : : NativeRetryState { scheduler :
+ - 
+ + sessions :
+ - 
+ + archives :
+ - 
+ + executor_route :
+ - 
+ + executor :
+ - 
+ + , }
+ - r7_hex
+ + copy_resume_hex
+crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:3134 native_personal_cpu_finalizes_a_synthetic_capture_without_opening_hardware
+ - 
+ + WorkerRuntimeConfig { parakeet_paths :
+ - 
+ + gpu_parakeet_paths :
+ - 
+ + snapshot_registry_root :
+ - 
+ + require_snapshot_registry :
+ - 
+ + native_unified_candidate_enabled :
+ - 
+ + , }
+crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:3310 native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot
+ - 
+ + WorkerRuntimeConfig { parakeet_paths :
+ - 
+ + gpu_parakeet_paths :
+ - 
+ + snapshot_registry_root :
+ - 
+ + require_snapshot_registry :
+ - 
+ + native_unified_candidate_enabled :
+ - 
+ + , }
+crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs:1451 stdin_frames_preserve_live_start_and_admitted_window_before_normal_stop
+ - 
+ + *
+crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs:403 r7_restart_resume_integrates_copy_crash_dialog_queue_and_publication
+ - run_r7_integrated_copy_resume_case
+ + run_integrated_copy_resume_case
+ - run_r7_integrated_copy_resume_case
+ + run_integrated_copy_resume_case
+crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs:942 l3c_acceptance_fault_is_confined_to_its_canonical_execution_root
+ - canonical_l3_acceptance_root
+ + canonical_extended_acceptance_root
+ - l2a2_acceptance_take_worker_fault
+ + take_acceptance_worker_fault
+ - l2a2_acceptance_take_worker_fault
+ + take_acceptance_worker_fault
+ - canonical_l3_acceptance_root
+ + canonical_extended_acceptance_root
+crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs:1155 resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution
+ - repository_root
+ + PathBuf : : from ( std : : env : : var_os ( "WHISPER_L1B_RUNTIME_ROOT" ) . expect ( "bounded runtime" ) )
+ - repository_root
+ + model
+ - join
+ + parent
+ - "models"
+ + ) . unwrap ( ) . to_path_buf (
+crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:2022 unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready
+ - None , None , None , false , false
+ + WorkerRuntimeConfig : : default ( )
+crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:871 queued_create_only_publication_paths_reach_app_view
+ - None , None ,
+ + WorkerRuntimeConfig { snapshot_registry_root :
+ - 
+ + require_snapshot_registry :
+ - false
+ + . . WorkerRuntimeConfig : : default ( ) }
+crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:975 resumed_create_only_publication_paths_reach_app_view
+ - None , None ,
+ + WorkerRuntimeConfig { snapshot_registry_root :
+ - 
+ + require_snapshot_registry :
+ - false
+ + . . WorkerRuntimeConfig : : default ( ) }
+crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:1407 reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result
+ - None , None ,
+ + WorkerRuntimeConfig { snapshot_registry_root :
+ - 
+ + require_snapshot_registry :
+ - false
+ + . . WorkerRuntimeConfig : : default ( ) }
+ - 
+ + : Box : : new ( prompt )
+ - 
+ + ,
+crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:1561 import_application_resumes_a_verified_interrupted_unified_import
+ - None , None ,
+ + WorkerRuntimeConfig { snapshot_registry_root :
+ - 
+ + require_snapshot_registry :
+ - false
+ + . . WorkerRuntimeConfig : : default ( ) }
+crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:1966 failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity
+ - None , None ,
+ + WorkerRuntimeConfig { snapshot_registry_root :
+ - 
+ + require_snapshot_registry :
+ - false
+ + . . WorkerRuntimeConfig : : default ( ) }
+crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:2121 failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity
+ - None , None ,
+ + WorkerRuntimeConfig { snapshot_registry_root :
+ - 
+ + require_snapshot_registry :
+ - false
+ + . . WorkerRuntimeConfig : : default ( ) }
+crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs:11 recette_policy_l2a2_requires_the_feature
+ - l2a2_acceptance_barrier
+ + acceptance_barrier
+crates/whisper-adapters/tests/import_cpu.rs:25 r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives
+ - 
+ + : Box : : new ( prompt )
+ - 
+ + Box : : new (
+ - 
+ + )
+ - 
+ + : Box : : new ( prompt )
+crates/whisper-adapters/tests/reprocessing_cleanup.rs:844 replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request
+ - 
+ + : Box : : new ( prompt )
+crates/whisper-adapters/tests/reprocessing_create.rs:238 application_create_new_processes_the_bound_snapshot_and_preserves_prior_publication
+ - 
+ + : Box : : new ( prompt )
+crates/whisper-core/src/application/runtime/tests/closing_and_recovery.rs:26 close_blocks_direct_and_indirect_admissions_without_submitting_effects
+ - 
+ + : Box : : new ( prompt )
+crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs:790 stale_duplicate_dialog_response_cannot_submit_a_replacement
+ - 
+ + Box : : new (
+ - 
+ + )
+crates/whisper-core/tests/parakeet_ipc.rs:15 transcribe_command_carries_complete_build_runtime_profile_and_attempt_identity
+ - 
+ + Box : : new (
+ - 
+ + )
+ - 
+ + *
+crates/whisper-desktop/tests/model_selection_ui.rs:306 disconnected_preference_worker_reports_failed_model_and_compute_saves
+ - 
+ + assert_eq ! ( result , Err ( PreferenceChannelError : : Disconnected ) ) ;
+ - 
+ + assert_eq ! ( result , Err ( PreferenceChannelError : : Disconnected ) ) ;
+crates/whisper-worker-cpu/tests/reusable_imports.rs:112 cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache
+ - 
+ + pub ( crate )
+ - model_path
+ + _
+ - std : : env : : var_os
+ + run_for_exe
+ - "WHISPER_TEST_REUSE_MODEL" ) . map ( PathBuf : : from ) . expect ( "set WHISPER_TEST_REUSE_MODEL to the local model path" ) ; assert ! ( model_path . is_file ( ) , "the configured model must exist" ) ; let root =
+ + 
+ - : : new ( env ! ( "CARGO_MANIFEST_DIR" ) ) . join ( "../../target" ) . join ( format ! ( "whisper-reusable-imports-{}" , std : : process : : id ( ) ) ) ; fs : : create_dir_all ( & root ) . unwrap ( ) ; let source_path = root . join ( "silent.wav" ) ; write_silent_wav ( & source_path ) ; let source_sha256 = hash_file ( & source_path ) ; let model_sha256 = hash_file ( & model_path ) ; let mut child = KillOnDrop ( Command
+ + 
+ - . stdin ( Stdio : : piped ( ) ) . stdout ( Stdio : : piped ( ) ) . stderr ( Stdio : : piped ( ) ) . spawn ( ) . unwrap ( ) , ) ; let mut input = child . 0 . stdin . take ( ) . unwrap ( ) ; let stdout = child . 0 . stdout . take ( ) . unwrap ( ) ; let mut stderr = child . 0 . stderr . take ( ) . unwrap ( ) ; let stderr_reader = thread : : spawn ( move | | { let mut bytes = Vec : : new ( ) ; stderr . read_to_end ( & mut bytes ) . unwrap ( ) ; bytes } ) ; let ( event_tx , event_rx ) = mpsc : : channel ( ) ; let stdout_reader = thread : : spawn ( move | | { let mut output = BufReader : : new ( stdout ) ; let mut line = String : : new ( ) ; loop { line . clear ( ) ; match output . read_line ( & mut line ) { Ok ( 0 ) = > return , Ok ( _ ) = > { let event = serde_json : : from_str ( & line ) . map_err ( | error | error . to_string ( ) ) ; if event_tx . send ( event ) . is_err ( ) { return ; } } Err ( error ) = > { let _ = event_tx . send ( Err ( error . to_string ( ) ) ) ; return ; } } } } ) ; for ( job , instance ) in [ ( JobId ( 901 ) , 61 ) , ( JobId ( 902 ) , 62 ) ] { send ( & mut input , WorkerCommand : : StartImport { retain_after_publish : true , job_id : job , generation : Generation : : first ( ) , instance_id : instance , source_path : source_path . to_string_lossy ( ) . into_owned ( ) , source_sha256 , expected_source_samples : 16_000 , model_path : model_path . to_string_lossy ( ) . into_owned ( ) , model_sha256 , config : JobConfig { language : LanguageChoice : : Automatic , compute : ComputeChoice : : Cpu , } , } , ) ; await_end ( & event_rx , job , instance
+ + 
+ - send ( & mut input , WorkerCommand : : Shutdown ) ; drop ( input ) ; assert ! ( child . 0 . wait ( ) . unwrap ( ) . success ( ) ) ; stdout_reader . join ( ) . unwrap ( ) ; let stderr = String : : from_utf8 ( stderr_reader . join ( ) . unwrap ( ) ) . unwrap ( ) ; assert ! ( stderr . contains ( "startup_perf model_cache=load backend=cpu" ) ) ; assert ! ( stderr . contains ( "startup_perf model_cache=hit backend=cpu" ) ) ; fs : : remove_dir_all ( root ) . unwrap ( ) ; }
+ + 
+crates/whisper-worker-parakeet-cpu/src/reference_decoder/tests.rs:56 reference_wav_decoder_matches_product_decoder_and_reads_sixty_minutes
+ - ,
+ + 
+crates/whisper-worker-parakeet-cpu/src/runtime_paths/tests.rs:14 accepts_only_the_two_canonical_l2_test_roots
+ - Path : : new
+ + fixture_repository
+ - env ! ( "CARGO_MANIFEST_DIR" ) ) . join ( ".." ) . join ( ".."
+ + 
+ - assert
+ + assert_eq
+ - 
+ + , ! cfg ! ( feature = "parakeet-personal" )
+ - assert
+ + assert_eq
+ - 
+ + , ! cfg ! ( feature = "parakeet-personal" )
+ - assert
+ + assert_eq
+ - !
+ + 
+ - 
+ + ) , cfg ! ( feature = "parakeet-qualification-reference" ) & & ! cfg ! ( feature = "parakeet-personal"
+crates/whisper-worker-parakeet-cpu/src/runtime_paths/tests.rs:52 gpu_worker_allows_only_the_canonical_l3_runtime_roots
+ - Path : : new
+ + fixture_repository
+ - env ! ( "CARGO_MANIFEST_DIR" ) ) . join ( ".." ) . join ( ".."
+ + 
+crates/whisper-worker-parakeet-cpu/src/runtime_paths/tests.rs:79 qualification_profiles_are_confined_to_l2b
+ - Path : : new
+ + fixture_repository
+ - env ! ( "CARGO_MANIFEST_DIR" ) ) . join ( ".." ) . join ( ".."
+ + 
+ - assert
+ + assert_eq
+ - 
+ + , ! cfg ! ( feature = "parakeet-cuda" ) & & ! cfg ! ( feature = "parakeet-personal" )
+crates/whisper-worker-parakeet-cpu/tests/native_import.rs:1078 gpu_worker_rejects_wrong_device_before_audio
+ - 
+ + : Box : : new ( identity )

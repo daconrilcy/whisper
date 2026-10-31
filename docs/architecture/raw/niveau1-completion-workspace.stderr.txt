@@ -1,0 +1,468 @@
+warning: method `kind_name` is never used
+ --> crates\whisper-core\src\application\event_metadata.rs:5:19
+  |
+4 | impl ImportEvent {
+  | ---------------- method in this implementation
+5 |     pub(super) fn kind_name(&self) -> &'static str {
+  |                   ^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `whisper-core` (lib) generated 1 warning
+warning: `whisper-core` (lib test) generated 1 warning (1 duplicate)
+warning: unused imports: `ParakeetExportOutcome` and `export_parakeet_manifest`
+  --> crates\whisper-adapters\src\direct_live.rs:15:5
+   |
+15 |     ParakeetExportOutcome, automatic_final_output_paths, export_parakeet_manifest,
+   |     ^^^^^^^^^^^^^^^^^^^^^                                ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ParakeetExportOutcome`
+  --> crates\whisper-adapters\src\direct_live.rs:15:5
+   |
+15 |     ParakeetExportOutcome, automatic_final_output_paths, export_parakeet_manifest,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `path::PathBuf`
+   --> crates\whisper-adapters\src\parakeet_pipeline.rs:624:9
+    |
+624 |         path::PathBuf,
+    |         ^^^^^^^^^^^^^
+
+warning: unused imports: `FinishedLiveWindow`, `LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL`, `ParakeetVadRun`, `PendingLiveState`, `PreflightResult`, `append_vad_parakeet_word_group`, `campaign_reserve_attempt`, `collision_free_job_id`, `pending_unified_event_identity`, and `scan_archive_history`
+  --> crates\whisper-adapters\src\worker_ipc.rs:9:5
+   |
+ 9 |     FinishedLiveWindow, ImportRequestState, LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL,
+   |     ^^^^^^^^^^^^^^^^^^                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+10 |     LiveCaptureState, LiveRecoveryState, ParakeetStoppedExit, ParakeetVadRun, PendingLiveState,
+   |                                                               ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^
+11 |     PreflightResult, TDT_FRAME_OVERLAP_SAMPLES, acceptance_barrier,
+   |     ^^^^^^^^^^^^^^^
+12 |     append_single_pass_parakeet_word_group, append_vad_parakeet_word_group,
+   |                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+13 |     bind_unidentified_startup_failure, campaign_reserve_attempt, collision_free_job_id,
+   |                                        ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+14 |     live_capture_poll_allowed, map_attempt_sequence, parakeet_stopped_exit, parakeet_vad_segments,
+15 |     pending_unified_event_identity, queued_request_identity_matches, recovery_stop_counters,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+16 |     scan_archive_history, take_ready_live_stop, unix_time_ms,
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+  --> crates\whisper-adapters\src\direct_live\tests.rs:31:9
+   |
+31 |     let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+   |         ----^^^^^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> crates\whisper-adapters\src\parakeet_live\microphone_spectrum_tests.rs:35:9
+   |
+35 |     let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+   |         ----^^^^^^^
+   |         |
+   |         help: remove this `mut`
+
+warning: unused variable: `source`
+    --> crates\whisper-adapters\src\parakeet_pipeline.rs:1003:13
+     |
+1003 |         let source = PcmPartStore::open(&audio_path);
+     |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_source`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `last_message` is never read
+   --> crates\whisper-adapters\src\worker_ipc\tests/unified_import.rs:513:32
+    |
+513 |         let mut last_message = None;
+    |                                ^^^^ this value is reassigned later and never used
+...
+518 |             last_message = view.message.clone();
+    |             ------------ `last_message` is overwritten here before the previous value is read
+    |
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `last_message` is never read
+    --> crates\whisper-adapters\src\worker_ipc\tests/unified_import.rs:1490:36
+     |
+1490 |             let mut last_message = None;
+     |                                    ^^^^ this value is reassigned later and never used
+...
+1495 |                 last_message = view.message.clone();
+     |                 ------------ `last_message` is overwritten here before the previous value is read
+
+warning: value assigned to `first_text_available` is never read
+    --> crates\whisper-adapters\src\worker_ipc\tests/native_execution.rs:2226:40
+     |
+2226 |         let mut first_text_available = None;
+     |                                        ^^^^ this value is reassigned later and never used
+...
+2502 |                     first_text_available = Some(Instant::now());
+     |                     ------------------------------------------- `first_text_available` is overwritten here before the previous value is read
+
+warning: value assigned to `c_published_at` is never read
+    --> crates\whisper-adapters\src\worker_ipc\tests/native_execution.rs:2991:34
+     |
+2991 |         let mut c_published_at = None;
+     |                                  ^^^^ this value is reassigned later and never used
+...
+3029 |                     c_published_at = Some(now);
+     |                     -------------------------- `c_published_at` is overwritten here before the previous value is read
+
+warning: value assigned to `capture_events_since_worker` is never read
+   --> crates\whisper-adapters\src\worker_ipc\tests/microphone_and_finalization.rs:177:9
+    |
+177 |         capture_events_since_worker = 0;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+   --> crates\whisper-adapters\src\worker_ipc\tests/microphone_and_finalization.rs:219:13
+    |
+219 |         let mut capture = CaptureStream::empty_test_capture(16_000, 1, "test:legacy");
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates\whisper-adapters\src\worker_ipc\tests/microphone_and_finalization.rs:634:13
+    |
+634 |         let mut capture =
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: value assigned to `final_failure_at` is never read
+    --> crates\whisper-adapters\src\worker_ipc\tests/microphone_and_finalization.rs:1189:36
+     |
+1189 |         let mut final_failure_at = None;
+     |                                    ^^^^ this value is reassigned later and never used
+...
+1197 |                     final_failure_at = Some(Instant::now());
+     |                     --------------------------------------- `final_failure_at` is overwritten here before the previous value is read
+
+warning: fields `incarnation` and `pid` are never read
+  --> crates\whisper-adapters\src\worker_ipc/tests/runtime_support.rs:20:9
+   |
+19 |     Spawned {
+   |     ------- fields in this variant
+20 |         incarnation: u64,
+   |         ^^^^^^^^^^^
+21 |         pid: u32,
+   |         ^^^
+   |
+   = note: `NativeQualificationEventKind` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `word_count` is never read
+  --> crates\whisper-adapters\src\worker_ipc/tests/runtime_support.rs:50:9
+   |
+42 |     Result {
+   |     ------ field in this variant
+...
+50 |         word_count: usize,
+   |         ^^^^^^^^^^
+   |
+   = note: `NativeQualificationEventKind` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: method `hold_next_reserved_call_once` is never used
+   --> crates\whisper-adapters\src\worker_ipc\runtime\support.rs:357:34
+    |
+297 | impl ImportRuntime {
+    | ------------------ method in this implementation
+...
+357 |     pub(in crate::worker_ipc) fn hold_next_reserved_call_once(&mut self) {
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `CONTROLLED_TIMEOUT` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\support\worker.rs:13:11
+   |
+13 | pub const CONTROLLED_TIMEOUT: Duration = Duration::from_secs(300);
+   |           ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `PROFILE_QUALIFICATION_REFERENCE`
+ --> crates\whisper-worker-parakeet-cpu\src\args.rs:3:58
+  |
+3 | use whisper_core::parakeet_windows::{PROFILE_IMPORT_VAD, PROFILE_QUALIFICATION_REFERENCE};
+  |                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates\whisper-worker-parakeet-cpu\src\runtime_paths.rs:116:13
+    |
+116 |         let mut roots = ["l2a-1", "l2a-2"]
+    |             ----^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `transcribe` is never used
+  --> crates\whisper-worker-parakeet-cpu\src\native_engine.rs:42:12
+   |
+17 | impl Engine {
+   | ----------- method in this implementation
+...
+42 |     pub fn transcribe(&mut self, audio: &DecodedAudio) -> Result<(String, Vec<Word>, u64), String> {
+   |            ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `allowed_runtime_roots_for` is never used
+   --> crates\whisper-worker-parakeet-cpu\src\runtime_paths.rs:133:4
+    |
+133 | fn allowed_runtime_roots_for(repository: &Path, lots: &[&str]) -> Vec<PathBuf> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `campaign_root` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:15:4
+   |
+15 | fn campaign_root() -> PathBuf {
+   |    ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `decode_case` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:27:4
+   |
+27 | fn decode_case(
+   |    ^^^^^^^^^^^
+
+warning: struct `NativeWorker` is never constructed
+  --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:85:8
+   |
+85 | struct NativeWorker {
+   |        ^^^^^^^^^^^^
+
+warning: function `sha256` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:92:4
+   |
+92 | fn sha256(path: &Path) -> String {
+   |    ^^^^^^
+
+warning: function `start_worker` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:106:4
+    |
+106 | fn start_worker(executable: &Path) -> NativeWorker {
+    |    ^^^^^^^^^^^^
+
+warning: methods `send`, `event`, and `finish` are never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:193:8
+    |
+192 | impl NativeWorker {
+    | ----------------- methods in this implementation
+193 |     fn send(&mut self, message: serde_json::Value) {
+    |        ^^^^
+...
+199 |     fn event(&self) -> serde_json::Value {
+    |        ^^^^^
+...
+208 |     fn finish(mut self) -> std::process::ExitStatus {
+    |        ^^^^^^
+
+warning: function `worker_paths` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:220:4
+    |
+220 | fn worker_paths() -> (PathBuf, PathBuf) {
+    |    ^^^^^^^^^^^^
+
+warning: function `ready` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:231:4
+    |
+231 | fn ready(
+    |    ^^^^^
+
+warning: function `normalize` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:253:4
+    |
+253 | fn normalize(mut event: serde_json::Value) -> serde_json::Value {
+    |    ^^^^^^^^^
+
+warning: function `request` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:275:4
+    |
+275 | fn request(
+    |    ^^^^^^^
+
+warning: function `refusal_case` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:288:4
+    |
+288 | fn refusal_case(executable: &Path) -> Vec<serde_json::Value> {
+    |    ^^^^^^^^^^^^
+
+warning: function `errors_case` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:357:4
+    |
+357 | fn errors_case(executable: &Path) -> Vec<serde_json::Value> {
+    |    ^^^^^^^^^^^
+
+warning: function `native_case` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\worker_contract.rs:398:4
+    |
+398 | fn native_case(executable: &Path) -> serde_json::Value {
+    |    ^^^^^^^^^^^
+
+warning: constant `CONTROLLED_TIMEOUT` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\support\worker.rs:13:11
+   |
+13 | pub const CONTROLLED_TIMEOUT: Duration = Duration::from_secs(300);
+   |           ^^^^^^^^^^^^^^^^^^
+
+warning: constant `NATIVE_TIMEOUT` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\support\worker.rs:14:11
+   |
+14 | pub const NATIVE_TIMEOUT: Duration = Duration::from_secs(600);
+   |           ^^^^^^^^^^^^^^
+
+warning: method `id` is never used
+  --> crates\whisper-worker-parakeet-cpu\tests\support\worker.rs:52:12
+   |
+24 | impl BoundedChild {
+   | ----------------- method in this implementation
+...
+52 |     pub fn id(&self) -> u32 {
+   |            ^^
+
+warning: function `finish_reader` is never used
+   --> crates\whisper-worker-parakeet-cpu\tests\support\worker.rs:134:8
+    |
+134 | pub fn finish_reader<T>(reader: JoinHandle<T>, child: &BoundedChild) -> T {
+    |        ^^^^^^^^^^^^^
+
+warning: `whisper-adapters` (lib) generated 1 warning (run `cargo fix --lib -p whisper-adapters` to apply 1 suggestion)
+warning: `whisper-adapters` (lib test) generated 17 warnings (run `cargo fix --lib -p whisper-adapters --tests` to apply 8 suggestions)
+warning: `whisper-worker-parakeet-cpu` (test "native_diagnostics_absence") generated 1 warning
+warning: `whisper-worker-parakeet-cpu` (bin "whisper-worker-parakeet-cpu") generated 4 warnings (run `cargo fix --bin "whisper-worker-parakeet-cpu" -p whisper-worker-parakeet-cpu` to apply 2 suggestions)
+warning: `whisper-worker-parakeet-cpu` (bin "whisper-worker-parakeet-cpu" test) generated 3 warnings (3 duplicates)
+warning: `whisper-worker-parakeet-cpu` (test "worker_contract") generated 17 warnings
+warning: constant `CONTROLLED_TIMEOUT` is never used
+  --> crates\whisper-worker-cpu\tests\support\worker.rs:13:11
+   |
+13 | pub const CONTROLLED_TIMEOUT: Duration = Duration::from_secs(300);
+   |           ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `id` is never used
+  --> crates\whisper-worker-cpu\tests\support\worker.rs:52:12
+   |
+24 | impl BoundedChild {
+   | ----------------- method in this implementation
+...
+52 |     pub fn id(&self) -> u32 {
+   |            ^^
+
+warning: method `id` is never used
+  --> crates\whisper-worker-gpu\tests\support\worker.rs:52:12
+   |
+24 | impl BoundedChild {
+   | ----------------- method in this implementation
+...
+52 |     pub fn id(&self) -> u32 {
+   |            ^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `whisper-worker-cpu` (test "worker_contract") generated 2 warnings
+warning: `whisper-worker-cpu` (test "reusable_imports") generated 2 warnings (2 duplicates)
+warning: `whisper-worker-gpu` (test "worker_contract") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.58s
+     Running unittests src\lib.rs (target\parakeet-tests\cargo-shared\debug\deps\whisper_adapters-819f8b8279e3d135.exe)
+Preserved internal publication test artifacts at C:\dev\whisper\target\parakeet-tests\refacto-parakeet-live\tmp\whisper-create-only-publication-89104-1793481732184561400
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT
+NOT RUN: missing campaign variable(s): PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_EN_WAV, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR
+
+thread 'parakeet-unified-inference' (126104) panicked at crates\whisper-adapters\src\worker_ipc\parakeet_unified\executor.rs:225:37:
+controlled unified worker panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+Preserved queued publication test artifacts at C:\dev\whisper\target\parakeet-tests\refacto-parakeet-live\tmp\whisper-adapter-tests\queued-create-only-app-view-89104\89104-1793481784142746600
+Preserved reprocessing publication test artifacts at C:\dev\whisper\target\parakeet-tests\refacto-parakeet-live\tmp\whisper-adapter-tests\reprocessing-create-only-app-view-89104\89104-1793481785326149100
+Preserved resumed publication test artifacts at C:\dev\whisper\target\parakeet-tests\refacto-parakeet-live\tmp\whisper-adapter-tests\resumed-create-only-app-view-89104\89104-1793481835881956100
+     Running tests\decoder_proxy.rs (target\parakeet-tests\cargo-shared\debug\deps\decoder_proxy-4d0d332f9a9ae851.exe)
+     Running tests\durability.rs (target\parakeet-tests\cargo-shared\debug\deps\durability-b69b9038ec763167.exe)
+     Running tests\gpu_inventory.rs (target\parakeet-tests\cargo-shared\debug\deps\gpu_inventory-fa71614ddde48813.exe)
+     Running tests\gpu_qualification_transport.rs (target\parakeet-tests\cargo-shared\debug\deps\gpu_qualification_transport-0e68e8b8d1d388bb.exe)
+     Running tests\gpu_selection_worker.rs (target\parakeet-tests\cargo-shared\debug\deps\gpu_selection_worker-3076696141d3a654.exe)
+V-L04 REAL GPU NOT RUN: WHISPER_L04_MODEL absent
+     Running tests\gpu_settings.rs (target\parakeet-tests\cargo-shared\debug\deps\gpu_settings-a5b0b26d763f1011.exe)
+     Running tests\import_cpu.rs (target\parakeet-tests\cargo-shared\debug\deps\import_cpu-d269d98c802515ff.exe)
+V-IMPORT NOT RUN: set WHISPER_L01_FIXTURE to the D19-manifested micro_test.wav
+V-IMPORT decode block NOT RUN: set WHISPER_L01_FIXTURE
+V-IMPORT Stop-in-inference NOT RUN: fixture/model environment missing
+     Running tests\import_mp3.rs (target\parakeet-tests\cargo-shared\debug\deps\import_mp3-4283e730caabbc11.exe)
+R11 MP3 duplicate identity NOT RUN: WHISPER_L02_MP3_FIXTURE is absent
+V-IMPORT-MP3 NOT RUN: set WHISPER_L02_MP3_FIXTURE to a Q-07 profile fixture
+V-IMPORT-MP3 NOT RUN: set WHISPER_L02_MP3_FIXTURE to a Q-07 profile fixture
+     Running tests\legacy_model_requests.rs (target\parakeet-tests\cargo-shared\debug\deps\legacy_model_requests-4863928226cc141e.exe)
+     Running tests\live_archive.rs (target\parakeet-tests\cargo-shared\debug\deps\live_archive-0cc68e5a2c8a3dc5.exe)
+     Running tests\live_capture.rs (target\parakeet-tests\cargo-shared\debug\deps\live_capture-bb4477e5327f7b88.exe)
+     Running tests\microphone_level.rs (target\parakeet-tests\cargo-shared\debug\deps\microphone_level-73cc67d680496804.exe)
+     Running tests\microphone_probe.rs (target\parakeet-tests\cargo-shared\debug\deps\microphone_probe-7efa0a1c11f79264.exe)
+     Running tests\microphone_settings.rs (target\parakeet-tests\cargo-shared\debug\deps\microphone_settings-ce2326eee6e2f777.exe)
+     Running tests\model_catalog.rs (target\parakeet-tests\cargo-shared\debug\deps\model_catalog-f79e369d3f25e270.exe)
+     Running tests\model_preferences.rs (target\parakeet-tests\cargo-shared\debug\deps\model_preferences-57fb3a34f75f9e67.exe)
+     Running tests\parakeet_archive.rs (target\parakeet-tests\cargo-shared\debug\deps\parakeet_archive-9ef1aeaa7e706cdc.exe)
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_R7_EXEC_ROOT
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV
+     Running tests\parakeet_archive_personal_history.rs (target\parakeet-tests\cargo-shared\debug\deps\parakeet_archive_personal_history-b2eb0fecc71718ff.exe)
+     Running tests\parakeet_command_wire.rs (target\parakeet-tests\cargo-shared\debug\deps\parakeet_command_wire-01b5d9ae96983855.exe)
+     Running tests\parakeet_control.rs (target\parakeet-tests\cargo-shared\debug\deps\parakeet_control-e20274998e72d676.exe)
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL
+     Running tests\parakeet_import.rs (target\parakeet-tests\cargo-shared\debug\deps\parakeet_import-2355274c92cb2d17.exe)
+L3b_RECIPE_NOT_RUN gpu_app_en5: no matching guarded recipe selector
+L3b_RECIPE_NOT_RUN gpu_app_en5_timing_diagnostic: no matching guarded recipe selector
+L3b_RECIPE_NOT_RUN gpu_app_en5_twice_release: no matching guarded recipe selector
+L3b_RECIPE_NOT_RUN gpu_app_fr_en_single_pass: no matching guarded recipe selector
+NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR
+     Running tests\parakeet_long.rs (target\parakeet-tests\cargo-shared\debug\deps\parakeet_long-7e76827216ba97b7.exe)
+     Running tests\parakeet_runtime_isolation.rs (target\parakeet-tests\cargo-shared\debug\deps\parakeet_runtime_isolation-76abf408366be124.exe)
+     Running tests\parakeet_unified_native.rs (target\parakeet-tests\cargo-shared\debug\deps\parakeet_unified_native-3dccf96a2522e1d1.exe)
+     Running tests\publication_lock_contract.rs (target\parakeet-tests\cargo-shared\debug\deps\publication_lock_contract-7f29c8497827e6de.exe)
+     Running tests\reprocessing_baseline.rs (target\parakeet-tests\cargo-shared\debug\deps\reprocessing_baseline-6524b892115bd042.exe)
+     Running tests\reprocessing_cleanup.rs (target\parakeet-tests\cargo-shared\debug\deps\reprocessing_cleanup-78c8b41d04b4ce57.exe)
+     Running tests\reprocessing_create.rs (target\parakeet-tests\cargo-shared\debug\deps\reprocessing_create-c69dbf03f3e3eff8.exe)
+[rtc01-r1] catalog inspection: 23.9461123s
+[rtc01-r1] duplicate prompt after 20.9315ms
+     Running tests\source_binding.rs (target\parakeet-tests\cargo-shared\debug\deps\source_binding-ff41f8fcbd756714.exe)
+     Running tests\vad_contract.rs (target\parakeet-tests\cargo-shared\debug\deps\vad_contract-7a8c686c87effda0.exe)
+     Running tests\worker_control.rs (target\parakeet-tests\cargo-shared\debug\deps\worker_control-8355c9145b1d2301.exe)
+     Running unittests src\main.rs (target\parakeet-tests\cargo-shared\debug\deps\whisper_bootstrap-b5a48069fc1d3f84.exe)
+     Running unittests src\lib.rs (target\parakeet-tests\cargo-shared\debug\deps\whisper_core-f5bdc46185b42ef4.exe)
+     Running tests\application_routing.rs (target\parakeet-tests\cargo-shared\debug\deps\application_routing-c20fe94dfd19b998.exe)
+     Running tests\compute_policy.rs (target\parakeet-tests\cargo-shared\debug\deps\compute_policy-138528cc0d869de0.exe)
+     Running tests\engine_capabilities.rs (target\parakeet-tests\cargo-shared\debug\deps\engine_capabilities-ffb1278c7a95d64b.exe)
+     Running tests\gpu_inventory.rs (target\parakeet-tests\cargo-shared\debug\deps\gpu_inventory-71faade3bc2bff5e.exe)
+     Running tests\gpu_selection.rs (target\parakeet-tests\cargo-shared\debug\deps\gpu_selection-e5e9dd914b22b65e.exe)
+     Running tests\import_contract.rs (target\parakeet-tests\cargo-shared\debug\deps\import_contract-5a9238cff8963c13.exe)
+     Running tests\live_contract.rs (target\parakeet-tests\cargo-shared\debug\deps\live_contract-b494d4a0c649c2e0.exe)
+     Running tests\microphone_level.rs (target\parakeet-tests\cargo-shared\debug\deps\microphone_level-89ee8b5e345cbcc0.exe)
+     Running tests\model_catalog.rs (target\parakeet-tests\cargo-shared\debug\deps\model_catalog-1a36f9f718a49aff.exe)
+     Running tests\model_preferences.rs (target\parakeet-tests\cargo-shared\debug\deps\model_preferences-7c188bb10df88038.exe)
+     Running tests\model_selection_app.rs (target\parakeet-tests\cargo-shared\debug\deps\model_selection_app-00d6f7f391ea2f7d.exe)
+     Running tests\parakeet_import_contract.rs (target\parakeet-tests\cargo-shared\debug\deps\parakeet_import_contract-1938b122be304fc8.exe)
+
+thread 'personal_release_keys_match_the_qualified_candidate_b_workers_and_dll_sets' (136948) panicked at crates\whisper-core\tests\parakeet_import_contract.rs:224:5:
+assertion `left == right` failed
+  left: "a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d"
+ right: "84c371d4df55043ada4a1d96b80180ed0c03b208410c599262c8ea3762304e60"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p whisper-core --test parakeet_import_contract`

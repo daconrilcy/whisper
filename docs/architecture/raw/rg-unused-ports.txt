@@ -1,0 +1,11 @@
+$ rg -n \b(?:Clock|JobRepository|WorkerPort)\b crates -g *.rs
+exit=0
+STDOUT
+crates\whisper-core\src\ports.rs:16:pub trait Clock {
+crates\whisper-core\src\ports.rs:20:pub trait JobRepository {
+crates\whisper-core\src\ports.rs:80:pub trait WorkerPort {
+crates\whisper-core\src\lib.rs:41:    ArchiveHistoryItem, Clock, DecodeRequest, DecodedPcmBlock, DecoderPort, DiagnosticNotice,
+crates\whisper-core\src\lib.rs:42:    DiagnosticPhase, ImportEffect, ImportEvent, ImportIoPort, ImportRequest, JobRepository,
+crates\whisper-core\src\lib.rs:44:    ParakeetDocumentPort, ParakeetPreview, ParakeetWindowCoverage, SourceIdentity, WorkerPort,
+
+STDERR

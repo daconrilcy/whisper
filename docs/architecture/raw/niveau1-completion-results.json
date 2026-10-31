@@ -1,0 +1,526 @@
+{
+  "status": "FAILED_CONTRACT_MISMATCH",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "guard_exit_codes": {
+    "20261031T222029475-07137331": 0,
+    "20261031T222210958-5927df93": 101
+  },
+  "continuation_exit_code": 101,
+  "continuation_seconds": 245,
+  "passed_observed": 583,
+  "failed_observed": 1,
+  "ignored_observed": 49,
+  "filtered_out": 1,
+  "completed_test_binaries": 46,
+  "running_labels": 46,
+  "suite_summaries": [
+    {
+      "status": "ok",
+      "passed": 306,
+      "failed": 0,
+      "ignored": 16,
+      "measured": 0,
+      "filtered_out": 1,
+      "seconds": 114.23,
+      "target": "unittests src\\lib.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\whisper_adapters-819f8b8279e3d135.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\decoder_proxy.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\decoder_proxy-4d0d332f9a9ae851.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.05,
+      "target": "tests\\durability.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\durability-b69b9038ec763167.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\gpu_inventory.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\gpu_inventory-fa71614ddde48813.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\gpu_qualification_transport.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\gpu_qualification_transport-0e68e8b8d1d388bb.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\gpu_selection_worker.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\gpu_selection_worker-3076696141d3a654.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.06,
+      "target": "tests\\gpu_settings.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\gpu_settings-a5b0b26d763f1011.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 18.13,
+      "target": "tests\\import_cpu.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\import_cpu-d269d98c802515ff.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.05,
+      "target": "tests\\import_mp3.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\import_mp3-4283e730caabbc11.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 23.95,
+      "target": "tests\\legacy_model_requests.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\legacy_model_requests-4863928226cc141e.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.37,
+      "target": "tests\\live_archive.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\live_archive-0cc68e5a2c8a3dc5.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.08,
+      "target": "tests\\live_capture.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\live_capture-bb4477e5327f7b88.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\microphone_level.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\microphone_level-73cc67d680496804.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.75,
+      "target": "tests\\microphone_probe.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\microphone_probe-7efa0a1c11f79264.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\microphone_settings.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\microphone_settings-ce2326eee6e2f777.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 24.27,
+      "target": "tests\\model_catalog.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\model_catalog-f79e369d3f25e270.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.08,
+      "target": "tests\\model_preferences.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\model_preferences-57fb3a34f75f9e67.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 12,
+      "failed": 0,
+      "ignored": 5,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.01,
+      "target": "tests\\parakeet_archive.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\parakeet_archive-9ef1aeaa7e706cdc.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.03,
+      "target": "tests\\parakeet_archive_personal_history.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\parakeet_archive_personal_history-b2eb0fecc71718ff.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\parakeet_command_wire.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\parakeet_command_wire-01b5d9ae96983855.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 5,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.01,
+      "target": "tests\\parakeet_control.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\parakeet_control-e20274998e72d676.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 7,
+      "failed": 0,
+      "ignored": 8,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\parakeet_import.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\parakeet_import-2355274c92cb2d17.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 3,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\parakeet_long.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\parakeet_long-7e76827216ba97b7.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.82,
+      "target": "tests\\parakeet_runtime_isolation.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\parakeet_runtime_isolation-76abf408366be124.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 11,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\parakeet_unified_native.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\parakeet_unified_native-3dccf96a2522e1d1.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.01,
+      "target": "tests\\publication_lock_contract.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\publication_lock_contract-7f29c8497827e6de.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 1,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\reprocessing_baseline.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\reprocessing_baseline-6524b892115bd042.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 28.43,
+      "target": "tests\\reprocessing_cleanup.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\reprocessing_cleanup-78c8b41d04b4ce57.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 24.51,
+      "target": "tests\\reprocessing_create.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\reprocessing_create-c69dbf03f3e3eff8.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.63,
+      "target": "tests\\source_binding.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\source_binding-ff41f8fcbd756714.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\vad_contract.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\vad_contract-7a8c686c87effda0.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.01,
+      "target": "tests\\worker_control.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\worker_control-8355c9145b1d2301.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "unittests src\\main.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\whisper_bootstrap-b5a48069fc1d3f84.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 81,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.21,
+      "target": "unittests src\\lib.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\whisper_core-f5bdc46185b42ef4.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\application_routing.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\application_routing-c20fe94dfd19b998.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\compute_policy.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\compute_policy-138528cc0d869de0.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\engine_capabilities.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\engine_capabilities-ffb1278c7a95d64b.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\gpu_inventory.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\gpu_inventory-71faade3bc2bff5e.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\gpu_selection.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\gpu_selection-e5e9dd914b22b65e.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.01,
+      "target": "tests\\import_contract.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\import_contract-5a9238cff8963c13.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\live_contract.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\live_contract-b494d4a0c649c2e0.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\microphone_level.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\microphone_level-89ee8b5e345cbcc0.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\model_catalog.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\model_catalog-1a36f9f718a49aff.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\model_preferences.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\model_preferences-7c188bb10df88038.exe)"
+    },
+    {
+      "status": "ok",
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.14,
+      "target": "tests\\model_selection_app.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\model_selection_app-00d6f7f391ea2f7d.exe)"
+    },
+    {
+      "status": "FAILED",
+      "passed": 5,
+      "failed": 1,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "seconds": 0.0,
+      "target": "tests\\parakeet_import_contract.rs (target\\parakeet-tests\\cargo-shared\\debug\\deps\\parakeet_import_contract-1938b122be304fc8.exe)"
+    }
+  ],
+  "failed_test": "personal_release_keys_match_the_qualified_candidate_b_workers_and_dll_sets",
+  "failure_source": "crates/whisper-core/tests/parakeet_import_contract.rs:224-227",
+  "expected_cpu_worker": "84c371d4df55043ada4a1d96b80180ed0c03b208410c599262c8ea3762304e60",
+  "actual_cpu_worker": "a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d",
+  "registry_source": "crates/whisper-core/src/model_registry.rs:52-53",
+  "classification": "Incoherence du contrat entre code et assertion du test ; ce test compare des valeurs du registre et ne lit aucun fichier de modele ni variable d’environnement.",
+  "gpu_static_mismatch": {
+    "test_expected": "bf58eb9d7300c444864347496b5a27e8584da3d30d634a759be99a598eda5ce4",
+    "registry": "7ffb0b4a022ec26909a8939b37787de6df6c9bdb2903edf14d3ffb32579eefc1",
+    "test_source": "crates/whisper-core/tests/parakeet_import_contract.rs:236-239",
+    "registry_source": "crates/whisper-core/src/model_registry.rs:56-57",
+    "status": "Difference statique ; assertion GPU non atteinte apres panic CPU."
+  },
+  "d2_proof_reused": {
+    "run_id": "20261031T215801649-2f4a5577",
+    "cases": 16,
+    "test_passed": true,
+    "authorized_skip": "direct_live::d2_corpus::d2_corpus_real_cpu_turbo_and_parakeet"
+  },
+  "focused_legacy_resume_passed": true,
+  "no_source_or_test_modification": true,
+  "guard_unchanged": true,
+  "not_run_messages": [
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_EN_WAV, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR",
+    "V-L04 REAL GPU NOT RUN: WHISPER_L04_MODEL absent",
+    "V-IMPORT NOT RUN: set WHISPER_L01_FIXTURE to the D19-manifested micro_test.wav",
+    "V-IMPORT decode block NOT RUN: set WHISPER_L01_FIXTURE",
+    "V-IMPORT Stop-in-inference NOT RUN: fixture/model environment missing",
+    "R11 MP3 duplicate identity NOT RUN: WHISPER_L02_MP3_FIXTURE is absent",
+    "V-IMPORT-MP3 NOT RUN: set WHISPER_L02_MP3_FIXTURE to a Q-07 profile fixture",
+    "V-IMPORT-MP3 NOT RUN: set WHISPER_L02_MP3_FIXTURE to a Q-07 profile fixture",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_R7_EXEC_ROOT",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL",
+    "NOT RUN: missing campaign variable(s): PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR"
+  ],
+  "not_run_scope": "La commande a termine au test d’integration parakeet_import_contract du core ; cibles suivantes, desktop/workers et doctests non qualifies par cette poursuite.",
+  "no_retry_after_contract_failure": true
+}

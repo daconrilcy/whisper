@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-31T21:34:47.9387737+01:00",
+  "head": "88850e8afd45e3b4c827914fad4c55a796b479db",
+  "status": [
+    "?? docs/architecture/",
+    "?? models/",
+    "?? \"sound example/\""
+  ],
+  "free_gib": 189.22,
+  "guard": "target/parakeet-tests/refacto-ui/guard.ps1",
+  "allowed_execution_root": "target/parakeet-tests/refacto-ui/",
+  "cargo_target": "target/parakeet-tests/cargo-shared/",
+  "cargo_commands": [
+    "metadata --offline --locked --format-version 1 --no-deps",
+    "clippy --offline --locked --workspace --all-targets --message-format=json -- -W clippy::too_many_lines -W clippy::cognitive_complexity"
+  ],
+  "limits": "Aucun code, manifeste ou lockfile modifie ; aucun telechargement ou installation autorise."
+}

@@ -1,0 +1,1 @@
+PASS cargo arguments reject source-writing fmt and --fix
