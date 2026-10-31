@@ -13,13 +13,6 @@ impl<P: ImportIoPort> ImportApplication<P> {
     ) -> Result<AppView, ApplicationError> {
         match command {
             AppCommand::Refresh => {
-                let identity = self.active;
-                record_application_timing(
-                    "refresh",
-                    identity.map(|identity| identity.job_id),
-                    identity.map(|identity| identity.generation),
-                    None,
-                );
                 self.poll_once()?;
             }
             command @ (AppCommand::SelectUnifiedSession { .. }

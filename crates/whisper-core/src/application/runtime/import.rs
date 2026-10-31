@@ -400,12 +400,6 @@ impl<P: ImportIoPort> ImportApplication<P> {
                         false,
                     );
                 }
-                record_application_timing(
-                    "start_import",
-                    Some(request.job_id),
-                    Some(request.generation),
-                    None,
-                );
                 self.request = Some(request);
                 self.auto_stop_after_speech_samples = None;
                 self.active = Some(identity);

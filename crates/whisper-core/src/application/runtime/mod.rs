@@ -14,7 +14,6 @@ use crate::{
 
 const MAX_EVENTS_PER_REFRESH: usize = 4;
 
-use super::diagnostics::{record_application_timing, trace_application_event};
 use super::{
     AppCommand, AppView, Application, ApplicationError, CommandIdentity, DirectCapturePhase,
     DirectEnginePhase,

@@ -1,5 +1,4 @@
 mod contracts;
-mod diagnostics;
 mod event_metadata;
 mod runtime;
 

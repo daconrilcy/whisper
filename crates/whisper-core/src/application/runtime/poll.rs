@@ -29,7 +29,6 @@ impl<P: ImportIoPort> ImportApplication<P> {
                     .unified_parakeet_sessions
                     .iter()
                     .any(|session| (session.job_id, session.generation) == event_identity);
-            trace_application_event(&event);
             self.handle_event(event)?;
             if !self.pending_segments.is_empty() && !unified_capture_event {
                 self.update_close_ready();
