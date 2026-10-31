@@ -734,7 +734,9 @@ V-I sous garde : adapters **308 tests inventoriés** (run `d1d2839c`), desktop l
 - `worker_ipc::tests::injected_catalog_guards_all_worker_effect_routes_including_checkpoint_resume` : fixture de campagne absente, retour anticipé.
 - `worker_ipc::tests::resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution` : fixture de campagne absente, retour anticipé.
 
-Ces exclusions restent **NOT RUN / non qualifiées**, ne sont pas des PASS ; elles ne retirent aucune assertion du candidat. C'est l'arbitrage de sélection technique prévu par le plan, sans extension produit ou recette. Un échec des autres tests impose toujours l'arrêt ; toute preuve de conservation essentielle inaccessible bloque la tâche concernée.
+Cette première proposition d'exclusions a été **supersédée avant tout lancement de V-UNIT** : l'audit complémentaire a trouvé d'autres dépendances modèle/MP3 et racines RTC-02 dans des tests de worker IPC non concernés par P. Aucune baseline partielle ainsi filtrée n'est revendiquée. Pour éviter une liste d'exclusions fragile, la sélection retenue est désormais positive et propre à chaque lot.
+
+Pour **P seulement**, trois exécutions V-UNIT avec les filtres exacts `archive::tests::`, `source_binding::recovery_tests::` et `windows_file_identity::tests::`, identiques baseline/candidat, plus V-SOURCE et le nouveau V-LOCK. Ces modules contrôlés couvrent les invariants publication/reprise/verrou/identité sans moteur ni modèle ; les racines requises sont vérifiées avant lancement et `PARAKEET_L2_ARCHIVE_ROOT` reste sous le temp de campagne. Les autres tests lib sont NOT RUN pour P ; aucun résultat global de bibliothèque n'est inféré. Avant les lots suivants, sélectionner de même les modules/scénarios pertinents après audit des fixtures, consigner la sélection et la conserver avant/après. Les tests de recette exclus ne sont jamais des PASS. Un échec des tests retenus impose l'arrêt ; toute preuve de conservation essentielle inaccessible bloque la tâche concernée.
 
 À utiliser uniquement après accord précis sur le lot et la campagne :
 
