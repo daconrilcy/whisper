@@ -1,6 +1,6 @@
-Avancée : P1-T1 et P2-T1 livrés localement après revue CLEAN ; retrait complet P3-T1 élargi accepté dans cette conversation le 31 octobre 2026.
-Blocage : recette Windows réservée à l'utilisateur ; les tâches workers P3-T2/P3-T3 restent hors de ce GO.
-Décision : exécuter uniquement P3-T1 élargi ci-dessous, conserver ASR GPU et D2 de test, sans modifier les workers ni pousser.
+Avancée : P1-T1, P2-T1 et P3-T1 livrés localement après revue CLEAN ; l'utilisateur déclare l'application fonctionnelle le 31 octobre 2026.
+Blocage : G3 exige de confirmer le lot workers et sa requalification native précise ; aucune modification worker ni commande Cargo lancée pour cette étape.
+Décision : proposition G3 ci-dessous pour P3-T2/P3-T3 couplés, avec compatibilité des anciennes archives et sans installation ni push.
 
 ## Header
 
@@ -218,6 +218,35 @@ Acceptation du lot élargi : zéro appel `record_stage_timing`/`TimingContextGua
 - Acceptance criteria : clés persistantes anciennes inchangées, refus explicites conservés, signatures IPC inchangées, validation native distincte des tests statiques ; budget respecté.
 - Rollback/fallback notes : retrait de la nouvelle recette locale uniquement sur inventaire approuvé ; pas de restauration ou nettoyage de l'installation personnelle automatique.
 - Notes for implementation agent : aucune installation, publication, nouveau manifeste d'empreintes ou push implicite.
+
+### Préparation G3 après validation utilisateur de P3-T1 — proposition à confirmer
+
+L'utilisateur a autorisé la continuation de la prochaine phase. Le préflight confirme les six fichiers worker de P3-T2 et les ressources locales CPU/GPU ; 164,3 Gio libres relevés avant cette étape. G3 reste à confirmer sur le paquet précis ci-dessous : le plan initial laissait volontairement les commandes natives et les racines de recette à définir avant exécution.
+
+Point de compatibilité révélé par les sources : `archive/identity.rs::is_registered_personal_import` compare les clés aux seules identités personnelles courantes. `archive/recovery.rs::validate_pending` s'en sert pour les pending Parakeet version 2. Remplacer les empreintes courantes sans préserver la reconnaissance historique ferait perdre cette reconnaissance aux anciennes clés personnelles. Les archives unifiées version 4 sans qualification suivent une autre branche. Cette observation ne signifie pas que les archives actuelles sont endommagées.
+
+Périmètre de production proposé (neuf fichiers) :
+
+- P3-T2 : `crates/whisper-worker-parakeet-cpu/src/{native_engine,timing,main,integrity,startup,transcription}.rs`, suppression R6/R7 et de leurs seuls appels/calculs dédiés. Exception atomique de six fichiers déjà motivée dans cette tâche ; préserver moteur, décodeur, protocole, bornes et attestation ASR GPU.
+- P3-T3 : `crates/whisper-core/src/model_registry.rs` et, extension précise proposée, `crates/whisper-adapters/src/archive/{identity,recovery}.rs`. Budget de trois fichiers pour cette tâche. Séparer reconnaissance des clés d'archive antérieures et admission des exécutables actuels : aucune ancienne empreinte ne devient une autorisation d'exécuter un worker différent. Pas de modification de fichiers d'archives utilisateur, de schéma persistant ni de règle de reprise implicite.
+- Tests directs : fichiers existants de contrat et de native worker, `tests/support/worker.rs`, tests d'archives/registre concernés ; nouveau `crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs` proposé pour les scénarios réels sans diagnostic. Petits tests privés séparés seulement si nécessaires à un invariant inaccessible autrement.
+
+Découpage proposé du prochain lot : (1) préflight/snapshots et copies de référence, (2) retrait worker sur les six fichiers, (3) builds CPU puis CUDA et gel des EXE avant modification des empreintes, (4) qualification native différentielle sur les copies, (5) enregistrement des nouvelles empreintes et compatibilité des anciennes clés, (6) tests de contrats/archives et revue indépendante, (7) desktop release et dossier de remise. Sept tâches ; ne pas démarrer d'autre lot ou de migration de données.
+
+Racines proposées : garde existante `target/parakeet-tests/refacto-parakeet-live/guard.ps1`, lot inchangé, `CARGO_TARGET_DIR=target/parakeet-tests/cargo-shared/`. Toutes les nouvelles sorties, copies de ressources, fixtures et réglages sous `target/parakeet-tests/refacto-parakeet-live/p3-workers/`. Les sous-dossiers `reference/`, `localappdata/Whisper/{worker,native,models,settings}/`, `input/` et `outputs/` y séparent références figées et candidat. Aucun remplacement sous le véritable `%LOCALAPPDATA%` ni sous l'environnement local de recette précédemment validé.
+
+Entrées lues uniquement : workers/DLL/modèles personnels déjà vérifiés sous `target/parakeet-tests/parakeet-unified/lot-04/isolated-localappdata/Whisper/`, et `sound example/spkr0.wav`. Copier les ressources nécessaires dans la nouvelle racine ; produire en Rust une fixture PCM de 30 secondes de ce WAV sous `input/`. Pas de téléchargement ni de corpus long historique absent. Si cet extrait ne permet pas une comparaison de parole exploitable, arrêter la qualification et faire arbitrer le corpus au lieu d'en inventer une preuve.
+
+Commandes proposées, toutes via `guard.ps1 -Mode Run -CargoArguments @(...)` après son `SelfTest` et le préflight permanent (provenance : features observées dans le manifeste, nouvelles sélections de tests inférées du support à implémenter) :
+
+1. Tests worker sans moteur : `test --offline --locked -p whisper-worker-parakeet-cpu --features parakeet-personal`, puis la variante `parakeet-personal,parakeet-cuda` ; distinguer ignorés et scénarios réellement exécutés.
+2. Build CPU : `build --release --offline --locked -p whisper-worker-parakeet-cpu --features parakeet-personal` ; copier l'EXE résultant vers le candidat CPU avant l'étape suivante.
+3. Build CUDA : même commande avec `--features parakeet-personal,parakeet-cuda` ; copier/nommer le candidat `whisper-worker-parakeet-gpu.exe`. Ne pas mélanger leurs DLL. Les deux EXE sont ensuite figés ; une recompilation ultérieure liée au registre ne remplace pas ces copies sans nouvelle qualification.
+4. Native : `test --release --offline --locked -p whisper-worker-parakeet-cpu --features parakeet-personal,parakeet-cuda --test native_diagnostics_absence -- --ignored --test-threads=1`. Nouveau harnais proposé : pour chacun des deux backends, référence propre, candidat propre et candidat avec R6/R7 invalides ; vrais chargement et inférence, handshake/identités, texte exploitable, mots/plages et nombre d'échantillons comparés sur le même backend, journal ASR et identité GPU conservés. Aucun faux worker ne remplace ces cas. Aucun échec volontaire de la référence avec variables polluées.
+5. Régression après enregistrement des clés : garde avec tests core/archives/isolation déjà présents et nouveaux cas de compatibilité ; filtres définitifs à relever dans les sources avant exécution, pas de zéro test annoncé PASS. Format et Clippy sur worker/core/adapters concernés.
+6. Desktop : `build --release --offline --locked -p whisper-desktop --features personal-install`, puis lanceur pointant uniquement vers les nouvelles ressources qualifiées de ce lot. Import/micro CPU/GPU, exports et comportement dans la fenêtre restent à confirmer par l'utilisateur ; les preuves natives et cette recette ne sont pas confondues.
+
+Arrêts : espace <30 Gio, préflight/garde/compilation/test en échec, ressource absente ou divergente, texte non exploitable, divergence de résultat à expliquer, attestation GPU absente, identité reconnue différente des copies remises, autre fichier de production nécessaire. Conserver preuves et références, aucun nettoyage/restauration ni relance après échec sans arbitrage. Deux cycles de revue/correction maximum. Le bilan utilisera ce document et la réponse de remise, sans campagne documentaire supplémentaire.
 
 ## 7. Verification Matrix
 
