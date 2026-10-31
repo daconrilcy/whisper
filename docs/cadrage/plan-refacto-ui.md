@@ -1,6 +1,6 @@
-Avancée : MVC raccordé ; tests et builds des deux profils réussis ; découpage des tests T3 terminé.
-Blocage : fonctions longues UI à achever selon le design ; V7 strict échoue dans core inchangé, hors périmètre.
-Décision : candidat conservé, T4/T5 incomplets et T6 non validé ; arbitrage V7 avant reprise, sans push.
+Avancée : MVC raccordé ; finitions des fonctions longues et poursuite autorisées avec réserve V7 explicite.
+Blocage : fonctions longues UI et contrôles affectés à terminer avant revue.
+Décision : terminer dans les chemins prévus, sans corriger core ni neutraliser les avertissements ; revue et commits locaux, sans push.
 
 # Refactorisation de ui.rs — plan PLAN-UI v1
 
@@ -228,3 +228,9 @@ V7 strict : **FAIL, exit 101**, run `20261031T045723893-798bc559`, dix erreurs d
 Exigence encore inachevée du design §6 : découper sémantiquement les fonctions longues. V8 relève notamment `prepare_frame` et `active_job_ui` (111 lignes), `history_ui` (126), `settings_ui` (206), et les fonctions de microphone/unifié/capture (214/302/308). Le respect de la taille des fichiers ne ferme pas cette exigence. T4/T5 ne sont pas déclarés terminés ; candidat non soumis à T7. Finitions attendues dans les seuls fichiers prévus, en conservant ordre, closures/scopes et effets.
 
 Arrêt après V7 ; modifications UI et preuves conservées, aucun changement core/adapters/manifeste/Cargo.lock, pas de revue consommée, pas de validation Windows ni remise de binaire. Espace final rapporté : **62,55 Gio**. Décision nécessaire : autoriser la poursuite des finitions prévues et conserver V7 en réserve héritée hors périmètre, puis contrôles affectés et revue T7 ; aucune revendication de V7 PASS.
+
+### Disposition V7 et autorisation des finitions
+
+L'utilisateur répond « oui je t'autorise » à la demande précise : « Autorisez-vous à terminer ce découpage, refaire les contrôles affectés, puis poursuivre la revue et les commits en conservant l'échec Clippy strict comme réserve explicite ? » Il était précisé que cela n'autoriserait aucune modification de `whisper-core` ni neutralisation de ses avertissements.
+
+V7 demeure donc FAIL sur le candidat mesuré, avec disposition utilisateur autorisant la poursuite et la livraison assortie de cette réserve. Aucun PASS n'en est déduit, aucun correctif hors périmètre ni `allow` de contournement n'est autorisé. Les finitions sémantiques déjà prévues restent obligatoires, ainsi que les vérifications affectées et la revue indépendante T7. Les autres motifs d'arrêt et la limite de deux cycles de revue/correction restent applicables. Le présent accord est commité avant reprise sous garde.
