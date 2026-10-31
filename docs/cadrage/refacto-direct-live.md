@@ -1,6 +1,6 @@
 Avancée : cadrage du refactoring structurel établi sur les sources actuelles.
 Blocage : aucune implémentation autorisée ; prérequis de campagne à résoudre avant Cargo.
-Décision : cible indicative d’environ 600 lignes validée ; conception candidate pour revue indépendante.
+Décision : cible indicative d’environ 600 lignes validée ; DESIGN READY après revue CLEAN.
 
 # Refactoring du direct microphone — DESIGN-DL v2
 
@@ -131,4 +131,4 @@ Décisions : DEC-P01 cible indicative ~600 acceptée par l’utilisateur ; DEC-P
 
 Rubriques applicables couvertes : scope §1–2 ; use_cases/acceptance §2 ; errors/domain §3 ; dependencies/concurrency/persistence/platform §3–5 ; risks §5. Migration N/A : formats et contrats inchangés. Nouveau packaging N/A : aucun paquet livré. Railguard nouveau N/A : aucun prévu par le besoin ; les règles AGENTS existantes demeurent applicables. Pas de SPIKE : aucun nouveau mécanisme technique à établir pour le découpage.
 
-Statut candidat : DESIGN REVIEW PENDING. La revue indépendante doit juger ces contenus et les limites d’exécution ; elle seule déclare CLEAN. Les tests produit et recettes restent NOT RUN. Même DESIGN READY puis PLANS READY ne vaudront pas autorisation de coder. La session s’arrête après plan, revue et commits locaux prévus au mandat.
+Statut : DESIGN READY. Le reviewer indépendant a déclaré DESIGN CLEAN sur DESIGN-DL v2 au commit `1a2522bfa8caececde517c898496bbbd035a3a03`, après fermeture de DL-D01 ; aucun REQUIRED ou ADVISORY résiduel. Le retour complet figure dans revue-refacto-direct-live.md. Cette mise à jour de statut ne change pas le design revu. Les tests produit et recettes restent NOT RUN. Même DESIGN READY puis PLANS READY ne valent pas autorisation de coder. La session s’arrête après plan, revue et commits locaux prévus au mandat.

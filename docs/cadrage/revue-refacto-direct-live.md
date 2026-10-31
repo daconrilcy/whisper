@@ -1,5 +1,5 @@
-Avancée : revue indépendante DESIGN effectuée ; correction DL-D01 soumise à fermeture.
-Blocage : attente du verdict de fermeture avant passage à la planification.
+Avancée : revue indépendante DESIGN terminée ; DL-D01 fermé.
+Blocage : aucun constat requis ouvert sur le design ; exécution non autorisée.
 Décision : conserver la séparation entre revue documentaire, exécution et validation Windows.
 
 # Revues indépendantes — refactoring direct_live
@@ -38,3 +38,17 @@ La faisabilité du découpage est étayée statiquement. Les tests produit et la
 ## Correction proposée par l’architecte
 
 ARCH-DL-v2 corrige DEC-T02 : visibilités existantes conservées, notamment pump_capture pub(crate), nouveaux helpers limités à pub(super), consommateur runtime/support et appels IPC ajoutés. Intégré par la session principale dans DESIGN-DL v2. DL-D01 reste ouvert jusqu’au verdict indépendant ci-après.
+
+## DESIGN — retour de fermeture brut
+
+Avancée : correction DESIGN vérifiée sur `1a2522bfa8caececde517c898496bbbd035a3a03`.
+Blocage : aucun constat requis ouvert sur la conception.
+Décision : **DESIGN CLEAN** — DL-D01 fermé.
+
+Candidat : `docs/cadrage/refacto-direct-live.md`, **DESIGN-DL v2**. Le fichier de travail correspond à la révision Git revue. Mon indépendance et la lecture seule sont conservées.
+
+**DL-D01 — CLOSED.** DEC-T02 distingue désormais les API existantes `pub(crate)`, notamment `pump_capture`, des nouveaux helpers limités à `pub(super)`. Le consommateur `worker_ipc/runtime/support.rs:437`, les appels IPC aux lignes 515/542 et le contrôle des visibilités figurent explicitement dans le document. La contradiction relevée dans v1 est levée, sans changement de périmètre ni de comportement.
+
+La comparaison v1→v2 ne révèle aucun autre changement de conception. La couverture CA-01 à CA-06 et la traçabilité précédemment vérifiées restent valides. Aucun REQUIRED ni ADVISORY résiduel.
+
+Ce verdict permet le passage documentaire à la planification autorisée. Il ne vaut ni autorisation d’implémentation ni validation compilée/native/Windows ; le prérequis de campagne reste à résoudre avant Cargo.
