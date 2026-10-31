@@ -105,6 +105,8 @@ Invariants : **INV-01** autorité métier unique ; **INV-02** mêmes commandes/p
 
 **DEC-T04 — Extraction sémantique du rendu.** Découper `show_ui` en méthodes appelées dans le même ordre, avec les mêmes closures/scopes et le même `Ui`. Aucun nouveau group/horizontal/ScrollArea/push_id ou wrapper de layout. Les noms locaux de méthodes sont des détails réversibles ; nouveaux chemins et changements de contrat reviennent au plan/design.
 
+**Types partagés de présentation.** `SelectionWidgetState` et `ModelPreferenceEvent`, déjà publics, restent définis dans `model/preferences.rs`. `model.rs` les réexporte explicitement ; `presentation/selection.rs` importe ces deux types par `crate::ui::model::{SelectionWidgetState, ModelPreferenceEvent}`. Le module model reste privé dans ui : aucun chemin public externe nouveau. Cette dépendance nommée aux deux types passifs préserve les signatures de `apply_initial_model`, `apply_preference_event`, `selected_language`, `model_selection_combo` et `language_selection_combo` ; elle n'autorise aucun accès présentation à DesktopApp, ses champs, ses services, ses canaux ou son runtime. `PathDefaults`, `SaveStatus`, `AppView`, `JobState` et les types moteur/micro sont importés directement du cœur ; `LanguageChoices` relève de presentation/language. Les helpers privés partagés, dont `MicrophoneLabelProjection`, gardent un accès interne borné à ui, sans API publique supplémentaire.
+
 ### Arborescence cible et budgets
 
 Budgets estimatifs après extraction, non preuves de taille. Tous les chemins ci-dessous sous `src/`. L'implémentation devra mesurer après formatage, imports inclus, et rester dans les chemins acceptés.
@@ -166,10 +168,10 @@ Le préfixe Rust des tests unitaires change de `ui::tests` à `ui::model::tests`
 | Consommateur | Dépendances conservées/autorisées | Interdit / contrôle futur |
 | --- | --- | --- |
 | Façade ui | model/presentation via réexports explicites | Traitement ou état parallèle ; inspection |
-| model | Types/API core et services déjà détenus | Nouvelle politique métier/effet ; revue champs et constructeurs |
+| model | Types/API core, services déjà détenus et helpers de présentation existants | Nouvelle politique métier/effet ; revue champs et constructeurs |
 | controller | État parent, AppFacade et services déjà utilisés | Nouveau worker/thread/verrou/routage ; comparaison points d'effets |
 | view | État parent, helpers, méthodes contrôleur à visibilité bornée | Nouvelle politique/IO/scopes egui ; revue ordre et vrais widgets |
-| presentation | Types, egui et autres helpers purs de presentation nécessaires aux fonctions existantes | Dépendance au contrôleur/model/root ou nouvel IO |
+| presentation | Types core, egui, helpers purs de presentation ; seulement SelectionWidgetState et ModelPreferenceEvent de model, selon les imports nommés ci-dessus | DesktopApp/son état vivant, services, canaux/runtime-mailbox, contrôleur/root ou nouvel IO |
 | core/adapters/workers | Aucun changement | Dépendance vers UI, changement de contrat/manifeste |
 
 Écarts hérités à la cible de séparation : CatalogSnapshot vient de whisper_adapters ; ArchiveStore::browse_treatment_folder est appelé dans ui.rs:2471–2477. Les consignes desktop reconnaissent ces accès directs existants. Cette refonte les conserve sans les étendre et sans revendiquer une séparation infrastructure/UI totale. Leur suppression ne fait pas partie du mandat.
@@ -219,5 +221,7 @@ Questions produit structurantes : aucune. Détails réversibles : noms des méth
 État initial : candidat documentaire, revue indépendante à effectuer sur Git. Seul le reviewer peut déclarer CLEAN et fermer ses constats, avec deux cycles revue/correction maximum. Le plan est déjà demandé par l'utilisateur ; il pourra être préparé après revue DESIGN satisfaisante. DESIGN READY et PLANS READY resteront distincts d'un GO de code.
 
 Revue DESIGN initiale par `/root/cadrage_ui/review_ui`, indépendant de la rédaction, sur `9b69ce9fcf35d4e50ee6ec6c49636200f9ff1656` : **FINDINGS**, un constat UI-D01 IMPORTANT/Medium REQUIRED. Preuve : `microphone_test_start_enabled` et `unified_live_admission_available` appellent le prédicat alors placé dans controller, en contradiction avec la matrice. Condition de fermeture : placement partagé pur, définition unique, imports/visibilités/mapping/budgets alignés. Correction proposée par l'architecte : placement dans presentation/selection et accès internes décrits ci-dessus. Fermeture réservée au reviewer lors de la relecture Git ; aucun autre constat initial.
+
+Relecture sur `057ac834196f44d12fd0ba7ef2ce48bbec7fb9f0` : UI-D01 **CLOSED** par le reviewer ; **FINDINGS**, nouveau UI-D02 IMPORTANT/Medium REQUIRED. Preuve : la matrice interdisait toute dépendance presentation vers model alors que les helpers de sélection prennent SelectionWidgetState et ModelPreferenceEvent placés dans model/preferences. Correction finale de l'architecte, deuxième cycle : autoriser seulement ces deux types passifs avec imports explicites, et préciser les accès aux helpers et types core comme ci-dessus. Aucun nouvel accès à l'état vivant ni changement d'API ; fermeture UI-D02 réservée au reviewer sur la version corrigée Git.
 
 Contrôles de cette mission : lectures ciblées et git diff --check ; aucun test, build, Cargo, moteur natif ou ouverture Windows. La future recette Windows restera celle de l'utilisateur ; aucun binaire remis ici.
