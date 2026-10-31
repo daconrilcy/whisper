@@ -1,6 +1,6 @@
-Avancée : revue indépendante DESIGN terminée ; DL-D01 fermé.
-Blocage : aucun constat requis ouvert sur le design ; exécution non autorisée.
-Décision : conserver la séparation entre revue documentaire, exécution et validation Windows.
+Avancée : revues indépendantes DESIGN et PLANS CLEAN ; DL-D01 fermé.
+Blocage : aucun constat résiduel documentaire ; GO et garde restent requis avant exécution.
+Décision : DESIGN READY et PLANS READY documentaires, sans implémentation ni push.
 
 # Revues indépendantes — refactoring direct_live
 
@@ -52,3 +52,35 @@ Candidat : `docs/cadrage/refacto-direct-live.md`, **DESIGN-DL v2**. Le fichier d
 La comparaison v1→v2 ne révèle aucun autre changement de conception. La couverture CA-01 à CA-06 et la traçabilité précédemment vérifiées restent valides. Aucun REQUIRED ni ADVISORY résiduel.
 
 Ce verdict permet le passage documentaire à la planification autorisée. Il ne vaut ni autorisation d’implémentation ni validation compilée/native/Windows ; le prérequis de campagne reste à résoudre avant Cargo.
+
+## PLANS — retour brut
+
+Avancée : revue PLANS terminée sur `d38a20e41fc8c21d2bf513a1de0d04d481142297`.
+Blocage : aucun constat requis sur le plan ; GO et garde de campagne restent des prérequis d’exécution.
+Décision : **PLANS CLEAN**.
+
+**Indépendance.** Je n’ai participé ni à la proposition du plan ni à sa rédaction. Lecture seule maintenue : aucun fichier modifié, aucune commande Cargo ni test exécuté.
+
+**Candidat vérifié :** `docs/cadrage/plan-refacto-direct-live.md`, PLAN-DL v1, contenu de travail identique au fichier commité. Parent vérifié : DESIGN-DL v2 au commit `5071a8f0a4d31162d2208364dc25b199805794d1`. Sa différence avec le design déclaré CLEAN sur `1a2522bf` se limite au statut et à la référence du verdict.
+
+**Contrôles effectués :**
+
+- Huit tâches et huit chemins Rust, tous justifiés par le design ; aucun autre fichier de code implicitement ouvert.
+- Dépendances séquentielles sans cycle : EXEC-BASELINE est bien produit par T1 avant les extractions. Aucun travail concurrent annoncé sur l’état partagé.
+- REQ-01/02 → T1/T3–T7, mesures, API/imports et compilation ; REQ-03 → T2/T3/T5/T7, PCM/gain/backlog/arrêt ; REQ-04 → T2/T6/T7, identité/attestation/repli ; REQ-05 → T2/T4/T7, exports/compensations ; REQ-06 → T1/T2/T7, inventaires et conditions. T8 couvre la revue et la clôture. Aucun chemin ou scénario obligatoire orphelin.
+- Noms et appartenances des tests C4a/b/c et C5 vérifiés directement dans les sources ; inclusion du test IPC dans `worker_ipc::tests` confirmée. Les filtres C2/C3 séparent les 18 tests contrôlés et six tests purs du D2 natif.
+- Le besoin de `WHISPER_MIC_LEVEL_D2_ROOT` pour les diagnostics synthétiques est pris en compte ; aucune activation du moteur natif déduite.
+- Carte d’exécutabilité, propriétaires, résultats comportementaux attendus, limites NOT RUN, arrêt et récupération sont cohérents.
+- Préservation explicite de `pump_capture pub(crate)` et des consommateurs vérifiée ; DL-D01 reste fermé.
+- Les prérequis non établis ne sont pas présentés comme acquis : autorisation d’implémentation, garde applicable, environnement et ressources natives. Aucun contournement ni ancienne dérogation transférée.
+- Aucun ajout de fonctionnalité, format, dépendance, protocole, politique d’erreur ou garantie de durabilité.
+
+**Résultat :** aucun REQUIRED ni ADVISORY. Le plan est admissible pour **PLANS READY documentaire**. Ce verdict ne vaut pas acceptation utilisateur du lot, autorisation de coder ou de lancer Cargo ; compilation, tests produit, moteurs natifs et fenêtre Windows restent **NOT RUN**.
+
+## Clôture documentaire par la session principale
+
+Le périmètre livré est limité aux trois documents prévus. Une correction DESIGN (DL-D01) a été vérifiée puis fermée par le même reviewer ; aucun cycle de correction PLANS n’a été nécessaire. Les mises à jour finales portent uniquement sur les statuts et la transcription des verdicts.
+
+Vérifications réalisées : lecture des règles et sources citées, correspondance des chemins, absence de modification produit dans le diff cumulé, `git diff --check` sur les changements documentaires. Aucune compilation, aucun test ni campagne lancé. Espace libre final relevé avant clôture : environ 165 Gio. Les trois familles de fichiers non suivis initiales ont été préservées ; aucune autorisation de push utilisée.
+
+Le runtime ne propose pas de fermeture des sous-agents ; leurs missions sont terminées et ils n’ont pas été réaffectés hors de leur rôle. Aucun autre artefact ou mécanisme d’outillage n’a été créé.

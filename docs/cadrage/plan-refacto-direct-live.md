@@ -1,6 +1,6 @@
 Avancée : plan de refactoring établi à partir de DESIGN-DL v2.
 Blocage : aucun GO d’implémentation ; garde de campagne applicable non établie.
-Décision : un lot de huit tâches séquentielles proposé pour revue indépendante.
+Décision : PLANS READY documentaire après revue CLEAN ; lot de huit tâches séquentielles.
 
 # Plan de refactoring du direct microphone — PLAN-DL v1
 
@@ -8,7 +8,7 @@ Décision : un lot de huit tâches séquentielles proposé pour revue indépenda
 
 Parent : [DESIGN-DL v2](refacto-direct-live.md), révision Git `5071a8f0a4d31162d2208364dc25b199805794d1`. Sa conception a été déclarée DESIGN CLEAN sur `1a2522bfa8caececde517c898496bbbd035a3a03`, après fermeture de DL-D01 ; voir [la revue](revue-refacto-direct-live.md).
 
-Mandat utilisateur du 31 octobre 2026 : besoin et cible indicative d’environ 600 lignes validés ; cadrage, plan, revue indépendante et commit local autorisés, **sans implémentation ni push**. Le présent plan reste DRAFT jusqu’à sa revue. Son acceptation documentaire ne donnera pas, à elle seule, l’autorisation de coder ou de lancer Cargo.
+Mandat utilisateur du 31 octobre 2026 : besoin et cible indicative d’environ 600 lignes validés ; cadrage, plan, revue indépendante et commit local autorisés, **sans implémentation ni push**. Statut : PLANS READY documentaire après verdict PLANS CLEAN sur `d38a20e41fc8c21d2bf513a1de0d04d481142297`, sans constat résiduel ; retour brut dans la revue associée. Cette mise à jour de statut ne modifie pas le plan revu. L’acceptation utilisateur du lot et l’autorisation de coder ou de lancer Cargo restent distinctes et absentes.
 
 Objectif L-DL : réduire et clarifier `direct_live.rs`, par les extractions du design, en conservant les comportements effectifs. Aucun nouveau modèle, format, canal, thread, protocole, dépendance, feature ou traitement d’erreur.
 
