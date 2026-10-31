@@ -8,12 +8,16 @@ Worker Parakeet CPU, ou CUDA avec `parakeet-cuda`. Charge le modèle et les DLL 
 
 | Module | Responsabilité |
 |---|---|
-| `main.rs` | Boucle du protocole Parakeet |
-| `decoder` | Décodage audio |
+| `main.rs`, `startup`, `args` | Entrée minimale, arguments, contrôles de démarrage et annonce Ready |
+| `session`, `transcription` | Boucle de commandes Parakeet et traitement des transcriptions |
+| `runtime_paths`, `gpu_identity`, `integrity` | Racines autorisées par profil, identité backend/GPU et empreintes |
+| `ipc` | Trames et événements du protocole Parakeet |
+| `decoder`, `decode_only`, `reference_decoder` | Décodage audio, mode décodage seul et référence sous feature |
 | `native_engine` | Moteur natif et normalisation des mots horodatés |
 | `native_ffi` | DLL, symboles, pointeurs et résultats natifs |
 
 - Préserver les contrôles canoniques des racines de runtime et de modèle propres au profil. Aucun élargissement sans accord précis.
+- `runtime_paths` distingue installation personnelle (et staging prévu), racines Test CPU/CUDA et profils historiques de qualification. Conserver ces distinctions et l'exception bornée du modèle partagé historique ; une racine autorisée en lecture n'autorise aucune écriture de campagne.
 - Indiquer les modes CPU/CUDA concernés et les vérifier séparément lorsqu'ils appartiennent au lot ; une compilation CPU ne prouve pas le mode CUDA.
 - Le chargement des DLL et les pointeurs natifs restent dans `native_ffi`.
 - Préserver la distinction entre timestamps natifs invalides, normalisation et preuve de transcription ; ne pas transformer un rejet en succès silencieux.
@@ -31,8 +35,8 @@ Worker Parakeet CPU, ou CUDA avec `parakeet-cuda`. Charge le modèle et les DLL 
 
 ## Partage et tests
 
-Les workers Turbo CPU et GPU partagent des responsabilités de décodage, encodage MP3 interne et transport. Comparer les deux parcours lors d'une correction commune ; ne reporter que les changements applicables et autorisés. Si l'autre worker sort du périmètre accepté, signaler l'impact avant de le modifier. L'encodage interne n'autorise pas une nouvelle sortie MP3 utilisateur.
+Cette crate dépend de `whisper-core` et conserve son protocole `parakeet_ipc`, son décodage et son moteur propres. Elle ne dépend pas de `whisper-worker-common`, utilisée par les workers Turbo CPU/GPU ; aucun report mécanique de code Turbo ni ajout de dépendance implicite.
 
-Une crate `whisper-worker-common` n'existe pas : sa création éventuelle relève d'un plan dédié validé, sans bloquer les corrections bornées dans les modules actuels. Le worker Parakeet conserve son protocole et son moteur propres ; aucun report mécanique de code Turbo.
+Garder `main.rs` minimal et placer les évolutions dans les modules déjà extraits. Préserver la séparation entre contrôles d'admission au démarrage, cycle de session, transcription et FFI. Pour un changement de routage historique, examiner aussi le client `whisper-adapters/src/parakeet_import/historical_runtime.rs` sans le modifier hors du périmètre autorisé.
 
 Placer les nouveaux tests dans des fichiers séparés ou `tests/`, avec des supports partagés selon leur visibilité. Distinguer tests de protocole, compilation et preuve du moteur natif réellement exécuté.

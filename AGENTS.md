@@ -45,14 +45,14 @@ Cette dérogation accepte le risque résiduel d’écritures techniques de Windo
 
 ## Consignes de développement et portée des fichiers locaux
 
-Les `AGENTS.md` des sept crates complètent ce fichier pour leur sous-arborescence. Lire celui de la crate avant de la modifier. Ils ne créent aucune dérogation aux autorisations, à la délégation Rust, à la garde permanente des campagnes ou à la recette Windows ci-dessus. En cas de contradiction sur ces sujets, arrêter l'action concernée et demander l'arbitrage de l'utilisateur. Une instruction locale n'est pas un confinement technique.
+Les `AGENTS.md` des huit crates complètent ce fichier pour leur sous-arborescence, y compris `whisper-worker-common`. Lire celui de la crate avant de la modifier. Ils ne créent aucune dérogation aux autorisations, à la délégation Rust, à la garde permanente des campagnes ou à la recette Windows ci-dessus. En cas de contradiction sur ces sujets, arrêter l'action concernée et demander l'arbitrage de l'utilisateur. Une instruction locale n'est pas un confinement technique.
 
 ### Préparation et architecture
 
 - Relever l'état Git et préserver les changements des autres tâches, y compris les fichiers non suivis. Une branche ou un état Git propre ne prouve pas l'absence d'un autre agent actif ; coordonner les responsabilités avant des modifications concurrentes.
 - Lire la carte `docs/architecture/ARCHITECTURE.md` et la fiche de la crate dans `docs/architecture/crates/` si elles sont présentes. Ces documents sont des relevés statiques à confronter aux sources et aux manifestes actuels ; ils ne valent ni plan de refonte ni autorisation. S'ils manquent, consulter les sources sans recréer une campagne documentaire.
 - Le cœur porte le domaine, les politiques et les effets ; les adaptateurs exécutent les entrées/sorties ; le desktop compose et affiche ; les workers exécutent les commandes IPC du parent ; bootstrap reste minimal.
-- Dépendances internes actuelles : `desktop → adapters + core`, `adapters → core`, `worker-* → core`, `bootstrap → adapters + core`. Le cœur ne dépend actuellement que de `serde`. Toute nouvelle crate ou dépendance, interne ou externe, doit appartenir au plan et être explicitement validée avant modification du manifeste.
+- Dépendances internes actuelles : `desktop → adapters + core`, `adapters → core`, `worker-cpu/worker-gpu → worker-common + core`, `worker-common → core`, `worker-parakeet-cpu → core`, `bootstrap → adapters + core` (noms abrégés, préfixe `whisper-`). Le cœur ne dépend actuellement que de `serde`. Toute nouvelle crate ou dépendance, interne ou externe, doit appartenir au plan et être explicitement validée avant modification du manifeste.
 - Identifier le module cible avant de coder. Les découpages suggérés dans les fichiers locaux sont des pistes pour un plan accepté, pas une obligation de refondre lors d'un correctif limité.
 
 ### Structure, nommage et tests

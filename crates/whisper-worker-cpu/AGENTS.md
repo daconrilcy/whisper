@@ -8,13 +8,15 @@ Worker Turbo CPU : exécution des commandes d'import et de micro avec whisper-rs
 
 | Module | Responsabilité |
 |---|---|
-| `main.rs` | Boucle des commandes et sessions |
-| `ipc` | Lecture et écriture des trames |
-| `decoder` | Décodage Symphonia par plages et fenêtres |
-| `encoder` | Encodage MP3 interne du direct |
+| `main.rs`, `startup` | Déclarations, démarrage et lecture des commandes sur canal borné |
+| `worker`, `session/` | Dispatch et sessions : contrôle, décodage, import et direct |
+| `ipc`, `ipc_output` | Adaptation des trames communes et émission des événements CPU |
+| `decoder`, `encoder`, `integrity` | Façades vers le décodage, le MP3 interne et SHA-256 de `whisper-worker-common` |
+| `engine_cache` | Réutilisation du moteur compatible avec le chemin et l'empreinte du modèle |
 | `native_engine` | Contexte whisper-rs et transcription |
+| `diagnostics`, `qualification`, `memory_qualification` | Échecs IPC et contrôles de qualification, dont mémoire sous feature |
 
-Ne pas initialiser de backend GPU. Préférer un module dédié pour une nouvelle responsabilité de session plutôt qu'agrandir `main.rs`. Vérifier les usages avant de déclarer du code mort ; ne pas supprimer `ipc::write_frame` sur une supposition.
+Ne pas initialiser de backend GPU. Utiliser les modules de session existants et garder `main.rs` minimal. Préserver les conditions de réutilisation et d'invalidation d'`engine_cache`. Vérifier les usages avant de déclarer du code mort ; ne pas supprimer `ipc::write_frame` sur une supposition.
 
 ## Contrat commun des workers
 
@@ -28,8 +30,8 @@ Ne pas initialiser de backend GPU. Préférer un module dédié pour une nouvell
 
 ## Partage et tests
 
-Les workers Turbo CPU et GPU partagent des responsabilités de décodage, encodage MP3 interne et transport. Comparer les deux parcours lors d'une correction commune ; ne reporter que les changements applicables et autorisés. Si l'autre worker sort du périmètre accepté, signaler l'impact avant de le modifier. L'encodage interne n'autorise pas une nouvelle sortie MP3 utilisateur.
+Les workers Turbo CPU et GPU utilisent déjà `whisper-worker-common` pour le décodage, l'encodage MP3 interne, les trames, l'intégrité et l'interface d'observation mémoire. Lire son `AGENTS.md` avant de la modifier. Garder les façades locales fines et les observations propres au worker ; ne pas dupliquer l'algorithme partagé. Comparer les deux parcours lors d'une correction commune ; si l'autre crate sort du périmètre accepté, signaler l'impact avant de la modifier. L'encodage interne n'autorise pas une nouvelle sortie MP3 utilisateur.
 
-Une crate `whisper-worker-common` n'existe pas : sa création éventuelle relève d'un plan dédié validé, sans bloquer les corrections bornées dans les modules actuels. Le worker Parakeet conserve son protocole et son moteur propres ; aucun report mécanique de code Turbo.
+`l01-memory-qualification` propage la feature correspondante vers la crate commune. `recette-hooks` reste distincte, inactive par défaut et refusée en release par le script racine. Le worker Parakeet conserve son protocole et son moteur propres ; aucun report mécanique de code Turbo.
 
 Placer les nouveaux tests dans des fichiers séparés ou `tests/`, avec des supports partagés selon leur visibilité. Distinguer tests de protocole, compilation et preuve du moteur natif réellement exécuté.
