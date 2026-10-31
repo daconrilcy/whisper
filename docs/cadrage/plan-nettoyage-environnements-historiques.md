@@ -1,6 +1,6 @@
-Avancée : P1-T1, P2-T1 et P3-T1 livrés localement après revue CLEAN ; l'utilisateur déclare l'application fonctionnelle le 31 octobre 2026.
-Blocage : G3 exige de confirmer le lot workers et sa requalification native précise ; aucune modification worker ni commande Cargo lancée pour cette étape.
-Décision : proposition G3 ci-dessous pour P3-T2/P3-T3 couplés, avec compatibilité des anciennes archives et sans installation ni push.
+Avancée : P3-T2/P3-T3 couplés implémentés et relus CLEAN ; six inférences natives comparatives CPU/GPU réussies et release locale préparée.
+Blocage : aucun pour la remise locale ; essai utilisateur de cette nouvelle release dans la fenêtre Windows restant.
+Décision : utiliser la recette isolée sous p3-workers ; la version P3-T1 déclarée fonctionnelle par l'utilisateur est conservée, sans installation ni push.
 
 ## Header
 
@@ -247,6 +247,41 @@ Commandes proposées, toutes via `guard.ps1 -Mode Run -CargoArguments @(...)` ap
 6. Desktop : `build --release --offline --locked -p whisper-desktop --features personal-install`, puis lanceur pointant uniquement vers les nouvelles ressources qualifiées de ce lot. Import/micro CPU/GPU, exports et comportement dans la fenêtre restent à confirmer par l'utilisateur ; les preuves natives et cette recette ne sont pas confondues.
 
 Arrêts : espace <30 Gio, préflight/garde/compilation/test en échec, ressource absente ou divergente, texte non exploitable, divergence de résultat à expliquer, attestation GPU absente, identité reconnue différente des copies remises, autre fichier de production nécessaire. Conserver preuves et références, aucun nettoyage/restauration ni relance après échec sans arbitrage. Deux cycles de revue/correction maximum. Le bilan utilisera ce document et la réponse de remise, sans campagne documentaire supplémentaire.
+
+### Bilan d'exécution P3-T2/P3-T3 — 31 octobre 2026
+
+Le paquet G3 ci-dessus a reçu un GO écrit précis dans cette conversation : lot couplé, compatibilité des anciennes archives, essais natifs CPU/GPU sous garde, revue indépendante et release sous `p3-workers`, sans remplacement de la version validée, installation ni push. Les neuf fichiers de production prévus et les tests directs ont été modifiés ; les copies exactes pré-source des neuf fichiers et du test de racines existant restent dans `p3-workers/pre-source/`. Le test historique `runtime_paths/tests.rs` a été adapté, après accord précis, à une fixture isolée au lieu des répertoires L2/L3 réels absents.
+
+Trois arrêts ont été conservés : compilation avec références résiduelles au module timing, événement Git réel d'origine non établie pendant un SelfTest, puis échec du test historique faute de dossiers. L'utilisateur a autorisé chaque correction/reprise correspondante ; aucun fichier Git n'a été supprimé ou restauré. Une invocation `--p` invalide a aussi été conservée comme commande refusée avant compilation, pas comme un build exécuté ; l'invocation valide `--package` a ensuite été exécutée sur arbitrage local. La garde n'a pas été assouplie. Sa surveillance sans PID ne constitue pas une preuve exhaustive d'absence de fuite.
+
+Les deux workers ont été construits séparément et figés **avant** l'édition des empreintes actives dans le registre :
+
+| Backend | EXE réellement qualifié et remis, sous `p3-workers/localappdata/Whisper/worker/` | SHA-256 |
+| --- | --- | --- |
+| CPU | `whisper-worker-parakeet-cpu.exe` | `a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d` |
+| GPU | `whisper-worker-parakeet-gpu.exe` | `7ffb0b4a022ec26909a8939b37787de6df6c9bdb2903edf14d3ffb32579eefc1` |
+
+Les essais natifs portent sur ces copies, pas sur les EXE éventuellement reconstruits dans le cache Cargo après mise à jour des clés. Leurs SHA ont été revérifiés après le build desktop et concordent avec les identités actives. Les cinq DLL CPU, neuf DLL GPU et deux modèles correspondent aux ressources vérifiées d'origine ; les workers de la version validée gardent leurs anciennes empreintes.
+
+| Contrôle exécuté sous garde | Résultat | Référence du run, préfixe `20261031T` |
+| --- | --- | --- |
+| Builds CPU puis CUDA figés | PASS | `183236170-67c48488`, `183251382-78485ca8` |
+| Native : référence propre, candidat propre, candidat avec R6/R7 invalides, chaque backend | Un test exécutant six inférences PASS ; 480 000 échantillons, 114 mots et texte/plages identiques par backend ; ASR et identité GPU vérifiés | `183357009-82447c74` |
+| Anciennes/nouvelles clés d'archives CPU/GPU, clés altérées, admission et refus de reprise | PASS ; anciennes clés acceptées seulement lors de validation d'archive, pas d'exécution ; refus de reprise sans réécrire le pending ; refus L2a/R5-2 conservés | `183718108-141813e3` |
+| Cœur, bibliothèque | 80 PASS | `183618349-427a9728` |
+| Archives, bibliothèque | 38 PASS, 1 ignoré | `183628138-72ca9e5d` |
+| Parakeet Live | 39 PASS | `183646305-557f35a7` |
+| Isolation import / session | 2 PASS / 1 PASS | `183655922-c0208f19`, `183700716-e40844f2` |
+| Worker personnel CPU / CUDA après édition des clés | 24 PASS / 24 PASS ; copies qualifiées non remplacées | `183733810-af0c0750`, `183740651-ba86c674` |
+| Format, Clippy worker et adaptateurs, build adaptateurs | PASS ; avertissements existants et helper de fixture inutilisé en configuration CUDA signalés | `183750070-f08954bb`, `183754932-41d6c12b`, `183800846-95641493`, `183810777-09804344` |
+
+Les journaux exacts et arguments sont conservés sous `target/parakeet-tests/refacto-parakeet-live/logs/`. Les preuves des builds, tests, arrêts et six journaux ASR ont été archivées dans `p3-workers/archive/`, avec arborescence, nombre (46 fichiers) et SHA-256 des copies vérifiés. Les copies des journaux globaux de garde contiennent aussi les campagnes précédentes ; elles ne sont pas présentées comme un journal exclusif de ce lot. Aucune source, référence, copie WAV ou racine Cargo partagée n'a été nettoyée.
+
+La revue indépendante du candidat courant, comparé aux snapshots pré-source sur le HEAD documentaire `d15fdeb403d1462f2332216bce119c3b53a1404c`, conclut **CLEAN**, un passage, aucune correction demandée. Elle confirme le retrait des seules mesures R6/R7, la conservation de la durée d'inférence contractuelle, du moteur, du protocole et de l'attestation GPU, et la séparation entre reconnaissance des anciennes archives et admission courante.
+
+Après revue, le desktop personnel a été reconstruit sous garde (`build --release --offline --locked --package whisper-desktop --features personal-install`) avec succès. Remise : `p3-workers/release/Lancer-Whisper.cmd`, vérifié avec `--check` sans ouvrir la fenêtre. Il utilise `p3-workers/localappdata/Whisper/` pour les workers Parakeet, modèles, DLL et réglages ; seuls les deux workers Turbo conservés sont placés à côté du desktop. Le dossier release ne doit pas être déplacé seul hors de son arborescence de ressources.
+
+Limites : `worker_contract` autonome NOT RUN car il impose une racine `main-facades` hors de ce lot ; les six inférences IPC ne prétendent pas couvrir tous ses cas. Un test archive est ignoré. Aucun nouveau résultat de performance ni validation de cette nouvelle release dans la fenêtre Windows n'est revendiqué. L'utilisateur avait déclaré P3-T1 fonctionnel avant ce lot ; cette validation ne vaut pas pour le nouveau binaire. Espace libre final relevé : 160,7 Gio. Sources produit laissées non committées ; seuls les documents de cadrage sont commités localement par la session principale. Aucun push ni installation.
 
 ## 7. Verification Matrix
 
