@@ -1,6 +1,6 @@
-Avancée : P0 préparé et auto-tests stricts de garde réussis ; aucune correction Rust appliquée.
-Blocage : baseline interrompue après un événement Temp hors racine d'origine indéterminée ; P0 non clos.
-Décision : campagne arrêtée et preuves conservées ; arbitrage utilisateur requis avant reprise.
+Avancée : reprise de P0 autorisée après arrêt initial ; aucune correction Rust appliquée à ce stade.
+Blocage : baseline à reprendre sous la tolérance Temp précisément autorisée pour clippy-core.
+Décision : poursuivre les deux lots du plan, avec les autres conditions d'arrêt maintenues.
 
 # Plan de correction Clippy du cœur
 
@@ -293,7 +293,7 @@ Contrôles de planification réellement exécutés : lectures ciblées et recher
 
 Exécution autorisée ensuite dans cette même session par l'utilisateur : « ok implemente le plan ». Cet accord porte sur les deux lots dans l'ordre prévu, leurs vérifications et adaptations de garde, revues et commits locaux ; aucun push ni recette native/UI. Avant toute écriture de campagne, l'implémenteur a relevé que la garde UI contient une tolérance Temp non attribué et des auto-tests qui l'exigent. La rédaction P0 « adapter seulement les racines » est donc corrigée ci-dessus pour satisfaire l'exclusion explicite de cette dérogation ; aucun assouplissement, nouvelle racine ou dispositif de surveillance n'est ajouté.
 
-### Arrêt de P0 — 31 octobre 2026
+### Arrêt initial de P0 — 31 octobre 2026
 
 Implémenteur délégué `/root/implementation_clippy`, baseline Git `979dbe5834b518d643337034e6b6e2b39a030c1f`. Garde adaptée sous `target/parakeet-tests/clippy-core/`, syntaxe PowerShell validée, cache copié dans cette racine. V-P/SelfTest strict : PASS, exit 0, notamment refus des quatre types d'événements Temp non attribués simulés. Ces simulations d'auto-test ne constituent pas des écritures externes réelles.
 
@@ -301,7 +301,9 @@ Première commande V-T sous garde : `test --offline --locked -p whisper-core --a
 
 Preuves conservées sous `target/parakeet-tests/clippy-core/logs/` : `guard-events.jsonl`, `guard.jsonl`, `Run-20261031T052121951-c14e409d.stderr.log` et `.stdout.log`. Aucun résultat de tests baseline PASS ; V-CL non lancé, A1/A2/B1/B2 non commencés. Aucun fichier Rust, manifeste, lock ou configuration suivie modifié. Aucune revue indépendante d'implémentation demandée faute de candidat ; aucune recette native/UI ni push. Aucun nettoyage ou restauration après l'arrêt. Les trois répertoires non suivis préexistants sont conservés. Espace final relevé par l'implémenteur : 66 043 084 800 octets.
 
-Arbitrage produit/périmètre à soumettre avant toute reprise : soit maintenir l'arrêt avec la règle stricte actuelle, soit autoriser pour cette seule campagne `clippy-core` une tolérance bornée des événements purement locaux sous `%LOCALAPPDATA%\Temp` sans attribution démontrée, consignés UNATTRIBUTED sans qualification de leur origine. Dans cette seconde option, les écritures applicatives volontaires restent limitées aux deux racines prévues ; une écriture externe attribuée à la campagne, un événement sensible, un défaut de garde ou un échec test/build imposent toujours l'arrêt. Recommandation : cette tolérance limitée pour pouvoir poursuivre les corrections, sous réserve d'accord explicite de l'utilisateur sur le risque résiduel ; aucune reprise ni modification de garde permissive effectuée à ce stade.
+Arbitrage soumis après cet arrêt : maintenir la règle stricte ou autoriser pour cette seule campagne `clippy-core` une tolérance bornée des événements purement locaux sous `%LOCALAPPDATA%\Temp` sans attribution démontrée, consignés UNATTRIBUTED sans qualification de leur origine. Les écritures applicatives volontaires restent limitées aux deux racines prévues ; une écriture externe attribuée à la campagne, un événement sensible, un défaut de garde ou un échec test/build imposent toujours l'arrêt.
+
+Autorisation de reprise écrite dans cette même session : « Oui, j’autorise cette tolérance limitée au Temp Windows non attribué pour la seule campagne clippy-core. Reprends l’implémentation du plan avec les autres arrêts maintenus. » Elle remplace, pour cette seule campagne, l'exigence P0 de refus des événements Temp non attribués. Adapter la branche correspondante de la garde et ses auto-tests, puis relancer SelfTest avant Cargo. Tolérance uniquement aux créations/modifications/suppressions purement sous le Temp Windows non attribuées et aux renommages dont ancien et nouveau chemins sont tous deux sous ce Temp ; aucun élargissement aux événements attribués, aux erreurs de surveillance, aux emplacements sensibles ou aux renommages franchissant cette frontière. L'origine des événements tolérés reste indéterminée ; aucune destination volontaire hors racine n'est créée. Les preuves de l'arrêt initial sont conservées.
 
 ## 11. Implementation Agent Prompt
 
