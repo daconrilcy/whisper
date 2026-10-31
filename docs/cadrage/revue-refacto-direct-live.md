@@ -1,6 +1,6 @@
-Avancée : revues indépendantes DESIGN et PLANS CLEAN ; DL-D01 fermé.
-Blocage : aucun constat résiduel documentaire ; GO et garde restent requis avant exécution.
-Décision : DESIGN READY et PLANS READY documentaires, sans implémentation ni push.
+Avancée : DESIGN/PLANS CLEAN ; contrôles C1–C9 réussis et revue Rust CLEAN sur le candidat inchangé.
+Blocage : aucun pour cette revue ; essais natifs, microphone/GPU réel et fenêtre Windows non exécutés.
+Décision : clôturer la revue Rust en conservant avertissements et limites de qualification explicites.
 
 # Revues indépendantes — refactoring direct_live
 
@@ -84,3 +84,93 @@ Le périmètre livré est limité aux trois documents prévus. Une correction DE
 Vérifications réalisées : lecture des règles et sources citées, correspondance des chemins, absence de modification produit dans le diff cumulé, `git diff --check` sur les changements documentaires. Aucune compilation, aucun test ni campagne lancé. Espace libre final relevé avant clôture : environ 165 Gio. Les trois familles de fichiers non suivis initiales ont été préservées ; aucune autorisation de push utilisée.
 
 Le runtime ne propose pas de fermeture des sous-agents ; leurs missions sont terminées et ils n’ont pas été réaffectés hors de leur rôle. Aucun autre artefact ou mécanisme d’outillage n’a été créé.
+
+## Revue du candidat Rust après implémentation
+
+Cette section complète les verdicts documentaires ci-dessus, sans les remplacer par un verdict de code CLEAN. Autorité actuelle et historique de garde/capture : voir le suivi du plan, notamment la demande utilisateur « continue la refacto sans te soucier de ce probleme » et la poursuite du code en séparant les vérifications NOT RUN.
+
+Coordination : `rust_review_coordinator`, agent review_refactor_direct_live, sans édition ni revue du code par le coordinateur. Reviewer : agent `rust_reviewer_direct_live`, rôle rust_reviewer, indépendant de l’implémenteur et en lecture seule. Auteur du code : implementation_direct_live. Aucun code modifié ni commande Cargo exécutée pendant la revue ; aucune correction demandée. Candidat : huit chemins Rust de L-DL dans l’arbre de travail, base `102a3f8d44cfdb52355d70abc0f263f9ff5af86f`, epoch 0. Le fichier de plan modifié par la session principale et les non-suivis antérieurs sont distingués du delta Rust.
+
+### Retour final brut du coordinateur
+
+Avancée : revue statique indépendante terminée ; aucun défaut actionnable n’a été relevé et aucune correction n’est demandée.
+
+Blocage : la compilation, les tests et les autres vérifications Cargo du plan restent non exécutés. Le reviewer ne propose aucune voie de vérification autorisée.
+
+Décision : `BLOCKED` pour clôture de la revue, conformément à son verdict. Aucun cycle de correction n’a été engagé.
+
+```yaml
+verdict: BLOCKED
+target:
+  baseline: 102a3f8d44cfdb52355d70abc0f263f9ff5af86f
+  candidate: working-tree, epoch 0
+passes:
+  review: 1
+  correction: 0
+  verification: 0
+findings:
+  closed: []
+  unresolved: []
+files_changed_by_worker:
+  - crates/whisper-adapters/src/direct_live.rs
+  - crates/whisper-adapters/src/direct_live/capture.rs
+  - crates/whisper-adapters/src/direct_live/worker.rs
+  - crates/whisper-adapters/src/direct_live/outputs.rs
+  - crates/whisper-adapters/src/direct_live/wav.rs
+  - crates/whisper-adapters/src/direct_live/tests.rs
+  - crates/whisper-adapters/src/direct_live/d2_corpus.rs
+  - crates/whisper-adapters/src/direct_live/test_support.rs
+verification_summary:
+  - "Revue statique : aucun défaut actionnable relevé."
+  - "rustfmt ciblé et git diff --check : PASS, selon le handoff initial."
+  - "Cargo fmt, Clippy, compilation et tests : NOT RUN."
+  - "Validation native et fenêtre Windows : NOT RUN."
+residual_risks:
+  - "La lecture statique ne démontre pas la compilation ni le comportement des tests."
+blocker: "La garde stricte reste bloquée ; aucune voie de vérification exécutable n’est autorisée dans ce mandat."
+```
+
+### Précisions attribuées transmises par le coordinateur
+
+Le reviewer a examiné l’état DirectLive et les constantes, les corps de production/support déplacés, les différences de visibilité/formatage, l’API crate dont pump_capture et les consommateurs. Il rapporte les 18 tests initiaux contrôlés équivalents après normalisation, les sept cas D2 conservés et les trois témoins supplémentaires examinés. Le principal passe de 3 184 à 470 lignes et les modules privés correspondent au découpage prévu.
+
+Gaps matériels : découverte compilée des 28 tests, tests ciblés et consommateurs, compilation des tests et des consommateurs adapters/desktop, Cargo fmt et Clippy du plan. Moteurs natifs et fenêtre Windows non validés. Le reviewer ne propose pas de voie VERIFY autorisée et le coordinateur n’a déclenché ni nouvel implémenteur, ni contournement de la garde, ni nouvelle tentative. Ce résultat autorise la remise du code avec ces limites ; il n’est pas une clôture de revue CLEAN.
+
+### Vérification supplémentaire demandée après remise
+
+L’utilisateur a ensuite demandé les validations nécessaires. L’implémenteur initial, en mode VERIFY et sans mutation du candidat, a tenté le préflight strict avant les contrôles C1–C9. Résultat : auto-test FAIL, code 1, à 13:15:21.7861363 +01:00 le 31 octobre 2026 sur un événement réel Temp extérieur d’origine non attribuée. Journal : `target/parakeet-tests/refacto-direct-live/logs/selftest-validation-20261031.log` ; détail et autorité au §10 du plan. Aucun Cargo ni test produit lancé, aucune modification source. Les gaps matériels précédents ne sont donc pas fermés et aucun nouveau passage de revue n’a été lancé sans preuve nouvelle exploitable.
+
+## Clôture Rust après révision permanente Temp et validations
+
+L’utilisateur a ensuite explicitement choisi la modification permanente de la règle Temp dans AGENTS.md. Portée et risque résiduel acceptés au §11 du plan : journalisation des événements non attribués dans le seul Temp réel, sans autorisation d’écriture volontaire ; attribution démontrée et autres violations toujours bloquantes. L’adaptation de la garde et ses auto-tests ont réussi, puis toutes les vérifications C1–C9 ont terminé avec code 0 sur le même candidat Rust. Preuves détaillées au §12 du plan et dans `target/parakeet-tests/refacto-direct-live/archive/validation-20261031.zip`. Aucun correctif source n’est intervenu entre les deux passages de revue.
+
+Le même reviewer rust_reviewer_direct_live a examiné ces nouvelles preuves en lecture seule. Il n’a pas exécuté lui-même les commandes Cargo : les résultats sont ceux du VERIFY de l’implémenteur initial, contrôlés dans la revue. Il confirme les 28 tests découverts, les 30 tests ciblés distincts réussis (C5 déjà couvert par C2), la compilation workspace --no-run, le format global, Clippy code 0 avec avertissements et les builds adapters/desktop. Les anciens gaps de vérification ne restent pas ouverts sur ce candidat.
+
+### Retour final brut du coordinateur
+
+Avancée : le même reviewer a repris la revue après réception des vérifications du candidat inchangé et a déclaré `CLEAN`.
+
+Blocage : aucun pour la revue du refactoring. Les essais natifs, microphone/GPU réel et fenêtre Windows restent non validés.
+
+Décision : aucun finding ni cycle de correction. Les deux réexports inutilisés sont un avis sans correction obligatoire.
+
+```yaml
+verdict: CLEAN
+baseline: 102a3f8d44cfdb52355d70abc0f263f9ff5af86f
+candidate: working-tree, epoch 0, inchangé
+passes:
+  review: 2
+  correction: 0
+  verification: 1
+findings:
+  closed: []
+  unresolved: []
+verification_gaps: []
+residual_risks:
+  - "Validation native, microphone/GPU réel et fenêtre Windows non effectuée."
+  - "92 événements Temp UNATTRIBUTED journalisés ; leur origine demeure inconnue."
+```
+
+Avis du reviewer : les réexports ParakeetExportOutcome et export_parakeet_manifest sont conservés pour DEC-T02 ; les avertissements sont expliqués, sans correction obligatoire. Les 92 événements UNATTRIBUTED ont été journalisés conformément à la règle permanente explicitement acceptée ; ils ne deviennent pas une preuve d’absence de fuite ni une attribution à Cargo. Ce verdict clôt la revue du refactoring, sans valider le matériel ou la fenêtre Windows et sans autoriser un push.
+
+Livraison Git : après ce verdict, l’utilisateur a explicitement autorisé le commit local des seuls fichiers de la tâche, sans push. La session principale inclut les huit fichiers Rust, AGENTS.md et les deux suivis documentaires ; aucune modification source supplémentaire ni fichier étranger n’est intégré. Le candidat Rust validé et relu reste inchangé.
