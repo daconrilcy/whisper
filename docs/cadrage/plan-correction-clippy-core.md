@@ -132,7 +132,7 @@ Les identifiants V-* renvoient aux commandes exactes du §7, exécutées uniquem
 - Ownership bucket : validation existante. Scope budget : 0 fichier de production ; garde adaptée et ce seul rapport, aucun nouvel outil autonome.
 - Closed invariant : N/A (préflight). Before/Target metrics : campagne non autorisée → environnement borné, auto-tests réussis et baseline conservée. Metric commands : V-P, V-T, V-CL.
 - Dependencies : accord écrit précis campagne/adaptation ; lire AGENTS des crates avant toute modification de leur sous-arborescence.
-- Implementation outline : relever Git/espace et responsabilités concurrentes ; fixer et vérifier canoniquement CARGO_HOME, TEMP, TMP sous la racine du lot, CARGO_TARGET_DIR sous cargo-shared ; copier le cache nécessaire sans écriture dans le profil ; adapter seulement les racines de la garde existante, analyser sa syntaxe et passer SelfTest avant tout Cargo. Fixer CARGO_INCREMENTAL=0 et CARGO_PROFILE_DEV_DEBUG=line-tables-only. Relever tests core et diagnostics en mode avertissements avant édition.
+- Implementation outline : relever Git/espace et responsabilités concurrentes ; fixer et vérifier canoniquement CARGO_HOME, TEMP, TMP sous la racine du lot, CARGO_TARGET_DIR sous cargo-shared ; copier le cache nécessaire sans écriture dans le profil ; adapter les racines de la garde existante et supprimer sa tolérance héritée aux événements Temp non attribués, avec les auto-tests correspondants désormais exigeant leur refus. Analyser sa syntaxe et passer SelfTest avant tout Cargo. Fixer CARGO_INCREMENTAL=0 et CARGO_PROFILE_DEV_DEBUG=line-tables-only. Relever tests core et diagnostics en mode avertissements avant édition.
 - Tests to add or update : aucun produit ; conserver les auto-tests de refus de chemins de la garde et leur surveillance, sans ajouter de dispositif Windows.
 - Verification commands / provenance : V-P (Repo docs/Source inferred), V-T et V-CL (Source inferred depuis les commandes du plan core).
 - Acceptance criteria : au moins 30 Gio libres, aucune jonction/variable hors racine, baseline tests réussie, dix diagnostics retrouvés dans core lib. Pas de baseline volontairement en échec strict.
@@ -290,6 +290,8 @@ G-JSON/G-CONS sont des vérifications d'implémentation, pas des décisions prod
 | Narrow implementation scope | Pass | Dix diagnostics bibliothèque ; strict global non promis |
 
 Contrôles de planification réellement exécutés : lectures ciblées et recherches des consommateurs/alias, état Git, comparaison `2829ce45..HEAD` sur core/configuration et `git diff --check` du document. Aucun changement de code, test, garde, cache, configuration ; aucun Cargo ni recette exécuté. Le commit de ce plan reste documentaire et n'ouvre aucun GO.
+
+Exécution autorisée ensuite dans cette même session par l'utilisateur : « ok implemente le plan ». Cet accord porte sur les deux lots dans l'ordre prévu, leurs vérifications et adaptations de garde, revues et commits locaux ; aucun push ni recette native/UI. Avant toute écriture de campagne, l'implémenteur a relevé que la garde UI contient une tolérance Temp non attribué et des auto-tests qui l'exigent. La rédaction P0 « adapter seulement les racines » est donc corrigée ci-dessus pour satisfaire l'exclusion explicite de cette dérogation ; aucun assouplissement, nouvelle racine ou dispositif de surveillance n'est ajouté.
 
 ## 11. Implementation Agent Prompt
 
