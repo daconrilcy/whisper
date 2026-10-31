@@ -1,6 +1,6 @@
-Avancée : P, S et T livrés CLEAN ; 66 sites fermés, 19 avertissements adapters lib restants.
-Blocage : aucun pour T ; préflight et sélection contrôlée E à établir.
-Décision : commit local T puis les trois enums E, garde inchangée et tous arrêts maintenus, sans push.
+Avancée : P, S, T et E livrés CLEAN ; 69 sites fermés, 16 avertissements adapters lib restants.
+Blocage : aucun pour E ; préflight et sélection contrôlée C à établir.
+Décision : commit local E puis signatures/types C, garde inchangée et tous arrêts maintenus, sans push.
 
 # Analyse et plan de correction Clippy — adaptateurs et desktop
 
@@ -420,7 +420,7 @@ Contrat commun à chaque tâche :
 - Closed invariant / Before metrics / Target metrics : critère ci-dessous ; 1 site(s) → zéro. Metric commands : V-BASE et contrôles ci-dessous. Stop conditions : contrat commun et divergence du critère ci-dessous.
 - Dependencies : phase précédente fermée et préflight du lot (P1 : GO initial).
 - Implementation outline : Boxer seulement WorkerCommandPoll::Command. Adapter take_next_worker_command (quatre retours Command) et déballer au writer avant sérialisation. Canaux existants continuent à transporter WorkerCommand ; pas de changement du protocole Turbo ou des capacités.
-- Tests to add or update : Tests privés IPC/worker_control existants ; adapter constructeurs de tests, vérifier Stop/Shutdown prioritaire, Empty/Disconnected et drains sans hang.
+- Tests to add or update : Tests privés IPC/worker_control existants ; adapter constructeurs de tests, vérifier Stop/Shutdown prioritaire, Empty/Disconnected et drains sans hang. Exception privée ciblée explicitement autorisée en E : petit fichier séparé `src/worker_ipc/tests/worker_command_poll.rs`, inclus via tests.rs, pour l'invariant interne de take_next_worker_command (Stop prioritaire, commande ordinaire Shutdown, Idle/Closed), caractérisé avant/après ; sans nouvelle visibilité, hook ou champ de production. La voie publique ne permet pas de tester directement ces états sans transport/processus.
 - Verification commands : V-UNIT, V-BASE, V-F (§7). Command provenance : Source inferred ; aucun Cargo exécuté lors de la rédaction.
 - Acceptance criteria : Enum au moins272 octets → diagnostic absent ; même priorité et fermeture, une allocation par commande, aucune allocation sur Idle/Closed.
 - Rollback/fallback notes : annuler le seul delta coordonné de la tâche si nécessaire ; conserver les preuves. Notes for implementation agent : contrat commun ci-dessus, pas de cleanup voisin.
@@ -771,6 +771,16 @@ Références de runs (logs/guard.jsonl) : inventaires `0f156757`/`9339c69d`, bas
 Revue indépendante par le même reviewer : **T-R1 MINEUR**, assertion de stratégie seule manquante dans le nouveau test. Correction par l'implémenteur dans le seul fichier `src/worker_ipc/tests/source_binding_entry.rs` : même clé/source, stratégie LegacyV1, erreur SourceSnapshotMismatch et liaison conservée. Source divergente et échec sans insertion restent testés. Test exact `existing_source_binding_is_reused_and_failed_acquisition_is_not_inserted` run `765bef24` **1 réussi**, format `19cd9eaa` et diff-check PASS ; aucun code production modifié par cette correction, autres preuves réutilisées car non affectées. Verdict final **CLEAN T1–T4**, deux passages et **un cycle de correction**, T-R1 fermé, aucun constat/demande/gap restant.
 
 Archive `target/parakeet-tests/clippy-adapters-desktop/archive/lot-t-20261031/` : **412 fichiers source/412 copies, SHA-256 tous concordants**, arborescence préservée, aucun manifeste/suppression. Espace final **64 486 158 336 octets**. Hors sélection, natif/modèles/MP3/matériel et fenêtre NOT RUN ; Temp reste UNATTRIBUTED. Non-suivis préservés, aucun push. Suite autorisée E puis C puis D après commit local T.
+
+### Livraison du lot E
+
+Baseline `19716bda994e0311f25fdf29d1e972eac19f1f23`. E1–E3 : six fichiers production ciblés et quatre fichiers de support/constructeurs de tests, dont le nouveau petit test privé E1 explicitement justifié à la tâche. WorkerCommandPoll conserve ses canaux et déballage avant sérialisation ; PreflightResult transmet le prompt intact à l'événement ; UnifiedSessionSource conserve un propriétaire et les délégations capture/arrêt/gain/ACK. Les trois diagnostics d'enums disparaissent : **19 → 18 → 17 → 16** avertissements adapters lib, sans modification du protocole.
+
+G-TEST : neuf tests contrôlés exacts (trois transport/priorité/contre-pression, refus et file, quatre capture/gain/arrêt/repli avec faux workers), plus nouveau test E1 ; **10 filtres, un test réussi chacun**, et **2 JSON wire réussis** baseline/candidat. Le test de capture finale exigeant un modèle réel n'est pas sélectionné. Pas de racine historique ni recette native. SelfTest PASS, garde inchangée. Runs inventaire `bde96c97`/`695eb8ef`, Clippy baseline `6d389e95`, tests baseline `71df4b09` à `73d1b563`, tests finaux `afa3f9e7` à `735bd744`, wire `d9a54b3e`, Clippy final `963d41ec`, format `cfc3c0a4`, workspace/all-targets `d9eb1821`, diff-check : **PASS**. Aucun échec du lot ; références complètes dans logs/guard.jsonl et Run-20261031T* de campagne.
+
+Même reviewer indépendant : **CLEAN E1–E3**, un passage, zéro correction, aucun constat/demande/gap. Il a tracé les six constructeurs Duplicate et les deux sorties vers le même événement métier : preuve locale de conservation jugée suffisante, sans exiger la voie positive à vrai modèle hors périmètre. Celle-ci reste NOT RUN, ainsi que natif, matériel et fenêtre ; aucun résultat global de recette inféré.
+
+Archive `target/parakeet-tests/clippy-adapters-desktop/archive/lot-e-20261031/` : **500 fichiers source/500 copies**, SHA-256 tous concordants, arborescence préservée, aucun manifeste ou nettoyage. Espace final **64 472 064 000 octets**. Non-suivis tiers préservés. Commit local E avant C, aucun push.
 
 Autorisation écrite de l'utilisateur dans cette session après livraison du plan : « Implémente les six lots du plan dans l’ordre, avec revues indépendantes et commits locaux, sans push. J’autorise la tolérance limitée au Temp Windows non attribué pour cette campagne, avec les autres arrêts maintenus. » Cet accord couvre P, S, T, E, C puis D et les campagnes prévues. Pour cette seule campagne `clippy-adapters-desktop`, les événements Created/Changed/Deleted purement sous `%LOCALAPPDATA%\Temp` non attribués et les renommages dont les deux chemins y restent sont consignés UNATTRIBUTED sans arrêt ; aucune attribution ni destination volontaire externe n'en est déduite. Les événements attribués à la campagne, sensibles, erreurs de surveillance, renommages franchissant la frontière et les autres arrêts du plan restent bloquants. Une revue et un commit de chaque lot fermé précèdent le suivant. L'autorisation ne vaut pas extension aux warnings/cibles hors périmètre ni aux recettes natives/UI.
 

@@ -227,7 +227,7 @@
         let manual_state = UnifiedSessionState {
             request: manual_request.clone(),
             document_drain_start_sequence: 1,
-            source: UnifiedSessionSource::Capture(manual_source),
+            source: UnifiedSessionSource::Capture(Box::new(manual_source)),
             available_samples: initial_written_samples,
             durable_samples: initial_durable_samples,
             source_closed: false,

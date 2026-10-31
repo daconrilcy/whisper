@@ -53,7 +53,7 @@ impl ImportRuntime {
                             Ok(publications) => publications,
                             Err(error) if error.starts_with("StorageCorrupt:") => {
                                 let source_samples = request.source_samples.unwrap_or(0);
-                                return Ok(PreflightResult::Duplicate(DuplicateImportPrompt {
+                                return Ok(PreflightResult::Duplicate(Box::new(DuplicateImportPrompt {
                                     request,
                                     source_sha256: source_sha,
                                     source_samples,
@@ -64,14 +64,14 @@ impl ImportRuntime {
                                     ),
                                     resume_from: None,
                                     reserved_export_basename: None,
-                                }));
+                                })));
                             }
                             Err(error) => return Err(error),
                         };
                         let publications = verified_present_publications(publications);
                         if !publications.is_empty() {
                             let source_samples = request.source_samples.unwrap_or(0);
-                            return Ok(PreflightResult::Duplicate(DuplicateImportPrompt {
+                            return Ok(PreflightResult::Duplicate(Box::new(DuplicateImportPrompt {
                                 request,
                                 source_sha256: source_sha,
                                 source_samples,
@@ -80,7 +80,7 @@ impl ImportRuntime {
                                 revalidation_notice: None,
                                 resume_from: None,
                                 reserved_export_basename: None,
-                            }));
+                            })));
                         }
                         let mut queue = crate::queue_store::QueueStore::open(destination)?;
                         let original = (request.job_id, request.generation);
@@ -157,7 +157,7 @@ impl ImportRuntime {
         );
         match result {
             Ok(PreflightResult::Duplicate(prompt)) => {
-                events.push_back(ImportEvent::DuplicateImportFound(prompt));
+                events.push_back(ImportEvent::DuplicateImportFound(*prompt));
                 Ok(())
             }
             Ok(PreflightResult::Queued {

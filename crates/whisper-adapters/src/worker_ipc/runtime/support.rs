@@ -1,7 +1,7 @@
 use super::*;
 
 pub(in crate::worker_ipc) enum PreflightResult {
-    Duplicate(DuplicateImportPrompt),
+    Duplicate(Box<DuplicateImportPrompt>),
     Queued {
         submitted: (JobId, Generation),
         admitted: (JobId, Generation),

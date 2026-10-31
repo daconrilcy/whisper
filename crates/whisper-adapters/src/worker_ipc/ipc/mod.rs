@@ -93,7 +93,7 @@ impl ChildWorkerTransport {
             let mut stdin = stdin;
             loop {
                 let command = match take_next_worker_command(&command_rx, &stop_rx) {
-                    WorkerCommandPoll::Command(command) => command,
+                    WorkerCommandPoll::Command(command) => *command,
                     WorkerCommandPoll::Idle => continue,
                     WorkerCommandPoll::Closed => return,
                 };
@@ -301,7 +301,7 @@ impl ChildWorkerTransport {
 }
 
 pub(super) enum WorkerCommandPoll {
-    Command(WorkerCommand),
+    Command(Box<WorkerCommand>),
     Idle,
     Closed,
 }
@@ -311,16 +311,16 @@ pub(super) fn take_next_worker_command(
     emergency: &Receiver<WorkerCommand>,
 ) -> WorkerCommandPoll {
     if let Ok(command) = emergency.try_recv() {
-        return WorkerCommandPoll::Command(command);
+        return WorkerCommandPoll::Command(Box::new(command));
     }
     match commands.recv_timeout(Duration::from_millis(5)) {
-        Ok(command) => WorkerCommandPoll::Command(command),
+        Ok(command) => WorkerCommandPoll::Command(Box::new(command)),
         Err(mpsc::RecvTimeoutError::Timeout) => match emergency.try_recv() {
-            Ok(command) => WorkerCommandPoll::Command(command),
+            Ok(command) => WorkerCommandPoll::Command(Box::new(command)),
             Err(TryRecvError::Empty | TryRecvError::Disconnected) => WorkerCommandPoll::Idle,
         },
         Err(mpsc::RecvTimeoutError::Disconnected) => match emergency.try_recv() {
-            Ok(command) => WorkerCommandPoll::Command(command),
+            Ok(command) => WorkerCommandPoll::Command(Box::new(command)),
             Err(TryRecvError::Empty | TryRecvError::Disconnected) => WorkerCommandPoll::Closed,
         },
     }

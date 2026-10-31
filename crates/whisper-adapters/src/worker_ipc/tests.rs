@@ -9,3 +9,4 @@ include!("tests/queue_characterization.rs");
 include!("tests/duplicate_characterization.rs");
 include!("tests/effect_characterization.rs");
 include!("tests/source_binding_entry.rs");
+include!("tests/worker_command_poll.rs");

@@ -293,7 +293,7 @@ impl ImportRuntime {
                             prompt.revalidation_notice = Some(
                                 "La source ou les transcriptions existantes ont changé. Vérifiez l'état actuel avant de choisir.".into(),
                             );
-                            return Ok(PreflightResult::Duplicate(prompt));
+                            return Ok(PreflightResult::Duplicate(Box::new(prompt)));
                         }
                         let current_basename = if choice == DuplicateImportChoice::Replace {
                             Some(crate::archive::ArchiveStore::suggest_duplicate_export_basename(
@@ -309,7 +309,7 @@ impl ImportRuntime {
                             prompt.revalidation_notice = Some(
                                 "Le nom de sortie proposé n'est plus disponible. Vérifiez le nouveau nom avant de confirmer.".into(),
                             );
-                            return Ok(PreflightResult::Duplicate(prompt));
+                            return Ok(PreflightResult::Duplicate(Box::new(prompt)));
                         }
                         let mut queue = crate::queue_store::QueueStore::open(destination)?;
                         let original = (request.job_id, request.generation);
@@ -343,7 +343,7 @@ impl ImportRuntime {
                                     prompt.request = request;
                                     prompt.publications = current;
                                     prompt.revalidation_notice = Some(error);
-                                    return Ok(PreflightResult::Duplicate(prompt));
+                                    return Ok(PreflightResult::Duplicate(Box::new(prompt)));
                                 }
                             }
                         } else {
@@ -366,7 +366,7 @@ impl ImportRuntime {
                                 prompt.revalidation_notice = Some(
                                     "Le nom de sortie proposé n'est plus disponible. Vérifiez le nouveau nom avant de confirmer.".into(),
                                 );
-                                return Ok(PreflightResult::Duplicate(prompt));
+                                return Ok(PreflightResult::Duplicate(Box::new(prompt)));
                             }
                             return Err(error);
                         }
@@ -418,7 +418,7 @@ impl ImportRuntime {
         );
         DuplicateEffect::Continue(match result {
             Ok(PreflightResult::Duplicate(prompt)) => {
-                events.push_back(ImportEvent::DuplicateImportFound(prompt));
+                events.push_back(ImportEvent::DuplicateImportFound(*prompt));
                 Ok(())
             }
             Ok(PreflightResult::Queued {

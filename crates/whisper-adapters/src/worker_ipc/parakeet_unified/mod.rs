@@ -104,7 +104,7 @@ pub(in crate::worker_ipc) fn restore_unified_document_prefix(
 
 pub(in crate::worker_ipc) enum UnifiedSessionSource {
     Closed(crate::parakeet_audio::PcmPartStore),
-    Capture(crate::parakeet_live::UnifiedCapturePump),
+    Capture(Box<crate::parakeet_live::UnifiedCapturePump>),
 }
 
 impl crate::parakeet_pipeline::ReadablePcmSource for UnifiedSessionSource {

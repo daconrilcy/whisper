@@ -1491,7 +1491,7 @@ fn main() {
             else {
                 panic!("expected a queued normal command");
             };
-            write_frame(&mut wire, &IpcEnvelope::new(command)).unwrap();
+            write_frame(&mut wire, &IpcEnvelope::new(*command)).unwrap();
         }
         assert!(matches!(emergency_rx.try_recv(), Err(TryRecvError::Empty)));
 

@@ -170,7 +170,7 @@ impl ImportRuntime {
                     config: request.config.clone(),
                 },
                 document_drain_start_sequence: 1,
-                source: UnifiedSessionSource::Capture(capture),
+                source: UnifiedSessionSource::Capture(Box::new(capture)),
                 available_samples: 0,
                 durable_samples: 0,
                 source_closed: false,
