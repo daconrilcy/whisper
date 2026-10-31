@@ -1,6 +1,6 @@
-Avancée : P, S, T, E et C livrés CLEAN ; 85 sites adapters fermés, strict core/adapters lib PASS.
-Blocage : aucun pour C ; les 13 sites desktop restent au lot D.
-Décision : commit local C puis D, garde et arrêts maintenus, sans push.
+Avancée : P, S, T, E et C livrés CLEAN ; D n'a pas de modification source.
+Blocage : baseline D arrêtée après une commande de test assemblée hors sélection, avec neuf échecs de prérequis.
+Décision : conserver les journaux et demander arbitrage sur une reprise à appels explicites, garde inchangée et sans push.
 
 # Analyse et plan de correction Clippy — adaptateurs et desktop
 
@@ -837,6 +837,30 @@ Consolidé sur **tout le candidat C1–C8** : filtres baseline identiques, **96 
 Même reviewer indépendant via coordinateur : **CLEAN C1–C8**, baseline logique `1d47098f`, candidat worktree (diff `2939228f041c1d2cabc74c21f55d636420e7cb39`), un passage sans correction. Contextes/refs/Send/Sync/options, ordre des effets et callbacks conservés ; aucune allocation/verrou supplémentaire en callback capture. Signature publique reconfirmation et ses deux consommateurs coordonnés, réservations/sérialisation/identités inchangées, quatre appels export avec mêmes hooks et temporalité. Réexport NativeRetryState réservé aux tests. Aucun constat/demande/gap ouvert. Les deux blocs C6 acceptés restent d'auteur indéterminé ; contenu courant revu et revalidé, sans attribution inventée. Trois ignorés et tests hors sélection, native/modèles/matériel/fenêtre NOT RUN.
 
 Archive `target/parakeet-tests/clippy-adapters-desktop/archive/lot-c-20261031/` : **654 fichiers source/654 copies, SHA-256 tous concordants**, arborescence conservée, aucun manifeste ni nettoyage. Espace final **183 018 467 328 octets**. Livraison locale C avec 16 fichiers Rust ciblés et bilan, non-suivis préservés, aucun push. D reste à réaliser après commit C.
+
+### Arrêt du préflight de tests D — sélection de commande incorrecte
+
+Lot C commité **f3b361312375331143a5798795628f3b862ee4d7**, baseline du lot D. Préflight et inventaires D par profil réussis. **Aucune source D éditée**.
+
+L'implémenteur a assemblé une boucle PowerShell de tableaux d'arguments qui s'est aplatie : la commande transmise à la garde était une suite de test trop large au lieu du package/cible/filtre desktop prévu (déclarée `cargo test` par l'implémenteur). Le journal partiel `Run-20261031T104618856-30a51dd9.stdout.log` montre effectivement **running 310 tests** de la bibliothèque adapters, **285 passed, 9 failed, 16 ignored**, zéro filtré. Exécution hors sélection autorisée, aucun résultat pris pour validation D. Les neuf erreurs observées sont des prérequis absents : deux racines D2, trois racines snapshot, trois RTC-02 et une fixture MP3. Certains autres tests à modèles/fixtures ont aussi été exécutés et ont retourné ok ; cela ne prouve ni une recette native ni l'absence d'accès à ces ressources.
+
+Interruption Ctrl-C signalée par l'implémenteur, session exit 1 ; **pas d'entrée finale dans guard.jsonl** pour ce run interrompu. Les fichiers stdout/stderr sont conservés tels quels, aucune entrée inventée ou complétée après coup. Arrêt de tout Cargo/édition après constat. Contrôles principaux en lecture ultérieurs : aucun processus cargo/rustc/rustdoc/clippy-driver/whisper trouvé, aucun changement suivi, aucun événement mode Run postérieur à 10:46:18 dans guard-events.jsonl. L'absence d'événement détecté ne prouve pas exhaustivement l'absence d'écriture externe. Les fichiers non suivis initiaux restent présents. Espace principal **181 426 483 200 octets**. C reste livré sur ses propres preuves ; les erreurs de ce run hors prérequis ne sont pas une nouvelle preuve de régression ou de succès C.
+
+Reprise technique **proposée, NON EXÉCUTÉE et soumise à arbitrage** : dix appels PowerShell distincts, sans boucle ni tableau imbriqué ; chacun contient un tableau littéral complet, vérifie nombre d'arguments, `-p whisper-desktop`, cible/filtre et feature attendus avant de le transmettre à la garde existante. Arrêter si code non nul. Aucune modification de garde ni nouvel outil/helper/script ; WHISPER_DESKTOP_TEST_ROOT reste absent, TEMP/TMP sous campagne. Commandes exactes proposées (chaque ligne séparément via garde) :
+
+1. `test --offline --locked -p whisper-desktop --lib ui::model::tests::`
+2. `test --offline --locked -p whisper-desktop --bin whisper-desktop root::tests::artifact_metadata_detects_replacement_with_same_size_and_modified_time -- --exact`
+3. `test --offline --locked -p whisper-desktop --test microphone_level_ui`
+4. `test --offline --locked -p whisper-desktop --test model_selection_ui`
+5. `test --offline --locked -p whisper-desktop --test gpu_inventory_ui`
+6. `test --offline --locked -p whisper-desktop --lib --features personal-install ui::model::tests::`
+7. `test --offline --locked -p whisper-desktop --bin whisper-desktop --features personal-install root::tests::artifact_metadata_detects_replacement_with_same_size_and_modified_time -- --exact`
+8. `test --offline --locked -p whisper-desktop --test microphone_level_ui --features personal-install`
+9. `test --offline --locked -p whisper-desktop --test model_selection_ui --features personal-install`
+10. `test --offline --locked -p whisper-desktop --test gpu_inventory_ui --features personal-install`
+
+Même sélection baseline/candidat, profils défaut et personal-install distincts ; filtres non vides vérifiés. Les scénarios de racines historiques retournant tôt ne sont pas des PASS de qualification. Après baseline valable seulement, D1–D5 puis contrôles finaux et revue indépendante avant commit. Tous autres arrêts et l'exclusion des recettes natives/UI restent maintenus ; pas de push. Aucun lancement de cette reprise avant arbitrage utilisateur après l'exécution hors périmètre et les échecs.
+
 
 
 Autorisation écrite de l'utilisateur dans cette session après livraison du plan : « Implémente les six lots du plan dans l’ordre, avec revues indépendantes et commits locaux, sans push. J’autorise la tolérance limitée au Temp Windows non attribué pour cette campagne, avec les autres arrêts maintenus. » Cet accord couvre P, S, T, E, C puis D et les campagnes prévues. Pour cette seule campagne `clippy-adapters-desktop`, les événements Created/Changed/Deleted purement sous `%LOCALAPPDATA%\Temp` non attribués et les renommages dont les deux chemins y restent sont consignés UNATTRIBUTED sans arrêt ; aucune attribution ni destination volontaire externe n'en est déduite. Les événements attribués à la campagne, sensibles, erreurs de surveillance, renommages franchissant la frontière et les autres arrêts du plan restent bloquants. Une revue et un commit de chaque lot fermé précèdent le suivant. L'autorisation ne vaut pas extension aux warnings/cibles hors périmètre ni aux recettes natives/UI.
