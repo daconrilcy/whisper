@@ -1,8 +1,35 @@
-Avancée : extension des douze attributs de tests explicitement autorisée ; correction R8-P1 reprise dans le périmètre exact.
-Blocage : nouvelle compilation et faisabilité R8 encore à établir ; aucune réussite de tests présumée.
-Décision : poursuivre la seconde tentative N1, sans modifier les assertions ni les corps de production ; NoRun et examen PE avant tout harness.
+Avancée : prototype compilé et testé : 686 réussis, 0 échec, 148 ignorés ; 834 identités conservées, aucun import de moteur natif dans les 69 exécutables.
+Blocage : contrôle de format en défaut sur quatre fichiers déjà autorisés ; témoin négatif de sortie 78 encore à exécuter.
+Décision : correction mécanique de format dans le second cycle de revue ; pas de changement d’assertion ou d’algorithme, pas d’intégration au candidat principal.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
+
+## Preuve positive du prototype 9df93659 — avant correction de format
+
+Le code **9df93659** incorpore les douze attributs explicitement autorisés et la composition session::control corrigée. SelfTest est passé, puis NoRun a réussi avec code 0 en **28,029 s**, sans exécuter de corps de tests. Le même reviewer a fermé **R8-P1** et maintenu **R8-P2 fermé** avant de demander les six vérifications positives SPIKE-POS-1.
+
+Avant toute liste ou exécution, la session principale a lu les imports de chacun des **69 exécutables exacts du NoRun** avec MSVC dumpbin /IMPORTS : ce mode examine imports ordinaires et différés, sans lancer les exécutables. Les 21 noms uniques sont tous APIset ou composants présents sous System32, dont le runtime MSVC ; aucun CUDA, nvcuda, cudart, cublas, ggml, whisper, ONNX ou Parakeet. Les harness CPU et GPU importent chacun les mêmes onze composants Windows/MSVC. Le reviewer a relu les sorties complètes et confirmé la gate. Cela ne démontre pas une exécution sur un OS dont les DLL CUDA auraient été retirées ; aucune DLL n’a été supprimée. [Microsoft, dumpbin /IMPORTS](https://learn.microsoft.com/en-us/cpp/build/reference/imports-dumpbin?view=msvc-170).
+
+Artefacts : CPU `whisper_worker_cpu-0db41ac3242780c4.exe`, GPU `whisper_worker_gpu-f715b7c7c7724aab.exe`, sous le target partagé. Les sorties NoRun et `PE-imports.stdout.log`/`PE-imports.stderr.log` sont sous `scratch/20261101T111312015-d0911ad07286451f9a0f03efdc79edf3/`. L’inspection utilise ProcessStartInfo, captures explicites, chemins sans reparse vérifiés et variables isolées, sans nouveau script ni contrôle distant.
+
+| Mode N1, commandes distinctes sous garde | Résultat | Durée |
+| --- | --- | ---: |
+| Structure | PASS 0 : 855 tests / 855 entrées, 159 gated, zéro motif silencieux | 1,717 s |
+| TestList | PASS 0 : 834 noms, 73 groupes | 15,361 s |
+| IgnoredList | PASS 0 : 148 noms | 3,076 s |
+| Tests | **PASS 0 : 686 réussis / 0 échec / 148 ignorés / 834 total** | **22,350 s** |
+| Clippy | PASS 0, avertissements présents, doublons inter-cibles | 31,931 s |
+| Fmt | **FAIL 1 : format/imports uniquement**, avant correction | 1,099 s |
+
+Les 834 identités sont conservées avec multiplicité après correspondance explicite des nouvelles cibles de harness vers les cibles unitaires CPU/GPU qu’elles remplacent. Les noms qualifiés, dont session::control::tests, sont conservés. Ignorés : **147 → 148**, seul ajout `encoder::tests::capture_encoder_baseline` CPU. Les 686 réussites/22,350 s sont une mesure de ce prototype ; les 687/47,336 s restent la mesure précédente, sans attribuer la différence de temps au seul découplage.
+
+Le relevé initial demandé reste 834 tests dont 66 ignorés, 768 sélectionnables mais non exécutés pour éviter les scénarios alors natifs ; aucune durée de suite complète « avant » n’est inventée. Les variables WHISPER_* et PARAKEET_* ont été supprimées, chaque LOCALAPPDATA était neuve et vide, CARGO_HOME/TEMP/TMP isolés et target partagé conservé. Aucun modèle ni corpus réel fourni, aucune activation native-tests/all-features ni validation Windows matérielle.
+
+La relecture complète du journal Fmt corrige le premier relevé de l’implémenteur qui ne citait que deux fichiers : **quatre** sont concernés, common/tests/support/native_boundary.rs, CPU/GPU tests/support/autonomous_harness.rs et GPU src/native_ffi.rs. Tous appartiennent aux chemins du prototype autorisé. Le second cycle de correction reste limité aux hunks mécaniques signalés (imports, tuple de type, retour à la ligne du writeln), sans fonction/assertion/algorithme modifié et sans formatage global. Le contrôle Fmt a bien arrêté la séquence ; aucun échec de compilation ou de test nouveau ne justifie un nouvel arbitrage de reprise. Les preuves antérieures ne seront réutilisées qu’avec accord du reviewer sur le delta de format.
+
+Clippy : la remise annonce 82 occurrences agrégées des résumés, doublons compris ; ce n’est pas un nombre de diagnostics uniques. Les 34 du résumé adapters lib-test ne constituent pas le total workspace. Le bilan évite de qualifier Clippy de strict ou sans avertissement ; aucune correction de lint hors périmètre proposée.
+
+Le témoin négatif n’a pas encore été créé. Il reste à compiler sans lancer, examiner, puis exécuter dans la variante séparée avant de conclure sur le rejet non récupérable. Le candidat principal refacto/tests-autonomes reste préservé et non modifié par ce prototype.
 
 ## Accord de périmètre — douze attributs de tests
 
