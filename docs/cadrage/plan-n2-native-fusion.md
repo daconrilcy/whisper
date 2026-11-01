@@ -1,6 +1,6 @@
-Avancée : les deux imports CPU longs FR/EN ont réussi ; 33 corps ciblés PASS distincts et un diagnostic encodeur.
-Blocage : campagne complète encore incomplète : NVML, corpus historique manquant et contraintes de racines/références des autres recettes.
-Décision : aucune fusion ; poursuivre exige un périmètre concret pour les recettes restantes et leurs références.
+Avancée : comparaisons live Turbo CPU/GPU réussies ; 35 corps ciblés PASS distincts et un diagnostic encodeur.
+Blocage : campagne complète incomplète : NVML, corpus historique manquant et racines imposées par les recettes réutilisables.
+Décision : aucune fusion ; une racine native supplémentaire précise serait nécessaire pour quatre cas réutilisables.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -219,3 +219,17 @@ Accord reçu : **« Oui, figer ces références et comparer R8 »**. Les référ
 Les candidats sont les workers R8 vérifiés du seed personnel (CPU `eb33d96b…751bbfef`, GPU `5ff4c494…cf6001b`) et le modèle Turbo existant (`1fc70f77…e8e2bc69`). SHA et contrôles PE des candidats : PASS, CPU sans import CUDA, GPU avec imports requis. Chaque paire référence/candidat diffère par chemin et SHA. Profils `TurboCpuLive` et `TurboGpuLive`, chacun un seul `turbo_live_stop_and_shutdown_contract`, trois entrées fichier, aucun WORK_ROOT ni sortie propre, valeurs toolkit et libclang contrôlées.
 
 JSON, diff et préflights : code 0. Revue indépendante **CLEAN**, base `015dbe3c`, registre SHA `92c983a4bf990bb558b0e72194bc755ffe1f1420dab5cb4f821b7e74e8700216`, garde inchangée. Les tests utilisent deux secondes de silence en mémoire et comparent les événements Stop/Shutdown ; ils ne qualifient ni qualité lexicale ni vitesse. Le parent lance CPU puis GPU sous garde, limite existante de 600 s par enfant, arrêt sur échec. Aucun script, test Rust, modèle installé, pilote ou nouveau répertoire natif de sortie modifié.
+
+## Résultat des comparaisons live
+
+Au candidat `19e17019`, **TurboCpuLive PASS**, un test exact, corps **24,36 s**, appel Cargo **25,397 s** ; **TurboGpuLive PASS**, corps **26,29 s**, appel Cargo **27,359 s**. Les paires distinctes référence/candidat traitent deux secondes de silence et passent les assertions comparatives Stop/Shutdown avec le modèle Turbo réel. Les deux sources historiques, copies figées, candidats R8 et modèle sont revérifiés après exécution : SHA inchangés. Ces résultats portent sur les références explicitement figées maintenant ; ils ne réattribuent pas ces fichiers à des essais historiques ni ne mesurent la qualité lexicale ou une vitesse de transcription utile.
+
+Total distinct ciblé **35 corps PASS et un diagnostic encodeur**, répétitions et commande NVIDIA exclues. Preuves consolidées **révision 7**, **446 entrées relues et vérifiées**, dont **426 précédentes conservées à l'identique**, SHA archive `dce6a3ea0d3ade639dd9beeb42f68d7085be409fcb0e6d7c4df60d74e69ddb0e`. Révision 6 dans Git à `015dbe3c`. Neuf fichiers de bilan/preuves ; espace libre **122 141 237 248 octets**. Aucun nettoyage, changement Rust/pilote/installation, push ou fusion.
+
+## Proposition bornée pour les contrats réutilisables
+
+Quatre identités restent préparables si leur racine imposée est autorisée : CPU `turbo_reusable_import_contract` dans `worker_contract`, CPU `reusable_imports::cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache` dans `worker_contract`, CPU `cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache` dans la cible `reusable_imports`, et GPU `turbo_reusable_import_contract` dans `worker_contract`. L'inventaire conservé contient aussi bien l'identité CPU directe que l'identité imbriquée ; elles ne sont pas fusionnées dans le comptage.
+
+Ces corps exigent un WORK_ROOT sous **`C:/dev/whisper/.wt/r8/target/parakeet-tests/main-facades/`**, que la garde refuse actuellement comme LotRoot. Une évolution ciblée pourrait autoriser cette seule racine canonique supplémentaire pour les seuls nouveaux profils réutilisables CPU/GPU, tout en maintenant `target/n2-native` pour les autres profils. RunRoot, TEMP/TMP, USERPROFILE et LOCALAPPDATA resteraient sous ce lot ; la cible Cargo partagée et les contrôles de chemins, environnement, surveillance et arrêt resteraient identiques. Aucun lien de contournement ni modification des assertions Rust.
+
+Cette proposition exige un accord sur la **nouvelle racine native d'écriture** et sur les deux fichiers N2 `ci/guard-native.ps1`/`ci/native-profiles.json`, puis auto-tests, revue indépendante (deux cycles maximum) et quatre exécutions. Le cache hors ligne existant à recopier vers le nouveau CARGO_HOME mesure **763 831 148 octets, 29 662 fichiers** ; les références figées, candidats et modèle existants restent des entrées en lecture. Aucun de ces changements, copies ou tests n'est engagé avant accord. Les blocages NVML, FR87/FR27 et les autres recettes historiques restent séparés ; la condition de fusion complète verte n'est toujours pas satisfaite. `main` reste à `248f8679`.

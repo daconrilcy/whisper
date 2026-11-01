@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "revision": 6,
-  "candidate": "1d30690e",
-  "authorization": "Oui, préparer et exécuter les deux imports longs",
+  "revision": 7,
+  "candidate": "19e17019",
+  "authorization": "Oui, figer ces références et comparer R8",
   "history": [
     {
       "candidate": "de9003dc",
@@ -103,10 +103,10 @@
       "gitSnapshot": "c6833c6b"
     }
   ],
-  "priorRevision5": {
-    "gitSnapshot": "1ac87ae8",
-    "archiveEntryCount": 366,
-    "archiveSha256": "9520af400baba9d354a0d42f6c7b76948f1cc9fdc516187b62e3504eee1c11dd"
+  "priorRevision6": {
+    "gitSnapshot": "015dbe3c",
+    "archiveEntryCount": 426,
+    "archiveSha256": "380687f70d1e322958288e56ca96d198f55affa0b51d2ea077ceadd1cad1b829"
   },
   "diagnostic": {
     "profile": "NvidiaSmiInventoryDiagnostic",
@@ -402,24 +402,85 @@
     "postRunShaVerified": 303,
     "runtimeShaVerified": 21
   },
-  "cumulativeDistinctQualifiedTargetedBodies": 33,
+  "liveComparisons": {
+    "cpu": {
+      "runId": "TurboCpuLive-ea10b2cb04464d5f9dc8d6bbf3c4c4cb",
+      "status": "PASS",
+      "cargoSeconds": 25.397,
+      "bodySeconds": 24.36
+    },
+    "gpu": {
+      "runId": "TurboGpuLive-9b0363aca2eb4f36b58de44c06920a50",
+      "status": "PASS",
+      "cargoSeconds": 27.359,
+      "bodySeconds": 26.29
+    },
+    "referenceDefinition": "currently present historical reference-folder executables, frozen by user approval",
+    "historicalRunIdentitiesAttested": false,
+    "inputShaPostchecks": [
+      {
+        "kind": "cpu",
+        "role": "reference",
+        "path": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\live-reference\\cpu\\whisper-worker-cpu.exe",
+        "sha256": "d7d14b746e45b601b16fcb05126db4d8834bf8a136ce52151c1e29ac691c64b4",
+        "sourceUnmodified": true
+      },
+      {
+        "kind": "gpu",
+        "role": "reference",
+        "path": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\live-reference\\gpu\\whisper-worker-gpu.exe",
+        "sha256": "e7927e833ac9e0ab97d9bd74a1c7aa90a4753ed2327710994a02e97da473d427",
+        "sourceUnmodified": true
+      },
+      {
+        "role": "candidate-or-model",
+        "path": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\app\\whisper-worker-cpu.exe",
+        "sha256": "eb33d96b57ee47e5dcbe3238467df4f5656d055757374dbff5d58a5f751bbfef",
+        "sourceUnmodified": true
+      },
+      {
+        "role": "candidate-or-model",
+        "path": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\app\\whisper-worker-gpu.exe",
+        "sha256": "5ff4c494b86754d563c5d41cc7cdcd1b2748aed9c9ffa5f929be29973cf6001b",
+        "sourceUnmodified": true
+      },
+      {
+        "role": "candidate-or-model",
+        "path": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\models\\ggml-large-v3-turbo.bin",
+        "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+        "sourceUnmodified": true
+      }
+    ],
+    "scope": "2 seconds in-memory silence; real Stop/Shutdown events; not lexical quality/performance"
+  },
+  "cumulativeDistinctQualifiedTargetedBodies": 35,
   "encoderDiagnosticDistinctBodies": 1,
   "fullCampaignQualified": false,
   "mergePerformed": false,
   "remainingBlockers": [
     "Parakeet GPU/NVML failure",
     "fr87.wav/fr27.wav missing without backup",
-    "historical write roots outside authorized lot",
+    "Reusable contracts require main-facades root while guard accepts only n2-native",
     "Other native profiles still lack complete prerequisites"
   ],
-  "largeAudioAndModelsPreservedUnderLot": true,
-  "freeBytes": 122206580736,
+  "nextPreparedScope": {
+    "cases": 4,
+    "description": "CPU standalone and nested reusable cache tests plus CPU/GPU reference/candidate reusable contracts",
+    "proposedLotRoot": "C:/dev/whisper/.wt/r8/target/parakeet-tests/main-facades",
+    "currentlyGuardRejected": true,
+    "cargoHomeSeedFiles": 29662,
+    "cargoHomeSeedBytes": 763831148,
+    "rustChangeNeeded": false,
+    "requiresExplicitRootAndGuardAuthorization": true,
+    "applied": false
+  },
+  "freeBytes": 122141245440,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 426,
-    "priorEntriesPreserved": 366,
+    "entryCount": 446,
+    "priorEntriesPreserved": 426,
     "entriesVerified": true,
-    "sha256": "380687f70d1e322958288e56ca96d198f55affa0b51d2ea077ceadd1cad1b829",
+    "sha256": "dce6a3ea0d3ade639dd9beeb42f68d7085be409fcb0e6d7c4df60d74e69ddb0e",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -2550,6 +2611,106 @@
         "path": "snapshots/long-cpu-v6/PersonalLongCpu.json",
         "bytes": 5551,
         "sha256": "7546d1e426280222ef736679dcf8306a96dfd288b9e0a4196243d7387ab5222e"
+      },
+      {
+        "path": "target/n2-native/logs/live-TurboCpuLive-preflight.txt",
+        "bytes": 477,
+        "sha256": "0a1e4d39d7f59fb669d65d0a61040c556b206fd3af736303da1eead6c806d4ca"
+      },
+      {
+        "path": "target/n2-native/logs/live-TurboGpuLive-preflight.txt",
+        "bytes": 477,
+        "sha256": "1de9bc074826e27c53b739f71fadd0e214e50f9f2c85e6ab160cc932dcdf1be4"
+      },
+      {
+        "path": "target/n2-native/logs/TurboCpuLive-ea10b2cb04464d5f9dc8d6bbf3c4c4cb/result.json",
+        "bytes": 989,
+        "sha256": "ce4d06b2c5148ddad4f489d445845bc749ee994c5c09cc8d8e7bfdc39de7fbe6"
+      },
+      {
+        "path": "target/n2-native/logs/TurboCpuLive-ea10b2cb04464d5f9dc8d6bbf3c4c4cb/turbo_live_stop_and_shutdown_contract.invocation.json",
+        "bytes": 1228,
+        "sha256": "eda54c8702a877d81416119643b4c2282b7aa3ac115119ccccb1bfb1ad3c5087"
+      },
+      {
+        "path": "target/n2-native/logs/TurboCpuLive-ea10b2cb04464d5f9dc8d6bbf3c4c4cb/turbo_live_stop_and_shutdown_contract.process.json",
+        "bytes": 120,
+        "sha256": "bd96d339d966fbed284a96b785d314f8288084537962f1ee1dac7b267e6a85c7"
+      },
+      {
+        "path": "target/n2-native/logs/TurboCpuLive-ea10b2cb04464d5f9dc8d6bbf3c4c4cb/turbo_live_stop_and_shutdown_contract.stderr.log",
+        "bytes": 170131,
+        "sha256": "98f00c22e2e4a694c098723cd51cd42b02ea929f0c63aae954c647e9dac7bd78"
+      },
+      {
+        "path": "target/n2-native/logs/TurboCpuLive-ea10b2cb04464d5f9dc8d6bbf3c4c4cb/turbo_live_stop_and_shutdown_contract.stdout.log",
+        "bytes": 169,
+        "sha256": "256d1dc5536edc86bfb63914a9fcddea8876a2c5027301ef7e0b397d90b547bc"
+      },
+      {
+        "path": "target/n2-native/logs/TurboCpuLive-ea10b2cb04464d5f9dc8d6bbf3c4c4cb/unattributed-temp.jsonl",
+        "bytes": 3413,
+        "sha256": "fac63d476194ea1d727e278012fd89930621155f8935d77b8bf19a37875986cd"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpuLive-9b0363aca2eb4f36b58de44c06920a50/result.json",
+        "bytes": 989,
+        "sha256": "3ec1be528288dccd5ba5e4108c97f92f8460d728ad2e8893996182a800399b05"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpuLive-9b0363aca2eb4f36b58de44c06920a50/turbo_live_stop_and_shutdown_contract.invocation.json",
+        "bytes": 1228,
+        "sha256": "27291c589b0cd551149998931aa0329f3db13c3e9bdf9e2fc32a02e6738ef923"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpuLive-9b0363aca2eb4f36b58de44c06920a50/turbo_live_stop_and_shutdown_contract.process.json",
+        "bytes": 121,
+        "sha256": "a592e056079ad69dc43b9e4829d010e89edee886d3b390c1f75d74ab73a6408d"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpuLive-9b0363aca2eb4f36b58de44c06920a50/turbo_live_stop_and_shutdown_contract.stderr.log",
+        "bytes": 169312,
+        "sha256": "569cd512eade0b673007d699eef99f6297b5bb8c580d2d5c0ea32368ed86c430"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpuLive-9b0363aca2eb4f36b58de44c06920a50/turbo_live_stop_and_shutdown_contract.stdout.log",
+        "bytes": 169,
+        "sha256": "a06d2e758f6f0bf1ee98b0de87978de9ed5ce92b41bc4f26bb23346320642caf"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpuLive-9b0363aca2eb4f36b58de44c06920a50/unattributed-temp.jsonl",
+        "bytes": 2917,
+        "sha256": "f0eb11943b506b7c8f5f85d47cf200eb355ef7d9e4d619c8bdb8f64987deac8c"
+      },
+      {
+        "path": "target/n2-native/resources/live-candidate-cpu-pe.json",
+        "bytes": 1247,
+        "sha256": "fd09dd542a3f5ad530b96ab952336bb4ae5e906778321181b8afa7527ea52438"
+      },
+      {
+        "path": "target/n2-native/resources/live-candidate-gpu-pe.json",
+        "bytes": 1632,
+        "sha256": "372e6b648db3614dcd7cf0a1b16cca856573749d302e9d1910248a9a50a39b17"
+      },
+      {
+        "path": "target/n2-native/resources/live-input-postchecks.json",
+        "bytes": 1444,
+        "sha256": "397fc9c9af790055968b80657a447e1e7277ff28d7a4484aa52c8a453e8bc00b"
+      },
+      {
+        "path": "target/n2-native/resources/live-reference-freeze.json",
+        "bytes": 960,
+        "sha256": "221869d6a71dee2c52ab0487b280a80966bd963eb115cb1b5c9ed513f0fbd3b6"
+      },
+      {
+        "path": "snapshots/live-v7/TurboCpuLive.json",
+        "bytes": 1279,
+        "sha256": "fedfe4562502ff133c25819fc2cc13250fd9057a4e1a2bba99cd561c08421423"
+      },
+      {
+        "path": "snapshots/live-v7/TurboGpuLive.json",
+        "bytes": 1281,
+        "sha256": "395470492853f84f3b90e92e43d7c4d5ad571baec5a3da336d90df99c595e0f1"
       }
     ]
   }
