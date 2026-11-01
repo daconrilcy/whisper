@@ -146,7 +146,7 @@
         {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"engine_cache::tests::cached_engine_is_attested_again_and_evicted_on_failure","ignored":false,"verdict":"QUALIFICATION"},
         {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"diagnostics::tests::verified_model_gpu_initialization_failure_is_retryable_and_correlated","ignored":false,"verdict":"QUALIFICATION"},
         {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"gpu_qualification::tests::unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend","ignored":false,"verdict":"QUALIFICATION"},
-        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"ipc::tests::rejects_oversized_and_incomplete_frames_before_deserialization","ignored":false,"verdict":"QUALIFICATION"},
         {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"ipc::tests::writer_accepts_limit_and_rejects_limit_plus_one","ignored":false,"verdict":"QUALIFICATION"},
         {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"gpu_qualification::tests::missing_driver_or_required_symbol_is_unavailable_without_support_claim","ignored":false,"verdict":"QUALIFICATION"},
         {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"gpu_qualification::tests::intel_exclusion_uses_windows_identity_and_build_capability_without_cuda_join","ignored":false,"verdict":"QUALIFICATION"},

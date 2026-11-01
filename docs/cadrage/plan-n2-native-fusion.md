@@ -1,6 +1,6 @@
 Avancée : message NVML recueilli ; politique et sept contrôles GPU réussis, diagnostic encodeur exécuté.
 Blocage : un sélecteur GPU erroné entraîne zéro test exécuté ; garde arrêtée, seize cas indépendants non lancés dont D2.
-Décision : LIVRÉ AVEC RÉSERVES ; correction d'un seul sélecteur et reprise à arbitrer, aucune fusion.
+Décision : correction d'un seul sélecteur et reprise explicitement autorisées ; revue ciblée CLEAN, aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -149,3 +149,7 @@ Bilan des 26 cas prévus : **8 contrôles avec oracle réussis, 1 diagnostic enc
 Preuves consolidées **révision 3** : **137 entrées relues avec tailles et SHA vérifiés**, dont les **79 précédentes conservées à l'identique**, SHA archive `db24d3cc8cf6afba43a3361bfe0436c50d82e46d9d1a63bc795708bd62d31aa6`. Sont inclus les deux flux NVIDIA, les reçus de chaque cas, les auto-tests de nettoyage, la commande à blanc et les requêtes. Révision 2 accessible dans Git à `c6833c6b`. Aucun nouveau fichier de rapport ; espace libre **133 429 248 000 octets**. Aucun appel natif/Cargo après ce dernier arrêt, ni fusion ni push.
 
 Le complément de diagnostic a consommé ses deux revues et reste CLEAN dans ce périmètre ; le défaut observé appartient aux données TurboGpu existantes. Proposition précise à arbitrer après l'échec de garde et les budgets déjà consommés : un cycle ciblé limité au remplacement de ce seul nom par celui de l'inventaire dans `ci/native-profiles.json`, vérification de correspondance des 23 sélecteurs, revue indépendante, puis reprise du profil TurboGpu complet et de D2. Le contrôle d'exécution exacte reste identique ; aucun script, test/assertion Rust, SDK, pilote, installation ou racine d'écriture ne change. La correction n'est pas appliquée avant cet arbitrage. Les cas bloqués par NVML, FR87/FR27 ou les racines historiques restent non qualifiés ; la fusion demeure conditionnée à la campagne complète verte.
+
+## Correction du sélecteur autorisée
+
+Accord reçu : **« Oui, corriger le nom et reprendre »**. L'implémenteur corrige exclusivement la ligne TurboGpu en `before_deserialization`. JSON, 23 sélecteurs uniques, correspondance des 23 à l'inventaire conservé et diff : PASS. Revue indépendante ciblée **CLEAN**, base `ed714977`, registre SHA `efa8fd86eceafbd0204e29735e0a8fc2dfca4a360f5285385aff9c29435d0627` ; les 22 autres sélecteurs, cibles, features et assertions restent identiques. Préflights TurboGpu et D2 : code 0, sans exécution native. Le parent reprend le profil GPU complet puis D2 sous garde, avec arrêt au premier échec.
