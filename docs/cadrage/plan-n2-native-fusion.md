@@ -1,6 +1,6 @@
-Avancée : racine des quatre cas réutilisables préparée ; cache de 29 662 fichiers copié et vérifié, statique relue.
-Blocage : auto-test complet arrêté pendant la copie concurrente ; quatre nouveaux tests natifs non lancés.
-Décision : reprise explicitement autorisée, auto-tests PASS et écart fermé par revue CLEAN ; quatre cas à exécuter, aucune fusion.
+Avancée : les quatre cas réutilisables CPU/GPU ont réussi ; 39 corps ciblés PASS distincts et un diagnostic encodeur.
+Blocage : campagne complète incomplète : NVML, corpus historique perdu et prérequis des autres recettes.
+Décision : l'écart de validation est fermé ; aucune fusion tant que la campagne complète n'est pas verte.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -255,3 +255,13 @@ Reprise à arbitrer selon l'arrêt sur échec de garde d'AGENTS.md : cache déso
 Accord reçu : **« Oui, reprendre sans copie concurrente »**. Aucun transfert ni changement source pendant la validation. Le parent lance le FullSelfTest complet Windows PowerShell : **PASS, code 0**, preuve `target/n2-native/logs/reusable-root-selftest-resume.txt` et `guard-selftest-reusable-roots.json`, sans Cargo ou diagnostic NVIDIA réel. Les deux préflights exacts des profils réutilisables avec leur nouveau LotRoot terminent code 0.
 
 Le même reviewer vérifie les journaux et le candidat inchangé `c85b0f67`, puis ferme l'écart : **CLEAN**, aucun constat ni écart de vérification restant pour ce complément. Les SHA de garde et registre restent ceux figés avant l'arrêt. Ce verdict ne qualifie pas les quatre cas natifs ; le parent lance CPU (trois cas) puis GPU (un cas), arrêt au premier échec.
+
+## Résultat des quatre contrats réutilisables
+
+Au candidat `f0d09881`, **TurboCpuReusableImports PASS, trois identités exactes** : `turbo_reusable_import_contract` **54,113 s**, helper imbriqué `reusable_imports::cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache` **83,190 s**, helper direct dans la cible `reusable_imports` **83,099 s** (durées des appels Cargo). **TurboGpuReusableImports PASS**, contrat comparatif réutilisable **53,999 s**. Aucun ignoré ni zéro exécution accepté. Les corps vérifient les deux imports silencieux, la conservation du processus et le cache modèle ; les contrats comparatifs utilisent les références figées et candidats R8 distincts. Aucun niveau de qualité lexicale ou performance sur parole n'est déduit de ce silence.
+
+Les références originales/copiées, candidats et modèle restent conformes aux SHA après exécution. Le worker debug CPU utilisé par les helpers directs passe à nouveau le contrôle PE sans import CUDA. Les fichiers temporaires silencieux restent dans le WORK_ROOT autorisé du nouveau lot, sans lien ni contournement. La cible Cargo partagée n'a pas changé ; aucune écriture installée, source Rust, dépendance ou configuration système modifiée.
+
+Total distinct ciblé **39 corps PASS et un diagnostic encodeur**, répétitions exclues. Les échecs de préparation antérieurs restent conservés ; le FullSelfTest et la revue du complément sont désormais CLEAN et les quatre cas réellement exécutés. Preuves consolidées **révision 9**, **488 entrées relues, tailles et SHA vérifiés**, dont **454 précédentes conservées à l'identique**, SHA archive `9f18359711069be9e04b3b7467022de24e4a0881c722215bea7b8b61a9ccd8da`. Révision 8 dans Git à `c85b0f67`. Neuf fichiers de bilan/preuves ; espace libre **116 874 936 320 octets**. Aucun nettoyage, push ni fusion.
+
+La couverture complète des recettes ignorées n'est pas atteinte : les cas Parakeet GPU restent affectés par NVML, FR87/FR27 sont perdus sans sauvegarde, et les autres profils nécessitent encore des prérequis précisément vérifiés. `main` reste à `248f8679`. La pile n'est pas fusionnée, conformément à la condition utilisateur de campagne complète verte.

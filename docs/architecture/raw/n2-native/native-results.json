@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "revision": 8,
-  "candidate": "19e17019",
+  "revision": 9,
+  "candidate": "f0d09881",
   "authorization": "Oui, figer ces références et comparer R8",
   "history": [
     {
@@ -453,14 +453,13 @@
     ],
     "scope": "2 seconds in-memory silence; real Stop/Shutdown events; not lexical quality/performance"
   },
-  "cumulativeDistinctQualifiedTargetedBodies": 35,
+  "cumulativeDistinctQualifiedTargetedBodies": 39,
   "encoderDiagnosticDistinctBodies": 1,
   "fullCampaignQualified": false,
   "mergePerformed": false,
   "remainingBlockers": [
     "Parakeet GPU/NVML failure",
     "fr87.wav/fr27.wav missing without backup",
-    "Reusable contracts require main-facades root while guard accepts only n2-native",
     "Other native profiles still lack complete prerequisites"
   ],
   "nextPreparedScope": {
@@ -474,13 +473,13 @@
     "requiresExplicitRootAndGuardAuthorization": true,
     "applied": false
   },
-  "freeBytes": 120556056576,
+  "freeBytes": 116874936320,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 454,
-    "priorEntriesPreserved": 446,
+    "entryCount": 488,
+    "priorEntriesPreserved": 454,
     "entriesVerified": true,
-    "sha256": "7adb73415355cad87cf4b32a776d547159b9b75b0d79c11cb352a8a4c7b51f01",
+    "sha256": "9f18359711069be9e04b3b7467022de24e4a0881c722215bea7b8b61a9ccd8da",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -2751,6 +2750,176 @@
         "path": "snapshots/reusable-preparation-v8/TurboGpuReusableImports.json",
         "bytes": 1292,
         "sha256": "63ea14ed7e4f799dfd72b233bc89fcc9648c793dd510cae43920e8732d57fc30"
+      },
+      {
+        "path": "target/n2-native/logs/guard-selftest-reusable-roots.json",
+        "bytes": 6782,
+        "sha256": "f0c487bcdd7f7631d106799e75cf28f416feecbf260b55deb551beec9ea0787d"
+      },
+      {
+        "path": "target/n2-native/logs/reusable-root-selftest-resume.txt",
+        "bytes": 632,
+        "sha256": "d692227f240e8efd9e055f973b41bd274015bdb82c32fa326fe8a5b25e267932"
+      },
+      {
+        "path": "target/n2-native/logs/reusable-TurboCpuReusableImports-preflight.txt",
+        "bytes": 506,
+        "sha256": "83816ee9d85c29e5f8b6684435ba7d8f22c291a7ec8fe2fb492657250fcc24b6"
+      },
+      {
+        "path": "target/n2-native/logs/reusable-TurboGpuReusableImports-preflight.txt",
+        "bytes": 506,
+        "sha256": "087897d5512cd493d8c732da737ae3c7cf60d33efca78de9513d1085d9df38d5"
+      },
+      {
+        "path": "target/n2-native/resources/reusable-debug-cpu-pe.json",
+        "bytes": 1221,
+        "sha256": "b6313969596ad8df92a53d09584e92218eba0588111658f15123b5aafed08126"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache.invocation.json",
+        "bytes": 1352,
+        "sha256": "318cc947a458669029457bb360a296bc5f3acbd19890ed4663dc125d9d01adfe"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache.process.json",
+        "bytes": 148,
+        "sha256": "07638be98c6e28b89c0f7826d79f5e582332bc3918ac747d4dcda678ed882e92"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache.stderr.log",
+        "bytes": 3543,
+        "sha256": "66b171901bda758b664c7ed9edad9b17f3f80aeb5088cf326b7f3a5be9427720"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache.stdout.log",
+        "bytes": 197,
+        "sha256": "d8d07ba0a78c0625e34f369d16461f347a562858427e7a260df761a2a31d71df"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/result.json",
+        "bytes": 2672,
+        "sha256": "a7ff7df398d0dcf978d67fcc92466d081c63f0c457e2ba8f37293632271b6a58"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/reusable_imports__cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache.invocation.json",
+        "bytes": 1422,
+        "sha256": "ee7ca605901bf73585ad97386df503d9ac8701f76b74748722173fb130e4daed"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/reusable_imports__cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache.process.json",
+        "bytes": 167,
+        "sha256": "0d502165d1380b36f73375f0610c054d8b358b24d54394a2e44d4db5eb85a3e8"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/reusable_imports__cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache.stderr.log",
+        "bytes": 3451,
+        "sha256": "636648187ae7121491b830cb0496bf7d67b03e4f5928d1ea9c87cb39bf81bc5a"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/reusable_imports__cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache.stdout.log",
+        "bytes": 215,
+        "sha256": "57065416180b7c284b5ac598529364d78d0bc3b4eca7153431aa5b563fb49627"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/turbo_reusable_import_contract.invocation.json",
+        "bytes": 1211,
+        "sha256": "5121f11f582db21df4a3767d27f1fdb9d51b640a2cddc88de8850909be83421f"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/turbo_reusable_import_contract.process.json",
+        "bytes": 113,
+        "sha256": "11af66492d0d9194262092a6176bc9eb3d19da3cca3a768f57a1f2f6f6b23555"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/turbo_reusable_import_contract.stderr.log",
+        "bytes": 9032,
+        "sha256": "a0fa7879d197bec1e4a05f3a89698b25a8704d85f8dad265090cacc6bf9e554f"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/turbo_reusable_import_contract.stdout.log",
+        "bytes": 162,
+        "sha256": "1bf3c900accd7269d2b7e719b6d7cfbeebe8c1026638a574e4ac25e47a083f8a"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/unattributed-temp.jsonl",
+        "bytes": 25014,
+        "sha256": "615a76234810cd1a0a2442b08ad1804e15c358ff639a1f2e244250b678eb5cc6"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboGpuReusableImports-7daa4e22a21040089833ed004516d67d/result.json",
+        "bytes": 1099,
+        "sha256": "d2198a9ded101fc23420cdf89e9b4769d2696dc14b3dd871f575ae4ebec9cd27"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboGpuReusableImports-7daa4e22a21040089833ed004516d67d/turbo_reusable_import_contract.invocation.json",
+        "bytes": 1211,
+        "sha256": "a4f080e2ea7b47e6630d5309d9e08bd87fe6877914ca0f2b35d1442fd18714d7"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboGpuReusableImports-7daa4e22a21040089833ed004516d67d/turbo_reusable_import_contract.process.json",
+        "bytes": 114,
+        "sha256": "fb11d7ab1c92b1e0e0c9c3ed912d018d90e28d26b59fad1d97bc5418f7653a25"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboGpuReusableImports-7daa4e22a21040089833ed004516d67d/turbo_reusable_import_contract.stderr.log",
+        "bytes": 7278,
+        "sha256": "d152c2b0f2f4bd49f8f011996ac7af2a8e8f779e474f19b71fc66c54d3669247"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboGpuReusableImports-7daa4e22a21040089833ed004516d67d/turbo_reusable_import_contract.stdout.log",
+        "bytes": 162,
+        "sha256": "b2188262672e3003c87d0e3927cca599904d93887d5ed77e2e1dbbb8c4d63b91"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/TurboGpuReusableImports-7daa4e22a21040089833ed004516d67d/unattributed-temp.jsonl",
+        "bytes": 2917,
+        "sha256": "8a35e4bb6b24b67bfae956859618da41753a390f233f8a0d82329286de7d6e87"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/runs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/appdata/Local/Microsoft/Windows/PowerShell/StartupProfileData-NonInteractive",
+        "bytes": 1824,
+        "sha256": "6694ed87f035b51cf74791e3ea07a88a0eb623caec2f731c1077edbd28b4ce72"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/runs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/temp/n2-vsdev-environment.cmd",
+        "bytes": 186,
+        "sha256": "dd9f99cf6c29d924d5e09d84102bb8c21bc6fd0a72b0073253a6cfdf79b7862d"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/runs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/writes/main-facades-work/reusable-imports-124000-1793567654810248500/silent.wav",
+        "bytes": 32044,
+        "sha256": "643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/runs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/writes/main-facades-work/reusable-imports-62608-1793567611152258500/silent.wav",
+        "bytes": 32044,
+        "sha256": "643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/runs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/writes/main-facades-work/reusable-imports-62608-1793567631913268400/silent.wav",
+        "bytes": 32044,
+        "sha256": "643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/runs/TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e/writes/main-facades-work/reusable-imports-99928-1793567739731938900/silent.wav",
+        "bytes": 32044,
+        "sha256": "643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/runs/TurboGpuReusableImports-7daa4e22a21040089833ed004516d67d/temp/n2-vsdev-environment.cmd",
+        "bytes": 186,
+        "sha256": "dd9f99cf6c29d924d5e09d84102bb8c21bc6fd0a72b0073253a6cfdf79b7862d"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/runs/TurboGpuReusableImports-7daa4e22a21040089833ed004516d67d/writes/main-facades-work/reusable-imports-153236-1793567872725470800/silent.wav",
+        "bytes": 32044,
+        "sha256": "643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/runs/TurboGpuReusableImports-7daa4e22a21040089833ed004516d67d/writes/main-facades-work/reusable-imports-153236-1793567893672420500/silent.wav",
+        "bytes": 32044,
+        "sha256": "643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc"
       }
     ]
   },
@@ -2761,14 +2930,14 @@
   },
   "reusablePreparation": {
     "authorization": "Oui, autoriser cette racine et les quatre tests",
-    "status": "PREPARED_NOT_VALIDATED",
+    "status": "PASS",
     "lotRoot": "C:/dev/whisper/.wt/r8/target/parakeet-tests/main-facades",
     "profiles": [
       "TurboCpuReusableImports",
       "TurboGpuReusableImports"
     ],
     "nativeCasesPlanned": 4,
-    "nativeCasesStarted": 0,
+    "nativeCasesStarted": 4,
     "cacheCopy": {
       "source": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\cargo-home",
       "destination": "C:\\dev\\whisper\\.wt\\r8\\target\\parakeet-tests\\main-facades\\cargo-home",
@@ -2784,8 +2953,8 @@
     },
     "guardCandidateSha256": "eb05147e8842c5263ded5a69ec60f5225f40e56f75cdba35036cbaab988be332",
     "registryCandidateSha256": "7daa0320b2f8da5ddaa314af660ebdf93ea935c1f83682907a7f2a173281d9a2",
-    "selfTestStatus": "FAIL: watcher saw concurrent authorized cache preparation outside synthetic N2 test roots",
-    "fullSelfTestPassed": false,
+    "selfTestStatus": "PASS after explicit restart without concurrent copy",
+    "fullSelfTestPassed": true,
     "rootPolicyAssertionsPassed": true,
     "guardLogSha256": "b839d87e03ef2c7f0f7e5eff73c0ced05f4ef9dc5bb181eb01b4f6b20e5803d1",
     "eventAtUtc": [
@@ -2793,8 +2962,46 @@
       "2026-11-01T20:50:01.7647124Z"
     ],
     "eventPidAttributionProven": false,
-    "furtherValidationSuspended": true,
-    "independentStaticReview": "CLEAN limited to root routes and profiles; full SelfTest validation gap unresolved; no native qualification",
-    "userArbitrationRequiredBeforeResumption": true
+    "furtherValidationSuspended": false,
+    "independentStaticReview": "CLEAN; FullSelfTest gap closed by same reviewer",
+    "userArbitrationRequiredBeforeResumption": false
+  },
+  "priorRevision8": {
+    "gitSnapshot": "c85b0f67",
+    "archiveEntryCount": 454,
+    "archiveSha256": "7adb73415355cad87cf4b32a776d547159b9b75b0d79c11cb352a8a4c7b51f01"
+  },
+  "reusableResults": {
+    "authorization": "Oui, reprendre sans copie concurrente",
+    "cpuRunId": "TurboCpuReusableImports-4ca6864b2f64459e9e918ed46eec228e",
+    "gpuRunId": "TurboGpuReusableImports-7daa4e22a21040089833ed004516d67d",
+    "cpuCases": [
+      {
+        "case": "turbo_reusable_import_contract",
+        "status": "PASS",
+        "elapsedSeconds": 54.113
+      },
+      {
+        "case": "reusable_imports::cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache",
+        "status": "PASS",
+        "elapsedSeconds": 83.19
+      },
+      {
+        "case": "cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache",
+        "status": "PASS",
+        "elapsedSeconds": 83.099
+      }
+    ],
+    "gpuCases": [
+      {
+        "case": "turbo_reusable_import_contract",
+        "status": "PASS",
+        "elapsedSeconds": 53.999
+      }
+    ],
+    "passed": 4,
+    "failed": 0,
+    "sourceInputsUnmodified": true,
+    "scope": "model reuse/cache and frozen-reference comparisons with silence, no lexical-quality/performance claim"
   }
 }
