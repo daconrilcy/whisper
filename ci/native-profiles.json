@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "sharedCargoTarget": "C:/dev/whisper/target/parakeet-tests/cargo-shared",
+  "allowedPackages": [
+    "whisper-core",
+    "whisper-adapters",
+    "whisper-desktop",
+    "whisper-bootstrap",
+    "whisper-worker-common",
+    "whisper-worker-cpu",
+    "whisper-worker-gpu",
+    "whisper-worker-parakeet-cpu"
+  ],
+  "allowedFeatures": [
+    "native-tests",
+    "whisper-adapters/native-tests",
+    "whisper-adapters/recette-hooks",
+    "whisper-core/native-tests",
+    "whisper-worker-common/native-tests",
+    "whisper-worker-cpu/native-tests",
+    "whisper-worker-gpu/native-tests",
+    "whisper-worker-parakeet-cpu/native-tests"
+  ],
+  "profiles": [
+    {
+      "id": "PreparationNoRun",
+      "status": "READY",
+      "operation": "NoRun",
+      "package": "workspace",
+      "features": ["native-tests"],
+      "compileEnvironment": [
+        {"name": "WHISPER_L04_CAMPAIGN_BUILD", "value": "1"},
+        {"name": "PARAKEET_L2_ACCEPTANCE_TEST_BUILD", "value": "1"}
+      ],
+      "inputs": [],
+      "values": [
+        {"key": "cudaToolkitPath", "environmentVariable": "CUDA_PATH", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"}
+      ],
+      "outputs": [],
+      "cases": []
+    },
+    {
+      "id": "InventoryList",
+      "status": "READY",
+      "operation": "List",
+      "package": "workspace",
+      "features": ["native-tests"],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [
+        {"key": "cudaToolkitPath", "environmentVariable": "CUDA_PATH", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"}
+      ],
+      "outputs": [],
+      "cases": []
+    },
+    {
+      "id": "WasapiInventory",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": ["whisper-adapters/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [],
+      "outputs": [],
+      "cases": [
+        {
+          "targetKind": "lib",
+          "targetName": "",
+          "exactTest": "capture::tests::native_wasapi_input_catalog_has_stable_parseable_ids",
+          "ignored": false,
+          "verdict": "QUALIFICATION"
+        }
+      ]
+    },
+    {
+      "id": "WasapiCapture",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": ["whisper-adapters/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [
+        {"key": "microphoneId", "environmentVariable": "WHISPER_TEST_MIC_ID", "required": true, "kind": "literal"}
+      ],
+      "outputs": [],
+      "cases": [
+        {
+          "targetKind": "lib",
+          "targetName": "",
+          "exactTest": "capture::tests::native_selected_microphone_survives_initial_discontinuity",
+          "ignored": false,
+          "verdict": "QUALIFICATION"
+        }
+      ]
+    },
+    {"id":"TurboCpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
+    {"id":"TurboGpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
+    {"id":"ParakeetCpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-worker-parakeet-cpu","features":["whisper-worker-parakeet-cpu/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
+    {"id":"ParakeetGpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
+    {"id":"PersonalUnified","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests","whisper-adapters/recette-hooks"],"compileEnvironment":[{"name":"WHISPER_L04_CAMPAIGN_BUILD","value":"1"}],"inputs":[],"values":[],"outputs":[],"cases":[]},
+    {"id":"D2","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
+    {"id":"CampaignPolicies","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests","whisper-adapters/recette-hooks"],"compileEnvironment":[{"name":"WHISPER_L04_CAMPAIGN_BUILD","value":"1"},{"name":"PARAKEET_L2_ACCEPTANCE_TEST_BUILD","value":"1"}],"inputs":[],"values":[],"outputs":[],"cases":[]},
+    {"id":"ManualDiagnostic","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-worker-cpu","features":["whisper-worker-cpu/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]}
+  ]
+}
