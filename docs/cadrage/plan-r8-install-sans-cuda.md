@@ -1,6 +1,6 @@
-Avancée : réinstallation canonique et préparation d'une qualification CPU sans CUDA autorisées dans cette session après R8-FIX 5d5bb521.
-Blocage : le composant Windows Sandbox n'est pas détecté ; choix des sources Parakeet à rendre compatible avec le registre actuel avant installation.
-Décision : aucune modification Rust ; aucune activation Windows, élévation ni redémarrage sans accord distinct.
+Avancée : installation canonique publiée ; SHA de 21 fichiers concordants et contrôle PE des cinq EXE installés réussi ; recette isolée préparée.
+Blocage : Windows Sandbox activé avec autorisation, redémarrage Windows nécessaire ; qualification CPU sans CUDA NOT RUN.
+Décision : aucun redémarrage automatique ni worker exécuté sur l'hôte ; attendre le redémarrage utilisateur avant la recette.
 
 # Livraison et qualification R8 — six tâches
 
@@ -18,3 +18,25 @@ Autorisations reçues : « Oui, préparer puis installer » (desktop gardé, res
 Les quatorze DLL et deux modèles ont passé les comparaisons SHA et ont été copiés sous les sources attendues dans ce worktree. Desktop personnel construit sous garde (Cargo code 0, 65 s), PE sans CUDA, SHA `aa19791bac66c4c31511bcaf209baa16d38168d27e7b737a8f8ddf925302328d`. Le contrôle de retour de l'appelant a signalé à tort un échec après la réussite ; aucune recompilation, résultat attribué au journal `N1_GUARD exit_code=0` et au contrôle PE.
 
 Adaptation du script canonique déléguée puis revue indépendante CLEAN, sans correction, sur le delta depuis `f1a92cbf` : option explicite `-QualifiedParakeetSourceDirectory`, préflight avant mutation, SHA égaux au registre, gates PE et récupération conservés. Sandbox : composant initialement désactivé (InstallState 2) ; accord explicite utilisateur pour `Enable-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM -All -NoRestart` avec élévation. Activation exécutée avec succès ; `RestartNeeded=true`. Aucun redémarrage ni lancement de Sandbox.
+
+## Installation exécutée et contrôle des copies installées
+
+Script canonique depuis `C:/dev/whisper/.wt/r8`, candidat `r8-install-20261101-a` : `-StageOnly -QualifiedParakeetSourceDirectory C:/dev/whisper/target/parakeet-tests/refacto-parakeet-live/p3-workers/localappdata/Whisper/worker`, puis `-Publish`, codes 0. Installation réelle `C:/Users/cyril/AppData/Local/Whisper` ; sauvegarde antérieure conservée sous `backups/before-r8-install-20261101-a`. Aucun worker ou desktop lancé.
+
+| EXE installé | SHA-256 | Contrôle PE sur le fichier installé |
+| --- | --- | --- |
+| `app/whisper-desktop.exe` | `aa19791bac66c4c31511bcaf209baa16d38168d27e7b737a8f8ddf925302328d` | PASS, sans CUDA |
+| `app/whisper-worker-cpu.exe` | `eb33d96b57ee47e5dcbe3238467df4f5656d055757374dbff5d58a5f751bbfef` | PASS, sans CUDA |
+| `app/whisper-worker-gpu.exe` | `5ff4c494b86754d563c5d41cc7cdcd1b2748aed9c9ffa5f929be29973cf6001b` | PASS, cudart et nvcuda présents |
+| `worker/whisper-worker-parakeet-cpu.exe` | `a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d` | PASS, sans import statique CUDA |
+| `worker/whisper-worker-parakeet-gpu.exe` | `7ffb0b4a022ec26909a8939b37787de6df6c9bdb2903edf14d3ffb32579eefc1` | PASS, sans import statique CUDA |
+
+Les cinq EXE, quatorze DLL et deux modèles installés ont tous été comparés aux sources vérifiées : **21/21 SHA concordants**, **5/5 contrôles PE réussis** (imports directs et différés). Aucun registre, source Rust, manifeste ou dépendance modifié. Les Parakeet R8-FIX reconstruits restent conservés dans leurs cibles ; les Parakeet effectivement installés sont les copies déjà qualifiées correspondant au registre.
+
+Preuves : [résultats installés, chemins, SHA et listes complètes d'imports](../architecture/raw/r8-install/installed-results.json), [journaux et recette préparée](../architecture/raw/r8-install/installation-logs.zip). Archive de **19 entrées**, relues et comparées aux sources par taille et SHA, SHA-256 `9dcc8346e702107fbb4018860bcb2f2f3fdf751d39030f1335df47d56fe3565e`. Ressources locales conservées ; aucun nettoyage ni push.
+
+## Recette après redémarrage — non exécutée
+
+Configuration préparée : `C:/dev/whisper/.wt/r8/target/r8-install/cpu-no-cuda.wsb`. GPU virtuel, réseau et redirections désactivés ; 12 Gio mémoire ; entrées uniquement en lecture seule, sorties dans `target/r8-install/sandbox-output/`. Entrées : copie du CPU **installé**, modèle installé, trois DLL Visual C++ contrôlées sans CUDA, extrait PCM16 mono 16 kHz de 30 s (480 000 échantillons), issu de `sound example/spkr0.wav` sans modifier l'original.
+
+Le script invité vérifie ses entrées/SHA, l'absence de DLL CUDA dans les racines de chargement contrôlées et l'absence de pilote NVIDIA avant une commande IPC CPU. Il exige Ready CPU, texte non vide, End à 480 000 échantillons et sortie 0 ; il consigne les modules chargés et refuse CUDA. Analyse syntaxique Windows PowerShell 5.1 et contraintes XML : PASS, **aucune exécution** de la recette. Aucun résultat d'inférence, absence CUDA réelle dans l'invité, repli Auto, export applicatif ou fenêtre Windows qualifié. Le redémarrage reste à l'initiative de l'utilisateur ; après celui-ci, reprendre ce plan à la tâche 5.

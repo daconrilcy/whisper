@@ -1,0 +1,330 @@
+{
+  "candidate": "r8-install-20261101-a",
+  "installationRoot": "C:\\Users\\cyril\\AppData\\Local\\Whisper",
+  "timestampUtc": "2026-11-01T14:41:48.9206467Z",
+  "shaCheckedFiles": [
+    {
+      "relative": "app/whisper-desktop.exe",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\app\\whisper-desktop.exe",
+      "source": "target/r8-install/targets/desktop-personal/release/whisper-desktop.exe",
+      "sha256": "aa19791bac66c4c31511bcaf209baa16d38168d27e7b737a8f8ddf925302328d",
+      "matchesSource": true
+    },
+    {
+      "relative": "app/whisper-worker-cpu.exe",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\app\\whisper-worker-cpu.exe",
+      "source": "target/r8-fix/targets/worker-cpu-release/release/whisper-worker-cpu.exe",
+      "sha256": "eb33d96b57ee47e5dcbe3238467df4f5656d055757374dbff5d58a5f751bbfef",
+      "matchesSource": true
+    },
+    {
+      "relative": "app/whisper-worker-gpu.exe",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\app\\whisper-worker-gpu.exe",
+      "source": "target/r8-fix/targets/worker-gpu-release/release/whisper-worker-gpu.exe",
+      "sha256": "5ff4c494b86754d563c5d41cc7cdcd1b2748aed9c9ffa5f929be29973cf6001b",
+      "matchesSource": true
+    },
+    {
+      "relative": "worker/whisper-worker-parakeet-cpu.exe",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\worker\\whisper-worker-parakeet-cpu.exe",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\worker\\whisper-worker-parakeet-cpu.exe",
+      "sha256": "a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d",
+      "matchesSource": true
+    },
+    {
+      "relative": "worker/whisper-worker-parakeet-gpu.exe",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\worker\\whisper-worker-parakeet-gpu.exe",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\refacto-parakeet-live\\p3-workers\\localappdata\\Whisper\\worker\\whisper-worker-parakeet-gpu.exe",
+      "sha256": "7ffb0b4a022ec26909a8939b37787de6df6c9bdb2903edf14d3ffb32579eefc1",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/cpu/nemo_speech_asr.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\cpu\\nemo_speech_asr.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\cpu\\nemo_speech_asr.dll",
+      "sha256": "923a3a5258b196de6122e6ccc9b5cdd3e48c379dc53461e38921826b75f43019",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/cpu/ggml-base.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\cpu\\ggml-base.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\cpu\\ggml-base.dll",
+      "sha256": "398cf89332451b547b44256d5e84bb5895a7c0fe97727e597be8989230544e0a",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/cpu/ggml-cpu.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\cpu\\ggml-cpu.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\cpu\\ggml-cpu.dll",
+      "sha256": "f7546413e1e6e248df0bc8a0745a414de4c36532b201b3ba219d86864b5f1ab0",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/cpu/nemo_speech_asr_c.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\cpu\\nemo_speech_asr_c.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\cpu\\nemo_speech_asr_c.dll",
+      "sha256": "9d67b716fe53accf05c8a1bb43fcac0a83f22c8425641f432ce1ed9dc871e764",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/cpu/ggml.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\cpu\\ggml.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\cpu\\ggml.dll",
+      "sha256": "2eff3c476a9796580ec788429c87e479dc33e1066c74a77cbe3a7a909734b794",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/gpu/ggml-base.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\ggml-base.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\gpu\\ggml-base.dll",
+      "sha256": "24b7342f10bc14e17dcb55ebafdbaa1a0fd0187cf5ae1a8ecf03bb9f8a17ef93",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/gpu/nemo_speech_asr.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\nemo_speech_asr.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\gpu\\nemo_speech_asr.dll",
+      "sha256": "4fac537a8d99a8cee4cd1dba2391379cb895fafb7d21beb9d6f4fe670be05449",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/gpu/cublasLt64_12.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\cublasLt64_12.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\gpu\\cublasLt64_12.dll",
+      "sha256": "71705a7cf0923f4ab034d0d2620bbfc989ff669ac3d79f868b7a7c597ca559c5",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/gpu/cudart64_12.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\cudart64_12.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\gpu\\cudart64_12.dll",
+      "sha256": "760c38928bbe5759f7b31ed6692599eb7ec83cedd5702e84c2b72028a89837e1",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/gpu/ggml-cuda.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\ggml-cuda.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\gpu\\ggml-cuda.dll",
+      "sha256": "7e244413387852825ed420fceef5e3b318f3a264f97f59fe0233789dfbdb6822",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/gpu/cublas64_12.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\cublas64_12.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\gpu\\cublas64_12.dll",
+      "sha256": "52ce5ba0ec5327d39be6021f0f9362d2ed4d64d7206f9b5afc06398d827b8e82",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/gpu/nemo_speech_asr_c.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\nemo_speech_asr_c.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\gpu\\nemo_speech_asr_c.dll",
+      "sha256": "6643c1c657f05bd545655044ec59fc052a789042ce9c17496b9c77a240c7bbb9",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/gpu/ggml.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\ggml.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\gpu\\ggml.dll",
+      "sha256": "9148ba2ed0eaeee385d09eba37e1a297d5e2f0649a02ffd4e325fea562c29ea6",
+      "matchesSource": true
+    },
+    {
+      "relative": "native/gpu/ggml-cpu.dll",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\ggml-cpu.dll",
+      "source": "C:\\dev\\whisper\\target\\parakeet-tests\\parakeet-unified\\lot-04\\isolated-localappdata\\Whisper\\native\\gpu\\ggml-cpu.dll",
+      "sha256": "23166143accf20055ccaafb8b720ad3dac33bf16ac027cc77225e0bb2a99e699",
+      "matchesSource": true
+    },
+    {
+      "relative": "models/ggml-large-v3-turbo.bin",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\models\\ggml-large-v3-turbo.bin",
+      "source": "C:\\dev\\whisper\\models\\ggml-large-v3-turbo.bin",
+      "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+      "matchesSource": true
+    },
+    {
+      "relative": "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "source": "C:\\dev\\whisper\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+      "matchesSource": true
+    }
+  ],
+  "peReports": [
+    {
+      "Kind": "Desktop",
+      "Path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\app\\whisper-desktop.exe",
+      "Sha256": "aa19791bac66c4c31511bcaf209baa16d38168d27e7b737a8f8ddf925302328d",
+      "Verdict": "PASS",
+      "Imports": [
+        "advapi32.dll",
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-core-winrt-error-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "combase.dll",
+        "dwmapi.dll",
+        "dxgi.dll",
+        "GDI32.dll",
+        "imm32.dll",
+        "KERNEL32.dll",
+        "mmdevapi.dll",
+        "ntdll.dll",
+        "ole32.dll",
+        "oleaut32.dll",
+        "OPENGL32.dll",
+        "setupapi.dll",
+        "shell32.dll",
+        "shlwapi.dll",
+        "uiautomationcore.dll",
+        "USER32.dll",
+        "uxtheme.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "CudaImports": [],
+      "Reason": "No forbidden CUDA imports."
+    },
+    {
+      "Kind": "Cpu",
+      "Path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\app\\whisper-worker-cpu.exe",
+      "Sha256": "eb33d96b57ee47e5dcbe3238467df4f5656d055757374dbff5d58a5f751bbfef",
+      "Verdict": "PASS",
+      "Imports": [
+        "ADVAPI32.dll",
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "MSVCP140.dll",
+        "ntdll.dll",
+        "VCRUNTIME140_1.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "CudaImports": [],
+      "Reason": "No forbidden CUDA imports."
+    },
+    {
+      "Kind": "Gpu",
+      "Path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\app\\whisper-worker-gpu.exe",
+      "Sha256": "5ff4c494b86754d563c5d41cc7cdcd1b2748aed9c9ffa5f929be29973cf6001b",
+      "Verdict": "PASS",
+      "Imports": [
+        "ADVAPI32.dll",
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "cublas64_12.dll",
+        "cudart64_12.dll",
+        "dxgi.dll",
+        "kernel32.dll",
+        "MSVCP140.dll",
+        "ntdll.dll",
+        "nvcuda.dll",
+        "oleaut32.dll",
+        "setupapi.dll",
+        "user32.dll",
+        "VCRUNTIME140_1.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "CudaImports": [
+        "cublas64_12.dll",
+        "cudart64_12.dll",
+        "nvcuda.dll"
+      ],
+      "Reason": "Required CUDA imports present."
+    },
+    {
+      "Kind": "ParakeetCpu",
+      "Path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\worker\\whisper-worker-parakeet-cpu.exe",
+      "Sha256": "a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d",
+      "Verdict": "PASS",
+      "Imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "kernel32.dll",
+        "ntdll.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "CudaImports": [],
+      "Reason": "No forbidden CUDA imports."
+    },
+    {
+      "Kind": "ParakeetCpu",
+      "Path": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\worker\\whisper-worker-parakeet-gpu.exe",
+      "Sha256": "7ffb0b4a022ec26909a8939b37787de6df6c9bdb2903edf14d3ffb32579eefc1",
+      "Verdict": "PASS",
+      "Imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "kernel32.dll",
+        "ntdll.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "CudaImports": [],
+      "Reason": "No forbidden CUDA imports."
+    }
+  ],
+  "shaCheckedCount": 21,
+  "peCheckedCount": 5,
+  "hostWorkerExecuted": false,
+  "sandboxExecuted": false,
+  "source": "scripts/install-personal.ps1 -StageOnly then -Publish",
+  "backup": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\backups\\before-r8-install-20261101-a",
+  "archive": {
+    "file": "installation-logs.zip",
+    "entries": 19,
+    "verifiedAgainstSourceSizeAndSha256": true,
+    "sha256": "9dcc8346e702107fbb4018860bcb2f2f3fdf751d39030f1335df47d56fe3565e"
+  },
+  "sandbox": {
+    "component": "Containers-DisposableClientVM",
+    "enabled": true,
+    "restartNeeded": true,
+    "restarted": false,
+    "executed": false,
+    "qualification": "NOT RUN",
+    "virtualGpu": "Disabled",
+    "network": "Disabled",
+    "inputReadOnly": true,
+    "outputRoot": "target/r8-install/sandbox-output",
+    "recipe": "target/r8-install/cpu-no-cuda.wsb",
+    "guestScript": "target/r8-install/sandbox-input/Test-CpuWithoutCuda.ps1",
+    "staticChecks": "Windows PowerShell 5.1 parser and WSB XML constraints PASS (implementer handoff)",
+    "guestScriptSha256": "25e33ff4cdb250372e5ef6184eaeeeef808e92be6ae75bfac2b02844b259584b"
+  },
+  "diskFreeBytes": 154139115520
+}
