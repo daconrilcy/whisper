@@ -1,6 +1,6 @@
 Avancée : reprise autorisée exécutée ; import Parakeet CPU français et publication réussis, quatre corps ciblés réussis au total.
 Blocage : inventaire GPU interrompu avant réponse ; campagne arrêtée, 27 cas de cette reprise non exécutés.
-Décision : LIVRÉ AVEC RÉSERVES après deux revues ; arbitrage nécessaire pour un correctif ciblé et une reprise, aucune fusion.
+Décision : cycle CUDA supplémentaire et reprise explicitement autorisés ; correctif ciblé relu CLEAN, aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -104,3 +104,9 @@ Diagnostic en lecture seule : le worker GPU cloné a le SHA attendu `5ff4c494b86
 Les 21 ressources clonées sont à nouveau comparées aux SHA attendus et aux sources après l'essai : toutes conformes, sources immuables. Journaux, requête, inventaire GPU, résultats PE, contrôles runtime et publication CPU sont dans [les résultats consolidés](../architecture/raw/n2-native/native-results.json) et [l'archive](../architecture/raw/n2-native/native-runs.zip) : **42 entrées relues, tailles et SHA vérifiés**, SHA archive `5a69d25ab199dda05952b49db77f503559de2768b70c2a3193acae078e823408`. Les archives antérieures restent intactes. Bilan et preuves N2 occupent neuf fichiers suivis, sans nouveau rapport proposé.
 
 Après les deux revues du complément : **LIVRÉ AVEC RÉSERVES**, aucune troisième correction ni nouvelle exécution native engagée. Proposition bornée à arbitrer : ajouter au seul profil PersonalUnified le descripteur `CUDA_PATH` déjà pris en charge et limité au toolkit 12.9, renseigner la requête correspondante, effectuer un cycle supplémentaire de vérification/revue ciblée, puis reprendre sous garde les profils disponibles. Aucun changement du script de garde, des tests/assertions Rust, des ressources installées ou des racines d'écriture. Une relance de PersonalUnified rejouerait aussi son CPU déjà réussi, sans remplacer la preuve acquise. Les cas FR87/FR27 et ceux imposant des racines historiques restent fermés ; la fusion reste conditionnée à la campagne complète verte. Espace libre après conservation : **139 681 210 368 octets**. Aucun push ni fusion.
+
+## Cycle supplémentaire CUDA explicitement autorisé
+
+Accord reçu : **« Oui, corriger ce paramètre et reprendre »**, limité au descripteur CUDA_PATH du profil PersonalUnified et à sa requête, puis vérification, revue ciblée et reprise. L'implémenteur ajoute ce seul descripteur obligatoire, identique à GpuCudaProbe, borné au toolkit CUDA 12.9. Le parent renseigne la valeur existante `C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9`. Aucun autre paramètre, source Rust, script de garde, SDK ou chemin d'écriture ne change.
+
+JSON, comparaison des descripteurs, auto-tests PowerShell synthétiques et diff : PASS. Préflight exact PersonalUnified : code 0. Revue indépendante ciblée **CLEAN**, base `905064ad`, registre SHA `2c2cd8f73d1d622a8aff5dbc533795b0dbed7315af30c6f52d885f3050b279da`. La garde reste au SHA déjà relu `6c531fab8d1ebb4c1a35d902fd8a9ca92d545fdce1c34541d8cf5a5d5c33286d`. La relance doit confirmer ou infirmer le diagnostic du chargement GPU ; aucun succès matériel n'est déduit du correctif de configuration.

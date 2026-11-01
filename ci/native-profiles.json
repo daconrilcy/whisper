@@ -178,7 +178,9 @@
         {"key": "shortFrench", "environmentVariable": "WHISPER_PU_L4_FR_SOURCE", "kind": "file"},
         {"key": "shortEnglish", "environmentVariable": "WHISPER_PU_L4_EN_SOURCE", "kind": "file"}
       ],
-      "values": [],
+      "values": [
+        {"key": "cudaToolkitPath", "environmentVariable": "CUDA_PATH", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"}
+      ],
       "outputs": [
         {"key": "campaignRun", "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN", "kind": "directory", "path": "writes/l04"}
       ],
