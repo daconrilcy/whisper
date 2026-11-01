@@ -1,4 +1,4 @@
-Avancée : étude du découplage R8 réalisée en lecture seule ; résultats N1 conservés : 687 réussites Cargo, 0 échec, 147 ignorés.
+Avancée : étude du découplage R8 relue CLEAN pour le document DRAFT ; résultats N1 conservés : 687 réussites Cargo, 0 échec, 147 ignorés.
 Blocage : liaison des nouveaux harness non prouvée, portée sans SDK CUDA à décider ; R9 confirme un oracle manuel compté réussi sans verdict.
 Décision : cadrage DRAFT, objectif global toujours BLOCKED ; aucun prototype, changement de production ou de manifeste hors features réalisé.
 
@@ -53,7 +53,11 @@ L’utilisateur a choisi dans cette session **« Étudier le découplage des tes
 
 ## Cadrage R8 — DRAFT-R8-1, étude autorisée, sans implémentation
 
-Auteur du document : session principale. Contribution technique : architecte Rust `/root/r8_decoupling_architecture`, version 1, sources Git **86bf900d** et code **fb2171e8**, lecture du 1er novembre 2026. Le cadrage reste dans ce rapport déjà prévu par la mission ; aucun autre dossier de cadrage ni mécanisme documentaire ajouté. La revue indépendante du cadrage est à consigner après versionnement. Le mandat de correction R1–R7 n’est pas prolongé par cette étude.
+Auteur du document : session principale. Contribution technique : architecte Rust `/root/r8_decoupling_architecture`, version 1, sources Git **86bf900d** et code **fb2171e8**, lecture du 1er novembre 2026. Le cadrage reste dans ce rapport déjà prévu par la mission ; aucun autre dossier de cadrage ni mécanisme documentaire ajouté. Le mandat de correction R1–R7 n’est pas prolongé par cette étude.
+
+**Revue indépendante de 46c89049**, acteur `/root/r8_design_review`, sans participation à la conception/rédaction : **CLEAN pour l’étude documentaire DRAFT uniquement ; DESIGN READY reste BLOCKED**. Aucun défaut documentaire REQUIRED ; couverture bidirectionnelle besoin/critères/architecture vérifiée, 9 identités CPU et 19 GPU retrouvées dans les sources, extraction pure et R9 confirmés. Le conseil mineur AD-R8-01 demandait de distinguer le snapshot historique epoch 5 du JSON de la situation actuelle : sa notice historique est désormais explicite. Cette consignation de preuves ne change aucune proposition ni décision.
+
+Contrôles documentaires réalisés par la session principale : JSON valide, 855 entrées conservées ; 28 noms/propriétaires de la matrice strictement identiques au JSON ; git diff --check et contrôle du diff indexé réussis. Aucun Cargo, rustc, prototype, modèle, worker réel ou test natif lancé pendant l’étude ou sa revue. Aucun test, manifeste, CI ou code de production changé dans cette étude. Les mesures N1 précédentes ne sont pas de nouvelles mesures du cadrage.
 
 ### Besoin, invariants et acceptation
 

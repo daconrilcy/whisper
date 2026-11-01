@@ -53586,6 +53586,7 @@
     }
   },
   "independent_review": {
+    "snapshot_notice": "Snapshot historique epoch 5 antérieur au cadrage 46c89049 ; son pending_user conserve la demande d'étude désormais acceptée. Situation actuelle : decoupling_study et R9_oracle_without_verdict. AD-R8-01 appliqué sans réécrire l'historique.",
     "candidate_epoch": 5,
     "review_passes": 4,
     "correction_passes": 3,
@@ -54250,7 +54251,33 @@
       "no_model_corpus_installation_or_dll_removal": true
     },
     "current_study_checks": "lecture de sources/manifestes et documentation officielle, comparaison Git et syntaxe documentaire seulement ; aucun Cargo, rustc ou prototype",
-    "independent_design_review": "PENDING_GIT_VERSIONED_REVIEW",
+    "independent_design_review": {
+      "source_commit": "46c89049",
+      "actor": "/root/r8_design_review",
+      "independence": "aucune participation à la conception, rédaction ou correction du candidat ; documents Git et sources vérifiés directement",
+      "verdict": "CLEAN_FOR_DOCUMENTARY_DRAFT_ONLY",
+      "design_readiness": "BLOCKED",
+      "required_findings": [],
+      "known_open_conditions": [
+        "faisabilité R8.1–R8.3 non prouvée",
+        "choix SDK structurant sans réponse",
+        "R9 non corrigé"
+      ],
+      "advisory": {
+        "id": "AD-R8-01",
+        "severity": "LOW",
+        "suggestion": "identifier independent_review comme snapshot historique epoch 5",
+        "main_author_action": "notice explicite ajoutée, aucune proposition modifiée"
+      },
+      "checks": "documents Git, manifestes et sources ; 28 identités retrouvées (9 CPU / 19 GPU), couverture bidirectionnelle cohérente ; aucune exécution Cargo/rustc/native/PE"
+    },
+    "documentary_checks": {
+      "json_syntax": "PASS",
+      "physical_inventory_entries_preserved": 855,
+      "markdown_matrix_matches_json_test_names_and_crates": 28,
+      "git_diff_check": "PASS",
+      "new_cargo_or_native_execution": false
+    },
     "primary_sources": [
       "https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection",
       "https://doc.rust-lang.org/cargo/reference/resolver.html#features",
