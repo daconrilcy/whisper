@@ -1,6 +1,6 @@
-Avancée : message NVML recueilli ; politique et sept contrôles GPU réussis, diagnostic encodeur exécuté.
-Blocage : un sélecteur GPU erroné entraîne zéro test exécuté ; garde arrêtée, seize cas indépendants non lancés dont D2.
-Décision : correction d'un seul sélecteur et reprise explicitement autorisées ; revue ciblée CLEAN, aucune fusion.
+Avancée : 26 cas indépendants exécutés : 25 tests réussis et un diagnostic encodeur ; D2 termine ses 16 parcours.
+Blocage : campagne complète encore incomplète : import GPU/NVML, corpus historique manquant et racines hors lot.
+Décision : correction du sélecteur validée en exécution ; pas de fusion tant que la campagne complète n'est pas verte.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -153,3 +153,17 @@ Le complément de diagnostic a consommé ses deux revues et reste CLEAN dans ce 
 ## Correction du sélecteur autorisée
 
 Accord reçu : **« Oui, corriger le nom et reprendre »**. L'implémenteur corrige exclusivement la ligne TurboGpu en `before_deserialization`. JSON, 23 sélecteurs uniques, correspondance des 23 à l'inventaire conservé et diff : PASS. Revue indépendante ciblée **CLEAN**, base `ed714977`, registre SHA `efa8fd86eceafbd0204e29735e0a8fc2dfca4a360f5285385aff9c29435d0627` ; les 22 autres sélecteurs, cibles, features et assertions restent identiques. Préflights TurboGpu et D2 : code 0, sans exécution native. Le parent reprend le profil GPU complet puis D2 sous garde, avec arrêt au premier échec.
+
+## Tranche indépendante terminée
+
+Au candidat `f8264002`, **TurboGpu PASS : 23 cas exacts réussis**, aucun ignoré et aucune absence d'exécution, somme des appels Cargo **28,663 s**. Le cas de désérialisation auparavant mal sélectionné est maintenant réellement exécuté et réussi ; le refus précédent de la garde est fermé. Les deux parents exécutent leur helper privé, sans invocation autonome de celui-ci. Ces contrats ne constituent pas une transcription GPU avec modèle.
+
+**D2 PASS : un test, 16 parcours Parakeet CPU**, appel Cargo **1 017,798 s** (environ 17 min). Quatre corpus et quatre conditions de gain, événement final `campaign-complete`, **zéro différence de nombre de trames** entre entrée et sortie. Les SHA des seize WAV de sortie correspondent aux valeurs du checkpoint. La comparaison lexicale est explicitement **descriptive, sans seuil WER** : ce PASS ne qualifie pas un niveau de qualité de transcription. Aucun microphone matériel n'est sollicité par cette injection de WAV ; la capture WASAPI réelle avait été testée séparément.
+
+Avec CampaignPolicies et ManualDiagnostic acquis lors de la tranche précédente : **26 cas indépendants exécutés, 25 avec verdict PASS, un DIAGNOSTIC_ONLY encodeur, zéro cas restant dans cette tranche**. Le total distinct ciblé N2 est désormais **29 corps PASS et un diagnostic encodeur**, sans compter les répétitions CPU/GPU. Cela ne démontre pas l'exécution complète des 147 recettes demandées. Le probe NVIDIA reste DIAGNOSTIC_ONLY avec le message NVML déjà conservé ; les échecs historiques restent dans les preuves.
+
+Après D2, les 21 ressources runtime clonées et leurs sources sont à nouveau vérifiées : toutes conformes et sources immuables. Preuves consolidées **révision 4** : **322 entrées relues, tailles et SHA vérifiés**, dont les **137 précédentes conservées à l'identique**, SHA archive `009c6751b68e7bf04d61649c94e4cdd7737983327e5bf4e7d292871bc12eff19`. Les seize WAV, **32 003 264 octets**, restent sous le lot ; seules les petites preuves texte/JSON/SRT sont ajoutées à l'archive. La révision 3 reste dans Git à `ed714977`. Aucun nettoyage, aucune copie installée et aucune nouvelle dépendance. Espace libre après conservation : **129 599 995 904 octets**. Neuf fichiers de bilan/preuves N2 suivis, sans rapport supplémentaire.
+
+Condition de fusion non remplie : l'import Parakeet GPU échoue encore sur NVML, Auto dans son profil n'a pas été exécuté, FR87/FR27 restent absents sans sauvegarde, plusieurs recettes imposent des racines historiques extérieures au lot. `main` reste à `248f8679`, aucun push ni fusion.
+
+Préparation complémentaire en lecture seule, sans profil modifié : `TurboCpu::turbo_idle_and_refusal_contract` n'exige ni modèle ni DLL Parakeet selon ses sources ; cible `worker_contract`, feature `whisper-worker-cpu/native-tests`, libclang déclaré si compilation, aucune entrée/sortie propre ni marqueur de campagne. Le worker utilise whisper/ggml statiques. Le binaire debug CPU actuellement présent passe le contrôle PE sans CUDA, SHA `4047ab4aa6ae75cd822d7c306f02bc8f514e477243fbcf767d81f9b973fb0949` ; cela n'est pas un essai de son contrat ni une qualification sans pilote NVIDIA. Le test Auto déjà sélectionné peut être isolé du cas GPU bloqué en conservant son sélecteur et ses ressources existantes. Proposition de prochain périmètre à arbitrer : données de ces deux profils dans le seul registre `ci/native-profiles.json`, requêtes sous le lot, revue indépendante puis exécution sous garde. Aucun test/assertion Rust, script de garde, manifeste, SDK, pilote, installation ou racine supplémentaire. Aucun de ces deux cas n'est annoncé exécuté.

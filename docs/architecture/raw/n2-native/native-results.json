@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "revision": 3,
-  "candidate": "f328ef55",
-  "authorization": "Oui, diagnostiquer et poursuivre les cas indépendants",
+  "revision": 4,
+  "candidate": "f8264002",
+  "authorization": "Oui, corriger le nom et reprendre",
   "history": [
     {
       "candidate": "de9003dc",
@@ -103,6 +103,22 @@
       "gitSnapshot": "c6833c6b"
     }
   ],
+  "priorRevision3": {
+    "gitSnapshot": "ed714977",
+    "archiveEntryCount": 137,
+    "archiveSha256": "db24d3cc8cf6afba43a3361bfe0436c50d82e46d9d1a63bc795708bd62d31aa6",
+    "selectorFinding": {
+      "source": "ci/native-profiles.json:149",
+      "declared": "ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling",
+      "savedInventory": "ipc::tests::rejects_oversized_and_incomplete_frames_before_deserialization",
+      "savedInventorySource": "target/n2-native/logs/InventoryList-cc95e146bf474a1e8cbd8ddffaad7740/InventoryList.stdout.log:902",
+      "cargoExitCode": 0,
+      "executedTests": 0,
+      "guardCorrectlyRejected": true,
+      "other22SelectorsPresentInSavedInventory": true,
+      "correctionApplied": false
+    }
+  },
   "diagnostic": {
     "profile": "NvidiaSmiInventoryDiagnostic",
     "status": "DIAGNOSTIC_ONLY",
@@ -114,229 +130,247 @@
   },
   "independentCases": {
     "planned": 26,
-    "qualificationPass": 8,
+    "qualificationPass": 25,
     "diagnosticBodyExecuted": 1,
-    "invalidSelector": 1,
-    "notStarted": 16,
+    "notStarted": 0,
     "rustTestFailures": 0,
-    "guardStatus": "FAIL",
     "campaignPolicies": "PASS",
     "manualDiagnostic": "DIAGNOSTIC_ONLY",
-    "gpuPass": 7,
-    "gpuInvalidSelector": 1,
-    "gpuNotStarted": 15,
-    "d2": "NOT RUN"
+    "gpuStatus": "PASS",
+    "gpuCases": 23,
+    "gpuElapsedSumSeconds": 28.663,
+    "d2Status": "PASS",
+    "d2Cases": 1,
+    "d2InternalScenarios": 16,
+    "d2ElapsedSeconds": 1017.798,
+    "d2FrameMismatches": 0,
+    "d2LexicalQuality": "descriptive comparison only; no WER acceptance threshold"
   },
-  "gpuCases": [
+  "gpuRunId": "TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc",
+  "d2RunId": "D2-c81b2cd7789d4acfaa068f1966cb2645",
+  "d2Scenarios": [
     {
-      "schemaVersion": 1,
-      "profile": "TurboGpu",
-      "operation": "Run",
-      "case": "decoder::tests::inaccessible_source_propagates_error",
-      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
-      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"decoder::tests::inaccessible_source_propagates_error\",\"--\",\"--exact\",\"decoder::tests::inaccessible_source_propagates_error\",\"--test-threads=1\",\"--nocapture\"]",
-      "cwd": "C:\\dev\\whisper\\.wt\\r8",
-      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
-      "result": "PASS",
-      "exitCode": 0,
-      "elapsedSeconds": 1.847,
-      "testEvidence": {
-        "exactTest": "decoder::tests::inaccessible_source_propagates_error",
-        "executionCount": 1,
-        "bodyStatus": "passed",
-        "passed": 1,
-        "failed": 0,
-        "ignored": 0,
-        "summary": "verified",
-        "verdict": "PASS"
-      },
-      "failure": null
+      "ordinal": 1,
+      "corpus": "fr_pauses",
+      "condition": "0db",
+      "elapsed_ms": 66624,
+      "input_frames": 1040320,
+      "output_frames": 1040320,
+      "input_wav_sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
+      "output_wav_sha256": "4a221a4cc9159cae5e46c1b8811c2ccf35acde36d50a3af9d46c45bc7cf05670",
+      "reference_sha256": "abd2ac3ec6bc0fceb7c044f56d8ee0c29c4b2ca4a2ba8ca364ee169cb47e78cf",
+      "comparison": "descriptive only; no WER threshold"
     },
     {
-      "schemaVersion": 1,
-      "profile": "TurboGpu",
-      "operation": "Run",
-      "case": "diagnostics::tests::gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt",
-      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
-      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"diagnostics::tests::gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt\",\"--\",\"--exact\",\"diagnostics::tests::gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt\",\"--test-threads=1\",\"--nocapture\"]",
-      "cwd": "C:\\dev\\whisper\\.wt\\r8",
-      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
-      "result": "PASS",
-      "exitCode": 0,
-      "elapsedSeconds": 0.958,
-      "testEvidence": {
-        "exactTest": "diagnostics::tests::gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt",
-        "executionCount": 1,
-        "bodyStatus": "passed",
-        "passed": 1,
-        "failed": 0,
-        "ignored": 0,
-        "summary": "verified",
-        "verdict": "PASS"
-      },
-      "failure": null
+      "ordinal": 2,
+      "corpus": "fr_pauses",
+      "condition": "minus6db",
+      "elapsed_ms": 65631,
+      "input_frames": 1040320,
+      "output_frames": 1040320,
+      "input_wav_sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
+      "output_wav_sha256": "0331fab27c4fbd33844664b963a92b284aa2f17d9363c902f25f437b71c8109a",
+      "reference_sha256": "abd2ac3ec6bc0fceb7c044f56d8ee0c29c4b2ca4a2ba8ca364ee169cb47e78cf",
+      "comparison": "descriptive only; no WER threshold"
     },
     {
-      "schemaVersion": 1,
-      "profile": "TurboGpu",
-      "operation": "Run",
-      "case": "diagnostics::tests::verified_model_gpu_initialization_failure_is_retryable_and_correlated",
-      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
-      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"diagnostics::tests::verified_model_gpu_initialization_failure_is_retryable_and_correlated\",\"--\",\"--exact\",\"diagnostics::tests::verified_model_gpu_initialization_failure_is_retryable_and_correlated\",\"--test-threads=1\",\"--nocapture\"]",
-      "cwd": "C:\\dev\\whisper\\.wt\\r8",
-      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
-      "result": "PASS",
-      "exitCode": 0,
-      "elapsedSeconds": 0.825,
-      "testEvidence": {
-        "exactTest": "diagnostics::tests::verified_model_gpu_initialization_failure_is_retryable_and_correlated",
-        "executionCount": 1,
-        "bodyStatus": "passed",
-        "passed": 1,
-        "failed": 0,
-        "ignored": 0,
-        "summary": "verified",
-        "verdict": "PASS"
-      },
-      "failure": null
+      "ordinal": 3,
+      "corpus": "fr_pauses",
+      "condition": "plus6db",
+      "elapsed_ms": 66805,
+      "input_frames": 1040320,
+      "output_frames": 1040320,
+      "input_wav_sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
+      "output_wav_sha256": "bfae00472ba4ab6cdc3cd74ce22b15427d267431d2622186d17f3bf90be14cbf",
+      "reference_sha256": "abd2ac3ec6bc0fceb7c044f56d8ee0c29c4b2ca4a2ba8ca364ee169cb47e78cf",
+      "comparison": "descriptive only; no WER threshold"
     },
     {
-      "schemaVersion": 1,
-      "profile": "TurboGpu",
-      "operation": "Run",
-      "case": "engine_cache::tests::cache_target_matches_complete_device_identity",
-      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
-      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"engine_cache::tests::cache_target_matches_complete_device_identity\",\"--\",\"--exact\",\"engine_cache::tests::cache_target_matches_complete_device_identity\",\"--test-threads=1\",\"--nocapture\"]",
-      "cwd": "C:\\dev\\whisper\\.wt\\r8",
-      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
-      "result": "PASS",
-      "exitCode": 0,
-      "elapsedSeconds": 0.845,
-      "testEvidence": {
-        "exactTest": "engine_cache::tests::cache_target_matches_complete_device_identity",
-        "executionCount": 1,
-        "bodyStatus": "passed",
-        "passed": 1,
-        "failed": 0,
-        "ignored": 0,
-        "summary": "verified",
-        "verdict": "PASS"
-      },
-      "failure": null
+      "ordinal": 4,
+      "corpus": "fr_pauses",
+      "condition": "abrupt-minus6-to-plus6",
+      "elapsed_ms": 65652,
+      "input_frames": 1040320,
+      "output_frames": 1040320,
+      "input_wav_sha256": "541285a38fb6927c1bb4384825d2a7565a4a41efeade91c5f13de60bfefc5c0e",
+      "output_wav_sha256": "805c086d7a9a82407af7ae113849564f16506e4be88fb96d25a9d61dd2273d35",
+      "reference_sha256": "abd2ac3ec6bc0fceb7c044f56d8ee0c29c4b2ca4a2ba8ca364ee169cb47e78cf",
+      "comparison": "descriptive only; no WER threshold"
     },
     {
-      "schemaVersion": 1,
-      "profile": "TurboGpu",
-      "operation": "Run",
-      "case": "engine_cache::tests::cached_engine_is_attested_again_and_evicted_on_failure",
-      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
-      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"engine_cache::tests::cached_engine_is_attested_again_and_evicted_on_failure\",\"--\",\"--exact\",\"engine_cache::tests::cached_engine_is_attested_again_and_evicted_on_failure\",\"--test-threads=1\",\"--nocapture\"]",
-      "cwd": "C:\\dev\\whisper\\.wt\\r8",
-      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
-      "result": "PASS",
-      "exitCode": 0,
-      "elapsedSeconds": 0.854,
-      "testEvidence": {
-        "exactTest": "engine_cache::tests::cached_engine_is_attested_again_and_evicted_on_failure",
-        "executionCount": 1,
-        "bodyStatus": "passed",
-        "passed": 1,
-        "failed": 0,
-        "ignored": 0,
-        "summary": "verified",
-        "verdict": "PASS"
-      },
-      "failure": null
+      "ordinal": 5,
+      "corpus": "en_pauses",
+      "condition": "0db",
+      "elapsed_ms": 65598,
+      "input_frames": 1040000,
+      "output_frames": 1040000,
+      "input_wav_sha256": "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a",
+      "output_wav_sha256": "72b43c70edf6072b670a4c02816395c2074c4ffe6d2a915749b3abeb98a4bfca",
+      "reference_sha256": "c2971f66c57658ca613d578df807559604b5581c8b5ef72102900700fcf33cb1",
+      "comparison": "descriptive only; no WER threshold"
     },
     {
-      "schemaVersion": 1,
-      "profile": "TurboGpu",
-      "operation": "Run",
-      "case": "gpu_qualification::tests::duplicate_or_missing_join_endpoints_never_become_supported",
-      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
-      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"gpu_qualification::tests::duplicate_or_missing_join_endpoints_never_become_supported\",\"--\",\"--exact\",\"gpu_qualification::tests::duplicate_or_missing_join_endpoints_never_become_supported\",\"--test-threads=1\",\"--nocapture\"]",
-      "cwd": "C:\\dev\\whisper\\.wt\\r8",
-      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
-      "result": "PASS",
-      "exitCode": 0,
-      "elapsedSeconds": 0.826,
-      "testEvidence": {
-        "exactTest": "gpu_qualification::tests::duplicate_or_missing_join_endpoints_never_become_supported",
-        "executionCount": 1,
-        "bodyStatus": "passed",
-        "passed": 1,
-        "failed": 0,
-        "ignored": 0,
-        "summary": "verified",
-        "verdict": "PASS"
-      },
-      "failure": null
+      "ordinal": 6,
+      "corpus": "en_pauses",
+      "condition": "minus6db",
+      "elapsed_ms": 65566,
+      "input_frames": 1040000,
+      "output_frames": 1040000,
+      "input_wav_sha256": "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a",
+      "output_wav_sha256": "14df7e08f32109590dd918709a2d05a9e52d463dcdf6fcbbef40f3b874c7ab23",
+      "reference_sha256": "c2971f66c57658ca613d578df807559604b5581c8b5ef72102900700fcf33cb1",
+      "comparison": "descriptive only; no WER threshold"
     },
     {
-      "schemaVersion": 1,
-      "profile": "TurboGpu",
-      "operation": "Run",
-      "case": "gpu_qualification::tests::unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend",
-      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
-      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"gpu_qualification::tests::unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend\",\"--\",\"--exact\",\"gpu_qualification::tests::unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend\",\"--test-threads=1\",\"--nocapture\"]",
-      "cwd": "C:\\dev\\whisper\\.wt\\r8",
-      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
-      "result": "PASS",
-      "exitCode": 0,
-      "elapsedSeconds": 0.989,
-      "testEvidence": {
-        "exactTest": "gpu_qualification::tests::unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend",
-        "executionCount": 1,
-        "bodyStatus": "passed",
-        "passed": 1,
-        "failed": 0,
-        "ignored": 0,
-        "summary": "verified",
-        "verdict": "PASS"
-      },
-      "failure": null
+      "ordinal": 7,
+      "corpus": "en_pauses",
+      "condition": "plus6db",
+      "elapsed_ms": 65578,
+      "input_frames": 1040000,
+      "output_frames": 1040000,
+      "input_wav_sha256": "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a",
+      "output_wav_sha256": "a2617ef75d0baa94b03bbb845312cc28150eefe4de93d6aee387a129128417e9",
+      "reference_sha256": "c2971f66c57658ca613d578df807559604b5581c8b5ef72102900700fcf33cb1",
+      "comparison": "descriptive only; no WER threshold"
     },
     {
-      "schemaVersion": 1,
-      "profile": "TurboGpu",
-      "operation": "Run",
-      "case": "ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling",
-      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
-      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling\",\"--\",\"--exact\",\"ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling\",\"--test-threads=1\",\"--nocapture\"]",
-      "cwd": "C:\\dev\\whisper\\.wt\\r8",
-      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
-      "result": "FAIL",
-      "exitCode": 0,
-      "elapsedSeconds": 0.48,
-      "testEvidence": null,
-      "failure": "Output did not identify exactly one execution of ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling."
+      "ordinal": 8,
+      "corpus": "en_pauses",
+      "condition": "abrupt-minus6-to-plus6",
+      "elapsed_ms": 65576,
+      "input_frames": 1040000,
+      "output_frames": 1040000,
+      "input_wav_sha256": "d73e3c08972ccb39eb3fc70ffb202c95c2b386fb3e59b5fafb753dab2c2ec18a",
+      "output_wav_sha256": "3adc827149c9a8ee469fe34a2806b73d8a90445fba9a28510ad4478410a7481e",
+      "reference_sha256": "c2971f66c57658ca613d578df807559604b5581c8b5ef72102900700fcf33cb1",
+      "comparison": "descriptive only; no WER threshold"
+    },
+    {
+      "ordinal": 9,
+      "corpus": "fr_continu",
+      "condition": "0db",
+      "elapsed_ms": 61711,
+      "input_frames": 960000,
+      "output_frames": 960000,
+      "input_wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+      "output_wav_sha256": "8528d5755e0a1e198f3070374aafa4eccab3b850063f9bda7a7488d41625a228",
+      "reference_sha256": "ed150b6360d409b4d575b23253db5849dd709ab4f1b99416f29ba7d18a921ca7",
+      "comparison": "descriptive only; no WER threshold"
+    },
+    {
+      "ordinal": 10,
+      "corpus": "fr_continu",
+      "condition": "minus6db",
+      "elapsed_ms": 61694,
+      "input_frames": 960000,
+      "output_frames": 960000,
+      "input_wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+      "output_wav_sha256": "89870b3ea6fac99efe7bdfc265eb8c4ab947b5e0e182b9c359dcf04210be137b",
+      "reference_sha256": "ed150b6360d409b4d575b23253db5849dd709ab4f1b99416f29ba7d18a921ca7",
+      "comparison": "descriptive only; no WER threshold"
+    },
+    {
+      "ordinal": 11,
+      "corpus": "fr_continu",
+      "condition": "plus6db",
+      "elapsed_ms": 61699,
+      "input_frames": 960000,
+      "output_frames": 960000,
+      "input_wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+      "output_wav_sha256": "27b0daa7dab5f1f34260f4e90903ebb68204f72f68dbbf370b442d4803b0ebed",
+      "reference_sha256": "ed150b6360d409b4d575b23253db5849dd709ab4f1b99416f29ba7d18a921ca7",
+      "comparison": "descriptive only; no WER threshold"
+    },
+    {
+      "ordinal": 12,
+      "corpus": "fr_continu",
+      "condition": "abrupt-minus6-to-plus6",
+      "elapsed_ms": 61634,
+      "input_frames": 960000,
+      "output_frames": 960000,
+      "input_wav_sha256": "322757782eda5332bdec4ff8bc7bbd87a5bbb76330d0d4da7f6e4d271f5a0df2",
+      "output_wav_sha256": "e83d908ab25bb88b75803377dfba95686121a59ce048e39f953d205d4690587f",
+      "reference_sha256": "ed150b6360d409b4d575b23253db5849dd709ab4f1b99416f29ba7d18a921ca7",
+      "comparison": "descriptive only; no WER threshold"
+    },
+    {
+      "ordinal": 13,
+      "corpus": "en_continu",
+      "condition": "0db",
+      "elapsed_ms": 60623,
+      "input_frames": 960000,
+      "output_frames": 960000,
+      "input_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "output_wav_sha256": "9cfe5650ccbc490e3f93d35e00cbd15ea31ce2e2b2b9356e522ae65a7bebd48d",
+      "reference_sha256": "93a7ae7ac4c940f98d64eecf5ef6ce0bed883da4202a4df5762b4f4782bf8bad",
+      "comparison": "descriptive only; no WER threshold"
+    },
+    {
+      "ordinal": 14,
+      "corpus": "en_continu",
+      "condition": "minus6db",
+      "elapsed_ms": 60637,
+      "input_frames": 960000,
+      "output_frames": 960000,
+      "input_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "output_wav_sha256": "b67a3d9cfb8eefa10e9923b2d663488aa6749959284b8b45687020c74399f8bf",
+      "reference_sha256": "93a7ae7ac4c940f98d64eecf5ef6ce0bed883da4202a4df5762b4f4782bf8bad",
+      "comparison": "descriptive only; no WER threshold"
+    },
+    {
+      "ordinal": 15,
+      "corpus": "en_continu",
+      "condition": "plus6db",
+      "elapsed_ms": 60672,
+      "input_frames": 960000,
+      "output_frames": 960000,
+      "input_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "output_wav_sha256": "ebab027cbdbf22803d3db3c49139e0024b15158d576b0b9980aaca4c9f251f4b",
+      "reference_sha256": "93a7ae7ac4c940f98d64eecf5ef6ce0bed883da4202a4df5762b4f4782bf8bad",
+      "comparison": "descriptive only; no WER threshold"
+    },
+    {
+      "ordinal": 16,
+      "corpus": "en_continu",
+      "condition": "abrupt-minus6-to-plus6",
+      "elapsed_ms": 60612,
+      "input_frames": 960000,
+      "output_frames": 960000,
+      "input_wav_sha256": "1fdcf0d8c00c426c7ed78c6724087db857b3acde465ea1f8bd77a3be8ca4b7c8",
+      "output_wav_sha256": "95ca905b0373f221215edf7b4b2a191cf43d92bf29ba195e2e8cd52473f18ef6",
+      "reference_sha256": "93a7ae7ac4c940f98d64eecf5ef6ce0bed883da4202a4df5762b4f4782bf8bad",
+      "comparison": "descriptive only; no WER threshold"
     }
   ],
-  "selectorFinding": {
-    "source": "ci/native-profiles.json:149",
-    "declared": "ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling",
-    "savedInventory": "ipc::tests::rejects_oversized_and_incomplete_frames_before_deserialization",
-    "savedInventorySource": "target/n2-native/logs/InventoryList-cc95e146bf474a1e8cbd8ddffaad7740/InventoryList.stdout.log:902",
-    "cargoExitCode": 0,
-    "executedTests": 0,
-    "guardCorrectlyRejected": true,
-    "other22SelectorsPresentInSavedInventory": true,
-    "correctionApplied": false
+  "runtimeIntegrity": {
+    "filesVerified": 21,
+    "allMatched": true,
+    "sourcesUnmodified": true
   },
-  "cumulativeDistinctQualifiedTargetedBodies": 12,
+  "selectorFindingClosedByExactTestPass": true,
+  "cumulativeDistinctQualifiedTargetedBodies": 29,
   "encoderDiagnosticDistinctBodies": 1,
-  "campaignStopped": true,
   "fullCampaignQualified": false,
   "mergePerformed": false,
-  "nativeCommandsSinceLatestGuardFailure": 0,
-  "nextDecision": "Correct one GPU selector, independent targeted review and restart TurboGpu+D2 require explicit arbitration after guard failure",
-  "freeBytes": 133429272576,
+  "remainingBlockers": [
+    "PersonalUnified GPU import fails NVML initialization; Auto case behind it not executed",
+    "fr87.wav/fr27.wav missing without backup",
+    "historical write roots outside authorized lot",
+    "TurboCpu idle contract read-only preconditions clarified; no profile change or execution yet"
+  ],
+  "audioOutputs": {
+    "wavFilesPreservedUnderLot": 16,
+    "wavBytes": 32003264,
+    "wavShaVerified": 16,
+    "copiedToProofArchive": false
+  },
+  "freeBytes": 129600049152,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 137,
-    "priorEntriesPreserved": 79,
+    "entryCount": 322,
+    "priorEntriesPreserved": 137,
     "entriesVerified": true,
-    "sha256": "db24d3cc8cf6afba43a3361bfe0436c50d82e46d9d1a63bc795708bd62d31aa6",
+    "sha256": "009c6751b68e7bf04d61649c94e4cdd7737983327e5bf4e7d292871bc12eff19",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -1022,6 +1056,931 @@
         "path": "snapshots/independent-diagnostic-v3/D2.json",
         "bytes": 4327,
         "sha256": "3f1b6c9b9cd61b73943f17793cfffff0f91c07f8bbb5dbff22dea6fc1e9b979f"
+      },
+      {
+        "path": "target/n2-native/logs/D2-c81b2cd7789d4acfaa068f1966cb2645/direct_live__d2_corpus__d2_corpus_real_cpu_turbo_and_parakeet.invocation.json",
+        "bytes": 1291,
+        "sha256": "6a37e4fe09d28ca90904ea93730fc7e65b37c505467775c82ad7b42f22ad411d"
+      },
+      {
+        "path": "target/n2-native/logs/D2-c81b2cd7789d4acfaa068f1966cb2645/direct_live__d2_corpus__d2_corpus_real_cpu_turbo_and_parakeet.process.json",
+        "bytes": 145,
+        "sha256": "bf86c99db2115f99765bbddb6d33776f3bef279a09066e4b97c51ac6789c7992"
+      },
+      {
+        "path": "target/n2-native/logs/D2-c81b2cd7789d4acfaa068f1966cb2645/direct_live__d2_corpus__d2_corpus_real_cpu_turbo_and_parakeet.stderr.log",
+        "bytes": 1570,
+        "sha256": "7012d7fe11b60012d4042fde5eb80422bc6f982c1d17af54edd524d03ea278e8"
+      },
+      {
+        "path": "target/n2-native/logs/D2-c81b2cd7789d4acfaa068f1966cb2645/direct_live__d2_corpus__d2_corpus_real_cpu_turbo_and_parakeet.stdout.log",
+        "bytes": 197,
+        "sha256": "20874586d9f7e3fb34d73116058705e10ffaac746d6ac6d03dedad55199b2d76"
+      },
+      {
+        "path": "target/n2-native/logs/D2-c81b2cd7789d4acfaa068f1966cb2645/result.json",
+        "bytes": 1358,
+        "sha256": "bb18086979234968e9d1cb054dce80302f8e861ffee10b8374fe31db977183f0"
+      },
+      {
+        "path": "target/n2-native/logs/D2-c81b2cd7789d4acfaa068f1966cb2645/unattributed-temp.jsonl",
+        "bytes": 152533,
+        "sha256": "db3bc8992923f86ec040e495ae30cf912ae844b41597966684dad202c7a62f2f"
+      },
+      {
+        "path": "target/n2-native/logs/selector-fix-D2-preflight.txt",
+        "bytes": 467,
+        "sha256": "4c7d0169054037046af50161b1bce461008a4639cffd97899d58af36319a52e2"
+      },
+      {
+        "path": "target/n2-native/logs/selector-fix-TurboGpu-preflight.txt",
+        "bytes": 473,
+        "sha256": "c4da1a0ad5fe78a871e864459879dc726e54cdc988bd67c667e25ac53ce6bd5f"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/decoder__tests__inaccessible_source_propagates_error.invocation.json",
+        "bytes": 1285,
+        "sha256": "1b0401aae866310ad2dd0c3b3a5c49643268ddfbb2999a5b32f7515fe2341cdb"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/decoder__tests__inaccessible_source_propagates_error.process.json",
+        "bytes": 136,
+        "sha256": "0e703fd4f9ee388bd14f7216e1f4bbca0fb1486df4fbfbcf01a855b101641693"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/decoder__tests__inaccessible_source_propagates_error.stderr.log",
+        "bytes": 4315,
+        "sha256": "2218a9a7a74d4f70c663b5af8e768cff19e7a8429d09568cf808bc2fe14ef121"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/decoder__tests__inaccessible_source_propagates_error.stdout.log",
+        "bytes": 184,
+        "sha256": "ebe8bec6819863afb35a1510aa7a479bc06fcf42fb1d118f2e2e28461ec7d045"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/diagnostics__tests__gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt.invocation.json",
+        "bytes": 1422,
+        "sha256": "decd0f90bdfe3be6f8dae0b5814c1f27a63298c27036c98d8fe66f557142af53"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/diagnostics__tests__gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt.process.json",
+        "bytes": 169,
+        "sha256": "3aba38f326d012a0c63104172ab36d39d3efdecdd32bb62e2c89bb8a5df16137"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/diagnostics__tests__gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt.stderr.log",
+        "bytes": 4315,
+        "sha256": "43cad35427a0a84d056486d976826685ca4df6be6faa0cf03e9d4a6625ecc030"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/diagnostics__tests__gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt.stdout.log",
+        "bytes": 218,
+        "sha256": "a4e090d87aa7ce84476e741470e8b9f72c37d40ee5ae164cf39b7b15b0b2d9c9"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/diagnostics__tests__verified_model_gpu_initialization_failure_is_retryable_and_correlated.invocation.json",
+        "bytes": 1434,
+        "sha256": "b994c160a1b59e51e21b04bce834fdc310e8855f57dea70f272b8840e27bef88"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/diagnostics__tests__verified_model_gpu_initialization_failure_is_retryable_and_correlated.process.json",
+        "bytes": 173,
+        "sha256": "9be424d6a8c99cfb77d4dc502e3e27336486d2498f847cac99ac7365ec7c4fe0"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/diagnostics__tests__verified_model_gpu_initialization_failure_is_retryable_and_correlated.stderr.log",
+        "bytes": 4315,
+        "sha256": "2a33354c6bfdd25c578d112708920eb168cb02d5d3016033a2ce213f2d09f4b1"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/diagnostics__tests__verified_model_gpu_initialization_failure_is_retryable_and_correlated.stdout.log",
+        "bytes": 221,
+        "sha256": "b4625a84e78d7032af746d8712e78532ee843552315eef1e0b0eeeac668dc182"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/engine_cache__tests__cache_target_matches_complete_device_identity.invocation.json",
+        "bytes": 1342,
+        "sha256": "81cd28cf41b3266f15403f381ec2b70474c1b064efcf4d15f3d5abd7b323ab6c"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/engine_cache__tests__cache_target_matches_complete_device_identity.process.json",
+        "bytes": 150,
+        "sha256": "91049710af8e43b3e07ed2ac8b99b83a3535db61ad9dce3190edabab0cb8248f"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/engine_cache__tests__cache_target_matches_complete_device_identity.stderr.log",
+        "bytes": 4315,
+        "sha256": "217ef88decd126769c8026d2c08ac5ca46dd1714f1ca012e51fcfcb9abc607ec"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/engine_cache__tests__cache_target_matches_complete_device_identity.stdout.log",
+        "bytes": 198,
+        "sha256": "5ad6d64bffa61c4372395dc40ea87353208bf8b888f65aa366a1c07f5cfa8464"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/engine_cache__tests__cached_engine_is_attested_again_and_evicted_on_failure.invocation.json",
+        "bytes": 1378,
+        "sha256": "959c614137f3e98a5748a2e601ce727eab7d6ce40ac1b465848a74790e3a8837"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/engine_cache__tests__cached_engine_is_attested_again_and_evicted_on_failure.process.json",
+        "bytes": 158,
+        "sha256": "2f9bde64e4a098aba4b3d98154a0bd634f25afe5b7ed3bfeaf5e1377522ce747"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/engine_cache__tests__cached_engine_is_attested_again_and_evicted_on_failure.stderr.log",
+        "bytes": 4315,
+        "sha256": "f349ac1fe60c6a89ee597c696c5c1ce4ead4e4a7001d0e67ede40ae1abd0b756"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/engine_cache__tests__cached_engine_is_attested_again_and_evicted_on_failure.stdout.log",
+        "bytes": 207,
+        "sha256": "3187207fbcbdf2feb1439c02397c386a8a0564d56b1065c00c72c3a71aab1cf2"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_attestation__tests__reattestation_requires_exact_cuda_and_ggml_ordinals_and_identity.invocation.json",
+        "bytes": 1430,
+        "sha256": "09d0c831b6f60bfb0d461d84dfb8a8d4fe66c84d556013c7fa28c8402b90e73a"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_attestation__tests__reattestation_requires_exact_cuda_and_ggml_ordinals_and_identity.process.json",
+        "bytes": 171,
+        "sha256": "e14a7dec30f5f6fcc265f47d999a873c1b1e8578e80ec0eadcb8d184ca52972f"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_attestation__tests__reattestation_requires_exact_cuda_and_ggml_ordinals_and_identity.stderr.log",
+        "bytes": 4315,
+        "sha256": "0848dc634a3da565c7ea0f570df39db82e8dd515cd89effaae36f3e6619e2387"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_attestation__tests__reattestation_requires_exact_cuda_and_ggml_ordinals_and_identity.stdout.log",
+        "bytes": 220,
+        "sha256": "63d94dd1c2fe0f41099d86caf62981c0902e095105fd07042134f07892c25f4c"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_identity_contract.invocation.json",
+        "bytes": 1158,
+        "sha256": "6e3c4c4562bf3ca7c2cd934dc0318c63855e1fb7da48c989fc5b3e800fe1dfbe"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_identity_contract.process.json",
+        "bytes": 105,
+        "sha256": "cb409ebc5fbd9519833b80fcf6d38710a0e5b0a2ce4c65e148e8f7d2e4ace5f9"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_identity_contract.stderr.log",
+        "bytes": 683,
+        "sha256": "fc736a5036f49e73156f9b149d3db313aac9c6d78c8493d41f986da07463f949"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_identity_contract.stdout.log",
+        "bytes": 152,
+        "sha256": "06e5be9701d87d5d4d9a7174b2b9071fc40a9b01efb7ad192a18bf917e5a432e"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__duplicate_or_missing_join_endpoints_never_become_supported.invocation.json",
+        "bytes": 1414,
+        "sha256": "439843ebfd386ffd9579b4a87fb026410939d5fe3648f6296554655713d7c819"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__duplicate_or_missing_join_endpoints_never_become_supported.process.json",
+        "bytes": 168,
+        "sha256": "8c9593411b12cbcc0d2c753ccf97a12554b40175e960c0a29e7043e3273de8fc"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__duplicate_or_missing_join_endpoints_never_become_supported.stderr.log",
+        "bytes": 4315,
+        "sha256": "6f32a6e6313aceab7f59add5dadd72fd3b6361acaab323c9f0958f715370089e"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__duplicate_or_missing_join_endpoints_never_become_supported.stdout.log",
+        "bytes": 216,
+        "sha256": "f859f976db0725afcef8abda67a0f39dd0fdbd1d696145f2406d1669401a8fc2"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__intel_exclusion_uses_windows_identity_and_build_capability_without_cuda_join.invocation.json",
+        "bytes": 1486,
+        "sha256": "9f63a0a70214bd93205597ddd6282eb5f783fd9df3bd8c378bbafd670076db1e"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__intel_exclusion_uses_windows_identity_and_build_capability_without_cuda_join.process.json",
+        "bytes": 185,
+        "sha256": "96a8da39c62025c3402acaddd8032ce51ae548a430777fcf81afe3a1d64447eb"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__intel_exclusion_uses_windows_identity_and_build_capability_without_cuda_join.stderr.log",
+        "bytes": 4315,
+        "sha256": "5f58b83b5ffa51667f77c96dde92a217f75a7237cb4c4ae818073628427afe94"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__intel_exclusion_uses_windows_identity_and_build_capability_without_cuda_join.stdout.log",
+        "bytes": 234,
+        "sha256": "4777e493721a135ea88f3280fa8217e2b7a184aacc5fabd10b61eccf05e6cb21"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__missing_driver_or_required_symbol_is_unavailable_without_support_claim.invocation.json",
+        "bytes": 1462,
+        "sha256": "22c35c97d78130c6887020019c3f4f10f802a47cdd7b3ec17aac0c9c9bfcbf3a"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__missing_driver_or_required_symbol_is_unavailable_without_support_claim.process.json",
+        "bytes": 180,
+        "sha256": "f65d3b81c6c968639c070c902b6bfc9a74651e188ae221f93359220d59ce09ab"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__missing_driver_or_required_symbol_is_unavailable_without_support_claim.stderr.log",
+        "bytes": 4315,
+        "sha256": "e55acd8f5853c6a1ab31bc2fd519dd7d9e616220a56d9d931e40a653e8d86447"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__missing_driver_or_required_symbol_is_unavailable_without_support_claim.stdout.log",
+        "bytes": 228,
+        "sha256": "c01aa6fa9e21b88ba8dadabfc7a6690f0da84bdf8d0b55aa971078bbdff514f9"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend.invocation.json",
+        "bytes": 1474,
+        "sha256": "a5910bb548b86aa3e8dd2c7f17e5df4cd9c9875beda091a2dd2b5fe331ead34b"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend.process.json",
+        "bytes": 182,
+        "sha256": "d19d59a1f193c1c26cde3591f142760b8e4f2566bca797b9abe3610e91d6dc64"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend.stderr.log",
+        "bytes": 4315,
+        "sha256": "13865c438711bb1669d83da9e7e527d49fd82b70a1831d28bed9dfe52b6f0c32"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/gpu_qualification__tests__unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend.stdout.log",
+        "bytes": 231,
+        "sha256": "cb93cc5985a2bb3c73a086447f5b858f5538b8a6f74eff3a99773d60133c4988"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/ipc__tests__rejects_oversized_and_incomplete_frames_before_deserialization.invocation.json",
+        "bytes": 1374,
+        "sha256": "ce8a92b2beb9e36a05f9c544727759bcfd498c305704f2bb9407606858a393b5"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/ipc__tests__rejects_oversized_and_incomplete_frames_before_deserialization.process.json",
+        "bytes": 157,
+        "sha256": "5401f685fc55f1f6967aed9ae33f83f2ab21962bfd662dff973a3e968dc812c0"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/ipc__tests__rejects_oversized_and_incomplete_frames_before_deserialization.stderr.log",
+        "bytes": 4315,
+        "sha256": "a23963989519a680530ef899944492735b448b3bb8bf919e5cb85a0deebe9a20"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/ipc__tests__rejects_oversized_and_incomplete_frames_before_deserialization.stdout.log",
+        "bytes": 206,
+        "sha256": "0a65e7b9a32b6abf876d0e6092499c61a078388c941b7637d61ab4eaeec08154"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/ipc__tests__writer_accepts_limit_and_rejects_limit_plus_one.invocation.json",
+        "bytes": 1314,
+        "sha256": "9415e230d5a85c0fa1692522731fc3d5d57d4fbe512f43d251b7f43dc266a523"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/ipc__tests__writer_accepts_limit_and_rejects_limit_plus_one.process.json",
+        "bytes": 142,
+        "sha256": "c616e916187b94114f73624ca2a0707ed11989bccda55c5c7b56a89d91c864c5"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/ipc__tests__writer_accepts_limit_and_rejects_limit_plus_one.stderr.log",
+        "bytes": 4315,
+        "sha256": "951184c7b4ec5908fdd20e29e3cc20fb7f796904fa3ac9197e18d057c6d482ad"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/ipc__tests__writer_accepts_limit_and_rejects_limit_plus_one.stdout.log",
+        "bytes": 191,
+        "sha256": "171e0e23b99e55f11b22b383bcad750045b3b472f924974afbd781399bf39597"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__native_gpu_attestation_rejects_failure_after_using_backend.invocation.json",
+        "bytes": 1386,
+        "sha256": "7d40c8e7af1af9ebb62d90b594a785483d2004bfa0adebece59f37803ca33f0c"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__native_gpu_attestation_rejects_failure_after_using_backend.process.json",
+        "bytes": 161,
+        "sha256": "81ce7f0d755b4997de608d5a492a76a14c3ff52f1dfba005d36d482e81bfb8c3"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__native_gpu_attestation_rejects_failure_after_using_backend.stderr.log",
+        "bytes": 4315,
+        "sha256": "0ca5e4dc9a9ad3a294e33a43da0a1ba35710f89b92013872601db2bc0134f422"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__native_gpu_attestation_rejects_failure_after_using_backend.stdout.log",
+        "bytes": 209,
+        "sha256": "bd52b5147973b5abfcb53e152f128209620302b96ccee6f8b5eb4ae0656e8259"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__native_gpu_attestation_requires_a_fresh_matching_log.invocation.json",
+        "bytes": 1362,
+        "sha256": "b2231d8df04f6363e033522926bd83edba6343bbb65601e8fa71a7cc0ca090cc"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__native_gpu_attestation_requires_a_fresh_matching_log.process.json",
+        "bytes": 154,
+        "sha256": "55150b08c543595ae49351192ea25a6c942580407485271b0925484b5a4791f8"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__native_gpu_attestation_requires_a_fresh_matching_log.stderr.log",
+        "bytes": 4315,
+        "sha256": "b40ed1a6bc552c80893dd1b611ca90643d99cd1211e4d964e0a256fef061f444"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__native_gpu_attestation_requires_a_fresh_matching_log.stdout.log",
+        "bytes": 203,
+        "sha256": "45194240e9c134524768e5586b95ea7611ef4e58ac4be64fd863164715063665"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__whisper_position_counts_gpu_and_integrated_gpu_not_cuda_ordinals.invocation.json",
+        "bytes": 1410,
+        "sha256": "47899ba0fdcf72d077b279138fb3449156768ac094bcfb550664aa8d419d465f"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__whisper_position_counts_gpu_and_integrated_gpu_not_cuda_ordinals.process.json",
+        "bytes": 167,
+        "sha256": "502c66d7a867015eb8efe4c5a580564466918198a89096e3bb6f5a6a6471d4b4"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__whisper_position_counts_gpu_and_integrated_gpu_not_cuda_ordinals.stderr.log",
+        "bytes": 4315,
+        "sha256": "066f88af4dec01d1e89b601823cde60477ade9de91738ca83ec73de6f1ac837d"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/native_ffi__tests__whisper_position_counts_gpu_and_integrated_gpu_not_cuda_ordinals.stdout.log",
+        "bytes": 215,
+        "sha256": "7862a165e0f6d74c8f56a5df2724908ff6efb442bece47c5f2c3fce1fe4cc417"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/result.json",
+        "bytes": 16780,
+        "sha256": "d85259272811ed1ac778adb070992fb14cc3b2c10df393d27111233b07ba11f4"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__empty_and_disconnected_channels_do_not_stop_the_session.invocation.json",
+        "bytes": 1398,
+        "sha256": "bc1a0d1cb2b854b217fd63b894d232599e3e7527b8057fdc1e1c19c49fab4c1a"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__empty_and_disconnected_channels_do_not_stop_the_session.process.json",
+        "bytes": 164,
+        "sha256": "d99fd876a3167bec0e3bcb516dd87284991b38fffb3e4dac9d33d3e7136fb3a0"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__empty_and_disconnected_channels_do_not_stop_the_session.stderr.log",
+        "bytes": 4315,
+        "sha256": "dc206878f4cd317bf52b9d8fb5e5fdb913d50ea6dce3a4b95ddb213456ed7409"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__empty_and_disconnected_channels_do_not_stop_the_session.stdout.log",
+        "bytes": 212,
+        "sha256": "864455debe24b7c5e70b982d9fdf13bb7870a1781f67f3752874450da02c92de"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__wrong_protocol_emits_correlated_failure_before_stopping.invocation.json",
+        "bytes": 1398,
+        "sha256": "9af868277f3a2b7a8b3144bf203bc101d08950e9f8197c0c68b7bdbf08dbb804"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__wrong_protocol_emits_correlated_failure_before_stopping.process.json",
+        "bytes": 164,
+        "sha256": "2c808e320ac88a23633b746f451436ae601f849cb11219aa61fb6a12bed41cd9"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__wrong_protocol_emits_correlated_failure_before_stopping.stderr.log",
+        "bytes": 4315,
+        "sha256": "4aca3ad8dde23842a32787fbb0658d27a4ae44d4af7be78ce259935bbc29b05c"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__wrong_protocol_emits_correlated_failure_before_stopping.stdout.log",
+        "bytes": 212,
+        "sha256": "f3c5ee8819856dc22f822c6ed283ab7da2f892d12d1cf812ac2533b9cf7e13db"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__wrong_stop_is_ignored_and_matching_stop_is_consumed.invocation.json",
+        "bytes": 1382,
+        "sha256": "f14e4dc69fdf7314cf986923d005289ac8280c4f1e4011190274834101301870"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__wrong_stop_is_ignored_and_matching_stop_is_consumed.process.json",
+        "bytes": 159,
+        "sha256": "4f6944b0a23c625c7bfb396e99c26343e2e44d209678c9b5f987a2714a481dbb"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__wrong_stop_is_ignored_and_matching_stop_is_consumed.stderr.log",
+        "bytes": 4315,
+        "sha256": "57a832bf459fdcf34d0f225b04694eaf0bf746f54dbff577935954cfc4af9a65"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/session__control__tests__wrong_stop_is_ignored_and_matching_stop_is_consumed.stdout.log",
+        "bytes": 208,
+        "sha256": "d0b79ba4fa748d122972ebf4466a73a24b0f8024505c71fa5494d8e2816e7437"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/support__tests__deadline_stops_child_after_expected_output.invocation.json",
+        "bytes": 1307,
+        "sha256": "78bcc9aa9824f5225d1068c03fb8a1eda342dbfd6f18452630668220bf89c5f7"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/support__tests__deadline_stops_child_after_expected_output.process.json",
+        "bytes": 142,
+        "sha256": "e076a5d6459185855a8764a5f7bb17fc40ab1d68b067eea487215493bc41e06e"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/support__tests__deadline_stops_child_after_expected_output.stderr.log",
+        "bytes": 773,
+        "sha256": "1f21f48b9e281ce719f83df53ab3f9d712f8f61c541344f4df6c1fe6769b1752"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/support__tests__deadline_stops_child_after_expected_output.stdout.log",
+        "bytes": 189,
+        "sha256": "6640dd8313c8c0d20737ef4c9efb5cfa332dee66315bd172b0256f7cf0b2490a"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/support__tests__timed_out_output_retains_the_captured_stdout.invocation.json",
+        "bytes": 1315,
+        "sha256": "f018702d0b8f683862de801fbba3eddc9df69766fe983a9f811c99bbbdc745b6"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/support__tests__timed_out_output_retains_the_captured_stdout.process.json",
+        "bytes": 144,
+        "sha256": "cf13216404ae8a27d85c7af3de9524b36caedcc0bcdaa632c17ab77ebb826402"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/support__tests__timed_out_output_retains_the_captured_stdout.stderr.log",
+        "bytes": 1015,
+        "sha256": "e94b73e8fe989f39b433396059e37d9daa1bf091abdf3ed2d3f95aabef6e279b"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/support__tests__timed_out_output_retains_the_captured_stdout.stdout.log",
+        "bytes": 191,
+        "sha256": "3efe21934a4a79e6f2f3a52af6d417df9a6a465e972567aff93939aa3f3f7143"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/turbo_idle_and_refusal_contract.invocation.json",
+        "bytes": 1199,
+        "sha256": "0b1621b925b37b9619f63468da8fe0b95827d7b99ae75020a1acd185faffd856"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/turbo_idle_and_refusal_contract.process.json",
+        "bytes": 114,
+        "sha256": "01f748934f22119085e6b1e497a26b3412bd68bb0feee5482b54c5fbcf925774"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/turbo_idle_and_refusal_contract.stderr.log",
+        "bytes": 683,
+        "sha256": "b9aad7f728e5d67e2dea8f895023af8e731259bf34676f1b4f0e6d2bddfc63f6"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/turbo_idle_and_refusal_contract.stdout.log",
+        "bytes": 162,
+        "sha256": "107fc224a0c8faa93d4f7bdfafa9914c0f25ecdc9d2fd5f6d4849b2ec429b564"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/unattributed-temp.jsonl",
+        "bytes": 550,
+        "sha256": "1edc4b29babdf536b5956e938605a9b544520648cb1f1442a6db91c500614a39"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/worker__tests__idle_worker_shutdown_exits_without_an_error_frame.invocation.json",
+        "bytes": 1334,
+        "sha256": "6a893a7cf081258a967f89405b27c8ca1ffb38f5351c072606650b5bbd45833f"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/worker__tests__idle_worker_shutdown_exits_without_an_error_frame.process.json",
+        "bytes": 147,
+        "sha256": "bad2e5905d80969746aaf3b0221d57f2c772aff73511446ec391662b3051c223"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/worker__tests__idle_worker_shutdown_exits_without_an_error_frame.stderr.log",
+        "bytes": 4315,
+        "sha256": "7312f90727d5ac60ddbf88bc347c2f86d82182c2aa8c65148fb814fbb635f068"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-78d84ab1e99d4041bf8696b3178cc9fc/worker__tests__idle_worker_shutdown_exits_without_an_error_frame.stdout.log",
+        "bytes": 196,
+        "sha256": "ff7f684303efbb3c38da9a0eb46ae237dfde0376f82a4aba2bae4744e7f4d903"
+      },
+      {
+        "path": "target/n2-native/resources/d2-runtime-final-checks.json",
+        "bytes": 5308,
+        "sha256": "9629ad0fe2e64485d3e22558ee715dc42eaa1c85c8f0a1c163fce406f9a04256"
+      },
+      {
+        "path": "target/n2-native/resources/turbo-cpu-current-pe.json",
+        "bytes": 1221,
+        "sha256": "efc2d788a500c0fe365761bc80a35941d4d2b9d910f44bb0296767190c97c2d1"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/01-parakeet-cpu-fr_pauses-0db/d2-engine-status.json",
+        "bytes": 254404,
+        "sha256": "45213cd2e50e4e3e472aac29e1b53f1c3f6497e20f2bea5a0f3af64f002db5e0"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/01-parakeet-cpu-fr_pauses-0db/d2-worker-events.jsonl",
+        "bytes": 13090,
+        "sha256": "b37599f184636717ae687d75d44eafc6d1d259e9cf819b96df6890bd4403f743"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/01-parakeet-cpu-fr_pauses-0db/micro-0000000000015e840000000000000001-incomplet.srt",
+        "bytes": 885,
+        "sha256": "cb996c9c1dc6b8130644138066c690c586abf6c63e6ad7bca3bc9ce9636ed339"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/01-parakeet-cpu-fr_pauses-0db/micro-0000000000015e840000000000000001-incomplet.txt",
+        "bytes": 213,
+        "sha256": "9f07c6384ec32540f3225860ec2d236518d83fd0200b843999c9ea3475b30d0b"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/01-parakeet-cpu-fr_pauses-0db/micro-0000000000015e840000000000000001.json",
+        "bytes": 44250,
+        "sha256": "5d688611c3a5f3e12c9a8b9ba963f94d2dfac794dd75f5b84efb750d40fc68cb"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/02-parakeet-cpu-fr_pauses-minus6db/d2-engine-status.json",
+        "bytes": 209586,
+        "sha256": "e3ad232b347d4b5d9b1652b7fc26dc929ec628e7ba06d39ef37b3ca89f54c61d"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/02-parakeet-cpu-fr_pauses-minus6db/d2-worker-events.jsonl",
+        "bytes": 13091,
+        "sha256": "0873d8adc41dc08ea26a50786cd4a784511a7172eddc74469ec31ab95313c301"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/02-parakeet-cpu-fr_pauses-minus6db/micro-0000000000015e840000000000000002-incomplet.srt",
+        "bytes": 843,
+        "sha256": "9dcab186ffbfdc0dd6c9a8a056e810593b803c0a43731d17c64100ff41bf66a1"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/02-parakeet-cpu-fr_pauses-minus6db/micro-0000000000015e840000000000000002-incomplet.txt",
+        "bytes": 205,
+        "sha256": "12e4498b6524da0649d963ad7e994316ed9305fd42e2ff4cabaadedc9996ee3e"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/02-parakeet-cpu-fr_pauses-minus6db/micro-0000000000015e840000000000000002.json",
+        "bytes": 43042,
+        "sha256": "f018f5b519895dc79f5681f8d252f8d17560ed25743f4d51732661f188dd21d7"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/03-parakeet-cpu-fr_pauses-plus6db/d2-engine-status.json",
+        "bytes": 210413,
+        "sha256": "b6a43f277952bcc23c5c289f9c80121493e1222c425c17eff23839b57a02d92d"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/03-parakeet-cpu-fr_pauses-plus6db/d2-worker-events.jsonl",
+        "bytes": 13050,
+        "sha256": "67562476f6169066d23e4405b5fcca2e2b70284b51eede81ed3dab681991a9de"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/03-parakeet-cpu-fr_pauses-plus6db/micro-0000000000015e840000000000000003-incomplet.srt",
+        "bytes": 854,
+        "sha256": "c51e453817f563e0c03477f8c2c1bd3c516941386f7d6142d670e3e57ef37f75"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/03-parakeet-cpu-fr_pauses-plus6db/micro-0000000000015e840000000000000003-incomplet.txt",
+        "bytes": 216,
+        "sha256": "645631e87a541fad45c13efdeeca41e649f488207dd86ec90f48a8c91f230ed7"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/03-parakeet-cpu-fr_pauses-plus6db/micro-0000000000015e840000000000000003.json",
+        "bytes": 43308,
+        "sha256": "2c6aaa4be5218833982e4e4dc21651512742320001fddfaecda4e7842cd7db2a"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/04-parakeet-cpu-fr_pauses-abrupt-minus6-to-plus6/d2-engine-status.json",
+        "bytes": 209821,
+        "sha256": "47b9c5876155b4019ff971e24df15dccd9fd154f1cd1b6e08f8fdc47f963cb58"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/04-parakeet-cpu-fr_pauses-abrupt-minus6-to-plus6/d2-worker-events.jsonl",
+        "bytes": 13103,
+        "sha256": "285225d85e3378ddf9fd55f1fe0406faac8372d2dc3abbd85e690861af9916da"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/04-parakeet-cpu-fr_pauses-abrupt-minus6-to-plus6/micro-0000000000015e840000000000000004-incomplet.srt",
+        "bytes": 816,
+        "sha256": "7977b51debd1f9515671a975f131a544df90cb1054185e80eabebf768704c43c"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/04-parakeet-cpu-fr_pauses-abrupt-minus6-to-plus6/micro-0000000000015e840000000000000004-incomplet.txt",
+        "bytes": 212,
+        "sha256": "85c71eda8c7ea85a601cff4b93027ed61e4710a52db0e0eb954b84fceee383df"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/04-parakeet-cpu-fr_pauses-abrupt-minus6-to-plus6/micro-0000000000015e840000000000000004.json",
+        "bytes": 43434,
+        "sha256": "36bcb58c5f70331b93b28e7c6f4fb92c729801599554c4d57b2b4bbb684c11cd"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/05-parakeet-cpu-en_pauses-0db/d2-engine-status.json",
+        "bytes": 193535,
+        "sha256": "a6df41940058f8c89f4b114e6f3d10057791906f79b1a17846a6a977bb406d22"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/05-parakeet-cpu-en_pauses-0db/d2-worker-events.jsonl",
+        "bytes": 13095,
+        "sha256": "3c2fc858e78326c04693a3b4465b7c072a57f94fc91fc0f2b42a4a88103f8728"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/05-parakeet-cpu-en_pauses-0db/micro-0000000000015e840000000000000005-incomplet.srt",
+        "bytes": 1198,
+        "sha256": "7636fc8c65ed7d0d94bfeb63fac1bd93a6f80da22ba5d30a161eb204c32f022e"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/05-parakeet-cpu-en_pauses-0db/micro-0000000000015e840000000000000005-incomplet.txt",
+        "bytes": 356,
+        "sha256": "6674e0564d758a62a0db7a0cd076434d9e71c6379ec489bf72ba6cc7daec9ef5"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/05-parakeet-cpu-en_pauses-0db/micro-0000000000015e840000000000000005.json",
+        "bytes": 35917,
+        "sha256": "7b88ab128bfd84ce4ed4b9a7afd57ef4a03418fc3b9b66ecedd197de600f1193"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/06-parakeet-cpu-en_pauses-minus6db/d2-engine-status.json",
+        "bytes": 185623,
+        "sha256": "5b70252c2edcdc0c9076953a287b8f945ace5457234a2ac14d1af1bbf21b766c"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/06-parakeet-cpu-en_pauses-minus6db/d2-worker-events.jsonl",
+        "bytes": 13092,
+        "sha256": "4bade33bfd3b7c636122ad079649dd95f7c74b3fc603f2c36e3966ac3081efd0"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/06-parakeet-cpu-en_pauses-minus6db/micro-0000000000015e840000000000000006-incomplet.srt",
+        "bytes": 1197,
+        "sha256": "3c3117eeebe215f72f39b61ad9b1e41fde7c1bf10fd16a41e3fc8767ffd45b91"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/06-parakeet-cpu-en_pauses-minus6db/micro-0000000000015e840000000000000006-incomplet.txt",
+        "bytes": 355,
+        "sha256": "0763d62b962907f92c6952ef20156266eb8e05d0382dfdc8c3cf0bdda076035f"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/06-parakeet-cpu-en_pauses-minus6db/micro-0000000000015e840000000000000006.json",
+        "bytes": 33175,
+        "sha256": "ffb5a2c71284c5a70215496ba4ea787679922e6713a49503755db17a98ce0544"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/07-parakeet-cpu-en_pauses-plus6db/d2-engine-status.json",
+        "bytes": 196676,
+        "sha256": "b0495602d8857fe1311a24c5e244107bb8bfbf893c9699e006eed5a879943152"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/07-parakeet-cpu-en_pauses-plus6db/d2-worker-events.jsonl",
+        "bytes": 13099,
+        "sha256": "8939b2217624da61d15afaa7aba9e6ede2b89ed779a0e8f0a1f0c64704afb3bd"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/07-parakeet-cpu-en_pauses-plus6db/micro-0000000000015e840000000000000007-incomplet.srt",
+        "bytes": 1085,
+        "sha256": "6db9f8f01bd1917ee3c6b1d2446a0eb3b322b8270f0ff341127210cc4c61e2e1"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/07-parakeet-cpu-en_pauses-plus6db/micro-0000000000015e840000000000000007-incomplet.txt",
+        "bytes": 345,
+        "sha256": "ecd3630cb1fbb43cc526d84e54a590373972540bb447c5a346c04c09f666729a"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/07-parakeet-cpu-en_pauses-plus6db/micro-0000000000015e840000000000000007.json",
+        "bytes": 35792,
+        "sha256": "6e464bc0862b7a866a1b5126c41fa911a4c20e9d41dd5141f0f4e230ca00d46a"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/08-parakeet-cpu-en_pauses-abrupt-minus6-to-plus6/d2-engine-status.json",
+        "bytes": 196336,
+        "sha256": "ad382e06a491063a1f3a7ce95c1220687a7fac2900233d10a50ab43a72d27ec3"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/08-parakeet-cpu-en_pauses-abrupt-minus6-to-plus6/d2-worker-events.jsonl",
+        "bytes": 13114,
+        "sha256": "369c997ad5e2b5b0facbd4c68fe25227c40f56fe9c09ecdc85afda9f49442eef"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/08-parakeet-cpu-en_pauses-abrupt-minus6-to-plus6/micro-0000000000015e840000000000000008-incomplet.srt",
+        "bytes": 1132,
+        "sha256": "f4d58e84d62a44034acb0f20cc56e23f3e9cb57afe0247bbe87649cfc71aae1a"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/08-parakeet-cpu-en_pauses-abrupt-minus6-to-plus6/micro-0000000000015e840000000000000008-incomplet.txt",
+        "bytes": 358,
+        "sha256": "04c45fd347a9c3c7d24055c87a7eb1c22c805bb311c9875a62e36c4a5920a352"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/08-parakeet-cpu-en_pauses-abrupt-minus6-to-plus6/micro-0000000000015e840000000000000008.json",
+        "bytes": 35353,
+        "sha256": "3e1e56030f0ac1f0c6bed869588bd7216f706509e9338b7985becd65987d5e7a"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/09-parakeet-cpu-fr_continu-0db/d2-engine-status.json",
+        "bytes": 198455,
+        "sha256": "976c1aebbeb2a31cda42e6bb3fbeeb7c5c06a467af5a72a47224200e766e98f0"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/09-parakeet-cpu-fr_continu-0db/d2-worker-events.jsonl",
+        "bytes": 12188,
+        "sha256": "28a2aea435f8debf5c3cdb3929cf035486ae01d9339ea169828a8881348ef2f0"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/09-parakeet-cpu-fr_continu-0db/micro-0000000000015e840000000000000009-incomplet.srt",
+        "bytes": 1174,
+        "sha256": "7b72f6f3049b1e5e99f3255c601bb01c9e51dfb4d126658d31338336f214d6fd"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/09-parakeet-cpu-fr_continu-0db/micro-0000000000015e840000000000000009-incomplet.txt",
+        "bytes": 366,
+        "sha256": "31913d177ef03e64284d3b03bbccc70b666f5eb5cc837e874f4a9b546a40c499"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/09-parakeet-cpu-fr_continu-0db/micro-0000000000015e840000000000000009.json",
+        "bytes": 43217,
+        "sha256": "71e07b3eb7407a4db6f495740089f9b9b2fdafd061179093d8b9e3b4b16c309e"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/10-parakeet-cpu-fr_continu-minus6db/d2-engine-status.json",
+        "bytes": 196014,
+        "sha256": "ce38ad7b24c5f784e174b5bb6dc2e0401b1eff4cfad636535669695ccfbaffa4"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/10-parakeet-cpu-fr_continu-minus6db/d2-worker-events.jsonl",
+        "bytes": 12232,
+        "sha256": "40adc30806b209743664fc3e64ab7adcc076d469683ecc5cd8f9f60270f82a29"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/10-parakeet-cpu-fr_continu-minus6db/micro-0000000000015e84000000000000000a-incomplet.srt",
+        "bytes": 1190,
+        "sha256": "ac38f4c38ee4081ebafce2835716beaae7c6cb3b84c1898843695ed448a835de"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/10-parakeet-cpu-fr_continu-minus6db/micro-0000000000015e84000000000000000a-incomplet.txt",
+        "bytes": 382,
+        "sha256": "ed4a594d5465bf7cbf88f7d9a8f53262c926091148d478605edf4297709b6d8a"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/10-parakeet-cpu-fr_continu-minus6db/micro-0000000000015e84000000000000000a.json",
+        "bytes": 42850,
+        "sha256": "20c71429b36ae3094f11f936aa67cc28e9a8bc68483989069abdc53c6f0b3356"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/11-parakeet-cpu-fr_continu-plus6db/d2-engine-status.json",
+        "bytes": 195453,
+        "sha256": "6d68292bdf3e30f872f32bbbe076569af605f388cf3440add69df72f7ebd2d71"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/11-parakeet-cpu-fr_continu-plus6db/d2-worker-events.jsonl",
+        "bytes": 12227,
+        "sha256": "3cdc512290ddb3b2472ae017fa9a969c5268d3b275f333417d5b70d99b74cc63"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/11-parakeet-cpu-fr_continu-plus6db/micro-0000000000015e84000000000000000b-incomplet.srt",
+        "bytes": 1066,
+        "sha256": "f59d016824aa12a7ef84cdd2d57c6c42e7b830d25812a9f507220befbf21dd73"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/11-parakeet-cpu-fr_continu-plus6db/micro-0000000000015e84000000000000000b-incomplet.txt",
+        "bytes": 326,
+        "sha256": "6c30902ee747beddde892fe9898749785f3b34d986d47e91296038ffab3f2c8b"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/11-parakeet-cpu-fr_continu-plus6db/micro-0000000000015e84000000000000000b.json",
+        "bytes": 42843,
+        "sha256": "706164bf37a8dee9f2fcfcc6574af6cb75887a3034b69174a68a8ecb24534170"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/12-parakeet-cpu-fr_continu-abrupt-minus6-to-plus6/d2-engine-status.json",
+        "bytes": 196456,
+        "sha256": "ea833683c2c00e99507851635ecd113ccea035d850069132d3b4293212e2642f"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/12-parakeet-cpu-fr_continu-abrupt-minus6-to-plus6/d2-worker-events.jsonl",
+        "bytes": 12246,
+        "sha256": "ec44119019b86fec7a695af6b0eb0137a8bf6f90fdaccd1f41d8593bdb087600"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/12-parakeet-cpu-fr_continu-abrupt-minus6-to-plus6/micro-0000000000015e84000000000000000c-incomplet.srt",
+        "bytes": 1180,
+        "sha256": "df674d2320048cb3181f5f763c8babd78a45d588cfb246175ab2beb3eba2d724"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/12-parakeet-cpu-fr_continu-abrupt-minus6-to-plus6/micro-0000000000015e84000000000000000c-incomplet.txt",
+        "bytes": 372,
+        "sha256": "4be57842c4c7c343d313aecf146c4f01724312a34b27dcf8614ab6eefec22ea2"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/12-parakeet-cpu-fr_continu-abrupt-minus6-to-plus6/micro-0000000000015e84000000000000000c.json",
+        "bytes": 42737,
+        "sha256": "084ce6309ec5af99bdad639a1b37d4c2c6d620d1bfc630ccfac6831ad2aab0aa"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/13-parakeet-cpu-en_continu-0db/d2-engine-status.json",
+        "bytes": 182217,
+        "sha256": "bcc80f9eab012e63c93c9d799b73ef2b8c34f29f24e5897689d57b2e1aa76b41"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/13-parakeet-cpu-en_continu-0db/d2-worker-events.jsonl",
+        "bytes": 12174,
+        "sha256": "1142eb7ba8cf59318708c8263ffa5ddd8f46d3b16f2c6d5062153ff2dfed0680"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/13-parakeet-cpu-en_continu-0db/micro-0000000000015e84000000000000000d-incomplet.srt",
+        "bytes": 1101,
+        "sha256": "941cf6e42b0cb5fcb9e9904b9f259ec02011ec4d03cc4c28595282ce098129ce"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/13-parakeet-cpu-en_continu-0db/micro-0000000000015e84000000000000000d-incomplet.txt",
+        "bytes": 327,
+        "sha256": "2763ae73a02b9bd9ca9647efc9e5b898d11ca79d87b45cf56c01d53fedacc45a"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/13-parakeet-cpu-en_continu-0db/micro-0000000000015e84000000000000000d.json",
+        "bytes": 34891,
+        "sha256": "3d36c3c66e41c2c8484fbea1ac23f3be21a8ed2b7981378295cb0c43b0c16f6c"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/14-parakeet-cpu-en_continu-minus6db/d2-engine-status.json",
+        "bytes": 182082,
+        "sha256": "d973d56181ec3346129a06f6e1841b3f52a3754e0e67e95a22aac3157ebe68ce"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/14-parakeet-cpu-en_continu-minus6db/d2-worker-events.jsonl",
+        "bytes": 12179,
+        "sha256": "22aba397b38792473e6333197d38755ba8eb4698d10d4cdbda166fb9656db9cf"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/14-parakeet-cpu-en_continu-minus6db/micro-0000000000015e84000000000000000e-incomplet.srt",
+        "bytes": 1069,
+        "sha256": "4b92f43a3d7a853dad790a821a626d33df5920f2b9512218d408aff773e51bbb"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/14-parakeet-cpu-en_continu-minus6db/micro-0000000000015e84000000000000000e-incomplet.txt",
+        "bytes": 329,
+        "sha256": "ea2b60ca2e93317a5ccaa70a8a655429510688779a2f8bad6d0f59fbe0c6580b"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/14-parakeet-cpu-en_continu-minus6db/micro-0000000000015e84000000000000000e.json",
+        "bytes": 34994,
+        "sha256": "29c2b1cb157a8173b2497e90633058bc29dedfea2cd83107c151ea41680cb6d4"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/15-parakeet-cpu-en_continu-plus6db/d2-engine-status.json",
+        "bytes": 181242,
+        "sha256": "e93a3a53297f2a9ac0b6b2e53b2d502e6eb3e4051eb1a052e052ffc0cea13989"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/15-parakeet-cpu-en_continu-plus6db/d2-worker-events.jsonl",
+        "bytes": 12215,
+        "sha256": "4d715df05156d5cd08d110e8c4df63f55ee0fb224135fbfac8e5bb6accb2725d"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/15-parakeet-cpu-en_continu-plus6db/micro-0000000000015e84000000000000000f-incomplet.srt",
+        "bytes": 1105,
+        "sha256": "1a017db2bc6ab978401fbd9115170bdcbd5ea0ab732eb73114640241ca8a64eb"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/15-parakeet-cpu-en_continu-plus6db/micro-0000000000015e84000000000000000f-incomplet.txt",
+        "bytes": 297,
+        "sha256": "fa56e53f9afe625e01e727b18e8a1f8f215cffe4c289b73a2b68c032ab7bce1f"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/15-parakeet-cpu-en_continu-plus6db/micro-0000000000015e84000000000000000f.json",
+        "bytes": 34909,
+        "sha256": "feec93e1c1dfb6ee39379cfe74f99962759ea22d9c21ec32772d359a7732f057"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/16-parakeet-cpu-en_continu-abrupt-minus6-to-plus6/d2-engine-status.json",
+        "bytes": 187904,
+        "sha256": "2aef2c1a09257dc94e746156aa382b2b4cf5fb5de6bcadf9de93c8156448bbae"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/16-parakeet-cpu-en_continu-abrupt-minus6-to-plus6/d2-worker-events.jsonl",
+        "bytes": 12232,
+        "sha256": "cc2bb9d79b5ce0c4fa9379611df9334691a674c49c35f3826100e3c1b7e06729"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/16-parakeet-cpu-en_continu-abrupt-minus6-to-plus6/micro-0000000000015e840000000000000010-incomplet.srt",
+        "bytes": 1059,
+        "sha256": "9c70ff3af2fa43dc4f27ea905fae2f0210ad4fa72c37ccd895ade4605519ed75"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/16-parakeet-cpu-en_continu-abrupt-minus6-to-plus6/micro-0000000000015e840000000000000010-incomplet.txt",
+        "bytes": 319,
+        "sha256": "1e480d1efe3d130ac746ceb128aa589bc4781b0dd1660d88b5ca0e740aea5c50"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/16-parakeet-cpu-en_continu-abrupt-minus6-to-plus6/micro-0000000000015e840000000000000010.json",
+        "bytes": 35143,
+        "sha256": "75271b5c58b4c91f6088857f4bdd56fba71c5eb74a69278d63fddf149454b1ac"
+      },
+      {
+        "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/checkpoint.jsonl",
+        "bytes": 46048,
+        "sha256": "f5e60ed72b983661df326e76c05b7a857da42405bd4939437eb002d526da12ab"
       }
     ]
   }
