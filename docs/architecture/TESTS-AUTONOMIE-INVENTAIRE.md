@@ -1,8 +1,18 @@
-Avancée : prototype SPIKE-R8-01 conservé en Git ; auto-test N1 réussi, revue indépendante du premier candidat terminée.
-Blocage : compilation NoRun en échec Cargo 101 après 39,448 s ; R8-P1 et R8-P2 bloquants, faisabilité R8 non prouvée.
-Décision : tentative arrêtée sans correction ni relance ; aucun harness ni test natif exécuté ; reprise ciblée à soumettre à l'utilisateur.
+Avancée : seconde tentative explicitement autorisée, correction R8-P1/R8-P2 déléguée dans les trois seuls fichiers de support.
+Blocage : première compilation NoRun en échec 101 ; faisabilité R8 non prouvée, aucune nouvelle mesure disponible.
+Décision : reprendre les contrôles N1 après correction bornée, avec NoRun et examen PE avant tout harness ; aucun test natif.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
+
+## Autorisation de seconde tentative — R8-P1/R8-P2
+
+Réponse explicite de l’utilisateur dans cette session : **« Oui, j’autorise cette seconde tentative limitée aux trois fichiers, puis la reprise des vérifications N1 prévues, sans modifier les assertions ni lancer de test natif. »** Elle lève l’arrêt de la première tentative uniquement pour corriger R8-P1/R8-P2 dans CPU/GPU `tests/support/autonomous_harness.rs` et common `tests/support/native_boundary.rs`. Aucun autre chemin de code autorisé par cette reprise.
+
+Relevé préalable : **173,43 Gio libres**, Git propre à **43c62542**, code du premier prototype **61b0a21d**. Début de reprise : 1er novembre 2026, **10 h 58 min 21 s Europe/Paris** (09:58:21 UTC). La borne initiale du SPIKE, **12 h 41 min 06 s Europe/Paris** (11:41:06 UTC), reste applicable ; aucun prolongement implicite.
+
+Le coordinateur de revue route le paquet de constats inchangé au même implémenteur, puis au même reviewer. C’est le premier cycle de correction du prototype, dans la limite de deux cycles. SelfTest et NoRun précèdent la remise des artefacts pour examen statique. Si la compilation échoue, arrêt sans réparation supplémentaire. Si la fermeture native est établie, reprendre Structure, listes, tests autonomes, Clippy et fmt ; le témoin négatif reste en dernier, après sa propre compilation sans lancement et son examen PE. Les assertions et le périmètre natif restent inchangés.
+
+Les résultats de la première tentative ci-dessous restent historiques ; aucune réussite nouvelle n’est présumée par cette autorisation.
 
 ## Autorisation courante — SPIKE-R8-01
 
