@@ -1,8 +1,18 @@
-Avancée : étude du découplage R8 relue CLEAN pour le document DRAFT ; résultats N1 conservés : 687 réussites Cargo, 0 échec, 147 ignorés.
-Blocage : liaison des nouveaux harness non prouvée ; R9 confirme un oracle manuel compté réussi sans verdict.
-Décision : cadrage DRAFT, objectif global toujours BLOCKED ; aucun prototype, changement de production ou de manifeste hors features réalisé.
+Avancée : SPIKE-R8-01 autorisé dans cette session ; worktree distinct créé, implémentation bornée déléguée.
+Blocage : faisabilité R8 non prouvée et R9 non corrigé à l'ouverture du prototype ; aucune nouvelle mesure Cargo.
+Décision : exécuter le seul prototype autorisé, sans test natif ; compilation sans lancement puis inspection PE avant toute exécution des tests.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
+
+## Autorisation courante — SPIKE-R8-01
+
+Le 1er novembre 2026, après présentation du cadrage Git 3bf6bcb5 et du prototype borné (extraction pure GPU, deux harness, mode NoRun, ignore R9), l’utilisateur a répondu **« oui je t'autorise »**. Cette réponse autorise le protocole de cinq actions et les onze chemins du cadrage DRAFT-R8-2, dans **C:/dev/whisper/target/agent-worktrees/tests-autonomes-r8-spike**, branche **refacto/tests-autonomes-r8-spike**, créé depuis 3bf6bcb5. Elle n’autorise pas l’intégration du prototype au candidat principal ni une exécution native.
+
+Début du budget : **1er novembre 2026, 10 h 41 min 06 s, Europe/Paris** (09:41:06 UTC) ; une tentative, deux heures maximum. Espace libre avant création : **174,13 Gio**, supérieur au seuil de 30 Gio. Implémentation : même acteur rust_implementer `/root/autonomous_tests_impl` ; docs et commits documentaires : session principale. Les responsabilités sont distinctes ; l’ancien worktree et sa branche restent préservés.
+
+Première remise attendue : code borné, auto-tests de la garde N1 distincte, compilation NoRun réussie et références des artefacts. Aucun harness, y compris pour lister ses tests, n’est lancé avant examen statique des imports et de la fermeture native. Tout échec réel de compilation ou de test arrête la campagne et demande l’arbitrage applicable. La variante négative est exécutée en dernier et reste séparée du candidat positif.
+
+Les sections de cadrage ci-dessous conservent l’état **antérieur à cette autorisation**, y compris les mentions « proposé/non autorisé ». Le présent paragraphe est la source d’autorité courante pour le seul SPIKE ; la faisabilité du design et le résultat de la mission restent à établir.
 
 Code commité localement : **fb2171e8**, branche **refacto/tests-autonomes**, worktree C:/dev/whisper/target/agent-worktrees/tests-autonomes. Aucun push. Ce commit conserve le candidat vérifié ; il ne signifie pas que l’objectif de machine sans DLL est atteint. R1–R7 sont fermés par le même reviewer ; R8 et le nouveau constat R9 restent ouverts. Les 687 réussites ci-dessous sont les résultats observés de Cargo, pas la preuve que chaque corps impose un verdict : R9 invalide cette dernière affirmation.
 
