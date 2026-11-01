@@ -35,6 +35,7 @@
       "inputs": [],
       "values": [
         {"key": "cudaToolkitPath", "environmentVariable": "CUDA_PATH", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"},
+        {"key": "cudaToolkitVersionedPath", "environmentVariable": "CUDA_PATH_V12_9", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"},
         {"key": "libclangPath", "environmentVariable": "LIBCLANG_PATH", "required": true, "kind": "literal"}
       ],
       "outputs": [],
@@ -50,6 +51,7 @@
       "inputs": [],
       "values": [
         {"key": "cudaToolkitPath", "environmentVariable": "CUDA_PATH", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"},
+        {"key": "cudaToolkitVersionedPath", "environmentVariable": "CUDA_PATH_V12_9", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"},
         {"key": "libclangPath", "environmentVariable": "LIBCLANG_PATH", "required": true, "kind": "literal"}
       ],
       "outputs": [],

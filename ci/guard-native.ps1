@@ -33,7 +33,7 @@ $script:AllowedToolRoots = @(
     'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA'
 )
 $script:AllowedProfileEnvironmentNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-foreach ($name in @('CUDA_PATH','CUDA_HOME','GGML_CUDA','CMAKE_GENERATOR','CMAKE_PREFIX_PATH','LIBCLANG_PATH','CLANG_PATH','CC','CXX','CFLAGS','CXXFLAGS','RUSTFLAGS','CARGO_ENCODED_RUSTFLAGS')) { [void]$script:AllowedProfileEnvironmentNames.Add($name) }
+foreach ($name in @('CUDA_PATH','CUDA_PATH_V12_9','CUDA_HOME','GGML_CUDA','CMAKE_GENERATOR','CMAKE_PREFIX_PATH','LIBCLANG_PATH','CLANG_PATH','CC','CXX','CFLAGS','CXXFLAGS','RUSTFLAGS','CARGO_ENCODED_RUSTFLAGS')) { [void]$script:AllowedProfileEnvironmentNames.Add($name) }
 $script:AllowedCompileEnvironment = @{
     WHISPER_L04_CAMPAIGN_BUILD = '1'
     PARAKEET_L2_ACCEPTANCE_TEST_BUILD = '1'
@@ -1059,6 +1059,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         WHISPER_TEST_MIC_ID = 'synthetic-cpal-device-id'
         WHISPER_L04_CAMPAIGN_BUILD = '1'
         PARAKEET_L2_ACCEPTANCE_TEST_BUILD = '1'
+        CUDA_PATH_V12_9 = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'
     }
     Assert-CampaignRoots $Lot $syntheticRunRoot $syntheticEnvironment
     $badRootEnvironment = @{} + $syntheticEnvironment
@@ -1066,16 +1067,23 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     Test-Rejects 'TEMP/TMP root outside lot' { Assert-CampaignRoots $Lot $syntheticRunRoot $badRootEnvironment }
     $savedGgml = [Environment]::GetEnvironmentVariable('GGML_CUDA','Process')
     $savedWhisper = [Environment]::GetEnvironmentVariable('WHISPER_UNLISTED_SENTINEL','Process')
+    $savedCudaHome = [Environment]::GetEnvironmentVariable('CUDA_HOME','Process')
+    $savedCudaPathV1210 = [Environment]::GetEnvironmentVariable('CUDA_PATH_V12_10','Process')
     try {
         [Environment]::SetEnvironmentVariable('GGML_CUDA','ambient-sentinel','Process')
         [Environment]::SetEnvironmentVariable('WHISPER_UNLISTED_SENTINEL','ambient-sentinel','Process')
+        [Environment]::SetEnvironmentVariable('CUDA_HOME','ambient-cuda-home-sentinel','Process')
+        [Environment]::SetEnvironmentVariable('CUDA_PATH_V12_10','ambient-versioned-cuda-sentinel','Process')
         $syntheticEnvironment.CUDA_PATH = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'
         $syntheticVs = @{ PATH = 'C:\ambient-tool;C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\bin' ; INCLUDE='C:\vs\include'; LIB='C:\vs\lib' }
         $syntheticPsi = New-CargoProcessInfo 'C:\toolchain\cargo.exe' 'C:\toolchain\rustc.exe' 'C:\toolchain' @('test','--offline','--locked') $syntheticEnvironment $syntheticVs $syntheticRunRoot
         $syntheticVars = $syntheticPsi.EnvironmentVariables
         if ($syntheticVars.ContainsKey('GGML_CUDA') -or $syntheticVars.ContainsKey('WHISPER_UNLISTED_SENTINEL') -or $syntheticVars.ContainsKey('RUSTFLAGS')) { throw 'Ambient build variables survived the sanitized Cargo environment.' }
-        foreach ($name in @('WHISPER_TEST_MIC_ID','WHISPER_L04_CAMPAIGN_BUILD','PARAKEET_L2_ACCEPTANCE_TEST_BUILD','CUDA_PATH')) {
+        foreach ($name in @('WHISPER_TEST_MIC_ID','WHISPER_L04_CAMPAIGN_BUILD','PARAKEET_L2_ACCEPTANCE_TEST_BUILD','CUDA_PATH','CUDA_PATH_V12_9')) {
             if ($syntheticVars[$name] -cne [string]$syntheticEnvironment[$name]) { throw "Declared profile environment value was not passed exactly: $name" }
+        }
+        foreach ($name in @('CUDA_HOME','CUDA_PATH_V12_10')) {
+            if ($syntheticVars.ContainsKey($name)) { throw "Undeclared CUDA environment alias survived the sanitized Cargo environment: $name" }
         }
         foreach ($name in @('CARGO_HOME','CARGO_TARGET_DIR','TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME')) {
             if ($syntheticVars[$name] -cne [string]$syntheticEnvironment[$name]) { throw "Isolated root was not preserved in Cargo environment: $name" }
@@ -1084,6 +1092,8 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     } finally {
         [Environment]::SetEnvironmentVariable('GGML_CUDA',$savedGgml,'Process')
         [Environment]::SetEnvironmentVariable('WHISPER_UNLISTED_SENTINEL',$savedWhisper,'Process')
+        [Environment]::SetEnvironmentVariable('CUDA_HOME',$savedCudaHome,'Process')
+        [Environment]::SetEnvironmentVariable('CUDA_PATH_V12_10',$savedCudaPathV1210,'Process')
     }
     $streamNormal = Invoke-ProcessStreamProbe '0'
     $streamFailure = Invoke-ProcessStreamProbe '23'
@@ -1100,12 +1110,12 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     New-Item -ItemType Directory -Path $manifestRoot -Force | Out-Null
     try {
         $manifestPath = Join-Path $manifestRoot 'valid.json'
-        $validManifest = [ordered]@{ schemaVersion=1; profile='PreparationNoRun'; inputs=@(); values=@{ cudaToolkitPath='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'; libclangPath='C:/dev/whisper/.wt/r8/target/n2-native/toolchain/libclang.dll' } }
+        $validManifest = [ordered]@{ schemaVersion=1; profile='PreparationNoRun'; inputs=@(); values=@{ cudaToolkitPath='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'; cudaToolkitVersionedPath='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'; libclangPath='C:/dev/whisper/.wt/r8/target/n2-native/toolchain/libclang.dll' } }
         $validManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
         $validated = Get-ValuesDocument $manifestPath $prepareProfile
-        if ($validated.values.cudaToolkitPath -ine 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9') { throw 'Approved CUDA tool path was changed while validating its manifest.' }
+        if ($validated.values.cudaToolkitPath -ine 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9' -or $validated.values.cudaToolkitVersionedPath -ine 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9') { throw 'Approved CUDA tool paths were changed while validating their manifest.' }
         $invalidPath = Join-Path $manifestRoot 'invalid.json'
-        $invalidManifest = [ordered]@{ schemaVersion=1; profile='PreparationNoRun'; inputs=@(); values=@{ cudaToolkitPath='C:\Windows'; libclangPath='C:/dev/whisper/.wt/r8/target/n2-native/toolchain/libclang.dll' } }
+        $invalidManifest = [ordered]@{ schemaVersion=1; profile='PreparationNoRun'; inputs=@(); values=@{ cudaToolkitPath='C:\Windows'; cudaToolkitVersionedPath='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'; libclangPath='C:/dev/whisper/.wt/r8/target/n2-native/toolchain/libclang.dll' } }
         $invalidManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $invalidPath -Encoding UTF8
         Test-Rejects 'unapproved tool directory in manifest' { Get-ValuesDocument $invalidPath $prepareProfile }
     } finally {
