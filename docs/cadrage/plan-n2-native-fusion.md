@@ -1,6 +1,6 @@
-Avancée : garde de découverte relue CLEAN ; première préparation native exécutée, Cargo 101 après 41,253 s.
-Blocage : configuration CUDA de l'environnement isolé incomplète ; aucun corps de test natif exécuté.
-Décision : campagne arrêtée, préparation livrée avec réserves ; aucun changement Rust ni fusion ; arbitrage avant correction/reprise.
+Avancée : préparation native reprise avec succès, 834 identités listées ; inventaire WASAPI et capture réelle du casque réussis.
+Blocage : profils d'inférence encore fermés ; staging du runtime dans le LOCALAPPDATA isolé à résoudre.
+Décision : poursuite des cas indépendants préparés ; campagne complète non qualifiée et aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -47,3 +47,11 @@ Proposition bornée pour arbitrage : déclarer explicitement **CUDA_PATH_V12_9**
 **Arbitrage reçu : « Oui, corriger ce point et reprendre ».** L'utilisateur autorise un cycle supplémentaire limité à `CUDA_PATH_V12_9` dans `ci/guard-native.ps1`, les profils Prep/List et leurs fixtures/manifests, puis auto-tests, revue ciblée et reprise de la campagne. Cette dérogation précise ne rouvre pas les constats N2-R1 à N2-R4, ne vaut pas autorisation d'autres corrections spontanées, et ne dispense pas d'un nouvel arrêt sur échec. N1, gardes historiques, SDK, sources Rust et installation stable restent inchangés ; fusion toujours conditionnée au vert complet.
 
 Correctif ciblé exécuté : nom exact `CUDA_PATH_V12_9` ajouté à l'allowlist ; deux descripteurs obligatoires Prep/List bornés au toolkit 12.9 ; fixtures de transmission et de rejet des alias ambiants adaptées. Auto-tests Windows PowerShell 5.1 et deux préflights : code 0. Revue ciblée indépendante **CLEAN** depuis `35634c3c`, N2-R1 à N2-R4 toujours fermés. Les trois clés des manifests Prep/List sont présentes ; le parent vérifie l'égalité des chemins CUDA et le chemin/SHA de libclang avant reprise. Aucun succès de compilation ou de test n'est déduit de ces contrôles.
+
+## Reprise réussie et premiers corps natifs
+
+Au candidat `30ce8bed`, `PreparationNoRun` termine **NO_RUN_PASS**, puis `InventoryList` **LIST_PASS** : **834 identités, 73 groupes**. L'inventaire WASAPI exact termine **1 réussi / 0 échec / 0 ignoré** ; le casque choisi est `Headset Microphone (2- Jabra EVOLVE 20 MS)`, identifiant CPAL issu du journal `wasapi:{0.0.1.00000000}.{bf125307-f5f7-4873-ae02-926255301404}`. Le test de capture réel termine **1 réussi / 0 échec / 0 ignoré**, **3,03 s**, **298 blocs**, une discontinuité initiale sans rupture. Aucun changement de microphone automatique.
+
+Profil indépendant GPU préparé dans les seules données `ci/native-profiles.json`, revue ciblée **CLEAN** depuis `30ce8bed` : package `whisper-worker-gpu`, cible d'intégration `gpu_selection_native`, cas exact `linked_gpu_worker_answers_a_native_cuda_probe_without_loading_a_model`, mêmes trois paramètres d'outillage. Ce contrat accepte aussi un échec contrôlé contenant CUDA/GPU : son éventuel PASS ne prouvera pas CUDA disponible ni une inférence GPU réussie. Les profils d'inférence complets restent fermés.
+
+Limite d'API concrète, sans tentative de contournement : chaque Run crée un `LOCALAPPDATA` neuf sous `<Lot>/runs/<profil>-<GUID>/localappdata`, mais les entrées sont seulement hash-vérifiées et transmises, sans copie/staging. Les tests PersonalUnified et D2 exigent workers, modèles et DLL sous `LOCALAPPDATA/Whisper`. Aucune préparation pré-Run sûre n'est possible avec l'API actuelle ; une extension de staging ou de contrat de chemin devra être arbitrée avant ces tests. D2 lit aussi quatre WAV depuis le `sound example/` du worktree : les originaux existent et sont hash-vérifiés dans le dépôt principal, pas encore copiés dans le worktree. Aucun test incomplet n'est compté vert.

@@ -99,6 +99,30 @@
         }
       ]
     },
+    {
+      "id": "GpuCudaProbe",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-worker-gpu",
+      "features": ["whisper-worker-gpu/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [
+        {"key": "cudaToolkitPath", "environmentVariable": "CUDA_PATH", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"},
+        {"key": "cudaToolkitVersionedPath", "environmentVariable": "CUDA_PATH_V12_9", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"},
+        {"key": "libclangPath", "environmentVariable": "LIBCLANG_PATH", "required": true, "kind": "literal"}
+      ],
+      "outputs": [],
+      "cases": [
+        {
+          "targetKind": "integration",
+          "targetName": "gpu_selection_native",
+          "exactTest": "linked_gpu_worker_answers_a_native_cuda_probe_without_loading_a_model",
+          "ignored": false,
+          "verdict": "QUALIFICATION"
+        }
+      ]
+    },
     {"id":"TurboCpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
     {"id":"TurboGpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
     {"id":"ParakeetCpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-worker-parakeet-cpu","features":["whisper-worker-parakeet-cpu/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
