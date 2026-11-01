@@ -1,6 +1,6 @@
-Avancée : campagne native sur machine réelle et fusion conditionnelle demandées ; garde N2 distincte explicitement autorisée dans cette session.
-Blocage : prérequis nominatifs et profils natifs à vérifier avant toute exécution.
-Décision : aucun changement Rust ni dépendance ; aucune fusion tant que la campagne requise n'est pas entièrement verte.
+Avancée : garde de découverte relue CLEAN ; première préparation native exécutée, Cargo 101 après 41,253 s.
+Blocage : configuration CUDA de l'environnement isolé incomplète ; aucun corps de test natif exécuté.
+Décision : campagne arrêtée, préparation livrée avec réserves ; aucun changement Rust ni fusion ; arbitrage avant correction/reprise.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -33,3 +33,13 @@ Prérequis de compilation en cours de déclaration : libclang 22.1.8 installé s
 Étape 3 exécutée pour libclang : copie du DLL existant vers `target/n2-native/toolchain/libclang.dll`, 85 053 368 octets, SHA `c3c6799add679682580c9add26f73950463396b0997110f07eaf5578a25a09b8`, source et copie concordants. Les deux profils Prep/List déclarent désormais la valeur littérale `libclangPath` ; seules les deux fixtures synthétiques de manifeste ont été adaptées à cette donnée supplémentaire. Aucun contrôle ou chemin d'exécution de la garde modifié, aucune troisième correction des constats fermés. Revue ciblée de ces données/fixtures : **CLEAN** depuis `5a5c94c0` ; auto-tests et préflights des deux profils : code 0, sans Cargo. Le parent vérifie explicitement l'égalité du chemin canonique épinglé et le SHA avant chaque invocation ; cette liaison n'est pas automatisée dans la garde. La génération des bindings n'est pas contournée. L'accord de reprise Cargo après l'interrogation de version reste à recueillir avant exécution.
 
 Accord précis de reprise reçu ensuite dans cette session : **« Oui, reprendre sous la garde N2 »**, après rappel de l'incident `cargo --version` hors garde et présentation des revues/préflights réussis. Démarrage autorisé par `PreparationNoRun`, puis `InventoryList`, inventaire WASAPI et capture du casque USB ; les autres profils restent soumis à leurs prérequis. Aucun succès natif ou autorisation de fusion n'est déduit de cet accord.
+
+## Première exécution — arrêt sur erreur d'environnement
+
+Sur le candidat **ff3b2d7b**, la garde a lancé `cargo test --offline --locked --workspace --features native-tests --no-run` dans le worktree R8. Cargo **101**, **41,253 s**, échec du build script `whisper-rs-sys` : CMake/MSBuild signale `The CUDA Toolkit v12.9 directory '' does not exist`. La compilation est arrêtée ; aucun corps de test, inventaire, microphone ou worker natif exécuté. Les profils suivants n'ont pas été lancés. `main` reste **248f8679**, aucune fusion.
+
+Triage en lecture seule : `CUDA 12.9.props` installé, lignes 15/23, détermine `CudaToolkitDir` depuis **CUDA_PATH_V12_9**. Cette variable existe sur l'hôte et pointe sur le toolkit présent, mais l'environnement N2 nettoyé ne transmet que **CUDA_PATH**. CMake utilisé vient de Visual Studio (3.31.6) ; aucun changement de générateur ou nettoyage de cache tenté. Le problème observé est classé **ENVIRONMENT**, pas échec fonctionnel des 148 cas. Douze événements du Temp Windows réel sont consignés **UNATTRIBUTED**, non attribués et non cause de l'arrêt.
+
+Preuves : [résultat et diagnostic](../architecture/raw/n2-native/preparation-attempt-1.json), [journaux complets de préparation et auto-tests](../architecture/raw/n2-native/preparation-attempt-1.zip), **17 entrées** relues et comparées aux originaux par taille/SHA. Aucun original/cache/cible partielle effacé ou restauré. Les deux cycles de correction de la garde sont consommés ; aucun correctif supplémentaire spontané.
+
+Proposition bornée pour arbitrage : déclarer explicitement **CUDA_PATH_V12_9**, restreint au même toolkit 12.9, dans les deux profils Prep/List et l'allowlist de la garde ; adapter les fixtures et manifests correspondants ; auto-tests et revue ciblée avant reprise de la préparation. Aucun héritage ambiant large, installation SDK, changement système, modification Rust ou affaiblissement de contrôle. La campagne entière, la capture du casque et la fusion restent non réalisées.

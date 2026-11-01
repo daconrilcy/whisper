@@ -1,0 +1,25 @@
+{
+  "status": "FAILED",
+  "classification": "ENVIRONMENT",
+  "candidate": "ff3b2d7b",
+  "profile": "PreparationNoRun",
+  "command": "cargo test --offline --locked --workspace --features native-tests --no-run",
+  "exitCode": 101,
+  "elapsedSeconds": 41.253,
+  "nativeTestBodiesExecuted": 0,
+  "inventoryListExecuted": false,
+  "wasapiExecuted": false,
+  "mergePerformed": false,
+  "cause": "MSBuild CUDA 12.9 expects CUDA_PATH_V12_9 to populate CudaToolkitDir; isolated profile declares CUDA_PATH only",
+  "primarySource": "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Microsoft/VC/v170/BuildCustomizations/CUDA 12.9.props:15,23",
+  "hostToolkitPath": "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.9",
+  "tempUnattributedEvents": 12,
+  "archive": {
+    "file": "preparation-attempt-1.zip",
+    "verifiedEntries": 17,
+    "sourceSizeAndShaMatched": true,
+    "sha256": "e50179575a3c5de26426224b409eb63727978aa4dcb1f3749084c4b823edcd31"
+  },
+  "diskFreeBytes": 151961128960,
+  "nextAction": "Explicit arbitration before correcting CUDA versioned environment declaration and resuming; no source or assertion changes"
+}
