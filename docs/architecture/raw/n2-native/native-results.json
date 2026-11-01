@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "revision": 10,
-  "candidate": "87c5d535",
-  "authorization": "Oui, préparer et exécuter ces trois contrats",
+  "revision": 11,
+  "candidate": "233d5079",
+  "authorization": "Ok rédige le plan pour cela et mets le en œuvre jusqu a clean",
   "history": [
     {
       "candidate": "de9003dc",
@@ -474,13 +474,13 @@
     "applied": true,
     "status": "PASS; historical preparation now completed"
   },
-  "freeBytes": 111291932672,
+  "freeBytes": 111276122112,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 521,
-    "priorEntriesPreserved": 488,
+    "entryCount": 524,
+    "priorEntriesPreserved": 521,
     "entriesVerified": true,
-    "sha256": "4fa64bf1e44f6d85bf449740420a8df225844fb80bc02ca9f3ee5c7d9f16990f",
+    "sha256": "71d1d236ca170a2b67178056f69a81c3fbb005e0aa42604dcbc213a627ef67da",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -3086,6 +3086,21 @@
         "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-contracts-launch.txt",
         "bytes": 318,
         "sha256": "384bdf1ca056f5f8d3637f631c1f8d858b8d57de5076dba8aa418bcdadb8e2fc"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/preparation.json",
+        "bytes": 2011,
+        "sha256": "c4f605c58d6e8adbcd3e3890a25bfa02e9a0368fda7ae795671f551a3112e7d3"
+      },
+      {
+        "path": "target/n2-native/requests/NvidiaSmiEnvironmentCompareDiagnostic.json",
+        "bytes": 296,
+        "sha256": "046b3ca5a33dab44ae5ed86a0f924a84db09b906547f733f7597987a703bd59c"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-environment-selftest.txt",
+        "bytes": 273,
+        "sha256": "c6c96a43ba43df292ac76ec1bf1642e458955849e06caaacb9a126b93d83f5d1"
       }
     ]
   },
@@ -3439,6 +3454,75 @@
         "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-contracts-launch.txt",
         "bytes": 318,
         "sha256": "384bdf1ca056f5f8d3637f631c1f8d858b8d57de5076dba8aa418bcdadb8e2fc"
+      }
+    ]
+  },
+  "priorRevision10": {
+    "gitSnapshot": "703c595d",
+    "archiveEntryCount": 521,
+    "archiveSha256": "4fa64bf1e44f6d85bf449740420a8df225844fb80bc02ca9f3ee5c7d9f16990f"
+  },
+  "nvmlEnvironmentPreparation": {
+    "planCommit": "83a9ba5d",
+    "candidate": "233d5079",
+    "status": "WAITING_RESTART_ARBITRATION",
+    "initialSelfTest": {
+      "candidate": "5002c9b1",
+      "status": "FAIL",
+      "exitCode": 1,
+      "atUtc": "2026-11-01T22:46:42.1184505Z",
+      "log": "target/n2-native/logs/nvml-environment-selftest.txt",
+      "logSha256": "c6c96a43ba43df292ac76ec1bf1642e458955849e06caaacb9a126b93d83f5d1",
+      "reason": "PSCustomObject fixture property assignment before negative-case validator",
+      "realNvidiaCalls": 0,
+      "realCargoCalls": 0,
+      "userArbitrationRequiredBeforeRestart": true
+    },
+    "correction": {
+      "candidate": "233d5079",
+      "findingIds": [
+        "NVML-R1",
+        "NVML-R2"
+      ],
+      "ps51SyntaxAndJson": "PASS",
+      "diffCheck": "PASS",
+      "guardSha256": "e833e25fea58a8d09a6b132bf9decef58fdb37195131a61c7b0465328e48fa1c",
+      "registrySha256": "43c726a73ba7b6b4fb6127c49dbd07febbdadd22c0fb025cf0635ab719698590",
+      "fullSelfTestRerun": false,
+      "vendorProcessExecuted": false
+    },
+    "independentReview": {
+      "verdict": "CLEAN STATIC ONLY",
+      "candidate": "233d5079",
+      "closedFindings": [
+        "NVML-R1",
+        "NVML-R2"
+      ],
+      "newFindings": [],
+      "reviewCycles": 2,
+      "verificationGap": "FullSelfTest corrected candidate NOT RUN; initial failure preserved",
+      "restartAuthorized": false
+    },
+    "realNvidiaCalls": 0,
+    "cargoCalls": 0,
+    "gpuQualificationStarted": false,
+    "comparisonResultsAvailable": false,
+    "userArbitrationRequiredBeforeRestart": true,
+    "proofFiles": [
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/preparation.json",
+        "bytes": 2011,
+        "sha256": "c4f605c58d6e8adbcd3e3890a25bfa02e9a0368fda7ae795671f551a3112e7d3"
+      },
+      {
+        "path": "target/n2-native/requests/NvidiaSmiEnvironmentCompareDiagnostic.json",
+        "bytes": 296,
+        "sha256": "046b3ca5a33dab44ae5ed86a0f924a84db09b906547f733f7597987a703bd59c"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-environment-selftest.txt",
+        "bytes": 273,
+        "sha256": "c6c96a43ba43df292ac76ec1bf1642e458955849e06caaacb9a126b93d83f5d1"
       }
     ]
   }
