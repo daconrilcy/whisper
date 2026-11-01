@@ -1,8 +1,179 @@
-Avancée : étude du découplage R8 relue CLEAN pour le document DRAFT ; résultats N1 conservés : 687 réussites Cargo, 0 échec, 147 ignorés.
-Blocage : liaison des nouveaux harness non prouvée ; R9 confirme un oracle manuel compté réussi sans verdict.
-Décision : cadrage DRAFT, objectif global toujours BLOCKED ; aucun prototype, changement de production ou de manifeste hors features réalisé.
+Avancée : intégration des quatre commits positifs explicitement autorisée ; report des preuves et reprise N1 dans le worktree de mission.
+Blocage : nouveaux artefacts et mesures N1 de la branche intégrée encore à établir.
+Décision : intégrer uniquement le positif, sans sonde négative ; NoRun puis examen statique avant toute liste ou exécution de tests.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
+
+## Lot I1 — intégration autorisée dans la branche de mission
+
+L’utilisateur a répondu **« oui je t'autorise »** à la demande précise d’intégrer les quatre commits positifs (23 fichiers) dans **refacto/tests-autonomes**, puis de rejouer N1. Le lot décrit dans le présent rapport Git est ainsi accepté : (1) reprendre **61b0a21d, a7344a9e, 9df93659, f2186cb7**, sans **53b5f608** ; (2) reporter les deux documents existants ; (3) refaire préflight/SelfTest/NoRun, examen des nouveaux artefacts, puis Structure/listes/tests/Clippy/Fmt ; (4) revue indépendante et bilan. Aucun changement de code supplémentaire n’est proposé.
+
+Début : **1er novembre 2026, 12 h 08 min 32 s Europe/Paris** (11:08:32 UTC). Worktree **C:/dev/whisper/target/agent-worktrees/tests-autonomes**, branche propre à **3bf6bcb5** avant intégration ; **172,43 Gio libres**. Même rust_implementer pour les reprises Git et vérifications, session principale pour ces deux documents, même reviewer pour la revue. En cas de conflit ou d’échec de compilation/test, arrêt sans correction implicite. Le prototype et sa sonde restent préservés.
+
+Les références relatives de journaux, archives et Word-diff du **SPIKE** ci-dessous se résolvent sous **C:/dev/whisper/target/agent-worktrees/tests-autonomes-r8-spike/**. Elles restent des preuves du prototype. Les nouvelles preuves I1 seront attribuées au worktree initial ci-dessus ; aucune mesure du prototype n’est présentée comme un nouveau test de la branche intégrée. Les mentions historiques « intégration non autorisée » sont remplacées pour le seul lot I1 par le présent accord.
+
+## Bilan du SPIKE — candidat positif et témoin séparé
+
+**Revue finale de faisabilité**, même acteur indépendant `/root/r8_design_review`, documents Git **8b1f58db0751d9038d1a254b235faf52f2fddedb**, positif **f2186cb7** et témoin seul **53b5f608** : **CLEAN — R8.1–R8.3 fermées ; DESIGN READY dans le périmètre DEC-P-R8-01**. Aucun REQUIRED ouvert. Le reviewer a personnellement recompté les listes/identités, les résultats, les correspondances 69 NoRun/69 PE dans les deux variantes, les neuf assertions déplacées et l’archive de 93 entrées. Il conserve son indépendance de conception/rédaction/correction ; aucune commande Cargo/rustc ou exécution par ce reviewer.
+
+Cette clôture ne déclare ni PLANS READY, ni GO d’intégration, ni mission livrée sur refacto/tests-autonomes. Les mentions de revue « à constater » dans l’historique sont remplacées pour le seul design par ce verdict, sans modifier les preuves ou le code. La sonde négative reste strictement hors candidat.
+
+**Candidat positif : f2186cb7.** Le même reviewer Rust déclare **CLEAN pour le candidat positif et SPIKE-POS-1**, après fermeture R8-P1/R8-P2/R8-P3. Il accepte la réutilisation des preuves de 9df93659 après les seuls changements de format/imports de f2186cb7. Le contrôle Fmt final passe, code 0, **1,075 s**, logs `scratch/20261101T113531455-49572a38d7a447eb84d15a770a1725ad/`.
+
+| État | Exécutés et réussis | Ignorés | Total | Durée de la suite complète |
+| --- | ---: | ---: | ---: | ---: |
+| Inventaire initial, listes seulement | Non exécutés ; 768 sélectionnables | 66 | 834 | Non mesurée, pour éviter les tests alors natifs |
+| Candidat précédent fb2171e8, machine équipée | 687 | 147 | 834 | 47,336 s |
+| Prototype positif f2186cb7, environnement nettoyé | **686** | **148** | **834** | **22,350 s** |
+
+Les 834 identités avec multiplicité sont conservées, après correspondance des deux cibles remplacées. Les 28 tests concernés par R8 restent présents (9 CPU, 19 GPU) ; seul l’oracle CPU R9 devient ignoré, sans changer son corps. Ancienne catégorie de R9 : défaut/autonome au sens des prérequis ; nouvelle sélection : diagnostic manuel ignoré, raison « aucun verdict automatique ». Les autres reclassements et les dettes DEBT-1 à DEBT-11 restent ceux du tableau et du fichier de dette existants ; aucune dette supplémentaire inventée.
+
+**Témoin négatif : 53b5f608, à ne jamais intégrer.** Il ajoute un seul cas de provocation de cinq lignes au harness GPU, sans toucher à un test existant. Après SelfTest 0 et NoRun 0 (**2,101 s**), les 69 artefacts sont réexaminés : toujours 21 noms Windows/APIset/MSVC, aucun import moteur/CUDA ordinaire ou différé. La gate du même reviewer précède l’unique exécution Tests.
+
+Le journal `scratch/20261101T114030070-09b060e83ef142f3a9afece94baca837/Tests.stderr.log` prouve le diagnostic exact **forbidden native test port reached: native_ffi::cuda_devices**, suivi du processus GPU terminé à **78**. Le relevé de la garde mesure **Cargo 78**, **15,402 s**, puis le parent **PowerShell 1**, car la garde lève et arrête. Le code Cargo anticipé 101 n’est pas celui observé : le critère porte sur un arrêt non nul et non récupérable, pas sur ce numéro précis. Le reviewer accepte **SPIKE-NEG-1 CLEAN pour le témoin seul** ; aucune autre cause de compilation, panique ou assertion ne produit cet arrêt. Le journal négatif est partiel : ses groupes déjà terminés ne constituent jamais un bilan global de suite.
+
+La ligne N1_GUARD et le code parent ont été restitués à partir du résultat outil déjà reçu par l’implémenteur, sans relance ; cette provenance est explicite dans `wrapper-outcome-remise.txt`, voisin des journaux négatifs. La campagne est terminée après cet échec volontaire ; aucune reprise, suppression de DLL, recette, modèle ou validation native n’a été faite.
+
+### Fermeture technique et portée
+
+Contribution de clôture de l’architecte Rust `/root/r8_decoupling_architecture`, lecture seule du 1er novembre 2026, sources positives f2186cb7 et négatives 53b5f608 confrontées aux journaux :
+
+| Condition | Conclusion et limite |
+| --- | --- |
+| R8.1, vrais sujets/identités | PASS de faisabilité : mêmes fichiers réellement testés, 834 identités et 28 tests CPU/GPU conservés |
+| R8.2, dépendance DLL moteur | PASS dans le périmètre runtime accepté : modules natifs exclus des harness, 69 imports directs/différés examinés sans DLL moteur ; aucune exécution sur machine dont les DLL auraient été retirées |
+| R8.3, refus impossible à compter réussi | PASS du contrat examiné : tous les wrappers lus vont au rejet commun non retournant ; un port concret et le mécanisme commun sont exercés jusqu’à l’arrêt 78, pas tous les ports individuellement |
+| R8.4/R9, sélection par défaut | PASS sur le prototype : 686/0/148, 834 identités ; oracle manuel explicitement ignoré, corps intact |
+| R8.5, produit | Corps des quatre fonctions et champs/types des trois structures extraits conservés ; aucune qualification native, matériel ou fenêtre Windows revendiquée |
+| R8.6, outils de compilation | Hors exigence d’absence de SDK : leur installation a été acceptée explicitement par DEC-P-R8-01 |
+
+L’architecte propose **DEC-T-R8-01 v2** : conserver les deux harness séparés, le code pur FFI réellement partagé, les chemins explicites des douze déclarations de tests et les ports non retournants. Dépendances whisper-rs/CUDA, binaires produit, profils et recettes restent inchangés. Le produit livré conserve ses DLL ; aucun gain de packaging ni changement CPU/GPU/Auto n’est annoncé. Le dossier est prêt pour la revue finale de faisabilité ; PLANS READY et GO d’intégration ne sont pas déclarés par le SPIKE.
+
+### Assertions, petites preuves et absence de nettoyage
+
+Le Word-diff du candidat positif depuis 248f8679 est conservé sous `scratch/20261101T111312015-d0911ad07286451f9a0f03efdc79edf3/assertions-word-diff-tests-positive.txt` : **66 fichiers Rust**, contrôleur CI et sonde négative exclus. Le diff complet non filtré ajoute le contrôleur CI, soit 67 fichiers. La preuve précédente de 2 862 occurrences sur 47 fichiers reste valide ; la revue des trois tests FFI déplacés confirme **9 assertions identiques** (8 assert!, 1 assert_eq!), données et corps inchangés hors indentation. Les douze attributs et le format n’altèrent aucun corps testé. Il ne faut pas présenter le déplacement physique des neuf assertions comme une absence de lignes déplacées.
+
+Archive finale du SPIKE : `target/parakeet-tests/tests-autonomes/archive/spike-r8-positive-and-negative-20261101.zip`, **93 fichiers**, **284 747 octets**, arborescences conservées et SHA-256 de chaque entrée relu/comparé. Elle contient échecs historiques, preuves positives, témoin négatif, huit journaux de listes initiales/pré-prototype, relevés PE et Word-diff. SHA-256 : **a4a29b3fb59e6e0086153f603e7b75ed486ec29ceb73f8c3fbb016757882061b**. Espace libre après archivage : **173,01 Gio**. Aucun nettoyage de cache, WAV, dossier de campagne ou fichier Temp de l’incident.
+
+Correction du comptage Clippy : la lecture complète des résumés de cibles donne **75 occurrences avant / 92 sur le prototype**, doublons inclus ; les premières remises 34 et 82 ne décrivaient pas le total complet. Le nombre de diagnostics uniques n’est pas mesuré. Les deux commandes passent avec avertissements ; aucun -D warnings ni correction de lint hors périmètre n’est revendiqué.
+
+### Décision d’intégration à soumettre
+
+La branche demandée **refacto/tests-autonomes** reste au candidat précédent : le SPIKE n’y a rien intégré. Pour une intégration éventuelle, le delta positif contient **23 fichiers source/CI**, porté par les quatre seuls commits **61b0a21d, a7344a9e, 9df93659, f2186cb7**. **53b5f608 et son cas de provocation sont exclus**. Les deux documents existants restent écrits/versionnés par la session principale.
+
+Proposition bornée, non exécutée : reprendre ces quatre commits positifs dans le worktree initial, reporter le bilan utile dans les deux documents existants, puis refaire sous garde le préflight, NoRun, l’examen des nouveaux artefacts et les vérifications N1 demandées. La faisabilité d’un prototype n’est pas une autorisation d’intégration ; aucun cherry-pick, nouvelle dépendance, modification de Cargo.lock, recette, modèle ou ancienne garde n’est autorisé implicitement.
+
+## Preuve positive du prototype 9df93659 — avant correction de format
+
+Le code **9df93659** incorpore les douze attributs explicitement autorisés et la composition session::control corrigée. SelfTest est passé, puis NoRun a réussi avec code 0 en **28,029 s**, sans exécuter de corps de tests. Le même reviewer a fermé **R8-P1** et maintenu **R8-P2 fermé** avant de demander les six vérifications positives SPIKE-POS-1.
+
+Avant toute liste ou exécution, la session principale a lu les imports de chacun des **69 exécutables exacts du NoRun** avec MSVC dumpbin /IMPORTS : ce mode examine imports ordinaires et différés, sans lancer les exécutables. Les 21 noms uniques sont tous APIset ou composants présents sous System32, dont le runtime MSVC ; aucun CUDA, nvcuda, cudart, cublas, ggml, whisper, ONNX ou Parakeet. Les harness CPU et GPU importent chacun les mêmes onze composants Windows/MSVC. Le reviewer a relu les sorties complètes et confirmé la gate. Cela ne démontre pas une exécution sur un OS dont les DLL CUDA auraient été retirées ; aucune DLL n’a été supprimée. [Microsoft, dumpbin /IMPORTS](https://learn.microsoft.com/en-us/cpp/build/reference/imports-dumpbin?view=msvc-170).
+
+Artefacts : CPU `whisper_worker_cpu-0db41ac3242780c4.exe`, GPU `whisper_worker_gpu-f715b7c7c7724aab.exe`, sous le target partagé. Les sorties NoRun et `PE-imports.stdout.log`/`PE-imports.stderr.log` sont sous `scratch/20261101T111312015-d0911ad07286451f9a0f03efdc79edf3/`. L’inspection utilise ProcessStartInfo, captures explicites, chemins sans reparse vérifiés et variables isolées, sans nouveau script ni contrôle distant.
+
+| Mode N1, commandes distinctes sous garde | Résultat | Durée |
+| --- | --- | ---: |
+| Structure | PASS 0 : 855 tests / 855 entrées, 159 gated, zéro motif silencieux | 1,717 s |
+| TestList | PASS 0 : 834 noms, 73 groupes | 15,361 s |
+| IgnoredList | PASS 0 : 148 noms | 3,076 s |
+| Tests | **PASS 0 : 686 réussis / 0 échec / 148 ignorés / 834 total** | **22,350 s** |
+| Clippy | PASS 0, avertissements présents, doublons inter-cibles | 31,931 s |
+| Fmt | **FAIL 1 : format/imports uniquement**, avant correction | 1,099 s |
+
+Les 834 identités sont conservées avec multiplicité après correspondance explicite des nouvelles cibles de harness vers les cibles unitaires CPU/GPU qu’elles remplacent. Les noms qualifiés, dont session::control::tests, sont conservés. Ignorés : **147 → 148**, seul ajout `encoder::tests::capture_encoder_baseline` CPU. Les 686 réussites/22,350 s sont une mesure de ce prototype ; les 687/47,336 s restent la mesure précédente, sans attribuer la différence de temps au seul découplage.
+
+Le relevé initial demandé reste 834 tests dont 66 ignorés, 768 sélectionnables mais non exécutés pour éviter les scénarios alors natifs ; aucune durée de suite complète « avant » n’est inventée. Les variables WHISPER_* et PARAKEET_* ont été supprimées, chaque LOCALAPPDATA était neuve et vide, CARGO_HOME/TEMP/TMP isolés et target partagé conservé. Aucun modèle ni corpus réel fourni, aucune activation native-tests/all-features ni validation Windows matérielle.
+
+La relecture complète du journal Fmt corrige le premier relevé de l’implémenteur qui ne citait que deux fichiers : **quatre** sont concernés, common/tests/support/native_boundary.rs, CPU/GPU tests/support/autonomous_harness.rs et GPU src/native_ffi.rs. Tous appartiennent aux chemins du prototype autorisé. Le second cycle de correction reste limité aux hunks mécaniques signalés (imports, tuple de type, retour à la ligne du writeln), sans fonction/assertion/algorithme modifié et sans formatage global. Le contrôle Fmt a bien arrêté la séquence ; aucun échec de compilation ou de test nouveau ne justifie un nouvel arbitrage de reprise. Les preuves antérieures ne seront réutilisées qu’avec accord du reviewer sur le delta de format.
+
+Clippy : la remise annonce 82 occurrences agrégées des résumés, doublons compris ; ce n’est pas un nombre de diagnostics uniques. Les 34 du résumé adapters lib-test ne constituent pas le total workspace. Le bilan évite de qualifier Clippy de strict ou sans avertissement ; aucune correction de lint hors périmètre proposée.
+
+Le témoin négatif n’a pas encore été créé. Il reste à compiler sans lancer, examiner, puis exécuter dans la variante séparée avant de conclure sur le rejet non récupérable. Le candidat principal refacto/tests-autonomes reste préservé et non modifié par ce prototype.
+
+## Accord de périmètre — douze attributs de tests
+
+L’utilisateur a répondu **« oui je t'autorise »** à la demande précise des douze attributs `#[path]` de sections de tests listés ci-dessous, puis de la poursuite de la seconde tentative N1 prévue. Cet accord porte sur les douze seuls ajouts et le périmètre de reprise précédent ; aucun autre corps de production ou assertion n’est à modifier. Le coordinateur a routé la correction R8-P1 au même implémenteur ; R8-P2 reste fermé statiquement.
+
+Relevé préalable à cette reprise de périmètre : **173,93 Gio libres**, Git propre à **c749e8fa**, 1er novembre 2026 à **11 h 12 min 02 s Europe/Paris** (10:12:02 UTC). La borne du SPIKE reste 12 h 41 min 06 s Europe/Paris. Les sections de suspension suivantes décrivent l’historique antérieur à cet accord ; elles ne constituent plus une demande pendante pour les douze attributs.
+
+## Suspension de la seconde tentative — extension des seules déclarations de tests
+
+Le reviewer a retiré sa recommandation initiale « module inline + include du source » : l’implémentation d’include rétablit le répertoire du fichier inclus, ce qui ne corrige pas les mod tests recherchés sous src/tests.rs. Sources primaires consultées en lecture seule : [Rust 1.98, expand_include, lignes 118–124](https://raw.githubusercontent.com/rust-lang/rust/1.98.0/compiler/rustc_builtin_macros/src/source_util.rs) et [référence Rust, attribut path](https://doc.rust-lang.org/reference/items/modules.html#the-path-attribute). Cette correction du diagnostic ne résulte d’aucune nouvelle compilation.
+
+L’implémenteur avait déjà appliqué, dans les trois fichiers autorisés, l’import std::io et les imports parents JobId/Generation avant de recevoir la consigne de suspension. Ces changements sont conservés, sans rollback, au commit **a7344a9e** : trois fichiers, trois lignes ajoutées et une retirée. Le même reviewer **ferme R8-P2 statiquement sur a7344a9e**, pour la seule résolution d’io : diagnostic et sortie 78 inchangés, compilation globale et témoin négatif toujours non prouvés. R8-P1 reste **BLOCKED_SCOPE**. Le paquet final initial du coordinateur disant « aucun correctif » a été réconcilié par la relecture des trois mutations réelles ; aucune assertion n’a changé.
+
+**Aucun nouveau SelfTest, NoRun, rustc ou test n’a été lancé depuis le premier échec.** La seconde tentative de compilation n’est pas consommée. Le résultat NoRun 101 / 39,448 s appartient au code 61b0a21d, et ne valide pas le candidat partiellement corrigé a7344a9e (epoch 1).
+
+**Extension proposée, non appliquée :** ajouter exactement un attribut `#[path = "…"]` immédiatement avant chaque `mod tests;` déjà sous `#[cfg(test)]`, dans les douze fichiers suivants. Ces attributs ne changent aucune fonction de production, assertion ou donnée de test ; ils explicitent les fichiers de tests déjà existants. Les deux harness restent dans la reprise autorisée pour remettre control sous session::control et conserver les noms qualifiés.
+
+| Déclaration existante | Attribut path proposé |
+| --- | --- |
+| crates/whisper-worker-cpu/src/decoder.rs | decoder/tests.rs |
+| crates/whisper-worker-cpu/src/encoder.rs | encoder/tests.rs |
+| crates/whisper-worker-cpu/src/ipc.rs | ipc/tests.rs |
+| crates/whisper-worker-cpu/src/ipc_output.rs | ipc_output/tests.rs |
+| crates/whisper-worker-cpu/src/worker.rs | worker/tests.rs |
+| crates/whisper-worker-cpu/src/session/control.rs | control/tests.rs |
+| crates/whisper-worker-gpu/src/decoder.rs | decoder/tests.rs |
+| crates/whisper-worker-gpu/src/diagnostics.rs | diagnostics/tests.rs |
+| crates/whisper-worker-gpu/src/engine_cache.rs | engine_cache/tests.rs |
+| crates/whisper-worker-gpu/src/ipc.rs | ipc/tests.rs |
+| crates/whisper-worker-gpu/src/worker.rs | worker/tests.rs |
+| crates/whisper-worker-gpu/src/session/control.rs | control/tests.rs |
+
+Le lot de code atteindrait ainsi 23 fichiers (11 initiaux + 12 déclarations) ; toujours seulement deux rapports existants, aucun nouveau livrable. Les cinq actions du protocole restent inchangées et la borne de temps initiale n’est pas prolongée. L’arbitrage porte sur ces douze seuls attributs de sections de tests puis la poursuite de la seconde tentative N1 déjà autorisée ; aucun changement de corps de production ni nouveau cycle de compilation supplémentaire n’est proposé.
+
+La relecture indépendante du candidat epoch 1 confirme chacun des douze chemins relatifs ci-dessus et leur emplacement avant mod tests sous cfg(test). Verdict : **BLOCKED** jusqu’à l’accord de périmètre. Aucun des douze fichiers n’a été modifié, aucune vérification d’exécution n’a été relancée.
+
+Complément de preuve statique du reviewer : les trois tests FFI déplacés conservent **9 assertions**, dont **8 assert! et 1 assert_eq!**, leurs données et leurs corps hors indentation. Les sept éléments purs extraits sont quatre fonctions aux corps identiques et trois structures aux champs/types identiques ; seuls les niveaux de visibilité nécessaires sont ajustés. Le corps de capture_encoder_baseline est inchangé, seul ignore est ajouté. Ces constats ne prouvent ni la compilation ni la liaison du prototype et ne ferment pas R8/R9 sur le candidat principal.
+
+## Autorisation de seconde tentative — R8-P1/R8-P2
+
+Réponse explicite de l’utilisateur dans cette session : **« Oui, j’autorise cette seconde tentative limitée aux trois fichiers, puis la reprise des vérifications N1 prévues, sans modifier les assertions ni lancer de test natif. »** Elle lève l’arrêt de la première tentative uniquement pour corriger R8-P1/R8-P2 dans CPU/GPU `tests/support/autonomous_harness.rs` et common `tests/support/native_boundary.rs`. Aucun autre chemin de code autorisé par cette reprise.
+
+Relevé préalable : **173,43 Gio libres**, Git propre à **43c62542**, code du premier prototype **61b0a21d**. Début de reprise : 1er novembre 2026, **10 h 58 min 21 s Europe/Paris** (09:58:21 UTC). La borne initiale du SPIKE, **12 h 41 min 06 s Europe/Paris** (11:41:06 UTC), reste applicable ; aucun prolongement implicite.
+
+Le coordinateur de revue route le paquet de constats inchangé au même implémenteur, puis au même reviewer. C’est le premier cycle de correction du prototype, dans la limite de deux cycles. SelfTest et NoRun précèdent la remise des artefacts pour examen statique. Si la compilation échoue, arrêt sans réparation supplémentaire. Si la fermeture native est établie, reprendre Structure, listes, tests autonomes, Clippy et fmt ; le témoin négatif reste en dernier, après sa propre compilation sans lancement et son examen PE. Les assertions et le périmètre natif restent inchangés.
+
+Les résultats de la première tentative ci-dessous restent historiques ; aucune réussite nouvelle n’est présumée par cette autorisation.
+
+## Autorisation courante — SPIKE-R8-01
+
+Le 1er novembre 2026, après présentation du cadrage Git 3bf6bcb5 et du prototype borné (extraction pure GPU, deux harness, mode NoRun, ignore R9), l’utilisateur a répondu **« oui je t'autorise »**. Cette réponse autorise le protocole de cinq actions et les onze chemins du cadrage DRAFT-R8-2, dans **C:/dev/whisper/target/agent-worktrees/tests-autonomes-r8-spike**, branche **refacto/tests-autonomes-r8-spike**, créé depuis 3bf6bcb5. Elle n’autorise pas l’intégration du prototype au candidat principal ni une exécution native.
+
+Début du budget : **1er novembre 2026, 10 h 41 min 06 s, Europe/Paris** (09:41:06 UTC) ; une tentative, deux heures maximum. Espace libre avant création : **174,13 Gio**, supérieur au seuil de 30 Gio. Implémentation : même acteur rust_implementer `/root/autonomous_tests_impl` ; docs et commits documentaires : session principale. Les responsabilités sont distinctes ; l’ancien worktree et sa branche restent préservés.
+
+Première remise attendue : code borné, auto-tests de la garde N1 distincte, compilation NoRun réussie et références des artefacts. Aucun harness, y compris pour lister ses tests, n’est lancé avant examen statique des imports et de la fermeture native. Tout échec réel de compilation ou de test arrête la campagne et demande l’arbitrage applicable. La variante négative est exécutée en dernier et reste séparée du candidat positif.
+
+Les sections de cadrage ci-dessous conservent l’état **antérieur à cette autorisation**, y compris les mentions « proposé/non autorisé ». Le présent paragraphe est la source d’autorité courante pour le seul SPIKE ; la faisabilité du design et le résultat de la mission restent à établir.
+
+## Résultat de la première tentative du SPIKE — arrêt sur compilation
+
+Le candidat de prototype **61b0a21d** conserve exactement les onze fichiers autorisés, sans intégration dans refacto/tests-autonomes. La garde N1 distincte possède le mode NoRun borné ; les deux cibles de tests et le rejet natif sont préparés, le code pur GPU et les trois tests sont déplacés, l'oracle R9 porte un ignore permanent dans le prototype uniquement.
+
+| Vérification | Résultat réellement observé |
+| --- | --- |
+| SelfTest | PASS, code 0 selon remise de l’implémenteur ; racines/jonctions/arguments et captures stdout/stderr avec codes 0/23 ; aucun watcher |
+| NoRun | `cargo test --offline --locked --workspace --no-run` : **FAIL 101**, **39,448 s** |
+| Diagnostic de compilation | Six E0583 de sous-modules tests CPU et un E0433 pour io absent ; la compilation GPU et du workspace complet n’est pas établie |
+| Inspection PE et fermeture native | NON EXÉCUTÉES, prérequis NoRun non satisfait |
+| Listes, tests, Structure, Clippy, fmt | NON EXÉCUTÉS dans ce prototype ; aucun nouveau compte de tests ni durée de cargo test |
+| Témoin négatif sortie 78 | NON EXÉCUTÉ, aucune variante négative créée |
+
+L’implémenteur a vérifié après l’échec qu’aucun processus cargo/rustc/nvcc/cl/link de la compilation ne restait actif. Aucun correctif n’a été appliqué après l’échec. Le compte attendu 686 réussis / 148 ignorés / 834 reste une projection ; les anciens 687/147/834 et 47,336 s restent les mesures du candidat précédent sur machine équipée.
+
+**Revue indépendante de 61b0a21d contre 3bf6bcb5**, même rust_reviewer via `/root/autonomous_tests_review` : **FINDINGS**, aucun droit de correction ou de relance exercé.
+
+| Constat | Exigence / preuve | Correction ciblée proposée, non appliquée |
+| --- | --- | --- |
+| R8-P1, BLOQUANT | AC-R8-content/count : `#[path]` résout les sous-modules tests sous src/tests.rs ou src/session/tests.rs ; six E0583 CPU. Même composition GPU à corriger ; control est à la racine, perd session::control::tests et les imports parents JobId/Generation. | Dans les deux seuls autonomous_harness.rs, composer des modules inline avec répertoire enfant explicite et include du véritable fichier source ; remettre control sous session::control avec ses imports parents. Aucun algorithme copié et aucune déclaration mod de production modifiée. |
+| R8-P2, BLOQUANT | AC-R8-port : native_boundary.rs importe io::Write, mais appelle io::stderr sans importer io ; E0433 ligne 4. | Dans le seul native_boundary.rs, compléter l’import ou qualifier std::io::stderr ; conserver diagnostic direct et sortie 78. |
+
+Le reviewer confirme que les sept éléments purs GPU ont leurs corps conservés, que les trois tests déplacés conservent données/assertions et que l’ignore R9 ne change pas le corps. Le Word-diff physique montre des déplacements ; il ne faut pas les présenter comme zéro ligne d’assertion déplacée. La preuve des 2 862 assertions sur les 47 anciens fichiers reste celle du candidat précédent ; la comparaison des corps déplacés fournit la preuve pertinente du delta. Les deux blocages empêchent toute conclusion de faisabilité de liaison et ne ferment ni R8 ni R9 sur le candidat principal.
+
+**Arbitrage préparé :** autoriser une reprise bornée à R8-P1/R8-P2 dans les trois fichiers de support cités, puis reprendre la séquence N1 déjà décrite, toujours avec NoRun et inspection PE avant le moindre harness. Aucun chemin supplémentaire, aucune nouvelle extraction de production ni assertion modifiée ne sont proposés. Sans cet accord, la tentative demeure arrêtée ; la limite initiale d’une tentative ne permet aucune reprise implicite.
+
+Petites preuves : archive `target/parakeet-tests/tests-autonomes/archive/spike-r8-first-attempt-failed-20261101.zip`, **10 journaux**, arborescence conservée et SHA-256 de chaque entrée comparé à l’original. SHA-256 de l’archive : `de7dc80b9726532383dd8c897fd3820522f67324cbe465a96d3407f4ca620c20`. Aucun nettoyage. Espace libre après archivage : **173,81 Gio**. Logs de compilation sous `scratch/20261101T104956264-7b435ce7a76f4a93b7d90e43811ef4a2/NoRun.stdout.log` et `NoRun.stderr.log` ; les auto-tests de capture de ce lancement et du SelfTest précédent sont archivés séparément dans leur arborescence.
 
 Code commité localement : **fb2171e8**, branche **refacto/tests-autonomes**, worktree C:/dev/whisper/target/agent-worktrees/tests-autonomes. Aucun push. Ce commit conserve le candidat vérifié ; il ne signifie pas que l’objectif de machine sans DLL est atteint. R1–R7 sont fermés par le même reviewer ; R8 et le nouveau constat R9 restent ouverts. Les 687 réussites ci-dessous sont les résultats observés de Cargo, pas la preuve que chaque corps impose un verdict : R9 invalide cette dernière affirmation.
 
