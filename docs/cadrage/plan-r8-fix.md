@@ -25,3 +25,7 @@ Objectif produit : rendre le worker CPU livré indépendant des DLL CUDA au char
 Interdits : Rust de production, manifestes, Cargo.lock, .cargo/, models/, garde historique, dépendances nouvelles, réseau produit, installation/copie vers installation, worker/modèle/tests natifs, nettoyage des cibles existantes. Ne pas exécuter l'installeur. Arrêt sur échec de commande ou violation de garde ; ne pas relancer une campagne en échec sans arbitrage.
 
 Acceptation : CPU release et harness sans import CUDA ; GPU release importe cudart et nvcuda ; témoin réel rejeté ; imports différés couverts ; commandes de livraison séparées ; couverture des 834 identités ; trois suites N1 sans échec ; revue CLEAN ou réserves explicites. Coûts mesurés en durée et espace. La réinstallation et les observations Windows appartiennent au lot suivant.
+
+## Accord de reprise du 1er novembre 2026
+
+Le premier appel du wrapper a perdu `-p` lors de la transmission au processus PowerShell de la garde : metadata protégé a réussi, puis le préflight a refusé build ; aucune compilation CPU n'a démarré. La transmission du vecteur par JSON a ensuite été acceptée en contrôle à blanc (metadata protégé seulement). Campagnes suspendues après constat. L'utilisateur a explicitement autorisé « Oui, reprendre après les auto-tests » : correction du transport d'arguments, auto-tests puis reprise du périmètre R8-FIX initial. Cet accord ne dispense pas d'arrêter sur tout nouvel échec.
