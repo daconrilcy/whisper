@@ -123,7 +123,22 @@
         }
       ]
     },
-    {"id":"TurboCpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
+    {
+      "id": "TurboCpu",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-worker-cpu",
+      "features": ["whisper-worker-cpu/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [
+        {"key":"libclangPath","environmentVariable":"LIBCLANG_PATH","required":true,"kind":"literal"}
+      ],
+      "outputs": [],
+      "cases": [
+        {"targetKind":"integration","targetName":"worker_contract","exactTest":"turbo_idle_and_refusal_contract","ignored":false,"verdict":"QUALIFICATION"}
+      ]
+    },
     {
       "id": "TurboGpu",
       "status": "READY",
@@ -193,6 +208,31 @@
         {"targetKind": "integration", "targetName": "parakeet_unified_native", "exactTest": "native_personal_cpu_imports_french_mp3_through_the_unified_application", "ignored": false, "verdict": "QUALIFICATION"},
         {"targetKind": "integration", "targetName": "parakeet_unified_native", "exactTest": "native_personal_gpu_imports_english_mp3_with_attested_candidate", "ignored": false, "verdict": "QUALIFICATION"},
         {"targetKind": "integration", "targetName": "parakeet_unified_native", "exactTest": "native_personal_auto_without_candidate_reports_preaudio_cpu_fallback", "ignored": false, "verdict": "QUALIFICATION"}
+      ]
+    },
+    {
+      "id": "PersonalAutoFallback",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": ["whisper-adapters/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [
+        {"key":"personalRuntime","environmentVariable":"WHISPER_N2_PERSONAL_RUNTIME_ROOT","kind":"directory"},
+        {"key":"shortEnglish","environmentVariable":"WHISPER_PU_L4_EN_SOURCE","kind":"file"}
+      ],
+      "values": [
+        {"key":"cudaToolkitPath","environmentVariable":"CUDA_PATH","required":true,"kind":"directory","allowedRoot":"cuda-12.9"}
+      ],
+      "outputs": [
+        {"key":"campaignRun","environmentVariable":"WHISPER_L04_CAMPAIGN_RUN","kind":"directory","path":"writes/l04"}
+      ],
+      "staging": [
+        {"inputKey":"personalRuntime","destination":"Whisper","destinationBase":"localappdata","requiredFileCount":21,"requiredBytes":3196008875},
+        {"inputKey":"shortEnglish","destination":"writes/l04/fixtures/en-short.mp3","destinationBase":"run","requiredFileCount":1,"requiredBytes":24237}
+      ],
+      "cases": [
+        {"targetKind":"integration","targetName":"parakeet_unified_native","exactTest":"native_personal_auto_without_candidate_reports_preaudio_cpu_fallback","ignored":false,"verdict":"QUALIFICATION"}
       ]
     },
     {
