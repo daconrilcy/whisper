@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "candidate": "13a1c725",
+  "runId": "PersonalUnified-b58d6a564320456485cd8ff751c76eab",
+  "status": "FAIL",
+  "cargoExitCode": 101,
+  "elapsedSeconds": 56.651,
+  "testPassed": 0,
+  "testFailed": 1,
+  "testBodySeconds": 38.78,
+  "reason": "CampaignGuard: run must be a direct child of campaign runs",
+  "source": "crates/whisper-adapters/src/archive/campaign.rs:52-80",
+  "cause": "PersonalUnified incorrectly enabled recette-hooks and WHISPER_L04_CAMPAIGN_BUILD for normal imports; legacy hook requires C:/WhisperLive/L04-campaign/runs",
+  "runtimeStaging": {
+    "fileCount": 21,
+    "bytes": 3196008875,
+    "shaMatched": 21,
+    "sourceFilesUnmodified": true
+  },
+  "shortFixtureStaging": {
+    "fileCount": 2,
+    "shaMatched": 2
+  },
+  "nativePassedBeforeAttempt": 3,
+  "campaignStopped": true,
+  "notStarted": [
+    "remaining PersonalUnified GPU",
+    "remaining PersonalUnified Auto",
+    "D2",
+    "TurboGpu",
+    "ManualDiagnostic",
+    "CampaignPolicies"
+  ],
+  "missingHistoricalInputs": [
+    "fr87.wav",
+    "fr27.wav"
+  ],
+  "userHasBackup": false,
+  "fullCampaignQualified": false,
+  "mergePerformed": false,
+  "freeBytes": 143090728960,
+  "archive": {
+    "file": "staging-attempt-1.zip",
+    "entryCount": 15,
+    "entriesVerified": true,
+    "sha256": "9196ba4d6731ff54dc6bea2bf6df70d12d7442ba4ddd117128c2a1e574474681",
+    "entries": [
+      {
+        "path": "target/n2-native/logs/PersonalUnified-b58d6a564320456485cd8ff751c76eab/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
+        "bytes": 1427,
+        "sha256": "a2c283d61e054655de537b18fad6c61fe7ee77fa7edd685143f639cfc7bffa13"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-b58d6a564320456485cd8ff751c76eab/native_personal_cpu_imports_french_mp3_through_the_unified_application.process.json",
+        "bytes": 154,
+        "sha256": "d5ae3e14265e556905a29b5abc13ecda286f0fa5f042191e81bc625c7ef134bd"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-b58d6a564320456485cd8ff751c76eab/native_personal_cpu_imports_french_mp3_through_the_unified_application.stderr.log",
+        "bytes": 3697,
+        "sha256": "cbaa16245b106de9e7114a044b7ab65fe05d4fa46ed620f8c51dfef837e6433d"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-b58d6a564320456485cd8ff751c76eab/native_personal_cpu_imports_french_mp3_through_the_unified_application.stdout.log",
+        "bytes": 313,
+        "sha256": "a642df417a10eedcbf49a0397a4b8bb38d3062ea3c6c1a2acf95c48af05d7f30"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-b58d6a564320456485cd8ff751c76eab/result.json",
+        "bytes": 5939,
+        "sha256": "94222c24448228cdd6e84063ea284caa2cfab4f5ac805dc7ecef785581ee136b"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-b58d6a564320456485cd8ff751c76eab/unattributed-temp.jsonl",
+        "bytes": 11536,
+        "sha256": "8283bd511290f2b04f46c2c8f5f7020071bc1a2339a33b7f967926e6c4956384"
+      },
+      {
+        "path": "target/n2-native/requests/PersonalUnified.json",
+        "bytes": 4825,
+        "sha256": "a50333c9d7e0456b7a76c098d40bbc98cc6c8dd34b41882d93cb629fc72c56a8"
+      },
+      {
+        "path": "target/n2-native/requests/D2.json",
+        "bytes": 4327,
+        "sha256": "3f1b6c9b9cd61b73943f17793cfffff0f91c07f8bbb5dbff22dea6fc1e9b979f"
+      },
+      {
+        "path": "target/n2-native/resources/personal-runtime-seed.json",
+        "bytes": 10186,
+        "sha256": "25f2fffbf54c3eba3a09503a209af919a6fd939809b30fd4c31d9f59420a1ae3"
+      },
+      {
+        "path": "target/n2-native/resources/staging-attempt-1-checks.json",
+        "bytes": 8964,
+        "sha256": "26d7d3ef77ffc8019803a31d509c2869e5fd48f7f8b8366da91d166a0938b193"
+      },
+      {
+        "path": "target/n2-native/resources/d2-worktree-checks.json",
+        "bytes": 3365,
+        "sha256": "566c4ff7eacccd7511516025cceaa56367499e57bb5162226efa03986af3d4eb"
+      },
+      {
+        "path": "target/n2-native/resources/personal-short-inputs.json",
+        "bytes": 675,
+        "sha256": "dc4752dfe67899204e1e2ac72f0ad0b03a000bcbc9b71a0d75ee60d5acccf1ac"
+      },
+      {
+        "path": "target/n2-native/logs/staging-selftest-final.txt",
+        "bytes": 465,
+        "sha256": "8653262c11bb9d7f7344318de77881ecc3633175a613316cec6a117bdf3e4236"
+      },
+      {
+        "path": "target/n2-native/logs/staging-D2-preflight-1.txt",
+        "bytes": 467,
+        "sha256": "8a3a85623684415e12182f2538b1d9070831682ff13678df6a0d007da39981eb"
+      },
+      {
+        "path": "target/n2-native/logs/staging-PersonalUnified-preflight-1.txt",
+        "bytes": 480,
+        "sha256": "f46d350882c4a27d000b4e7464cfd60dfcf80945cb4174b3f577935f46f1dc09"
+      }
+    ]
+  }
+}

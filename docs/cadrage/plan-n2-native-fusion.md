@@ -1,6 +1,6 @@
-Avancée : complément de staging relu CLEAN ; quatre cas supplémentaires préparés, trois corps natifs déjà réussis.
-Blocage : campagne incomplète ; extraits FR87/FR27 manquants et racines historiques hors lot pour plusieurs cas.
-Décision : exécuter les profils complets autorisés ; aucune fusion tant que la campagne complète n'est pas verte.
+Avancée : staging réel vérifié ; premier import refusé, correctif de profil et 29 cas prêts relus CLEAN.
+Blocage : campagne arrêtée après cet échec ; corpus FR87/FR27 manquant et plusieurs racines historiques hors lot.
+Décision : demander l'arbitrage de reprise prévu par AGENTS.md ; aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -75,3 +75,15 @@ Auto-tests PowerShell synthétiques, analyse syntaxique, registre JSON et `git d
 Les quatre WAV D2 sont désormais présents aux chemins attendus du worktree ; les quatre WAV et quatre références correspondent aux huit SHA figés en source. Les MP3 courts FR/EN ont été copiés et vérifiés (24 237 octets chacun). EN15 a été retrouvé dans `target/parakeet-tests/r11/input/en15.wav`, SHA `31930895694619a38443fdca186e7df712ee8ecc6f685d65f0263201c4d44861`, identique au SHA historique enregistré dans les pending R11, et copié sous la racine du lot. Aucune substitution du corpus français : l'utilisateur confirme n'avoir retrouvé aucune sauvegarde de FR87/FR27. Les tests exigeant ces mots et horodatages restent non exécutés.
 
 Autres limites identifiées avant lancement : les contrats Turbo réutilisables imposent `target/parakeet-tests/main-facades` sous le worktree, hors de la racine autorisée `target/n2-native` ; ces profils restent fermés, sans écriture tentée à cet endroit. Les autres profils attendent encore des prérequis et sélecteurs complets. Espace libre avant les nouveaux essais : 146 517 471 232 octets. La campagne entière et la fusion ne sont pas qualifiées par ce CLEAN d'outillage.
+
+## Premier import réel arrêté et candidat de reprise
+
+Au candidat `13a1c725`, le staging réel copie **21 ressources, 3 196 008 875 octets**, et les deux MP3 courts. Le parent vérifie après l'essai les **23 SHA de destination** et les SHA des 21 sources runtime : tous conformes, sources immuables. La compilation de l'import court CPU termine en 16,82 s, puis son corps échoue : **0 réussi / 1 échec**, 38,78 s de test, 56,651 s d'appel Cargo, code 101. Message : `CampaignGuard: run must be a direct child of campaign runs`. Le profil passe l'application en état Recoverable avant traitement audio confirmé ; aucune transcription n'est qualifiée. La garde arrête la campagne ; GPU, Auto et D2 ne sont pas lancés.
+
+Cause de configuration établie en lecture seule : `archive/campaign.rs:52–80` et `:259–280` imposent `C:/WhisperLive/L04-campaign/runs` lorsque `recette-hooks` et `WHISPER_L04_CAMPAIGN_BUILD` sont activés. Notre profil activait ces deux options pour trois imports normaux qui ne les exigent pas. Aucun dossier externe n'est créé pour contourner ce refus. Les journaux et requêtes originaux restent conservés : [résultat](../architecture/raw/n2-native/staging-attempt-1.json), [archive](../architecture/raw/n2-native/staging-attempt-1.zip), **15 entrées relues avec taille et SHA vérifiés**, SHA archive `9196ba4d6731ff54dc6bea2bf6df70d12d7442ba4ddd117128c2a1e574474681`.
+
+Correction déléguée limitée au registre : PersonalUnified conserve exactement ses trois sélecteurs, assertions, entrées, staging et sortie RunRoot, avec `native-tests` seul, sans ces deux activations superflues. Les véritables cas d'injection L04 restent fermés ; leurs gardes historiques et le code Rust ne changent pas. **Seconde et dernière revue du complément : CLEAN**, base `13a1c725`, registre SHA `0856c04f482af980aefe64b0ed27c7227af1546d769732648d59185db0f048bb`. Garde inchangée. Ce verdict valide la configuration proposée, pas un nouvel essai natif.
+
+Les profils disponibles représentent **29 cas** : PersonalUnified 3, D2 1 (16 parcours internes), TurboGpu 23, politique L2a2 1, diagnostic encodeur 1. TurboGpu comprend 19 tests du harness autonome, deux parents de helper privé et deux contrats GPU sans modèle ; ils ne qualifient pas une transcription GPU. Le helper privé est seulement exécuté par ses parents. Le diagnostic encodeur reste `DIAGNOSTIC_ONLY`, sans oracle attendu et sans qualification produit. Les cibles d'intégration GPU/CPU sont celles des harness autonomes déclarés, et non une cible lib supposée.
+
+Auto-tests PowerShell synthétiques, syntaxe, registre et diff : PASS. Les cinq préflights exacts terminent code 0, sans Cargo ni exécution native ; requêtes et sorties sous `target/n2-native/requests/` et `target/n2-native/logs/ready-*-preflight.txt`. Espace libre : environ 143,07 milliards d'octets. Aucun nouvel appel Cargo ni test natif après l'échec. Reprise soumise à l'arbitrage explicite exigé par `AGENTS.md:53`. Bilan natif inchangé : trois corps ciblés réussis auparavant, un corps maintenant échoué, campagne complète non verte ; ni fusion ni push.

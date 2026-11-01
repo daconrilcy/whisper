@@ -124,7 +124,46 @@
       ]
     },
     {"id":"TurboCpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
-    {"id":"TurboGpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
+    {
+      "id": "TurboGpu",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-worker-gpu",
+      "features": ["whisper-worker-gpu/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [
+        {"key": "cudaToolkitPath", "environmentVariable": "CUDA_PATH", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"},
+        {"key": "cudaToolkitVersionedPath", "environmentVariable": "CUDA_PATH_V12_9", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"},
+        {"key": "libclangPath", "environmentVariable": "LIBCLANG_PATH", "required": true, "kind": "literal"}
+      ],
+      "outputs": [],
+      "cases": [
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"decoder::tests::inaccessible_source_propagates_error","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"diagnostics::tests::gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"engine_cache::tests::cache_target_matches_complete_device_identity","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"gpu_qualification::tests::duplicate_or_missing_join_endpoints_never_become_supported","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"engine_cache::tests::cached_engine_is_attested_again_and_evicted_on_failure","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"diagnostics::tests::verified_model_gpu_initialization_failure_is_retryable_and_correlated","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"gpu_qualification::tests::unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"ipc::tests::writer_accepts_limit_and_rejects_limit_plus_one","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"gpu_qualification::tests::missing_driver_or_required_symbol_is_unavailable_without_support_claim","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"gpu_qualification::tests::intel_exclusion_uses_windows_identity_and_build_capability_without_cuda_join","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"native_ffi::tests::native_gpu_attestation_rejects_failure_after_using_backend","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"session::control::tests::empty_and_disconnected_channels_do_not_stop_the_session","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"native_ffi::tests::whisper_position_counts_gpu_and_integrated_gpu_not_cuda_ordinals","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"worker::tests::idle_worker_shutdown_exits_without_an_error_frame","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"session::control::tests::wrong_stop_is_ignored_and_matching_stop_is_consumed","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"session::control::tests::wrong_protocol_emits_correlated_failure_before_stopping","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"gpu_attestation::tests::reattestation_requires_exact_cuda_and_ggml_ordinals_and_identity","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"whisper-worker-gpu","exactTest":"native_ffi::tests::native_gpu_attestation_requires_a_fresh_matching_log","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"worker_contract","exactTest":"support::tests::deadline_stops_child_after_expected_output","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"worker_contract","exactTest":"support::tests::timed_out_output_retains_the_captured_stdout","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"worker_contract","exactTest":"turbo_idle_and_refusal_contract","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"worker_contract","exactTest":"gpu_identity_contract","ignored":false,"verdict":"QUALIFICATION"}
+      ]
+    },
     {"id":"ParakeetCpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-worker-parakeet-cpu","features":["whisper-worker-parakeet-cpu/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
     {"id":"ParakeetGpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
     {
@@ -132,8 +171,8 @@
       "status": "READY",
       "operation": "Run",
       "package": "whisper-adapters",
-      "features": ["whisper-adapters/native-tests", "whisper-adapters/recette-hooks"],
-      "compileEnvironment": [{"name": "WHISPER_L04_CAMPAIGN_BUILD", "value": "1"}],
+      "features": ["whisper-adapters/native-tests"],
+      "compileEnvironment": [],
       "inputs": [
         {"key": "personalRuntime", "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT", "kind": "directory"},
         {"key": "shortFrench", "environmentVariable": "WHISPER_PU_L4_FR_SOURCE", "kind": "file"},
@@ -177,7 +216,35 @@
         {"targetKind": "lib", "targetName": "", "exactTest": "direct_live::d2_corpus::d2_corpus_real_cpu_turbo_and_parakeet", "ignored": false, "verdict": "QUALIFICATION"}
       ]
     },
-    {"id":"CampaignPolicies","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests","whisper-adapters/recette-hooks"],"compileEnvironment":[{"name":"WHISPER_L04_CAMPAIGN_BUILD","value":"1"},{"name":"PARAKEET_L2_ACCEPTANCE_TEST_BUILD","value":"1"}],"inputs":[],"values":[],"outputs":[],"cases":[]},
-    {"id":"ManualDiagnostic","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-worker-cpu","features":["whisper-worker-cpu/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]}
+    {
+      "id": "CampaignPolicies",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": ["whisper-adapters/native-tests", "whisper-adapters/recette-hooks"],
+      "compileEnvironment": [{"name": "PARAKEET_L2_ACCEPTANCE_TEST_BUILD", "value": "1"}],
+      "inputs": [],
+      "values": [],
+      "outputs": [],
+      "cases": [
+        {"targetKind":"lib","targetName":"","exactTest":"worker_ipc::tests::recette_policy_l2a2_requires_the_feature","ignored":false,"verdict":"QUALIFICATION"}
+      ]
+    },
+    {
+      "id": "ManualDiagnostic",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-worker-cpu",
+      "features": [],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [
+        {"key": "libclangPath", "environmentVariable": "LIBCLANG_PATH", "required": true, "kind": "literal"}
+      ],
+      "outputs": [],
+      "cases": [
+        {"targetKind":"integration","targetName":"whisper-worker-cpu","exactTest":"encoder::tests::capture_encoder_baseline","ignored":true,"verdict":"DIAGNOSTIC_ONLY"}
+      ]
+    }
   ]
 }
