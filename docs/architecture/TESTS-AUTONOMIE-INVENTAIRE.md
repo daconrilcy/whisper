@@ -1,8 +1,37 @@
-Avancée : seconde tentative explicitement autorisée, correction R8-P1/R8-P2 déléguée dans les trois seuls fichiers de support.
-Blocage : première compilation NoRun en échec 101 ; faisabilité R8 non prouvée, aucune nouvelle mesure disponible.
-Décision : reprendre les contrôles N1 après correction bornée, avec NoRun et examen PE avant tout harness ; aucun test natif.
+Avancée : corrections partielles autorisées conservées en Git ; aucun nouveau lancement de compilation ou de test.
+Blocage : la solution de R8-P1 proposée dans les seuls harness est retirée par le reviewer ; douze attributs de modules de tests hors périmètre sont nécessaires.
+Décision : seconde tentative suspendue avant NoRun ; demander l’extension exacte des déclarations de tests, sans toucher aux assertions ou fonctions de production.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
+
+## Suspension de la seconde tentative — extension des seules déclarations de tests
+
+Le reviewer a retiré sa recommandation initiale « module inline + include du source » : l’implémentation d’include rétablit le répertoire du fichier inclus, ce qui ne corrige pas les mod tests recherchés sous src/tests.rs. Sources primaires consultées en lecture seule : [Rust 1.98, expand_include, lignes 118–124](https://raw.githubusercontent.com/rust-lang/rust/1.98.0/compiler/rustc_builtin_macros/src/source_util.rs) et [référence Rust, attribut path](https://doc.rust-lang.org/reference/items/modules.html#the-path-attribute). Cette correction du diagnostic ne résulte d’aucune nouvelle compilation.
+
+L’implémenteur avait déjà appliqué, dans les trois fichiers autorisés, l’import std::io et les imports parents JobId/Generation avant de recevoir la consigne de suspension. Ces changements sont conservés, sans rollback, au commit **a7344a9e** : trois fichiers, trois lignes ajoutées et une retirée. R8-P2 est corrigé selon l’implémenteur, fermeture à vérifier par le reviewer ; R8-P1 reste bloqué par le périmètre. Le paquet final initial du coordinateur disant « aucun correctif » décrit incorrectement cette mutation partielle ; la présente remise consigne l’état réel de l’implémenteur et de Git.
+
+**Aucun nouveau SelfTest, NoRun, rustc ou test n’a été lancé depuis le premier échec.** La seconde tentative de compilation n’est pas consommée. Le résultat NoRun 101 / 39,448 s appartient au code 61b0a21d, et ne valide pas le candidat partiellement corrigé a7344a9e (epoch 1).
+
+**Extension proposée, non appliquée :** ajouter exactement un attribut `#[path = "…"]` immédiatement avant chaque `mod tests;` déjà sous `#[cfg(test)]`, dans les douze fichiers suivants. Ces attributs ne changent aucune fonction de production, assertion ou donnée de test ; ils explicitent les fichiers de tests déjà existants. Les deux harness restent dans la reprise autorisée pour remettre control sous session::control et conserver les noms qualifiés.
+
+| Déclaration existante | Attribut path proposé |
+| --- | --- |
+| crates/whisper-worker-cpu/src/decoder.rs | decoder/tests.rs |
+| crates/whisper-worker-cpu/src/encoder.rs | encoder/tests.rs |
+| crates/whisper-worker-cpu/src/ipc.rs | ipc/tests.rs |
+| crates/whisper-worker-cpu/src/ipc_output.rs | ipc_output/tests.rs |
+| crates/whisper-worker-cpu/src/worker.rs | worker/tests.rs |
+| crates/whisper-worker-cpu/src/session/control.rs | control/tests.rs |
+| crates/whisper-worker-gpu/src/decoder.rs | decoder/tests.rs |
+| crates/whisper-worker-gpu/src/diagnostics.rs | diagnostics/tests.rs |
+| crates/whisper-worker-gpu/src/engine_cache.rs | engine_cache/tests.rs |
+| crates/whisper-worker-gpu/src/ipc.rs | ipc/tests.rs |
+| crates/whisper-worker-gpu/src/worker.rs | worker/tests.rs |
+| crates/whisper-worker-gpu/src/session/control.rs | control/tests.rs |
+
+Le lot de code atteindrait ainsi 23 fichiers (11 initiaux + 12 déclarations) ; toujours seulement deux rapports existants, aucun nouveau livrable. Les cinq actions du protocole restent inchangées et la borne de temps initiale n’est pas prolongée. L’arbitrage porte sur ces douze seuls attributs de sections de tests puis la poursuite de la seconde tentative N1 déjà autorisée ; aucun changement de corps de production ni nouveau cycle de compilation supplémentaire n’est proposé.
+
+Complément de preuve statique du reviewer : les trois tests FFI déplacés conservent **9 assertions**, dont **8 assert! et 1 assert_eq!**, leurs données et leurs corps hors indentation. Les sept éléments purs extraits sont quatre fonctions aux corps identiques et trois structures aux champs/types identiques ; seuls les niveaux de visibilité nécessaires sont ajustés. Le corps de capture_encoder_baseline est inchangé, seul ignore est ajouté. Ces constats ne prouvent ni la compilation ni la liaison du prototype et ne ferment pas R8/R9 sur le candidat principal.
 
 ## Autorisation de seconde tentative — R8-P1/R8-P2
 

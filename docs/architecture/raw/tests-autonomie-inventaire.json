@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "SPIKE_R8_SECOND_ATTEMPT_AUTHORIZED_R8_P1_P2_CORRECTING",
+  "status": "SPIKE_R8_SECOND_ATTEMPT_BLOCKED_SCOPE_12_TEST_MODULE_ATTRIBUTES",
   "source_commit": "248f86794c3a1e2d2b1ba6d5a7afafc84972535d",
   "branch": "refacto/tests-autonomes",
   "worktree": "C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes",
@@ -54409,7 +54409,7 @@
     "free_gib_after_archive": 173.81
   },
   "spike_R8_second_attempt": {
-    "status": "AUTHORIZED_CORRECTION_DELEGATED_NO_NEW_VERIFICATION_RESULT",
+    "status": "PARTIAL_CORRECTION_APPLIED_BLOCKED_SCOPE_BEFORE_NEW_NORUN",
     "authority": "Oui, j’autorise cette seconde tentative limitée aux trois fichiers, puis la reprise des vérifications N1 prévues, sans modifier les assertions ni lancer de test natif.",
     "baseline_code_commit": "61b0a21d",
     "baseline_document_commit": "43c62542",
@@ -54430,6 +54430,45 @@
     "sequence": "SelfTest, NoRun, remise/gate PE et fermeture native avant tout harness ; si satisfait, N1 Structure/listes/tests/Clippy/fmt, puis variante négative finale avec sa propre compilation NoRun et examen PE",
     "no_assertion_changes": true,
     "no_native_tests": true,
-    "stop_on_compile_or_test_failure": true
+    "stop_on_compile_or_test_failure": true,
+    "candidate_epoch": 1,
+    "partial_code_commit": "a7344a9e",
+    "partial_changes": "std::io import dans native_boundary et imports JobId/Generation dans les deux harness ; trois fichiers, trois lignes ajoutées et une retirée, aucun rollback",
+    "new_selftest_or_norun_or_rustc_or_test_executed": false,
+    "second_compile_attempt_consumed": false,
+    "R8_P1_initial_recommendation_withdrawn_by_reviewer": true,
+    "scope_blocker": "include! réinitialise le répertoire au parent du fichier inclus ; la solution harness inline seule ne résout pas mod tests",
+    "R8_P2_implementer_disposition": "CLAIMED_FIXED_PENDING_REVIEWER",
+    "old_no_run_evidence_epoch": 0,
+    "old_no_run_is_not_current_candidate_validation": true,
+    "coordinator_packet_reconciliation": "son premier final disait aucun correctif ; l'implémenteur confirme les trois mutations autorisées antérieures au message de suspension, conservées en Git",
+    "proposed_scope_extension_authorized": false,
+    "proposed_test_module_attributes": [
+      {"path":"crates/whisper-worker-cpu/src/decoder.rs","test_path":"decoder/tests.rs"},
+      {"path":"crates/whisper-worker-cpu/src/encoder.rs","test_path":"encoder/tests.rs"},
+      {"path":"crates/whisper-worker-cpu/src/ipc.rs","test_path":"ipc/tests.rs"},
+      {"path":"crates/whisper-worker-cpu/src/ipc_output.rs","test_path":"ipc_output/tests.rs"},
+      {"path":"crates/whisper-worker-cpu/src/worker.rs","test_path":"worker/tests.rs"},
+      {"path":"crates/whisper-worker-cpu/src/session/control.rs","test_path":"control/tests.rs"},
+      {"path":"crates/whisper-worker-gpu/src/decoder.rs","test_path":"decoder/tests.rs"},
+      {"path":"crates/whisper-worker-gpu/src/diagnostics.rs","test_path":"diagnostics/tests.rs"},
+      {"path":"crates/whisper-worker-gpu/src/engine_cache.rs","test_path":"engine_cache/tests.rs"},
+      {"path":"crates/whisper-worker-gpu/src/ipc.rs","test_path":"ipc/tests.rs"},
+      {"path":"crates/whisper-worker-gpu/src/worker.rs","test_path":"worker/tests.rs"},
+      {"path":"crates/whisper-worker-gpu/src/session/control.rs","test_path":"control/tests.rs"}
+    ],
+    "static_body_preservation_review": {
+      "ffi_tests": 3,
+      "assertions": 9,
+      "assert": 8,
+      "assert_eq": 1,
+      "pure_function_bodies_identical": 4,
+      "pure_struct_fields_types_identical": 3,
+      "R9_body_unchanged_ignore_only": true
+    },
+    "primary_sources": [
+      "https://raw.githubusercontent.com/rust-lang/rust/1.98.0/compiler/rustc_builtin_macros/src/source_util.rs",
+      "https://doc.rust-lang.org/reference/items/modules.html#the-path-attribute"
+    ]
   }
 }
