@@ -12,3 +12,9 @@ Décision : aucune modification Rust ; aucune activation Windows, élévation ni
 6. Bilan dans le présent document et preuves compactes sous `docs/architecture/raw/r8-install/` : distinguer installé/SHA/PE, environnement invité et inférence, tests non exécutés, coûts et limites. Git local seulement, aucun push.
 
 Autorisations reçues : « Oui, préparer puis installer » (desktop gardé, ressources locales, attestations de livraison, installation et contrôle des fichiers installés) ; « Oui, autoriser la recette isolée » (sans activation système implicite). Arrêt sur échec ou prérequis divergent avant installation ; aucune acquisition ni nouvelle dépendance, aucun changement de code produit, manifeste, Cargo.lock ou garde historique.
+
+## Préparation exécutée
+
+Les quatorze DLL et deux modèles ont passé les comparaisons SHA et ont été copiés sous les sources attendues dans ce worktree. Desktop personnel construit sous garde (Cargo code 0, 65 s), PE sans CUDA, SHA `aa19791bac66c4c31511bcaf209baa16d38168d27e7b737a8f8ddf925302328d`. Le contrôle de retour de l'appelant a signalé à tort un échec après la réussite ; aucune recompilation, résultat attribué au journal `N1_GUARD exit_code=0` et au contrôle PE.
+
+Adaptation du script canonique déléguée puis revue indépendante CLEAN, sans correction, sur le delta depuis `f1a92cbf` : option explicite `-QualifiedParakeetSourceDirectory`, préflight avant mutation, SHA égaux au registre, gates PE et récupération conservés. Sandbox : composant initialement désactivé (InstallState 2) ; accord explicite utilisateur pour `Enable-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM -All -NoRestart` avec élévation. Activation exécutée avec succès ; `RestartNeeded=true`. Aucun redémarrage ni lancement de Sandbox.
