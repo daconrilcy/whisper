@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "LIVRE_AVEC_RESERVES_NO_CLEAN_INCOMPLETE_ACCEPTANCE",
+  "status": "BLOCKED_V1_FAILURE_R5_R6_AFTER_AUTHORIZED_THIRD_CYCLE",
   "source_commit": "248f86794c3a1e2d2b1ba6d5a7afafc84972535d",
   "branch": "refacto/tests-autonomes",
   "worktree": "C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes",
@@ -8451,10 +8451,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::controlled_worker_and_invalid_times_leave_no_complete_archive",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+        "name": "controlled_worker_and_invalid_times_leave_no_complete_archive",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::controlled_worker_and_invalid_times_leave_no_complete_archive' (137084) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -8503,10 +8518,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::export_collision_keeps_existing_file_and_does_not_publish_unified_archive",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+        "name": "export_collision_keeps_existing_file_and_does_not_publish_unified_archive",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::export_collision_keeps_existing_file_and_does_not_publish_unified_archive' (114432) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -8969,10 +8999,25 @@
         "resource_candidate",
         "return_to_review"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+        "name": "live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs:1543",
+        "diagnostic": "thread 'worker_ipc::tests::live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish' (41312) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/microphone_and_finalization.rs:1543:9: | registered Turbo fixture is required"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/ggml-large-v3-turbo.bin",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -9299,10 +9344,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs",
+        "name": "native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call",
+        "finding_group": "UNCERTAIN",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:385",
+        "diagnostic": "thread 'worker_ipc::tests::native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call' (126112) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/native_execution.rs:385:9: | assertion failed: manual_capture_generation.join(\"captured-source-parts.json\").is_file()"
+      },
+      "required_next_analysis": "tracer origine de publication manquante sans modifier assertions ni production",
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_reclassification": "NATIF",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -15560,10 +15620,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "name": "import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:20",
+        "diagnostic": "thread 'worker_ipc::tests::import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio' (141744) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:20:9: | assertion failed: Path::new(&request_a.model_path).is_file()"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -15617,10 +15692,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::global_close_waits_for_both_capture_publications_and_refuses_new_admission",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "name": "global_close_waits_for_both_capture_publications_and_refuses_new_admission",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:407",
+        "diagnostic": "thread 'worker_ipc::tests::global_close_waits_for_both_capture_publications_and_refuses_new_admission' (89156) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:407:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -15692,10 +15782,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "name": "import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published' (118172) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -15739,10 +15844,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "name": "unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:849",
+        "diagnostic": "thread 'worker_ipc::tests::unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail' (133916) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:849:9: | assertion failed: Path::new(&request.model_path).is_file()"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -15796,10 +15916,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::controlled_runtime_recycles_scheduler_slots_across_many_unified_imports",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "name": "controlled_runtime_recycles_scheduler_slots_across_many_unified_imports",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::controlled_runtime_recycles_scheduler_slots_across_many_unified_imports' (58400) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -15931,10 +16066,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "name": "controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification' (49512) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf | note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -16186,10 +16336,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::unified_document_finalization_failure_releases_session_and_allows_replacement",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "name": "unified_document_finalization_failure_releases_session_and_allows_replacement",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:1609",
+        "diagnostic": "thread 'worker_ipc::tests::unified_document_finalization_failure_releases_session_and_allows_replacement' (116788) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:1609:14: | called `Result::unwrap()` on an `Err` value: \"ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\""
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -16246,10 +16411,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::capture_identity_does_not_mask_existing_import_source_binding",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "name": "capture_identity_does_not_mask_existing_import_source_binding",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:1759",
+        "diagnostic": "thread 'worker_ipc::tests::capture_identity_does_not_mask_existing_import_source_binding' (115152) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:1759:14: | called `Result::unwrap()` on an `Err` value: \"ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\""
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -16293,10 +16473,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "name": "capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:1844",
+        "diagnostic": "thread 'worker_ipc::tests::capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state' (106852) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:1844:21: | capture reached Recoverable after archive completion=false: UnifiedParakeetSessionView { job_id: JobId(9427), generation: Generation(1), microphone_capture: true, destination: \"C:\\\\dev\\\\whisper\\\\target\\\\agent-worktrees\\\\tests-autonomes\\\\target\\\\parakeet-tests\\\\tests-autonomes\\\\temp\\\\tmp\\\\parakeet-unified-empty-snapshot-registry-143464\\\\archive\", source_path: \"C:\\\\dev\\\\whisper\\\\target\\\\agent-worktrees\\\\tests-autonomes\\\\target\\\\parakeet-tests\\\\tests-autonomes\\\\temp\\\\tmp\\\\parakeet-unified-empty-snapshot-registry-143464\\\\archive\\\\transcriptions\\\\000000000000000000000000000024d3\\\\1\\\\parakeet-unified/source.wav\", phase: Recoverable, captured_samples: 63840, durable_samples: 63840, total_samples: None, document_revision: 0, audio_parts_revision: 0, wav_path: None, txt_path: None, srt_path: None, message: Some(\"ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\") }; message=Some(\"Échec de la transcription micro : ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\")"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -16467,10 +16662,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "name": "unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs:147",
+        "diagnostic": "thread 'worker_ipc::tests::unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready' (115160) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_support.rs:147:22: | Prepare did not return Prepared: Some(Failed { job_id: JobId(9424), generation: Generation(1), message: \"ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\" }); remaining=[]"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -16701,10 +16911,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+        "name": "unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets",
+        "finding_group": "UNCERTAIN",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:2929",
+        "diagnostic": "thread 'worker_ipc::tests::unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets' (91192) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:2929:9: | assertion failed: ArchiveStore::scan(&archive_root).unwrap().iter().any(|entry| | entry.job_id == request.job_id && entry.complete)"
+      },
+      "required_next_analysis": "tracer origine de publication manquante sans modifier assertions ni production",
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_reclassification": "NATIF",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -16826,10 +17051,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::unified_capture_runtime_rejects_third_before_capture_factory",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+        "name": "unified_capture_runtime_rejects_third_before_capture_factory",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:34",
+        "diagnostic": "thread 'worker_ipc::tests::unified_capture_runtime_rejects_third_before_capture_factory' (143764) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:34:14: | called `Result::unwrap()` on an `Err` value: \"ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\""
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -16953,10 +17193,25 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+        "name": "import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports' (165532) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -17039,12 +17294,27 @@
         "environment",
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [
         "PARAKEET_R6_TEST_ROOT"
       ],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+        "name": "import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio' (156616) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -17122,12 +17392,27 @@
         "environment",
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [
         "PARAKEET_R6_TEST_ROOT"
       ],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::queued_create_only_publication_paths_reach_app_view",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+        "name": "queued_create_only_publication_paths_reach_app_view",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::queued_create_only_publication_paths_reach_app_view' (52972) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -17232,12 +17517,27 @@
         "resource_candidate",
         "return_to_review"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [
         "PARAKEET_R6_TEST_ROOT"
       ],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::resumed_create_only_publication_paths_reach_app_view",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+        "name": "resumed_create_only_publication_paths_reach_app_view",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::resumed_create_only_publication_paths_reach_app_view' (160688) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -17325,12 +17625,27 @@
         "resource_candidate",
         "return_to_review"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [
         "PARAKEET_R6_TEST_ROOT"
       ],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+        "name": "reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result' (82756) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -17413,12 +17728,27 @@
         "environment",
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [
         "PARAKEET_R6_TEST_ROOT"
       ],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::import_application_resumes_a_verified_interrupted_unified_import",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+        "name": "import_application_resumes_a_verified_interrupted_unified_import",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::import_application_resumes_a_verified_interrupted_unified_import' (134116) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -17501,12 +17831,27 @@
         "environment",
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [
         "PARAKEET_R6_TEST_ROOT"
       ],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+        "name": "failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity' (108608) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -17598,12 +17943,27 @@
         "resource_candidate",
         "return_to_review"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [
         "PARAKEET_R6_TEST_ROOT"
       ],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+        "name": "failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity",
+        "finding_group": "R5",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+        "diagnostic": "thread 'worker_ipc::tests::failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity' (161152) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf"
+      },
+      "required_reclassification": "NATIF",
+      "mixed_scenario_debt_required": true,
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -17744,10 +18104,26 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+        "name": "unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio",
+        "finding_group": "R6",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:91",
+        "diagnostic": "thread 'worker_ipc::tests::unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio' (60632) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_restart_and_pages.rs:91:27: | called `Result::unwrap()` on an `Err` value: Os { code: 3, kind: NotFound, message: \"Le chemin d’accès spécifié est introuvable.\" }"
+      },
+      "fixture_correction_required": "temporaire synthétique sans parent historique, ou NATIF si prérequis inséparable",
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_reclassification": "NATIF",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré",
+        "target/parakeet-tests/refacto-parakeet-live/p3-workers préparé (N2)"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -17791,10 +18167,26 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::unified_start_and_immediate_stop_keep_the_new_session_identity",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+        "name": "unified_start_and_immediate_stop_keep_the_new_session_identity",
+        "finding_group": "R6",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:371",
+        "diagnostic": "thread 'worker_ipc::tests::unified_start_and_immediate_stop_keep_the_new_session_identity' (103772) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_restart_and_pages.rs:371:27: | called `Result::unwrap()` on an `Err` value: Os { code: 3, kind: NotFound, message: \"Le chemin d’accès spécifié est introuvable.\" }"
+      },
+      "fixture_correction_required": "temporaire synthétique sans parent historique, ou NATIF si prérequis inséparable",
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_reclassification": "NATIF",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré",
+        "target/parakeet-tests/refacto-parakeet-live/p3-workers préparé (N2)"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -17838,10 +18230,26 @@
       "evidence_types": [
         "resource_candidate"
       ],
-      "resolved_category": "AUTONOME",
+      "resolved_category": "NATIF",
       "resolved_prerequisites": [],
       "resolution_reason": "controlled fake workers, deterministic IPC events and generated audio/temp paths; no real worker/model/DLL required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "NATIF_CONFIRMED_BY_REVIEW_V1_PENDING_GATING",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+        "name": "unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events",
+        "finding_group": "R6",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:425",
+        "diagnostic": "thread 'worker_ipc::tests::unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events' (166208) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_restart_and_pages.rs:425:27: | called `Result::unwrap()` on an `Err` value: Os { code: 3, kind: NotFound, message: \"Le chemin d’accès spécifié est introuvable.\" }"
+      },
+      "fixture_correction_required": "temporaire synthétique sans parent historique, ou NATIF si prérequis inséparable",
+      "registry_category_before_V1_diagnosis": "AUTONOME",
+      "required_reclassification": "NATIF",
+      "required_prerequisites_after_V1": [
+        "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "metadata et SHA-256 du modèle enregistré",
+        "target/parakeet-tests/refacto-parakeet-live/p3-workers préparé (N2)"
+      ]
     },
     {
       "crate": "whisper-adapters",
@@ -17877,7 +18285,17 @@
       "resolved_category": "AUTONOME",
       "resolved_prerequisites": [],
       "resolution_reason": "self-contained assertions using synthetic data and controlled ports; no model, DLL, corpus or real worker required",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_status": "SYNTHETIC_CONFIRMED_REQUIRES_TEMPORARY_ROOT_FIX",
+      "V1_failure": {
+        "qualified_name": "worker_ipc::tests::corrupt_archive_alias_cannot_borrow_canonical_foreign_identity",
+        "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+        "name": "corrupt_archive_alias_cannot_borrow_canonical_foreign_identity",
+        "finding_group": "R6",
+        "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:546",
+        "diagnostic": "thread 'worker_ipc::tests::corrupt_archive_alias_cannot_borrow_canonical_foreign_identity' (114172) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_restart_and_pages.rs:546:27: | called `Result::unwrap()` on an `Err` value: Os { code: 3, kind: NotFound, message: \"Le chemin d’accès spécifié est introuvable.\" }"
+      },
+      "fixture_correction_required": "temporaire synthétique sans parent historique, ou NATIF si prérequis inséparable",
+      "registry_category_before_V1_diagnosis": "AUTONOME"
     },
     {
       "crate": "whisper-adapters",
@@ -48528,12 +48946,13 @@
       "evidence_types": [
         "environment"
       ],
-      "resolved_category": "PENDING_USER",
+      "resolved_category": "AUTONOME",
       "resolved_prerequisites": [
         "WHISPER_TEST_DEADLINE_FIXTURE"
       ],
-      "resolution_reason": "parent-only deadline child fixture still returns successfully without its control environment; exact test-section scope expansion awaits user decision",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_reason": "synthetic child fixture ignored in ordinary runs and explicitly selected by parent with --ignored",
+      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW",
+      "resolved_explicitly_ignored_synthetic_helper": true
     },
     {
       "crate": "whisper-worker-cpu",
@@ -49495,12 +49914,13 @@
       "evidence_types": [
         "environment"
       ],
-      "resolved_category": "PENDING_USER",
+      "resolved_category": "AUTONOME",
       "resolved_prerequisites": [
         "WHISPER_TEST_DEADLINE_FIXTURE"
       ],
-      "resolution_reason": "parent-only deadline child fixture still returns successfully without its control environment; exact test-section scope expansion awaits user decision",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_reason": "synthetic child fixture ignored in ordinary runs and explicitly selected by parent with --ignored",
+      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW",
+      "resolved_explicitly_ignored_synthetic_helper": true
     },
     {
       "crate": "whisper-worker-gpu",
@@ -51864,12 +52284,13 @@
       "evidence_types": [
         "environment"
       ],
-      "resolved_category": "PENDING_USER",
+      "resolved_category": "AUTONOME",
       "resolved_prerequisites": [
         "WHISPER_TEST_DEADLINE_FIXTURE"
       ],
-      "resolution_reason": "parent-only deadline child fixture still returns successfully without its control environment; exact test-section scope expansion awaits user decision",
-      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW"
+      "resolution_reason": "synthetic child fixture ignored in ordinary runs and explicitly selected by parent with --ignored",
+      "resolution_status": "IMPLEMENTER_STATIC_CLASSIFICATION_PENDING_INDEPENDENT_REVIEW",
+      "resolved_explicitly_ignored_synthetic_helper": true
     },
     {
       "crate": "whisper-worker-parakeet-cpu",
@@ -52822,23 +53243,40 @@
   "resolution_summary": {
     "total": 855,
     "categories": {
-      "NATIF": 126,
-      "AUTONOME": 726,
-      "PENDING_USER": 3
+      "NATIF": 153,
+      "AUTONOME": 702
     },
     "initial_A_VERIFIER": 238,
     "resolved_initial_A_VERIFIER": {
-      "NATIF": 73,
-      "AUTONOME": 165
+      "NATIF": 100,
+      "AUTONOME": 138
     },
     "remaining_A_VERIFIER": 0,
-    "pending_user_fixtures": 3,
-    "independent_review": "LIVRE_AVEC_RESERVES_R2_OPEN_AFTER_TWO_CORRECTIONS",
+    "pending_user_fixtures": 0,
+    "independent_review": "R1_R4_CLOSED_R5_R6_OPEN_V1_FAIL",
     "assertion_tokens_implementer_claim": {
       "changed_rust_files": 41,
       "macro_occurrences_before": 2846,
       "macro_occurrences_after": 2846,
       "identical_tokens": true
+    },
+    "classification_validated": false,
+    "static_classification_invalidated_by_runtime": true,
+    "confirmed_missing_model_misclassifications": 27,
+    "additional_runtime_failures_pending_diagnosis_or_fixture_fix": 1,
+    "remaining_A_VERIFIER_after_V1": 0,
+    "categories_required_after_V1": {
+      "NATIF": 153,
+      "AUTONOME": 702
+    },
+    "diagnostic_only_not_code_corrected": true,
+    "registry_categories_before_V1": {
+      "AUTONOME": 729,
+      "NATIF": 126
+    },
+    "prior_static_initial_A_VERIFIER_resolution": {
+      "AUTONOME": 165,
+      "NATIF": 73
     }
   },
   "cargo_lists": {
@@ -52858,51 +53296,70 @@
     },
     "identity_multiset_implementer_claim": "IDENTICAL_834_TARGET_AND_NAME_PAIRS",
     "cargo_test_before_seconds": null,
-    "cargo_test_after_seconds": null,
-    "after_fixture_changes_requires_refresh": true
+    "cargo_test_after_seconds": 47.097,
+    "after_fixture_changes_requires_refresh": true,
+    "cargo_test_after_status": "FAIL_PARTIAL_WORKSPACE"
   },
   "independent_review": {
-    "candidate_epoch": 2,
-    "review_passes": 3,
-    "correction_passes": 2,
-    "verdict": "LIVRE_AVEC_RESERVES",
+    "candidate_epoch": 3,
+    "review_passes": 4,
+    "correction_passes": 3,
+    "verdict": "BLOCKED_V1_FAIL_NEW_FINDINGS",
     "closed_findings": [
       "R1",
+      "R2",
       "R3",
       "R4"
     ],
     "open_findings": [
       {
-        "id": "R2",
+        "id": "R5",
         "severity": "BLOQUANT",
-        "requirement": "CI: aucun test non ignoré sans native-tests ne lit une variable sans défaut synthétique",
-        "path": "ci/tests-baseline.txt",
-        "reason": "HELPER_DEFAULT manque pour crates/whisper-adapters/tests/source_binding.rs::root (PARAKEET_L2_ARCHIVE_ROOT), donc une régression vers expect ne serait pas détectée",
-        "minimal_correction": "Ajouter entrée nominative et fixture globale helper sans défaut rejeté / temp_dir accepté",
-        "authorization": "Deux corrections consommées ; décision utilisateur requise avant troisième correction"
+        "reason": "27 tests classés AUTONOME dans le registre source exigent des modèles Parakeet/Turbo réels ; trois exigent aussi une racine historique",
+        "required_correction": "gates NATIF, prérequis exacts et dette des scénarios mixtes ; aucun changement assertions ou production"
+      },
+      {
+        "id": "R6",
+        "severity": "BLOQUANT",
+        "reason": "corrupt_archive_alias_cannot_borrow_canonical_foreign_identity est synthétique mais exige parent historique absent",
+        "required_correction": "racine temporaire propre au test, aucune assertion modifiée"
       }
     ],
     "pending_user": [
-      "Six ajouts --ignored dans les parents des trois deadline_child_fixture, deux appels par tests/support/worker.rs"
+      "Arbitrage après échec Cargo et pour nouvelle correction au-delà du troisième cycle borné"
     ],
     "verification_gaps": [
-      "Structure doit passer après résolution fixtures et R2",
-      "cargo test --workspace non exécuté",
-      "listes finales non exécutées sur epoch 2",
-      "Clippy et fmt non exécutés"
-    ]
+      "workspace nettoyé",
+      "listes finales",
+      "Clippy",
+      "fmt"
+    ],
+    "diagnostic_explanation": {
+      "formerly_uncertain_cases": "prepare_segmented_capture appelle prepare_inner_impl qui exige metadata/SHA du modèle avant captured-source-parts.json ; Stop du gain utilise la même préparation ; modèle absent explique les deux symptômes",
+      "limits": "comportement après fourniture du modèle non démontré et interdit dans ce lot",
+      "helpers_consumers": "unified_import_request/unified_live_request recensés dans la cible privée adapters --lib ; consommateurs ignorés >1GiB et vraiMP3 restent non exécutés",
+      "remaining_readonly_audit": "autres consommateurs publics prepare_segmented_capture dans les autres cibles, distinguer refus attendus avant contrôle modèle"
+    }
   },
   "verification_current": {
     "guard_self_test": "PASS_EXIT_0",
-    "structure": "FAIL_EXIT_1_THREE_PENDING_USER_FIXTURES_ENV_AND_REGISTRY",
+    "structure": "PASS_EXIT_0",
     "structure_scratch_fixtures": "PASS_REPORTED_BY_IMPLEMENTER",
     "git_diff_check": "PASS",
-    "workspace_tests": "NOT_RUN",
-    "clippy": "NOT_RUN",
-    "fmt": "NOT_RUN",
-    "native_tests_executed": false,
-    "free_gib_final_partial": 177.33,
-    "code_delivery": "UNCOMMITTED_WORKTREE_BASED_ON_6a21622f"
+    "workspace_tests": "FAIL_EXIT_101",
+    "clippy": "NOT_RUN_STOPPED_AFTER_FAILURE",
+    "fmt": "NOT_RUN_STOPPED_AFTER_FAILURE",
+    "free_gib_final_partial": 177.12,
+    "code_delivery": "UNCOMMITTED_WORKTREE_BASED_ON_6a21622f",
+    "workspace_duration_seconds": 47.097,
+    "workspace_result_scope": "whisper-adapters --lib ONLY; subsequent workspace targets NOT_RUN",
+    "workspace_passed": 275,
+    "workspace_failed": 28,
+    "workspace_ignored": 21,
+    "final_lists": "NOT_RUN_STOPPED_AFTER_FAILURE",
+    "native_feature_enabled": false,
+    "native_runtime_executed": false,
+    "resource_dependent_tests_erroneously_attempted_as_autonomous": true
   },
   "partial_proof_archive": {
     "path": "C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\target\\parakeet-tests\\tests-autonomes\\archive\\tests-autonomes-partial-epoch2-20261101.zip",
@@ -52910,5 +53367,309 @@
     "sha256": "c3d3e6b057fa443f908121ea4857672445995c6af4a902e201e07cd0abd2eeb2",
     "entries_verified_sha256": true,
     "scope": "listes avant/après provisoires et échec de compilation TestList ; aucune validation finale"
+  },
+  "resumption_authority": {
+    "third_cycle_exception": true,
+    "R2_helper_entry_and_global_regression_fixture": true,
+    "three_synthetic_deadline_fixtures_and_six_parent_arguments": true,
+    "N1_remaining_checks": true,
+    "assertion_changes": false,
+    "production_changes": false,
+    "native_execution": false,
+    "fourth_cycle_implicitly_authorized": false
+  },
+  "structure_diagnostic_reviewed_epoch3": "tests=855 native-gated=125 registry=855 synthetic-env-helpers=7 silent=0",
+  "V1_failure_logs": {
+    "stdout": "target/parakeet-tests/tests-autonomes/scratch/20261101T082346893-96615d8533dd4595a7d198098b234d47/Tests.stdout.log",
+    "stderr": "target/parakeet-tests/tests-autonomes/scratch/20261101T082346893-96615d8533dd4595a7d198098b234d47/Tests.stderr.log"
+  },
+  "V1_failure_cases": [
+    {
+      "qualified_name": "worker_ipc::tests::controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+      "name": "controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification' (49512) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf | note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::corrupt_archive_alias_cannot_borrow_canonical_foreign_identity",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+      "name": "corrupt_archive_alias_cannot_borrow_canonical_foreign_identity",
+      "finding_group": "R6",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:546",
+      "diagnostic": "thread 'worker_ipc::tests::corrupt_archive_alias_cannot_borrow_canonical_foreign_identity' (114172) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_restart_and_pages.rs:546:27: | called `Result::unwrap()` on an `Err` value: Os { code: 3, kind: NotFound, message: \"Le chemin d’accès spécifié est introuvable.\" }",
+      "initial_diagnostic_group": "R6",
+      "required_category": "AUTONOME"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::controlled_runtime_recycles_scheduler_slots_across_many_unified_imports",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+      "name": "controlled_runtime_recycles_scheduler_slots_across_many_unified_imports",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::controlled_runtime_recycles_scheduler_slots_across_many_unified_imports' (58400) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::controlled_worker_and_invalid_times_leave_no_complete_archive",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+      "name": "controlled_worker_and_invalid_times_leave_no_complete_archive",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::controlled_worker_and_invalid_times_leave_no_complete_archive' (137084) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::export_collision_keeps_existing_file_and_does_not_publish_unified_archive",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+      "name": "export_collision_keeps_existing_file_and_does_not_publish_unified_archive",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::export_collision_keeps_existing_file_and_does_not_publish_unified_archive' (114432) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+      "name": "capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:1844",
+      "diagnostic": "thread 'worker_ipc::tests::capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state' (106852) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:1844:21: | capture reached Recoverable after archive completion=false: UnifiedParakeetSessionView { job_id: JobId(9427), generation: Generation(1), microphone_capture: true, destination: \"C:\\\\dev\\\\whisper\\\\target\\\\agent-worktrees\\\\tests-autonomes\\\\target\\\\parakeet-tests\\\\tests-autonomes\\\\temp\\\\tmp\\\\parakeet-unified-empty-snapshot-registry-143464\\\\archive\", source_path: \"C:\\\\dev\\\\whisper\\\\target\\\\agent-worktrees\\\\tests-autonomes\\\\target\\\\parakeet-tests\\\\tests-autonomes\\\\temp\\\\tmp\\\\parakeet-unified-empty-snapshot-registry-143464\\\\archive\\\\transcriptions\\\\000000000000000000000000000024d3\\\\1\\\\parakeet-unified/source.wav\", phase: Recoverable, captured_samples: 63840, durable_samples: 63840, total_samples: None, document_revision: 0, audio_parts_revision: 0, wav_path: None, txt_path: None, srt_path: None, message: Some(\"ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\") }; message=Some(\"Échec de la transcription micro : ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\")",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::global_close_waits_for_both_capture_publications_and_refuses_new_admission",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+      "name": "global_close_waits_for_both_capture_publications_and_refuses_new_admission",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:407",
+      "diagnostic": "thread 'worker_ipc::tests::global_close_waits_for_both_capture_publications_and_refuses_new_admission' (89156) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:407:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+      "name": "failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity' (161152) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+      "name": "import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:20",
+      "diagnostic": "thread 'worker_ipc::tests::import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio' (141744) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:20:9: | assertion failed: Path::new(&request_a.model_path).is_file()",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+      "name": "failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity' (108608) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+      "name": "import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published' (118172) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+      "name": "import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio' (156616) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::capture_identity_does_not_mask_existing_import_source_binding",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+      "name": "capture_identity_does_not_mask_existing_import_source_binding",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:1759",
+      "diagnostic": "thread 'worker_ipc::tests::capture_identity_does_not_mask_existing_import_source_binding' (115152) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:1759:14: | called `Result::unwrap()` on an `Err` value: \"ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\"",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+      "name": "import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports' (165532) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs",
+      "name": "live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs:1543",
+      "diagnostic": "thread 'worker_ipc::tests::live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish' (41312) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/microphone_and_finalization.rs:1543:9: | registered Turbo fixture is required",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::queued_create_only_publication_paths_reach_app_view",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+      "name": "queued_create_only_publication_paths_reach_app_view",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::queued_create_only_publication_paths_reach_app_view' (52972) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs",
+      "name": "native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:385",
+      "diagnostic": "thread 'worker_ipc::tests::native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call' (126112) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/native_execution.rs:385:9: | assertion failed: manual_capture_generation.join(\"captured-source-parts.json\").is_file()",
+      "initial_diagnostic_group": "UNCERTAIN",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+      "name": "reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result' (82756) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+      "name": "unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:91",
+      "diagnostic": "thread 'worker_ipc::tests::unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio' (60632) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_restart_and_pages.rs:91:27: | called `Result::unwrap()` on an `Err` value: Os { code: 3, kind: NotFound, message: \"Le chemin d’accès spécifié est introuvable.\" }",
+      "initial_diagnostic_group": "R6",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+      "name": "unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:425",
+      "diagnostic": "thread 'worker_ipc::tests::unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events' (166208) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_restart_and_pages.rs:425:27: | called `Result::unwrap()` on an `Err` value: Os { code: 3, kind: NotFound, message: \"Le chemin d’accès spécifié est introuvable.\" }",
+      "initial_diagnostic_group": "R6",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+      "name": "unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:849",
+      "diagnostic": "thread 'worker_ipc::tests::unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail' (133916) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:849:9: | assertion failed: Path::new(&request.model_path).is_file()",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::unified_capture_runtime_rejects_third_before_capture_factory",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+      "name": "unified_capture_runtime_rejects_third_before_capture_factory",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:34",
+      "diagnostic": "thread 'worker_ipc::tests::unified_capture_runtime_rejects_third_before_capture_factory' (143764) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:34:14: | called `Result::unwrap()` on an `Err` value: \"ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\"",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::import_application_resumes_a_verified_interrupted_unified_import",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+      "name": "import_application_resumes_a_verified_interrupted_unified_import",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::import_application_resumes_a_verified_interrupted_unified_import' (134116) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::unified_start_and_immediate_stop_keep_the_new_session_identity",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs",
+      "name": "unified_start_and_immediate_stop_keep_the_new_session_identity",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:371",
+      "diagnostic": "thread 'worker_ipc::tests::unified_start_and_immediate_stop_keep_the_new_session_identity' (103772) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_restart_and_pages.rs:371:27: | called `Result::unwrap()` on an `Err` value: Os { code: 3, kind: NotFound, message: \"Le chemin d’accès spécifié est introuvable.\" }",
+      "initial_diagnostic_group": "R6",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::unified_document_finalization_failure_releases_session_and_allows_replacement",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+      "name": "unified_document_finalization_failure_releases_session_and_allows_replacement",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:1609",
+      "diagnostic": "thread 'worker_ipc::tests::unified_document_finalization_failure_releases_session_and_allows_replacement' (116788) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:1609:14: | called `Result::unwrap()` on an `Err` value: \"ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\"",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::resumed_create_only_publication_paths_reach_app_view",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs",
+      "name": "resumed_create_only_publication_paths_reach_app_view",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138",
+      "diagnostic": "thread 'worker_ipc::tests::resumed_create_only_publication_paths_reach_app_view' (160688) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_import.rs:138:9: | required real Parakeet test model is missing: C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\crates\\whisper-adapters\\..\\..\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+      "name": "unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs:147",
+      "diagnostic": "thread 'worker_ipc::tests::unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready' (115160) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_support.rs:147:22: | Prepare did not return Prepared: Some(Failed { job_id: JobId(9424), generation: Generation(1), message: \"ModelMissing: Le chemin d’accès spécifié est introuvable. (os error 3)\" }); remaining=[]",
+      "initial_diagnostic_group": "R5",
+      "required_category": "NATIF"
+    },
+    {
+      "qualified_name": "worker_ipc::tests::unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets",
+      "path": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs",
+      "name": "unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets",
+      "finding_group": "R5",
+      "panic_site": "crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:2929",
+      "diagnostic": "thread 'worker_ipc::tests::unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets' (91192) panicked at crates\\whisper-adapters\\src\\worker_ipc\\tests/unified_capture.rs:2929:9: | assertion failed: ArchiveStore::scan(&archive_root).unwrap().iter().any(|entry| | entry.job_id == request.job_id && entry.complete)",
+      "initial_diagnostic_group": "UNCERTAIN",
+      "required_category": "NATIF"
+    }
+  ],
+  "V1_failure_proof_archive": {
+    "path": "C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\target\\parakeet-tests\\tests-autonomes\\archive\\tests-autonomes-v1-fail-epoch3-20261101.zip",
+    "file_count": 12,
+    "entries_verified_sha256": true,
+    "sha256": "056179293284d5ef7aff7e15f6f7c69762df77d8b9691dc67d274a8de942fba4",
+    "scope": "listes provisoires, échec TestList et échec workspace V1 ; pas de PASS global"
   }
 }

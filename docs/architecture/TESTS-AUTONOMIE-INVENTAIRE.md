@@ -1,6 +1,10 @@
-Avancée : candidat tests autonomes produit ; 238 incertitudes résolues et nombre de tests conservé dans les listes provisoires.
-Blocage : R2 CI reste ouvert après deux corrections ; trois fixtures de délai attendent une autorisation de périmètre ; validation finale non exécutée.
-Décision : LIVRÉ AVEC RÉSERVES, sans CLEAN ; aucun troisième correctif sans arbitrage utilisateur.
+Avancée : R1–R4 fermés après le troisième cycle autorisé ; contrôles N1 SelfTest et Structure réussis.
+Blocage : le workspace nettoyé échoue : 275 réussis, 28 échoués, 21 ignorés dans adapters --lib ; R5/R6 ouverts.
+Décision : campagne arrêtée après Cargo 101 ; aucun quatrième cycle ni nouvel appel de vérification sans arbitrage.
+
+## Reprise ciblée autorisée ensuite dans la session
+
+L'utilisateur a donné son accord écrit : « Je te donne les autorisations », puis a confirmé les six ajouts d'arguments des fixtures et choisi « Autoriser cette reprise ciblée (recommandé) » sur la question précise du troisième cycle exceptionnel. La reprise est bornée à R2 (entrée du helper source_binding::root et preuve globale), aux trois fixtures synthétiques et six arguments --ignored de leurs parents, puis aux vérifications N1 restantes déjà autorisées. Aucune assertion ni production à modifier, aucune exécution native. Le même implémenteur et le même reviewer reprennent ; les verdicts historiques ci-dessous sont conservés sans être réinterprétés.
 
 # Inventaire d’autonomie des tests — étape 1
 
@@ -1391,3 +1395,74 @@ Cette commande **n'a pas été exécutée**. Les gates de qualification et hooks
 ## Conservation des petites preuves de la remise partielle
 
 Archive locale : C:\dev\whisper\target\agent-worktrees\tests-autonomes\target\parakeet-tests\tests-autonomes\archive\tests-autonomes-partial-epoch2-20261101.zip ; 10 journaux, arborescence scratch préservée. Les dix contenus ont été relus depuis ZIP et comparés par SHA-256 aux originaux. SHA-256 du ZIP : c3d3e6b057fa443f908121ea4857672445995c6af4a902e201e07cd0abd2eeb2. Cette archive conserve les listes provisoires et l’échec TestList ; elle ne contient aucune preuve de workspace final, Clippy, fmt ou exécution native. Aucun original ni temporaire supprimé.
+
+
+## V1 après reprise ciblée — échec réel et nouveau diagnostic
+
+R1–R4 sont fermés par le même reviewer ; les trois fixtures et six arguments sont désormais corrigés et autorisés. SelfTest de la garde et Structure ont chacun réussi (code 0). La classification statique proposée ci-dessus demeure toutefois **invalidée par l’exécution nettoyée** ; elle ne constitue pas une preuve d’autonomie.
+
+Commande réellement exécutée : cargo test --offline --locked --workspace, via Mode Tests de la garde N1. Cargo **101**, **47,097 secondes**. Premier binaire adapters --lib : **275 passed, 28 failed, 21 ignored**. Les cibles suivantes du workspace ne sont pas exécutées. Il ne s’agit ni d’un PASS workspace ni d’un décompte consolidé des 834 tests. Listes finales, Clippy et fmt ont été arrêtés après cet échec, sans correctif ni nouvelle tentative.
+
+Journaux : target/parakeet-tests/tests-autonomes/scratch/20261101T082346893-96615d8533dd4595a7d198098b234d47/Tests.stdout.log et Tests.stderr.log. Aucun moteur, DLL ou matériel natif lancé selon le compte rendu de vérification ; des scénarios dépendant de ressources de modèles ont été tentés à tort comme autonomes. Il serait donc inexact de dire que tous les tests réellement lancés étaient autonomes.
+
+Le reviewer ouvre R5 (22 échecs directement liés à des modèles Parakeet/Turbo ou ModelMissing) et R6 (quatre racines historiques absentes, plus deux échecs encore à diagnostiquer). Les helpers unified_import_request / unified_live_request portent des chemins vers des modèles épinglés ; injecter un worker factice ne supprime pas cette dépendance. Les scénarios mixtes dépendants doivent rester entiers et être reclassés natifs, sans affaiblir leurs assertions. Les quatre tests de pages/redémarrage utilisent ../../target/parakeet-tests/refacto-parakeet-live/p3-workers ; un défaut temporaire synthétique est à étudier avant tout classement natif.
+
+La campagne est arrêtée conformément à la règle après échec. Les trois corrections autorisées sont consommées ; le diagnostic nominatif et le périmètre de reprise sont préparés en lecture seule pour arbitrage. Aucune production, assertion ou modèle ne peut être modifié pour faire passer ce contrôle.
+
+
+### Tableau nominatif des 28 échecs V1
+
+Le regroupement reprend les constats du reviewer et les blocs d’échec du journal, sans modifier le registre source. Les 22 classements AUTONOME de R5 sont contredits ; les deux cas incertains sont rouverts A_VERIFIER.
+
+| Test | Source | Groupe | Correction à autoriser / incertitude |
+| --- | --- | --- | --- |
+| controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| corrupt_archive_alias_cannot_borrow_canonical_foreign_identity | crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:546 | R6 | racine temporaire synthétique si suffisante ; sinon NATIF justifié |
+| controlled_runtime_recycles_scheduler_slots_across_many_unified_imports | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| controlled_worker_and_invalid_times_leave_no_complete_archive | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| export_collision_keeps_existing_file_and_does_not_publish_unified_archive | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state | crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:1844 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| global_close_waits_for_both_capture_publications_and_refuses_new_admission | crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:407 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio | crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:20 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| capture_identity_does_not_mask_existing_import_source_binding | crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:1759 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish | crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs:1543 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| queued_create_only_publication_paths_reach_app_view | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call | crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:385 | UNCERTAIN | origine de publication/archivage manquante à tracer en lecture seule |
+| reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio | crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:91 | R6 | racine temporaire synthétique si suffisante ; sinon NATIF justifié |
+| unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events | crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:425 | R6 | racine temporaire synthétique si suffisante ; sinon NATIF justifié |
+| unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail | crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:849 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| unified_capture_runtime_rejects_third_before_capture_factory | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:34 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| import_application_resumes_a_verified_interrupted_unified_import | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| unified_start_and_immediate_stop_keep_the_new_session_identity | crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs:371 | R6 | racine temporaire synthétique si suffisante ; sinon NATIF justifié |
+| unified_document_finalization_failure_releases_session_and_allows_replacement | crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:1609 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| resumed_create_only_publication_paths_reach_app_view | crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs:138 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready | crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs:147 | R5 | NATIF avec prérequis du modèle et dette du scénario mixte |
+| unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets | crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs:2929 | UNCERTAIN | origine de publication/archivage manquante à tracer en lecture seule |
+
+Archive complémentaire : C:\dev\whisper\target\agent-worktrees\tests-autonomes\target\parakeet-tests\tests-autonomes\archive\tests-autonomes-v1-fail-epoch3-20261101.zip ; 12 journaux, contenus et arborescence vérifiés par relecture du ZIP et SHA-256. SHA-256 du ZIP : 056179293284d5ef7aff7e15f6f7c69762df77d8b9691dc67d274a8de942fba4. Les archives et journaux précédents sont conservés. Aucune copie ou WAV temporaire supprimé.
+
+
+### Complément définitif du diagnostic en lecture seule
+
+Le même reviewer lève les deux incertitudes : prepare_segmented_capture appelle prepare_inner_impl, qui exige metadata et SHA-256 du modèle enregistré avant de créer captured-source-parts.json (archive/import.rs:176-195,324-343). Le fallback GPU conserve cette erreur dans manual_failure.message (poll_unified.rs:145-158) ; les assertions précédentes sur des sous-chaînes ne l'arrêtent pas. Le scénario de gain atteint la même préparation au Stop (runtime/live.rs:328-332). L'absence du modèle suffit donc à expliquer ces deux symptômes, sans démontrer le comportement si le modèle était fourni. Aucun modèle n'est fourni ni test relancé.
+
+Trois des quatre tests à racine historique utilisent aussi unified_live_request et l'archivage : déplacer leur racine seul ne suffirait pas. Le regroupement à corriger est donc **R5 = 27 tests natifs de modèle**, dont trois gardent aussi le prérequis de racine historique en N2 ; **R6 = un test purement synthétique**, corrupt_archive_alias_cannot_borrow_canonical_foreign_identity, auquel un temporaire propre suffit selon l'analyse statique. Les 27 corps et toutes leurs assertions restent entiers. Les catégories requises par ce diagnostic sont 153 NATIF / 702 AUTONOME pour 855 fonctions ; le registre source n'a pas encore été modifié pour appliquer ces 27 reclassements.
+
+Les deux helpers unifiés n'ont pas d'autres consommateurs trouvés hors du module privé tests worker_ipc de la cible adapters --lib exécutée. Deux consommateurs déjà ignorés restent non exécutés : controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts et import_application_decodes_real_mp3_and_publishes_full_unified_coverage. Le recensement des consommateurs de l'API publique prepare_segmented_capture dans d'autres cibles n'est pas exhaustif et doit précéder la prochaine campagne.
+
+### Périmètre concret proposé pour arbitrage R5/R6
+
+1. Compléter en lecture seule la recherche des consommateurs de préparation d'archives dans les autres cibles par défaut ; rattacher les prérequis aux tests, sans affaiblir les assertions ni ajouter de ressources réelles.
+2. Gater les 27 tests confirmés et les autres dépendances réelles prouvées lors de cette recherche avec native-tests ; prérequis exacts et dette TODO(DEBT-n) pour les scénarios mixtes conservés entiers ; mise à jour du registre/inventaire documentaire.
+3. Donner au seul test synthétique R6 une racine temporaire autonome ; aucun changement de production, Cargo.lock, modèles, garde historique ou assertions.
+4. Revue indépendante du delta et reprise des vérifications N1 restantes, commande par commande et arrêt sur nouvel échec. La reprise dépasse les trois corrections déjà consommées et requiert une autorisation de périmètre et de budget de revue avant tout code ou nouvel essai.
+
+Ces quatre tâches sont une proposition, pas une autorisation déduite. Aucun quatrième correctif n'est appliqué.
+
+Espace libre relevé à la clôture de cette reprise arrêtée : **177,12 Gio**. Le fichier Temp de l’incident et les sorties de campagne sont conservés en l’état.
