@@ -1,0 +1,300 @@
+{
+  "baselineCount": 834,
+  "currentCount": 834,
+  "missing": [],
+  "extra": [],
+  "multisetEqual": true,
+  "completed": [
+    {
+      "profile": "PreparationNoRun",
+      "status": "NO_RUN_PASS",
+      "cases": [
+        {
+          "case": "PreparationNoRun",
+          "exitCode": 0,
+          "status": "NO_RUN_PASS",
+          "elapsedSeconds": 95.273,
+          "stdout": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\PreparationNoRun-5588e9ec7b0e4c74b1b10532647785cb\\PreparationNoRun.stdout.log",
+          "stderr": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\PreparationNoRun-5588e9ec7b0e4c74b1b10532647785cb\\PreparationNoRun.stderr.log"
+        }
+      ],
+      "runRoot": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\runs\\PreparationNoRun-5588e9ec7b0e4c74b1b10532647785cb",
+      "logs": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\PreparationNoRun-5588e9ec7b0e4c74b1b10532647785cb"
+    },
+    {
+      "profile": "InventoryList",
+      "status": "LIST_PASS",
+      "cases": [
+        {
+          "case": "InventoryList",
+          "exitCode": 0,
+          "status": "LIST_PASS",
+          "elapsedSeconds": 27.859,
+          "stdout": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\InventoryList-cc95e146bf474a1e8cbd8ddffaad7740\\InventoryList.stdout.log",
+          "stderr": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\InventoryList-cc95e146bf474a1e8cbd8ddffaad7740\\InventoryList.stderr.log"
+        }
+      ],
+      "runRoot": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\runs\\InventoryList-cc95e146bf474a1e8cbd8ddffaad7740",
+      "logs": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\InventoryList-cc95e146bf474a1e8cbd8ddffaad7740"
+    },
+    {
+      "profile": "WasapiInventory",
+      "status": "PASS",
+      "cases": [
+        {
+          "case": "capture::tests::native_wasapi_input_catalog_has_stable_parseable_ids",
+          "exitCode": 0,
+          "status": "PASS",
+          "elapsedSeconds": 29.318,
+          "stdout": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\WasapiInventory-fa176267b0c646e9a4386a020b9b2221\\capture__tests__native_wasapi_input_catalog_has_stable_parseable_ids.stdout.log",
+          "stderr": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\WasapiInventory-fa176267b0c646e9a4386a020b9b2221\\capture__tests__native_wasapi_input_catalog_has_stable_parseable_ids.stderr.log"
+        }
+      ],
+      "runRoot": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\runs\\WasapiInventory-fa176267b0c646e9a4386a020b9b2221",
+      "logs": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\WasapiInventory-fa176267b0c646e9a4386a020b9b2221"
+    },
+    {
+      "profile": "WasapiCapture",
+      "status": "PASS",
+      "cases": [
+        {
+          "case": "capture::tests::native_selected_microphone_survives_initial_discontinuity",
+          "exitCode": 0,
+          "status": "PASS",
+          "elapsedSeconds": 4.147,
+          "stdout": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\WasapiCapture-33387db157ef4e1f85c52987e09d6f90\\capture__tests__native_selected_microphone_survives_initial_discontinuity.stdout.log",
+          "stderr": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\WasapiCapture-33387db157ef4e1f85c52987e09d6f90\\capture__tests__native_selected_microphone_survives_initial_discontinuity.stderr.log"
+        }
+      ],
+      "runRoot": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\runs\\WasapiCapture-33387db157ef4e1f85c52987e09d6f90",
+      "logs": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\WasapiCapture-33387db157ef4e1f85c52987e09d6f90"
+    },
+    {
+      "profile": "GpuCudaProbe",
+      "status": "PASS",
+      "cases": [
+        {
+          "case": "linked_gpu_worker_answers_a_native_cuda_probe_without_loading_a_model",
+          "exitCode": 0,
+          "status": "PASS",
+          "elapsedSeconds": 95.301,
+          "stdout": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\GpuCudaProbe-2131970a37004047a69d59a66994cf19\\linked_gpu_worker_answers_a_native_cuda_probe_without_loading_a_model.stdout.log",
+          "stderr": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\GpuCudaProbe-2131970a37004047a69d59a66994cf19\\linked_gpu_worker_answers_a_native_cuda_probe_without_loading_a_model.stderr.log"
+        }
+      ],
+      "runRoot": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\runs\\GpuCudaProbe-2131970a37004047a69d59a66994cf19",
+      "logs": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\logs\\GpuCudaProbe-2131970a37004047a69d59a66994cf19"
+    }
+  ],
+  "completedNativeBodies": 3,
+  "fullCampaignQualified": false,
+  "mergePerformed": false,
+  "blocking": "PersonalUnified/D2 need verified runtime copied into per-run LOCALAPPDATA; no staging hook exists",
+  "runtimeSeed": {
+    "root": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper",
+    "files": [
+      {
+        "relative": "app/whisper-desktop.exe",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\app\\whisper-desktop.exe",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\app\\whisper-desktop.exe",
+        "sha256": "aa19791bac66c4c31511bcaf209baa16d38168d27e7b737a8f8ddf925302328d",
+        "bytes": 15178752,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "app/whisper-worker-cpu.exe",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\app\\whisper-worker-cpu.exe",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\app\\whisper-worker-cpu.exe",
+        "sha256": "eb33d96b57ee47e5dcbe3238467df4f5656d055757374dbff5d58a5f751bbfef",
+        "bytes": 2443264,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "app/whisper-worker-gpu.exe",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\app\\whisper-worker-gpu.exe",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\app\\whisper-worker-gpu.exe",
+        "sha256": "5ff4c494b86754d563c5d41cc7cdcd1b2748aed9c9ffa5f929be29973cf6001b",
+        "bytes": 20902912,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "worker/whisper-worker-parakeet-cpu.exe",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\worker\\whisper-worker-parakeet-cpu.exe",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\worker\\whisper-worker-parakeet-cpu.exe",
+        "sha256": "a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d",
+        "bytes": 979456,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "worker/whisper-worker-parakeet-gpu.exe",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\worker\\whisper-worker-parakeet-gpu.exe",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\worker\\whisper-worker-parakeet-gpu.exe",
+        "sha256": "7ffb0b4a022ec26909a8939b37787de6df6c9bdb2903edf14d3ffb32579eefc1",
+        "bytes": 1084928,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/cpu/nemo_speech_asr.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\cpu\\nemo_speech_asr.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\cpu\\nemo_speech_asr.dll",
+        "sha256": "923a3a5258b196de6122e6ccc9b5cdd3e48c379dc53461e38921826b75f43019",
+        "bytes": 4192256,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/cpu/ggml-base.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\cpu\\ggml-base.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\cpu\\ggml-base.dll",
+        "sha256": "398cf89332451b547b44256d5e84bb5895a7c0fe97727e597be8989230544e0a",
+        "bytes": 680960,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/cpu/ggml-cpu.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\cpu\\ggml-cpu.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\cpu\\ggml-cpu.dll",
+        "sha256": "f7546413e1e6e248df0bc8a0745a414de4c36532b201b3ba219d86864b5f1ab0",
+        "bytes": 947200,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/cpu/nemo_speech_asr_c.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\cpu\\nemo_speech_asr_c.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\cpu\\nemo_speech_asr_c.dll",
+        "sha256": "9d67b716fe53accf05c8a1bb43fcac0a83f22c8425641f432ce1ed9dc871e764",
+        "bytes": 56320,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/cpu/ggml.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\cpu\\ggml.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\cpu\\ggml.dll",
+        "sha256": "2eff3c476a9796580ec788429c87e479dc33e1066c74a77cbe3a7a909734b794",
+        "bytes": 61952,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/gpu/ggml-base.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\ggml-base.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\gpu\\ggml-base.dll",
+        "sha256": "24b7342f10bc14e17dcb55ebafdbaa1a0fd0187cf5ae1a8ecf03bb9f8a17ef93",
+        "bytes": 680960,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/gpu/nemo_speech_asr.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\nemo_speech_asr.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\gpu\\nemo_speech_asr.dll",
+        "sha256": "4fac537a8d99a8cee4cd1dba2391379cb895fafb7d21beb9d6f4fe670be05449",
+        "bytes": 4209152,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/gpu/cublasLt64_12.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\cublasLt64_12.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\gpu\\cublasLt64_12.dll",
+        "sha256": "71705a7cf0923f4ab034d0d2620bbfc989ff669ac3d79f868b7a7c597ca559c5",
+        "bytes": 668673536,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/gpu/cudart64_12.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\cudart64_12.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\gpu\\cudart64_12.dll",
+        "sha256": "760c38928bbe5759f7b31ed6692599eb7ec83cedd5702e84c2b72028a89837e1",
+        "bytes": 583680,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/gpu/ggml-cuda.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\ggml-cuda.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\gpu\\ggml-cuda.dll",
+        "sha256": "7e244413387852825ed420fceef5e3b318f3a264f97f59fe0233789dfbdb6822",
+        "bytes": 33219072,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/gpu/cublas64_12.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\cublas64_12.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\gpu\\cublas64_12.dll",
+        "sha256": "52ce5ba0ec5327d39be6021f0f9362d2ed4d64d7206f9b5afc06398d827b8e82",
+        "bytes": 102518272,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/gpu/nemo_speech_asr_c.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\nemo_speech_asr_c.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\gpu\\nemo_speech_asr_c.dll",
+        "sha256": "6643c1c657f05bd545655044ec59fc052a789042ce9c17496b9c77a240c7bbb9",
+        "bytes": 56320,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/gpu/ggml.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\ggml.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\gpu\\ggml.dll",
+        "sha256": "9148ba2ed0eaeee385d09eba37e1a297d5e2f0649a02ffd4e325fea562c29ea6",
+        "bytes": 61952,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "native/gpu/ggml-cpu.dll",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\native\\gpu\\ggml-cpu.dll",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\native\\gpu\\ggml-cpu.dll",
+        "sha256": "23166143accf20055ccaafb8b720ad3dac33bf16ac027cc77225e0bb2a99e699",
+        "bytes": 947200,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "models/ggml-large-v3-turbo.bin",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\models\\ggml-large-v3-turbo.bin",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\models\\ggml-large-v3-turbo.bin",
+        "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+        "bytes": 1624555275,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      },
+      {
+        "relative": "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "source": "C:\\Users\\cyril\\AppData\\Local\\Whisper\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "stagedPath": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\resources\\personal-runtime\\Whisper\\models\\parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+        "bytes": 713975456,
+        "sourceUnmodified": true,
+        "copyMatched": true
+      }
+    ],
+    "fileCount": 21,
+    "totalBytes": 3196008875.0,
+    "intendedDestination": "LOCALAPPDATA/Whisper of each prepared native run",
+    "status": "Seed only - no run-local staging capability implemented",
+    "settingsCopied": false,
+    "installationChanged": false
+  },
+  "diskFreeBytes": 146902740992,
+  "archive": {
+    "file": "discovery-runs.zip",
+    "verifiedEntries": 57,
+    "allSourceSizesAndShaMatched": true,
+    "sha256": "7d84b31808c88b8eafc392600d54c91c40121a3c3d7ccb5279ce34aa5f87520e"
+  }
+}
