@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "BLOCKED_R8_NATIVE_DLL_DEPENDENCY_OUT_OF_SCOPE",
+  "status": "BLOCKED_R8_R9_DECOUPLING_STUDY_DRAFT",
   "source_commit": "248f86794c3a1e2d2b1ba6d5a7afafc84972535d",
   "branch": "refacto/tests-autonomes",
   "worktree": "C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes",
@@ -48590,8 +48590,8 @@
       "evidence_types": [],
       "resolved_category": "AUTONOME",
       "resolved_prerequisites": [],
-      "resolution_reason": "self-contained assertions using synthetic data and controlled ports; no model, DLL, corpus or real worker required",
-      "resolution_status": "TEST_BODY_CLASSIFICATION_N1_PASSED_WITH_TARGET_DLL_LIMIT",
+      "resolution_reason": "R9 : générateur d'oracle synthétique sans verdict automatique ; tous les Err sont imprimés et peuvent passer. AUTONOME décrit seulement les prérequis du corps ; ignore manuel proposé, non appliqué.",
+      "resolution_status": "R9_OPEN_REVIEWER_CONFIRMED_ORACLE_WITHOUT_VERDICT_AND_R8_TARGET_DLL_LIMIT",
       "target_runtime_dependency_gap": "R8: unité worker liée directement à cublas64_12.dll, cudart64_12.dll et nvcuda.dll, indépendamment de la logique du corps de test",
       "effective_execution_category": "NATIF",
       "effective_execution_prerequisites": [
@@ -53531,7 +53531,8 @@
       "AUTONOME": 165,
       "NATIF": 73
     },
-    "classification_validated_for_body_under_cleaned_environment": true,
+    "classification_validated_for_body_under_cleaned_environment": false,
+    "body_prerequisite_classification_does_not_prove_verdict": "R9 identifié après 86bf900d : capture_encoder_baseline est autonome au sens des entrées du corps, mais sans résultat attendu imposé",
     "machine_without_native_dll_qualified": false,
     "assertion_tokens_final": {
       "rust_files": 47,
@@ -54162,5 +54163,120 @@
     "sha256": "4633febdf987be7932d7000467b7c0f27a4d09fecbf300c79e46cbff7f03819e",
     "scope": "N1 sur machine équipée et preuve assertions ; R8 empêche qualification sans DLL"
   },
-  "free_gib_at_R8_handoff": 175.24
+  "free_gib_at_R8_handoff": 175.24,
+  "decoupling_study": {
+    "id": "DRAFT-R8-1",
+    "status": "DRAFT_NOT_DESIGN_READY",
+    "date": "2026-11-01",
+    "source_document_commit": "86bf900d",
+    "source_code_commit": "fb2171e8",
+    "user_authority": "Étudier le découplage des tests (recommandé), réponse de la présente session ; étude seulement",
+    "author": "session Codex principale",
+    "technical_contribution": "/root/r8_decoupling_architecture, DEC-T-R8-01 v1, lecture seule",
+    "report": "docs/architecture/TESTS-AUTONOMIE-INVENTAIRE.md#cadrage-r8--draft-r8-1-étude-autorisée-sans-implémentation",
+    "proposal": "Remplacer les deux harness unitaires natifs par deux cibles explicites tests/support/autonomous_harness.rs incluant les vrais modules et les mêmes 28 identités ; binaires test=false, dépendances inchangées ; code pur GPU extrait et réutilisé par vraie FFI ; opérations natives interdites terminant le processus",
+    "test_matrix_source": "native_dll_import_analysis.affected_unit_tests, complétée par la matrice du rapport",
+    "forbidden_port_contract": {
+      "precondition": "aucune entrée native atteinte par les 28 scénarios",
+      "failure": "diagnostic direct stderr puis process::exit(78), même si diagnostic impossible",
+      "reason": "une panique interceptable ou une valeur de remplacement pourrait produire un faux succès",
+      "proof": "revue des wrappers et consommateurs + témoin négatif dans variante de prototype ; NON EXÉCUTÉ"
+    },
+    "candidate_files": [
+      "crates/whisper-worker-cpu/Cargo.toml",
+      "crates/whisper-worker-gpu/Cargo.toml",
+      "crates/whisper-worker-cpu/tests/support/autonomous_harness.rs",
+      "crates/whisper-worker-gpu/tests/support/autonomous_harness.rs",
+      "crates/whisper-worker-gpu/src/native_ffi.rs",
+      "crates/whisper-worker-gpu/src/native_ffi/pure.rs",
+      "crates/whisper-worker-gpu/src/native_ffi/tests.rs",
+      "crates/whisper-worker-common/tests/support/native_boundary.rs",
+      "ci/guard-level1.ps1"
+    ],
+    "scope_extension_not_authorized": [
+      "Cargo.toml hors sections features pour déclarer bin/test",
+      "extraction GPU de production sans changement de corps",
+      "mode NoRun borné dans garde N1 distincte existante",
+      "prototype et racine exacte, variante négative avec cas de provocation supplémentaire hors candidat"
+    ],
+    "native_production_items_to_share": [
+      "validate_native_gpu_log",
+      "BackendRegistryEntry",
+      "whisper_gpu_position",
+      "validate_selected_cuda_registry_device",
+      "normalize_pci",
+      "CudaDevice",
+      "GgmlDevice"
+    ],
+    "sdk_scope_question": {
+      "status": "STRUCTURING_PENDING_USER",
+      "options": [
+        "sans DLL à l'exécution avec outils de compilation installés",
+        "sans DLL ni outils de compilation CUDA"
+      ],
+      "no_silent_scope_reduction": true,
+      "minimal_runtime_option_covers_sdk_free_build": false,
+      "sdk_free_candidate": "dépendances natives optionnelles et cibles required-features, changements de construction/consommateurs à cadrer séparément"
+    },
+    "feasibility": {
+      "R8.1_28_tests_same_real_modules": "NOT_RUN",
+      "R8.2_no_native_imports_or_dependency_closure": "NOT_PROVEN",
+      "R8.3_forbidden_port_cannot_succeed": "NOT_PROVEN",
+      "R8.4_total_834_and_multiplicity": "NOT_RUN",
+      "R8.5_product_workers_preserved": "NOT_RUN",
+      "R8.6_sdk_free_cold_build": "NOT_COVERED_PENDING_SCOPE",
+      "R8.7_native_windows_qualification": "OUT_OF_N1_SCOPE"
+    },
+    "proposed_spike": {
+      "id": "SPIKE-R8-01",
+      "authorized": false,
+      "executed": false,
+      "actor": "exécutant Rust distinct, après accord précis",
+      "root": "à proposer et faire approuver avant création",
+      "max_attempts": 1,
+      "max_duration_hours": 2,
+      "environment": "Windows x86_64 MSVC, Rust/Cargo 1.98.1, dépendances verrouillées hors ligne, outils CUDA disponibles pour compiler seulement",
+      "new_exact_guard_mode": "cargo test --offline --locked --workspace --no-run",
+      "guard": "extension bornée de ci/guard-level1.ps1 seulement, aucune modification de la garde historique ou surveillance",
+      "order": [
+        "préflight et auto-tests des arguments/racines/environnement/captures",
+        "compilation sans exécution et inspection PE des exécutables sélectionnés ; arrêt si lien moteur résiduel",
+        "listes/tests, 834 identités et mêmes assertions ; Clippy/format",
+        "variante négative du seul harness, cas de provocation ajouté sans modifier les tests existants ; diagnostic et arrêt 78, Cargo en échec ; fin de campagne",
+        "remise des preuves puis revue de faisabilité, aucune extension ou relance automatique"
+      ],
+      "negative_variant_is_not_candidate": true,
+      "no_native_execution": true,
+      "no_model_corpus_installation_or_dll_removal": true
+    },
+    "current_study_checks": "lecture de sources/manifestes et documentation officielle, comparaison Git et syntaxe documentaire seulement ; aucun Cargo, rustc ou prototype",
+    "independent_design_review": "PENDING_GIT_VERSIONED_REVIEW",
+    "primary_sources": [
+      "https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection",
+      "https://doc.rust-lang.org/cargo/reference/resolver.html#features",
+      "https://doc.rust-lang.org/cargo/reference/cargo-targets.html#target-auto-discovery",
+      "https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#platform-specific-dependencies",
+      "https://doc.rust-lang.org/std/process/fn.exit.html"
+    ]
+  },
+  "R9_oracle_without_verdict": {
+    "status": "OPEN_REVIEWER_CONFIRMED",
+    "requirement": "chaque passed correspond à une vérification réelle",
+    "path": "crates/whisper-worker-cpu/src/encoder/tests.rs",
+    "name": "capture_encoder_baseline",
+    "evidence": "lignes 11–17 : cinq push_pcm, deux finish ; lignes 22–28 résultats imprimés ; ligne 31 Err imprimé ; aucune sortie attendue imposée",
+    "all_seven_errors_can_pass": true,
+    "proposed_correction": "ignore permanent explicite diagnostic/oracle manuel ; corps et identité intacts, aucune assertion ajoutée ou modifiée",
+    "correction_applied": false,
+    "projection_if_applied_alone": {
+      "passed": 686,
+      "ignored": 148,
+      "total": 834,
+      "is_execution_result": false
+    },
+    "manual_run_limitation": "reste un diagnostic à interpréter, pas une validation automatique",
+    "body_prerequisite_category_is_not_verdict_proof": true,
+    "review_actor": "même rust_reviewer via autonomous_tests_review, lecture seule après 86bf900d",
+    "global_every_passed_has_verdict_proven": false
+  }
 }

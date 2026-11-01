@@ -1,10 +1,10 @@
-Avancée : vérifications N1 réussies sur machine équipée : 687 réussis, 0 échec, 147 ignorés ; assertions conservées.
-Blocage : R8, imports CUDA au démarrage des deux harness de tests workers ; objectif sans DLL natives non atteint dans le périmètre actuel.
-Décision : BLOCKED, pas de CLEAN global ; arrêt selon la règle 5, aucun changement de production ou de manifeste hors features.
+Avancée : étude du découplage R8 réalisée en lecture seule ; résultats N1 conservés : 687 réussites Cargo, 0 échec, 147 ignorés.
+Blocage : liaison des nouveaux harness non prouvée, portée sans SDK CUDA à décider ; R9 confirme un oracle manuel compté réussi sans verdict.
+Décision : cadrage DRAFT, objectif global toujours BLOCKED ; aucun prototype, changement de production ou de manifeste hors features réalisé.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
 
-Code commité localement : **fb2171e8**, branche **refacto/tests-autonomes**, worktree C:/dev/whisper/target/agent-worktrees/tests-autonomes. Aucun push. Ce commit conserve le candidat vérifié ; il ne signifie pas que l’objectif de machine sans DLL est atteint. R1–R7 sont fermés par le même reviewer ; R8 reste bloquant.
+Code commité localement : **fb2171e8**, branche **refacto/tests-autonomes**, worktree C:/dev/whisper/target/agent-worktrees/tests-autonomes. Aucun push. Ce commit conserve le candidat vérifié ; il ne signifie pas que l’objectif de machine sans DLL est atteint. R1–R7 sont fermés par le même reviewer ; R8 et le nouveau constat R9 restent ouverts. Les 687 réussites ci-dessous sont les résultats observés de Cargo, pas la preuve que chaque corps impose un verdict : R9 invalide cette dernière affirmation.
 
 ## Résultats réellement établis
 
@@ -49,11 +49,127 @@ Sources propriétaires : crates/whisper-worker-cpu/Cargo.toml:21 et crates/whisp
 
 Les SDK/DLL étaient disponibles sur la machine de validation et n’ont pas été retirés. Aucune exécution sur machine DLL-less n’a été faite ; l’analyse PE suffit à établir le prérequis et le risque de refus de démarrage, sans prétendre avoir testé cette machine. Aucune inférence native n’a été délibérément lancée et native-tests n’a jamais été activée, mais il serait inexact d’affirmer qu’aucune DLL native n’a été chargée. La dépendance de démarrage des deux targets limite **28 corps de tests** classés fonctionnellement AUTONOME dans le registre ; leurs entrées JSON portent effective_execution_category=NATIF et la liste des DLL. Les catégories du registre (160 NATIF / 695 AUTONOME) décrivent les corps et protections actuels, pas une preuve globale d’autonomie sans DLL.
 
-**Décisions de périmètre à soumettre :**
+L’utilisateur a choisi dans cette session **« Étudier le découplage des tests (recommandé) »**. Cet accord autorise le cadrage ci-dessous, sans autoriser de prototype ni de modification de production. L’acceptation des DLL CUDA comme prérequis n’a pas été retenue.
 
-1. Recommandation : autoriser une étude ciblée du découplage des harness et de la déclaration des cibles de tests/manifeste hors [features], pour établir un correctif qui conserve assertions, tests et comportement du produit. La route exacte reste à prouver avant implémentation.
-2. Si cette voie exige de conditionner les modules ou dépendances de production, préparer son périmètre précis pour accord distinct ; ne pas modifier la production à partir du mandat actuel.
-3. Alternative de réduction de l’objectif : accepter explicitement les DLL CUDA comme prérequis de la suite de développement ; cela ne satisfait pas l’objectif initial sans DLL.
+## Cadrage R8 — DRAFT-R8-1, étude autorisée, sans implémentation
+
+Auteur du document : session principale. Contribution technique : architecte Rust `/root/r8_decoupling_architecture`, version 1, sources Git **86bf900d** et code **fb2171e8**, lecture du 1er novembre 2026. Le cadrage reste dans ce rapport déjà prévu par la mission ; aucun autre dossier de cadrage ni mécanisme documentaire ajouté. La revue indépendante du cadrage est à consigner après versionnement. Le mandat de correction R1–R7 n’est pas prolongé par cette étude.
+
+### Besoin, invariants et acceptation
+
+Le développeur doit pouvoir lancer la suite par défaut sans préparation de modèles, corpus, environnement de campagne ou installation de DLL CUDA. Le résultat attendu reste celui de la mission initiale ; aucune réduction de « machine vierge » n’est acceptée par silence. Le choix entre absence de DLL à l’exécution avec outils de compilation installés et absence également des outils CUDA a été soumis à l’utilisateur ; réponse encore absente à cette révision.
+
+| ID | Source / obligation | Acceptation et état |
+| --- | --- | --- |
+| AC-R8-runtime | Mission, défaut sans DLL natives | Aucun exécutable de tests sélectionné par défaut n’importe directement ou indirectement les bibliothèques moteur CUDA ; imports directs/différés examinés avant lancement. NON PROUVÉ pour la proposition. |
+| AC-R8-build | Mission « machine vierge », portée à clarifier | Si absence d’outils CUDA requise, compilation à froid sans eux. NON COUVERT par la solution minimale ; aucune réduction autorisée. |
+| AC-R8-content | Règles 1, 2 et 4 | Les 28 identités ci-dessous restent présentes une seule fois dans leurs cibles de remplacement ; mêmes sujets réels, mêmes corps de tests et assertions. Aucun test mixte découpé. |
+| AC-R8-count | Critère de fin, étape 5 | Multiensemble des 834 identités conservé, avec correspondance explicite des deux cibles remplacées ; aucun doublon d’auto-détection. NON EXÉCUTÉ. |
+| AC-R8-port | Règle 3, absence de faux succès | Toute entrée moteur interdite termine le processus en échec, même depuis un chemin qui intercepterait une panique. Témoin négatif séparé requis. |
+| AC-R8-product | Règle 5 et périmètre Windows existant | Binaires, commandes IPC, CPU/GPU/Auto, recettes et comportement produit préservés ; seule extraction de code pur envisagée, sous accord distinct. Pas de qualification native dans cette étude. |
+| AC-R9-verdict | Objectif « chaque passed correspond à une vérification réelle » | Le générateur d’oracle sans verdict ne doit plus compter comme vérification par défaut ; classement manuel ignoré proposé, non appliqué. |
+
+Le parcours nominal envisagé est : préflight N1 → compilation sans exécution → inspection statique des exécutables sélectionnés → listes → tests autonomes → analyse/format. Une compilation en échec, un import natif résiduel, une identité perdue ou un appel interdit arrête le parcours. Le développeur reçoit les diagnostics et le code non nul dans les captures de processus vérifiées. Ce parcours n’est pas encore autorisé pour le prototype.
+
+### Architecture proposée : DEC-T-R8-01, décision technique proposée
+
+Dans les deux manifestes CPU/GPU, déclarer le binaire existant avec les mêmes nom/chemin et `test = false`, puis une cible `[[test]]` explicite nommée comme le package, racine candidate `tests/support/autonomous_harness.rs`, `harness = true`, `test = true`, sans `required-features`. La racine sous support évite sa découverte comme cible supplémentaire. Ce sont des sections hors de l’autorisation initiale limitée à `[features]`.
+
+Chaque nouveau harness inclurait les véritables fichiers de contrôle, worker, cache, décodage, IPC et qualification par chemin. Les algorithmes ne seraient pas recopiés. Les noms de modules et fonctions de tests resteraient identiques. Les parents de test `session` incluraient le vrai `session/control.rs`, mais pas la session native. Les opérations moteur non exercées par les scénarios seraient remplacées uniquement dans les harness par des entrées interdites.
+
+Le GPU exige une extraction de production limitée depuis `src/native_ffi.rs` vers `src/native_ffi/pure.rs` : `validate_native_gpu_log`, `BackendRegistryEntry`, `whisper_gpu_position`, `validate_selected_cuda_registry_device`, `normalize_pci`, `CudaDevice`, `GgmlDevice`. Le module FFI réutiliserait ces mêmes définitions, avec visibilité minimale et corps/types/erreurs conservés. Les trois tests purs actuellement inline seraient déplacés entiers dans `src/native_ffi/tests.rs`, inclus une seule fois sous `native_ffi::tests`. Ce sont des fichiers mêlant code pur et FFI, pas des tests mixtes à scinder. Aucun pointeur, appel étranger, callback, collecteur de log 16 Kio, Mutex, OnceLock ou unsafe ne serait déplacé ; aucun unsafe ajouté.
+
+| Composition | Autorisé dans le candidat proposé | Interdit / inchangé |
+| --- | --- | --- |
+| Harness CPU/GPU | core/common, dépendances Rust existantes, vrais modules purs et de contrôle | Aucun vrai startup, moteur, session native ou corps FFI dans le harness |
+| Ports de test | Signatures requises pour compiler les véritables worker/cache ; rejet commun sans retour | Aucun Ok, booléen, inventaire vide ou attestation simulant une réussite |
+| Binaires produit | Modules natifs existants et mêmes dépendances | Pas de branche de production pour tests, pas de changement de protocole ou de recette |
+| Manifeste | Cibles bin/test explicites | Aucune nouvelle crate/dépendance, aucune modification de Cargo.lock dans cette option |
+
+**Contrat de rejet proposé :** helper partagé de test, diagnostic direct sur stderr avec nom statique du port, puis `std::process::exit(78)`, y compris si le diagnostic ne peut être écrit. Un `panic!` seul peut être intercepté ou satisfaire un test attendant une panique ; il ne suffit pas. L’arrêt non nul doit remonter à Cargo, sans fenêtre Windows ni abort. [Rust, process::exit](https://doc.rust-lang.org/std/process/fn.exit.html).
+
+Les entrées concernées sont CPU/GPU `session::run_session` (signature actuelle, cache CPU `Option<(String,[u8;32],CpuEngine)>`, cache GPU `Option<CachedGpuEngine>`), GPU `GpuEngine::load(&str,u32,String) -> Result<Self,String>`, `attest(&self) -> Result<(),String>`, `matches_device(&self,u32,&str) -> bool`, et `native_ffi::{cuda_devices,ggml_devices,whisper_gpu_device_index}`. Le `CpuEngine` du harness serait uniquement un type ; les types purs d’inventaire seraient les vrais types extraits. Précondition : aucune de ces opérations n’est atteinte par les 28 scénarios actuels. Toute violation doit échouer ; aucun I/O métier ni global mutable ajouté.
+
+### Matrice des 28 identités conservées
+
+Les chemins sont relatifs au `src/` de la crate indiquée. Les fichiers de tests et leurs sujets réels sont conservés ; l’inclusion dans un autre exécutable ne transforme pas une copie d’algorithme en preuve.
+
+| Crate | Nom du test | Fichier / sujet réel | Composition nécessaire |
+| --- | --- | --- | --- |
+| CPU | `inaccessible_source_propagates_error` | decoder/tests.rs → decoder.rs | Module réel |
+| CPU | `capture_encoder_baseline` | encoder/tests.rs → encodeur commun | Corps intact ; R9, ignore manuel proposé |
+| CPU | `rejects_oversized_and_incomplete_frames_before_deserialization` | ipc/tests.rs → read_frame | Module réel |
+| CPU | `rejects_serialized_frames_over_one_mibibyte` | ipc/tests.rs → write_frame | Module réel |
+| CPU | `writer_accepts_limit_and_rejects_limit_plus_one_without_growing_past_it` | ipc_output/tests.rs → write_frame | Module réel |
+| CPU | `empty_and_disconnected_channels_do_not_stop_the_session` | session/control/tests.rs → take_stop | Vrai control, parent de test |
+| CPU | `wrong_stop_is_ignored_and_matching_stop_is_consumed` | session/control/tests.rs → take_stop | Idem |
+| CPU | `wrong_protocol_emits_correlated_failure_before_stopping` | session/control/tests.rs → take_stop et diagnostic | Idem |
+| CPU | `idle_worker_shutdown_exits_without_an_error_frame` | worker/tests.rs → run | Vrai worker, type moteur seulement ; session interdite |
+| GPU | `inaccessible_source_propagates_error` | decoder/tests.rs → decoder.rs | Module réel |
+| GPU | `verified_model_gpu_initialization_failure_is_retryable_and_correlated` | diagnostics/tests.rs → emit_gpu_initialization_failure | Module réel |
+| GPU | `gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt` | diagnostics/tests.rs → emit_gpu_revalidation_failure | Module réel |
+| GPU | `cache_target_matches_complete_device_identity` | engine_cache/tests.rs → same_gpu_target | Vrai cache ; moteur/FFI interdits |
+| GPU | `cached_engine_is_attested_again_and_evicted_on_failure` | engine_cache/tests.rs → attest_cached avec i32 | Idem ; aucune attestation native simulée |
+| GPU | `reattestation_requires_exact_cuda_and_ggml_ordinals_and_identity` | gpu_attestation.rs → attest_native_identity | Vrai module et types purs extraits |
+| GPU | `unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend` | gpu_qualification.rs → qualify_one | Vrai module ; inventaire interdit |
+| GPU | `duplicate_or_missing_join_endpoints_never_become_supported` | gpu_qualification.rs → qualify_one | Idem |
+| GPU | `missing_driver_or_required_symbol_is_unavailable_without_support_claim` | gpu_qualification.rs → qualify_one | Idem |
+| GPU | `intel_exclusion_uses_windows_identity_and_build_capability_without_cuda_join` | gpu_qualification.rs → qualify_one | Idem |
+| GPU | `rejects_oversized_and_incomplete_frames_before_deserialization` | ipc/tests.rs → read_frame | Module réel |
+| GPU | `writer_accepts_limit_and_rejects_limit_plus_one` | ipc/tests.rs → write_frame | Module réel |
+| GPU | `native_gpu_attestation_requires_a_fresh_matching_log` | native_ffi.rs:170–194 → validate_native_gpu_log | Code pur partagé ; test déplacé entier |
+| GPU | `native_gpu_attestation_rejects_failure_after_using_backend` | native_ffi.rs:197–201 → même fonction | Idem |
+| GPU | `whisper_position_counts_gpu_and_integrated_gpu_not_cuda_ordinals` | native_ffi.rs:204–230 → position/validation registre | Idem |
+| GPU | `empty_and_disconnected_channels_do_not_stop_the_session` | session/control/tests.rs → take_stop | Vrai control, parent de test |
+| GPU | `wrong_stop_is_ignored_and_matching_stop_is_consumed` | session/control/tests.rs → take_stop | Idem |
+| GPU | `wrong_protocol_emits_correlated_failure_before_stopping` | session/control/tests.rs → take_stop et diagnostic | Idem |
+| GPU | `idle_worker_shutdown_exits_without_an_error_frame` | worker/tests.rs → run | Vrai worker/cache ; session et moteur interdits |
+
+Autres ancres relues par l’architecte : worker.rs CPU/GPU:1–45 ; GPU engine_cache.rs:1–95, gpu_qualification.rs:1–145, gpu_attestation.rs:1–98, native_ffi.rs:1–166,233–283,428–440 ; Cargo.lock:3829–3847 pour whisper-rs 0.16.0 / whisper-rs-sys 0.15.0. Le cache local de build.rs whisper-rs-sys de cette version demande CUDA et GGML_CUDA ; aucune preuve d’exécution sans SDK n’en est déduite.
+
+### Limite SDK et options
+
+`test = false` supprime le harness du binaire par défaut, mais Cargo compile aussi les vrais binaires lorsque des tests d’intégration sont sélectionnés. Les dépendances normales restent obligatoires ; l’union des features du workspace inclut CUDA. L’absence de référence directe à whisper-rs dans le nouveau harness ne prouve pas à elle seule l’absence de liaison finale. Sources primaires : [sélection Cargo](https://doc.rust-lang.org/cargo/commands/cargo-test.html#target-selection), [résolution des features](https://doc.rust-lang.org/cargo/reference/resolver.html#features), [cibles et auto-détection](https://doc.rust-lang.org/cargo/reference/cargo-targets.html#target-auto-discovery).
+
+| Option | Effet / décision proposée |
+| --- | --- |
+| Ajouter seulement ignore/native-tests | Insuffisant : les imports précèdent les filtres |
+| test=false seul | Rejeté : 28 tests soustraits à la suite |
+| Harness séparés + code pur partagé + ports interdits | Recommandation pour supprimer le prérequis DLL à l’exécution ; prototype requis |
+| Bibliothèques pures communes aux binaires, extraction worker/cache | Plus de production et d’API modifiées ; nécessité non démontrée pour le seul runtime |
+| Dépendances natives optionnelles + cibles natives required-features | Piste pour éviter aussi les outils CUDA ; change les constructions produit et leurs consommateurs, à cadrer séparément avant tout accord de code |
+
+Une feature native activée par défaut conserverait le besoin du SDK ; une dépendance normale conditionnée par `cfg(test)` dans Cargo.toml ne fournit pas cette séparation. [Cargo, dépendances conditionnelles](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#platform-specific-dependencies). Les options qui changent les commandes de construction ne peuvent pas être adoptées alors que les recettes sont hors périmètre. Le candidat minimal ne revendique aucun gain de packaging ni redistribution des DLL du produit.
+
+### Risques et mandat de faisabilité proposé, non autorisé
+
+| Risque / sous-condition | Preuve nécessaire | État |
+| --- | --- | --- |
+| R8.1, fermeture de modules et 28 identités | Compilation et correspondance explicite des modules/fonctions, assertions identiques | NON EXÉCUTÉ |
+| R8.2, dépendance CUDA résiduelle | Tables PE directes/différées de tous les exécutables de tests sélectionnés ; fermeture des dépendances moteur | NON PROUVÉ |
+| R8.3, rejet détourné en succès | Contrôle des wrappers/consommateurs et témoin négatif de processus | NON PROUVÉ |
+| R8.4, perte/double découverte | Listes 834 avant/après, multiplicité et correspondance des deux cibles | NON EXÉCUTÉ |
+| R8.5, conservation des vrais workers | Revue des corps extraits, compilation, Clippy et format ; aucun lancement de worker réel | NON EXÉCUTÉ |
+| R8.6, absence du SDK | Autre composition des dépendances/cibles et preuve à froid, si exigée | Décision structurante ouverte, non couvert |
+| R8.7, qualification CPU/GPU/Auto/Windows | Validation native/livraison | Hors N1, jamais revendiquée |
+
+N/A motivés : aucun nouveau domaine, état persistant, migration, scheduling, protocole IPC, supervision ou mécanisme d’annulation ; les boucles produit restent inchangées. L’invariant de composition est que le code pur extrait sert simultanément la vraie FFI et les tests. Les journaux séparés de la garde ne bénéficient d’aucune atomicité commune nouvelle. Les seules transitions ajoutées au parcours de vérification sont compilation sans lancement → lecture PE → autorisation de lancer les tests autonomes si la fermeture est établie, sinon arrêt.
+
+**SPIKE-R8-01** proposé : acteur d’implémentation distinct, prototype isolé dont la racine exacte devra être approuvée, Windows x86_64 MSVC / pile verrouillée existante, outils CUDA disponibles pour compiler, une tentative de deux heures maximum, sans installation, suppression de DLL, modèle, corpus ou exécution de worker natif. Ce prototype ne démontrerait pas l’absence de besoin du SDK. Il ne s’agit pas d’un plan d’implémentation accepté.
+
+Neuf chemins candidats : les deux Cargo.toml ; les deux tests/support/autonomous_harness.rs ; GPU src/native_ffi.rs, src/native_ffi/pure.rs, src/native_ffi/tests.rs ; common tests/support/native_boundary.rs (rejet partagé, support de test seulement) ; ci/guard-level1.ps1. R9 ajouterait uniquement l’attribut ignore à CPU src/encoder/tests.rs, comme correction distincte à autoriser. Les deux documents existants du présent rapport restent les seuls livrables documentaires. Aucune nouvelle crate, dépendance, recette, Cargo.lock, ressource, garde historique ou surveillance n’est proposée.
+
+La garde N1 distincte actuelle refuse `--no-run` et les sélections ciblées. Avant prototype, l’accord doit donc nommer l’extension bornée de **cette seule garde** avec un mode `NoRun` pour `cargo test --offline --locked --workspace --no-run`, ses contrôles d’arguments et leurs auto-tests, en conservant les isolations/captures existantes. Aucune commande de compilation ne sera considérée déjà autorisée par le cadrage.
+
+Le protocole proposé compte cinq actions : (1) préflight et auto-tests ; (2) compiler sans lancer et examiner les vrais artefacts sélectionnés, arrêt si CUDA subsiste ; (3) listes/tests, avec 834 identités et assertions conservées, puis Clippy/format ; (4) variante négative du seul harness de prototype ajoutant un cas de provocation du port interdit, sans toucher aux tests existants, pour constater diagnostic direct, arrêt 78 du harness et échec Cargo ; (5) remise des preuves et revue de l’hypothèse. Le cas supplémentaire appartient exclusivement à la variante négative, jamais au candidat dont le total reste 834. Cet échec attendu termine la campagne ; aucune relance après échec sans arbitrage applicable. La variante négative est conservée comme preuve, sans nettoyage implicite.
+
+Succès du prototype : fermeture R8.1–R8.3 dans cet environnement seulement, puis retour du design en revue. Échec de compilation, identité perdue, import moteur résiduel ou rejet récupérable : arrêt, aucune extension automatique. L’accord sur ce prototype, son emplacement et ses chemins reste à obtenir ; ni DESIGN READY ni PLANS READY n’est déclaré.
+
+## R9 — Générateur d’oracle sans verdict automatique
+
+Le même reviewer indépendant confirme, après le bilan 86bf900d, que CPU `src/encoder/tests.rs:5–34`, `capture_encoder_baseline`, appelle cinq fois push_pcm et deux fois finish (lignes 11–17), puis imprime count/longueur/SHA (22–28) ou Err (31). Aucun résultat n’impose un succès d’encodage ni une sortie attendue. Sept erreurs peuvent donc être comptées réussies. Le classement AUTONOME du registre décrit ici l’absence de prérequis du corps, pas l’existence d’un verdict.
+
+Correction proposée : `#[ignore]` permanent avec raison explicite de diagnostic/oracle manuel, corps et identité intégralement conservés. Aucun ajout ou changement d’assertion. Appliquée seule, elle donnerait **686 exécutés / 148 ignorés / total 834** ; il s’agit d’une projection, aucun nouveau résultat exécuté. Une sélection manuelle resterait un diagnostic à interpréter, pas une vérification automatique. R9 est ouvert et aucune correction n’a été réalisée dans le présent cadrage.
 
 ## Changements, dette et limites
 
