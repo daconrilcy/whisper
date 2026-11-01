@@ -28,3 +28,14 @@ unsafe_code = "deny"
 
 [lints.clippy]
 all = "warn"
+
+[[bin]]
+name = "whisper-worker-gpu"
+path = "src/main.rs"
+test = false
+
+[[test]]
+name = "whisper-worker-gpu"
+path = "tests/support/autonomous_harness.rs"
+harness = true
+test = true
