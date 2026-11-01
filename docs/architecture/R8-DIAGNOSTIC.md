@@ -1,6 +1,6 @@
 Avancée : dépendance CUDA confirmée sur six artefacts CPU, dont le release et des copies locales de recette.
 Blocage : résolutions Cargo et compilations froides A/B/D suspendues, garde N1 inchangée incompatible.
-Décision : diagnostic partiel, aucun correctif ni option produit choisi ; arbitrage de garde nécessaire pour achever les mesures.
+Décision : diagnostic documentaire partiel relu CLEAN, aucun correctif choisi ; arbitrage de garde nécessaire pour achever les mesures.
 
 # R8-DIAG — cause et impact CPU
 
@@ -52,4 +52,4 @@ Le lanceur récent utilise le Turbo voisin du desktop ; LOCALAPPDATA sert à Par
 
 ## Non vérifié et arrêt
 
-Aucun Cargo, compilateur, worker, test ou modèle lancé ; aucune release reconstruite. La garde fixe ancienne racine/cible partagée et argv workspace, incompatibles avec tree/build CPU et targets neuves. [Constat et commandes prévues](raw/r8/execution-compatibility.json), [plan](raw/r8/plan.md). Pour achever : autoriser une extension N1 bornée de la garde, ou conserver ce diagnostic partiel ; aucune de ces décisions n’est présumée. Revue indépendante à consigner dans raw/r8 ; aucun fichier de code/configuration/garde modifié.
+Aucun Cargo, compilateur, worker, test ou modèle lancé ; aucune release reconstruite. La garde fixe ancienne racine/cible partagée et argv workspace, incompatibles avec tree/build CPU et targets neuves. [Constat et commandes prévues](raw/r8/execution-compatibility.json), [plan](raw/r8/plan.md). Pour achever : autoriser une extension N1 bornée de la garde, ou conserver ce diagnostic partiel ; aucune décision présumée. [Revue indépendante](raw/r8/review.json) : CLEAN sur 0e753893, six PE et fingerprints contre-vérifiés ; mission expérimentale non clôturée. Aucun code/configuration/garde modifié.
