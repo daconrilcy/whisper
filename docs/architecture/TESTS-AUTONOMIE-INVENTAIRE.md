@@ -1,8 +1,55 @@
-Avancée : prototype compilé et testé : 686 réussis, 0 échec, 148 ignorés ; 834 identités conservées, aucun import de moteur natif dans les 69 exécutables.
-Blocage : contrôle de format en défaut sur quatre fichiers déjà autorisés ; témoin négatif de sortie 78 encore à exécuter.
-Décision : correction mécanique de format dans le second cycle de revue ; pas de changement d’assertion ou d’algorithme, pas d’intégration au candidat principal.
+Avancée : prototype positif f2186cb7 CLEAN, 686 réussis / 0 échec / 148 ignorés ; témoin négatif accepté, preuves archivées.
+Blocage : aucun pour la faisabilité runtime du prototype ; intégration à refacto/tests-autonomes non autorisée et revue finale du cadrage à constater.
+Décision : proposer DEC-T-R8-01 v2 avec les outils de compilation acceptés ; préserver séparément le positif et la variante négative, sans push ni intégration implicite.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
+
+## Bilan du SPIKE — candidat positif et témoin séparé
+
+**Candidat positif : f2186cb7.** Le même reviewer Rust déclare **CLEAN pour le candidat positif et SPIKE-POS-1**, après fermeture R8-P1/R8-P2/R8-P3. Il accepte la réutilisation des preuves de 9df93659 après les seuls changements de format/imports de f2186cb7. Le contrôle Fmt final passe, code 0, **1,075 s**, logs `scratch/20261101T113531455-49572a38d7a447eb84d15a770a1725ad/`.
+
+| État | Exécutés et réussis | Ignorés | Total | Durée de la suite complète |
+| --- | ---: | ---: | ---: | ---: |
+| Inventaire initial, listes seulement | Non exécutés ; 768 sélectionnables | 66 | 834 | Non mesurée, pour éviter les tests alors natifs |
+| Candidat précédent fb2171e8, machine équipée | 687 | 147 | 834 | 47,336 s |
+| Prototype positif f2186cb7, environnement nettoyé | **686** | **148** | **834** | **22,350 s** |
+
+Les 834 identités avec multiplicité sont conservées, après correspondance des deux cibles remplacées. Les 28 tests concernés par R8 restent présents (9 CPU, 19 GPU) ; seul l’oracle CPU R9 devient ignoré, sans changer son corps. Ancienne catégorie de R9 : défaut/autonome au sens des prérequis ; nouvelle sélection : diagnostic manuel ignoré, raison « aucun verdict automatique ». Les autres reclassements et les dettes DEBT-1 à DEBT-11 restent ceux du tableau et du fichier de dette existants ; aucune dette supplémentaire inventée.
+
+**Témoin négatif : 53b5f608, à ne jamais intégrer.** Il ajoute un seul cas de provocation de cinq lignes au harness GPU, sans toucher à un test existant. Après SelfTest 0 et NoRun 0 (**2,101 s**), les 69 artefacts sont réexaminés : toujours 21 noms Windows/APIset/MSVC, aucun import moteur/CUDA ordinaire ou différé. La gate du même reviewer précède l’unique exécution Tests.
+
+Le journal `scratch/20261101T114030070-09b060e83ef142f3a9afece94baca837/Tests.stderr.log` prouve le diagnostic exact **forbidden native test port reached: native_ffi::cuda_devices**, suivi du processus GPU terminé à **78**. Le relevé de la garde mesure **Cargo 78**, **15,402 s**, puis le parent **PowerShell 1**, car la garde lève et arrête. Le code Cargo anticipé 101 n’est pas celui observé : le critère porte sur un arrêt non nul et non récupérable, pas sur ce numéro précis. Le reviewer accepte **SPIKE-NEG-1 CLEAN pour le témoin seul** ; aucune autre cause de compilation, panique ou assertion ne produit cet arrêt. Le journal négatif est partiel : ses groupes déjà terminés ne constituent jamais un bilan global de suite.
+
+La ligne N1_GUARD et le code parent ont été restitués à partir du résultat outil déjà reçu par l’implémenteur, sans relance ; cette provenance est explicite dans `wrapper-outcome-remise.txt`, voisin des journaux négatifs. La campagne est terminée après cet échec volontaire ; aucune reprise, suppression de DLL, recette, modèle ou validation native n’a été faite.
+
+### Fermeture technique et portée
+
+Contribution de clôture de l’architecte Rust `/root/r8_decoupling_architecture`, lecture seule du 1er novembre 2026, sources positives f2186cb7 et négatives 53b5f608 confrontées aux journaux :
+
+| Condition | Conclusion et limite |
+| --- | --- |
+| R8.1, vrais sujets/identités | PASS de faisabilité : mêmes fichiers réellement testés, 834 identités et 28 tests CPU/GPU conservés |
+| R8.2, dépendance DLL moteur | PASS dans le périmètre runtime accepté : modules natifs exclus des harness, 69 imports directs/différés examinés sans DLL moteur ; aucune exécution sur machine dont les DLL auraient été retirées |
+| R8.3, refus impossible à compter réussi | PASS du contrat examiné : tous les wrappers lus vont au rejet commun non retournant ; un port concret et le mécanisme commun sont exercés jusqu’à l’arrêt 78, pas tous les ports individuellement |
+| R8.4/R9, sélection par défaut | PASS sur le prototype : 686/0/148, 834 identités ; oracle manuel explicitement ignoré, corps intact |
+| R8.5, produit | Corps des quatre fonctions et champs/types des trois structures extraits conservés ; aucune qualification native, matériel ou fenêtre Windows revendiquée |
+| R8.6, outils de compilation | Hors exigence d’absence de SDK : leur installation a été acceptée explicitement par DEC-P-R8-01 |
+
+L’architecte propose **DEC-T-R8-01 v2** : conserver les deux harness séparés, le code pur FFI réellement partagé, les chemins explicites des douze déclarations de tests et les ports non retournants. Dépendances whisper-rs/CUDA, binaires produit, profils et recettes restent inchangés. Le produit livré conserve ses DLL ; aucun gain de packaging ni changement CPU/GPU/Auto n’est annoncé. Le dossier est prêt pour la revue finale de faisabilité ; PLANS READY et GO d’intégration ne sont pas déclarés par le SPIKE.
+
+### Assertions, petites preuves et absence de nettoyage
+
+Le Word-diff du candidat positif depuis 248f8679 est conservé sous `scratch/20261101T111312015-d0911ad07286451f9a0f03efdc79edf3/assertions-word-diff-tests-positive.txt` : **66 fichiers Rust**, contrôleur CI et sonde négative exclus. Le diff complet non filtré ajoute le contrôleur CI, soit 67 fichiers. La preuve précédente de 2 862 occurrences sur 47 fichiers reste valide ; la revue des trois tests FFI déplacés confirme **9 assertions identiques** (8 assert!, 1 assert_eq!), données et corps inchangés hors indentation. Les douze attributs et le format n’altèrent aucun corps testé. Il ne faut pas présenter le déplacement physique des neuf assertions comme une absence de lignes déplacées.
+
+Archive finale du SPIKE : `target/parakeet-tests/tests-autonomes/archive/spike-r8-positive-and-negative-20261101.zip`, **93 fichiers**, **284 747 octets**, arborescences conservées et SHA-256 de chaque entrée relu/comparé. Elle contient échecs historiques, preuves positives, témoin négatif, huit journaux de listes initiales/pré-prototype, relevés PE et Word-diff. SHA-256 : **a4a29b3fb59e6e0086153f603e7b75ed486ec29ceb73f8c3fbb016757882061b**. Espace libre après archivage : **173,01 Gio**. Aucun nettoyage de cache, WAV, dossier de campagne ou fichier Temp de l’incident.
+
+Correction du comptage Clippy : la lecture complète des résumés de cibles donne **75 occurrences avant / 92 sur le prototype**, doublons inclus ; les premières remises 34 et 82 ne décrivaient pas le total complet. Le nombre de diagnostics uniques n’est pas mesuré. Les deux commandes passent avec avertissements ; aucun -D warnings ni correction de lint hors périmètre n’est revendiqué.
+
+### Décision d’intégration à soumettre
+
+La branche demandée **refacto/tests-autonomes** reste au candidat précédent : le SPIKE n’y a rien intégré. Pour une intégration éventuelle, le delta positif contient **23 fichiers source/CI**, porté par les quatre seuls commits **61b0a21d, a7344a9e, 9df93659, f2186cb7**. **53b5f608 et son cas de provocation sont exclus**. Les deux documents existants restent écrits/versionnés par la session principale.
+
+Proposition bornée, non exécutée : reprendre ces quatre commits positifs dans le worktree initial, reporter le bilan utile dans les deux documents existants, puis refaire sous garde le préflight, NoRun, l’examen des nouveaux artefacts et les vérifications N1 demandées. La faisabilité d’un prototype n’est pas une autorisation d’intégration ; aucun cherry-pick, nouvelle dépendance, modification de Cargo.lock, recette, modèle ou ancienne garde n’est autorisé implicitement.
 
 ## Preuve positive du prototype 9df93659 — avant correction de format
 
