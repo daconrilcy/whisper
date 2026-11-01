@@ -1,0 +1,23 @@
+{
+  "actor": "/root/r8_decoupling_architecture",
+  "recorded_by": "session principale depuis la contribution brute de l'investigateur",
+  "date": "2026-11-01",
+  "method": "Python -B : lecture des octets en mémoire, répertoires PE Import et Delay Import, SHA-256 ; aucun binaire inspecté chargé ou exécuté",
+  "A_B_D_produced": false,
+  "cuda_dll_names": ["cublas64_12.dll","cudart64_12.dll","nvcuda.dll"],
+  "artifacts": [
+    {"id":"C_legacy_cpu_unit","path":"C:/dev/whisper/target/parakeet-tests/cargo-shared/debug/deps/whisper_worker_cpu-36e5609dfa82d3d1.exe","size":23261184,"sha256":"c75310b66d1ac829f98d4b4c7e963167e3c91ddb8d4f92c37ba9ba2a49e6e75e","last_write_utc":"2026-11-01T07:23:58.607588+00:00","direct_import_set":"cpu_legacy","delay_imports":[],"build_command":"inconnue ; métadonnées corrélées dans lecture.json"},
+    {"id":"normal_cpu_debug","path":"C:/dev/whisper/target/parakeet-tests/cargo-shared/debug/whisper-worker-cpu.exe","size":22687744,"sha256":"0dc1b75ba92d3cfa59d903c5a92e9bb858c136d40ce83fa72e399f11743e71e3","last_write_utc":"2026-11-01T11:10:28.090280+00:00","direct_import_set":"cpu_normal","delay_imports":[],"build_command":"non attribuée avec certitude à ce SHA"},
+    {"id":"normal_cpu_release","path":"C:/dev/whisper/target/parakeet-tests/cargo-shared/release/whisper-worker-cpu.exe","size":20834816,"sha256":"67e668ff75c0c59522c1e3cdb3529518938209d962e3c66aa5662bbad7001cf4","last_write_utc":"2026-10-31T15:30:30.004097+00:00","direct_import_set":"cpu_normal","delay_imports":[],"build_command":"non établie"},
+    {"id":"recipe_copy_998a732a","path":"C:/dev/whisper/target/parakeet-tests/refacto-parakeet-live/release-local-998a732a/whisper-worker-cpu.exe","size":20834816,"sha256":"67e668ff75c0c59522c1e3cdb3529518938209d962e3c66aa5662bbad7001cf4","last_write_utc":"2026-10-31T15:30:30.004097+00:00","direct_import_set":"cpu_normal","delay_imports":[],"build_command":"inconnue ; copie identique au release partagé ; nom du dossier ne prouve pas commit compilé"},
+    {"id":"recipe_copy_p3_t1","path":"C:/dev/whisper/target/parakeet-tests/refacto-parakeet-live/release-local-p3-t1/whisper-worker-cpu.exe","size":20834816,"sha256":"67e668ff75c0c59522c1e3cdb3529518938209d962e3c66aa5662bbad7001cf4","last_write_utc":"2026-10-31T15:30:30.004097+00:00","direct_import_set":"cpu_normal","delay_imports":[],"build_command":"inconnue ; copie identique au release partagé"},
+    {"id":"older_isolated_installation_CPU","path":"C:/dev/whisper/target/parakeet-tests/parakeet-unified/lot-04/isolated-localappdata/Whisper/app/whisper-worker-cpu.exe","size":20806144,"sha256":"adb23fbb2f6d8c6476144aa4de811a36d2cf2753ffebb40381c6eb6eaceb45da","last_write_utc":"2026-10-19T11:54:59.787855+00:00","direct_import_set":"cpu_normal","delay_imports":[],"build_command":"inconnue ; ancien artefact d'installation isolée, distinct du Turbo voisin du lanceur récent"}
+  ],
+  "direct_import_sets": {
+    "cpu_normal": ["api-ms-win-core-synch-l1-2-0.dll","bcryptprimitives.dll","cublas64_12.dll","cudart64_12.dll","nvcuda.dll","ADVAPI32.dll","KERNEL32.dll","ntdll.dll","MSVCP140.dll","VCRUNTIME140.dll","VCRUNTIME140_1.dll","api-ms-win-crt-string-l1-1-0.dll","api-ms-win-crt-runtime-l1-1-0.dll","api-ms-win-crt-stdio-l1-1-0.dll","api-ms-win-crt-heap-l1-1-0.dll","api-ms-win-crt-math-l1-1-0.dll","api-ms-win-crt-filesystem-l1-1-0.dll","api-ms-win-crt-convert-l1-1-0.dll","api-ms-win-crt-environment-l1-1-0.dll","api-ms-win-crt-locale-l1-1-0.dll"],
+    "cpu_legacy": ["api-ms-win-core-synch-l1-2-0.dll","bcryptprimitives.dll","KERNEL32.dll","cublas64_12.dll","cudart64_12.dll","nvcuda.dll","ADVAPI32.dll","ntdll.dll","USERENV.dll","MSVCP140.dll","VCRUNTIME140.dll","VCRUNTIME140_1.dll","api-ms-win-crt-math-l1-1-0.dll","api-ms-win-crt-string-l1-1-0.dll","api-ms-win-crt-runtime-l1-1-0.dll","api-ms-win-crt-stdio-l1-1-0.dll","api-ms-win-crt-heap-l1-1-0.dll","api-ms-win-crt-filesystem-l1-1-0.dll","api-ms-win-crt-convert-l1-1-0.dll","api-ms-win-crt-environment-l1-1-0.dll","api-ms-win-crt-locale-l1-1-0.dll"]
+  },
+  "timestamps_are_file_metadata_not_delivery_or_copy_dates": true,
+  "installation_search_scope": "installation personnelle attendue et racines locales identifiées ; pas de scan disque global",
+  "not_executed": ["worker","test","model","Cargo","rustc","CMake"]
+}

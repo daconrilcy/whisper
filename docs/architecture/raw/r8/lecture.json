@@ -1,0 +1,104 @@
+{
+  "actor": "/root/r8_decoupling_architecture",
+  "author_of_this_annex": "session principale",
+  "date": "2026-11-01",
+  "base_commit": "939fbbbe2016b453660cd0b834dc9f368995944e",
+  "method": "lecture source/configuration/fingerprints existants ; aucun Cargo, rustc, CMake, worker ou test lancé",
+  "sources": {
+    "workspace": {"path":"Cargo.toml","lines":"2-21","facts":"resolver=3, CPU et GPU membres ; aucun patch/replace ni whisper-rs hérité de workspace.dependencies","default_members":["crates/whisper-core","crates/whisper-adapters","crates/whisper-desktop","crates/whisper-bootstrap"],"default_members_already_exclude_all_workers":true},
+    "cpu": {"path":"crates/whisper-worker-cpu/Cargo.toml","lines":"9-13,21","facts":"default=[], whisper-rs0.16.0 sans défaut ; aucune feature CUDA demandée"},
+    "gpu": {"path":"crates/whisper-worker-gpu/Cargo.toml","lines":"21","facts":"même whisper-rs0.16.0, cuda et raw-api activés"},
+    "common": {"path":"crates/whisper-worker-common/Cargo.toml","facts":"aucun lien whisper-rs activant CUDA identifié"},
+    "lock": {"path":"Cargo.lock","lines":"3829-3847","facts":"whisper-rs0.16.0 et whisper-rs-sys0.15.0"},
+    "registry_root": "C:/Users/cyril/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f",
+    "whisper_rs_manifest": {"relative":"whisper-rs-0.16.0/Cargo.toml","lines":"28-35","facts":"default=[] ; cuda relaie whisper-rs-sys/cuda et _gpu"},
+    "sys_manifest": {"relative":"whisper-rs-sys-0.15.0/Cargo.toml","lines":"46-55","facts":"aucun défaut CUDA"},
+    "sys_build": {"relative":"whisper-rs-sys-0.15.0/build.rs","feature_conditions_lines":"51-65,203-206,336-337","env_forwarding_lines":"278-286","facts":"feature cuda active GGML_CUDA et les bibliothèques ; CUDA_PATH seul ne crée pas une feature ; GGML_*, WHISPER_* et CMAKE_* sont transmis à CMake"},
+    "ggml_cmake": {"relative":"whisper-rs-sys-0.15.0/whisper.cpp/ggml/CMakeLists.txt","line":195,"facts":"GGML_CUDA est OFF par défaut"},
+    "repo_config": {"path":".cargo/config.toml","lines":"3,6-7","facts":"CMAKE_CUDA_ARCHITECTURES=61-real forcé et optimisations C/C++ release ; aucun rustflags ou ajout global de librairie CUDA identifié"},
+    "user_config_candidates": ["C:/Users/cyril/.cargo/config","C:/Users/cyril/.cargo/config.toml"],
+    "user_configs_present": false,
+    "credentials_read": false
+  },
+  "current_build_environment": {
+    "CUDA_PATH": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9",
+    "CUDA_PATH_V12_9": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9",
+    "cuda_bin_in_PATH": true,
+    "absent": ["GGML_CUDA","CMAKE_CUDA_COMPILER","RUSTFLAGS","CARGO_ENCODED_RUSTFLAGS","LINK","_LINK_","CL","_CL_"],
+    "historical_environment_not_reconstructed": true
+  },
+  "historical_C_dependency_chain": {
+    "root": "C:/dev/whisper/target/parakeet-tests/cargo-shared/debug",
+    "cpu_fingerprint": ".fingerprint/whisper-worker-cpu-36e5609dfa82d3d1/test-bin-whisper-worker-cpu.json",
+    "cpu_features": ["default"],
+    "cpu_dependency_whisper_rs_fingerprint_decimal": "15715042592261791302",
+    "matched_whisper_rs_fingerprint": ".fingerprint/whisper-rs-b1996c310cbb9be3/lib-whisper_rs",
+    "matched_fingerprint_hex_little_endian": "46dee5cdf90b17da",
+    "whisper_rs_features": ["_gpu","cuda","raw-api"],
+    "whisper_rs_dependency_sys_fingerprint_decimal": "3508957454542974060",
+    "matched_sys_json": ".fingerprint/whisper-rs-sys-9afdc1bd82877671/lib-whisper_rs_sys.json",
+    "sys_features": ["cuda"],
+    "rustflags_in_correlated_records": [],
+    "associated_build_script_output": "build/whisper-rs-sys-df51f02d82d620e5/output",
+    "link_directives_lines_1_4": ["cublas","cudart","cublasLt","cuda"],
+    "static_libraries_lines_1425_1429": ["whisper","ggml","ggml-base","ggml-cpu","ggml-cuda"],
+    "original_command_for_binary_SHA_not_proven": true,
+    "not_a_fresh_cargo_tree_or_cold_build": true
+  },
+  "delivery_sources": {
+    "installer": "scripts/install-personal.ps1",
+    "source_destination_lines": "11-17",
+    "copy_cpu_gpu_lines": "448-449",
+    "facts": "release partagé vers app/ de l'installation personnelle ; ne prouve pas la commande de compilation du SHA actuel",
+    "historical_invocation": "C:/dev/whisper/target/parakeet-tests/l6-perso/logs/BuildWorkspace-invocation.json",
+    "historical_command": "cargo build --offline --locked --workspace",
+    "historical_exit_file": "C:/dev/whisper/target/parakeet-tests/l6-perso/logs/BuildWorkspace-exit-code.txt",
+    "historical_exit": 0,
+    "historical_invocation_is_release_build_or_attributes_current_sha": false,
+    "personal_installation_checked": "C:/Users/cyril/AppData/Local/Whisper",
+    "personal_installation_present": false,
+    "not_a_global_installation_absence_claim": true,
+    "installer_runs_Cargo": false,
+    "installer_attestation_read_lines": "206-225",
+    "release_build_procedures": [
+      {"path":"docs/cadrage/plan-parakeet-l6-perso.md","line":52,"command":"cargo build --offline --locked --release -p whisper-worker-cpu -p whisper-worker-gpu","same_invocation_cpu_gpu":true},
+      {"path":"docs/cadrage/plan-parakeet-transcription-unifiee.md","line":1507,"command":"cargo build --offline --locked --release -p whisper-worker-cpu -p whisper-worker-gpu","same_invocation_cpu_gpu":true},
+      {"path":"docs/cadrage/plan-whisper-worker-common.md","lines":"93-94","commands":["cargo build --offline --locked --release -p whisper-worker-cpu","cargo build --offline --locked --release -p whisper-worker-gpu"],"same_invocation_cpu_gpu":false}
+    ],
+    "one_automated_end_to_end_release_workflow_established": false,
+    "release_command_attributed_to_current_binary_SHA": false,
+    "recipe_launcher": {
+      "path":"C:/dev/whisper/target/parakeet-tests/refacto-parakeet-live/release-local-998a732a/Lancer-Whisper.cmd",
+      "LOCALAPPDATA_line":3,
+      "adjacent_executable_check_line":5,
+      "Parakeet_resource_lines":"6,8-12",
+      "Turbo_adjacent_announcement_line":16,
+      "desktop_launch_lines":"19-20",
+      "Turbo_CPU_GPU_root":"%~dp0, adjacent au desktop",
+      "Parakeet_root":"%LOCALAPPDATA%/Whisper"
+    },
+    "current_routing_source":{"path":"crates/whisper-desktop/src/root.rs","Turbo_adjacent_lines":"228-238,253-262","Parakeet_Perso_lines":"321-327,362-368,390-403"},
+    "older_isolated_Whisper_app_CPU_is_not_inferred_to_be_recent_launcher_Turbo_CPU": true
+  },
+  "product_flow": [
+    {"path":"crates/whisper-worker-cpu/src/native_engine.rs","lines":"29-32","fact":"use_gpu(false) est une décision runtime ; elle ne supprime pas les imports au chargement"},
+    {"path":"crates/whisper-core/src/compute_policy.rs","lines":"45-53","fact":"repli Auto GPU vers CPU avant audio ; échec CPU aboutit à Fail"},
+    {"path":"crates/whisper-adapters/src/supervisor.rs","lines":"43-61","fact":"sélection par présence fichier, sans qualification des DLL"},
+    {"path":"crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs","lines":"93-109","fact":"Auto relance CPU après échec de lancement GPU ; échec CPU devient WorkerExited"},
+    {"path":"crates/whisper-adapters/src/worker_ipc/ipc/mod.rs","lines":"58-69","fact":"lancement processus et conversion en WorkerExited"},
+    {"path":"crates/whisper-adapters/src/worker_ipc/runtime/poll.rs","lines":"397-427","fact":"arrêt/EOF worker traités"}
+  ],
+  "hypothesis_scope": {
+    "H1": "CONFIRMÉE comme mécanisme source, corroborée sur C par fingerprints ; comparaison froide A/B non mesurée",
+    "H2": "ÉCARTÉE dans les manifestes lus",
+    "H3": "NON DÉTERMINÉE historiquement ; CUDA_PATH seul n'active pas, GGML/CMAKE peuvent forcer",
+    "H4": "NON DÉTERMINÉE pour l'environnement historique ; aucun forçage global actuel ou dans rustflags de C observé",
+    "H5": "NON DÉTERMINÉE comme cause supplémentaire"
+  },
+  "new_B_subject_warning": "le test CPU no-run courant sélectionne désormais un harness autonome ; inspecter aussi le véritable binaire CPU qu'il compile, ne pas assimiler B au C legacy",
+  "official_sources": [
+    "https://doc.rust-lang.org/cargo/reference/resolver.html#features",
+    "https://doc.rust-lang.org/cargo/reference/features.html#feature-unification",
+    "https://learn.microsoft.com/en-us/windows/win32/dlls/load-time-dynamic-linking"
+  ]
+}

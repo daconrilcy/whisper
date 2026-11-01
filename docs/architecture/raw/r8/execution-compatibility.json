@@ -1,0 +1,44 @@
+{
+  "source_commit": "939fbbbe2016b453660cd0b834dc9f368995944e",
+  "method": "lecture seulement ; aucune invocation de garde ou Cargo",
+  "read_only_diagnosis_branch": "diag/r8-cuda-cpu",
+  "lot_root_proposed": "C:/dev/whisper/target/agent-worktrees/diag-r8-cuda-cpu/target/r8-diag",
+  "fresh_targets_explicitly_authorized_by_user": {
+    "A": "target/r8-diag/target-A",
+    "B": "target/r8-diag/target-B",
+    "D_if_H3_plausible": "target/r8-diag/target-D"
+  },
+  "specific_user_instruction_overrides_general_shared_target_rule": true,
+  "versioned_guard": {
+    "path": "ci/guard-level1.ps1",
+    "mode_and_root_lines": "1-17",
+    "argument_validation_lines": "51-72",
+    "fixed_cargo_target": "C:/dev/whisper/target/parakeet-tests/cargo-shared",
+    "fixed_campaign_root": "target/parakeet-tests/tests-autonomes",
+    "accepts_cargo_tree": false,
+    "accepts_cargo_build_cpu": false,
+    "accepts_package_cpu_no_run": false,
+    "accepts_fresh_per_case_target": false,
+    "selftest_not_invoked": "il créerait des sorties dans l'ancienne racine non autorisée par ce lot"
+  },
+  "other_existing_guards_examined": [
+    {"path":"C:/dev/whisper/target/parakeet-tests/clippy-core/guard.ps1","source_findings":"target partagé imposé, racine clippy-core, paramètres Run mais pas de racine de lot libre"},
+    {"path":"C:/dev/whisper/target/parakeet-tests/clippy-adapters-desktop/guard.ps1","source_findings":"target partagé imposé, watchers armés, racine propre historique"},
+    {"path":"C:/dev/whisper/target/parakeet-tests/refacto-parakeet-live/guard.ps1","source_findings":"target partagé imposé et watchers armés ; non conforme N1 sans modification"}
+  ],
+  "not_executed_commands": [
+    "cargo tree --offline --locked --workspace -e features -i whisper-rs",
+    "cargo tree --offline --locked --workspace -e features -i whisper-rs-sys",
+    "cargo tree --offline --locked -p whisper-worker-cpu -e features -i whisper-rs-sys",
+    "cargo tree --offline --locked -p whisper-worker-gpu -e features -i whisper-rs-sys",
+    "cargo build --offline --locked -p whisper-worker-cpu",
+    "cargo test --offline --locked -p whisper-worker-cpu --no-run"
+  ],
+  "execution_status": "BLOCKED_NO_COMPATIBLE_UNMODIFIED_N1_GUARD",
+  "no_guard_script_configuration_or_source_modified": true,
+  "allowed_progress": "lecture source, inspection statique de binaires existants et rapport ; ne pas présenter comme mesure contrôlée A/B/D",
+  "arbitration_options": [
+    "autoriser une extension bornée de la garde N1 existante pour les commandes exactes et racines A/B/D de ce lot, avec auto-tests N1, sans surveillance",
+    "conserver la garde intacte et accepter un diagnostic partiel sans les résolutions Cargo ni les compilations froides"
+  ]
+}
