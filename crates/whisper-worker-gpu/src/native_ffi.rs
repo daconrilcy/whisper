@@ -1,6 +1,15 @@
 #![allow(unsafe_code)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
+mod pure;
+#[cfg(test)]
+mod tests;
+
+pub use self::pure::{CudaDevice, GgmlDevice};
+use self::pure::{
+    BackendRegistryEntry, normalize_pci, validate_native_gpu_log,
+    validate_selected_cuda_registry_device, whisper_gpu_position,
+};
 use std::sync::{Mutex, OnceLock};
 
 const MAX_NATIVE_LOG_BYTES: usize = 16 * 1024;
@@ -42,43 +51,6 @@ pub fn finish_native_gpu_phase(expected_backend: &str) -> Result<(), String> {
     validate_native_gpu_log(&phase.text, expected_backend, false)
 }
 
-fn validate_native_gpu_log(
-    text: &str,
-    expected_backend: &str,
-    overflowed: bool,
-) -> Result<(), String> {
-    if overflowed {
-        return Err("native GPU attestation log exceeded its bound".into());
-    }
-    let mut using = Vec::new();
-    let mut failure = None;
-    for line in text.lines() {
-        let lower = line.to_ascii_lowercase();
-        if lower.contains("failed to initialize") && lower.contains("backend") {
-            failure = Some(line.trim().to_owned());
-        }
-        if lower.contains("no gpu found") {
-            failure = Some(line.trim().to_owned());
-        }
-        if let Some(start) = line.find("using ")
-            && let Some(end) = line[start + 6..].find(" backend")
-        {
-            using.push(line[start + 6..start + 6 + end].trim().to_owned());
-        }
-    }
-    if let Some(failure) = failure {
-        return Err(format!(
-            "native GPU initialization reported failure: {failure}"
-        ));
-    }
-    if using.len() != 1 || using.first().is_none_or(|name| name != expected_backend) {
-        return Err(format!(
-            "native GPU backend attestation missing or contradictory: expected {expected_backend}, observed {using:?}"
-        ));
-    }
-    Ok(())
-}
-
 fn install_native_log_callback() {
     static INSTALLED: OnceLock<()> = OnceLock::new();
     INSTALLED.get_or_init(|| {
@@ -114,120 +86,6 @@ unsafe extern "C" fn native_log_callback(
     }
     phase.bytes += message.len();
     phase.text.push_str(&String::from_utf8_lossy(message));
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct BackendRegistryEntry {
-    registry_index: u32,
-    gpu_or_igpu: bool,
-    name: String,
-    pci_id: Option<String>,
-}
-
-fn whisper_gpu_position(
-    entries: &[BackendRegistryEntry],
-    target_registry_index: u32,
-) -> Result<u32, String> {
-    let mut position = 0_u32;
-    for entry in entries {
-        if !entry.gpu_or_igpu {
-            continue;
-        }
-        if entry.registry_index == target_registry_index {
-            return Ok(position);
-        }
-        position = position
-            .checked_add(1)
-            .ok_or("Whisper GPU index overflow")?;
-    }
-    Err(format!(
-        "GGML registry device {target_registry_index} is not selectable by Whisper"
-    ))
-}
-
-fn validate_selected_cuda_registry_device(
-    selected: &BackendRegistryEntry,
-    expected_pci_id: &str,
-) -> Result<(), String> {
-    if !selected.gpu_or_igpu
-        || !selected.name.starts_with("CUDA")
-        || selected
-            .pci_id
-            .as_deref()
-            .is_none_or(|pci| normalize_pci(pci) != normalize_pci(expected_pci_id))
-    {
-        return Err(
-            "selected GGML registry position no longer identifies the CUDA PCI device".into(),
-        );
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn native_gpu_attestation_requires_a_fresh_matching_log() {
-        assert!(validate_native_gpu_log("", "CUDA0", false).is_err());
-        assert!(
-            validate_native_gpu_log(
-                "whisper_backend_init_gpu: using CUDA0 backend\n",
-                "CUDA0",
-                false
-            )
-            .is_ok()
-        );
-        assert!(
-            validate_native_gpu_log(
-                "whisper_backend_init_gpu: using CUDA1 backend\n",
-                "CUDA0",
-                false
-            )
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn native_gpu_attestation_rejects_failure_after_using_backend() {
-        let lines = "whisper_backend_init_gpu: using CUDA0 backend\nwhisper_backend_init_gpu: failed to initialize CUDA0 backend\n";
-        assert!(validate_native_gpu_log(lines, "CUDA0", false).is_err());
-    }
-
-    #[test]
-    fn whisper_position_counts_gpu_and_integrated_gpu_not_cuda_ordinals() {
-        let registry = [
-            BackendRegistryEntry {
-                registry_index: 0,
-                gpu_or_igpu: false,
-                name: "CPU".into(),
-                pci_id: None,
-            },
-            BackendRegistryEntry {
-                registry_index: 1,
-                gpu_or_igpu: true,
-                name: "CUDA0".into(),
-                pci_id: Some("0000:00:00.0".into()),
-            },
-            BackendRegistryEntry {
-                registry_index: 2,
-                gpu_or_igpu: true,
-                name: "IGPU0".into(),
-                pci_id: Some("0000:00:01.0".into()),
-            },
-            BackendRegistryEntry {
-                registry_index: 5,
-                gpu_or_igpu: true,
-                name: "CUDA1".into(),
-                pci_id: Some("0000:01:00.0".into()),
-            },
-        ];
-        assert_eq!(whisper_gpu_position(&registry, 5).unwrap(), 2);
-        assert!(whisper_gpu_position(&registry, 0).is_err());
-        assert!(validate_selected_cuda_registry_device(&registry[3], "0000:01:00.0").is_ok());
-        assert!(validate_selected_cuda_registry_device(&registry[3], "0000:02:00.0").is_err());
-        assert!(validate_selected_cuda_registry_device(&registry[2], "0000:00:01.0").is_err());
-    }
 }
 
 pub fn whisper_gpu_device_index(
@@ -272,14 +130,6 @@ pub fn whisper_gpu_device_index(
         .ok_or_else(|| "selected GGML device disappeared from registry".to_owned())?;
     validate_selected_cuda_registry_device(selected, expected_pci_id)?;
     Ok((position, selected.name.clone()))
-}
-
-fn normalize_pci(value: &str) -> String {
-    let normalized = value.trim().replace('-', ":").to_ascii_lowercase();
-    normalized
-        .strip_prefix("00000000:")
-        .unwrap_or(&normalized)
-        .to_owned()
 }
 
 pub fn cuda_backend_available() -> bool {
@@ -422,21 +272,6 @@ pub fn cuda_devices() -> Result<Vec<CudaDevice>, String> {
 #[cfg(not(windows))]
 pub fn cuda_devices() -> Result<Vec<CudaDevice>, String> {
     Err("CUDA device inspection is available only on Windows".into())
-}
-
-#[derive(Clone, Debug)]
-pub struct CudaDevice {
-    pub ordinal: u32,
-    pub luid: Option<u64>,
-    pub pci_id: Option<String>,
-    pub compute: Option<(i32, i32)>,
-}
-
-#[derive(Clone, Debug)]
-pub struct GgmlDevice {
-    pub ordinal: u32,
-    pub pci_id: Option<String>,
-    pub ready: bool,
 }
 
 pub fn ggml_devices() -> Vec<GgmlDevice> {

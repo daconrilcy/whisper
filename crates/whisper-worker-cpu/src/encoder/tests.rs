@@ -2,6 +2,7 @@ use super::*;
 use sha2::{Digest, Sha256};
 
 #[test]
+#[ignore = "manual diagnostic oracle: generated output has no asserted expected value"]
 fn capture_encoder_baseline() {
     let pcm: Vec<i16> = (0..32_123)
         .map(|i| ((i * 997) % 60_001 - 30_000) as i16)

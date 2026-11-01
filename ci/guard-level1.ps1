@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('SelfTest', 'TestList', 'IgnoredList', 'Tests', 'Clippy', 'Fmt', 'Structure')]
+    [ValidateSet('SelfTest', 'NoRun', 'TestList', 'IgnoredList', 'Tests', 'Clippy', 'Fmt', 'Structure')]
     [string]$Mode
 )
 
@@ -14,7 +14,7 @@ $cargoHome = Join-Path $guardRoot 'cargo-home'
 $tempRoot = Join-Path $guardRoot 'temp'
 $scratchRoot = Join-Path $guardRoot 'scratch'
 $runRoot = $null
-$allowedCargoModes = @('TestList', 'IgnoredList', 'Tests', 'Clippy', 'Fmt')
+$allowedCargoModes = @('NoRun', 'TestList', 'IgnoredList', 'Tests', 'Clippy', 'Fmt')
 
 function Get-FullPath([string]$Path) {
     [IO.Path]::GetFullPath($Path).TrimEnd('\')
@@ -51,6 +51,7 @@ function Initialize-Directory([string]$Path, [string]$Name) {
 
 function Get-CargoArguments([string]$SelectedMode) {
     switch ($SelectedMode) {
+        'NoRun'       { return @('test', '--offline', '--locked', '--workspace', '--no-run') }
         'TestList'    { return @('test', '--offline', '--locked', '--workspace', '--', '--list') }
         'IgnoredList' { return @('test', '--offline', '--locked', '--workspace', '--', '--ignored', '--list') }
         'Tests'       { return @('test', '--offline', '--locked', '--workspace') }
@@ -181,7 +182,7 @@ function Set-CleanEnvironment([string]$SelectedMode) {
 }
 
 function Invoke-SelfTests {
-    foreach ($selected in @('TestList', 'IgnoredList', 'Tests', 'Clippy', 'Fmt')) {
+    foreach ($selected in @('NoRun', 'TestList', 'IgnoredList', 'Tests', 'Clippy', 'Fmt')) {
         $arguments = @(Get-CargoArguments $selected)
         Assert-ModeArguments $selected $arguments
     }
@@ -194,7 +195,13 @@ function Invoke-SelfTests {
         try { Assert-ModeArguments 'TestList' $invalid } catch { $rejected = $true }
         if (-not $rejected) { throw 'Self-test accepted an invalid Cargo command' }
     }
-    if ($allowedCargoModes.Count -ne 5) { throw 'Self-test failed to enumerate all level-1 Cargo modes' }
+    $rejectedNoRun = $false
+    try { Assert-ModeArguments 'NoRun' @('test', '--offline', '--locked', '--workspace') } catch { $rejectedNoRun = $true }
+    if (-not $rejectedNoRun) { throw 'Self-test accepted a NoRun command without --no-run' }
+    $rejectedRun = $false
+    try { Assert-ModeArguments 'NoRun' @('test', '--offline', '--locked', '--workspace', '--features', 'native-tests', '--no-run') } catch { $rejectedRun = $true }
+    if (-not $rejectedRun) { throw 'Self-test accepted a NoRun command with native-tests' }
+    if ($allowedCargoModes.Count -ne 6) { throw 'Self-test failed to enumerate all level-1 Cargo modes' }
     $guardText = Get-Content -LiteralPath $PSCommandPath -Raw
     $watcherPattern = 'FileSystem' + 'Watcher|Register-' + 'ObjectEvent'
     if ($guardText -match $watcherPattern) { throw 'Level-1 guard must not arm file-system monitoring' }
@@ -249,7 +256,7 @@ function Invoke-SelfTests {
         foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }
         Remove-Item Env:WHISPER_N1_SELFTEST -ErrorAction SilentlyContinue
     }
-    'PASS level-1 arguments are pinned; native-tests and test execution flags are excluded from inventory modes.'
+    'PASS level-1 arguments are pinned; native-tests and test execution flags are excluded from NoRun and inventory modes.'
     'PASS level-1 roots, environment inputs and no-watcher rule reject invalid state before Cargo.'
     'PASS explicit process capture preserves stdout, stderr and exit codes 0/23 in run-root logs.'
     'PASS a junction destination is rejected before its target directory is created.'
