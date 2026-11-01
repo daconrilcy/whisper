@@ -31,4 +31,5 @@ pub(crate) fn run(rx: Receiver<Incoming>, output: &mut impl io::Write) -> Result
 }
 
 #[cfg(test)]
+#[path = "worker/tests.rs"]
 mod tests;

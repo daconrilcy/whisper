@@ -41,4 +41,5 @@ pub(super) fn take_stop(
 }
 
 #[cfg(test)]
+#[path = "control/tests.rs"]
 mod tests;
