@@ -210,12 +210,14 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "child fixture selected only by deadline tests with --ignored"]
     fn deadline_child_fixture() {
-        if std::env::var_os("WHISPER_TEST_DEADLINE_FIXTURE").is_some() {
-            println!("fixture-ready");
-            std::io::stdout().flush().unwrap();
-            thread::sleep(Duration::from_secs(10));
+        if std::env::var_os("WHISPER_TEST_DEADLINE_FIXTURE").is_none() {
+            panic!("WHISPER_TEST_DEADLINE_FIXTURE=1 is required for the deadline child fixture");
         }
+        println!("fixture-ready");
+        std::io::stdout().flush().unwrap();
+        thread::sleep(Duration::from_secs(10));
     }
 
     #[test]
@@ -223,6 +225,7 @@ mod tests {
         let mut command = Command::new(std::env::current_exe().unwrap());
         command
             .arg("deadline_child_fixture")
+            .arg("--ignored")
             .arg("--nocapture")
             .env("WHISPER_TEST_DEADLINE_FIXTURE", "1")
             .stdin(Stdio::null())
@@ -259,6 +262,7 @@ mod tests {
         let mut command = Command::new(std::env::current_exe().unwrap());
         command
             .arg("deadline_child_fixture")
+            .arg("--ignored")
             .arg("--nocapture")
             .env("WHISPER_TEST_DEADLINE_FIXTURE", "1");
         let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

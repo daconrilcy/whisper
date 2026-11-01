@@ -62,6 +62,10 @@ fn decode_case(
 
 #[cfg(feature = "parakeet-personal")]
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_TEST_REFERENCE_EXE, WHISPER_TEST_WORKER_EXE, campaign fixture root and native Parakeet decoder/runtime"
+)]
 fn parakeet_decode_only_contract() {
     let root = campaign_root();
     let source = root.join("reference-short.wav");
@@ -350,7 +354,10 @@ fn refusal_case(executable: &Path) -> Vec<serde_json::Value> {
 
 #[cfg(feature = "parakeet-personal")]
 #[test]
-#[ignore = "requires the installed Parakeet CPU model and runtime"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT and the installed Parakeet CPU worker/DLLs"
+)]
 fn parakeet_refusal_order_contract() {
     let (reference, candidate) = worker_paths();
     assert_eq!(refusal_case(&reference), refusal_case(&candidate));
@@ -391,7 +398,10 @@ fn errors_case(executable: &Path) -> Vec<serde_json::Value> {
 
 #[cfg(feature = "parakeet-personal")]
 #[test]
-#[ignore = "requires the installed Parakeet CPU model and runtime"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT and the installed Parakeet CPU worker/DLLs"
+)]
 fn parakeet_errors_and_shutdown_contract() {
     let (reference, candidate) = worker_paths();
     assert_eq!(errors_case(&reference), errors_case(&candidate));
@@ -436,7 +446,10 @@ fn native_case(executable: &Path) -> serde_json::Value {
 
 #[cfg(feature = "parakeet-personal")]
 #[test]
-#[ignore = "requires the installed Parakeet CPU model and runtime"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT and the installed Parakeet CPU worker/DLLs"
+)]
 fn parakeet_native_transcription_contract() {
     let (reference, candidate) = worker_paths();
     assert_eq!(native_case(&reference), native_case(&candidate));

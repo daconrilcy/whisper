@@ -1143,7 +1143,10 @@ mod tests {
 
     #[cfg(target_os = "windows")]
     #[test]
-    #[ignore = "inventaire matériel local, sans ouverture de flux"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires a Windows audio-device inventory and native capture backend"
+    )]
     fn native_wasapi_input_catalog_has_stable_parseable_ids() {
         let started = std::time::Instant::now();
         let devices = WasapiMicrophonePort.list_inputs().unwrap();
@@ -1163,7 +1166,10 @@ mod tests {
 
     #[cfg(target_os = "windows")]
     #[test]
-    #[ignore = "ouvre pendant trois secondes le micro défini par WHISPER_TEST_MIC_ID"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires WHISPER_TEST_MIC_ID and an available Windows microphone capture device"
+    )]
     fn native_selected_microphone_survives_initial_discontinuity() {
         let id = std::env::var("WHISPER_TEST_MIC_ID").expect("WHISPER_TEST_MIC_ID requis");
         let mut capture = start_direct(&MicrophoneChoice::Device(id)).unwrap();

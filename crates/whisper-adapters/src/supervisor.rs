@@ -621,9 +621,14 @@ mod tests {
 
     #[cfg(feature = "recette-hooks")]
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires WHISPER_L04_CAMPAIGN_BUILD=1, WHISPER_L04_CAMPAIGN_RUN and guarded L04 campaign roots"
+    )]
+    // TODO(DEBT-8): extract synthetic startup-purge injection from guarded L04 campaign orchestration.
     fn campaign_startup_purge_can_fail_before_deleting_old_diagnostics() {
         if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {
-            return;
+            panic!("requires a WHISPER_L04_CAMPAIGN_BUILD=1 test binary");
         }
         if std::env::var_os("WHISPER_L04_STARTUP_TEST_CHILD").is_some() {
             let destination = PathBuf::from(std::env::var_os("WHISPER_L04_CAMPAIGN_RUN").unwrap())

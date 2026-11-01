@@ -879,30 +879,12 @@ impl Drop for ParakeetProcess {
 mod tests {
     use super::*;
 
-    fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
-        let missing = variables
-            .iter()
-            .filter(|name| std::env::var_os(name).is_none())
-            .copied()
-            .collect::<Vec<_>>();
-        if missing.is_empty() {
-            return false;
-        }
-        eprintln!(
-            "NOT RUN: missing campaign variable(s): {}",
-            missing.join(", ")
-        );
-        true
-    }
-
     #[test]
     fn paths_reject_a_worker_outside_the_runtime_root() {
-        if not_run_without_campaign_variables(&["PARAKEET_L2_RUNTIME_ROOT"]) {
-            return;
-        }
         let root = std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
             .map(PathBuf::from)
-            .expect("PARAKEET_L2_RUNTIME_ROOT is required by the L2b test environment");
+            .unwrap_or_else(|| std::env::temp_dir().join("whisper-parakeet-runtime-tests"));
+        std::fs::create_dir_all(&root).unwrap();
         let paths = ParakeetWorkerPaths {
             executable: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
             native_dir: root.join("native"),

@@ -6,7 +6,10 @@ use std::{
 };
 
 #[test]
-#[ignore = "prepares explicit campaign fixtures"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_TEST_WORK_ROOT and WHISPER_TEST_SOURCE_WAV real corpus input"
+)]
 fn prepare_reference_inputs_for_campaign() {
     let root = PathBuf::from(env::var_os("WHISPER_TEST_WORK_ROOT").expect("work root required"));
     let allowed = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -55,6 +58,10 @@ fn prepare_reference_inputs_for_campaign() {
 
 #[cfg(feature = "parakeet-qualification-reference")]
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_FR_WAV and PARAKEET_L2_EN_LONG_WAV real audio fixtures"
+)]
 fn reference_wav_decoder_matches_product_decoder_and_reads_sixty_minutes() {
     let short =
         PathBuf::from(env::var_os("PARAKEET_L2_FR_WAV").expect("PARAKEET_L2_FR_WAV is required"));
@@ -73,7 +80,8 @@ fn reference_wav_decoder_matches_product_decoder_and_reads_sixty_minutes() {
 #[test]
 fn reference_wav_decoder_rejects_audio_over_sixty_minutes() {
     let runtime = PathBuf::from(
-        env::var_os("PARAKEET_L2_RUNTIME_ROOT").expect("PARAKEET_L2_RUNTIME_ROOT is required"),
+        env::var_os("PARAKEET_L2_RUNTIME_ROOT")
+            .unwrap_or_else(|| std::env::temp_dir().into_os_string()),
     );
     let path = runtime.join(format!("reference-over-limit-{}.wav", std::process::id()));
     let data_bytes = (whisper_core::parakeet_windows::MAX_REFERENCE_SAMPLES + 1) * 2;

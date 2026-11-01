@@ -114,6 +114,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call() {
         let root = std::env::temp_dir().join(format!(
             "parakeet-auto-startup-fallback-{}",
@@ -3109,14 +3114,20 @@
     }
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires a separately authorized PU-L4 native CPU campaign and the annotated guarded EN long fixture"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires a separately authorized PU-L4 native CPU campaign and the annotated guarded EN long fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
     fn native_personal_cpu_ab_c_recycles_after_reap_with_spoken_burst_capture() {
         run_native_personal_ab_c(ComputeChoice::Cpu, None);
     }
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires a separately authorized PU-L4 native GPU campaign, real GPU identity, and the annotated guarded EN long fixture"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires a separately authorized PU-L4 native GPU campaign, real GPU identity, and the annotated guarded EN long fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
     fn native_personal_gpu_ab_c_recycles_after_reap_with_attested_candidate() {
         let local_app_data = std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)
@@ -3133,7 +3144,10 @@
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires a separately authorized PU-L4 native CPU campaign; uses synthetic capture only"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires a separately authorized PU-L4 native CPU campaign; uses synthetic capture only; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
     fn native_personal_cpu_finalizes_a_synthetic_capture_without_opening_hardware() {
         let execution_root = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
             .map(PathBuf::from)
@@ -3295,21 +3309,30 @@
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires the separately authorized PU-L4 native campaign and guarded short FR fixture"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires the separately authorized PU-L4 native campaign and guarded short FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
     fn native_queued_cpu_short_import_uses_the_durable_application_path() {
         run_native_queued_unified_import(ComputeChoice::Cpu, false, false);
     }
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded short FR fixture"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded short FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
     fn native_queued_gpu_short_import_uses_current_attestation() {
         run_native_queued_unified_import(ComputeChoice::Gpu, false, true);
     }
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires the separately authorized PU-L4 native GPU campaign, current GPU identity, and guarded 35-minute FR fixture"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires the separately authorized PU-L4 native GPU campaign, current GPU identity, and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
     fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot() {
         let execution_root = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
             .map(PathBuf::from)
@@ -3946,35 +3969,50 @@
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded short FR fixture"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded short FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
     fn native_queued_auto_short_import_prefers_current_gpu_candidate() {
         run_native_queued_unified_import(ComputeChoice::Auto, false, true);
     }
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires the separately authorized PU-L4 native campaign and guarded short FR fixture"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires the separately authorized PU-L4 native campaign and guarded short FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
     fn native_queued_auto_short_import_falls_back_to_cpu_without_candidate() {
         run_native_queued_unified_import(ComputeChoice::Auto, false, false);
     }
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires the separately authorized PU-L4 native campaign and guarded 35-minute FR fixture"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires the separately authorized PU-L4 native campaign and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
     fn native_queued_cpu_long_import_uses_the_durable_application_path() {
         run_native_queued_unified_import(ComputeChoice::Cpu, true, false);
     }
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded 35-minute FR fixture"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
     fn native_queued_gpu_long_import_uses_current_attestation() {
         run_native_queued_unified_import(ComputeChoice::Gpu, true, true);
     }
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded 35-minute FR fixture"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
     fn native_queued_auto_long_import_prefers_current_gpu_candidate() {
         run_native_queued_unified_import(ComputeChoice::Auto, true, true);
     }

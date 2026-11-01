@@ -1524,13 +1524,16 @@ mod recovery_tests {
 
     fn root() -> PathBuf {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        PathBuf::from(std::env::var_os("PARAKEET_L2_ARCHIVE_ROOT").expect("campaign archive root"))
-            .join("rtc-05-source-binding-unit")
-            .join(format!(
-                "{}-{}",
-                std::process::id(),
-                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-            ))
+        PathBuf::from(
+            std::env::var_os("PARAKEET_L2_ARCHIVE_ROOT")
+                .unwrap_or_else(|| std::env::temp_dir().into_os_string()),
+        )
+        .join("rtc-05-source-binding-unit")
+        .join(format!(
+            "{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ))
     }
 
     fn write_wav(path: &Path) {

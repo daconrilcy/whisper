@@ -18,15 +18,11 @@ use whisper_core::{
 };
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR and PARAKEET_L2_MODEL"
+)]
 fn stop_kills_and_waits_for_the_isolated_worker_process() {
-    if not_run_without_campaign_variables(&[
-        "PARAKEET_L2_RUNTIME_ROOT",
-        "PARAKEET_L2_WORKER",
-        "PARAKEET_L2_NATIVE_DIR",
-        "PARAKEET_L2_MODEL",
-    ]) {
-        return;
-    }
     let runtime = PathBuf::from(
         std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
             .expect("PARAKEET_L2_RUNTIME_ROOT is required by L2a-2 tests"),
@@ -49,7 +45,10 @@ fn stop_kills_and_waits_for_the_isolated_worker_process() {
 }
 
 #[test]
-#[ignore = "runs a real import, stops during inference, and verifies no archive publication"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL and the declared input WAV; runs real import"
+)]
 fn stop_during_parakeet_inference_waits_for_exit_and_preserves_pending_without_publication() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -161,7 +160,10 @@ fn stop_during_parakeet_inference_waits_for_exit_and_preserves_pending_without_p
 }
 
 #[test]
-#[ignore = "runs native imports while exercising isolated preparation/publication barriers"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL and the declared input WAV"
+)]
 fn stop_and_quit_at_preparation_and_publication_barriers_preserve_truthful_state() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -227,7 +229,10 @@ fn stop_and_quit_at_preparation_and_publication_barriers_preserve_truthful_state
 }
 
 #[test]
-#[ignore = "runs native import; corrupts only the scoped queue journal during Stop"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL and the declared input WAV"
+)]
 fn stop_queue_journal_failure_settles_runtime_and_allows_next_import() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -404,7 +409,10 @@ fn stop_queue_journal_failure_settles_runtime_and_allows_next_import() {
 }
 
 #[test]
-#[ignore = "runs native single-pass Parakeet import and product-route resume"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL and the declared input WAV"
+)]
 fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -562,7 +570,10 @@ fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
 }
 
 #[test]
-#[ignore = "runs native VAD Stop during inference, between windows, and product-route resume"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL and PARAKEET_L2_EN_LONG_WAV"
+)]
 fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let source = required_path("PARAKEET_L2_FR_LONG_WAV");
@@ -913,22 +924,6 @@ fn passage_dir(root: &std::path::Path, job_id: JobId, generation: Generation) ->
 
 fn required_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("{name} is required")))
-}
-
-fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
-    let missing = variables
-        .iter()
-        .filter(|name| std::env::var_os(name).is_none())
-        .copied()
-        .collect::<Vec<_>>();
-    if missing.is_empty() {
-        return false;
-    }
-    eprintln!(
-        "NOT RUN: missing campaign variable(s): {}",
-        missing.join(", ")
-    );
-    true
 }
 
 fn decode_sha256(value: &str) -> [u8; 32] {

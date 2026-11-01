@@ -83,23 +83,21 @@ fn gpu_import_and_live_commands_keep_candidate_identity_and_distinct_ordinals() 
 
 #[cfg(windows)]
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L04_MODEL, WHISPER_L04_WAV, WHISPER_L04_GPU_WORKER and a qualified NVIDIA CUDA runtime"
+)]
 fn real_gpu_import_uses_current_windows_candidate_and_local_model_when_enabled() {
     use std::time::{Duration, Instant};
     use whisper_adapters::{WorkerTransport, worker_ipc::ChildWorkerTransport};
     use whisper_core::gpu_inventory_app::GpuInventoryApp;
 
-    let Some(model_path) = std::env::var_os("WHISPER_L04_MODEL") else {
-        eprintln!("V-L04 REAL GPU NOT RUN: WHISPER_L04_MODEL absent");
-        return;
-    };
-    let Some(source_path) = std::env::var_os("WHISPER_L04_WAV") else {
-        eprintln!("V-L04 REAL GPU NOT RUN: WHISPER_L04_WAV absent");
-        return;
-    };
-    let Some(worker_path) = std::env::var_os("WHISPER_L04_GPU_WORKER") else {
-        eprintln!("V-L04 REAL GPU NOT RUN: WHISPER_L04_GPU_WORKER absent");
-        return;
-    };
+    let model_path = std::env::var_os("WHISPER_L04_MODEL")
+        .expect("WHISPER_L04_MODEL must name the local large-v3-turbo model");
+    let source_path = std::env::var_os("WHISPER_L04_WAV")
+        .expect("WHISPER_L04_WAV must name the real WAV corpus input");
+    let worker_path = std::env::var_os("WHISPER_L04_GPU_WORKER")
+        .expect("WHISPER_L04_GPU_WORKER must name the release GPU worker");
     let model_path = std::path::PathBuf::from(model_path);
     let source_path = std::path::PathBuf::from(source_path);
     let worker_path = std::path::PathBuf::from(worker_path);

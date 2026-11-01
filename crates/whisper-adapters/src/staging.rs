@@ -462,9 +462,14 @@ mod campaign_tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires WHISPER_L04_CAMPAIGN_BUILD=1, WHISPER_L04_CAMPAIGN_RUN and guarded L04 campaign roots"
+    )]
+    // TODO(DEBT-7): extract synthetic PCM fault-hook cases from guarded L04 campaign orchestration.
     fn periodic_pcm_sync_has_before_and_after_fault_points() {
         if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {
-            return;
+            panic!("requires a WHISPER_L04_CAMPAIGN_BUILD=1 test binary");
         }
         if let Ok(mode) = std::env::var("WHISPER_L04_PCM_TEST_CHILD") {
             let run = PathBuf::from(std::env::var_os("WHISPER_L04_CAMPAIGN_RUN").unwrap());

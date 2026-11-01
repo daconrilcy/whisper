@@ -20,7 +20,10 @@ use whisper_core::{
 };
 
 fn root() -> PathBuf {
-    let base = PathBuf::from(std::env::var_os("PARAKEET_L2_ARCHIVE_ROOT").expect("campaign root"));
+    let base = PathBuf::from(
+        std::env::var_os("PARAKEET_L2_ARCHIVE_ROOT")
+            .unwrap_or_else(|| std::env::temp_dir().into_os_string()),
+    );
     let path = base.join(format!(
         "reprocessing-create-test-{}-{}",
         std::process::id(),
@@ -236,6 +239,11 @@ fn create_new_publishes_only_its_internal_pair_and_preserves_existing_treatment(
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario"
+)]
+// TODO(DEBT-11): extract the synthetic scenario from its real model/catalogue prerequisite.
 fn application_create_new_processes_the_bound_snapshot_and_preserves_prior_publication() {
     let root = root();
     let destination = root.join("user-destination");

@@ -17,8 +17,10 @@
     }
 
     fn reprocessing_test_root(name: &str) -> PathBuf {
-        let base =
-            PathBuf::from(std::env::var_os("PARAKEET_RTC02_EXEC_ROOT").expect("RTC-02 root"));
+        let base = PathBuf::from(
+            std::env::var_os("PARAKEET_RTC02_EXEC_ROOT")
+                .unwrap_or_else(|| std::env::temp_dir().into_os_string()),
+        );
         let root = base
             .join("archive")
             .join(format!("{name}-{}", std::process::id()));
@@ -161,22 +163,6 @@
             .map(PathBuf::from)
             .unwrap_or_else(|| std::env::temp_dir().join("whisper-adapter-tests"));
         base.join(format!("{name}-{}", std::process::id()))
-    }
-
-    fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
-        let missing = variables
-            .iter()
-            .filter(|name| std::env::var_os(name).is_none())
-            .copied()
-            .collect::<Vec<_>>();
-        if missing.is_empty() {
-            return false;
-        }
-        eprintln!(
-            "NOT RUN: missing campaign variable(s): {}",
-            missing.join(", ")
-        );
-        true
     }
 
     #[test]

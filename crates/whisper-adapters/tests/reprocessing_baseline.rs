@@ -22,7 +22,10 @@ const SOURCES: [(&str, &str); 3] = [
 ];
 
 #[test]
-#[ignore = "E0 baseline: real Parakeet CPU imports; run only under the E0 guard"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_RTC_BASELINE_ROOT, real WHISPER_RTC_BASELINE_WAV_SHORT/WAV_LONG/MP3 fixtures and installed Parakeet CPU worker/model/DLLs"
+)]
 fn r11_application_baseline() {
     let root = required_path("WHISPER_RTC_BASELINE_ROOT");
     let root = validate_campaign_root(&root);

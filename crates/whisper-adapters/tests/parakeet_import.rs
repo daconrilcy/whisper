@@ -21,15 +21,11 @@ use whisper_core::{
 };
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the installed Parakeet worker/DLL set"
+)]
 fn parakeet_worker_configuration_is_confined_to_the_l2a2_runtime() {
-    if not_run_without_campaign_variables(&[
-        "PARAKEET_L2_RUNTIME_ROOT",
-        "PARAKEET_L2_MODEL",
-        "PARAKEET_L2_WORKER",
-        "PARAKEET_L2_NATIVE_DIR",
-    ]) {
-        return;
-    }
     let runtime = PathBuf::from(
         std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
             .expect("PARAKEET_L2_RUNTIME_ROOT is required by L2a-2 tests"),
@@ -123,10 +119,11 @@ fn parakeet_worker_configuration_is_confined_to_the_l2a2_runtime() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the L3B/L3C/L3D recipe selector, Parakeet model/worker/DLLs and pinned FR87, FR27 and EN15 WAVs"
+)]
 fn gpu_app_fr_en_single_pass() {
-    if !selected_recipe("gpu_app_fr_en_single_pass") {
-        return;
-    }
     for (label, variable) in [
         ("fr87", "PARAKEET_L3_FR87_WAV"),
         ("fr27", "PARAKEET_L3_FR27_WAV"),
@@ -144,7 +141,10 @@ fn gpu_app_fr_en_single_pass() {
 
 #[test]
 #[cfg(feature = "personal-qualification")]
-#[ignore = "L6-perso release recipe exercises the staged CPU or GPU Parakeet worker"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L6P_BACKEND, PARAKEET_L6P_CASE and the staged Parakeet CPU/GPU worker, model and DLLs"
+)]
 fn l6_personal_application_recipe() {
     let backend = std::env::var("PARAKEET_L6P_BACKEND").expect("guarded L6-perso backend");
     let case = std::env::var("PARAKEET_L6P_CASE").expect("guarded L6-perso case");
@@ -190,7 +190,10 @@ fn l6_personal_application_recipe() {
 
 #[test]
 #[cfg(feature = "personal-qualification")]
-#[ignore = "L6-perso GPU release recipe verifies manual refusal and Auto selection/fallback"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L6P_BACKEND=CUDA0, PARAKEET_L2_EN_WAV, staged CPU/GPU worker/DLLs and a real GPU identity"
+)]
 fn l6_personal_gpu_manual_auto_routes() {
     assert_eq!(
         std::env::var("PARAKEET_L6P_BACKEND").as_deref(),
@@ -225,7 +228,10 @@ fn l6_personal_gpu_manual_auto_routes() {
 
 #[test]
 #[cfg(feature = "personal-qualification")]
-#[ignore = "L6-perso release recipe verifies the first and second EN5 import timings"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L6P_BACKEND, PARAKEET_L2_MODEL, PARAKEET_L3_EN5_WAV and staged CPU/GPU worker/DLL sets"
+)]
 fn l6_personal_en5_twice_release() {
     let backend = std::env::var("PARAKEET_L6P_BACKEND").expect("guarded L6-perso backend");
     assert!(matches!(backend.as_str(), "CPU" | "CUDA0"));
@@ -330,7 +336,10 @@ fn l6_personal_en5_twice_release() {
 
 #[test]
 #[cfg(feature = "personal-qualification")]
-#[ignore = "L6-perso release recipe checks the over-30-minute refusal before pending"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L6P_BACKEND, PARAKEET_L6P_EXEC_ROOT, PARAKEET_L3_EN30_WAV and release Parakeet CPU worker/DLLs"
+)]
 fn l6_personal_rejects_over_limit_before_pending() {
     let backend = std::env::var("PARAKEET_L6P_BACKEND").expect("guarded L6-perso backend");
     let source = required_path("PARAKEET_L3_EN30_WAV");
@@ -635,10 +644,11 @@ fn extend_pcm16_wav_by_one_sample(source: &std::path::Path, destination: &std::p
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the L3B/L3C/L3D recipe selector, Parakeet model/worker/DLLs and PARAKEET_L3_EN5_WAV"
+)]
 fn gpu_app_en5() {
-    if !selected_recipe("gpu_app_en5") {
-        return;
-    }
     run_gpu_application_import(
         "en5",
         &required_path("PARAKEET_L3_EN5_WAV"),
@@ -649,10 +659,11 @@ fn gpu_app_en5() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the L3B/L3C/L3D recipe selector, Parakeet model/worker/DLLs and PARAKEET_L3_EN5_WAV"
+)]
 fn gpu_app_en5_timing_diagnostic() {
-    if !selected_recipe("gpu_app_en5_timing_diagnostic") {
-        return;
-    }
     let view = run_gpu_application_import(
         "en5-timing-diagnostic",
         &required_path("PARAKEET_L3_EN5_WAV"),
@@ -668,10 +679,11 @@ fn gpu_app_en5_timing_diagnostic() {
 
 #[test]
 #[cfg(feature = "l3-gpu-qualification")]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the L3B/L3C/L3D recipe selector, Parakeet model/worker/DLLs and PARAKEET_L3_EN30_WAV"
+)]
 fn gpu_app_en30() {
-    if !selected_recipe("gpu_app_en30") {
-        return;
-    }
     run_gpu_application_import(
         "en30",
         &required_path("PARAKEET_L3_EN30_WAV"),
@@ -683,10 +695,11 @@ fn gpu_app_en30() {
 
 #[test]
 #[cfg(feature = "l3-gpu-qualification")]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the L3B/L3C/L3D recipe selector, Parakeet model/worker/DLLs, PARAKEET_L2_EN_WAV and a CPU fallback runtime"
+)]
 fn gpu_manual_and_auto_fallback() {
-    if !selected_recipe("gpu_manual_and_auto_fallback") {
-        return;
-    }
     let source = required_path("PARAKEET_L2_EN_WAV");
     let manual = run_gpu_application_import(
         "manual-bad-candidate",
@@ -734,10 +747,11 @@ fn gpu_manual_and_auto_fallback() {
 
 #[test]
 #[cfg(feature = "l3-gpu-qualification")]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the L3B/L3C/L3D recipe selector, Parakeet model/worker/DLLs, PARAKEET_L2_EN_WAV and PARAKEET_L2_EN_LONG_WAV"
+)]
 fn gpu_rejects_bad_identity_before_pending() {
-    if !selected_recipe("gpu_rejects_bad_identity_before_pending") {
-        return;
-    }
     let source = required_path("PARAKEET_L2_EN_WAV");
     let view = run_gpu_application_import("bad-identity", &source, ComputeChoice::Gpu, false, None);
     assert!(
@@ -764,25 +778,6 @@ fn recipe_selector_matches(
         return false;
     };
     selected == name && selectors.next().is_none()
-}
-
-fn selected_recipe(name: &str) -> bool {
-    let l3b = std::env::var("PARAKEET_L3B_RECIPE_CASE").ok();
-    let l3c = std::env::var("PARAKEET_L3C_RECIPE_CASE").ok();
-    let l3d = std::env::var("PARAKEET_L3D_RECIPE_CASE").ok();
-    if recipe_selector_matches(name, l3b.as_deref(), l3c.as_deref(), l3d.as_deref()) {
-        true
-    } else {
-        let campaign = if l3d.is_some() {
-            "L3d"
-        } else if l3c.is_some() {
-            "L3c"
-        } else {
-            "L3b"
-        };
-        eprintln!("{campaign}_RECIPE_NOT_RUN {name}: no matching guarded recipe selector");
-        false
-    }
 }
 
 #[test]
@@ -821,10 +816,11 @@ fn gpu_recipe_selector_preserves_l3b_l3c_and_supports_explicit_l3d() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the L3B/L3C/L3D recipe selector, Parakeet model/worker/DLLs and PARAKEET_L3_EN5_WAV"
+)]
 fn gpu_app_en5_twice_release() {
-    if !selected_recipe("gpu_app_en5_twice_release") {
-        return;
-    }
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let execution_root = required_path("PARAKEET_L2_ARCHIVE_ROOT");
     let source = required_path("PARAKEET_L3_EN5_WAV");
@@ -1412,7 +1408,10 @@ fn qualified_gpu_candidate() -> whisper_core::gpu_inventory::GpuRuntimeIdentity 
 }
 
 #[test]
-#[ignore = "R6 single-pass recipe uses the real Parakeet worker and records app timing"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_R6_CASE, PARAKEET_R6_RECIPE_WAV, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the frozen Parakeet CPU worker/DLL set"
+)]
 fn r6_application_single_pass_recipe() {
     let case = std::env::var("PARAKEET_R6_CASE").expect("PARAKEET_R6_CASE");
     let (samples, job_id) = match case.as_str() {
@@ -1550,7 +1549,10 @@ fn r6_application_single_pass_recipe() {
 }
 
 #[test]
-#[ignore = "R7 diagnostic recipe; uses the frozen R6 worker and writes only under R7"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_R7_CASE, PARAKEET_R7_RECIPE_WAV, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the frozen Parakeet CPU worker/DLL set"
+)]
 fn r7_application_timing() {
     let case = std::env::var("PARAKEET_R7_CASE").expect("PARAKEET_R7_CASE");
     let (samples, job_id) = match case.as_str() {
@@ -1699,7 +1701,10 @@ fn r7_application_timing() {
 }
 
 #[test]
-#[ignore = "R9 Test recipe uses the frozen worker and records adapter SHA cache metrics"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_R9_CASE, PARAKEET_R9_RECIPE_WAV, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the frozen Parakeet CPU worker/DLL set"
+)]
 fn r9_application_recipe() {
     let case = std::env::var("PARAKEET_R9_CASE").expect("PARAKEET_R9_CASE");
     let source = required_path("PARAKEET_R9_RECIPE_WAV");
@@ -2153,7 +2158,10 @@ fn pcm16_mono_sample_count(path: &std::path::Path) -> u64 {
 }
 
 #[test]
-#[ignore = "exercises qualification refusal and native loader/export failure on private DLL copies"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, qualified Parakeet CPU/GPU workers and CUDA DLLs"
+)]
 fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let execution_root = r8_exec_root();
@@ -2684,7 +2692,10 @@ fn existing_cpu_incompatible_fixture(cpu_runtime: &std::path::Path) -> PathBuf {
 }
 
 #[test]
-#[ignore = "kills a qualified native worker during an active inference request"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_EN_WAV, PARAKEET_L2_MODEL, R8 execution root and qualified Parakeet CPU/GPU workers/DLLs"
+)]
 fn killed_native_worker_is_reported_as_exit_without_result() {
     let execution_root = r8_exec_root();
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -2766,7 +2777,10 @@ fn assert_worker_death_with_gpu(
 }
 
 #[test]
-#[ignore = "injects an incomplete Result frame at the process transport boundary"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT and Parakeet CPU/GPU native DLLs for scoped process fixtures"
+)]
 fn incomplete_result_frame_is_rejected_as_transport_decode_failure() {
     let execution_root = r8_exec_root();
     let worker_dir = execution_root.join("worker");
@@ -2826,7 +2840,10 @@ fn assert_incomplete_result_frame(paths: &ParakeetWorkerPaths) {
 }
 
 #[test]
-#[ignore = "routes a worker death from the qualified Test process through ImportApplication"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_EN_WAV, PARAKEET_L2_MODEL and qualified Parakeet CPU/GPU workers/DLLs"
+)]
 fn product_route_worker_death_preserves_pending_source_and_rejects_completion() {
     run_product_transport_failure(
         "worker-death-cpu",
@@ -2845,7 +2862,10 @@ fn product_route_worker_death_preserves_pending_source_and_rejects_completion() 
 }
 
 #[test]
-#[ignore = "routes an incomplete Result transport failure through ImportApplication"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_EN_WAV, PARAKEET_L2_MODEL and qualified Parakeet CPU/GPU workers/DLLs"
+)]
 fn product_route_incomplete_result_preserves_pending_source_and_rejects_completion() {
     run_product_transport_failure(
         "incomplete-result-cpu",
@@ -3125,22 +3145,6 @@ fn poll_until_error(process: &mut ParakeetProcess, timeout: Duration) -> String 
 
 fn required_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("{name} is required")))
-}
-
-fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
-    let missing = variables
-        .iter()
-        .filter(|name| std::env::var_os(name).is_none())
-        .copied()
-        .collect::<Vec<_>>();
-    if missing.is_empty() {
-        return false;
-    }
-    eprintln!(
-        "NOT RUN: missing campaign variable(s): {}",
-        missing.join(", ")
-    );
-    true
 }
 
 fn cpu_worker_path() -> PathBuf {

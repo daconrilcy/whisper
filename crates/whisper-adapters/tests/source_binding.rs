@@ -11,7 +11,10 @@ use whisper_core::{Generation, JobConfig, JobId, ports::ImportRequest};
 
 fn root() -> PathBuf {
     static NEXT_ROOT: AtomicU64 = AtomicU64::new(0);
-    let base = PathBuf::from(std::env::var_os("PARAKEET_L2_ARCHIVE_ROOT").expect("campaign root"));
+    let base = PathBuf::from(
+        std::env::var_os("PARAKEET_L2_ARCHIVE_ROOT")
+            .unwrap_or_else(|| std::env::temp_dir().into_os_string()),
+    );
     let path = base.join(format!(
         "source-binding-test-{}-{}-{}",
         std::process::id(),

@@ -401,13 +401,13 @@ fn main() {
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/ggml-large-v3-turbo.bin and the guarded R7 execution root"
+    )]
     fn r7_restart_resume_integrates_copy_crash_dialog_queue_and_publication() {
         let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let model = repository.join("models/ggml-large-v3-turbo.bin");
-        if !model.is_file() {
-            eprintln!("NOT RUN: local Turbo model missing for integrated R7 resume test");
-            return;
-        }
         let root = test_artifact_root("r7-integrated-copy-resume").join(format!(
             "{}-{}",
             std::process::id(),
@@ -941,6 +941,10 @@ fn main() {
 
     #[cfg(all(feature = "l3-gpu-qualification", feature = "recette-hooks"))]
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires PARAKEET_L2_ACCEPTANCE_TEST_BUILD=1 and exactly one canonical PARAKEET_L3C_EXEC_ROOT or PARAKEET_L3D_EXEC_ROOT"
+    )]
     fn l3c_acceptance_fault_is_confined_to_its_canonical_execution_root() {
         assert!(option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD").is_some());
         let root = canonical_extended_acceptance_root(
@@ -995,16 +999,11 @@ fn main() {
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_EN_WAV, PARAKEET_L2_WORKER and PARAKEET_L2_NATIVE_DIR"
+    )]
     fn over_limit_parakeet_import_is_refused_before_pending_creation() {
-        if not_run_without_campaign_variables(&[
-            "PARAKEET_L2_MODEL",
-            "PARAKEET_L2_RUNTIME_ROOT",
-            "PARAKEET_L2_EN_WAV",
-            "PARAKEET_L2_WORKER",
-            "PARAKEET_L2_NATIVE_DIR",
-        ]) {
-            return;
-        }
         let model = PathBuf::from(std::env::var_os("PARAKEET_L2_MODEL").expect("R6 model path"));
         let runtime =
             PathBuf::from(std::env::var_os("PARAKEET_L2_RUNTIME_ROOT").expect("R6 runtime root"));
@@ -1062,17 +1061,16 @@ fn main() {
 
     #[test]
     fn injected_catalog_guards_all_worker_effect_routes_including_checkpoint_resume() {
-        if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
-            return;
-        }
         use std::{
             fs,
             path::PathBuf,
             time::{SystemTime, UNIX_EPOCH},
         };
-        let root =
-            PathBuf::from(std::env::var_os("WHISPER_L1B_RUNTIME_ROOT").expect("bounded runtime"))
-                .join(format!(
+        let root = PathBuf::from(
+            std::env::var_os("WHISPER_L1B_RUNTIME_ROOT")
+                .unwrap_or_else(|| std::env::temp_dir().into_os_string()),
+        )
+        .join(format!(
                     "runtime-guards-{}-{}",
                     std::process::id(),
                     SystemTime::now()
@@ -1153,10 +1151,12 @@ fn main() {
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires WHISPER_L1B_RUNTIME_ROOT/models/ggml-large-v3-turbo.bin and sound example/spkr0.wav; mixed resume flow is deferred as TODO(DEBT-1)"
+    )]
+    // TODO(DEBT-1): extract the synthetic checkpoint identity assertions from the real model/audio resume path.
     fn resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution() {
-        if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
-            return;
-        }
         use std::{
             fs,
             path::PathBuf,

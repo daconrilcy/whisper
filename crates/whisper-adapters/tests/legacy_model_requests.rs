@@ -11,22 +11,6 @@ use whisper_core::{
     ports::ImportRequest,
 };
 
-fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
-    let missing = variables
-        .iter()
-        .filter(|name| std::env::var_os(name).is_none())
-        .copied()
-        .collect::<Vec<_>>();
-    if missing.is_empty() {
-        return false;
-    }
-    eprintln!(
-        "NOT RUN: missing campaign variable(s): {}",
-        missing.join(", ")
-    );
-    true
-}
-
 const KNOWN_TURBO: &str =
     r"C:\Users\Cyril\AppData\Local\Programs\WhisperBuildDeps\models\ggml-large-v3-turbo.bin";
 
@@ -69,10 +53,11 @@ fn verified_catalog() -> &'static whisper_adapters::model_catalog::CatalogSnapsh
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the pinned ggml-large-v3-turbo.bin under models/"
+)]
 fn queued_legacy_turbo_path_is_resolved_in_memory_and_durable_record_is_unchanged() {
-    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
-        return;
-    }
     let destination = root().join("queue-process");
     let mut queue = QueueStore::open(&destination).unwrap();
     let original = request(KNOWN_TURBO.into(), Generation::first());
@@ -96,10 +81,11 @@ fn queued_legacy_turbo_path_is_resolved_in_memory_and_durable_record_is_unchange
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the pinned ggml-large-v3-turbo.bin under models/"
+)]
 fn unknown_queued_path_is_refused_with_an_explicit_diagnostic() {
-    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
-        return;
-    }
     let destination = root().join("queue-unknown");
     let mut queue = QueueStore::open(&destination).unwrap();
     let unknown = request(r"C:\old\unrecognized.bin".into(), Generation::first());
@@ -118,10 +104,11 @@ fn unknown_queued_path_is_refused_with_an_explicit_diagnostic() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the pinned ggml-large-v3-turbo.bin under models/"
+)]
 fn explicit_resume_accepts_a_catalog_path_for_known_turbo_and_keeps_durable_path() {
-    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
-        return;
-    }
     let destination = root().join("queue-resume");
     let mut queue = QueueStore::open(&destination).unwrap();
     let previous = request(KNOWN_TURBO.into(), Generation::first());

@@ -8,6 +8,7 @@ build = "../../scripts/recette-build.rs"
 
 [features]
 default = []
+native-tests = ["whisper-core/native-tests", "whisper-worker-common/native-tests"]
 recette-hooks = []
 l01-memory-qualification = ["whisper-worker-common/l01-memory-qualification"]
 

@@ -321,7 +321,10 @@ fn run(root: &Path, wav: &Path, backend: &str, case: &str, poisoned: bool) -> Ou
 }
 
 #[test]
-#[ignore = "requires frozen personal workers, native CPU/GPU and the local audio fixture"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires frozen personal CPU/GPU workers, native DLLs, installed Parakeet model and local audio fixture"
+)]
 fn native_workers_preserve_transcription_without_historical_diagnostics() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")

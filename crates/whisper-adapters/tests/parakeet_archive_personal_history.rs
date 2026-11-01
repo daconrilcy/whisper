@@ -53,9 +53,10 @@ fn pending(root: &Path, job: u128, key: &ArchiveQualificationKey) {
 
 #[test]
 fn personal_archives_recognize_previous_workers_without_admitting_them_for_execution() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/parakeet-tests/refacto-parakeet-live/p3-workers")
-        .join(format!("archive-history-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!(
+        "parakeet-personal-archive-history-{}",
+        std::process::id()
+    ));
     fs::create_dir(&root).unwrap();
     let root = root.canonicalize().unwrap();
     let mut expected = Vec::new();
