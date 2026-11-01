@@ -1,0 +1,24 @@
+Structure route check:
+Command: pwsh -NoProfile -File ci/guard-level1.ps1 -Mode Structure -DryRun
+Exit: 0
+Output: DRY_RUN mode=Structure rustc --edition=2024 C:\dev\whisper\target\agent-worktrees\garde-n1-categories\ci\check-structure.rs -o <isolated run root>\check-structure.exe; then checker --self-test and C:\dev\whisper\target\agent-worktrees\garde-n1-categories\ci\tests-baseline.txt
+No rustc or Cargo process launched by this dry-run.
+
+SelfTest after correction cycle 1:
+Command: pwsh -NoProfile -File ci/guard-level1.ps1 -Mode SelfTest
+Exit: 0
+Output: PASS self-test parser cases (no Cargo): positives=18, negatives=47.
+Exact Cargo dry-run invocations (each ran in pwsh -NoProfile -Command and exited 0):
+1. `& './ci/guard-level1.ps1' -DryRun -CargoArgs @('tree','--workspace','-e','features','-i','whisper-rs')`
+2. `& './ci/guard-level1.ps1' -DryRun -CargoArgs @('tree','--workspace','-e','features','-i','whisper-rs-sys')`
+3. `& './ci/guard-level1.ps1' -DryRun -CargoArgs @('tree','-p','whisper-worker-cpu','-e','features','-i','whisper-rs-sys')`
+4. `& './ci/guard-level1.ps1' -DryRun -CargoArgs @('tree','-p','whisper-worker-gpu','-e','features','-i','whisper-rs-sys')`
+5. `& './ci/guard-level1.ps1' -FreshTarget A2 -DryRun -CargoArgs @('build','-p','whisper-worker-cpu')`
+6. `& './ci/guard-level1.ps1' -FreshTarget B2 -DryRun -CargoArgs @('test','--no-run','-p','whisper-worker-cpu')`
+7. `& './ci/guard-level1.ps1' -FreshTarget D -UnsetEnv CUDA_PATH,GGML_CUDA -DryRun -CargoArgs @('build','-p','whisper-worker-cpu')`
+
+Correction cycle 2 of 2 (R7):
+Command: pwsh -NoProfile -File ci/guard-level1.ps1 -Mode SelfTest
+Exit code: 0; positives=20, negatives=49.
+R7 evidence: Assert-WriteRoots refuses injected WHISPER_N1_REVIEW and PARAKEET_N1_REVIEW; Set-CargoCommandEnvironment clears RUSTFLAGS for clippy and retains -Dwarnings for build. No Cargo was launched.
+Final candidate SHA-256: 9735867753021FBD4D776B1D1D2AE72AEFB42CB056DCE6C4A14241F9E58255C8.

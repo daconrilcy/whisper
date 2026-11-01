@@ -1,0 +1,34 @@
+1) Real command via guard
+Invocation: pwsh -NoProfile -Command "& './ci/guard-level1.ps1' -CargoArgs @('tree','-p','whisper-worker-cpu','-e','features','-i','whisper-rs-sys')"
+Cargo argv: tree --offline --locked -p whisper-worker-cpu -e features -i whisper-rs-sys
+Exit: 0
+Stdout: tree.stdout.log
+Stderr: tree.stderr.log
+Target: C:\dev\whisper\target\agent-worktrees\garde-n1-categories\target\parakeet-tests\cargo-shared
+
+2) Workspace tests via guard
+Invocation: pwsh -NoProfile -Command "& './ci/guard-level1.ps1' -CargoArgs @('test','--workspace')"
+Cargo argv: test --offline --locked --workspace
+Exit: 0
+Aggregate across 73 harness summaries: 686 passed, 0 failed, 148 ignored. User-authorized current reference: 686/0/148. Initial requested expected reference in the lot brief was 687/0/147.
+Stdout: workspace-test.stdout.log
+Stderr: workspace-test.stderr.log
+Target: C:\dev\whisper\target\agent-worktrees\garde-n1-categories\target\parakeet-tests\cargo-shared
+3) Refreshed after cycle-1 correction, canonical shared target
+Invocation: pwsh -NoProfile -Command "& './ci/guard-level1.ps1' -CargoArgs @('tree','-p','whisper-worker-cpu','-e','features','-i','whisper-rs-sys')"
+Cargo argv: tree --offline --locked -p whisper-worker-cpu -e features -i whisper-rs-sys
+Exit: 0. Stdout/stderr: tree.stdout.log / tree.stderr.log.
+
+4) Refreshed after cycle-1 correction, canonical shared target
+Invocation: pwsh -NoProfile -Command "& './ci/guard-level1.ps1' -CargoArgs @('test','--workspace')"
+Cargo argv: test --offline --locked --workspace
+Exit: 101. First harness: 275 passed, 1 failed, 48 ignored. Failure: worker_ipc::tests::native_executor_backend_changes_only_after_the_prior_instance_is_reaped; panic at crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:730:14, `replacement CPU route must start after the GPU instance was reaped`.
+Stdout/stderr combined in workspace-test-corrected.failed.log. Stopped after this required campaign failure; no retry.
+
+5) One explicitly authorized reprise after correction cycle 2, final script SHA-256 9735867753021FBD4D776B1D1D2AE72AEFB42CB056DCE6C4A14241F9E58255C8
+Invocation: pwsh -NoProfile -Command "& './ci/guard-level1.ps1' -CargoArgs @('test','--workspace')"
+Cargo argv: test --offline --locked --workspace
+Target: C:\dev\whisper\target\parakeet-tests\cargo-shared
+Wall duration: 5.4 s (Cargo harness 3.18 s); exit: 101.
+Aggregate completed harness: 275 passed / 1 failed / 48 ignored. Failure: worker_ipc::tests::native_executor_backend_changes_only_after_the_prior_instance_is_reaped at crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:730:14, `replacement CPU route must start after the GPU instance was reaped`.
+Latest stdout/stderr are workspace-test.stdout.log and workspace-test.stderr.log. The first corrected-candidate failed attempt remains preserved separately in workspace-test-corrected.failed.log. No retry beyond this single authorization.

@@ -1,0 +1,139 @@
+warning: unused variable: `source`
+    --> crates\whisper-adapters\src\parakeet_pipeline.rs:1002:13
+     |
+1002 |         let source = PcmPartStore::open(&audio_path);
+     |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_source`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `whisper-adapters` (lib test) generated 1 warning (run `cargo fix --lib -p whisper-adapters --tests` to apply 1 suggestion)
+warning: unused imports: `MAX_WINDOW_SAMPLES` and `OUTPUT_RATE`
+ --> crates\whisper-worker-gpu\tests\support\..\..\src\decoder.rs:4:42
+  |
+4 | pub use whisper_worker_common::decoder::{MAX_WINDOW_SAMPLES, OUTPUT_RATE};
+  |                                          ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `normalize_pci`
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:47:31
+   |
+47 |         BackendRegistryEntry, normalize_pci, validate_native_gpu_log,
+   |                               ^^^^^^^^^^^^^
+
+warning: function `decode_requested_block` is never used
+  --> crates\whisper-worker-gpu\tests\support\..\..\src\decoder.rs:17:8
+   |
+17 | pub fn decode_requested_block(request: &DecodeRequest) -> Result<Option<Vec<i16>>, String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `model_path`, `model_sha256`, `candidate`, and `engine` are never read
+  --> crates\whisper-worker-gpu\tests\support\..\..\src\engine_cache.rs:8:5
+   |
+ 7 | pub(crate) struct CachedGpuEngine {
+   |                   --------------- fields in this struct
+ 8 |     model_path: String,
+   |     ^^^^^^^^^^
+ 9 |     model_sha256: [u8; 32],
+   |     ^^^^^^^^^^^^
+10 |     candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+   |     ^^^^^^^^^
+11 |     engine: GpuEngine,
+   |     ^^^^^^
+
+warning: function `cached_gpu_engine` is never used
+  --> crates\whisper-worker-gpu\tests\support\..\..\src\engine_cache.rs:45:15
+   |
+45 | pub(crate) fn cached_gpu_engine<'a>(
+   |               ^^^^^^^^^^^^^^^^^
+
+warning: function `qualify` is never used
+ --> crates\whisper-worker-gpu\tests\support\..\..\src\gpu_qualification.rs:5:8
+  |
+5 | pub fn qualify(targets: &[GpuQualificationTarget]) -> Vec<GpuQualificationResult> {
+  |        ^^^^^^^
+
+warning: associated items `load`, `attest`, and `matches_device` are never used
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:25:23
+   |
+24 |     impl GpuEngine {
+   |     -------------- associated items in this implementation
+25 |         pub(crate) fn load(
+   |                       ^^^^
+...
+33 |         pub(crate) fn attest(&self) -> Result<(), String> {
+   |                       ^^^^^^
+...
+37 |         pub(crate) fn matches_device(&self, _ordinal: u32, _backend: &str) -> bool {
+   |                       ^^^^^^^^^^^^^^
+
+warning: function `cuda_devices` is never used
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:56:12
+   |
+56 |     pub fn cuda_devices() -> Result<Vec<CudaDevice>, String> {
+   |            ^^^^^^^^^^^^
+
+warning: function `ggml_devices` is never used
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:60:12
+   |
+60 |     pub fn ggml_devices() -> Vec<GgmlDevice> {
+   |            ^^^^^^^^^^^^
+
+warning: function `whisper_gpu_device_index` is never used
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:64:12
+   |
+64 |     pub fn whisper_gpu_device_index(
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `verify_windows_identity` is never used
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:71:12
+   |
+71 |     pub fn verify_windows_identity(
+   |            ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `normalize_pci`
+ --> crates\whisper-worker-gpu\src\native_ffi.rs:9:27
+  |
+9 |     BackendRegistryEntry, normalize_pci, validate_native_gpu_log,
+  |                           ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `MAX_WINDOW_SAMPLES` and `OUTPUT_RATE`
+ --> crates\whisper-worker-cpu\tests\support\..\..\src\decoder.rs:4:42
+  |
+4 | pub use whisper_worker_common::decoder::{MAX_WINDOW_SAMPLES, OUTPUT_RATE};
+  |                                          ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `decode_requested_block` is never used
+  --> crates\whisper-worker-cpu\tests\support\..\..\src\decoder.rs:17:8
+   |
+17 | pub fn decode_requested_block(request: &DecodeRequest) -> Result<Option<Vec<i16>>, String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `cached_cpu_engine` is never used
+ --> crates\whisper-worker-cpu\tests\support\..\..\src\engine_cache.rs:3:15
+  |
+3 | pub(crate) fn cached_cpu_engine<'a>(
+  |               ^^^^^^^^^^^^^^^^^
+
+warning: associated function `load` is never used
+  --> crates\whisper-worker-cpu\tests\support\autonomous_harness.rs:23:23
+   |
+22 |     impl CpuEngine {
+   |     -------------- associated function in this implementation
+23 |         pub(crate) fn load(_model_path: &str) -> Result<Self, String> {
+   |                       ^^^^
+
+warning: `whisper-worker-gpu` (test "whisper-worker-gpu") generated 11 warnings (run `cargo fix --test "whisper-worker-gpu" -p whisper-worker-gpu` to apply 2 suggestions)
+warning: `whisper-worker-gpu` (bin "whisper-worker-gpu") generated 1 warning (run `cargo fix --bin "whisper-worker-gpu" -p whisper-worker-gpu` to apply 1 suggestion)
+warning: `whisper-worker-cpu` (test "whisper-worker-cpu") generated 4 warnings (run `cargo fix --test "whisper-worker-cpu" -p whisper-worker-cpu` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.52s
+     Running unittests src\lib.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\whisper_adapters-f8dd8c332ab26866.exe)
+error: test failed, to rerun pass `-p whisper-adapters --lib`

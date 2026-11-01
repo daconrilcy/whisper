@@ -1,0 +1,7 @@
+DRY_RUN category=Lecture cargo tree --offline --locked --workspace -e features -i whisper-rs target=C:\dev\whisper\target\parakeet-tests\cargo-shared
+DRY_RUN category=Lecture cargo tree --offline --locked --workspace -e features -i whisper-rs-sys target=C:\dev\whisper\target\parakeet-tests\cargo-shared
+DRY_RUN category=Lecture cargo tree --offline --locked -p whisper-worker-cpu -e features -i whisper-rs-sys target=C:\dev\whisper\target\parakeet-tests\cargo-shared
+DRY_RUN category=Lecture cargo tree --offline --locked -p whisper-worker-gpu -e features -i whisper-rs-sys target=C:\dev\whisper\target\parakeet-tests\cargo-shared
+DRY_RUN category=Compilation cargo build --offline --locked -p whisper-worker-cpu target=C:\dev\whisper\target\agent-worktrees\garde-n1-categories\target\parakeet-tests\garde-n1-categories\targets\A2
+DRY_RUN category=Compilation cargo test --offline --locked --no-run -p whisper-worker-cpu target=C:\dev\whisper\target\agent-worktrees\garde-n1-categories\target\parakeet-tests\garde-n1-categories\targets\B2
+DRY_RUN category=Compilation cargo build --offline --locked -p whisper-worker-cpu target=C:\dev\whisper\target\agent-worktrees\garde-n1-categories\target\parakeet-tests\garde-n1-categories\targets\D
