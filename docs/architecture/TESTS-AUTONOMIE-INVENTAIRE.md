@@ -1,5 +1,5 @@
 Avancée : étude du découplage R8 relue CLEAN pour le document DRAFT ; résultats N1 conservés : 687 réussites Cargo, 0 échec, 147 ignorés.
-Blocage : liaison des nouveaux harness non prouvée, portée sans SDK CUDA à décider ; R9 confirme un oracle manuel compté réussi sans verdict.
+Blocage : liaison des nouveaux harness non prouvée ; R9 confirme un oracle manuel compté réussi sans verdict.
 Décision : cadrage DRAFT, objectif global toujours BLOCKED ; aucun prototype, changement de production ou de manifeste hors features réalisé.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
@@ -51,7 +51,7 @@ Les SDK/DLL étaient disponibles sur la machine de validation et n’ont pas ét
 
 L’utilisateur a choisi dans cette session **« Étudier le découplage des tests (recommandé) »**. Cet accord autorise le cadrage ci-dessous, sans autoriser de prototype ni de modification de production. L’acceptation des DLL CUDA comme prérequis n’a pas été retenue.
 
-## Cadrage R8 — DRAFT-R8-1, étude autorisée, sans implémentation
+## Cadrage R8 — DRAFT-R8-2, étude autorisée, sans implémentation
 
 Auteur du document : session principale. Contribution technique : architecte Rust `/root/r8_decoupling_architecture`, version 1, sources Git **86bf900d** et code **fb2171e8**, lecture du 1er novembre 2026. Le cadrage reste dans ce rapport déjà prévu par la mission ; aucun autre dossier de cadrage ni mécanisme documentaire ajouté. Le mandat de correction R1–R7 n’est pas prolongé par cette étude.
 
@@ -61,12 +61,12 @@ Contrôles documentaires réalisés par la session principale : JSON valide, 855
 
 ### Besoin, invariants et acceptation
 
-Le développeur doit pouvoir lancer la suite par défaut sans préparation de modèles, corpus, environnement de campagne ou installation de DLL CUDA. Le résultat attendu reste celui de la mission initiale ; aucune réduction de « machine vierge » n’est acceptée par silence. Le choix entre absence de DLL à l’exécution avec outils de compilation installés et absence également des outils CUDA a été soumis à l’utilisateur ; réponse encore absente à cette révision.
+Le développeur doit pouvoir lancer la suite par défaut sans préparation de modèles, corpus ou environnement de campagne, et sans dépendance aux DLL CUDA dans les processus de tests. **DEC-P-R8-01, acceptée par l’utilisateur dans cette session : « Sans DLL à l’exécution, outils de compilation installés ».** Les outils CUDA peuvent donc être présents pour compiler ; leur suppression et la compilation à froid sans SDK sortent du critère demandé. Cette réponse précise le périmètre de l’étude et ne donne aucun accord de prototype ou d’extraction de production.
 
 | ID | Source / obligation | Acceptation et état |
 | --- | --- | --- |
 | AC-R8-runtime | Mission, défaut sans DLL natives | Aucun exécutable de tests sélectionné par défaut n’importe directement ou indirectement les bibliothèques moteur CUDA ; imports directs/différés examinés avant lancement. NON PROUVÉ pour la proposition. |
-| AC-R8-build | Mission « machine vierge », portée à clarifier | Si absence d’outils CUDA requise, compilation à froid sans eux. NON COUVERT par la solution minimale ; aucune réduction autorisée. |
+| AC-R8-build | DEC-P-R8-01, réponse utilisateur | Outils de compilation installés acceptés. Compilation sans SDK : N/A dans le périmètre accepté ; aucune preuve sans SDK revendiquée. |
 | AC-R8-content | Règles 1, 2 et 4 | Les 28 identités ci-dessous restent présentes une seule fois dans leurs cibles de remplacement ; mêmes sujets réels, mêmes corps de tests et assertions. Aucun test mixte découpé. |
 | AC-R8-count | Critère de fin, étape 5 | Multiensemble des 834 identités conservé, avec correspondance explicite des deux cibles remplacées ; aucun doublon d’auto-détection. NON EXÉCUTÉ. |
 | AC-R8-port | Règle 3, absence de faux succès | Toute entrée moteur interdite termine le processus en échec, même depuis un chemin qui intercepterait une panique. Témoin négatif séparé requis. |
@@ -141,7 +141,7 @@ Autres ancres relues par l’architecte : worker.rs CPU/GPU:1–45 ; GPU engine_
 | test=false seul | Rejeté : 28 tests soustraits à la suite |
 | Harness séparés + code pur partagé + ports interdits | Recommandation pour supprimer le prérequis DLL à l’exécution ; prototype requis |
 | Bibliothèques pures communes aux binaires, extraction worker/cache | Plus de production et d’API modifiées ; nécessité non démontrée pour le seul runtime |
-| Dépendances natives optionnelles + cibles natives required-features | Piste pour éviter aussi les outils CUDA ; change les constructions produit et leurs consommateurs, à cadrer séparément avant tout accord de code |
+| Dépendances natives optionnelles + cibles natives required-features | Piste pour éviter aussi les outils CUDA ; hors cible retenue par DEC-P-R8-01, aucune modification de dépendance proposée |
 
 Une feature native activée par défaut conserverait le besoin du SDK ; une dépendance normale conditionnée par `cfg(test)` dans Cargo.toml ne fournit pas cette séparation. [Cargo, dépendances conditionnelles](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#platform-specific-dependencies). Les options qui changent les commandes de construction ne peuvent pas être adoptées alors que les recettes sont hors périmètre. Le candidat minimal ne revendique aucun gain de packaging ni redistribution des DLL du produit.
 
@@ -154,18 +154,18 @@ Une feature native activée par défaut conserverait le besoin du SDK ; une dép
 | R8.3, rejet détourné en succès | Contrôle des wrappers/consommateurs et témoin négatif de processus | NON PROUVÉ |
 | R8.4, perte/double découverte | Listes 834 avant/après, multiplicité et correspondance des deux cibles | NON EXÉCUTÉ |
 | R8.5, conservation des vrais workers | Revue des corps extraits, compilation, Clippy et format ; aucun lancement de worker réel | NON EXÉCUTÉ |
-| R8.6, absence du SDK | Autre composition des dépendances/cibles et preuve à froid, si exigée | Décision structurante ouverte, non couvert |
+| R8.6, absence du SDK | N/A : outils installés acceptés par DEC-P-R8-01 | Hors périmètre accepté, pas de preuve revendiquée |
 | R8.7, qualification CPU/GPU/Auto/Windows | Validation native/livraison | Hors N1, jamais revendiquée |
 
 N/A motivés : aucun nouveau domaine, état persistant, migration, scheduling, protocole IPC, supervision ou mécanisme d’annulation ; les boucles produit restent inchangées. L’invariant de composition est que le code pur extrait sert simultanément la vraie FFI et les tests. Les journaux séparés de la garde ne bénéficient d’aucune atomicité commune nouvelle. Les seules transitions ajoutées au parcours de vérification sont compilation sans lancement → lecture PE → autorisation de lancer les tests autonomes si la fermeture est établie, sinon arrêt.
 
-**SPIKE-R8-01** proposé : acteur d’implémentation distinct, prototype isolé dont la racine exacte devra être approuvée, Windows x86_64 MSVC / pile verrouillée existante, outils CUDA disponibles pour compiler, une tentative de deux heures maximum, sans installation, suppression de DLL, modèle, corpus ou exécution de worker natif. Ce prototype ne démontrerait pas l’absence de besoin du SDK. Il ne s’agit pas d’un plan d’implémentation accepté.
+**SPIKE-R8-01** proposé : acteur d’implémentation distinct, worktree candidat **C:/dev/whisper/target/agent-worktrees/tests-autonomes-r8-spike**, branche **refacto/tests-autonomes-r8-spike**, depuis le présent cadrage Git et le code fb2171e8 inchangé. Chemin et branche absents lors du relevé en lecture seule ; création non réalisée et à autoriser. Windows x86_64 MSVC / pile verrouillée existante, outils CUDA disponibles pour compiler, une tentative de deux heures maximum, sans installation, suppression de DLL, modèle, corpus ou exécution de worker natif. Le target Cargo partagé reste C:/dev/whisper/target/parakeet-tests/cargo-shared ; sorties, LOCALAPPDATA vide, CARGO_HOME, TEMP et TMP restent sous target/parakeet-tests/tests-autonomes du worktree de prototype, avec les préflights N1 existants. Ce prototype ne démontrerait pas l’absence de besoin du SDK, désormais hors cible. Il ne s’agit pas d’un plan d’implémentation accepté.
 
-Neuf chemins candidats : les deux Cargo.toml ; les deux tests/support/autonomous_harness.rs ; GPU src/native_ffi.rs, src/native_ffi/pure.rs, src/native_ffi/tests.rs ; common tests/support/native_boundary.rs (rejet partagé, support de test seulement) ; ci/guard-level1.ps1. R9 ajouterait uniquement l’attribut ignore à CPU src/encoder/tests.rs, comme correction distincte à autoriser. Les deux documents existants du présent rapport restent les seuls livrables documentaires. Aucune nouvelle crate, dépendance, recette, Cargo.lock, ressource, garde historique ou surveillance n’est proposée.
+Onze chemins candidats : les deux Cargo.toml ; les deux tests/support/autonomous_harness.rs ; GPU src/native_ffi.rs, src/native_ffi/pure.rs, src/native_ffi/tests.rs ; common tests/support/native_boundary.rs (rejet partagé, support de test seulement) ; ci/guard-level1.ps1 ; ci/tests-baseline.txt ; CPU src/encoder/tests.rs. Le baseline ne changerait que les trois chemins des tests FFI déplacés et la raison de l’oracle R9, sans nouvelle exception : le contrôleur utilise la clé chemin+nom et refuse une entrée non retrouvée (ci/check-structure.rs:609–618). R9 ajouterait uniquement l’attribut ignore permanent au test CPU, corps intact. Les deux documents existants du présent rapport restent les seuls livrables documentaires. Aucune nouvelle crate, dépendance, recette, Cargo.lock, ressource, garde historique ou surveillance n’est proposée.
 
 La garde N1 distincte actuelle refuse `--no-run` et les sélections ciblées. Avant prototype, l’accord doit donc nommer l’extension bornée de **cette seule garde** avec un mode `NoRun` pour `cargo test --offline --locked --workspace --no-run`, ses contrôles d’arguments et leurs auto-tests, en conservant les isolations/captures existantes. Aucune commande de compilation ne sera considérée déjà autorisée par le cadrage.
 
-Le protocole proposé compte cinq actions : (1) préflight et auto-tests ; (2) compiler sans lancer et examiner les vrais artefacts sélectionnés, arrêt si CUDA subsiste ; (3) listes/tests, avec 834 identités et assertions conservées, puis Clippy/format ; (4) variante négative du seul harness de prototype ajoutant un cas de provocation du port interdit, sans toucher aux tests existants, pour constater diagnostic direct, arrêt 78 du harness et échec Cargo ; (5) remise des preuves et revue de l’hypothèse. Le cas supplémentaire appartient exclusivement à la variante négative, jamais au candidat dont le total reste 834. Cet échec attendu termine la campagne ; aucune relance après échec sans arbitrage applicable. La variante négative est conservée comme preuve, sans nettoyage implicite.
+Le protocole proposé compte cinq actions : (1) préflight et auto-tests ; (2) compiler sans lancer et examiner les vrais artefacts sélectionnés, arrêt si CUDA subsiste ; (3) contrôle Structure avec 855 entrées, listes/tests avec 834 identités et assertions conservées, puis Clippy/format ; (4) variante négative du seul harness de prototype ajoutant un cas de provocation du port interdit, sans toucher aux tests existants, pour constater diagnostic direct, arrêt 78 du harness et échec Cargo ; (5) remise des preuves et revue de l’hypothèse. Le cas supplémentaire appartient exclusivement à la variante négative, jamais au candidat dont le total reste 834. Avec l’ignore R9, la cible positive attendue est 686 réussis et 148 ignorés ; aucun résultat n’est présumé. Cet échec attendu termine la campagne ; aucune relance après échec sans arbitrage applicable. La variante négative est conservée comme preuve, sans nettoyage implicite.
 
 Succès du prototype : fermeture R8.1–R8.3 dans cet environnement seulement, puis retour du design en revue. Échec de compilation, identité perdue, import moteur résiduel ou rejet récupérable : arrêt, aucune extension automatique. L’accord sur ce prototype, son emplacement et ses chemins reste à obtenir ; ni DESIGN READY ni PLANS READY n’est déclaré.
 

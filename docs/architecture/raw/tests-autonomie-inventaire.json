@@ -54166,7 +54166,7 @@
   },
   "free_gib_at_R8_handoff": 175.24,
   "decoupling_study": {
-    "id": "DRAFT-R8-1",
+    "id": "DRAFT-R8-2",
     "status": "DRAFT_NOT_DESIGN_READY",
     "date": "2026-11-01",
     "source_document_commit": "86bf900d",
@@ -54174,7 +54174,7 @@
     "user_authority": "Étudier le découplage des tests (recommandé), réponse de la présente session ; étude seulement",
     "author": "session Codex principale",
     "technical_contribution": "/root/r8_decoupling_architecture, DEC-T-R8-01 v1, lecture seule",
-    "report": "docs/architecture/TESTS-AUTONOMIE-INVENTAIRE.md#cadrage-r8--draft-r8-1-étude-autorisée-sans-implémentation",
+    "report": "docs/architecture/TESTS-AUTONOMIE-INVENTAIRE.md#cadrage-r8--draft-r8-2-étude-autorisée-sans-implémentation",
     "proposal": "Remplacer les deux harness unitaires natifs par deux cibles explicites tests/support/autonomous_harness.rs incluant les vrais modules et les mêmes 28 identités ; binaires test=false, dépendances inchangées ; code pur GPU extrait et réutilisé par vraie FFI ; opérations natives interdites terminant le processus",
     "test_matrix_source": "native_dll_import_analysis.affected_unit_tests, complétée par la matrice du rapport",
     "forbidden_port_contract": {
@@ -54192,13 +54192,16 @@
       "crates/whisper-worker-gpu/src/native_ffi/pure.rs",
       "crates/whisper-worker-gpu/src/native_ffi/tests.rs",
       "crates/whisper-worker-common/tests/support/native_boundary.rs",
-      "ci/guard-level1.ps1"
+      "ci/guard-level1.ps1",
+      "ci/tests-baseline.txt",
+      "crates/whisper-worker-cpu/src/encoder/tests.rs"
     ],
     "scope_extension_not_authorized": [
       "Cargo.toml hors sections features pour déclarer bin/test",
       "extraction GPU de production sans changement de corps",
       "mode NoRun borné dans garde N1 distincte existante",
-      "prototype et racine exacte, variante négative avec cas de provocation supplémentaire hors candidat"
+      "prototype dans worktree candidat C:/dev/whisper/target/agent-worktrees/tests-autonomes-r8-spike et branche refacto/tests-autonomes-r8-spike, variante négative hors candidat",
+      "reprise bornée R9 : ignore permanent de l'oracle, corps inchangé ; trois chemins de baseline déplacés et raison R9, sans nouvelle exception"
     ],
     "native_production_items_to_share": [
       "validate_native_gpu_log",
@@ -54210,14 +54213,17 @@
       "GgmlDevice"
     ],
     "sdk_scope_question": {
-      "status": "STRUCTURING_PENDING_USER",
+      "status": "RESOLVED_USER_DEC_P_R8_01",
+      "accepted_answer": "Sans DLL à l’exécution, outils de compilation installés",
+      "authority": "réponse explicite de l’utilisateur dans cette session après la première revue documentaire",
+      "sdk_free_build_applicability": "NOT_APPLICABLE_ACCEPTED_SCOPE",
       "options": [
         "sans DLL à l'exécution avec outils de compilation installés",
         "sans DLL ni outils de compilation CUDA"
       ],
       "no_silent_scope_reduction": true,
       "minimal_runtime_option_covers_sdk_free_build": false,
-      "sdk_free_candidate": "dépendances natives optionnelles et cibles required-features, changements de construction/consommateurs à cadrer séparément"
+      "sdk_free_candidate": "hors cible retenue ; aucune dépendance optionnelle ou modification de construction proposée"
     },
     "feasibility": {
       "R8.1_28_tests_same_real_modules": "NOT_RUN",
@@ -54225,7 +54231,7 @@
       "R8.3_forbidden_port_cannot_succeed": "NOT_PROVEN",
       "R8.4_total_834_and_multiplicity": "NOT_RUN",
       "R8.5_product_workers_preserved": "NOT_RUN",
-      "R8.6_sdk_free_cold_build": "NOT_COVERED_PENDING_SCOPE",
+      "R8.6_sdk_free_cold_build": "NOT_APPLICABLE_USER_ACCEPTS_BUILD_TOOLS",
       "R8.7_native_windows_qualification": "OUT_OF_N1_SCOPE"
     },
     "proposed_spike": {
@@ -54233,7 +54239,12 @@
       "authorized": false,
       "executed": false,
       "actor": "exécutant Rust distinct, après accord précis",
-      "root": "à proposer et faire approuver avant création",
+      "root": "C:/dev/whisper/target/agent-worktrees/tests-autonomes-r8-spike",
+      "branch": "refacto/tests-autonomes-r8-spike",
+      "root_and_branch_absent_at_readonly_preflight": true,
+      "base": "présent cadrage Git, code fb2171e8 inchangé",
+      "cargo_target": "C:/dev/whisper/target/parakeet-tests/cargo-shared",
+      "isolated_environment_and_outputs": "target/parakeet-tests/tests-autonomes sous le seul worktree de prototype, mêmes contrôles canoniques N1",
       "max_attempts": 1,
       "max_duration_hours": 2,
       "environment": "Windows x86_64 MSVC, Rust/Cargo 1.98.1, dépendances verrouillées hors ligne, outils CUDA disponibles pour compiler seulement",
@@ -54242,7 +54253,7 @@
       "order": [
         "préflight et auto-tests des arguments/racines/environnement/captures",
         "compilation sans exécution et inspection PE des exécutables sélectionnés ; arrêt si lien moteur résiduel",
-        "listes/tests, 834 identités et mêmes assertions ; Clippy/format",
+        "Structure 855 entrées, listes/tests 834 identités et mêmes assertions ; cible positive 686 réussis/148 ignorés après R9 ; Clippy/format",
         "variante négative du seul harness, cas de provocation ajouté sans modifier les tests existants ; diagnostic et arrêt 78, Cargo en échec ; fin de campagne",
         "remise des preuves puis revue de faisabilité, aucune extension ou relance automatique"
       ],
@@ -54251,7 +54262,7 @@
       "no_model_corpus_installation_or_dll_removal": true
     },
     "current_study_checks": "lecture de sources/manifestes et documentation officielle, comparaison Git et syntaxe documentaire seulement ; aucun Cargo, rustc ou prototype",
-    "independent_design_review": {
+    "independent_design_review_previous_version": {
       "source_commit": "46c89049",
       "actor": "/root/r8_design_review",
       "independence": "aucune participation à la conception, rédaction ou correction du candidat ; documents Git et sources vérifiés directement",
@@ -54271,6 +54282,8 @@
       },
       "checks": "documents Git, manifestes et sources ; 28 identités retrouvées (9 CPU / 19 GPU), couverture bidirectionnelle cohérente ; aucune exécution Cargo/rustc/native/PE"
     },
+    "independent_design_review": "PENDING_REVIEW_DRAFT_R8_2_USER_SCOPE_AND_BASELINE_PATH_MAPPING",
+    "baseline_adaptation": "ci/check-structure.rs:609–618 exige chemin+nom retrouvés ; remplacer seulement les 3 chemins FFI déplacés et la raison R9 dans ci/tests-baseline.txt, sans nouvelle exception",
     "documentary_checks": {
       "json_syntax": "PASS",
       "physical_inventory_entries_preserved": 855,
