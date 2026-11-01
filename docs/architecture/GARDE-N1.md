@@ -1,10 +1,10 @@
-Avancée : garde livrée avec réserves ; attente bornée ajoutée au test de remplacement du worker, sans nouvelle exécution.
-Blocage : preuve 4 sur cible partagée en échec (code 101), confirmé par l'unique reprise autorisée.
-Décision : LIVRÉ AVEC RÉSERVES ; deux cycles de correction consommés, aucun push.
+Avancée : correctif validé sur d710d1e8 ; tests workspace réussis : 686 / 0 / 148 ; preuve 4 acquise.
+Blocage : aucun pour la vérification demandée.
+Décision : bilan et preuves actualisés après une seule exécution autorisée ; aucune correction ni push.
 
 # GARDE-N1 — catégories de commandes Cargo
 
-Branche `garde/n1-categories`, worktree `C:/dev/whisper/target/agent-worktrees/garde-n1-categories`, base `refacto/tests-autonomes` **939fbbbe**. Plan accepté versionné avant réalisation : **09520288** (historique de ce fichier). Le lot initial débloque les diagnostics des workers locaux, notamment R8, sans changement Rust, manifeste, lockfile, modèle ou garde historique. Le correctif de test ultérieur, autorisé séparément, est décrit en fin de rapport.
+Branche `garde/n1-categories`, worktree `C:/dev/whisper/target/agent-worktrees/garde-n1-categories`, base `refacto/tests-autonomes` **939fbbbe**. Plan initial : **09520288** ; garde livrée : **a06ad99c**. Le correctif de test distinct a été planifié dans **92fa308a**, puis livré dans **d710d1e8**. Le candidat était propre avant la présente validation du 1er novembre 2026.
 
 | Catégorie | Commandes | Conditions |
 | --- | --- | --- |
@@ -12,38 +12,31 @@ Branche `garde/n1-categories`, worktree `C:/dev/whisper/target/agent-worktrees/g
 | Compilation | `check`, `build`, `test --no-run`, `clippy` | workspace ou un/plusieurs membres `-p`, release permis |
 | Tests | `test` | ni ignored/include-ignored, ni feature native-tests |
 
-La garde valide les membres par metadata protégé. Cible par défaut : `C:/dev/whisper/target/parakeet-tests/cargo-shared/`. `-LotRoot` désigne une racine contrôlée dans le worktree ; `-FreshTarget <nom>` impose un répertoire neuf sous cette racine. `-UnsetEnv` accepte seulement CUDA_PATH, CUDA_PATH_V*, GGML_*, WHISPER_* et PARAKEET_*. Les chemins canoniques et liens, l’espace minimal, CARGO_HOME/TEMP/TMP/LOCALAPPDATA isolés, stdout/stderr, codes de sortie et offline/locked restent contrôlés ; aucune surveillance de fichiers. `-DryRun` ne lance pas la commande demandée, mais peut lire les membres via metadata protégé. Le mode Structure existant est conservé (route seulement vérifiée en DryRun).
+Les membres `-p` proviennent de metadata protégé. Cible par défaut : `C:/dev/whisper/target/parakeet-tests/cargo-shared/`. `-LotRoot` désigne une racine contrôlée dans le worktree ; `-FreshTarget <nom>` impose une cible neuve sous cette racine. `-UnsetEnv` accepte seulement CUDA_PATH, CUDA_PATH_V*, GGML_*, WHISPER_* et PARAKEET_*. Les contrôles de chemins/liens, espace libre, CARGO_HOME/TEMP/TMP/LOCALAPPDATA isolés, stdout/stderr, codes de sortie et offline/locked sont conservés ; aucune surveillance de fichiers. `-DryRun` peut appeler metadata protégé, mais n’exécute pas la commande demandée. Structure est conservé, route vérifiée en DryRun.
 
-Refus par défaut de tout argument inconnu ; refus explicites : run/install/uninstall/update/publish/clean/add/remove/fix/generate-lockfile/vendor et commandes externes non listées ; --fix, --allow-dirty, --all-features, native-tests (y compris variantes qualifiées), recette-hooks en release, --ignored, --include-ignored, --config, -Z, --target-dir et manifest-path hors worktree.
-
-Exemple : `& ./ci/guard-level1.ps1 -FreshTarget A -DryRun -CargoArgs @('build','-p','whisper-worker-cpu')` dans PowerShell.
+Refus par défaut de tout argument inconnu ; refus explicites : run/install/uninstall/update/publish/clean/add/remove/fix/generate-lockfile/vendor et commandes externes non listées ; --fix, --allow-dirty, --all-features, native-tests (variantes qualifiées comprises), recette-hooks en release, --ignored, --include-ignored, --config, -Z, --target-dir et manifest-path hors worktree.
 
 ## Preuves 1 à 4
 
 | Preuve | Résultat et référence |
 | --- | --- |
-| 1 — auto-tests | **PASS**, `-Mode SelfTest` : **20 positifs / 49 négatifs**, code 0 ; validation sans Cargo, cas de jonction, racines et variables. La capture 0/23 n'a pas été auto-testée sur ce candidat. [selftest](raw/garde-n1/selftest.txt), [corrections](raw/garde-n1/correction-cycle1.txt). |
-| 2 — R8 | **PASS**, six commandes du diagnostic plus D/UnsetEnv, cibles neuves A2/B2/D, commandes demandées non exécutées. [Sorties](raw/garde-n1/r8-dry-runs.txt) et invocations dans le journal des corrections. Réalisé après cycle 1 ; cycle 2 rétablit les contrôles d’environnement. |
-| 3 — tree réel | **PASS**, `tree --offline --locked -p whisper-worker-cpu -e features -i whisper-rs-sys`, code 0 sur cible partagée après cycle 1. [stdout](raw/garde-n1/tree.stdout.log), [stderr](raw/garde-n1/tree.stderr.log). |
-| 4 — tests workspace | **FAIL**, `test --offline --locked --workspace`, code **101** sur cible partagée : premier groupe **275 réussis / 1 échec / 48 ignorés**. [Journal complet](raw/garde-n1/workspace-test-corrected.failed.log). Arrêt, puis unique reprise autorisée également en échec au même endroit (voir ci-dessous). |
+| 1 — auto-tests | **PASS**, 20 positifs / 49 négatifs ; `-Mode SelfTest` relancé avant les tests, code 0. Aucun Cargo dans ces auto-tests. [Résultat](raw/garde-n1/selftest.txt), [corrections](raw/garde-n1/correction-cycle1.txt). |
+| 2 — R8 | **PASS**, six commandes du diagnostic plus D/UnsetEnv, cibles neuves A2/B2/D, commandes demandées non exécutées. [Sorties](raw/garde-n1/r8-dry-runs.txt), invocations dans le journal des corrections. Preuve antérieure conservée ; le correctif Rust ne modifie pas la garde. |
+| 3 — tree réel | **PASS**, `tree --offline --locked -p whisper-worker-cpu -e features -i whisper-rs-sys`, code 0 sur cible partagée. [stdout](raw/garde-n1/tree.stdout.log), [stderr](raw/garde-n1/tree.stderr.log). Preuve antérieure conservée. |
+| 4 — tests workspace | **PASS sur d710d1e8**, `test --offline --locked --workspace`, code **0** : **686 réussis / 0 échec / 148 ignorés**, 73 groupes, total 834. [stdout](raw/garde-n1/workspace-test.stdout.log), [stderr](raw/garde-n1/workspace-test.stderr.log). |
 
-Le test en échec est `worker_ipc::tests::native_executor_backend_changes_only_after_the_prior_instance_is_reaped` : « replacement CPU route must start after the GPU instance was reaped », `native_execution.rs:730`. Le lot ne corrige pas ce Rust. Après accord explicite utilisateur, une seule reprise sur la garde finale a reproduit cet échec : 275/1/48, code 101, sans nouvelle relance. Ses sorties sont conservées dans [stdout](raw/garde-n1/workspace-test.stdout.log) et [stderr](raw/garde-n1/workspace-test.stderr.log) ; le premier échec reste conservé séparément. Un premier passage avait réussi avec **686/0/148**, mais sur une cible locale au worktree : preuve historique conservée, insuffisante pour valider le passage final sur la cible partagée ([chronologie](raw/garde-n1/executions.txt)).
+Invocation exacte depuis le worktree : `& ./ci/guard-level1.ps1 -CargoArgs @('test','--workspace')`. La garde applique offline/locked, le préflight et l’environnement isolé. Le journal stderr confirme les exécutables sous la cible partagée canonique. Une seule exécution a été lancée après l’autorisation utilisateur de validation du correctif ; aucune nouvelle correction. Le test `native_executor_backend_changes_only_after_the_prior_instance_is_reaped` est explicitement **ok** (stdout, ligne 252). La compilation conserve des avertissements ; ce passage n’est pas un contrôle Clippy.
 
-La référence initiale 687/0/147 a été remplacée par **686/0/148** avec accord utilisateur conditionnel confirmé : [bilan de la base](TESTS-AUTONOMIE-INVENTAIRE.md), lignes 1 et 21, et attribut ignore déjà présent dans `capture_encoder_baseline` au commit 939fbbbe. Aucun Rust modifié dans ce lot.
+La référence initiale 687/0/147 avait été remplacée par **686/0/148** avec accord utilisateur après confirmation de l’antériorité de l’ignore manuel `capture_encoder_baseline` : [bilan de la base](TESTS-AUTONOMIE-INVENTAIRE.md), lignes 1 et 21.
 
-## Revue et limites
+## Correctif, revue et historique
 
-Implémentation déléguée ; revue indépendante du même reviewer. Cycle 1 : six constats corrigés (features, racine avant écriture, cible canonique, Structure, UnsetEnv, options par sous-commande). Cycle 2 : rétablissement du refus de variables Whisper/Parakeet résiduelles et du nettoyage RUSTFLAGS pour Clippy. Parse PowerShell et `git diff --check` réussis. Revue finale : R1–R7 fermés, aucun constat source ouvert ; verdict global BLOCKED faute de preuve 4 réussie. Le compte rendu a été relu ; une affirmation non étayée de capture 0/23 a été retirée (limite explicitée ci-dessus). Aucune troisième correction de code autorisée.
+Le test exigeait un événement au premier polling malgré le démarrage asynchrone du remplaçant. Le correctif **d710d1e8** remplace cet appel par une attente de cinq secondes maximum, avec pause de deux millisecondes sur `None`. Le premier événement, y compris une erreur, reste soumis aux assertions existantes Ready/JobId/backend CPU. La vérification de l’exécuteur et le scénario NativeRouteBusy sont conservés. Seul `crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs` a été modifié côté Rust ; aucun code de production, manifeste ou lockfile modifié.
 
-Espace libre : environ **171 Gio avant**, **166,6 Gio après**. Neuf fichiers de preuves sous `raw/garde-n1/`, un rapport ; cache et temporaires conservés sous target, aucun nettoyage. Non vérifié : compilations froides A/B/D réelles, release, exécution native/matérielle, fenêtre Windows et absence d’écritures hors racines par confinement. La preuve 4 finale n’est pas acquise.
-## Correctif du test — plan accepté le 1er novembre 2026
+Implémentation déléguée et revue indépendante : R1–R7 de la garde fermés après deux cycles ; documentation relue. Le correctif distinct du test a reçu une revue statique **CLEAN**, sans correction supplémentaire. Son exécution était alors interdite ; la présente autorisation apporte maintenant la preuve runtime manquante, sans transformer la validation en nouveau verdict de revue.
 
-Autorité : après diagnostic en lecture, l'utilisateur demande « fais les corrections necessaires », acceptant la correction minimale proposée. Cette demande étend le périmètre antérieur à un seul fichier Rust de test : `crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs`, uniquement le test `native_executor_backend_changes_only_after_the_prior_instance_is_reaped`. La consigne précédente de ne pas relancer Cargo est conservée ; aucun nouveau test exécuté n'est revendiqué.
+Avant correction du test, deux passages sur cible partagée avaient échoué au même endroit (275/1/48, code 101). Le premier journal complet reste dans [échec historique](raw/garde-n1/workspace-test-corrected.failed.log) ; l’autre reste dans l’historique Git. Les sorties workspace dédiées contiennent désormais le passage réussi. La [chronologie](raw/garde-n1/executions.txt) distingue les tentatives, dont un ancien succès sur une cible locale au worktree qui ne constituait pas la preuve 4 requise.
 
-1. L'implémenteur remplace l'appel unique à `poll_unified_sessions().expect(...)` par une boucle bornée de cinq secondes, avec pause de deux millisecondes sur `None` et échec explicite à échéance. Le premier événement `Some` est conservé pour l'assertion existante ; aucune erreur n'est ignorée.
-2. Préserver les assertions Ready/JobId/backend CPU, la vérification du nouvel exécuteur et le scénario NativeRouteBusy. Aucun code de production, garde, manifeste, lockfile ou autre test modifié.
-3. Vérifier le diff statiquement, puis revue indépendante via le coordinateur Rust, au plus deux cycles sur ce correctif distinct. Aucun Cargo ni rustc ; principal met à jour ce bilan et commit local sans push. Ne pas supprimer les preuves historiques en échec.
+## Limites
 
-Critères : attente de Ready compatible avec le démarrage asynchrone ; attente bornée ; erreurs et événements incorrects toujours refusés ; delta limité au test ciblé et au présent bilan. L'exécution du test corrigé et la preuve 4 restent non vérifiées.
-
-Réalisation du correctif : remplacement effectué uniquement dans le test nommé ; boucle bornée à cinq secondes, pause de deux millisecondes sur absence d'événement. Toutes les assertions existantes sont conservées. Contrôle statique du diff réussi. Aucun Cargo, rustc, build, test ou Clippy lancé ; la réussite du test et de la preuve 4 reste à établir. Revue indépendante statique : CLEAN, aucun constat ouvert ; ceci ne valide pas une exécution du test.
+Espace libre : environ **166 Gio avant**, **166,46 Gio après** cette validation. Neuf fichiers de preuves et un rapport, sans nouveau fichier ; cache et temporaires conservés sous target, aucun nettoyage. Non vérifié : auto-test de capture 0/23 sur la garde finale, compilations froides A/B/D réelles, release, recettes natives/matérielles, fenêtre Windows et absence d’écritures hors racines par confinement. Aucun format/build/Clippy distinct relancé dans cette validation. Aucun push.

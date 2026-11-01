@@ -32,3 +32,15 @@ Target: C:\dev\whisper\target\parakeet-tests\cargo-shared
 Wall duration: 5.4 s (Cargo harness 3.18 s); exit: 101.
 Aggregate completed harness: 275 passed / 1 failed / 48 ignored. Failure: worker_ipc::tests::native_executor_backend_changes_only_after_the_prior_instance_is_reaped at crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs:730:14, `replacement CPU route must start after the GPU instance was reaped`.
 Latest stdout/stderr are workspace-test.stdout.log and workspace-test.stderr.log. The first corrected-candidate failed attempt remains preserved separately in workspace-test-corrected.failed.log. No retry beyond this single authorization.
+
+6) Validation explicitly authorized after the bounded polling fix, candidate d710d1e8
+Working directory: C:/dev/whisper/target/agent-worktrees/garde-n1-categories
+Preflight: clean worktree, approximately 166 GiB free, no cargo process observed; guard SelfTest exit 0 (20 positive / 49 negative).
+Invocation: & ./ci/guard-level1.ps1 -CargoArgs @('test','--workspace')
+Cargo argv: test --offline --locked --workspace
+Target: C:/dev/whisper/target/parakeet-tests/cargo-shared
+Guard exit: 0. Aggregate of 73 successful harness summaries: 686 passed / 0 failed / 148 ignored, total 834.
+Corrected test: native_executor_backend_changes_only_after_the_prior_instance_is_reaped ... ok (stdout line 252).
+Run logs: target/parakeet-tests/garde-n1-categories/scratch/20261101T142911696-0d453c2c38c046fea5d2f25691fc806c/cargo-command.stdout.log and sibling stderr.
+Latest stdout/stderr copied to workspace-test.stdout.log / workspace-test.stderr.log. Prior failures remain documented above; full earlier failure retained in workspace-test-corrected.failed.log and Git history.
+No new correction or retry. Free space after validation: approximately 166.46 GiB. No push.
