@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "revision": 4,
-  "candidate": "f8264002",
-  "authorization": "Oui, corriger le nom et reprendre",
+  "revision": 5,
+  "candidate": "5a53d776",
+  "authorization": "Oui, compléter CPU et Auto puis les exécuter",
   "history": [
     {
       "candidate": "de9003dc",
@@ -103,21 +103,10 @@
       "gitSnapshot": "c6833c6b"
     }
   ],
-  "priorRevision3": {
-    "gitSnapshot": "ed714977",
-    "archiveEntryCount": 137,
-    "archiveSha256": "db24d3cc8cf6afba43a3361bfe0436c50d82e46d9d1a63bc795708bd62d31aa6",
-    "selectorFinding": {
-      "source": "ci/native-profiles.json:149",
-      "declared": "ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling",
-      "savedInventory": "ipc::tests::rejects_oversized_and_incomplete_frames_before_deserialization",
-      "savedInventorySource": "target/n2-native/logs/InventoryList-cc95e146bf474a1e8cbd8ddffaad7740/InventoryList.stdout.log:902",
-      "cargoExitCode": 0,
-      "executedTests": 0,
-      "guardCorrectlyRejected": true,
-      "other22SelectorsPresentInSavedInventory": true,
-      "correctionApplied": false
-    }
+  "priorRevision4": {
+    "gitSnapshot": "e1ac7770",
+    "archiveEntryCount": 322,
+    "archiveSha256": "009c6751b68e7bf04d61649c94e4cdd7737983327e5bf4e7d292871bc12eff19"
   },
   "diagnostic": {
     "profile": "NvidiaSmiInventoryDiagnostic",
@@ -342,35 +331,66 @@
       "comparison": "descriptive only; no WER threshold"
     }
   ],
+  "additionalCases": {
+    "planned": 2,
+    "passed": 2,
+    "failed": 0,
+    "cpu": {
+      "runId": "TurboCpu-0429d4e7c0954108a53e9fbf7e77afa5",
+      "status": "PASS",
+      "cargoSeconds": 2.554,
+      "scope": "Turbo CPU startup/shutdown and invalid missing-model refusal; no model transcription",
+      "peVerdict": "PASS",
+      "sha256": "09495e55a990e8f906a833d90fe8cc1940b76f7450ffab6bafe24470a41b5acb",
+      "cudaImports": []
+    },
+    "auto": {
+      "runId": "PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82",
+      "status": "PASS",
+      "cargoSeconds": 27.203,
+      "scope": "Parakeet CPU fallback before audio when no GPU candidate; complete publication",
+      "gpuInitializationFailureFallbackTested": false,
+      "txtBytes": 49,
+      "srtBytes": 82,
+      "wavBytes": 129068
+    }
+  },
   "runtimeIntegrity": {
     "filesVerified": 21,
     "allMatched": true,
     "sourcesUnmodified": true
   },
-  "selectorFindingClosedByExactTestPass": true,
-  "cumulativeDistinctQualifiedTargetedBodies": 29,
+  "cumulativeDistinctQualifiedTargetedBodies": 31,
   "encoderDiagnosticDistinctBodies": 1,
   "fullCampaignQualified": false,
   "mergePerformed": false,
   "remainingBlockers": [
-    "PersonalUnified GPU import fails NVML initialization; Auto case behind it not executed",
+    "Parakeet GPU import fails NVML initialization",
     "fr87.wav/fr27.wav missing without backup",
     "historical write roots outside authorized lot",
-    "TurboCpu idle contract read-only preconditions clarified; no profile change or execution yet"
+    "CPU long fixtures available but worktree provenance corpus requires explicitly authorized copies"
   ],
-  "audioOutputs": {
-    "wavFilesPreservedUnderLot": 16,
-    "wavBytes": 32003264,
-    "wavShaVerified": 16,
-    "copiedToProofArchive": false
+  "nextPreparedScope": {
+    "cases": [
+      "native_personal_cpu_imports_annotated_french_long_audio",
+      "native_personal_cpu_imports_annotated_english_long_audio"
+    ],
+    "worktreeProvenanceClipFiles": 297,
+    "worktreeTsvFiles": 2,
+    "worktreeProvenanceBytes": 28685398,
+    "wavAndAnnotationFiles": 4,
+    "wavAndAnnotationBytes": 144705596,
+    "guardScriptChangeNeeded": false,
+    "rustChangeNeeded": false,
+    "copyOrProfilesApplied": false
   },
-  "freeBytes": 129600049152,
+  "freeBytes": 126171475968,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 322,
-    "priorEntriesPreserved": 137,
+    "entryCount": 366,
+    "priorEntriesPreserved": 322,
     "entriesVerified": true,
-    "sha256": "009c6751b68e7bf04d61649c94e4cdd7737983327e5bf4e7d292871bc12eff19",
+    "sha256": "9520af400baba9d354a0d42f6c7b76948f1cc9fdc516187b62e3504eee1c11dd",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -1981,6 +2001,226 @@
         "path": "target/n2-native/runs/D2-c81b2cd7789d4acfaa068f1966cb2645/writes/d2/checkpoint.jsonl",
         "bytes": 46048,
         "sha256": "f5e60ed72b983661df326e76c05b7a857da42405bd4939437eb002d526da12ab"
+      },
+      {
+        "path": "target/n2-native/logs/cpu-auto-PersonalAutoFallback-preflight.txt",
+        "bytes": 485,
+        "sha256": "ba76712268965b1c592694ac43db858ab7645775fc57085de3c23567cbd2c2aa"
+      },
+      {
+        "path": "target/n2-native/logs/cpu-auto-TurboCpu-preflight.txt",
+        "bytes": 473,
+        "sha256": "2c080da9026767d81950b2511536052097805b813cf6955304c9d1ce8d0b44b0"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/native_personal_auto_without_candidate_reports_preaudio_cpu_fallback.invocation.json",
+        "bytes": 1364,
+        "sha256": "3478f93ac19c5a2a5dc5505319623a5e37dbc574ff5065bc099ed10741d2c683"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/native_personal_auto_without_candidate_reports_preaudio_cpu_fallback.process.json",
+        "bytes": 151,
+        "sha256": "996b43e8ab8fff0c4a44dd252ba825d3c3be61e63e6f1511a4f382e04b3240fd"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/native_personal_auto_without_candidate_reports_preaudio_cpu_fallback.stderr.log",
+        "bytes": 229,
+        "sha256": "74e47b439ac5c4e591bb7a4bce24778b2070b59cf11b017cd8fbf32e24d10706"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/native_personal_auto_without_candidate_reports_preaudio_cpu_fallback.stdout.log",
+        "bytes": 201,
+        "sha256": "efde9732fe832de92f5d8e702ad365e81d75207bbbb0dd66b0efa3ac11809f2f"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/result.json",
+        "bytes": 1856,
+        "sha256": "a4601e9510270128b8473c860c678b924910110838f8d7b6e329d2527b1c52da"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/unattributed-temp.jsonl",
+        "bytes": 9040,
+        "sha256": "b5b56e4fe09bcc36ed5a6874f206102d638703c9d8330d61aea49e2c85dd9934"
+      },
+      {
+        "path": "target/n2-native/logs/TurboCpu-0429d4e7c0954108a53e9fbf7e77afa5/result.json",
+        "bytes": 950,
+        "sha256": "9e1e0b96a176ed343e631e1d3dcb4b6615ec7c4b0558c4ec05152f8aacc7ee6c"
+      },
+      {
+        "path": "target/n2-native/logs/TurboCpu-0429d4e7c0954108a53e9fbf7e77afa5/turbo_idle_and_refusal_contract.invocation.json",
+        "bytes": 1199,
+        "sha256": "0597694fb2f5b4974e9559147447d8ff05f66711b3e321972063b05e951d43dd"
+      },
+      {
+        "path": "target/n2-native/logs/TurboCpu-0429d4e7c0954108a53e9fbf7e77afa5/turbo_idle_and_refusal_contract.process.json",
+        "bytes": 115,
+        "sha256": "0c2ef0531f64576c4b9cc5aef6baaa76e10d0c382a40655f2b937969ab321477"
+      },
+      {
+        "path": "target/n2-native/logs/TurboCpu-0429d4e7c0954108a53e9fbf7e77afa5/turbo_idle_and_refusal_contract.stderr.log",
+        "bytes": 303,
+        "sha256": "45ca71e7f55dcab1ae6d99417b64c0b1b8a63fd67c280d932eece14fef13fd3a"
+      },
+      {
+        "path": "target/n2-native/logs/TurboCpu-0429d4e7c0954108a53e9fbf7e77afa5/turbo_idle_and_refusal_contract.stdout.log",
+        "bytes": 162,
+        "sha256": "3d1089fad0a9e2f741b9b976f97200339a90ebea97802c30b2fc4595bca5b5d7"
+      },
+      {
+        "path": "target/n2-native/resources/auto-runtime-final-checks.json",
+        "bytes": 5308,
+        "sha256": "9629ad0fe2e64485d3e22558ee715dc42eaa1c85c8f0a1c163fce406f9a04256"
+      },
+      {
+        "path": "target/n2-native/resources/long-cpu-copy-proposal.json",
+        "bytes": 123552,
+        "sha256": "e016af2f19a04f3b03588148e52adcf411f59697f1ea8efa756a60e123c53461"
+      },
+      {
+        "path": "target/n2-native/resources/turbo-cpu-native-contract-pe.json",
+        "bytes": 1221,
+        "sha256": "8bce7c9e66882048755e77b203d7110eb9f74169c59dde0a287b4eae296ad3e7"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/.whisper-publications.lock",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/.whisper-publications/index.json",
+        "bytes": 223,
+        "sha256": "caddc69a452d6ac906e34a449fa0cc72e8ef0eced74d3a79e4ecd600f15a21cb"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/exports/en-short.srt",
+        "bytes": 82,
+        "sha256": "53ef0552f2d2117179ff9be4172a0e99fee0c85287e86b7dc0bf8c4e2327526c"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/exports/en-short.txt",
+        "bytes": 49,
+        "sha256": "0edf3f33e020e532102a9795f978ed2e19ee89b506688fe141e4556881b9d5f5"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/CURRENT",
+        "bytes": 14,
+        "sha256": "ca8648fb7fb08b2dff1e9841e2f9551efc4c14ac6cb42b59c132d680b77de4d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/export.srt.install.pending",
+        "bytes": 82,
+        "sha256": "53ef0552f2d2117179ff9be4172a0e99fee0c85287e86b7dc0bf8c4e2327526c"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/export.srt.pending",
+        "bytes": 82,
+        "sha256": "53ef0552f2d2117179ff9be4172a0e99fee0c85287e86b7dc0bf8c4e2327526c"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/export.txt.install.pending",
+        "bytes": 49,
+        "sha256": "0edf3f33e020e532102a9795f978ed2e19ee89b506688fe141e4556881b9d5f5"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/export.txt.pending",
+        "bytes": 49,
+        "sha256": "0edf3f33e020e532102a9795f978ed2e19ee89b506688fe141e4556881b9d5f5"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/installed-exports.json",
+        "bytes": 696,
+        "sha256": "f6ce259b9a6c2b5f68ecddf6a5df2b9becd80969dbeba492d0d6853854c09541"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/manifest.json",
+        "bytes": 398,
+        "sha256": "f80c4699372169b6b97287dbddedfcf843b614ed44c1f6947e2f897602a9c387"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 110,
+        "sha256": "23945bbdc8d38a2e40e9f95c4175f86f89754347902ca82cdd262717209d52f3"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/parakeet-unified/document/document.final.json",
+        "bytes": 85,
+        "sha256": "5e4dce9216735f6c0fca6258612a304543719aa901f548f656a6bbe1406219d3"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/parakeet-unified/document/document.idx",
+        "bytes": 24,
+        "sha256": "0433981756dfaca007e9a8b98da57728bb47f54e164dc82e959fd21ef2ce1c91"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/parakeet-unified/document/document.jsonl",
+        "bytes": 245,
+        "sha256": "aab9083b3ead2c1e327900effd81c54acb39b9c87b7125c41f298fa79b402e6d"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/parakeet-unified/source.parts.idx",
+        "bytes": 32,
+        "sha256": "2b51eddafeaae65a5304dcb29032b37237349c42ddaf668ba458fd2fab5cc447"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/parakeet-unified/source.wav",
+        "bytes": 129068,
+        "sha256": "8c72de575b6f5e93812a6d5bea73b7c0c928dcc73f769b64bc325adf79a2219a"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/pending.json",
+        "bytes": 684,
+        "sha256": "c02bb3ef481d1c0a1d7996fb3b436a422cea2f3b6120ee3184f81c988335ecdc"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/r11-publication.json",
+        "bytes": 322,
+        "sha256": "607266428c3559cb7dc827409524277ada1d5503c5682ddec1d13638b708efbc"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/segments.jsonl",
+        "bytes": 147,
+        "sha256": "cb422b2277599ff83de604c4d05df4e60b20e48a27417582a218d48234b609a7"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/transcript.srt",
+        "bytes": 82,
+        "sha256": "53ef0552f2d2117179ff9be4172a0e99fee0c85287e86b7dc0bf8c4e2327526c"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/archive/transcriptions/000000000001613018e404c6945019d0/1/transcript.txt",
+        "bytes": 49,
+        "sha256": "0edf3f33e020e532102a9795f978ed2e19ee89b506688fe141e4556881b9d5f5"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/fixtures/en-short.mp3",
+        "bytes": 24237,
+        "sha256": "39048cd1482d7bcce4052ee8027cf629fcc2f7c6714dcf6419238ee202836d8a"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/settings/reprocessing-snapshots.json",
+        "bytes": 2,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/settings/reprocessing-snapshots.lock",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/settings/source-snapshot-operation.lock",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "snapshots/cpu-auto-v5/TurboCpu.json",
+        "bytes": 177,
+        "sha256": "fd3870013ed94580e9b753f6886f9adab2e09ed3b30b9e505c65e8f8ad1e82d3"
+      },
+      {
+        "path": "snapshots/cpu-auto-v5/PersonalAutoFallback.json",
+        "bytes": 4659,
+        "sha256": "52d5398babaa3e30e9c27a25cb918d5e83e801c04702b23917483e25c1eda870"
       }
     ]
   }

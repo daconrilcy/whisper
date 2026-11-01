@@ -1,6 +1,6 @@
-Avancée : 26 cas indépendants exécutés : 25 tests réussis et un diagnostic encodeur ; D2 termine ses 16 parcours.
-Blocage : campagne complète encore incomplète : import GPU/NVML, corpus historique manquant et racines hors lot.
-Décision : correction du sélecteur validée en exécution ; pas de fusion tant que la campagne complète n'est pas verte.
+Avancée : Turbo CPU démarrage/refus et Auto sans candidat GPU réussis ; 31 corps ciblés PASS distincts et un diagnostic encodeur.
+Blocage : campagne complète incomplète : NVML, corpus historique manquant, racines hors lot et provenance des longs absente du worktree.
+Décision : aucune fusion ; deux imports CPU longs restent préparables sous réserve de copies de recette explicitement autorisées.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -173,3 +173,19 @@ Préparation complémentaire en lecture seule, sans profil modifié : `TurboCpu:
 Accord reçu : **« Oui, compléter CPU et Auto puis les exécuter »**. L'implémenteur ne modifie que le registre : TurboCpu READY pour le contrat de démarrage/refus sans modèle, et PersonalAutoFallback isolant le test Auto déjà existant avec la fixture EN et le même runtime vérifié. Aucun hook de faute L04 ; aucune modification de test, assertion, script ou installation. Requêtes préparées sous le lot ; préflights exacts : code 0.
 
 Revue indépendante **CLEAN**, base `e1ac7770`, registre SHA `5621d6283eba7b7df7890bfab77c5f969edf7f8dcc02f080158c115928199db9`, garde inchangée. Le test Auto exige la publication complète et le message de repli CPU pré-audio sans candidat GPU. Le contrat TurboCpu ne charge pas de modèle et ne qualifie pas une transcription. Le parent exécute ces deux cas sous garde, avec arrêt sur échec ; les blocages de la campagne complète restent ouverts.
+
+## Résultat CPU et Auto
+
+Au candidat `5a53d776`, **TurboCpu PASS**, un corps exact, appel Cargo **2,554 s**. Le worker démarre, s'arrête et refuse la demande invalide sans charger de modèle. Le binaire produit ensuite contrôlé PE est **PASS sans import CUDA**, SHA `09495e55a990e8f906a833d90fe8cc1940b76f7450ffab6bafe24470a41b5acb`. Ce binaire debug et ce contrat ne remplacent pas une transcription release en environnement sans pilote NVIDIA.
+
+**PersonalAutoFallback PASS**, un corps exact, appel Cargo **27,203 s**, corps **26,14 s**. L'application publie WAV **129 068 octets**, TXT **49 octets**, SRT **82 octets**, avec le message de repli CPU avant audio sans candidat GPU. Moteur réel **Parakeet CPU** ; ce scénario ne teste pas un échec d'initialisation GPU ni le modèle Turbo. Les 21 ressources clonées et leurs sources restent conformes après l'essai.
+
+Total distinct ciblé : **31 corps PASS et un diagnostic encodeur**, répétitions exclues ; le diagnostic NVIDIA n'entre pas dans ce nombre. Les deux nouveaux profils restent CLEAN, aucun échec dans ce complément. Preuves consolidées **révision 5**, **366 entrées relues et vérifiées**, dont **322 conservées à l'identique**, SHA archive `9520af400baba9d354a0d42f6c7b76948f1cc9fdc516187b62e3504eee1c11dd`. Révision 4 dans Git à `e1ac7770`. Neuf fichiers de bilan/preuves inchangés en nombre ; espace libre **126 171 398 144 octets**. Aucun nettoyage, réinstallation, changement Rust/pilote/SDK, push ou fusion.
+
+## Préparation en lecture seule des derniers imports personnels CPU
+
+Deux cas normaux restent identifiés dans `parakeet_unified_native.rs:908–926` : `native_personal_cpu_imports_annotated_french_long_audio` et `native_personal_cpu_imports_annotated_english_long_audio`. Ils utilisent le runtime existant, feature native-tests seule, aucun hook, marqueur ni inventaire NVIDIA. Leurs WAV et annotations sont présents et leurs SHA WAV correspondent aux annotations : français **67 487 660 octets**, anglais **77 099 948 octets**. Chaque test exige aussi la provenance depuis le `sound example/` du worktree (source : lignes 470–475 et 557), absente ici ; aucune copie n'a encore été effectuée.
+
+Préparation concrète proposée : copier seulement les **297 clips référencés** (142 FR, 155 EN) et les **deux TSV exacts** depuis les corpus originaux du dépôt principal vers `C:/dev/whisper/.wt/r8/sound example/sps-corpus-5.0-2026-09-11-{fr,en}/`, en préservant les chemins. Coût **28 685 398 octets**, 299 fichiers. Copier les deux WAV et annotations sous les ressources du lot puis leur staging RunRoot : **144 705 596 octets**, quatre fichiers, outre le runtime déjà disponible. Tous les originaux existent ; le plan de copie est conservé sous `target/n2-native/resources/long-cpu-copy-proposal.json`. Aucun corpus entier, modèle ou installation n'est à dupliquer.
+
+Le prochain périmètre serait limité à ces copies de recette, aux données du registre `ci/native-profiles.json`, requêtes et bilan/preuves existants, revue indépendante puis deux exécutions. Chaque test a un délai maximal existant de **90 minutes** ; le coût réel des imports longs reste à mesurer. Aucun script de garde, test/assertion Rust, manifeste, SDK, pilote ou racine native de sortie ne changerait. Les copies de provenance sous deux nouveaux dossiers du worktree et ces deux profils dépassent le complément CPU/Auto court : accord précis nécessaire avant action. Les Auto longs choisissent un candidat GPU et restent dépendants du blocage NVML ; ils ne sont pas proposés comme indépendants. La campagne entière et la condition de fusion restent non satisfaites.
