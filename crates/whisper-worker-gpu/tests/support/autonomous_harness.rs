@@ -23,6 +23,7 @@ use std::{io, sync::mpsc::{self, Receiver}};
 use whisper_core::ipc::{
     IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent,
 };
+use whisper_core::{Generation, JobId};
 
 #[path = "../../src/session/control.rs"]
 mod control;
