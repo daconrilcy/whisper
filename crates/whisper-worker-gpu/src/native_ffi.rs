@@ -5,11 +5,11 @@ mod pure;
 #[cfg(test)]
 mod tests;
 
-pub use self::pure::{CudaDevice, GgmlDevice};
 use self::pure::{
     BackendRegistryEntry, normalize_pci, validate_native_gpu_log,
     validate_selected_cuda_registry_device, whisper_gpu_position,
 };
+pub use self::pure::{CudaDevice, GgmlDevice};
 use std::sync::{Mutex, OnceLock};
 
 const MAX_NATIVE_LOG_BYTES: usize = 16 * 1024;
