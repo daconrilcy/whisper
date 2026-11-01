@@ -27,4 +27,5 @@ pub(crate) type Incoming =
     Result<whisper_core::ipc::IpcEnvelope<whisper_core::ipc::WorkerCommand>, String>;
 
 #[cfg(test)]
+#[path = "ipc/tests.rs"]
 mod tests;

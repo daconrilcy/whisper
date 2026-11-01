@@ -58,4 +58,5 @@ pub(crate) fn emit_gpu_revalidation_failure(
 }
 
 #[cfg(test)]
+#[path = "diagnostics/tests.rs"]
 mod tests;

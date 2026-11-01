@@ -11,4 +11,5 @@ pub(crate) fn write_frame<T: serde::Serialize>(
 }
 
 #[cfg(test)]
+#[path = "ipc_output/tests.rs"]
 mod tests;

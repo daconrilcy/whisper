@@ -16,16 +16,6 @@ mod ipc_output;
 #[path = "../../src/worker.rs"]
 mod worker;
 
-use crate::{diagnostics::emit_failure, ipc::Incoming};
-use std::{io, sync::mpsc::{self, Receiver}};
-use whisper_core::ipc::{
-    IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent,
-};
-use whisper_core::{Generation, JobId};
-
-#[path = "../../src/session/control.rs"]
-mod control;
-
 mod native_engine {
     pub(crate) struct CpuEngine;
 
@@ -37,6 +27,16 @@ mod native_engine {
 }
 
 mod session {
+    use crate::{diagnostics::emit_failure, ipc::Incoming};
+    use std::{io, sync::mpsc::{self, Receiver}};
+    use whisper_core::{Generation, JobId};
+    use whisper_core::ipc::{
+        IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent,
+    };
+
+    #[path = "../../../src/session/control.rs"]
+    mod control;
+
     pub(crate) fn run_session(
         _rx: &std::sync::mpsc::Receiver<crate::ipc::Incoming>,
         _output: &mut impl std::io::Write,
