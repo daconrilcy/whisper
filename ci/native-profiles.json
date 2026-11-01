@@ -460,6 +460,28 @@
         "executable": "C:/Windows/System32/nvidia-smi.exe",
         "arguments": ["--query-gpu=count,pci.bus_id,uuid","--format=csv,noheader,nounits"]
       }
+    },
+    {
+      "id": "NvidiaSmiEnvironmentCompareDiagnostic",
+      "status": "READY",
+      "operation": "Diagnostic",
+      "package": "whisper-adapters",
+      "features": [],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [
+        {"key":"cudaToolkitPath","environmentVariable":"CUDA_PATH","required":true,"kind":"directory","allowedRoot":"cuda-12.9"},
+        {"key":"cudaToolkitVersionedPath","environmentVariable":"CUDA_PATH_V12_9","required":true,"kind":"directory","allowedRoot":"cuda-12.9"}
+      ],
+      "outputs": [],
+      "cases": [],
+      "command": {
+        "executable": "C:/Windows/System32/nvidia-smi.exe",
+        "arguments": ["--query-gpu=count,pci.bus_id,uuid","--format=csv,noheader,nounits"],
+        "contexts": ["clean","host-nvidia-filtered","path-only","vars-only"],
+        "captureModules": true,
+        "expectedSha256": "f874229e4df6313f39b4af658add6d2b74682f2a44b5957aa6104d19a8593ec6"
+      }
     }
   ]
 }

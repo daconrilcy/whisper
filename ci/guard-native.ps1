@@ -303,7 +303,11 @@ function Assert-NvidiaSmiDiagnosticProfile([object]$Profile, [switch]$VerifyInst
     $expectedExe = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
     $configuredExe = Get-FullPath ([string]$Profile.command.executable)
     $expectedArgs = @('--query-gpu=count,pci.bus_id,uuid','--format=csv,noheader,nounits')
-    if ($Profile.id -cne 'NvidiaSmiInventoryDiagnostic' -or $configuredExe -ine $expectedExe) { throw 'NVIDIA diagnostic executable must be the pinned System32 nvidia-smi.exe.' }
+    if ($Profile.id -notin @('NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic') -or $configuredExe -ine $expectedExe) { throw 'NVIDIA diagnostic executable must be the pinned System32 nvidia-smi.exe.' }
+    $expectedCommandProperties = if ($Profile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') { @('executable','arguments','contexts','captureModules','expectedSha256') } else { @('executable','arguments') }
+    $actualCommandProperties = @($Profile.command.PSObject.Properties.Name | Sort-Object)
+    $sortedExpectedCommandProperties = @($expectedCommandProperties | Sort-Object)
+    if ([string]::Join('|',$actualCommandProperties) -cne [string]::Join('|',$sortedExpectedCommandProperties)) { throw "NVIDIA diagnostic command has fields outside its pinned contract: $($Profile.id)" }
     if ($VerifyInstalledExecutable) {
         if (-not (Test-Path -LiteralPath $expectedExe -PathType Leaf)) { throw "Pinned System32 nvidia-smi.exe is missing: $expectedExe" }
         $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($expectedExe).FileVersion
@@ -311,6 +315,13 @@ function Assert-NvidiaSmiDiagnosticProfile([object]$Profile, [switch]$VerifyInst
     }
     $actualArgs = @($Profile.command.arguments | ForEach-Object { [string]$_ })
     if ($actualArgs.Count -ne $expectedArgs.Count -or [string]::Join("`n",$actualArgs) -cne [string]::Join("`n",$expectedArgs)) { throw 'NVIDIA diagnostic argv differs from the exact source command.' }
+    if ($Profile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
+        $expectedContexts = @('clean','host-nvidia-filtered','path-only','vars-only')
+        $actualContexts = @($Profile.command.contexts | ForEach-Object { [string]$_ })
+        if (-not [bool]$Profile.command.captureModules -or $actualContexts.Count -ne $expectedContexts.Count -or [string]::Join('|',$actualContexts) -cne [string]::Join('|',$expectedContexts) -or [string]$Profile.command.expectedSha256 -cne 'f874229e4df6313f39b4af658add6d2b74682f2a44b5957aa6104d19a8593ec6') { throw 'NVIDIA environment comparison contexts, module capture flag, or executable SHA pin differ from the bounded profile.' }
+        if (@($Profile.features).Count -ne 0 -or @($Profile.compileEnvironment).Count -ne 0 -or @($Profile.inputs).Count -ne 0 -or @($Profile.outputs).Count -ne 0 -or @($Profile.cases).Count -ne 0) { throw 'NVIDIA environment comparison must not declare Cargo features, inputs, outputs, compile flags, or test selectors.' }
+        if ($VerifyInstalledExecutable -and (Get-Sha256 $expectedExe) -cne [string]$Profile.command.expectedSha256) { throw 'Pinned System32 nvidia-smi.exe SHA-256 differs from the approved comparison executable.' }
+    }
     $expectedValues = @(
         [pscustomobject]@{key='cudaToolkitPath';environmentVariable='CUDA_PATH';kind='directory';allowedRoot='cuda-12.9'},
         [pscustomobject]@{key='cudaToolkitVersionedPath';environmentVariable='CUDA_PATH_V12_9';kind='directory';allowedRoot='cuda-12.9'}
@@ -322,6 +333,379 @@ function Assert-NvidiaSmiDiagnosticProfile([object]$Profile, [switch]$VerifyInst
             if ([string]$actualValues[$index].$name -cne [string]$expectedValues[$index].$name) { throw 'NVIDIA diagnostic CUDA environment descriptors differ from the bounded CUDA 12.9 contract.' }
         }
         if (-not [bool]$actualValues[$index].required) { throw 'NVIDIA diagnostic CUDA path descriptors must be required.' }
+    }
+}
+
+function Get-NvidiaDiagnosticHostEnvironment {
+    $environment = @{}
+    foreach ($name in @('SystemRoot','WINDIR','SystemDrive','ComSpec','PATHEXT','OS','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','PATH','CUDA_PATH','CUDA_PATH_V12_9')) {
+        $value = [Environment]::GetEnvironmentVariable($name,'Process')
+        if (-not [string]::IsNullOrWhiteSpace($value)) { $environment[$name] = $value }
+    }
+    foreach ($name in @('ProgramFiles','ProgramFiles(x86)','ProgramW6432','CommonProgramFiles','CommonProgramFiles(x86)','CommonProgramW6432')) {
+        $value = [Environment]::GetEnvironmentVariable($name,'Machine')
+        if (-not [string]::IsNullOrWhiteSpace($value)) { $environment[$name] = $value }
+    }
+    return $environment
+}
+
+function Get-NvidiaDiagnosticFilteredPath([hashtable]$HostEnvironment, [string]$CudaBin, [string]$NvSmiDirectory, [bool]$IncludeHostDirectories) {
+    $systemRoot = Get-FullPath ([string]$HostEnvironment.SystemRoot)
+    $system32 = Get-FullPath (Join-Path $systemRoot 'System32')
+    Assert-NoReparseChain $systemRoot 'diagnostic SystemRoot PATH entry'
+    Assert-NoReparseChain $system32 'diagnostic System32 PATH entry'
+    $entries = [Collections.Generic.List[string]]::new()
+    $included = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($path in @($system32,$systemRoot)) { if ($included.Add($path)) { $entries.Add($path) } }
+    $includedHost = [Collections.Generic.List[string]]::new()
+    $omittedHost = 0
+    $invalidHost = 0
+    $reparseRejected = 0
+    if ($IncludeHostDirectories) {
+        $allowedVendorPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        foreach ($path in @($CudaBin,$NvSmiDirectory)) {
+            if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path -LiteralPath $path -PathType Container)) {
+                try { Assert-NoReparseChain $path 'approved NVIDIA diagnostic PATH directory'; [void]$allowedVendorPaths.Add((Get-FullPath $path)) }
+                catch { $reparseRejected++ }
+            }
+        }
+        $hostPath = [string]$HostEnvironment.PATH
+        foreach ($part in $hostPath.Split(';')) {
+            if ([string]::IsNullOrWhiteSpace($part)) { continue }
+            if ($part.Contains('"') -or $part.Contains('%') -or -not [IO.Path]::IsPathRooted($part)) { $invalidHost++; continue }
+            try { $full = Get-FullPath $part }
+            catch { $invalidHost++; continue }
+            if ($full -cne $part -or -not (Test-Path -LiteralPath $full -PathType Container)) { $invalidHost++; continue }
+            if ($full -ieq $systemRoot -or $full -ieq $system32) { continue }
+            if (-not $allowedVendorPaths.Contains($full)) { $omittedHost++; continue }
+            try { Assert-NoReparseChain $full 'filtered NVIDIA diagnostic PATH entry' }
+            catch { $reparseRejected++; continue }
+            if ($included.Add($full)) { $entries.Add($full); $includedHost.Add($full) }
+        }
+    }
+    return [pscustomobject]@{
+        value=[string]::Join(';',$entries.ToArray())
+        includedDirectories=@($entries.ToArray())
+        includedHostVendorDirectories=@($includedHost.ToArray())
+        omittedHostEntryCount=$omittedHost
+        invalidHostEntryCount=$invalidHost
+        reparseRejectedCount=$reparseRejected
+    }
+}
+
+function New-NvidiaDiagnosticContextEnvironment([string]$ContextId, [hashtable]$BaseEnvironment, [hashtable]$HostEnvironment, [string]$RunRoot) {
+    $contextPolicies = @{
+        clean = [pscustomobject]@{ includeHostPaths=$false; includeCudaVariables=$false }
+        'host-nvidia-filtered' = [pscustomobject]@{ includeHostPaths=$true; includeCudaVariables=$true }
+        'path-only' = [pscustomobject]@{ includeHostPaths=$true; includeCudaVariables=$false }
+        'vars-only' = [pscustomobject]@{ includeHostPaths=$false; includeCudaVariables=$true }
+    }
+    if (-not $contextPolicies.ContainsKey($ContextId)) { throw "Unapproved NVIDIA environment comparison context: $ContextId" }
+    $policy = $contextPolicies[$ContextId]
+    $runRoot = Get-FullPath $RunRoot
+    if (-not (Test-InRoot $runRoot $script:Lot)) { throw "Diagnostic context root escaped the candidate lot: $runRoot" }
+    Assert-NoReparseChain $runRoot 'diagnostic context RunRoot'
+    $cudaPath = Get-FullPath ([string]$BaseEnvironment.CUDA_PATH)
+    $versionedCudaPath = Get-FullPath ([string]$BaseEnvironment.CUDA_PATH_V12_9)
+    if ($cudaPath -ine $versionedCudaPath -or -not (Test-Path -LiteralPath $cudaPath -PathType Container)) { throw 'NVIDIA comparison requires the same existing CUDA 12.9 root for CUDA_PATH and CUDA_PATH_V12_9.' }
+    Assert-NoReparseChain $cudaPath 'validated CUDA 12.9 comparison root'
+    $cudaBin = Get-FullPath (Join-Path $cudaPath 'bin')
+    $programFiles = ''
+    $programFilesValue = [string]$HostEnvironment.ProgramFiles
+    if (-not [string]::IsNullOrWhiteSpace($programFilesValue) -and [IO.Path]::IsPathRooted($programFilesValue)) {
+        try {
+            $candidateProgramFiles = Get-FullPath $programFilesValue
+            if ($candidateProgramFiles -ieq $programFilesValue.TrimEnd('\') -and (Test-Path -LiteralPath $candidateProgramFiles -PathType Container)) { Assert-NoReparseChain $candidateProgramFiles 'machine ProgramFiles directory'; $programFiles=$candidateProgramFiles }
+        } catch { $programFiles='' }
+    }
+    $nvSmiDirectory = if (-not [string]::IsNullOrWhiteSpace($programFiles)) { Get-FullPath (Join-Path $programFiles 'NVIDIA Corporation\NVSMI') } else { '' }
+    $nvSmiDirectoryAvailable = -not [string]::IsNullOrWhiteSpace($nvSmiDirectory) -and (Test-Path -LiteralPath $nvSmiDirectory -PathType Container)
+    if ($nvSmiDirectoryAvailable) { Assert-NoReparseChain $nvSmiDirectory 'NVIDIA System Management Interface PATH directory' } else { $nvSmiDirectory = '' }
+    $pathEvidence = Get-NvidiaDiagnosticFilteredPath $HostEnvironment $cudaBin $nvSmiDirectory ([bool]$policy.includeHostPaths)
+
+    $environment = @{}
+    $systemRoot = Get-FullPath ([string]$HostEnvironment.SystemRoot)
+    $systemDrive = [IO.Path]::GetPathRoot($systemRoot).TrimEnd('\')
+    $comSpec = Get-FullPath (Join-Path $systemRoot 'System32\cmd.exe')
+    if (-not (Test-Path -LiteralPath $comSpec -PathType Leaf)) { throw 'Windows ComSpec executable is missing from the pinned System32 root.' }
+    Assert-NoReparseChain $comSpec 'diagnostic ComSpec'
+    $environment.SystemRoot = $systemRoot
+    $environment.WINDIR = $systemRoot
+    $environment.SystemDrive = $systemDrive
+    $environment.ComSpec = $comSpec
+    $readOnlyEnvironmentNames = @('PATHEXT','OS','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS')
+    foreach ($name in $readOnlyEnvironmentNames) {
+        $value = [string]$HostEnvironment[$name]
+        if (-not [string]::IsNullOrWhiteSpace($value)) { $environment[$name] = $value }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($programFiles)) { $environment.ProgramFiles=$programFiles }
+    $systemNames = @('SystemRoot','WINDIR','SystemDrive','ComSpec','ProgramFiles') + $readOnlyEnvironmentNames
+    $environment['PATH'] = $pathEvidence.value
+    $runDrive = [IO.Path]::GetPathRoot($runRoot).TrimEnd('\')
+    $homePath = $runRoot.Substring($runDrive.Length)
+    $programData = Join-Path $runRoot 'programdata'
+    $publicData = Join-Path $runRoot 'public'
+    $environment['TEMP'] = Join-Path $runRoot 'temp'
+    $environment['TMP'] = Join-Path $runRoot 'tmp'
+    $environment['LOCALAPPDATA'] = Join-Path $runRoot 'localappdata'
+    $environment['APPDATA'] = Join-Path $runRoot 'appdata'
+    $environment['USERPROFILE'] = $runRoot
+    $environment['HOME'] = $runRoot
+    $environment['HOMEDRIVE'] = $runDrive
+    $environment['HOMEPATH'] = $homePath
+    $environment['PROGRAMDATA'] = $programData
+    $environment['ALLUSERSPROFILE'] = $programData
+    $environment['PUBLIC'] = $publicData
+    foreach ($name in @('CARGO_HOME','CARGO_TARGET_DIR','CARGO_INCREMENTAL','CARGO_PROFILE_DEV_DEBUG')) {
+        if ($BaseEnvironment.ContainsKey($name)) { $environment[$name] = [string]$BaseEnvironment[$name] }
+    }
+    $cudaVariableEvidence = [Collections.Generic.List[object]]::new()
+    foreach ($name in @('CUDA_PATH','CUDA_PATH_V12_9')) {
+        $hostValue = [string]$HostEnvironment[$name]
+        if ([string]::IsNullOrWhiteSpace($hostValue)) {
+            $cudaVariableEvidence.Add([pscustomobject]@{name=$name;status='NOT_SET'})
+            continue
+        }
+        $valid = $false
+        $normalized = $null
+        try {
+            $normalized = Get-FullPath $hostValue
+            if ($normalized -ieq $cudaPath -and (Test-Path -LiteralPath $normalized -PathType Container)) { Assert-NoReparseChain $normalized 'filtered host CUDA variable'; $valid = $true }
+        } catch { $valid = $false }
+        if ($valid -and [bool]$policy.includeCudaVariables) {
+            $environment[$name] = $normalized
+            $cudaVariableEvidence.Add([pscustomobject]@{name=$name;status='INCLUDED_VALIDATED';path=$normalized})
+        } elseif ($valid) {
+            $cudaVariableEvidence.Add([pscustomobject]@{name=$name;status='VALIDATED_NOT_PASSED'})
+        } else {
+            $cudaVariableEvidence.Add([pscustomobject]@{name=$name;status='FILTERED_NONCANONICAL_OR_OUTSIDE_CUDA_12_9'})
+        }
+    }
+    foreach ($name in @('CARGO_HOME','TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME','HOMEDRIVE','HOMEPATH','PROGRAMDATA','ALLUSERSPROFILE','PUBLIC')) {
+        if ([string]::IsNullOrWhiteSpace([string]$environment[$name])) { throw "Diagnostic context omitted required isolated environment root $name." }
+    }
+    if (-not (Test-InRoot $environment.CARGO_HOME $script:Lot) -or (Get-FullPath $environment.CARGO_TARGET_DIR) -ine $script:CargoTarget) { throw 'NVIDIA diagnostic CARGO roots differ from the approved lot/shared target.' }
+    Assert-NoReparseChain $environment.CARGO_HOME 'diagnostic CARGO_HOME'
+    Assert-NoReparseChain $environment.CARGO_TARGET_DIR 'diagnostic CARGO_TARGET_DIR'
+    foreach ($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME','PROGRAMDATA','ALLUSERSPROFILE','PUBLIC')) {
+        if (-not (Test-InRoot $environment[$name] $runRoot)) { throw "$name escaped the isolated diagnostic context root: $($environment[$name])" }
+        Assert-NoReparseChain $environment[$name] "diagnostic context $name"
+    }
+    if (($environment.HOMEDRIVE + $environment.HOMEPATH).TrimEnd('\') -ine $runRoot) { throw 'HOMEDRIVE/HOMEPATH do not resolve to the isolated diagnostic context root.' }
+    return [pscustomobject]@{
+        environment=$environment
+        evidence=[pscustomobject]@{
+            context=$ContextId
+            inheritedEnvironmentNames=@($systemNames | Where-Object { $environment.ContainsKey($_) })
+            cudaVariables=@($cudaVariableEvidence.ToArray())
+            filteredPathDirectories=@($pathEvidence.includedDirectories)
+            includedHostVendorDirectories=@($pathEvidence.includedHostVendorDirectories)
+            omittedHostPathEntryCount=[int]$pathEvidence.omittedHostEntryCount
+            invalidHostPathEntryCount=[int]$pathEvidence.invalidHostEntryCount
+            reparsePathEntryRejectedCount=[int]$pathEvidence.reparseRejectedCount
+            writableEnvironmentRoots=@('CARGO_HOME','CARGO_TARGET_DIR','TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME','HOMEDRIVE','HOMEPATH','PROGRAMDATA','ALLUSERSPROFILE','PUBLIC')
+            environmentDumpWritten=$false
+        }
+    }
+}
+
+function New-NvidiaDiagnosticProcessInfo([string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$RunRoot) {
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName = $Executable
+    $psi.WorkingDirectory = $script:Repo
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.Arguments = [string]::Join(' ',[string[]]@($Arguments | ForEach-Object { Get-WindowsCommandLineArgument ([string]$_) }))
+    $vars = $psi.EnvironmentVariables
+    $vars.Clear()
+    foreach ($entry in $Environment.GetEnumerator()) { $vars[[string]$entry.Key] = [string]$entry.Value }
+    foreach ($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME','PROGRAMDATA','ALLUSERSPROFILE','PUBLIC')) {
+        if (-not (Test-InRoot ([string]$Environment[$name]) $RunRoot)) { throw "NVIDIA diagnostic process root $name escaped its context RunRoot." }
+    }
+    if (-not (Test-InRoot ([string]$Environment.CARGO_HOME) $script:Lot) -or (Get-FullPath ([string]$Environment.CARGO_TARGET_DIR) -ine $script:CargoTarget)) { throw 'NVIDIA diagnostic process Cargo roots differ from their approved locations.' }
+    return $psi
+}
+
+function New-NvidiaModuleCapture([int]$ProcessId) {
+    return [pscustomobject]@{
+        processId=$ProcessId
+        method='System.Diagnostics.Process.Modules polling'
+        targetPollMilliseconds=20
+        maxSamples=1600
+        maxModulePaths=4096
+        maxCandidateMetadata=128
+        samples=[Collections.Generic.List[object]]::new()
+        modules=[Collections.Generic.Dictionary[string,object]]::new([StringComparer]::OrdinalIgnoreCase)
+        errors=[Collections.Generic.List[string]]::new()
+        sampleCount=0
+        errorCount=0
+        modulePathTruncated=$false
+        sampleTruncated=$false
+        processExitedBeforeFirstSample=$false
+        firstSampleUtc=$null
+        lastSampleUtc=$null
+    }
+}
+
+function Add-NvidiaModuleCaptureError([object]$Capture, [string]$Message) {
+    $Capture.errorCount = [int]$Capture.errorCount + 1
+    if ($Capture.errors.Count -lt 64) { $Capture.errors.Add($Message) }
+}
+
+function Capture-NvidiaProcessModules([Diagnostics.Process]$Process, [object]$Capture) {
+    if ($Capture.sampleCount -ge $Capture.maxSamples) { $Capture.sampleTruncated=$true; return }
+    $sampleAt = [DateTimeOffset]::UtcNow
+    try {
+        $Process.Refresh()
+        if ($Process.HasExited) {
+            if ($Capture.sampleCount -eq 0) { $Capture.processExitedBeforeFirstSample=$true }
+            return
+        }
+        $moduleCollection = $Process.Modules
+        $moduleCount = [int]$moduleCollection.Count
+        $nvidiaNames = [Collections.Generic.List[string]]::new()
+        $sampleTruncated = $moduleCount -gt $Capture.maxModulePaths
+        $processed = 0
+        foreach ($module in $moduleCollection) {
+            if ($processed -ge $Capture.maxModulePaths) { break }
+            $processed++
+            try {
+                $name = [string]$module.ModuleName
+                $path = Get-FullPath ([string]$module.FileName)
+                if ([string]::IsNullOrWhiteSpace($name) -or [string]::IsNullOrWhiteSpace($path)) { throw 'Process.Modules returned an empty module name or path.' }
+                $key = $path.ToLowerInvariant()
+                if ($Capture.modules.ContainsKey($key)) {
+                    $prior = $Capture.modules[$key]
+                    $prior.lastObservedUtc = $sampleAt.ToString('o')
+                    $prior.observedSamples = [int]$prior.observedSamples + 1
+                } elseif ($Capture.modules.Count -lt $Capture.maxModulePaths) {
+                    $Capture.modules.Add($key,[pscustomobject]@{name=$name;path=$path;firstObservedUtc=$sampleAt.ToString('o');lastObservedUtc=$sampleAt.ToString('o');observedSamples=1})
+                } else { $Capture.modulePathTruncated=$true }
+                if ($name -match '(?i)^(?:nv|nvidia|cuda|cublas|cudnn|cufft|curand|cusparse|ggml-cuda).*\.dll$' -and $nvidiaNames.Count -lt $Capture.maxCandidateMetadata) { $nvidiaNames.Add($name) }
+            } catch { Add-NvidiaModuleCaptureError $Capture "module read: $($_.Exception.Message)" }
+        }
+        if ($moduleCount -gt $Capture.maxModulePaths) { $sampleTruncated=$true; $Capture.modulePathTruncated=$true }
+        $Capture.sampleCount = [int]$Capture.sampleCount + 1
+        if ($null -eq $Capture.firstSampleUtc) { $Capture.firstSampleUtc=$sampleAt.ToString('o') }
+        $Capture.lastSampleUtc=$sampleAt.ToString('o')
+        $Capture.samples.Add([pscustomobject]@{atUtc=$sampleAt.ToString('o');moduleCount=$moduleCount;modulePathsEnumerated=$processed;nvidiaModuleNames=@($nvidiaNames.ToArray());truncated=$sampleTruncated})
+    } catch { Add-NvidiaModuleCaptureError $Capture "module snapshot: $($_.Exception.Message)" }
+}
+
+function Complete-NvidiaModuleCapture([object]$Capture) {
+    $metadata = [Collections.Generic.List[object]]::new()
+    $candidates = @($Capture.modules.Values | Where-Object { $_.name -match '(?i)^(?:nv|nvidia|cuda|cublas|cudnn|cufft|curand|cusparse|ggml-cuda).*\.dll$' } | Sort-Object -Property path)
+    $candidateTruncated = $candidates.Count -gt $Capture.maxCandidateMetadata
+    foreach ($module in @($candidates | Select-Object -First $Capture.maxCandidateMetadata)) {
+        $fileVersion = $null; $sha256 = $null; $bytes = $null; $metadataError = $null
+        try {
+            if (-not (Test-Path -LiteralPath $module.path -PathType Leaf)) { throw 'Observed module file no longer exists after process exit.' }
+            $fileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo([string]$module.path).FileVersion
+            $bytes = [long](Get-Item -LiteralPath $module.path -Force).Length
+            $sha256 = Get-Sha256 ([string]$module.path)
+        } catch { $metadataError = $_.Exception.Message; Add-NvidiaModuleCaptureError $Capture "module metadata $($module.name): $metadataError" }
+        $metadata.Add([pscustomobject]@{name=$module.name;path=$module.path;fileVersion=$fileVersion;bytes=$bytes;sha256=$sha256;metadataError=$metadataError;firstObservedUtc=$module.firstObservedUtc;lastObservedUtc=$module.lastObservedUtc;observedSamples=$module.observedSamples})
+    }
+    $nvml = @($metadata | Where-Object { $_.name -ieq 'nvml.dll' })
+    $nvmlObservation = if ($Capture.sampleCount -eq 0) { 'NO_SAMPLE' } elseif ($nvml.Count -gt 0) { 'OBSERVED_IN_SAMPLE' } else { 'NOT_OBSERVED_IN_POLLED_SNAPSHOTS' }
+    return [pscustomobject]@{
+        processId=$Capture.processId
+        method=$Capture.method
+        coverage='POLLING_ONLY_NONEXHAUSTIVE'
+        absenceConclusion='NOT_SUPPORTED'
+        targetPollMilliseconds=$Capture.targetPollMilliseconds
+        sampleCount=$Capture.sampleCount
+        samplesTruncated=[bool]$Capture.sampleTruncated
+        modulePathUnionTruncated=[bool]$Capture.modulePathTruncated
+        candidateMetadataTruncated=$candidateTruncated
+        processExitedBeforeFirstSample=[bool]$Capture.processExitedBeforeFirstSample
+        firstSampleUtc=$Capture.firstSampleUtc
+        lastSampleUtc=$Capture.lastSampleUtc
+        nvmlObservation=$nvmlObservation
+        samples=@($Capture.samples.ToArray())
+        observedModuleUnion=@($Capture.modules.Values | Sort-Object -Property path)
+        nvidiaModuleMetadata=@($metadata.ToArray())
+        errorCount=$Capture.errorCount
+        errors=@($Capture.errors.ToArray())
+    }
+}
+
+function Invoke-NvidiaDiagnosticContextSelfTests([string]$Lot) {
+    $root = Join-Path $Lot ('selftest-nvidia-context-' + [guid]::NewGuid().ToString('N'))
+    $junctionPath = Join-Path $root 'reparse-nv-smi'
+    $rootJunctionPath = Join-Path $root 'reparse-context-root'
+    New-Item -ItemType Directory -Path $root -Force -ErrorAction Stop | Out-Null
+    try {
+        $cudaRoot = Join-Path $root 'cuda\v12.9'
+        $cudaBin = Join-Path $cudaRoot 'bin'
+        $programFiles = Join-Path $root 'program-files'
+        $nvSmi = Join-Path $programFiles 'NVIDIA Corporation\NVSMI'
+        $secretPath = Join-Path $root 'ambient-secret-path'
+        New-Item -ItemType Directory -Path $cudaBin,$nvSmi,$secretPath -Force -ErrorAction Stop | Out-Null
+        $hostEnvironment = Get-NvidiaDiagnosticHostEnvironment
+        $hostEnvironment.ProgramFiles = $programFiles
+        $hostEnvironment.CUDA_PATH = $cudaRoot
+        $hostEnvironment.CUDA_PATH_V12_9 = $cudaRoot
+        $hostEnvironment.USERPROFILE = 'C:\host-profile-secret-sentinel'
+        $hostEnvironment.NVIDIA_SECRET_SENTINEL = 'never-copy'
+        $hostEnvironment.PATH = [string]::Join(';',@((Join-Path $env:SystemRoot 'System32'),$env:SystemRoot,$cudaBin,$nvSmi,$secretPath))
+        $baseEnvironment = @{
+            CARGO_HOME=(Join-Path $Lot 'cargo-home'); CARGO_TARGET_DIR=$script:CargoTarget; CARGO_INCREMENTAL='0'; CARGO_PROFILE_DEV_DEBUG='line-tables-only'
+            CUDA_PATH=$cudaRoot; CUDA_PATH_V12_9=$cudaRoot
+        }
+        $contextResults = @{}
+        foreach ($contextId in @('clean','host-nvidia-filtered','path-only','vars-only')) {
+            $contextRoot = Join-Path $root (Join-Path 'runs' $contextId)
+            New-Item -ItemType Directory -Path $contextRoot -Force -ErrorAction Stop | Out-Null
+            $contextResults[$contextId] = New-NvidiaDiagnosticContextEnvironment $contextId $baseEnvironment $hostEnvironment $contextRoot
+        }
+        $clean = $contextResults.clean.environment
+        $hostFiltered = $contextResults['host-nvidia-filtered'].environment
+        $pathOnly = $contextResults['path-only'].environment
+        $varsOnly = $contextResults['vars-only'].environment
+        $expectedCleanPath = [string]::Join(';',@((Join-Path $env:SystemRoot 'System32'),(Get-FullPath $env:SystemRoot)))
+        if ($clean.PATH -ine $expectedCleanPath -or $clean.ContainsKey('CUDA_PATH') -or $clean.ContainsKey('CUDA_PATH_V12_9')) { throw 'Clean NVIDIA diagnostic context retained a CUDA variable or non-system PATH entry.' }
+        foreach ($context in @($hostFiltered,$pathOnly)) { if ($context.PATH -notlike "*$cudaBin*" -or $context.PATH -notlike "*$nvSmi*" -or $context.PATH -like "*$secretPath*") { throw 'Filtered NVIDIA PATH admitted a non-allowlisted directory or omitted an approved directory.' } }
+        if ($hostFiltered.CUDA_PATH -ine $cudaRoot -or $pathOnly.ContainsKey('CUDA_PATH')) { throw 'Host-filtered/path-only CUDA variable separation failed.' }
+        if ($varsOnly.CUDA_PATH -ine $cudaRoot -or $varsOnly.PATH -like "*$cudaBin*" -or $varsOnly.PATH -like "*$nvSmi*") { throw 'Variables-only context retained host PATH entries or lost the approved CUDA variable.' }
+        foreach ($contextId in @('clean','host-nvidia-filtered','path-only','vars-only')) {
+            $context = $contextResults[$contextId]
+            $psi = New-NvidiaDiagnosticProcessInfo (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') @('-NoProfile') $context.environment (Join-Path $root (Join-Path 'runs' $contextId))
+            if ($psi.EnvironmentVariables.Contains('NVIDIA_SECRET_SENTINEL') -or $psi.EnvironmentVariables.USERPROFILE -eq $hostEnvironment.USERPROFILE) { throw "NVIDIA context leaked ambient identity/secret values: $contextId" }
+            $expectedContextRoot = Get-FullPath (Join-Path $root (Join-Path 'runs' $contextId))
+            if (-not (Test-InRoot $psi.EnvironmentVariables.PROGRAMDATA $expectedContextRoot) -or $psi.EnvironmentVariables.ALLUSERSPROFILE -ne $psi.EnvironmentVariables.PROGRAMDATA -or -not (Test-InRoot $psi.EnvironmentVariables.PUBLIC $expectedContextRoot)) { throw "NVIDIA context did not reroute shared writable roots: $contextId" }
+        }
+        $reparseTarget = Join-Path $root 'vendor-target'
+        New-Item -ItemType Directory -Path $reparseTarget -Force -ErrorAction Stop | Out-Null
+        New-Item -ItemType Junction -Path $junctionPath -Target $reparseTarget -ErrorAction Stop | Out-Null
+        $reparseHost = @{} + $hostEnvironment
+        $reparseHost.PATH = [string]::Join(';',@((Join-Path $env:SystemRoot 'System32'),$env:SystemRoot,$cudaBin,$junctionPath))
+        $filteredReparse = Get-NvidiaDiagnosticFilteredPath $reparseHost $cudaBin $junctionPath $true
+        if ($filteredReparse.reparseRejectedCount -lt 1 -or $filteredReparse.includedHostVendorDirectories -contains $junctionPath) { throw 'NVIDIA diagnostic PATH did not reject a reparse vendor directory.' }
+        $rootTarget = Join-Path $root 'run-root-target'
+        New-Item -ItemType Directory -Path $rootTarget -Force -ErrorAction Stop | Out-Null
+        New-Item -ItemType Junction -Path $rootJunctionPath -Target $rootTarget -ErrorAction Stop | Out-Null
+        $badRootRejected = $false
+        try { New-NvidiaDiagnosticContextEnvironment 'clean' $baseEnvironment $hostEnvironment $rootJunctionPath | Out-Null } catch { $badRootRejected=$true }
+        if (-not $badRootRejected) { throw 'NVIDIA diagnostic context accepted a reparse RunRoot.' }
+        $outsideRootRejected = $false
+        try { New-NvidiaDiagnosticContextEnvironment 'clean' $baseEnvironment $hostEnvironment $env:TEMP | Out-Null } catch { $outsideRootRejected=$true }
+        if (-not $outsideRootRejected) { throw 'NVIDIA diagnostic context accepted an outside LotRoot.' }
+        $equalLeft = [pscustomobject]@{exitCode=255;stdoutSha256='a';stderrSha256='b';stdout='first';elapsedSeconds=1}
+        $equalRight = [pscustomobject]@{exitCode=255;stdoutSha256='a';stderrSha256='b';stdout='second';elapsedSeconds=2}
+        if (Test-NvidiaDiagnosticSignaturesDiffer $equalLeft $equalRight) { throw 'NVIDIA conditional-context comparison considered paths/timing instead of only exit/stdout/stderr.' }
+        foreach ($changed in @(
+            [pscustomobject]@{exitCode=0;stdoutSha256='a';stderrSha256='b'},
+            [pscustomobject]@{exitCode=255;stdoutSha256='changed';stderrSha256='b'},
+            [pscustomobject]@{exitCode=255;stdoutSha256='a';stderrSha256='changed'}
+        )) { if (-not (Test-NvidiaDiagnosticSignaturesDiffer $equalLeft $changed)) { throw 'NVIDIA conditional context was not triggered by an exit/stdout/stderr difference.' } }
+        return [pscustomobject]@{contexts=@('clean','host-nvidia-filtered','path-only','vars-only');hostPathExactAllowlist='PASS';cudaVariableSplit='PASS';writableRootsRerouted='PASS';ambientSecretExcluded='PASS';reparsePathRejected='PASS';outsideRootRejected='PASS';conditionalSignature='exitCode/stdout/stderr only';processStartInfoConstructed=true;processStarted=false}
+    } finally {
+        if (Test-Path -LiteralPath $junctionPath) { Remove-Item -LiteralPath $junctionPath -Force -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $rootJunctionPath) { Remove-Item -LiteralPath $rootJunctionPath -Force -ErrorAction SilentlyContinue }
+        if (Test-InRoot $root $Lot) { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue }
     }
 }
 
@@ -1226,7 +1610,7 @@ function Invoke-OneCargoCase([object]$Profile, [object]$Case, [object]$Environme
     }
 }
 
-function Invoke-NvidiaSmiDiagnostic([object]$Profile, [object]$Environment, [hashtable]$VsEnvironment, [object]$Toolchain, [string]$RunRoot, [string]$LogRoot, [bool]$DryRun, [switch]$SyntheticSelfTest, [string]$TestExecutable, [string[]]$TestArguments, [switch]$InjectWatcherFailure) {
+function Invoke-NvidiaSmiDiagnostic([object]$Profile, [object]$Environment, [hashtable]$VsEnvironment, [object]$Toolchain, [string]$RunRoot, [string]$LogRoot, [bool]$DryRun, [switch]$SyntheticSelfTest, [string]$TestExecutable, [string[]]$TestArguments, [switch]$InjectWatcherFailure, [string]$ContextId, [object]$ContextEvidence) {
     if ($SyntheticSelfTest) {
         $executable = Get-FullPath $TestExecutable
         $arguments = @($TestArguments)
@@ -1241,7 +1625,7 @@ function Invoke-NvidiaSmiDiagnostic([object]$Profile, [object]$Environment, [has
     $argvJson = Convert-StringArrayToJson $arguments
     $stableArgs = Convert-JsonStringArray $argvJson 'pinned NVIDIA diagnostic argv'
     if ($stableArgs.Count -ne $arguments.Count -or [string]::Join("`n",$stableArgs) -cne [string]::Join("`n",$arguments)) { throw 'NVIDIA diagnostic argv JSON round-trip changed the pinned arguments.' }
-    $caseId = 'nvidia-smi-query-gpu'
+    $caseId = if ([string]::IsNullOrWhiteSpace($ContextId)) { 'nvidia-smi-query-gpu' } else { 'nvidia-smi-query-gpu-' + $ContextId }
     $stdoutPath = Join-Path $LogRoot ($caseId + '.stdout.log')
     $stderrPath = Join-Path $LogRoot ($caseId + '.stderr.log')
     $invocationPath = Join-Path $LogRoot ($caseId + '.invocation.json')
@@ -1273,8 +1657,13 @@ function Invoke-NvidiaSmiDiagnostic([object]$Profile, [object]$Environment, [has
         stderr = $stderrPath
         failure = $null
     }
+    if ($Profile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
+        $record.executableSha256 = Get-Sha256 $executable
+        $record.environmentContext = $ContextEvidence
+    }
     $record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $invocationPath -Encoding UTF8
     $invocation = [pscustomobject]@{
+        profileId=[string]$Profile.id; contextId=$ContextId; contextEvidence=$ContextEvidence; captureModules=($Profile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic' -and [bool]$Profile.command.captureModules)
         executable=$executable; arguments=$stableArgs; environment=$Environment; vsEnvironment=$VsEnvironment
         toolchain=$Toolchain; runRoot=$RunRoot; logRoot=$LogRoot; caseId=$caseId
         stdoutPath=$stdoutPath; stderrPath=$stderrPath; invocationPath=$invocationPath
@@ -1283,10 +1672,89 @@ function Invoke-NvidiaSmiDiagnostic([object]$Profile, [object]$Environment, [has
     return Invoke-WatchedDiagnosticProcess $invocation
 }
 
+function Get-NvidiaDiagnosticOutputSignature([object]$Result) {
+    if (-not (Test-Path -LiteralPath $Result.stdout -PathType Leaf) -or -not (Test-Path -LiteralPath $Result.stderr -PathType Leaf)) { throw 'NVIDIA diagnostic output is missing; context comparison cannot continue.' }
+    return [pscustomobject]@{
+        exitCode=$Result.exitCode
+        stdoutSha256=Get-Sha256 ([string]$Result.stdout)
+        stderrSha256=Get-Sha256 ([string]$Result.stderr)
+    }
+}
+
+function Test-NvidiaDiagnosticSignaturesDiffer([object]$Left, [object]$Right) {
+    return [int]$Left.exitCode -ne [int]$Right.exitCode -or [string]$Left.stdoutSha256 -cne [string]$Right.stdoutSha256 -or [string]$Left.stderrSha256 -cne [string]$Right.stderrSha256
+}
+
+function New-NvidiaDiagnosticContextRoots([string]$ContextId, [string]$RunRoot, [string]$LogRoot, [switch]$Create) {
+    if ($ContextId -notin @('clean','host-nvidia-filtered','path-only','vars-only')) { throw "Unapproved NVIDIA context root id: $ContextId" }
+    $contextRunRoot = Get-FullPath (Join-Path $RunRoot (Join-Path 'contexts' $ContextId))
+    $contextLogRoot = Get-FullPath (Join-Path $LogRoot (Join-Path 'contexts' $ContextId))
+    foreach ($path in @($contextRunRoot,$contextLogRoot)) {
+        if (-not (Test-InRoot $path $script:Lot)) { throw "NVIDIA context output escaped candidate LotRoot: $path" }
+        Assert-NoReparseChain $path 'NVIDIA diagnostic context output'
+        if (Test-Path -LiteralPath $path) { throw "NVIDIA context output already exists: $path" }
+    }
+    if ($Create) {
+        New-Item -ItemType Directory -Path $contextRunRoot,$contextLogRoot -Force -ErrorAction Stop | Out-Null
+        foreach ($name in @('temp','tmp','localappdata','appdata','programdata','public')) { New-Item -ItemType Directory -Path (Join-Path $contextRunRoot $name) -Force -ErrorAction Stop | Out-Null }
+        Assert-NoReparseChain $contextRunRoot 'created NVIDIA context RunRoot'
+        Assert-NoReparseChain $contextLogRoot 'created NVIDIA context LogRoot'
+    }
+    return [pscustomobject]@{runRoot=$contextRunRoot;logRoot=$contextLogRoot}
+}
+
+function Invoke-NvidiaSmiEnvironmentComparison([object]$Profile, [hashtable]$BaseEnvironment, [object]$Toolchain, [string]$RunRoot, [string]$LogRoot, [bool]$DryRun) {
+    Assert-NvidiaSmiDiagnosticProfile $Profile -VerifyInstalledExecutable
+    $hostEnvironment = Get-NvidiaDiagnosticHostEnvironment
+    $caseResults = [Collections.Generic.List[object]]::new()
+    $signatures = [Collections.Generic.List[object]]::new()
+    $primaryContexts = @('clean','host-nvidia-filtered')
+    foreach ($contextId in $primaryContexts) {
+        $roots = New-NvidiaDiagnosticContextRoots $contextId $RunRoot $LogRoot -Create:(-not $DryRun)
+        $context = New-NvidiaDiagnosticContextEnvironment $contextId $BaseEnvironment $hostEnvironment $roots.runRoot
+        $result = Invoke-NvidiaSmiDiagnostic $Profile $context.environment @{} $Toolchain $roots.runRoot $roots.logRoot $DryRun -ContextId $contextId -ContextEvidence $context.evidence
+        $caseResults.Add($result)
+        if (-not $DryRun) { $signatures.Add((Get-NvidiaDiagnosticOutputSignature $result)) }
+    }
+    if ($DryRun) {
+        return [pscustomobject]@{status='DRY_RUN';cases=@($caseResults.ToArray());comparison=[pscustomobject]@{conditionalContexts=@('path-only','vars-only');condition='only if primary exitCode/stdout/stderr differ';performed=$false}}
+    }
+    $same = -not (Test-NvidiaDiagnosticSignaturesDiffer $signatures[0] $signatures[1])
+    $primaryResults = @($caseResults.ToArray())
+    if ($primaryResults[0].executableSha256 -cne $primaryResults[1].executableSha256) { throw 'Pinned nvidia-smi executable SHA-256 changed between primary contexts.' }
+    $conditionalStatus = if ($same) { 'NOT_RUN_PRIMARY_OUTPUTS_EQUAL' } else { 'RUN' }
+    if (-not $same) {
+        foreach ($contextId in @('path-only','vars-only')) {
+            $roots = New-NvidiaDiagnosticContextRoots $contextId $RunRoot $LogRoot -Create
+            $context = New-NvidiaDiagnosticContextEnvironment $contextId $BaseEnvironment $hostEnvironment $roots.runRoot
+            $conditionalResult = Invoke-NvidiaSmiDiagnostic $Profile $context.environment @{} $Toolchain $roots.runRoot $roots.logRoot $false -ContextId $contextId -ContextEvidence $context.evidence
+            if ($conditionalResult.executableSha256 -cne $primaryResults[0].executableSha256) { throw 'Pinned nvidia-smi executable SHA-256 changed during conditional contexts.' }
+            $caseResults.Add($conditionalResult)
+        }
+    }
+    return [pscustomobject]@{
+        status='DIAGNOSTIC_ONLY'
+        cases=@($caseResults.ToArray())
+        comparison=[pscustomobject]@{
+            condition='conditional contexts run only when primary exitCode/stdout/stderr differ'
+            primaryOutputsEqual=[bool]$same
+            cleanSignature=$signatures[0]
+            hostNvidiaFilteredSignature=$signatures[1]
+            conditionalContexts=@('path-only','vars-only')
+            conditionalStatus=$conditionalStatus
+            differenceCriteria=@('exitCode','stdoutSha256','stderrSha256')
+        }
+    }
+}
+
 function Invoke-WatchedDiagnosticProcess([object]$Invocation) {
-    $psi = New-CargoProcessInfo $Invocation.toolchain.cargo $Invocation.toolchain.rustc $Invocation.toolchain.toolchainBin $Invocation.arguments $Invocation.environment $Invocation.vsEnvironment $Invocation.runRoot
-    $psi.FileName = $Invocation.executable
-    $psi.Arguments = [string]::Join(' ',[string[]]@($Invocation.arguments | ForEach-Object { Get-WindowsCommandLineArgument ([string]$_) }))
+    if ($Invocation.profileId -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
+        $psi = New-NvidiaDiagnosticProcessInfo $Invocation.executable $Invocation.arguments $Invocation.environment $Invocation.runRoot
+    } else {
+        $psi = New-CargoProcessInfo $Invocation.toolchain.cargo $Invocation.toolchain.rustc $Invocation.toolchain.toolchainBin $Invocation.arguments $Invocation.environment $Invocation.vsEnvironment $Invocation.runRoot
+        $psi.FileName = $Invocation.executable
+        $psi.Arguments = [string]::Join(' ',[string[]]@($Invocation.arguments | ForEach-Object { Get-WindowsCommandLineArgument ([string]$_) }))
+    }
     $process = New-Object Diagnostics.Process
     $process.StartInfo = $psi
     $stdoutQueue = [Collections.Concurrent.ConcurrentQueue[object]]::new()
@@ -1296,6 +1764,7 @@ function Invoke-WatchedDiagnosticProcess([object]$Invocation) {
     $watchState = $null; $streamCapture = $null; $stdoutWriter = $null; $stderrWriter = $null
     $stdoutLines = [Collections.Generic.List[string]]::new(); $stderrLines = [Collections.Generic.List[string]]::new()
     $stdoutEof = $false; $stderrEof = $false; $processStarted = $false; $exitCode = $null
+    $moduleCapture = $null
     $beforeGit = Get-GitState $script:Repo
     try {
         $watchState = Start-WatchState (Get-RunWatchSpecs $script:Lot)
@@ -1311,13 +1780,21 @@ function Invoke-WatchedDiagnosticProcess([object]$Invocation) {
         if (-not $process.Start()) { throw 'Pinned nvidia-smi process failed to start.' }
         $processStarted = $true
         $process.BeginOutputReadLine(); $process.BeginErrorReadLine()
-        [ordered]@{ processId=$process.Id; startedUtc=$Invocation.started.ToString('o'); executable=$Invocation.executable; case=$Invocation.caseId } | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $Invocation.logRoot ($Invocation.caseId + '.process.json')) -Encoding UTF8
+        if ($Invocation.captureModules) {
+            $moduleCapture = New-NvidiaModuleCapture $process.Id
+            Capture-NvidiaProcessModules $process $moduleCapture
+        }
+        $processRecord = [ordered]@{ processId=$process.Id; startedUtc=$Invocation.started.ToString('o'); executable=$Invocation.executable; case=$Invocation.caseId }
+        if ($Invocation.profileId -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') { $processRecord.context=$Invocation.contextId }
+        $processRecord | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $Invocation.logRoot ($Invocation.caseId + '.process.json')) -Encoding UTF8
         $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
         while (-not $process.HasExited) {
+            if ($Invocation.captureModules) { Capture-NvidiaProcessModules $process $moduleCapture }
             Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $Invocation.logRoot
             Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $stderrLines ([ref]$stdoutEof) ([ref]$stderrEof)
             if ([DateTimeOffset]::UtcNow -ge $deadline) { throw 'Pinned nvidia-smi command exceeded its 30 second deadline.' }
-            Start-Sleep -Milliseconds 50
+            $pollMilliseconds = if ($Invocation.captureModules) { 20 } else { 50 }
+            Start-Sleep -Milliseconds $pollMilliseconds
         }
         $process.WaitForExit()
         $exitCode = $process.ExitCode
@@ -1331,6 +1808,14 @@ function Invoke-WatchedDiagnosticProcess([object]$Invocation) {
         Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $Invocation.logRoot
         Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $stderrLines ([ref]$stdoutEof) ([ref]$stderrEof)
         $stdoutWriter.Flush(); $stderrWriter.Flush()
+        if ($Invocation.captureModules) {
+            if ($moduleCapture.sampleCount -eq 0 -and $process.HasExited) { $moduleCapture.processExitedBeforeFirstSample=$true }
+            $Invocation.record.moduleCapture = Complete-NvidiaModuleCapture $moduleCapture
+            $Invocation.record.stdoutBytes = [long](Get-Item -LiteralPath $Invocation.stdoutPath -Force).Length
+            $Invocation.record.stderrBytes = [long](Get-Item -LiteralPath $Invocation.stderrPath -Force).Length
+            $Invocation.record.stdoutSha256 = Get-Sha256 $Invocation.stdoutPath
+            $Invocation.record.stderrSha256 = Get-Sha256 $Invocation.stderrPath
+        }
         $afterGit = Get-GitState $script:Repo
         if ($afterGit.head -cne $beforeGit.head -or $afterGit.status -cne $beforeGit.status) { throw 'Candidate Git HEAD/status changed during NVIDIA diagnostic; campaign stopped.' }
         Stop-WatchState $watchState
@@ -1340,6 +1825,9 @@ function Invoke-WatchedDiagnosticProcess([object]$Invocation) {
         $Invocation.record.result = 'DIAGNOSTIC_ONLY'; $Invocation.record.exitCode = $exitCode; $Invocation.record.elapsedSeconds = $elapsed
         $Invocation.record.stdoutLines = $stdoutLines.Count; $Invocation.record.stderrLines = $stderrLines.Count
         $Invocation.record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $Invocation.invocationPath -Encoding UTF8
+        if ($Invocation.profileId -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
+            return [pscustomobject]@{ case=$Invocation.caseId; context=$Invocation.contextId; executable=$Invocation.executable; executableVersion=$Invocation.record.executableVersion; executableSha256=$Invocation.record.executableSha256; exitCode=$exitCode; status='DIAGNOSTIC_ONLY'; elapsedSeconds=$elapsed; stdout=$Invocation.stdoutPath; stderr=$Invocation.stderrPath; invocation=$Invocation.invocationPath }
+        }
         return [pscustomobject]@{ case=$Invocation.caseId; executable=$Invocation.executable; exitCode=$exitCode; status='DIAGNOSTIC_ONLY'; elapsedSeconds=$elapsed; stdout=$Invocation.stdoutPath; stderr=$Invocation.stderrPath; invocation=$Invocation.invocationPath }
     } catch {
         if ($processStarted -and $null -ne $process -and -not $process.HasExited) { Stop-CargoProcessTree $process }
@@ -1703,6 +2191,15 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     $badDiagnosticProfile = ConvertFrom-Json (ConvertTo-Json -InputObject $nvidiaDiagnosticProfile -Depth 10)
     $badDiagnosticProfile.command.executable = Join-Path $env:SystemRoot 'System32\where.exe'
     Test-Rejects 'alternate NVIDIA diagnostic executable' { Assert-NvidiaSmiDiagnosticProfile $badDiagnosticProfile }
+    $nvidiaCompareProfile = Get-Profile $Registry 'NvidiaSmiEnvironmentCompareDiagnostic'
+    Assert-NvidiaSmiDiagnosticProfile $nvidiaCompareProfile -VerifyInstalledExecutable
+    $badCompareProfile = ConvertFrom-Json (ConvertTo-Json -InputObject $nvidiaCompareProfile -Depth 10)
+    $badCompareProfile.command.contexts[1] = 'arbitrary-user-context'
+    Test-Rejects 'arbitrary NVIDIA comparison context' { Assert-NvidiaSmiDiagnosticProfile $badCompareProfile }
+    $badCompareProfile = ConvertFrom-Json (ConvertTo-Json -InputObject $nvidiaCompareProfile -Depth 10)
+    $badCompareProfile.command.unlistedEnvironmentVariable = 'PATH'
+    Test-Rejects 'unlisted NVIDIA comparison field' { Assert-NvidiaSmiDiagnosticProfile $badCompareProfile }
+    $nvidiaContextEvidence = Invoke-NvidiaDiagnosticContextSelfTests $Lot
     $dryRunManifestPath = Join-Path (Join-Path $Lot 'logs') 'selftest-nvidia-diagnostic-dryrun-values.json'
     $dryRunManifest = [ordered]@{schemaVersion=1;profile='NvidiaSmiInventoryDiagnostic';inputs=@();values=@{cudaToolkitPath='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9';cudaToolkitVersionedPath='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'}}
     $dryRunManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $dryRunManifestPath -Encoding UTF8
@@ -1730,6 +2227,26 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     }
     $diagnosticVsEnvironment = @{ PATH='C:\ambient-tool;C:\Program Files\CMake\bin'; INCLUDE='C:\vs\include'; LIB='C:\vs\lib' }
     $syntheticPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $moduleCaptureRun = Join-Path $diagnosticRunRoot 'module-capture'
+    $moduleCaptureLogs = Join-Path $diagnosticLogRoot 'module-capture'
+    New-Item -ItemType Directory -Path $moduleCaptureRun,$moduleCaptureLogs -Force | Out-Null
+    foreach ($name in @('temp','tmp','localappdata','appdata','programdata','public')) { New-Item -ItemType Directory -Path (Join-Path $moduleCaptureRun $name) -Force | Out-Null }
+    $moduleCaptureHost = @{
+        SystemRoot=$env:SystemRoot; WINDIR=$env:WINDIR; SystemDrive=$env:SystemDrive; ComSpec=$env:ComSpec; PATHEXT=$env:PATHEXT; OS=$env:OS
+        PROCESSOR_ARCHITECTURE=$env:PROCESSOR_ARCHITECTURE; NUMBER_OF_PROCESSORS=$env:NUMBER_OF_PROCESSORS; PATH=[string]::Join(';',@((Join-Path $env:SystemRoot 'System32'),$env:SystemRoot))
+    }
+    $moduleCaptureContext = New-NvidiaDiagnosticContextEnvironment 'clean' $diagnosticEnvironment $moduleCaptureHost $moduleCaptureRun
+    $moduleCaptureScript = "[Console]::Out.WriteLine('N2_MODULE_CAPTURE_STDOUT'); [Console]::Error.WriteLine('N2_MODULE_CAPTURE_STDERR'); Start-Sleep -Milliseconds 150; exit 0"
+    $moduleCaptureArgs = @('-NoLogo','-NoProfile','-NonInteractive','-EncodedCommand',[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($moduleCaptureScript)))
+    $moduleCaptureResult = Invoke-NvidiaSmiDiagnostic $nvidiaCompareProfile $moduleCaptureContext.environment @{} $null $moduleCaptureRun $moduleCaptureLogs $false -SyntheticSelfTest -TestExecutable $syntheticPowerShell -TestArguments $moduleCaptureArgs -ContextId 'clean' -ContextEvidence $moduleCaptureContext.evidence
+    $moduleCaptureReceipt = Get-Content -LiteralPath $moduleCaptureResult.invocation -Raw | ConvertFrom-Json -ErrorAction Stop
+    if ($moduleCaptureResult.status -cne 'DIAGNOSTIC_ONLY' -or [int]$moduleCaptureResult.exitCode -ne 0 -or $moduleCaptureReceipt.moduleCapture.coverage -cne 'POLLING_ONLY_NONEXHAUSTIVE' -or $moduleCaptureReceipt.moduleCapture.absenceConclusion -cne 'NOT_SUPPORTED' -or [int]$moduleCaptureReceipt.moduleCapture.sampleCount -lt 1 -or @($moduleCaptureReceipt.moduleCapture.observedModuleUnion).Count -lt 1) { throw 'Synthetic child module polling did not record bounded, explicitly non-exhaustive observations.' }
+    if ($moduleCaptureReceipt.executableSha256 -cne (Get-Sha256 $syntheticPowerShell) -or $moduleCaptureReceipt.stdoutSha256 -cne (Get-Sha256 $moduleCaptureResult.stdout) -or $moduleCaptureReceipt.stderrSha256 -cne (Get-Sha256 $moduleCaptureResult.stderr)) { throw 'Synthetic child executable or stream SHA-256 evidence did not match its files.' }
+    $emptyModuleCapture = New-NvidiaModuleCapture 999
+    $emptyModuleCapture.processExitedBeforeFirstSample = $true
+    $emptyModuleEvidence = Complete-NvidiaModuleCapture $emptyModuleCapture
+    if ($emptyModuleEvidence.nvmlObservation -cne 'NO_SAMPLE' -or $emptyModuleEvidence.absenceConclusion -cne 'NOT_SUPPORTED') { throw 'No-sample module capture implied a negative DLL conclusion.' }
+    $moduleCaptureSelfTestEvidence = [pscustomobject]@{status='PASS';sampleCount=[int]$moduleCaptureReceipt.moduleCapture.sampleCount;coverage=$moduleCaptureReceipt.moduleCapture.coverage;nvmlObservation=$moduleCaptureReceipt.moduleCapture.nvmlObservation;absenceConclusion=$moduleCaptureReceipt.moduleCapture.absenceConclusion;unionCount=@($moduleCaptureReceipt.moduleCapture.observedModuleUnion).Count;metadataCount=@($moduleCaptureReceipt.moduleCapture.nvidiaModuleMetadata).Count;stdoutSha256=$moduleCaptureReceipt.stdoutSha256;stderrSha256=$moduleCaptureReceipt.stderrSha256;zeroSampleCase=$emptyModuleEvidence.nvmlObservation}
     foreach ($scenario in @(
         [pscustomobject]@{name='success';exit=0},
         [pscustomobject]@{name='provider-error';exit=23}
@@ -1861,6 +2378,8 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         r2ProcessStreams = @($streamNormal,$streamFailure,[pscustomobject]@{ partialInitializationCleanup='PASS'; subscriberCount=$afterStreamSubscribers.Count; jobCount=$afterStreamJobs.Count })
         r3TestBodyParser = @('one-line test output PASS','multiline WASAPI inventory output PASS','multiline WASAPI capture output PASS','distinct NO_RUN_PASS/LIST_PASS','diagnostic body remains DIAGNOSTIC_ONLY','rejected ignored-only','rejected wrong test','rejected incomplete summary','rejected multiple bodies','rejected nonzero exit')
         r4InvocationReceipts = $receiptEvidence
+        nvidiaEnvironmentContexts = $nvidiaContextEvidence
+        nvidiaChildModuleCapture = $moduleCaptureSelfTestEvidence
         discoveryArgv = @('PreparationNoRun','InventoryList','WasapiInventory','WasapiCapture')
         lotRootPolicy = $lotRootEvidence
         staging = $stagingEvidence
@@ -1868,7 +2387,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     }
     $selfTestPath = Join-Path (Join-Path $Lot 'logs') 'guard-selftest-reusable-roots.json'
     $selfTestEvidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $selfTestPath -Encoding UTF8
-    "PASS native guard self-tests: exact NVIDIA DryRun argv without VsDevCmd, command pin, synthetic diagnostic success/provider-error/launch-error receipts, multiple watcher violations plus WatcherError cleanup, stdout/stderr capture, stream cleanup, profile-bound N2/main-facades roots and existing guard fixtures; evidence=$selfTestPath; no Cargo/native diagnostic command started."
+    "PASS native guard self-tests: exact NVIDIA DryRun argv without VsDevCmd, pinned clean/host-filtered comparison contexts, synthetic child module polling and provider-error/launch-error receipts, multiple watcher violations plus WatcherError cleanup, stdout/stderr capture, stream cleanup, profile-bound N2/main-facades roots and existing guard fixtures; evidence=$selfTestPath; no Cargo/native diagnostic command started."
 }
 
 function Get-GitDiffIdentity {
@@ -1892,8 +2411,12 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
     $environment = Get-ProfileEnvironment $Profile $ValuesDoc $script:RunRoot $Lot (-not $DryRunOnly)
     Assert-CampaignRoots $Lot $script:RunRoot $environment
     $stagingEvidence = if (-not $DryRunOnly) { Copy-ProfileStaging $Profile $ValuesDoc $environment.LOCALAPPDATA $script:RunRoot } else { @() }
-    $toolchain = Get-CargoExecutable
+    $toolchain = if ($Profile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') { $null } else { Get-CargoExecutable }
     if ($Profile.operation -ceq 'Diagnostic') {
+        if ($Profile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
+            $outcome = Invoke-NvidiaSmiEnvironmentComparison $Profile $environment $toolchain $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
+            return [pscustomobject]@{ profile=$Profile.id; status=$outcome.status; cases=@($outcome.cases); comparison=$outcome.comparison; staging=@($stagingEvidence); runRoot=$script:RunRoot; logs=$script:LogRoot }
+        }
         $vsEnvironment = @{}
         if (-not $DryRunOnly) { $vsEnvironment = Get-VsEnvironment (Get-VsDevCommand) $Environment.TEMP $Environment.TMP $script:RunRoot }
         $outcome = Invoke-NvidiaSmiDiagnostic $Profile $environment $vsEnvironment $toolchain $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
@@ -1938,6 +2461,19 @@ try {
             $runRoot = Join-Path (Join-Path $script:Lot 'runs') ('preflight-' + [guid]::NewGuid().ToString('N'))
             $environment = Get-ProfileEnvironment $profile $valuesDoc $runRoot $script:Lot $false
             Assert-CampaignRoots $script:Lot $runRoot $environment
+            if ($profile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
+                Assert-NvidiaSmiDiagnosticProfile $profile -VerifyInstalledExecutable
+                $hostEnvironment = Get-NvidiaDiagnosticHostEnvironment
+                foreach ($contextId in @('clean','host-nvidia-filtered','path-only','vars-only')) {
+                    $contextRoot = Join-Path $runRoot (Join-Path 'contexts' $contextId)
+                    $null = New-NvidiaDiagnosticContextEnvironment $contextId $environment $hostEnvironment $contextRoot
+                }
+                $nvidiaExe = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
+                $nvidiaVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($nvidiaExe).FileVersion
+                $nvidiaSha = Get-Sha256 $nvidiaExe
+                "N2_PREFLIGHT profile=$($profile.id) operation=$($profile.operation) candidate=$script:Repo executable=$nvidiaExe version=$nvidiaVersion sha256=$nvidiaSha contexts=$($profile.command.contexts -join ',') sharedTarget=$script:CargoTarget lot=$script:Lot freeBytes=$((Get-PSDrive -Name C).Free) cargoStarted=false"
+                exit 0
+            }
             $toolchain = Get-CargoExecutable
             $vsDev = Get-VsDevCommand
             "N2_PREFLIGHT profile=$($profile.id) operation=$($profile.operation) candidate=$script:Repo cargo=$($toolchain.cargo) rustc=$($toolchain.rustc) vsDevCmd=$vsDev sharedTarget=$script:CargoTarget lot=$script:Lot freeBytes=$((Get-PSDrive -Name C).Free)"
