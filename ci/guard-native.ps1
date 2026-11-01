@@ -2197,7 +2197,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     $badCompareProfile.command.contexts[1] = 'arbitrary-user-context'
     Test-Rejects 'arbitrary NVIDIA comparison context' { Assert-NvidiaSmiDiagnosticProfile $badCompareProfile }
     $badCompareProfile = ConvertFrom-Json (ConvertTo-Json -InputObject $nvidiaCompareProfile -Depth 10)
-    $badCompareProfile.command.unlistedEnvironmentVariable = 'PATH'
+    Add-Member -InputObject $badCompareProfile.command -MemberType NoteProperty -Name unlistedEnvironmentVariable -Value 'PATH' -Force
     Test-Rejects 'unlisted NVIDIA comparison field' { Assert-NvidiaSmiDiagnosticProfile $badCompareProfile }
     $nvidiaContextEvidence = Invoke-NvidiaDiagnosticContextSelfTests $Lot
     $dryRunManifestPath = Join-Path (Join-Path $Lot 'logs') 'selftest-nvidia-diagnostic-dryrun-values.json'
@@ -2246,7 +2246,13 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     $emptyModuleCapture.processExitedBeforeFirstSample = $true
     $emptyModuleEvidence = Complete-NvidiaModuleCapture $emptyModuleCapture
     if ($emptyModuleEvidence.nvmlObservation -cne 'NO_SAMPLE' -or $emptyModuleEvidence.absenceConclusion -cne 'NOT_SUPPORTED') { throw 'No-sample module capture implied a negative DLL conclusion.' }
-    $moduleCaptureSelfTestEvidence = [pscustomobject]@{status='PASS';sampleCount=[int]$moduleCaptureReceipt.moduleCapture.sampleCount;coverage=$moduleCaptureReceipt.moduleCapture.coverage;nvmlObservation=$moduleCaptureReceipt.moduleCapture.nvmlObservation;absenceConclusion=$moduleCaptureReceipt.moduleCapture.absenceConclusion;unionCount=@($moduleCaptureReceipt.moduleCapture.observedModuleUnion).Count;metadataCount=@($moduleCaptureReceipt.moduleCapture.nvidiaModuleMetadata).Count;stdoutSha256=$moduleCaptureReceipt.stdoutSha256;stderrSha256=$moduleCaptureReceipt.stderrSha256;zeroSampleCase=$emptyModuleEvidence.nvmlObservation}
+    $collectorErrorCapture = New-NvidiaModuleCapture 998
+    $disposedProcess = New-Object Diagnostics.Process
+    $disposedProcess.Dispose()
+    Capture-NvidiaProcessModules $disposedProcess $collectorErrorCapture
+    $collectorErrorEvidence = Complete-NvidiaModuleCapture $collectorErrorCapture
+    if ([int]$collectorErrorEvidence.errorCount -lt 1 -or @($collectorErrorEvidence.errors).Count -lt 1 -or $collectorErrorEvidence.coverage -cne 'POLLING_ONLY_NONEXHAUSTIVE' -or $collectorErrorEvidence.absenceConclusion -cne 'NOT_SUPPORTED') { throw 'Synthetic disposed-process module collection did not preserve the collector error and non-exhaustive status.' }
+    $moduleCaptureSelfTestEvidence = [pscustomobject]@{status='PASS';sampleCount=[int]$moduleCaptureReceipt.moduleCapture.sampleCount;coverage=$moduleCaptureReceipt.moduleCapture.coverage;nvmlObservation=$moduleCaptureReceipt.moduleCapture.nvmlObservation;absenceConclusion=$moduleCaptureReceipt.moduleCapture.absenceConclusion;unionCount=@($moduleCaptureReceipt.moduleCapture.observedModuleUnion).Count;metadataCount=@($moduleCaptureReceipt.moduleCapture.nvidiaModuleMetadata).Count;stdoutSha256=$moduleCaptureReceipt.stdoutSha256;stderrSha256=$moduleCaptureReceipt.stderrSha256;zeroSampleCase=$emptyModuleEvidence.nvmlObservation;collectorError=[pscustomobject]@{status='PASS';errorCount=$collectorErrorEvidence.errorCount;errors=@($collectorErrorEvidence.errors);coverage=$collectorErrorEvidence.coverage;absenceConclusion=$collectorErrorEvidence.absenceConclusion}}
     foreach ($scenario in @(
         [pscustomobject]@{name='success';exit=0},
         [pscustomobject]@{name='provider-error';exit=23}
