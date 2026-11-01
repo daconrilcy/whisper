@@ -1,6 +1,6 @@
-Avancée : CPU de nouveau réussi ; inventaire réel CUDA/GGML désormais réussi sur la GTX 1080 Ti.
-Blocage : contrôle suivant nvidia-smi en échec 255 avant audio ; campagne arrêtée, 27 cas non exécutés.
-Décision : diagnostic et 26 cas indépendants explicitement autorisés ; complément relu CLEAN, aucune fusion.
+Avancée : message NVML recueilli ; politique et sept contrôles GPU réussis, diagnostic encodeur exécuté.
+Blocage : un sélecteur GPU erroné entraîne zéro test exécuté ; garde arrêtée, seize cas indépendants non lancés dont D2.
+Décision : LIVRÉ AVEC RÉSERVES ; correction d'un seul sélecteur et reprise à arbitrer, aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -130,3 +130,22 @@ Accord reçu : **« Oui, diagnostiquer et poursuivre les cas indépendants »**.
 Deux cycles de revue : ND-R1 corrige le mode à blanc qui appelait le bootstrap Visual Studio ; ND-R2 garantit le nettoyage de toutes les ressources même si le dernier drain de surveillance échoue. Les fixtures PowerShell conservent FAIL et vérifient la fermeture après plusieurs violations synthétiques. **Revue finale CLEAN**, garde SHA `acc1841e6196fbeacfdb160b325ec216b935ce605f0082e16c7be5c7cddb2a51`, registre `f762d2ce2ace957dbf6f2ab7fec9a28debfd8628f0a413ed9bde40502312a742`. Auto-tests, syntaxe, JSON, préflight et mode à blanc parent : code 0, sans commande NVIDIA/Cargo native. Aucun autre profil modifié.
 
 L'environnement reconstruit suit les mêmes règles que le parent Cargo ; il ne prouve pas l'identité avec toutes les variables et chemins qu'ajoute Cargo à son processus de test. Le diagnostic conserve cette limite. Après lui, les profils indépendants autorisés sont CampaignPolicies, ManualDiagnostic, TurboGpu et D2, arrêt au premier nouvel échec. Le profil d'import GPU/Auto n'est pas relancé dans ce complément.
+
+## Diagnostic recueilli et première tranche indépendante
+
+Au candidat `f328ef55`, le diagnostic épinglé s'exécute sous garde : **statut processus 255**, stdout **`Failed to initialize NVML: Unknown Error`**, stderr vide, 0,987 s, verdict **DIAGNOSTIC_ONLY**. Le message est maintenant conservé ; sa cause reste inconnue et l'environnement ambiant n'a pas été testé. Aucune conclusion de panne globale du pilote n'est déduite. L'inventaire CUDA réussi précédemment et ce défaut d'initialisation NVML sont deux observations distinctes.
+
+| Profil indépendant | Résultat réellement acquis |
+| --- | --- |
+| CampaignPolicies | 1 cas réussi, appel Cargo 14,827 s |
+| ManualDiagnostic | Corps encodeur exécuté, 1 réussi / 0 échec dans libtest ; DIAGNOSTIC_ONLY sans oracle, appel Cargo 24,15 s |
+| TurboGpu | 7 cas exacts réussis ; le huitième ne sélectionne aucun test, Cargo 0 mais garde FAIL |
+| D2 | Non lancé après l'arrêt |
+
+Erreur de préparation du profil : `ci/native-profiles.json:149` déclare `ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling`, alors que l'inventaire déjà conservé donne **`ipc::tests::rejects_oversized_and_incomplete_frames_before_deserialization`** (`InventoryList.stdout.log:902`). La commande réelle retourne **0 passé / 0 échoué / 19 filtrés**, 0,48 s d'appel Cargo ; aucun corps n'est exécuté. Le contrôle exigeant une exécution exacte refuse correctement ce zéro et arrête la campagne. Ce cas n'est ni réussi ni un échec d'assertion Rust. Les 22 autres sélecteurs figurent dans l'inventaire conservé ; aucune nouvelle commande Cargo de liste n'est lancée après cet arrêt.
+
+Bilan des 26 cas prévus : **8 contrôles avec oracle réussis, 1 diagnostic encodeur exécuté, 1 sélecteur invalide, 16 non lancés** (15 GPU et D2). Aucun test Rust échoué pendant cette tranche ; la campagne reste en échec de garde. Les succès antérieurs sont conservés, soit douze corps ciblés avec verdict PASS distincts au total et un diagnostic encodeur distinct ; cela reste une couverture partielle, sans transcription GPU complète. Le diagnostic NVIDIA constitue une donnée supplémentaire, pas un test réussi.
+
+Preuves consolidées **révision 3** : **137 entrées relues avec tailles et SHA vérifiés**, dont les **79 précédentes conservées à l'identique**, SHA archive `db24d3cc8cf6afba43a3361bfe0436c50d82e46d9d1a63bc795708bd62d31aa6`. Sont inclus les deux flux NVIDIA, les reçus de chaque cas, les auto-tests de nettoyage, la commande à blanc et les requêtes. Révision 2 accessible dans Git à `c6833c6b`. Aucun nouveau fichier de rapport ; espace libre **133 429 248 000 octets**. Aucun appel natif/Cargo après ce dernier arrêt, ni fusion ni push.
+
+Le complément de diagnostic a consommé ses deux revues et reste CLEAN dans ce périmètre ; le défaut observé appartient aux données TurboGpu existantes. Proposition précise à arbitrer après l'échec de garde et les budgets déjà consommés : un cycle ciblé limité au remplacement de ce seul nom par celui de l'inventaire dans `ci/native-profiles.json`, vérification de correspondance des 23 sélecteurs, revue indépendante, puis reprise du profil TurboGpu complet et de D2. Le contrôle d'exécution exacte reste identique ; aucun script, test/assertion Rust, SDK, pilote, installation ou racine d'écriture ne change. La correction n'est pas appliquée avant cet arbitrage. Les cas bloqués par NVML, FR87/FR27 ou les racines historiques restent non qualifiés ; la fusion demeure conditionnée à la campagne complète verte.

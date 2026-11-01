@@ -1,124 +1,342 @@
 {
   "schemaVersion": 1,
-  "revision": 2,
-  "candidate": "a06ac377",
-  "authorization": "Oui, corriger ce paramètre et reprendre",
-  "previousAttempt": {
-    "candidate": "de9003dc",
-    "runId": "PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56",
-    "cpu": {
-      "test": "native_personal_cpu_imports_french_mp3_through_the_unified_application",
-      "engine": "Parakeet CPU",
-      "status": "PASS",
-      "cargoExitCode": 0,
-      "cargoSeconds": 38.644,
-      "bodySeconds": 25.93,
-      "passed": 1,
-      "failed": 0,
-      "ignored": 0,
-      "transcriptBytes": 51,
-      "srtBytes": 148,
-      "wavBytes": 129068
+  "revision": 3,
+  "candidate": "f328ef55",
+  "authorization": "Oui, diagnostiquer et poursuivre les cas indépendants",
+  "history": [
+    {
+      "candidate": "de9003dc",
+      "runId": "PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56",
+      "cpu": {
+        "test": "native_personal_cpu_imports_french_mp3_through_the_unified_application",
+        "engine": "Parakeet CPU",
+        "status": "PASS",
+        "cargoExitCode": 0,
+        "cargoSeconds": 38.644,
+        "bodySeconds": 25.93,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "transcriptBytes": 51,
+        "srtBytes": 148,
+        "wavBytes": 129068
+      },
+      "gpu": {
+        "test": "native_personal_gpu_imports_english_mp3_with_attested_candidate",
+        "status": "FAIL",
+        "cargoExitCode": 101,
+        "cargoSeconds": 1.065,
+        "bodySeconds": 0.56,
+        "passed": 0,
+        "failed": 1,
+        "reason": "GPU inventory worker exited without End",
+        "exitStatusOfWorkerAvailable": false,
+        "inferenceQualified": false
+      },
+      "archiveSha256": "5a69d25ab199dda05952b49db77f503559de2768b70c2a3193acae078e823408",
+      "archiveEntryCount": 42,
+      "gitSnapshot": "905064ad"
     },
-    "gpu": {
-      "test": "native_personal_gpu_imports_english_mp3_with_attested_candidate",
-      "status": "FAIL",
-      "cargoExitCode": 101,
-      "cargoSeconds": 1.065,
-      "bodySeconds": 0.56,
-      "passed": 0,
-      "failed": 1,
-      "reason": "GPU inventory worker exited without End",
-      "exitStatusOfWorkerAvailable": false,
-      "inferenceQualified": false
-    },
-    "archiveSha256": "5a69d25ab199dda05952b49db77f503559de2768b70c2a3193acae078e823408",
-    "archiveEntryCount": 42,
-    "gitSnapshot": "905064ad"
+    {
+      "candidate": "a06ac377",
+      "runId": "PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1",
+      "cpu": {
+        "test": "native_personal_cpu_imports_french_mp3_through_the_unified_application",
+        "engine": "Parakeet CPU",
+        "status": "PASS",
+        "cargoExitCode": 0,
+        "bodySeconds": 25.31,
+        "cargoSeconds": 26.374
+      },
+      "gpu": {
+        "test": "native_personal_gpu_imports_english_mp3_with_attested_candidate",
+        "status": "FAIL",
+        "cargoExitCode": 101,
+        "bodySeconds": 24.41,
+        "cargoSeconds": 24.902,
+        "runtimeInventoryStatus": "PASS",
+        "qualifiedDevices": [
+          {
+            "availability": "NotVerified",
+            "cause": null,
+            "cuda_ordinal": null,
+            "ggml_ordinal": null,
+            "identity": "ROOT\\DISPLAY\\0000",
+            "identity_match": "Missing",
+            "luid": 147890,
+            "pci_id": null,
+            "support": "Undetermined",
+            "windows_rank": 2
+          },
+          {
+            "availability": "Available",
+            "cause": null,
+            "cuda_ordinal": 0,
+            "ggml_ordinal": 0,
+            "identity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
+            "identity_match": "Unique",
+            "luid": 93831,
+            "pci_id": "0000:01:00.0",
+            "support": "ConfirmedSupported",
+            "windows_rank": 0
+          },
+          {
+            "availability": "NotVerified",
+            "cause": "Intel adapter excluded: the confirmed worker backend is CUDA-only",
+            "cuda_ordinal": null,
+            "ggml_ordinal": null,
+            "identity": "PCI\\VEN_8086&DEV_A780&SUBSYS_D0001458&REV_04\\3&11583659&0&10",
+            "identity_match": "Missing",
+            "luid": 98031,
+            "pci_id": null,
+            "support": "ConfirmedUnsupported",
+            "windows_rank": 1
+          }
+        ],
+        "error": "GpuInventory: nvidia-smi exited with exit code: 255",
+        "source": "crates/whisper-adapters/src/parakeet_import.rs:800-812",
+        "stderrOfNvidiaSmiAvailable": false,
+        "inferenceQualified": false
+      },
+      "archiveSha256": "7043d38c87425c4c01aed3703363d42530bf3aa21ea41b2f8478ad1d9b8c8181",
+      "archiveEntryCount": 79,
+      "gitSnapshot": "c6833c6b"
+    }
+  ],
+  "diagnostic": {
+    "profile": "NvidiaSmiInventoryDiagnostic",
+    "status": "DIAGNOSTIC_ONLY",
+    "processExitCode": 255,
+    "stdout": "Failed to initialize NVML: Unknown Error",
+    "stderr": "",
+    "gpuQualification": false,
+    "cause": "unknown; only controlled environment tested"
   },
-  "runId": "PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1",
-  "cpu": {
-    "test": "native_personal_cpu_imports_french_mp3_through_the_unified_application",
-    "engine": "Parakeet CPU",
-    "status": "PASS",
+  "independentCases": {
+    "planned": 26,
+    "qualificationPass": 8,
+    "diagnosticBodyExecuted": 1,
+    "invalidSelector": 1,
+    "notStarted": 16,
+    "rustTestFailures": 0,
+    "guardStatus": "FAIL",
+    "campaignPolicies": "PASS",
+    "manualDiagnostic": "DIAGNOSTIC_ONLY",
+    "gpuPass": 7,
+    "gpuInvalidSelector": 1,
+    "gpuNotStarted": 15,
+    "d2": "NOT RUN"
+  },
+  "gpuCases": [
+    {
+      "schemaVersion": 1,
+      "profile": "TurboGpu",
+      "operation": "Run",
+      "case": "decoder::tests::inaccessible_source_propagates_error",
+      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
+      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"decoder::tests::inaccessible_source_propagates_error\",\"--\",\"--exact\",\"decoder::tests::inaccessible_source_propagates_error\",\"--test-threads=1\",\"--nocapture\"]",
+      "cwd": "C:\\dev\\whisper\\.wt\\r8",
+      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
+      "result": "PASS",
+      "exitCode": 0,
+      "elapsedSeconds": 1.847,
+      "testEvidence": {
+        "exactTest": "decoder::tests::inaccessible_source_propagates_error",
+        "executionCount": 1,
+        "bodyStatus": "passed",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "summary": "verified",
+        "verdict": "PASS"
+      },
+      "failure": null
+    },
+    {
+      "schemaVersion": 1,
+      "profile": "TurboGpu",
+      "operation": "Run",
+      "case": "diagnostics::tests::gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt",
+      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
+      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"diagnostics::tests::gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt\",\"--\",\"--exact\",\"diagnostics::tests::gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt\",\"--test-threads=1\",\"--nocapture\"]",
+      "cwd": "C:\\dev\\whisper\\.wt\\r8",
+      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
+      "result": "PASS",
+      "exitCode": 0,
+      "elapsedSeconds": 0.958,
+      "testEvidence": {
+        "exactTest": "diagnostics::tests::gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt",
+        "executionCount": 1,
+        "bodyStatus": "passed",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "summary": "verified",
+        "verdict": "PASS"
+      },
+      "failure": null
+    },
+    {
+      "schemaVersion": 1,
+      "profile": "TurboGpu",
+      "operation": "Run",
+      "case": "diagnostics::tests::verified_model_gpu_initialization_failure_is_retryable_and_correlated",
+      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
+      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"diagnostics::tests::verified_model_gpu_initialization_failure_is_retryable_and_correlated\",\"--\",\"--exact\",\"diagnostics::tests::verified_model_gpu_initialization_failure_is_retryable_and_correlated\",\"--test-threads=1\",\"--nocapture\"]",
+      "cwd": "C:\\dev\\whisper\\.wt\\r8",
+      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
+      "result": "PASS",
+      "exitCode": 0,
+      "elapsedSeconds": 0.825,
+      "testEvidence": {
+        "exactTest": "diagnostics::tests::verified_model_gpu_initialization_failure_is_retryable_and_correlated",
+        "executionCount": 1,
+        "bodyStatus": "passed",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "summary": "verified",
+        "verdict": "PASS"
+      },
+      "failure": null
+    },
+    {
+      "schemaVersion": 1,
+      "profile": "TurboGpu",
+      "operation": "Run",
+      "case": "engine_cache::tests::cache_target_matches_complete_device_identity",
+      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
+      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"engine_cache::tests::cache_target_matches_complete_device_identity\",\"--\",\"--exact\",\"engine_cache::tests::cache_target_matches_complete_device_identity\",\"--test-threads=1\",\"--nocapture\"]",
+      "cwd": "C:\\dev\\whisper\\.wt\\r8",
+      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
+      "result": "PASS",
+      "exitCode": 0,
+      "elapsedSeconds": 0.845,
+      "testEvidence": {
+        "exactTest": "engine_cache::tests::cache_target_matches_complete_device_identity",
+        "executionCount": 1,
+        "bodyStatus": "passed",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "summary": "verified",
+        "verdict": "PASS"
+      },
+      "failure": null
+    },
+    {
+      "schemaVersion": 1,
+      "profile": "TurboGpu",
+      "operation": "Run",
+      "case": "engine_cache::tests::cached_engine_is_attested_again_and_evicted_on_failure",
+      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
+      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"engine_cache::tests::cached_engine_is_attested_again_and_evicted_on_failure\",\"--\",\"--exact\",\"engine_cache::tests::cached_engine_is_attested_again_and_evicted_on_failure\",\"--test-threads=1\",\"--nocapture\"]",
+      "cwd": "C:\\dev\\whisper\\.wt\\r8",
+      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
+      "result": "PASS",
+      "exitCode": 0,
+      "elapsedSeconds": 0.854,
+      "testEvidence": {
+        "exactTest": "engine_cache::tests::cached_engine_is_attested_again_and_evicted_on_failure",
+        "executionCount": 1,
+        "bodyStatus": "passed",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "summary": "verified",
+        "verdict": "PASS"
+      },
+      "failure": null
+    },
+    {
+      "schemaVersion": 1,
+      "profile": "TurboGpu",
+      "operation": "Run",
+      "case": "gpu_qualification::tests::duplicate_or_missing_join_endpoints_never_become_supported",
+      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
+      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"gpu_qualification::tests::duplicate_or_missing_join_endpoints_never_become_supported\",\"--\",\"--exact\",\"gpu_qualification::tests::duplicate_or_missing_join_endpoints_never_become_supported\",\"--test-threads=1\",\"--nocapture\"]",
+      "cwd": "C:\\dev\\whisper\\.wt\\r8",
+      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
+      "result": "PASS",
+      "exitCode": 0,
+      "elapsedSeconds": 0.826,
+      "testEvidence": {
+        "exactTest": "gpu_qualification::tests::duplicate_or_missing_join_endpoints_never_become_supported",
+        "executionCount": 1,
+        "bodyStatus": "passed",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "summary": "verified",
+        "verdict": "PASS"
+      },
+      "failure": null
+    },
+    {
+      "schemaVersion": 1,
+      "profile": "TurboGpu",
+      "operation": "Run",
+      "case": "gpu_qualification::tests::unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend",
+      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
+      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"gpu_qualification::tests::unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend\",\"--\",\"--exact\",\"gpu_qualification::tests::unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend\",\"--test-threads=1\",\"--nocapture\"]",
+      "cwd": "C:\\dev\\whisper\\.wt\\r8",
+      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
+      "result": "PASS",
+      "exitCode": 0,
+      "elapsedSeconds": 0.989,
+      "testEvidence": {
+        "exactTest": "gpu_qualification::tests::unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend",
+        "executionCount": 1,
+        "bodyStatus": "passed",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "summary": "verified",
+        "verdict": "PASS"
+      },
+      "failure": null
+    },
+    {
+      "schemaVersion": 1,
+      "profile": "TurboGpu",
+      "operation": "Run",
+      "case": "ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling",
+      "executable": "C:\\Users\\cyril\\.rustup\\toolchains\\1.98.1-x86_64-pc-windows-msvc\\bin\\cargo.exe",
+      "argvJson": "[\"test\",\"--offline\",\"--locked\",\"-p\",\"whisper-worker-gpu\",\"--features\",\"whisper-worker-gpu/native-tests\",\"--test\",\"whisper-worker-gpu\",\"ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling\",\"--\",\"--exact\",\"ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling\",\"--test-threads=1\",\"--nocapture\"]",
+      "cwd": "C:\\dev\\whisper\\.wt\\r8",
+      "target": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared",
+      "result": "FAIL",
+      "exitCode": 0,
+      "elapsedSeconds": 0.48,
+      "testEvidence": null,
+      "failure": "Output did not identify exactly one execution of ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling."
+    }
+  ],
+  "selectorFinding": {
+    "source": "ci/native-profiles.json:149",
+    "declared": "ipc::tests::rejects_oversized_and_incomplete_frames_before_json_handling",
+    "savedInventory": "ipc::tests::rejects_oversized_and_incomplete_frames_before_deserialization",
+    "savedInventorySource": "target/n2-native/logs/InventoryList-cc95e146bf474a1e8cbd8ddffaad7740/InventoryList.stdout.log:902",
     "cargoExitCode": 0,
-    "bodySeconds": 25.31,
-    "cargoSeconds": 26.374
+    "executedTests": 0,
+    "guardCorrectlyRejected": true,
+    "other22SelectorsPresentInSavedInventory": true,
+    "correctionApplied": false
   },
-  "gpu": {
-    "test": "native_personal_gpu_imports_english_mp3_with_attested_candidate",
-    "status": "FAIL",
-    "cargoExitCode": 101,
-    "bodySeconds": 24.41,
-    "cargoSeconds": 24.902,
-    "runtimeInventoryStatus": "PASS",
-    "qualifiedDevices": [
-      {
-        "availability": "NotVerified",
-        "cause": null,
-        "cuda_ordinal": null,
-        "ggml_ordinal": null,
-        "identity": "ROOT\\DISPLAY\\0000",
-        "identity_match": "Missing",
-        "luid": 147890,
-        "pci_id": null,
-        "support": "Undetermined",
-        "windows_rank": 2
-      },
-      {
-        "availability": "Available",
-        "cause": null,
-        "cuda_ordinal": 0,
-        "ggml_ordinal": 0,
-        "identity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
-        "identity_match": "Unique",
-        "luid": 93831,
-        "pci_id": "0000:01:00.0",
-        "support": "ConfirmedSupported",
-        "windows_rank": 0
-      },
-      {
-        "availability": "NotVerified",
-        "cause": "Intel adapter excluded: the confirmed worker backend is CUDA-only",
-        "cuda_ordinal": null,
-        "ggml_ordinal": null,
-        "identity": "PCI\\VEN_8086&DEV_A780&SUBSYS_D0001458&REV_04\\3&11583659&0&10",
-        "identity_match": "Missing",
-        "luid": 98031,
-        "pci_id": null,
-        "support": "ConfirmedUnsupported",
-        "windows_rank": 1
-      }
-    ],
-    "error": "GpuInventory: nvidia-smi exited with exit code: 255",
-    "source": "crates/whisper-adapters/src/parakeet_import.rs:800-812",
-    "stderrOfNvidiaSmiAvailable": false,
-    "inferenceQualified": false
-  },
-  "runtimeIntegrity": {
-    "filesVerified": 21,
-    "allMatched": true,
-    "sourcesUnmodified": true
-  },
-  "thisResumption": {
-    "plannedCases": 29,
-    "passed": 1,
-    "failed": 1,
-    "notRun": 27
-  },
-  "cumulativeDistinctNativeBodiesPassed": 4,
+  "cumulativeDistinctQualifiedTargetedBodies": 12,
+  "encoderDiagnosticDistinctBodies": 1,
   "campaignStopped": true,
   "fullCampaignQualified": false,
   "mergePerformed": false,
-  "additionalCorrectionApplied": false,
-  "nextDecision": "Bounded diagnosis of exact nvidia-smi query under the same isolated environment, capturing stdout/stderr/status, requires explicit authorization",
-  "freeBytes": 136459808768,
+  "nativeCommandsSinceLatestGuardFailure": 0,
+  "nextDecision": "Correct one GPU selector, independent targeted review and restart TurboGpu+D2 require explicit arbitration after guard failure",
+  "freeBytes": 133429272576,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 79,
-    "priorEntriesPreserved": 42,
+    "entryCount": 137,
+    "priorEntriesPreserved": 79,
     "entriesVerified": true,
-    "sha256": "7043d38c87425c4c01aed3703363d42530bf3aa21ea41b2f8478ad1d9b8c8181",
+    "sha256": "db24d3cc8cf6afba43a3361bfe0436c50d82e46d9d1a63bc795708bd62d31aa6",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -514,6 +732,296 @@
         "path": "snapshots/cuda-path-retry/PersonalUnified.json",
         "bytes": 4916,
         "sha256": "f1ddaefcd6b3c4e8ee43e60a95df0520ab7ae1b209744b2d983182b2f7fa88d5"
+      },
+      {
+        "path": "target/n2-native/logs/CampaignPolicies-47c1de3170e44526ab534afe690faaae/result.json",
+        "bytes": 1075,
+        "sha256": "5eff9f765c651d5ca154c8ea6e4bd412e52625a494c7288b6d51fb3528e5f169"
+      },
+      {
+        "path": "target/n2-native/logs/CampaignPolicies-47c1de3170e44526ab534afe690faaae/unattributed-temp.jsonl",
+        "bytes": 1596,
+        "sha256": "51ddd1c016312532ebcf262a80153b263fa8039ebdc5a5f49edb71d3588d54c3"
+      },
+      {
+        "path": "target/n2-native/logs/CampaignPolicies-47c1de3170e44526ab534afe690faaae/worker_ipc__tests__recette_policy_l2a2_requires_the_feature.invocation.json",
+        "bytes": 1326,
+        "sha256": "0feb074969272cd7746c50f38878646351b8cd6eb417d06096841182fb72ac36"
+      },
+      {
+        "path": "target/n2-native/logs/CampaignPolicies-47c1de3170e44526ab534afe690faaae/worker_ipc__tests__recette_policy_l2a2_requires_the_feature.process.json",
+        "bytes": 143,
+        "sha256": "3f9da36e375a94bd06d34e2eb9ad26c09256da1cba74d58e8ea7b4a42fa3d822"
+      },
+      {
+        "path": "target/n2-native/logs/CampaignPolicies-47c1de3170e44526ab534afe690faaae/worker_ipc__tests__recette_policy_l2a2_requires_the_feature.stderr.log",
+        "bytes": 1215,
+        "sha256": "f3f6c1f327f005cd429b0f1e451336e54b10fcd16560f4e2ee6ceb0f40ba5212"
+      },
+      {
+        "path": "target/n2-native/logs/CampaignPolicies-47c1de3170e44526ab534afe690faaae/worker_ipc__tests__recette_policy_l2a2_requires_the_feature.stdout.log",
+        "bytes": 192,
+        "sha256": "772789a03d3273fd30338373b577996b0871e936c05ab1a851958f78dd36c3ba"
+      },
+      {
+        "path": "target/n2-native/logs/guard-selftest-correction2.json",
+        "bytes": 5989,
+        "sha256": "9c064818b38c67928369da18d301863992ff283be9fa1fe4864d3f52b07c2b28"
+      },
+      {
+        "path": "target/n2-native/logs/ManualDiagnostic-ef09a7a3f2ce47ba9c818084607aa806/encoder__tests__capture_encoder_baseline.invocation.json",
+        "bytes": 1231,
+        "sha256": "183ec3b2fdefcf29c30041cd6ab085e9864adc6ffb8841b0a363360422c65c65"
+      },
+      {
+        "path": "target/n2-native/logs/ManualDiagnostic-ef09a7a3f2ce47ba9c818084607aa806/encoder__tests__capture_encoder_baseline.process.json",
+        "bytes": 124,
+        "sha256": "0a7c52a8ed142aaad1eb34355dbbfbe6de833070ffc5e032e877cd40abcecc28"
+      },
+      {
+        "path": "target/n2-native/logs/ManualDiagnostic-ef09a7a3f2ce47ba9c818084607aa806/encoder__tests__capture_encoder_baseline.stderr.log",
+        "bytes": 2156,
+        "sha256": "8772fb517969cb76b426b0df39647309822516a8fc46510a37ce2cc664920f40"
+      },
+      {
+        "path": "target/n2-native/logs/ManualDiagnostic-ef09a7a3f2ce47ba9c818084607aa806/encoder__tests__capture_encoder_baseline.stdout.log",
+        "bytes": 5571,
+        "sha256": "4dbc2c352070392b6ad0b5fd644767609f466941c735741f14a9affd9fc2203d"
+      },
+      {
+        "path": "target/n2-native/logs/ManualDiagnostic-ef09a7a3f2ce47ba9c818084607aa806/result.json",
+        "bytes": 1039,
+        "sha256": "8717f6b245580aa3443349a20c1245f05242b8c154469b5802c802d3e01addec"
+      },
+      {
+        "path": "target/n2-native/logs/ManualDiagnostic-ef09a7a3f2ce47ba9c818084607aa806/unattributed-temp.jsonl",
+        "bytes": 3192,
+        "sha256": "f85adcbb2e825356f8bab115c8508d3c46ceffaa424a3dc6a97a3c1f7e61465e"
+      },
+      {
+        "path": "target/n2-native/logs/nvidia-diagnostic-dry-run.txt",
+        "bytes": 251,
+        "sha256": "1090184bf9765b3b51420be6879f485a2b4d588cc0c27776d37c05c2e4f20547"
+      },
+      {
+        "path": "target/n2-native/logs/nvidia-diagnostic-preflight.txt",
+        "bytes": 500,
+        "sha256": "29de02ef1c52d7966dc8574ea743e701088d0ab2debc9b095fd17ee9caa002c6"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-eaa0666c131a4140aa645315253df0af/nvidia-smi-query-gpu.invocation.json",
+        "bytes": 1634,
+        "sha256": "90c0ce6c948971f8fd1522043ae1bbdf83b2eb6f1f40c0d7581fd9c7907bde1c"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-eaa0666c131a4140aa645315253df0af/nvidia-smi-query-gpu.process.json",
+        "bytes": 157,
+        "sha256": "3ceb6c4107f103428fdc752115329269c61dd9469c1d6d2e3f28bfb154f5fc5a"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-eaa0666c131a4140aa645315253df0af/nvidia-smi-query-gpu.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-eaa0666c131a4140aa645315253df0af/nvidia-smi-query-gpu.stdout.log",
+        "bytes": 42,
+        "sha256": "dc7f7417d9d99a7bf4e6a8c746ddcbb830e1471e03dbb088f05d2ec00c67cda9"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-eaa0666c131a4140aa645315253df0af/result.json",
+        "bytes": 1313,
+        "sha256": "da67aa193c47bd5a2b886c78d43164fc582396088605e73d0ca5622998b95cf0"
+      },
+      {
+        "path": "target/n2-native/logs/selftest-nvidia-diagnostic/watcher-failure/nvidia-smi-query-gpu.invocation.json",
+        "bytes": 2573,
+        "sha256": "9b8459de77c42f1ea531c240d92f9f0ba4050ac23a7fc2a73952f65e78d0c510"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/decoder__tests__inaccessible_source_propagates_error.invocation.json",
+        "bytes": 1286,
+        "sha256": "6cf5d95dab0afa776db09e83b0bf779fe8e470dbec4eba3285251d63a041a2e0"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/decoder__tests__inaccessible_source_propagates_error.process.json",
+        "bytes": 136,
+        "sha256": "168d9bb2c373774558d3f54535f8a78b634a9db6619a047f68a4324e65d6a1e6"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/decoder__tests__inaccessible_source_propagates_error.stderr.log",
+        "bytes": 4405,
+        "sha256": "e58d089b09eb0ff978036fa370747abd651a8f8c2e95d84ac7ec1f66b911b79a"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/decoder__tests__inaccessible_source_propagates_error.stdout.log",
+        "bytes": 184,
+        "sha256": "7938fc7422fc9df59c04e1cddedee7942ae9a4cd4ab9398b881ba6f5df3b7226"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/diagnostics__tests__gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt.invocation.json",
+        "bytes": 1422,
+        "sha256": "db205b8aa932ff5faf3b39993cfcd666ad57ddae130ba7bfea24abde1c864549"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/diagnostics__tests__gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt.process.json",
+        "bytes": 170,
+        "sha256": "144d1eb98d76f67d8a81929acd20c6eb957b407ba226f8273f88590466616255"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/diagnostics__tests__gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt.stderr.log",
+        "bytes": 4315,
+        "sha256": "93a8a9fa74123f363b3499aa3eac45fa456fe585a4cda2533a1ec01078fb59a9"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/diagnostics__tests__gpu_revalidation_failure_is_typed_and_bound_to_the_startup_attempt.stdout.log",
+        "bytes": 218,
+        "sha256": "e8884324c7a86c8bb7c2838c9d4bdcc62f133c4b9ae216f7036a9a05a60ab5fa"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/diagnostics__tests__verified_model_gpu_initialization_failure_is_retryable_and_correlated.invocation.json",
+        "bytes": 1434,
+        "sha256": "d46449113e70e16c739c4fbd924ae9c0de35dc1d7b0de2831d1cb11c53aa8d3f"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/diagnostics__tests__verified_model_gpu_initialization_failure_is_retryable_and_correlated.process.json",
+        "bytes": 172,
+        "sha256": "63d9a53e42e80e58ef80dd66725793c9dc943f41c6b9651e91054a8ae3913f46"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/diagnostics__tests__verified_model_gpu_initialization_failure_is_retryable_and_correlated.stderr.log",
+        "bytes": 4315,
+        "sha256": "906bf35ea7cec4b210ec289a69307f1de35c25310f51c643166f332e21bcb289"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/diagnostics__tests__verified_model_gpu_initialization_failure_is_retryable_and_correlated.stdout.log",
+        "bytes": 221,
+        "sha256": "a45d46952174d3aa9d09d28f9f6188b56247c18bd6ecf685591136aaf6992a8c"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/engine_cache__tests__cache_target_matches_complete_device_identity.invocation.json",
+        "bytes": 1342,
+        "sha256": "efb1a5bd4c0f584d990c92f1dfb3a44681972895e5e678baaeb519ec2c7d8cf5"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/engine_cache__tests__cache_target_matches_complete_device_identity.process.json",
+        "bytes": 150,
+        "sha256": "83eb890c4c12655df14b8be3ac9717d7f3430465a6fb565610c9eda639857630"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/engine_cache__tests__cache_target_matches_complete_device_identity.stderr.log",
+        "bytes": 4315,
+        "sha256": "f72f34f22745a68876e4bd40b754f95e266434264e57797c42165ce801311dec"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/engine_cache__tests__cache_target_matches_complete_device_identity.stdout.log",
+        "bytes": 198,
+        "sha256": "fd13b0cc5b635101c9de01edf836cf49a10c32736c59832b882a68f6c4a4a104"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/engine_cache__tests__cached_engine_is_attested_again_and_evicted_on_failure.invocation.json",
+        "bytes": 1378,
+        "sha256": "495a31d5584051916e216dd1a25634be14e851d44917230bd7871f67210b1089"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/engine_cache__tests__cached_engine_is_attested_again_and_evicted_on_failure.process.json",
+        "bytes": 158,
+        "sha256": "90a80faf528d30893670052ff8e8f84d22c2c4941587c12cabe2c09cd793bbac"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/engine_cache__tests__cached_engine_is_attested_again_and_evicted_on_failure.stderr.log",
+        "bytes": 4315,
+        "sha256": "d8579b0c349ee82f5a97bdb65f725c2cf878aa5936ad07d0693261aee80dc2b7"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/engine_cache__tests__cached_engine_is_attested_again_and_evicted_on_failure.stdout.log",
+        "bytes": 207,
+        "sha256": "2416bb3b6b1a8c5ec627617153f46830883c62d2788871dee7dd7d8394c9f6d9"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/gpu_qualification__tests__duplicate_or_missing_join_endpoints_never_become_supported.invocation.json",
+        "bytes": 1414,
+        "sha256": "b048c4e70daef9b5c4a326f79dfdb07f1165ff6c639240366bdc28cb37d234f8"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/gpu_qualification__tests__duplicate_or_missing_join_endpoints_never_become_supported.process.json",
+        "bytes": 168,
+        "sha256": "35bc44ad1c088979f0107bbd58fa855084d853be2a9ef04ce56a829b7d2d35eb"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/gpu_qualification__tests__duplicate_or_missing_join_endpoints_never_become_supported.stderr.log",
+        "bytes": 4315,
+        "sha256": "6de3bf6e94b334ecdce1000ed2e37852e771a8b5b04b21067c576cafdbb259d0"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/gpu_qualification__tests__duplicate_or_missing_join_endpoints_never_become_supported.stdout.log",
+        "bytes": 216,
+        "sha256": "083a323915a006b8e6fc3ce6c780cd82727e550b4d65dde04868c88b2615f7c5"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/gpu_qualification__tests__unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend.invocation.json",
+        "bytes": 1474,
+        "sha256": "861211c457061b1c31f4e5475c66fffddac178336b72d2bf74cbb7e64fa69ccf"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/gpu_qualification__tests__unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend.process.json",
+        "bytes": 182,
+        "sha256": "61a3f913acd8cf1f316916c7cef30577e6370931188726a4245d4a638212060c"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/gpu_qualification__tests__unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend.stderr.log",
+        "bytes": 4315,
+        "sha256": "ad18896a3b15725090d8bf862fbac40c4e77b338e6908f93dd1f2e27ba9d0ff6"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/gpu_qualification__tests__unique_luid_pci_ggml_join_requires_covered_architecture_and_ready_backend.stdout.log",
+        "bytes": 231,
+        "sha256": "5282fec8185ef5c9a896d621372d0e4aa1ce970628219544a7328af98f4ce9a8"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/ipc__tests__rejects_oversized_and_incomplete_frames_before_json_handling.invocation.json",
+        "bytes": 1033,
+        "sha256": "de12008a4ea6b3a610c3a9fbabadffabe76d99b7c82d0aa89451a6e28a4095b9"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/ipc__tests__rejects_oversized_and_incomplete_frames_before_json_handling.process.json",
+        "bytes": 155,
+        "sha256": "e11c336ed4c4891ac916be95f6cafefd20a95424fcc74f0a91ea8d01005d2d69"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/ipc__tests__rejects_oversized_and_incomplete_frames_before_json_handling.stderr.log",
+        "bytes": 4315,
+        "sha256": "e99561cc1e16b55e133183c6532d5ab7ef9e71abd17d799264e69a54e19d12c7"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/ipc__tests__rejects_oversized_and_incomplete_frames_before_json_handling.stdout.log",
+        "bytes": 119,
+        "sha256": "30067a4b9c5c60c968837f783f10a469462421f00193b7f98eea86e1e0161ab1"
+      },
+      {
+        "path": "target/n2-native/logs/TurboGpu-1a425038e63c4f179e89318d8a63620b/result.json",
+        "bytes": 13270,
+        "sha256": "83fdfe1c1f2aa876d94f36af9514b014a5159d60a860e8c9e09ae35edeee0d45"
+      },
+      {
+        "path": "snapshots/independent-diagnostic-v3/NvidiaSmiInventoryDiagnostic.json",
+        "bytes": 296,
+        "sha256": "d95cc24a3c671c6b350aad56e15de8aa1782497f09e9608311595f822770a000"
+      },
+      {
+        "path": "snapshots/independent-diagnostic-v3/TurboGpu.json",
+        "bytes": 362,
+        "sha256": "89d7b5ed77da325f3fe397fe756b7b1c53978c9d0b27258e3bb0db1a1007d611"
+      },
+      {
+        "path": "snapshots/independent-diagnostic-v3/ManualDiagnostic.json",
+        "bytes": 185,
+        "sha256": "872ae55156adcab3a401e6f84a00f83ab606361485881090ddd9081e2fd01145"
+      },
+      {
+        "path": "snapshots/independent-diagnostic-v3/D2.json",
+        "bytes": 4327,
+        "sha256": "3f1b6c9b9cd61b73943f17793cfffff0f91c07f8bbb5dbff22dea6fc1e9b979f"
       }
     ]
   }
