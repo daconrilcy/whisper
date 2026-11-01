@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "revision": 9,
-  "candidate": "f0d09881",
-  "authorization": "Oui, figer ces références et comparer R8",
+  "revision": 10,
+  "candidate": "87c5d535",
+  "authorization": "Oui, préparer et exécuter ces trois contrats",
   "history": [
     {
       "candidate": "de9003dc",
@@ -453,7 +453,7 @@
     ],
     "scope": "2 seconds in-memory silence; real Stop/Shutdown events; not lexical quality/performance"
   },
-  "cumulativeDistinctQualifiedTargetedBodies": 39,
+  "cumulativeDistinctQualifiedTargetedBodies": 42,
   "encoderDiagnosticDistinctBodies": 1,
   "fullCampaignQualified": false,
   "mergePerformed": false,
@@ -466,20 +466,21 @@
     "cases": 4,
     "description": "CPU standalone and nested reusable cache tests plus CPU/GPU reference/candidate reusable contracts",
     "proposedLotRoot": "C:/dev/whisper/.wt/r8/target/parakeet-tests/main-facades",
-    "currentlyGuardRejected": true,
+    "currentlyGuardRejected": false,
     "cargoHomeSeedFiles": 29662,
     "cargoHomeSeedBytes": 763831148,
     "rustChangeNeeded": false,
     "requiresExplicitRootAndGuardAuthorization": true,
-    "applied": false
+    "applied": true,
+    "status": "PASS; historical preparation now completed"
   },
-  "freeBytes": 116874936320,
+  "freeBytes": 111291932672,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 488,
-    "priorEntriesPreserved": 454,
+    "entryCount": 521,
+    "priorEntriesPreserved": 488,
     "entriesVerified": true,
-    "sha256": "9f18359711069be9e04b3b7467022de24e4a0881c722215bea7b8b61a9ccd8da",
+    "sha256": "4fa64bf1e44f6d85bf449740420a8df225844fb80bc02ca9f3ee5c7d9f16990f",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -2920,6 +2921,171 @@
         "path": "target/parakeet-tests/main-facades/runs/TurboGpuReusableImports-7daa4e22a21040089833ed004516d67d/writes/main-facades-work/reusable-imports-153236-1793567893672420500/silent.wav",
         "bytes": 32044,
         "sha256": "643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_errors_and_shutdown_contract.invocation.json",
+        "bytes": 1299,
+        "sha256": "cb16347bb08143a73694720bcf622f85174ae84e93937682c5d0b940861c9857"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_errors_and_shutdown_contract.process.json",
+        "bytes": 120,
+        "sha256": "e9076e9a029d5f3125dbd8d5cbd619be1d6e29d585ca21fc1d89ebd5d59615a7"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_errors_and_shutdown_contract.stderr.log",
+        "bytes": 3863,
+        "sha256": "6f580cd2b9032a93233b217f31ac38132faae446304bbf38f9be346135a50a86"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_errors_and_shutdown_contract.stdout.log",
+        "bytes": 169,
+        "sha256": "eeff2b6f64f625c68dbb576e392f0d5c171bfed8e46a2ffaf698a4d9dbf7cda3"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_native_transcription_contract.invocation.json",
+        "bytes": 1304,
+        "sha256": "7b8a1f44245cac9344fc6eb6898e00934f392526d00665c39159762fb80d31e2"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_native_transcription_contract.process.json",
+        "bytes": 122,
+        "sha256": "3c914cee0d02e5a8c59fcb1c1df2760baaca10307a1407d0fecde758b779f7ca"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_native_transcription_contract.stderr.log",
+        "bytes": 6383,
+        "sha256": "ffbe8320e002a6398e979e720be7f387b72903e9212c1776a39a5a3c4c204f74"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_native_transcription_contract.stdout.log",
+        "bytes": 170,
+        "sha256": "c6b98765ae9f4f22c5f7b1986a4c546ea52a0109f4b8f465b5ae3342789471e0"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_refusal_order_contract.invocation.json",
+        "bytes": 1276,
+        "sha256": "affb286dec5495fae9640b968597fe74ac3f09967689d9353c377189054f6a56"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_refusal_order_contract.process.json",
+        "bytes": 115,
+        "sha256": "4838f6c6a85a13bd1e453f2ec98739d7ab9810d6bfca5f20a534ae01310817df"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_refusal_order_contract.stderr.log",
+        "bytes": 5618,
+        "sha256": "2b037aae4b14e2f2212bcce5e1b8a164f52e15d534f5d26dcec82fe2c9fd24c4"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_refusal_order_contract.stdout.log",
+        "bytes": 163,
+        "sha256": "97c632f265cc7ef623be56800e49f54648f65af9711f4a66c7d1f10ce3bed1c8"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/result.json",
+        "bytes": 3215,
+        "sha256": "ce6b5c14499496bcd032322a14f9ff205c8a9f8dd51de18b40f9a5d9c3ca879b"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/unattributed-temp.jsonl",
+        "bytes": 10698,
+        "sha256": "2a41dcbb61cce88d35e5d4997cf679a89fee3a9a6c85789b3a17314f296b43f3"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571143820964500.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571152569362400.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571160303079600.stderr.txt",
+        "bytes": 131,
+        "sha256": "a03db6ae5b020df04f1b08f6212d8e8e6eac874c6a4b1daadcdeffeffe3da303"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571168059709500.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571175892202100.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571183718891600.stderr.txt",
+        "bytes": 131,
+        "sha256": "a03db6ae5b020df04f1b08f6212d8e8e6eac874c6a4b1daadcdeffeffe3da303"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-112840-1793571125983940200.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-112840-1793571133794641400.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-32804-1793571193435460100.stderr.txt",
+        "bytes": 122,
+        "sha256": "16820deaa3e63b4eae9c35f58feaebdbefd1bd906192d0244882f92f34c56fc5"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-32804-1793571201969057900.stderr.txt",
+        "bytes": 122,
+        "sha256": "16820deaa3e63b4eae9c35f58feaebdbefd1bd906192d0244882f92f34c56fc5"
+      },
+      {
+        "path": "target/n2-native/resources/parakeet-cpu-contracts/guard-selftest.json",
+        "bytes": 6869,
+        "sha256": "472938b0a0e995a047a838a60e0c0c10215c0269c988335f028530f795d55c00"
+      },
+      {
+        "path": "target/n2-native/resources/parakeet-cpu-contracts/harness-pe.json",
+        "bytes": 930,
+        "sha256": "d80efa7c555b5da1ab42522a76805bca105448d6a8fba32012cb0cd553a2295c"
+      },
+      {
+        "path": "target/n2-native/resources/parakeet-cpu-contracts/postchecks.json",
+        "bytes": 170,
+        "sha256": "ff43d6ced994657d0161681bc7c01b7a5d7894c113b9ef69b898ec07733a47ec"
+      },
+      {
+        "path": "target/n2-native/resources/parakeet-cpu-contracts/preparation.json",
+        "bytes": 3046,
+        "sha256": "f9bac7dda3c833f11ce53eda9ad8f2cedef84214d8e9b0814bc0aa2011eb2b1d"
+      },
+      {
+        "path": "target/n2-native/resources/parakeet-cpu-contracts/results-summary.json",
+        "bytes": 1952,
+        "sha256": "81ffe2415fc021856d11e0235fab006811089bebe9dd614a23db047fe81b06a2"
+      },
+      {
+        "path": "target/n2-native/logs/parakeet-cpu-contracts-selftest.txt",
+        "bytes": 632,
+        "sha256": "d692227f240e8efd9e055f973b41bd274015bdb82c32fa326fe8a5b25e267932"
+      },
+      {
+        "path": "target/n2-native/logs/parakeet-cpu-contracts-preflight.txt",
+        "bytes": 503,
+        "sha256": "14601c1988d269946a1f76d9bee8d54cb87258ec9aed6922601fd876d2f12fc5"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/requests/ParakeetCpuContracts.json",
+        "bytes": 5206,
+        "sha256": "49928564b7f003dea93fb71fc31ffb5fa21b7378daf2dae99dd5df3eba809483"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-contracts-launch.txt",
+        "bytes": 318,
+        "sha256": "384bdf1ca056f5f8d3637f631c1f8d858b8d57de5076dba8aa418bcdadb8e2fc"
       }
     ]
   },
@@ -3003,5 +3169,277 @@
     "failed": 0,
     "sourceInputsUnmodified": true,
     "scope": "model reuse/cache and frozen-reference comparisons with silence, no lexical-quality/performance claim"
+  },
+  "priorRevision9": {
+    "gitSnapshot": "715e1d6c",
+    "archiveEntryCount": 488,
+    "archiveSha256": "9f18359711069be9e04b3b7467022de24e4a0881c722215bea7b8b61a9ccd8da"
+  },
+  "parakeetCpuContracts": {
+    "authorization": "Oui, préparer et exécuter ces trois contrats",
+    "candidate": "87c5d535",
+    "guardSha256": "4f8a3c4dde672386cd9a2650851e90b351f0c7dfdb5ed8a757e539670a4d8825",
+    "registrySha256": "dd7906d5d1361ab2e92f28b57f032385df216aa33990a5f922b47f3832002a22",
+    "independentReview": "CLEAN; cycle 1",
+    "selfTests": "PASS",
+    "preflight": "PASS",
+    "runId": "ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126",
+    "status": "PASS",
+    "passed": 3,
+    "failed": 0,
+    "initial834InventoryNamesContainedTheseCases": false,
+    "cases": [
+      {
+        "case": "parakeet_refusal_order_contract",
+        "status": "PASS",
+        "exitCode": 0,
+        "cargoSeconds": 22.669,
+        "executionCount": 1,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "case": "parakeet_errors_and_shutdown_contract",
+        "status": "PASS",
+        "exitCode": 0,
+        "cargoSeconds": 48.53,
+        "executionCount": 1,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "case": "parakeet_native_transcription_contract",
+        "status": "PASS",
+        "exitCode": 0,
+        "cargoSeconds": 17.804,
+        "executionCount": 1,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0
+      }
+    ],
+    "transcription": [
+      {
+        "workerSha256": "84c371d4df55043ada4a1d96b80180ed0c03b208410c599262c8ea3762304e60",
+        "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+        "runtimeSha256": "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff",
+        "sourceSha256": "31930895694619a38443fdca186e7df712ee8ecc6f685d65f0263201c4d44861",
+        "durationSamples": 242416,
+        "textCharacters": 205,
+        "words": 38,
+        "nativeInferenceMs": 810,
+        "gpuEvidence": null
+      },
+      {
+        "workerSha256": "a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d",
+        "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+        "runtimeSha256": "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff",
+        "sourceSha256": "31930895694619a38443fdca186e7df712ee8ecc6f685d65f0263201c4d44861",
+        "durationSamples": 242416,
+        "textCharacters": 205,
+        "words": 38,
+        "nativeInferenceMs": 773,
+        "gpuEvidence": null
+      }
+    ],
+    "normalizedEventsEqual": true,
+    "languageQualityThresholdQualified": false,
+    "inputPostchecks": {
+      "sourceFilesVerified": 24,
+      "stagedRuntimeFilesVerified": 21,
+      "stagedWavVerified": true,
+      "sourceReferenceUnmodified": true,
+      "freeBytes": 111296503808
+    },
+    "harnessPe": {
+      "Kind": "ParakeetCpu",
+      "Path": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared\\debug\\deps\\worker_contract-9d5e49c25d007dff.exe",
+      "Sha256": "ec1bde636759123e977e5b34c42f50152d6727e6c3cc3ea83c94928ece9a0063",
+      "Verdict": "PASS",
+      "Imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "CudaImports": [],
+      "Reason": "No forbidden CUDA imports."
+    },
+    "proofFiles": [
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_errors_and_shutdown_contract.invocation.json",
+        "bytes": 1299,
+        "sha256": "cb16347bb08143a73694720bcf622f85174ae84e93937682c5d0b940861c9857"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_errors_and_shutdown_contract.process.json",
+        "bytes": 120,
+        "sha256": "e9076e9a029d5f3125dbd8d5cbd619be1d6e29d585ca21fc1d89ebd5d59615a7"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_errors_and_shutdown_contract.stderr.log",
+        "bytes": 3863,
+        "sha256": "6f580cd2b9032a93233b217f31ac38132faae446304bbf38f9be346135a50a86"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_errors_and_shutdown_contract.stdout.log",
+        "bytes": 169,
+        "sha256": "eeff2b6f64f625c68dbb576e392f0d5c171bfed8e46a2ffaf698a4d9dbf7cda3"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_native_transcription_contract.invocation.json",
+        "bytes": 1304,
+        "sha256": "7b8a1f44245cac9344fc6eb6898e00934f392526d00665c39159762fb80d31e2"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_native_transcription_contract.process.json",
+        "bytes": 122,
+        "sha256": "3c914cee0d02e5a8c59fcb1c1df2760baaca10307a1407d0fecde758b779f7ca"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_native_transcription_contract.stderr.log",
+        "bytes": 6383,
+        "sha256": "ffbe8320e002a6398e979e720be7f387b72903e9212c1776a39a5a3c4c204f74"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_native_transcription_contract.stdout.log",
+        "bytes": 170,
+        "sha256": "c6b98765ae9f4f22c5f7b1986a4c546ea52a0109f4b8f465b5ae3342789471e0"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_refusal_order_contract.invocation.json",
+        "bytes": 1276,
+        "sha256": "affb286dec5495fae9640b968597fe74ac3f09967689d9353c377189054f6a56"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_refusal_order_contract.process.json",
+        "bytes": 115,
+        "sha256": "4838f6c6a85a13bd1e453f2ec98739d7ab9810d6bfca5f20a534ae01310817df"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_refusal_order_contract.stderr.log",
+        "bytes": 5618,
+        "sha256": "2b037aae4b14e2f2212bcce5e1b8a164f52e15d534f5d26dcec82fe2c9fd24c4"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/parakeet_refusal_order_contract.stdout.log",
+        "bytes": 163,
+        "sha256": "97c632f265cc7ef623be56800e49f54648f65af9711f4a66c7d1f10ce3bed1c8"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/result.json",
+        "bytes": 3215,
+        "sha256": "ce6b5c14499496bcd032322a14f9ff205c8a9f8dd51de18b40f9a5d9c3ca879b"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126/unattributed-temp.jsonl",
+        "bytes": 10698,
+        "sha256": "2a41dcbb61cce88d35e5d4997cf679a89fee3a9a6c85789b3a17314f296b43f3"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571143820964500.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571152569362400.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571160303079600.stderr.txt",
+        "bytes": 131,
+        "sha256": "a03db6ae5b020df04f1b08f6212d8e8e6eac874c6a4b1daadcdeffeffe3da303"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571168059709500.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571175892202100.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-103632-1793571183718891600.stderr.txt",
+        "bytes": 131,
+        "sha256": "a03db6ae5b020df04f1b08f6212d8e8e6eac874c6a4b1daadcdeffeffe3da303"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-112840-1793571125983940200.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-112840-1793571133794641400.stderr.txt",
+        "bytes": 70,
+        "sha256": "86bbab2c6b611777e0c4e2a2768593ef3c193fa003ba2a3f09703c77494a8aaf"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-32804-1793571193435460100.stderr.txt",
+        "bytes": 122,
+        "sha256": "16820deaa3e63b4eae9c35f58feaebdbefd1bd906192d0244882f92f34c56fc5"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-32804-1793571201969057900.stderr.txt",
+        "bytes": 122,
+        "sha256": "16820deaa3e63b4eae9c35f58feaebdbefd1bd906192d0244882f92f34c56fc5"
+      },
+      {
+        "path": "target/n2-native/resources/parakeet-cpu-contracts/guard-selftest.json",
+        "bytes": 6869,
+        "sha256": "472938b0a0e995a047a838a60e0c0c10215c0269c988335f028530f795d55c00"
+      },
+      {
+        "path": "target/n2-native/resources/parakeet-cpu-contracts/harness-pe.json",
+        "bytes": 930,
+        "sha256": "d80efa7c555b5da1ab42522a76805bca105448d6a8fba32012cb0cd553a2295c"
+      },
+      {
+        "path": "target/n2-native/resources/parakeet-cpu-contracts/postchecks.json",
+        "bytes": 170,
+        "sha256": "ff43d6ced994657d0161681bc7c01b7a5d7894c113b9ef69b898ec07733a47ec"
+      },
+      {
+        "path": "target/n2-native/resources/parakeet-cpu-contracts/preparation.json",
+        "bytes": 3046,
+        "sha256": "f9bac7dda3c833f11ce53eda9ad8f2cedef84214d8e9b0814bc0aa2011eb2b1d"
+      },
+      {
+        "path": "target/n2-native/resources/parakeet-cpu-contracts/results-summary.json",
+        "bytes": 1952,
+        "sha256": "81ffe2415fc021856d11e0235fab006811089bebe9dd614a23db047fe81b06a2"
+      },
+      {
+        "path": "target/n2-native/logs/parakeet-cpu-contracts-selftest.txt",
+        "bytes": 632,
+        "sha256": "d692227f240e8efd9e055f973b41bd274015bdb82c32fa326fe8a5b25e267932"
+      },
+      {
+        "path": "target/n2-native/logs/parakeet-cpu-contracts-preflight.txt",
+        "bytes": 503,
+        "sha256": "14601c1988d269946a1f76d9bee8d54cb87258ec9aed6922601fd876d2f12fc5"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/requests/ParakeetCpuContracts.json",
+        "bytes": 5206,
+        "sha256": "49928564b7f003dea93fb71fc31ffb5fa21b7378daf2dae99dd5df3eba809483"
+      },
+      {
+        "path": "target/parakeet-tests/main-facades/logs/parakeet-cpu-contracts-launch.txt",
+        "bytes": 318,
+        "sha256": "384bdf1ca056f5f8d3637f631c1f8d858b8d57de5076dba8aa418bcdadb8e2fc"
+      }
+    ]
   }
 }

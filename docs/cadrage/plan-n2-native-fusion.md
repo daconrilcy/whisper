@@ -1,6 +1,6 @@
-Avancée : les quatre cas réutilisables CPU/GPU ont réussi ; 39 corps ciblés PASS distincts et un diagnostic encodeur.
+Avancée : les trois contrats Parakeet CPU supplémentaires ont réussi ; 42 corps ciblés PASS distincts et un diagnostic encodeur.
 Blocage : campagne complète incomplète : NVML, corpus historique perdu et prérequis des autres recettes.
-Décision : l'écart de validation est fermé ; aucune fusion tant que la campagne complète n'est pas verte.
+Décision : complément Parakeet CPU CLEAN et exécuté ; aucune fusion tant que la campagne complète n'est pas verte.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -275,3 +275,21 @@ Ils exigent la feature existante **`whisper-worker-parakeet-cpu/parakeet-persona
 Les autres pistes restent distinctes : decoder-parity appelle obligatoirement ffmpeg, absent du PATH isolé et non admis comme outil ; R5 court exige FR87/FR27 exacts ; les vingt appels FR/EN exigent l'ancre française « secondes », non prouvée par les courts disponibles ; R6 EN60 exige exactement 60 minutes ; le diagnostic CPU/GPU historique exige un autre root et un WAV absent du worktree. Aucun clip n'est substitué silencieusement et aucun retour anticipé n'est présenté comme réussite.
 
 Accord reçu dans cette session : **« Oui, préparer et exécuter ces trois contrats »**. Exécution du complément en sept étapes : candidat CI délégué ; copies/requête vérifiées ; auto-tests sans opération de copie concurrente ; revue indépendante (deux cycles maximum) ; préflight puis trois appels sous garde ; contrôle des entrées et archivage incrémental ; bilan et commit local. Le cache `main-facades` déjà vérifié est conservé. Espace libre initial : 114 564 263 936 octets. Référence CPU P3 copiée sous `main-facades/resources/parakeet-reference/`, 1 013 248 octets ; SHA source avant/après et copie concordants. Ces trois noms sont absents de l'inventaire initial avec `native-tests` seul : ils enrichissent la couverture avec `parakeet-personal`, sans réduire artificiellement le nombre de cas initiaux encore non exécutés. La transcription teste l'égalité des événements normalisés référence/candidat, sans seuil de qualité linguistique.
+
+### Résultats des trois contrats Parakeet CPU
+
+Candidat CI `87c5d535`, relu **CLEAN au premier cycle** par le reviewer indépendant : aucun constat ni écart de vérification. Les deux seuls fichiers de code changés sont `ci/guard-native.ps1` et `ci/native-profiles.json`. La feature personnelle est réservée au seul profil/paquet Parakeet CPU avec `native-tests` ; les autres profils restent bornés. Les auto-tests complets ont passé sans copie concurrente, puis le préflight du profil a passé. Aucun Rust, test, manifeste, SDK, pilote, outil externe ou fichier installé n'a changé.
+
+Sous la garde existante, profil `ParakeetCpuContracts`, lot `target/parakeet-tests/main-facades`, requête `requests/ParakeetCpuContracts.json`, run **`ParakeetCpuContracts-02566b22310c4f8fa58eeb80b6cb9126`** :
+
+| Sélecteur integration `worker_contract` | Résultat | Durée Cargo |
+| --- | --- | ---: |
+| `parakeet_refusal_order_contract` | 1 PASS / 0 échec / 0 ignoré | 22,669 s |
+| `parakeet_errors_and_shutdown_contract` | 1 PASS / 0 échec / 0 ignoré | 48,530 s |
+| `parakeet_native_transcription_contract` | 1 PASS / 0 échec / 0 ignoré | 17,804 s |
+
+Chaque reçu prouve un corps exact exécuté, statut Cargo 0 ; le profil termine PASS. La transcription référence/candidat conserve les mêmes événements normalisés : 242 416 échantillons, 205 caractères et 38 mots ; modèle `e3880d0a…7f4d32e`, runtime CPU `d5a2cc8e…958ff`, source EN15 `31930895…4861`. Elle ne démontre ni un seuil de qualité linguistique ni un succès historique attribuable à d'anciens exécutables inconnus. Les trois nouveaux cas portent le total ciblé à 42, mais sont absents de l'inventaire initial à 834 identités : le nombre de cas initiaux restant à qualifier n'est pas artificiellement diminué.
+
+Après exécution : les **24 fichiers d'entrée**, la référence P3 d'origine, les **21 fichiers du runtime cloné** et le WAV stagé sont inchangés par SHA. Contrôle PE PASS sans CUDA sur référence CPU `84c371d4…4e60`, candidat CPU admis `a965c950…e2fb99d` et harnais **`ec1bde636759123e977e5b34c42f50152d6727e6c3cc3ea83c94928ece9a0063`**. Cette preuve PE et l'exécution sur le backend CPU ne remplacent pas la recette dans un Windows sans DLL CUDA. La vérification après exécution a d'abord rencontré une erreur de construction de chemin dans le relevé PowerShell (variable automatique `$input`), corrigée dans ce seul relevé en lecture ; aucune commande Cargo/native n'a échoué ni été relancée.
+
+Coût de staging : runtime 3 196 008 875 octets, WAV 484 910 octets et référence 1 013 248 octets ; pas de nouvelle copie du cache Cargo. Somme des trois appels Cargo : **89,003 s**. Espace libre final relevé : **111 296 503 808 octets** ; les variations globales du volume ne sont pas attribuées intégralement à la campagne. Aucun nettoyage ni installation. Preuves consolidées dans les deux fichiers existants `raw/n2-native/native-results.json` et `native-runs.zip`, révision 10 : **521 entrées**, dont les 488 précédentes préservées et 33 ajoutées, tailles/SHA de toutes les entrées vérifiés. SHA archive **`4fa64bf1e44f6d85bf449740420a8df225844fb80bc02ca9f3ee5c7d9f16990f`**. Toujours neuf fichiers de rapport suivis, aucun nouveau rapport créé. NVML, FR87/FR27 perdus et les autres prérequis restent ouverts ; `main` n'est pas déplacé, aucune fusion ni push.
