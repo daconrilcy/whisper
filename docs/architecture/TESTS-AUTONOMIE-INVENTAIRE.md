@@ -1,8 +1,41 @@
-Avancée : intégration des quatre commits positifs explicitement autorisée ; report des preuves et reprise N1 dans le worktree de mission.
-Blocage : nouveaux artefacts et mesures N1 de la branche intégrée encore à établir.
-Décision : intégrer uniquement le positif, sans sonde négative ; NoRun puis examen statique avant toute liste ou exécution de tests.
+Avancée : branche refacto/tests-autonomes intégrée et N1 réussi : 686 tests réussis, 0 échec, 148 ignorés ; 834 identités conservées.
+Blocage : aucun échec N1 ; revue finale de remise en cours, Clippy conserve des avertissements.
+Décision : livrer le candidat positif uniquement, assertions conservées et sonde négative exclue ; aucun test natif ni push.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
+
+## Résultat I1 — mesures fraîches sur refacto/tests-autonomes
+
+Les quatre commits positifs ont été repris dans l’ordre : **61b0a21d → bc891936**, **a7344a9e → df77ce35**, **9df93659 → d151636a**, **f2186cb7 → 674fc0dc**. Le code source/CI de **674fc0dc** est exactement identique à celui du prototype positif f2186cb7 (`git diff f2186cb7 -- ci crates` vide). La sonde négative est absente. Le même reviewer a accepté l’équivalence, NoRun et les nouveaux imports avant la moindre liste ou exécution ; R8 et R9 sont fermés sur le candidat de mission, sous réserve de la remise finale des vérifications.
+
+| Mesure / contrôle | Résultat frais I1 | Durée |
+| --- | --- | ---: |
+| SelfTest | PASS 0, chemins/jonctions/arguments/captures 0 et 23, sans watcher | 1,947 s |
+| NoRun | PASS 0, workspace compilé sans lancer les tests | 57,248 s |
+| Imports PE des 69 exécutables NoRun | 21 noms Windows/APIset/MSVC ; aucun import moteur/CUDA ordinaire ou différé ; stderr vide | — |
+| Structure | PASS 0 : 855 tests, 855 entrées, 159 gates, 7 helpers contrôlés, zéro motif de retour silencieux | — |
+| TestList | PASS 0 : **834 identités**, 73 groupes ; multiset initial conservé, aucune identité ajoutée ou manquante | 13,629 s |
+| IgnoredList | PASS 0 : **148 ignorés** | 3,280 s |
+| cargo test --workspace | **PASS 0 : 686 réussis / 0 échec / 148 ignorés / total 834** | **22,082 s** |
+| Clippy --workspace --all-targets | PASS 0 avec avertissements : 92 occurrences dans 23 résumés, doublons inclus, pas un décompte unique | 23,474 s |
+| fmt --check | PASS 0 | 1,169 s |
+
+Chaque mode a été lancé séparément par ci/guard-level1.ps1, avec préflight N1 et environnement isolé : WHISPER_* / PARAKEET_* supprimées, LOCALAPPDATA neuve/vide, CARGO_HOME/TEMP/TMP sous la campagne du worktree, target unique C:/dev/whisper/target/parakeet-tests/cargo-shared, incrémental désactivé et debug line-tables-only. Options offline/locked pour compilation, listes, tests et Clippy ; fmt est un contrôle de format sans résolution de dépendances. Les outils de compilation installés sont le prérequis explicitement accepté ; aucune DLL n’a été retirée et aucun essai natif ou matériel n’est revendiqué.
+
+| Décompte de la mission | Exécutés | Ignorés | Total | Durée de la suite |
+| --- | ---: | ---: | ---: | ---: |
+| Avant, listes initiales | Non exécutés (768 sélectionnables) | 66 | 834 | Non mesurée pour éviter les tests natifs |
+| Après, branche intégrée | **686** | **148** | **834** | **22,082 s** |
+
+Les tables de reclassement existantes et DEBT-1 à DEBT-11 restent applicables. Les 28 corps anciennement couplés au chargement CUDA sont désormais dans les deux harness autonomes ; R9 est ignoré explicitement comme diagnostic manuel. Les trois tests purs FFI ont été déplacés entiers, jamais scindés ; aucun test existant supprimé. Quatre corps de fonctions et trois structures purs sont réutilisés par la vraie FFI, sans algorithme changé. Le Word-diff frais **248f8679 → 674fc0dc**, 66 fichiers Rust hors contrôleur CI, est `scratch/20261101T120951072-b3922e058c0547df965aac896d9ec327/assertions-word-diff-I1.txt`. Les 2 862 assertions des 47 fichiers précédents et les neuf assertions des trois tests FFI déplacés sont conservées ; les déplacements physiques restent visibles dans le diff.
+
+Les ressources interdites Cargo.lock, models/ et scripts/ sont sans différence depuis 248f8679 ; la garde historique et le fichier Temp de l’incident sont conservés. Les seules extensions de production sont celles expressément acceptées pour le découplage et les déclarations de modules de tests ; aucune autre logique produit n’a changé.
+
+Journaux I1 sous target/parakeet-tests/tests-autonomes/scratch/ : NoRun/PE `20261101T120951072-b3922e058c0547df965aac896d9ec327`, Structure `20261101T121431198-10e520a3b678458b998b12d4b0f63123`, TestList `20261101T121435025-951d69e6ef3b446a8b1aebdf2668f273`, IgnoredList `20261101T121453539-5858ca960f57422b8148c257a51543ee`, Tests `20261101T121500770-21f7a2eaae7947518380dc18f27f8c9b`, Clippy `20261101T121527005-16723fd29864462d9e549679f1635192`, Fmt `20261101T121554111-bd2d471c808e4509b51309cad79c99b9`.
+
+Archive finale I1 : **archive/tests-autonomes-I1-final-20261101.zip**, **58 entrées**, **429 959 octets** ; arborescence conservée, chaque contenu relu et SHA-256 comparé. Elle contient les journaux frais, les listes initiales/pré-prototype, le Word-diff et l’archive du SPIKE avec son témoin distinct. SHA-256 : **72b296f23a0d1b33ffac9f0d2fdede9d1fc7d55acf8f61fdeb8ab320beec0bd9**. Espace libre final : **172,35 Gio**. Aucun nettoyage, installation, suppression de DLL, exécution native, recette Windows ou push.
+
+Les sections suivantes conservent les étapes historiques. Les mentions « intégration non autorisée », « R8 ouvert » et les mesures du prototype n’annulent pas les résultats I1 ci-dessus ; leurs sources/commits et contextes restent distincts.
 
 ## Lot I1 — intégration autorisée dans la branche de mission
 

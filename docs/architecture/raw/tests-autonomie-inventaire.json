@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "I1_INTEGRATION_AUTHORIZED_POSITIVE_ONLY_PENDING_MAIN_N1_PROOFS",
+  "status": "I1_INTEGRATED_ALL_N1_PASS_PENDING_FINAL_REVIEW",
   "source_commit": "248f86794c3a1e2d2b1ba6d5a7afafc84972535d",
   "branch": "refacto/tests-autonomes",
   "worktree": "C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes",
@@ -54323,14 +54323,14 @@
     ]
   },
   "R9_oracle_without_verdict": {
-    "status": "OPEN_REVIEWER_CONFIRMED",
+    "status": "RESOLVED_DEFAULT_SELECTION_I1_CODE_674FC0DC",
     "requirement": "chaque passed correspond à une vérification réelle",
     "path": "crates/whisper-worker-cpu/src/encoder/tests.rs",
     "name": "capture_encoder_baseline",
     "evidence": "lignes 11–17 : cinq push_pcm, deux finish ; lignes 22–28 résultats imprimés ; ligne 31 Err imprimé ; aucune sortie attendue imposée",
     "all_seven_errors_can_pass": true,
     "proposed_correction": "ignore permanent explicite diagnostic/oracle manuel ; corps et identité intacts, aucune assertion ajoutée ou modifiée",
-    "correction_applied": false,
+    "correction_applied": true,
     "projection_if_applied_alone": {
       "passed": 686,
       "ignored": 148,
@@ -54534,7 +54534,7 @@
     "main_candidate_integrated":false
   },
   "integration_I1": {
-    "status":"AUTHORIZED_PENDING_SOURCE_PICK_AND_MAIN_N1",
+    "status":"INTEGRATED_ALL_N1_PASS_PENDING_FINAL_REVIEW",
     "authority":"oui je t'autorise, réponse à la demande précise des quatre commits positifs23fichiers surrefacto/tests-autonomes puis rejeuN1",
     "base_commit":"3bf6bcb5",
     "worktree":"C:/dev/whisper/target/agent-worktrees/tests-autonomes",
@@ -54547,7 +54547,30 @@
     "sequence":"quatre reprises Git sans autre code, report deux docs, SelfTest/NoRun/examenPE puis Structure/listes/tests/Clippy/Fmt et revue",
     "no_native_tests":true,
     "no_extra_assertion_or_production_logic_change":true,
-    "new_runtime_result_yet":false
+    "new_runtime_result_yet":true,
+    "code_commit":"674fc0dc",
+    "commit_mapping":{"61b0a21d":"bc891936","a7344a9e":"df77ce35","9df93659":"d151636a","f2186cb7":"674fc0dc"},
+    "source_ci_identical_to_positive_f2186cb7":true,
+    "negative_probe_absent":true,
+    "selftest":{"exit":0,"seconds":1.947},
+    "no_run":{"exit":0,"seconds":57.248,"root":"20261101T120951072-b3922e058c0547df965aac896d9ec327"},
+    "pe":{"executables":69,"unique_dll_names":21,"native_engine_imports":[],"non_system_or_unresolved_dll_names":[],"ordinary_and_delay_imports":true,"same_reviewer_gate_accepted":true},
+    "structure":{"exit":0,"tests":855,"registry":855,"native_gated":159,"controlled_env_helpers":7,"silent_return_patterns":0},
+    "test_list":{"exit":0,"seconds":13.629,"identities":834,"groups":73,"initial_multiset_equal":true,"missing":0,"added":0,"mapping":"les deux nouveaux harness vers les anciennes cibles unitaires CPU/GPU"},
+    "ignored_list":{"exit":0,"seconds":3.28,"count":148},
+    "tests":{"exit":0,"seconds":22.082,"passed":686,"failed":0,"ignored":148,"total":834},
+    "clippy":{"exit":0,"seconds":23.474,"target_summary_lines":23,"warning_occurrences_including_duplicates":92,"unique_diagnostics_measured":false},
+    "fmt":{"exit":0,"seconds":1.169,"check_only_no_dependency_resolution":true},
+    "environment":{"WHISPER_PARAK_vars":"removed","LOCALAPPDATA":"fresh empty per command","CARGO_HOME_TEMP_TMP":"isolated in original campaign root","CARGO_TARGET_DIR":"C:/dev/whisper/target/parakeet-tests/cargo-shared","CARGO_INCREMENTAL":"0","CARGO_PROFILE_DEV_DEBUG":"line-tables-only"},
+    "logs":{"Structure":"20261101T121431198-10e520a3b678458b998b12d4b0f63123","TestList":"20261101T121435025-951d69e6ef3b446a8b1aebdf2668f273","IgnoredList":"20261101T121453539-5858ca960f57422b8148c257a51543ee","Tests":"20261101T121500770-21f7a2eaae7947518380dc18f27f8c9b","Clippy":"20261101T121527005-16723fd29864462d9e549679f1635192","Fmt":"20261101T121554111-bd2d471c808e4509b51309cad79c99b9"},
+    "assertions":{"prior_47_files_2862_tokens_preserved":true,"three_moved_ffi_test_assertions_preserved":9,"word_diff_rust_files_excluding_ci_checker":66,"word_diff_root":"20261101T120951072-b3922e058c0547df965aac896d9ec327","word_diff_file":"assertions-word-diff-I1.txt"},
+    "current_runtime_annotations":{"legacy_tests_effective_execution_fields":"historical R8 startup gap before integration; current override applies to native_dll_import_analysis.affected_unit_tests","affected_bodies":28,"effective_native_startup_prerequisites":[],"body_resource_category":"AUTONOME","R9_selection":"permanently ignored manual oracle, not an automatic verdict","effective_body_category_counts":{"NATIF":160,"AUTONOME":695}},
+    "archive":{"path":"target/parakeet-tests/tests-autonomes/archive/tests-autonomes-I1-final-20261101.zip","files":58,"bytes":429959,"entries_sha256_verified":true,"sha256":"72b296f23a0d1b33ffac9f0d2fdede9d1fc7d55acf8f61fdeb8ab320beec0bd9","includes_spike_proof_archive":true},
+    "free_gib_after_archive":172.35,
+    "no_native_tests_or_native_feature":true,
+    "no_cleanup_or_push":true,
+    "forbidden_paths_Cargo_lock_models_scripts_unchanged":true,
+    "final_review":"PENDING_CURRENT_DOCUMENT_CANDIDATE"
   },
   "spike_R8_final": {
     "positive_code_commit": "f2186cb7",
