@@ -28,11 +28,14 @@ mod native_engine {
 
 mod session {
     use crate::{diagnostics::emit_failure, ipc::Incoming};
-    use std::{io, sync::mpsc::{self, Receiver}};
-    use whisper_core::{Generation, JobId};
+    use std::{
+        io,
+        sync::mpsc::{self, Receiver},
+    };
     use whisper_core::ipc::{
         IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent,
     };
+    use whisper_core::{Generation, JobId};
 
     #[path = "../../../src/session/control.rs"]
     mod control;
@@ -41,11 +44,7 @@ mod session {
         _rx: &std::sync::mpsc::Receiver<crate::ipc::Incoming>,
         _output: &mut impl std::io::Write,
         _first: whisper_core::ipc::IpcEnvelope<whisper_core::ipc::WorkerCommand>,
-        _cached_engine: &mut Option<(
-            String,
-            [u8; 32],
-            crate::native_engine::CpuEngine,
-        )>,
+        _cached_engine: &mut Option<(String, [u8; 32], crate::native_engine::CpuEngine)>,
     ) -> Result<(), String> {
         crate::native_boundary::forbid("session::run_session")
     }
