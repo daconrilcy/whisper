@@ -54282,7 +54282,23 @@
       },
       "checks": "documents Git, manifestes et sources ; 28 identités retrouvées (9 CPU / 19 GPU), couverture bidirectionnelle cohérente ; aucune exécution Cargo/rustc/native/PE"
     },
-    "independent_design_review": "PENDING_REVIEW_DRAFT_R8_2_USER_SCOPE_AND_BASELINE_PATH_MAPPING",
+    "independent_design_review": {
+      "source_commit": "c1edd704426fe3ae39a81421c23620f49d8f414a",
+      "study_version": "DRAFT-R8-2",
+      "actor": "/root/r8_design_review",
+      "verdict": "CLEAN_FOR_DOCUMENTARY_DRAFT_ONLY",
+      "design_readiness": "BLOCKED",
+      "required_findings": [],
+      "remaining_conditions": [
+        "R8.1–R8.3 non prouvés",
+        "R9 non appliqué"
+      ],
+      "confirmed_user_scope": "DEC-P-R8-01 : sans DLL à l'exécution, outils de compilation installés",
+      "advisory_closed_by_reviewer": ["AD-R8-01"],
+      "checked": "diff des deux documents, syntaxe JSON, clés chemin+nom du contrôleur, trois chemins et raison du baseline, 11 fichiers proposés, racine et branche absentes, état Git",
+      "no_cargo_rustc_native_or_prototype_execution": true,
+      "does_not_authorize_prototype": true
+    },
     "baseline_adaptation": "ci/check-structure.rs:609–618 exige chemin+nom retrouvés ; remplacer seulement les 3 chemins FFI déplacés et la raison R9 dans ci/tests-baseline.txt, sans nouvelle exception",
     "documentary_checks": {
       "json_syntax": "PASS",

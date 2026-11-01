@@ -57,6 +57,8 @@ Auteur du document : session principale. Contribution technique : architecte Rus
 
 **Revue indépendante de 46c89049**, acteur `/root/r8_design_review`, sans participation à la conception/rédaction : **CLEAN pour l’étude documentaire DRAFT uniquement ; DESIGN READY reste BLOCKED**. Aucun défaut documentaire REQUIRED ; couverture bidirectionnelle besoin/critères/architecture vérifiée, 9 identités CPU et 19 GPU retrouvées dans les sources, extraction pure et R9 confirmés. Le conseil mineur AD-R8-01 demandait de distinguer le snapshot historique epoch 5 du JSON de la situation actuelle : sa notice historique est désormais explicite. Cette consignation de preuves ne change aucune proposition ni décision.
 
+**Revue du delta DRAFT-R8-2 à c1edd704**, même reviewer : **CLEAN pour l’étude documentaire DRAFT uniquement ; DESIGN READY reste BLOCKED** par R8.1–R8.3 non prouvés et R9 non appliqué. DEC-P-R8-01, les trois correspondances de baseline, la raison R9, le contrôle Structure, les onze chemins proposés et les racines ont été vérifiés. Aucun REQUIRED ; **AD-R8-01 fermé par le reviewer**. Le choix SDK est clos, aucun GO de prototype n’en est déduit. La revue n’a lancé ni Cargo, ni rustc, ni exécution native.
+
 Contrôles documentaires réalisés par la session principale : JSON valide, 855 entrées conservées ; 28 noms/propriétaires de la matrice strictement identiques au JSON ; git diff --check et contrôle du diff indexé réussis. Aucun Cargo, rustc, prototype, modèle, worker réel ou test natif lancé pendant l’étude ou sa revue. Aucun test, manifeste, CI ou code de production changé dans cette étude. Les mesures N1 précédentes ne sont pas de nouvelles mesures du cadrage.
 
 ### Besoin, invariants et acceptation
