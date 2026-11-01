@@ -1,12 +1,14 @@
 Avancée : branche refacto/tests-autonomes intégrée et N1 réussi : 686 tests réussis, 0 échec, 148 ignorés ; 834 identités conservées.
-Blocage : aucun échec N1 ; revue finale de remise en cours, Clippy conserve des avertissements.
-Décision : livrer le candidat positif uniquement, assertions conservées et sonde négative exclue ; aucun test natif ni push.
+Blocage : aucun dans le périmètre accepté ; Clippy conserve des avertissements.
+Décision : CLEAN du reviewer sur le candidat intégré 674fc0dc ; livraison locale sur refacto/tests-autonomes, sans sonde négative, test natif ni push.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
 
 ## Résultat I1 — mesures fraîches sur refacto/tests-autonomes
 
-Les quatre commits positifs ont été repris dans l’ordre : **61b0a21d → bc891936**, **a7344a9e → df77ce35**, **9df93659 → d151636a**, **f2186cb7 → 674fc0dc**. Le code source/CI de **674fc0dc** est exactement identique à celui du prototype positif f2186cb7 (`git diff f2186cb7 -- ci crates` vide). La sonde négative est absente. Le même reviewer a accepté l’équivalence, NoRun et les nouveaux imports avant la moindre liste ou exécution ; R8 et R9 sont fermés sur le candidat de mission, sous réserve de la remise finale des vérifications.
+**Verdict final du même reviewer indépendant : CLEAN sur 674fc0dc, R8 et R9 fermés, aucun finding ou écart de vérification source/CI ouvert.** Les six modes N1, l’équivalence au positif, l’absence de sonde, les 834 identités, les imports et les différences d’assertions ont été relus. Le Word-diff montre neuf tokens d’assertion retirés/ajoutés physiquement, exclusivement le déplacement des trois corps FFI inchangés ; aucune autre assertion modifiée. La validation native, matérielle, dans la fenêtre Windows ou sur un OS dont les DLL CUDA seraient retirées n’a pas été réalisée. La clôture documentaire ci-présente ne change aucun code vérifié.
+
+Les quatre commits positifs ont été repris dans l’ordre : **61b0a21d → bc891936**, **a7344a9e → df77ce35**, **9df93659 → d151636a**, **f2186cb7 → 674fc0dc**. Le code source/CI de **674fc0dc** est exactement identique à celui du prototype positif f2186cb7 (`git diff f2186cb7 -- ci crates` vide). La sonde négative est absente. Le même reviewer a accepté l’équivalence, NoRun et les nouveaux imports avant la moindre liste ou exécution, puis la remise finale des vérifications ; R8 et R9 sont fermés sur le candidat de mission.
 
 | Mesure / contrôle | Résultat frais I1 | Durée |
 | --- | --- | ---: |

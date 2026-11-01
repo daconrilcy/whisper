@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "I1_INTEGRATED_ALL_N1_PASS_PENDING_FINAL_REVIEW",
+  "status": "I1_DELIVERED_CLEAN_ALL_DEFAULT_N1_PASS_ACCEPTED_RUNTIME_SCOPE",
   "source_commit": "248f86794c3a1e2d2b1ba6d5a7afafc84972535d",
   "branch": "refacto/tests-autonomes",
   "worktree": "C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes",
@@ -54534,7 +54534,7 @@
     "main_candidate_integrated":false
   },
   "integration_I1": {
-    "status":"INTEGRATED_ALL_N1_PASS_PENDING_FINAL_REVIEW",
+    "status":"DELIVERED_CLEAN_ALL_N1_PASS",
     "authority":"oui je t'autorise, réponse à la demande précise des quatre commits positifs23fichiers surrefacto/tests-autonomes puis rejeuN1",
     "base_commit":"3bf6bcb5",
     "worktree":"C:/dev/whisper/target/agent-worktrees/tests-autonomes",
@@ -54570,7 +54570,18 @@
     "no_native_tests_or_native_feature":true,
     "no_cleanup_or_push":true,
     "forbidden_paths_Cargo_lock_models_scripts_unchanged":true,
-    "final_review":"PENDING_CURRENT_DOCUMENT_CANDIDATE"
+    "final_review":{
+      "actor":"même rust_reviewer via /root/autonomous_tests_review",
+      "candidate":"674fc0dc",
+      "verdict":"CLEAN",
+      "open_findings":[],
+      "verification_gaps_source_ci":[],
+      "closed_mission_findings":["R8","R9"],
+      "confirmed":"sourceCI=f218 ; sondeabsente ; sixN1PASS ;834identités ;PE69sansmoteur ;9asserttokensphysiquesdéplacésuniquement,3corpsFFIinchangés",
+      "residual_unexecuted":["qualification native/matérielle","fenêtre Windows","OS avec DLL CUDA retirées"],
+      "accepted_scope":"outils de compilation installés, tests par défaut sans prérequis moteur/DLL CUDA",
+      "push_performed":false
+    }
   },
   "spike_R8_final": {
     "positive_code_commit": "f2186cb7",
