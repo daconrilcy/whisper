@@ -127,8 +127,56 @@
     {"id":"TurboGpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
     {"id":"ParakeetCpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-worker-parakeet-cpu","features":["whisper-worker-parakeet-cpu/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
     {"id":"ParakeetGpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
-    {"id":"PersonalUnified","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests","whisper-adapters/recette-hooks"],"compileEnvironment":[{"name":"WHISPER_L04_CAMPAIGN_BUILD","value":"1"}],"inputs":[],"values":[],"outputs":[],"cases":[]},
-    {"id":"D2","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
+    {
+      "id": "PersonalUnified",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": ["whisper-adapters/native-tests", "whisper-adapters/recette-hooks"],
+      "compileEnvironment": [{"name": "WHISPER_L04_CAMPAIGN_BUILD", "value": "1"}],
+      "inputs": [
+        {"key": "personalRuntime", "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT", "kind": "directory"},
+        {"key": "shortFrench", "environmentVariable": "WHISPER_PU_L4_FR_SOURCE", "kind": "file"},
+        {"key": "shortEnglish", "environmentVariable": "WHISPER_PU_L4_EN_SOURCE", "kind": "file"}
+      ],
+      "values": [],
+      "outputs": [
+        {"key": "campaignRun", "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN", "kind": "directory", "path": "writes/l04"}
+      ],
+      "staging": [
+        {"inputKey": "personalRuntime", "destination": "Whisper", "destinationBase": "localappdata", "requiredFileCount": 21, "requiredBytes": 3196008875},
+        {"inputKey": "shortFrench", "destination": "writes/l04/fixtures/fr-short.mp3", "destinationBase": "run", "requiredFileCount": 1, "requiredBytes": 24237},
+        {"inputKey": "shortEnglish", "destination": "writes/l04/fixtures/en-short.mp3", "destinationBase": "run", "requiredFileCount": 1, "requiredBytes": 24237}
+      ],
+      "cases": [
+        {"targetKind": "integration", "targetName": "parakeet_unified_native", "exactTest": "native_personal_cpu_imports_french_mp3_through_the_unified_application", "ignored": false, "verdict": "QUALIFICATION"},
+        {"targetKind": "integration", "targetName": "parakeet_unified_native", "exactTest": "native_personal_gpu_imports_english_mp3_with_attested_candidate", "ignored": false, "verdict": "QUALIFICATION"},
+        {"targetKind": "integration", "targetName": "parakeet_unified_native", "exactTest": "native_personal_auto_without_candidate_reports_preaudio_cpu_fallback", "ignored": false, "verdict": "QUALIFICATION"}
+      ]
+    },
+    {
+      "id": "D2",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": ["whisper-adapters/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [
+        {"key": "personalRuntime", "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT", "kind": "directory"}
+      ],
+      "values": [
+        {"key": "engineFilter", "environmentVariable": "WHISPER_MIC_LEVEL_D2_ENGINE", "required": true, "kind": "literal"}
+      ],
+      "outputs": [
+        {"key": "d2Root", "environmentVariable": "WHISPER_MIC_LEVEL_D2_ROOT", "kind": "directory", "path": "writes/d2"}
+      ],
+      "staging": [
+        {"inputKey": "personalRuntime", "destination": "Whisper", "destinationBase": "localappdata", "requiredFileCount": 21, "requiredBytes": 3196008875}
+      ],
+      "cases": [
+        {"targetKind": "lib", "targetName": "", "exactTest": "direct_live::d2_corpus::d2_corpus_real_cpu_turbo_and_parakeet", "ignored": false, "verdict": "QUALIFICATION"}
+      ]
+    },
     {"id":"CampaignPolicies","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests","whisper-adapters/recette-hooks"],"compileEnvironment":[{"name":"WHISPER_L04_CAMPAIGN_BUILD","value":"1"},{"name":"PARAKEET_L2_ACCEPTANCE_TEST_BUILD","value":"1"}],"inputs":[],"values":[],"outputs":[],"cases":[]},
     {"id":"ManualDiagnostic","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-worker-cpu","features":["whisper-worker-cpu/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]}
   ]

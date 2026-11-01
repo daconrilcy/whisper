@@ -76,6 +76,21 @@ function Assert-PathUnder([string]$Path, [string]$Root, [string]$Context, [switc
     return $full
 }
 
+function Get-SafeRelativePath([string]$Path, [string]$Context) {
+    if ([string]::IsNullOrWhiteSpace($Path) -or $Path.Length -gt 240 -or [IO.Path]::IsPathRooted($Path) -or $Path -match '^[A-Za-z]:' -or $Path.StartsWith('\\') -or $Path.StartsWith('/')) {
+        throw "$Context must be a bounded relative path."
+    }
+    $segments = @($Path -split '[\\/]')
+    if ($segments.Count -eq 0) { throw "$Context is empty." }
+    foreach ($segment in $segments) {
+        if ([string]::IsNullOrWhiteSpace($segment) -or $segment -in @('.','..') -or $segment -match '[<>:"|?*\x00-\x1F]' -or $segment.EndsWith('.') -or $segment.EndsWith(' ')) {
+            throw "$Context contains an unsafe path segment: $segment"
+        }
+        if ($segment -match '^(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$') { throw "$Context contains a reserved Windows path segment: $segment" }
+    }
+    return [string]::Join('\',$segments)
+}
+
 function Convert-JsonStringArray([string]$Json, [string]$Context) {
     try { $parsed = ConvertFrom-Json -InputObject $Json -ErrorAction Stop }
     catch { throw "$Context is not valid JSON: $($_.Exception.Message)" }
@@ -211,9 +226,34 @@ function Get-ProfileRegistry {
             if ($value.kind -eq 'directory' -and $value.allowedRoot -cne 'cuda-12.9') { throw "Directory profile value has no approved tool root in $($profile.id)." }
         }
         foreach ($output in @($profile.outputs)) {
-            if ($output.key -notmatch '^[A-Za-z][A-Za-z0-9_-]{0,63}$' -or [string]$output.environmentVariable -notmatch '^(?:WHISPER_|PARAKEET_)[A-Z0-9_]+$') {
+            $outputKind = if ($output.PSObject.Properties.Name -contains 'kind') { [string]$output.kind } else { 'directory' }
+            $hasOutputPath = $output.PSObject.Properties.Name -contains 'path'
+            if ($output.key -notmatch '^[A-Za-z][A-Za-z0-9_-]{0,63}$' -or [string]$output.environmentVariable -notmatch '^(?:WHISPER_|PARAKEET_)[A-Z0-9_]+$' -or $outputKind -notin @('file','directory') -or ($outputKind -eq 'file' -and -not $hasOutputPath)) {
                 throw "Invalid output descriptor in profile $($profile.id)."
             }
+            if ($hasOutputPath) { [void](Get-SafeRelativePath ([string]$output.path) "Output path in profile $($profile.id)") }
+        }
+        $stagedInputKeys = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        $stagingDestinations = [Collections.Generic.List[string]]::new()
+        foreach ($staging in @($profile.staging | Where-Object { $null -ne $_ })) {
+            $inputKey = [string]$staging.inputKey
+            $inputDescriptor = @($profile.inputs | Where-Object { [string]$_.key -ceq $inputKey })
+            if ($profile.status -cne 'READY' -or $profile.operation -cne 'Run' -or $inputKey -notmatch '^[A-Za-z][A-Za-z0-9_-]{0,63}$' -or $inputDescriptor.Count -ne 1 -or $inputDescriptor[0].kind -notin @('file','directory') -or -not $stagedInputKeys.Add($inputKey)) {
+                throw "Invalid or duplicate staging input in profile $($profile.id)."
+            }
+            if ($staging.PSObject.Properties.Name -notcontains 'requiredFileCount' -or $staging.PSObject.Properties.Name -notcontains 'requiredBytes' -or [int]$staging.requiredFileCount -lt 1 -or [int]$staging.requiredFileCount -gt 256 -or [long]$staging.requiredBytes -lt 1) {
+                throw "Staging file count/byte pins are missing or invalid in profile $($profile.id)."
+            }
+            $destination = Get-SafeRelativePath ([string]$staging.destination) "Staging destination in profile $($profile.id)"
+            $destinationBase = if ($staging.PSObject.Properties.Name -contains 'destinationBase') { [string]$staging.destinationBase } else { 'localappdata' }
+            if ($destinationBase -notin @('localappdata','run')) { throw "Unsupported staging destination base in profile $($profile.id): $destinationBase" }
+            $qualifiedDestination = $destinationBase + '\' + $destination
+            foreach ($priorDestination in $stagingDestinations) {
+                if ($qualifiedDestination.Equals($priorDestination,[StringComparison]::OrdinalIgnoreCase) -or $qualifiedDestination.StartsWith($priorDestination + '\',[StringComparison]::OrdinalIgnoreCase) -or $priorDestination.StartsWith($qualifiedDestination + '\',[StringComparison]::OrdinalIgnoreCase)) {
+                    throw "Overlapping staging destinations in profile $($profile.id): $qualifiedDestination and $priorDestination"
+                }
+            }
+            $stagingDestinations.Add($qualifiedDestination)
         }
         $caseNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
         foreach ($case in @($profile.cases)) {
@@ -292,16 +332,21 @@ function Get-ValuesDocument([string]$Path, [object]$Profile) {
         foreach ($root in $script:AllowedReadRoots) { if (Test-InRoot $fullPath $root) { $allowed = $true; break } }
         if (-not $allowed) { throw "Input '$($asset.key)' is outside the explicit read-only source roots: $fullPath" }
         Assert-NoReparseChain $fullPath "input $($asset.key)"
+        $validatedFiles = [Collections.Generic.List[object]]::new()
+        $assetBytes = [long]0
         if ($asset.kind -ceq 'file') {
             if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf) -or [string]$asset.sha256 -notmatch '^[0-9a-fA-F]{64}$') { throw "Input file/hash is invalid: $($asset.key)" }
             $actual = Get-Sha256 $fullPath
             if ($actual -cne ([string]$asset.sha256).ToLowerInvariant()) { throw "Input SHA-256 mismatch for $($asset.key): $actual" }
+            $fileInfo = Get-Item -LiteralPath $fullPath -Force
+            if ($fileInfo.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Input file is a reparse point: $($asset.key)" }
+            if ($asset.PSObject.Properties.Name -contains 'bytes' -and ([long]$asset.bytes -lt 0 -or [long]$asset.bytes -ne $fileInfo.Length)) { throw "Input byte length mismatch for '$($asset.key)'." }
+            $assetBytes = [long]$fileInfo.Length
         } else {
             if (-not (Test-Path -LiteralPath $fullPath -PathType Container) -or @($asset.files).Count -eq 0) { throw "Input directory manifest is empty or missing: $($asset.key)" }
             $relativeNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
             foreach ($entry in @($asset.files)) {
-                $relative = [string]$entry.path
-                if ([string]::IsNullOrWhiteSpace($relative) -or [IO.Path]::IsPathRooted($relative) -or $relative -match '(^|[\\/])\.\.([\\/]|$)') { throw "Unsafe file path in directory input manifest '$($asset.key)': $relative" }
+                $relative = Get-SafeRelativePath ([string]$entry.path) "File path in directory input manifest '$($asset.key)'"
                 if (-not $relativeNames.Add($relative)) { throw "Duplicate file in directory input manifest '$($asset.key)': $relative" }
                 $filePath = Get-FullPath (Join-Path $fullPath $relative)
                 if (-not (Test-InRoot $filePath $fullPath)) { throw "Directory input escaped its root: $relative" }
@@ -309,9 +354,12 @@ function Get-ValuesDocument([string]$Path, [object]$Profile) {
                 if (-not (Test-Path -LiteralPath $filePath -PathType Leaf) -or [string]$entry.sha256 -notmatch '^[0-9a-fA-F]{64}$') { throw "Directory input file/hash invalid: $relative" }
                 $actual = Get-Sha256 $filePath
                 if ($actual -cne ([string]$entry.sha256).ToLowerInvariant()) { throw "Directory input SHA-256 mismatch for '$relative': $actual" }
+                $fileInfo = Get-Item -LiteralPath $filePath -Force
+                if ($entry.PSObject.Properties.Name -contains 'bytes' -and ([long]$entry.bytes -lt 0 -or [long]$entry.bytes -ne $fileInfo.Length)) { throw "Directory input byte length mismatch for '$relative'." }
+                $validatedFiles.Add([pscustomobject]@{ path=$relative; sha256=([string]$entry.sha256).ToLowerInvariant(); bytes=[long]$fileInfo.Length })
             }
         }
-        $assetMap[$asset.key] = [pscustomobject]@{ path = $fullPath; kind = $asset.kind; sha256 = [string]$asset.sha256 }
+        $assetMap[$asset.key] = [pscustomobject]@{ path = $fullPath; kind = $asset.kind; sha256 = ([string]$asset.sha256).ToLowerInvariant(); bytes=$assetBytes; files = @($validatedFiles.ToArray()) }
     }
     foreach ($descriptor in @($Profile.values)) {
         $value = [string]$valuesDoc.values.($descriptor.key)
@@ -326,17 +374,43 @@ function Get-ValuesDocument([string]$Path, [object]$Profile) {
     return [pscustomobject]@{ inputs = $assetMap; values = $valuesDoc.values }
 }
 
+function Get-StagingDestinationPath([object]$Profile, [object]$Rule, [string]$LocalAppData, [string]$RunRoot) {
+    $base = if ($Rule.PSObject.Properties.Name -contains 'destinationBase') { [string]$Rule.destinationBase } else { 'localappdata' }
+    $baseRoot = if ($base -ceq 'run') { $RunRoot } elseif ($base -ceq 'localappdata') { $LocalAppData } else { throw "Unsupported staging destination base in profile $($Profile.id): $base" }
+    $relative = Get-SafeRelativePath ([string]$Rule.destination) "Staging destination in profile $($Profile.id)"
+    $destination = Get-FullPath (Join-Path $baseRoot $relative)
+    if (-not (Test-InRoot $destination $baseRoot) -or $destination -ieq (Get-FullPath $baseRoot)) { throw "Staging destination escaped its base root: $destination" }
+    return $destination
+}
+
 function Get-ProfileEnvironment([object]$Profile, [object]$ValuesDoc, [string]$RunRoot, [string]$Lot, [bool]$CreateOutputs) {
     $environment = @{}
     foreach ($item in @($Profile.compileEnvironment)) { $environment[[string]$item.name] = [string]$item.value }
-    foreach ($item in @($Profile.inputs)) { $environment[[string]$item.environmentVariable] = [string]$ValuesDoc.inputs[$item.key].path }
+    $localAppDataPath = Join-Path $RunRoot 'localappdata'
+    foreach ($item in @($Profile.inputs)) {
+        $stageRules = @($Profile.staging | Where-Object { $null -ne $_ -and [string]$_.inputKey -ceq [string]$item.key })
+        if ($stageRules.Count -gt 1) { throw "Input has more than one staging destination: $($item.key)" }
+        $inputPath = if ($stageRules.Count -eq 1) { Get-StagingDestinationPath $Profile $stageRules[0] $localAppDataPath $RunRoot } else { [string]$ValuesDoc.inputs[$item.key].path }
+        $environment[[string]$item.environmentVariable] = $inputPath
+    }
     foreach ($item in @($Profile.values)) { $environment[[string]$item.environmentVariable] = [string]$ValuesDoc.values.($item.key) }
     foreach ($item in @($Profile.outputs)) {
         $slug = ([string]$item.key -replace '[^A-Za-z0-9._-]','-')
-        $output = Join-Path $RunRoot (Join-Path 'writes' $slug)
+        $outputKind = if ($item.PSObject.Properties.Name -contains 'kind') { [string]$item.kind } else { 'directory' }
+        $relativeOutput = if ($item.PSObject.Properties.Name -contains 'path') { Get-SafeRelativePath ([string]$item.path) "Output path in profile $($Profile.id)" } else { Join-Path 'writes' $slug }
+        $output = Get-FullPath (Join-Path $RunRoot $relativeOutput)
         if (-not (Test-InRoot $output $RunRoot)) { throw "Profile output escaped its run root: $output" }
         Assert-NoReparseChain $output 'profile output'
-        if ($CreateOutputs) { New-Item -ItemType Directory -Path $output -Force | Out-Null }
+        if ($CreateOutputs) {
+            if ($outputKind -eq 'file') {
+                $parent = Split-Path -Parent $output
+                if (-not (Test-Path -LiteralPath $parent -PathType Container)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction Stop | Out-Null }
+                if (Test-Path -LiteralPath $output) { throw "Profile file output already exists; refusing overwrite: $output" }
+            } else {
+                New-Item -ItemType Directory -Path $output -Force -ErrorAction Stop | Out-Null
+            }
+            Assert-NoReparseChain $output 'created profile output'
+        }
         $environment[[string]$item.environmentVariable] = $output
     }
     $environment['CARGO_HOME'] = Join-Path $Lot 'cargo-home'
@@ -350,6 +424,109 @@ function Get-ProfileEnvironment([object]$Profile, [object]$ValuesDoc, [string]$R
     $environment['USERPROFILE'] = $RunRoot
     $environment['HOME'] = $RunRoot
     return $environment
+}
+
+function Assert-StagingCapacity([long]$AvailableBytes, [long]$CopyBytes) {
+    if ($CopyBytes -lt 0 -or $CopyBytes -gt ([long]::MaxValue - [long]30GB)) { throw 'Staging byte count is outside the supported range.' }
+    $requiredBytes = [long]30GB + $CopyBytes
+    if ($AvailableBytes -lt $requiredBytes) { throw "Staging needs at least 30 GiB plus $CopyBytes copy bytes; only $AvailableBytes bytes are free." }
+}
+
+function Copy-ProfileStaging([object]$Profile, [object]$ValuesDoc, [string]$LocalAppData, [string]$RunRoot) {
+    $receipts = [Collections.Generic.List[object]]::new()
+    $rules = @($Profile.staging | Where-Object { $null -ne $_ })
+    if ($rules.Count -eq 0) { return }
+    $localRoot = Assert-PathUnder $LocalAppData $RunRoot 'isolated LOCALAPPDATA' -MustExist -Directory
+    $copyPlan = [Collections.Generic.List[object]]::new()
+    $destinationRoots = [Collections.Generic.List[string]]::new()
+    $totalBytes = [long]0
+    foreach ($rule in $rules) {
+        $inputKey = [string]$rule.inputKey
+        $asset = $ValuesDoc.inputs[$inputKey]
+        if ($null -eq $asset -or $asset.kind -notin @('file','directory')) { throw "Staging input is missing or has an unsupported kind: $inputKey" }
+        $destinationBase = if ($rule.PSObject.Properties.Name -contains 'destinationBase') { [string]$rule.destinationBase } else { 'localappdata' }
+        $baseRoot = if ($destinationBase -ceq 'localappdata') { $localRoot } elseif ($destinationBase -ceq 'run') { Get-FullPath $RunRoot } else { throw "Unsupported staging destination base in profile $($Profile.id): $destinationBase" }
+        $destinationRoot = Get-StagingDestinationPath $Profile $rule $localRoot $RunRoot
+        Assert-NoReparseChain $destinationRoot 'staging destination path'
+        if (Test-Path -LiteralPath $destinationRoot) { throw "Staging destination already exists; refusing overwrite: $destinationRoot" }
+        $qualifiedRoot = $destinationBase + '\' + (Get-SafeRelativePath ([string]$rule.destination) "Staging destination in profile $($Profile.id)")
+        foreach ($priorRoot in $destinationRoots) {
+            if ($qualifiedRoot.Equals($priorRoot,[StringComparison]::OrdinalIgnoreCase) -or $qualifiedRoot.StartsWith($priorRoot + '\',[StringComparison]::OrdinalIgnoreCase) -or $priorRoot.StartsWith($qualifiedRoot + '\',[StringComparison]::OrdinalIgnoreCase)) {
+                throw "Overlapping staging destinations: $qualifiedRoot and $priorRoot"
+            }
+        }
+        $destinationRoots.Add($qualifiedRoot)
+        $files = if ($asset.kind -ceq 'directory') { @($asset.files) } else { [pscustomobject]@{path=[IO.Path]::GetFileName([string]$asset.path);sha256=[string]$asset.sha256;bytes=[long]$asset.bytes} }
+        $files = @($files)
+        if ($files.Count -ne [int]$rule.requiredFileCount -or $files.Count -gt 256) { throw "Staging input file count differs from its profile pin: $inputKey ($($files.Count))" }
+        $copyPlan.Add([pscustomobject]@{ destinationRoot=$destinationRoot; rootMarker=$true; rootKind=[string]$asset.kind; inputKey=$inputKey; baseRoot=$baseRoot })
+        $seenFiles = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        $inputBytes = [long]0
+        foreach ($file in $files) {
+            $relative = if ($asset.kind -ceq 'directory') { Get-SafeRelativePath ([string]$file.path) "Staging source file path for $inputKey" } else { [IO.Path]::GetFileName([string]$asset.path) }
+            if (-not $seenFiles.Add($relative)) { throw "Duplicate staging source file path: $relative" }
+            $source = if ($asset.kind -ceq 'directory') { Get-FullPath (Join-Path ([string]$asset.path) $relative) } else { Get-FullPath ([string]$asset.path) }
+            if ($asset.kind -ceq 'directory' -and -not (Test-InRoot $source ([string]$asset.path))) { throw "Staging source escaped its declared directory: $source" }
+            Assert-NoReparseChain $source 'staging source path'
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Staging source file is missing: $source" }
+            $sourceInfo = Get-Item -LiteralPath $source -Force
+            if ($sourceInfo.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Staging source file is a reparse point: $source" }
+            $expectedHash = ([string]$file.sha256).ToLowerInvariant()
+            if ($expectedHash -notmatch '^[0-9a-f]{64}$') { throw "Staging source SHA-256 is invalid: $relative" }
+            $beforeHash = Get-Sha256 $source
+            if ($beforeHash -cne $expectedHash) { throw "Staging source SHA-256 mismatch before copy for '$relative': $beforeHash" }
+            if ($file.PSObject.Properties.Name -contains 'bytes' -and [long]$file.bytes -ne $sourceInfo.Length) { throw "Staging source byte length changed before copy: $relative" }
+            if ($totalBytes -gt ([long]::MaxValue - $sourceInfo.Length)) { throw 'Staging byte count overflow.' }
+            $totalBytes += [long]$sourceInfo.Length
+            if ($inputBytes -gt ([long]::MaxValue - $sourceInfo.Length)) { throw 'Staging input byte count overflow.' }
+            $inputBytes += [long]$sourceInfo.Length
+            $destination = if ($asset.kind -ceq 'directory') { Get-FullPath (Join-Path $destinationRoot $relative) } else { $destinationRoot }
+            if (-not (Test-InRoot $destination $destinationRoot) -and $asset.kind -ceq 'directory') { throw "Staging file destination escaped its root: $destination" }
+            if (-not (Test-InRoot $destination $baseRoot)) { throw "Staging file destination escaped its authorized base: $destination" }
+            Assert-NoReparseChain $destination 'staging destination file path'
+            if (Test-Path -LiteralPath $destination) { throw "Staging destination file already exists; refusing overwrite: $destination" }
+            $copyPlan.Add([pscustomobject]@{ source=$source; destination=$destination; relative=$relative; inputKey=$inputKey; expectedHash=$expectedHash; bytes=[long]$sourceInfo.Length; sourceHashBefore=$beforeHash })
+        }
+        if ($inputBytes -ne [long]$rule.requiredBytes) { throw "Staging input byte count differs from its profile pin: $inputKey ($inputBytes)" }
+    }
+    $drive = [IO.Path]::GetPathRoot($script:Repo).TrimEnd('\').TrimEnd(':')
+    $psDrive = Get-PSDrive -Name $drive -ErrorAction Stop
+    Assert-StagingCapacity ([long]$psDrive.Free) $totalBytes
+    foreach ($item in $copyPlan) {
+        if ($item.rootMarker) {
+            if (Test-Path -LiteralPath $item.destinationRoot) { throw "Staging destination appeared before creation; refusing overwrite: $($item.destinationRoot)" }
+            if ($item.rootKind -ceq 'directory') {
+                $parent = Split-Path -Parent $item.destinationRoot
+                if (-not (Test-Path -LiteralPath $parent -PathType Container)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction Stop | Out-Null }
+                New-Item -ItemType Directory -Path $item.destinationRoot -ErrorAction Stop | Out-Null
+                Assert-NoReparseChain $item.destinationRoot 'created staging destination'
+            } else {
+                $parent = Split-Path -Parent $item.destinationRoot
+                if (-not (Test-Path -LiteralPath $parent -PathType Container)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction Stop | Out-Null }
+                Assert-NoReparseChain $parent 'created staging destination parent'
+            }
+            $receipts.Add([pscustomobject]@{ inputKey=$item.inputKey; destination=$item.destinationRoot; fileCount=0; bytes=0 })
+            continue
+        }
+        $receipt = $null
+        foreach ($candidate in $receipts) { if ([string]$candidate.inputKey -ceq [string]$item.inputKey) { $receipt = $candidate; break } }
+        if ($null -eq $receipt) { throw "Staging receipt root is missing for $($item.destination)." }
+        $parent = Split-Path -Parent $item.destination
+        if (-not (Test-Path -LiteralPath $parent -PathType Container)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction Stop | Out-Null }
+        Assert-NoReparseChain $parent 'staging destination directory'
+        if (Test-Path -LiteralPath $item.destination) { throw "Staging destination file appeared before copy; refusing overwrite: $($item.destination)" }
+        [IO.File]::Copy([string]$item.source,[string]$item.destination,$false)
+        Assert-NoReparseChain $item.destination 'copied staging file'
+        $copiedInfo = Get-Item -LiteralPath $item.destination -Force
+        $destinationHash = Get-Sha256 ([string]$item.destination)
+        $sourceHashAfter = Get-Sha256 ([string]$item.source)
+        if ($destinationHash -cne $item.expectedHash -or $sourceHashAfter -cne $item.sourceHashBefore -or $copiedInfo.Length -ne $item.bytes) {
+            throw "Staging copy verification failed for '$($item.relative)' (destination=$destinationHash sourceAfter=$sourceHashAfter)."
+        }
+        $receipt.fileCount = [int]$receipt.fileCount + 1
+        $receipt.bytes = [long]$receipt.bytes + [long]$item.bytes
+    }
+    return $receipts.ToArray()
 }
 
 function Assert-CampaignRoots([string]$Lot, [string]$RunRoot, [hashtable]$Environment) {
@@ -999,6 +1176,115 @@ function Test-Rejects([string]$Name, [scriptblock]$Action) {
     if (-not $rejected) { throw "Native guard self-test accepted $Name." }
 }
 
+function Invoke-StagingSelfTests([string]$Lot) {
+    $fixtureRoot = Join-Path $Lot ('selftest-staging-' + [guid]::NewGuid().ToString('N'))
+    $sourceRoot = Join-Path $fixtureRoot 'source'
+    $localAppData = Join-Path $fixtureRoot 'run\localappdata'
+    $manifestRoot = Join-Path $fixtureRoot 'manifests'
+    $junctionTarget = Join-Path $fixtureRoot 'junction-target'
+    foreach ($directory in @((Join-Path $sourceRoot 'app'),(Join-Path $sourceRoot 'models'),$localAppData,$manifestRoot,$junctionTarget)) {
+        New-Item -ItemType Directory -Path $directory -Force -ErrorAction Stop | Out-Null
+    }
+    $runtimePaths = @(
+        'app/whisper-desktop.exe','app/whisper-worker-cpu.exe','app/whisper-worker-gpu.exe',
+        'worker/whisper-worker-parakeet-cpu.exe','worker/whisper-worker-parakeet-gpu.exe',
+        'native/cpu/nemo_speech_asr.dll','native/cpu/ggml-base.dll','native/cpu/ggml-cpu.dll','native/cpu/nemo_speech_asr_c.dll','native/cpu/ggml.dll',
+        'native/gpu/ggml-base.dll','native/gpu/nemo_speech_asr.dll','native/gpu/cublasLt64_12.dll','native/gpu/cudart64_12.dll','native/gpu/ggml-cuda.dll','native/gpu/cublas64_12.dll','native/gpu/nemo_speech_asr_c.dll','native/gpu/ggml.dll','native/gpu/ggml-cpu.dll',
+        'models/ggml-large-v3-turbo.bin','models/parakeet-tdt-0.6b-v3.q8_0.gguf'
+    )
+    $sourceFiles = [Collections.Generic.List[object]]::new()
+    for ($index = 0; $index -lt $runtimePaths.Count; $index++) {
+        $relative = $runtimePaths[$index]
+        $sourceFile = Join-Path $sourceRoot $relative
+        $sourceDirectory = Split-Path -Parent $sourceFile
+        if (-not (Test-Path -LiteralPath $sourceDirectory -PathType Container)) { New-Item -ItemType Directory -Path $sourceDirectory -Force | Out-Null }
+        $bytes = [byte[]]::new($index + 1)
+        for ($byteIndex = 0; $byteIndex -lt $bytes.Length; $byteIndex++) { $bytes[$byteIndex] = [byte](($index + $byteIndex) % 256) }
+        [IO.File]::WriteAllBytes($sourceFile,$bytes)
+        $sourceFiles.Add([pscustomobject]@{path=$relative;sha256=(Get-Sha256 $sourceFile);bytes=[long]$bytes.Length})
+    }
+    $expectedBytes = [long](($sourceFiles | Measure-Object -Property bytes -Sum).Sum)
+    $shortSourceRoot = Join-Path $fixtureRoot 'short-sources'
+    New-Item -ItemType Directory -Path $shortSourceRoot -Force | Out-Null
+    $shortSourcePath = Join-Path $shortSourceRoot 'fr-short.mp3'
+    [IO.File]::WriteAllBytes($shortSourcePath,[byte[]]@(0x49,0x44,0x33,0x04,0x05))
+    $shortSourceBytes = (Get-Item -LiteralPath $shortSourcePath -Force).Length
+    $shortSourceHash = Get-Sha256 $shortSourcePath
+    $profile = [pscustomobject]@{
+        id='SyntheticStaging'
+        operation='Run'
+        status='READY'
+        inputs=@(
+            [pscustomobject]@{key='personalRuntime';kind='directory';environmentVariable='WHISPER_N2_PERSONAL_RUNTIME_ROOT'},
+            [pscustomobject]@{key='shortSource';kind='file';environmentVariable='WHISPER_TEST_SHORT_SOURCE'}
+        )
+        values=@()
+        outputs=@([pscustomobject]@{key='campaignRun';environmentVariable='WHISPER_L04_CAMPAIGN_RUN';kind='directory';path='writes/l04-campaign'})
+        staging=@(
+            [pscustomobject]@{inputKey='personalRuntime';destination='Whisper';destinationBase='localappdata';requiredFileCount=21;requiredBytes=$expectedBytes},
+            [pscustomobject]@{inputKey='shortSource';destination='writes/l04-campaign/inputs/fr-short.mp3';destinationBase='run';requiredFileCount=1;requiredBytes=[long]$shortSourceBytes}
+        )
+    }
+    $writeManifest = {
+        param([string]$Name,[object[]]$Inputs)
+        $manifestPath = Join-Path $manifestRoot $Name
+        $document = [ordered]@{schemaVersion=1;profile='SyntheticStaging';inputs=$Inputs;values=@{}}
+        $document | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+        return $manifestPath
+    }
+    $runtimeInput = [ordered]@{key='personalRuntime';kind='directory';path=$sourceRoot;files=$sourceFiles.ToArray()}
+    $shortInput = [ordered]@{key='shortSource';kind='file';path=$shortSourcePath;sha256=$shortSourceHash;bytes=[long]$shortSourceBytes}
+    $validManifest = & $writeManifest 'valid.json' @($runtimeInput,$shortInput)
+    $validValues = Get-ValuesDocument $validManifest $profile
+    $runRoot = Join-Path $fixtureRoot 'run'
+    New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
+    $environment = Get-ProfileEnvironment $profile $validValues $runRoot $Lot $true
+    if ($environment.WHISPER_N2_PERSONAL_RUNTIME_ROOT -ine (Join-Path $localAppData 'Whisper') -or $environment.WHISPER_TEST_SHORT_SOURCE -ine (Join-Path $runRoot 'writes\l04-campaign\inputs\fr-short.mp3') -or $environment.WHISPER_L04_CAMPAIGN_RUN -ine (Join-Path $runRoot 'writes\l04-campaign')) { throw 'Staged input/output environment paths did not resolve under their canonical roots.' }
+    $receipt = @(Copy-ProfileStaging $profile $validValues $localAppData $runRoot)
+    $runtimeReceipt = @($receipt | Where-Object inputKey -ceq 'personalRuntime')
+    $shortReceipt = @($receipt | Where-Object inputKey -ceq 'shortSource')
+    if ($receipt.Count -ne 2 -or $runtimeReceipt[0].fileCount -ne 21 -or $runtimeReceipt[0].bytes -ne $expectedBytes -or $shortReceipt[0].fileCount -ne 1 -or $shortReceipt[0].bytes -ne $shortSourceBytes) { throw "Synthetic valid staging mismatch: receipts=$($receipt.Count) runtimeFiles=$($runtimeReceipt[0].fileCount) runtimeBytes=$($runtimeReceipt[0].bytes) expectedRuntimeBytes=$expectedBytes shortFiles=$($shortReceipt[0].fileCount) shortBytes=$($shortReceipt[0].bytes) expectedShortBytes=$shortSourceBytes." }
+    foreach ($file in $sourceFiles) {
+        $copied = Join-Path (Join-Path $localAppData 'Whisper') $file.path
+        if ((Get-Sha256 $copied) -cne $file.sha256) { throw "Synthetic staged file hash differs: $($file.path)" }
+    }
+    foreach ($file in $sourceFiles) {
+        if ((Get-Sha256 (Join-Path $sourceRoot $file.path)) -cne $file.sha256) { throw "Synthetic staging changed a source file: $($file.path)" }
+    }
+    if ((Get-Sha256 (Join-Path $runRoot 'writes\l04-campaign\inputs\fr-short.mp3')) -cne $shortSourceHash -or (Get-Sha256 $shortSourcePath) -cne $shortSourceHash) { throw 'Synthetic fixture staging hash/source immutability check failed.' }
+    Test-Rejects 'staging overwrite of existing destinations' { Copy-ProfileStaging $profile $validValues $localAppData $runRoot }
+    Test-Rejects 'staging traversal destination' {
+        $badProfile = [pscustomobject]@{id='SyntheticStaging';operation='Run';status='READY';inputs=$profile.inputs;values=@();outputs=$profile.outputs;staging=@([pscustomobject]@{inputKey='personalRuntime';destination='..\escape';destinationBase='localappdata';requiredFileCount=21;requiredBytes=$expectedBytes})}
+        Copy-ProfileStaging $badProfile $validValues $localAppData $runRoot
+    }
+    Test-Rejects 'low free space for staging bytes' { Assert-StagingCapacity ([long]30GB) 1 }
+    $badHashFiles = @([pscustomobject]@{path=$sourceFiles[0].path;sha256=('0' * 64);bytes=$sourceFiles[0].bytes})
+    $badHashInput = [ordered]@{key='personalRuntime';kind='directory';path=$sourceRoot;files=$badHashFiles}
+    $badHashManifest = & $writeManifest 'bad-hash.json' @($badHashInput,$shortInput)
+    Test-Rejects 'source hash mismatch before staging' { Get-ValuesDocument $badHashManifest $profile }
+    $escapeFiles = @([pscustomobject]@{path='../escape.bin';sha256=('0' * 64);bytes=0})
+    $escapeInput = [ordered]@{key='personalRuntime';kind='directory';path=$sourceRoot;files=$escapeFiles}
+    $escapeManifest = & $writeManifest 'path-escape.json' @($escapeInput,$shortInput)
+    Test-Rejects 'staging input path traversal' { Get-ValuesDocument $escapeManifest $profile }
+    $duplicateFiles = @($sourceFiles[0],$sourceFiles[0])
+    $duplicateInput = [ordered]@{key='personalRuntime';kind='directory';path=$sourceRoot;files=$duplicateFiles}
+    $duplicateManifest = & $writeManifest 'duplicate.json' @($duplicateInput,$shortInput)
+    Test-Rejects 'duplicate staging source paths' { Get-ValuesDocument $duplicateManifest $profile }
+    $missingFiles = @([pscustomobject]@{path='models/missing.bin';sha256=('0' * 64);bytes=0})
+    $missingInput = [ordered]@{key='personalRuntime';kind='directory';path=$sourceRoot;files=$missingFiles}
+    $missingManifest = & $writeManifest 'missing.json' @($missingInput,$shortInput)
+    Test-Rejects 'missing staging source file' { Get-ValuesDocument $missingManifest $profile }
+    $linkedFile = Join-Path $junctionTarget 'linked.bin'
+    [IO.File]::WriteAllBytes($linkedFile,[byte[]]@(0x51,0x52,0x53))
+    $junctionPath = Join-Path $sourceRoot 'linked'
+    New-Item -ItemType Junction -Path $junctionPath -Target $junctionTarget -ErrorAction Stop | Out-Null
+    $linkedFiles = @([pscustomobject]@{path='linked/linked.bin';sha256=(Get-Sha256 $linkedFile);bytes=3})
+    $reparseInput = [ordered]@{key='personalRuntime';kind='directory';path=$sourceRoot;files=$linkedFiles}
+    $reparseManifest = & $writeManifest 'reparse.json' @($reparseInput,$shortInput)
+    Test-Rejects 'reparse point in staging source chain' { Get-ValuesDocument $reparseManifest $profile }
+    return [pscustomobject]@{ fixtureRoot=$fixtureRoot; stagedFiles=($receipt | Measure-Object -Property fileCount -Sum).Sum; stagedBytes=($receipt | Measure-Object -Property bytes -Sum).Sum; rejected=@('overwrite','destination traversal','insufficient free space','source hash mismatch','path traversal','duplicate path','missing source','reparse source chain') }
+}
+
 function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     $positive = Convert-StringArrayToJson @('cargo','test')
     $roundTrip = Convert-JsonStringArray $positive 'self-test argv'
@@ -1137,6 +1423,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     if ((Get-EventDisposition $outsideWrite $allowed $protected $temp) -cne 'VIOLATION') { throw 'Write outside campaign roots was not rejected.' }
     $watcherError = [pscustomobject]@{type='WatcherError';path='';old_path='';at=[DateTimeOffset]::UtcNow.ToString('o');detail='synthetic-only'}
     if ((Get-EventDisposition $watcherError $allowed $protected $temp) -cne 'VIOLATION') { throw 'Watcher error was not rejected.' }
+    $stagingEvidence = Invoke-StagingSelfTests $Lot
     $watchDir = Join-Path $Lot ('selftest-watch-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $watchDir -Force | Out-Null
     $state = Start-WatchState @([pscustomobject]@{path=$watchDir;recursive=$true})
@@ -1163,11 +1450,12 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         r3TestBodyParser = @('one-line test output PASS','multiline WASAPI inventory output PASS','multiline WASAPI capture output PASS','distinct NO_RUN_PASS/LIST_PASS','diagnostic body remains DIAGNOSTIC_ONLY','rejected ignored-only','rejected wrong test','rejected incomplete summary','rejected multiple bodies','rejected nonzero exit')
         r4InvocationReceipts = $receiptEvidence
         discoveryArgv = @('PreparationNoRun','InventoryList','WasapiInventory','WasapiCapture')
+        staging = $stagingEvidence
         watcherAndRoots = @('allowed in-lot event','disallowed external event','Temp UNATTRIBUTED','cross-boundary rename rejected','watcher error rejected','live FileSystemWatcher observed in-lot marker')
     }
     $selfTestPath = Join-Path (Join-Path $Lot 'logs') 'guard-selftest-correction2.json'
     $selfTestEvidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $selfTestPath -Encoding UTF8
-    "PASS native guard self-tests: R1 profile environment, R2 normal/error PowerShell child stdout/stderr + subscription/job cleanup, R3 one-line and multiline WASAPI test-body fixtures, R4 invocation receipt lifecycle, exact discovery argv, canonical roots, ambient environment removal, and watcher dispositions; evidence=$selfTestPath; no Cargo/native process started."
+    "PASS native guard self-tests: R1 profile environment, R2 normal/error PowerShell child stdout/stderr + subscription/job cleanup, R3 one-line and multiline WASAPI test-body fixtures, R4 invocation receipt lifecycle, exact discovery argv, canonical roots, staging SHA/path/capacity fixtures, ambient environment removal, and watcher dispositions; evidence=$selfTestPath; no Cargo/native process started."
 }
 
 function Get-GitDiffIdentity {
@@ -1190,10 +1478,11 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
     }
     $environment = Get-ProfileEnvironment $Profile $ValuesDoc $script:RunRoot $Lot (-not $DryRunOnly)
     Assert-CampaignRoots $Lot $script:RunRoot $environment
+    $stagingEvidence = if (-not $DryRunOnly) { Copy-ProfileStaging $Profile $ValuesDoc $environment.LOCALAPPDATA $script:RunRoot } else { @() }
     $toolchain = Get-CargoExecutable
     if ($Profile.operation -ne 'Run') {
         $outcome = Invoke-OneCargoCase $Profile $null $environment @{} $toolchain $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
-        return [pscustomobject]@{ profile=$Profile.id; status=$outcome.status; cases=@($outcome); runRoot=$script:RunRoot; logs=$script:LogRoot }
+        return [pscustomobject]@{ profile=$Profile.id; status=$outcome.status; cases=@($outcome); staging=@($stagingEvidence); runRoot=$script:RunRoot; logs=$script:LogRoot }
     }
     $caseResults = [Collections.Generic.List[object]]::new()
     foreach ($case in @($Profile.cases)) {
@@ -1202,7 +1491,7 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
         if ($caseResult.status -eq 'FAIL') { throw "Profile $($Profile.id) stopped at first failed case $($case.exactTest)." }
     }
     $status = if ([bool]$DryRunOnly) { 'DRY_RUN' } elseif (@($caseResults | Where-Object status -eq 'DIAGNOSTIC_ONLY').Count -eq $caseResults.Count) { 'DIAGNOSTIC_ONLY' } else { 'PASS' }
-    return [pscustomobject]@{ profile=$Profile.id; status=$status; cases=@($caseResults.ToArray()); runRoot=$script:RunRoot; logs=$script:LogRoot }
+    return [pscustomobject]@{ profile=$Profile.id; status=$status; cases=@($caseResults.ToArray()); staging=@($stagingEvidence); runRoot=$script:RunRoot; logs=$script:LogRoot }
 }
 
 try {
