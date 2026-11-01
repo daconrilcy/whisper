@@ -1,6 +1,6 @@
-Avancée : SPIKE-R8-01 autorisé dans cette session ; worktree distinct créé, implémentation bornée déléguée.
-Blocage : faisabilité R8 non prouvée et R9 non corrigé à l'ouverture du prototype ; aucune nouvelle mesure Cargo.
-Décision : exécuter le seul prototype autorisé, sans test natif ; compilation sans lancement puis inspection PE avant toute exécution des tests.
+Avancée : prototype SPIKE-R8-01 conservé en Git ; auto-test N1 réussi, revue indépendante du premier candidat terminée.
+Blocage : compilation NoRun en échec Cargo 101 après 39,448 s ; R8-P1 et R8-P2 bloquants, faisabilité R8 non prouvée.
+Décision : tentative arrêtée sans correction ni relance ; aucun harness ni test natif exécuté ; reprise ciblée à soumettre à l'utilisateur.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
 
@@ -13,6 +13,34 @@ Début du budget : **1er novembre 2026, 10 h 41 min 06 s, Europe/Paris** (09:41:
 Première remise attendue : code borné, auto-tests de la garde N1 distincte, compilation NoRun réussie et références des artefacts. Aucun harness, y compris pour lister ses tests, n’est lancé avant examen statique des imports et de la fermeture native. Tout échec réel de compilation ou de test arrête la campagne et demande l’arbitrage applicable. La variante négative est exécutée en dernier et reste séparée du candidat positif.
 
 Les sections de cadrage ci-dessous conservent l’état **antérieur à cette autorisation**, y compris les mentions « proposé/non autorisé ». Le présent paragraphe est la source d’autorité courante pour le seul SPIKE ; la faisabilité du design et le résultat de la mission restent à établir.
+
+## Résultat de la première tentative du SPIKE — arrêt sur compilation
+
+Le candidat de prototype **61b0a21d** conserve exactement les onze fichiers autorisés, sans intégration dans refacto/tests-autonomes. La garde N1 distincte possède le mode NoRun borné ; les deux cibles de tests et le rejet natif sont préparés, le code pur GPU et les trois tests sont déplacés, l'oracle R9 porte un ignore permanent dans le prototype uniquement.
+
+| Vérification | Résultat réellement observé |
+| --- | --- |
+| SelfTest | PASS, code 0 selon remise de l’implémenteur ; racines/jonctions/arguments et captures stdout/stderr avec codes 0/23 ; aucun watcher |
+| NoRun | `cargo test --offline --locked --workspace --no-run` : **FAIL 101**, **39,448 s** |
+| Diagnostic de compilation | Six E0583 de sous-modules tests CPU et un E0433 pour io absent ; la compilation GPU et du workspace complet n’est pas établie |
+| Inspection PE et fermeture native | NON EXÉCUTÉES, prérequis NoRun non satisfait |
+| Listes, tests, Structure, Clippy, fmt | NON EXÉCUTÉS dans ce prototype ; aucun nouveau compte de tests ni durée de cargo test |
+| Témoin négatif sortie 78 | NON EXÉCUTÉ, aucune variante négative créée |
+
+L’implémenteur a vérifié après l’échec qu’aucun processus cargo/rustc/nvcc/cl/link de la compilation ne restait actif. Aucun correctif n’a été appliqué après l’échec. Le compte attendu 686 réussis / 148 ignorés / 834 reste une projection ; les anciens 687/147/834 et 47,336 s restent les mesures du candidat précédent sur machine équipée.
+
+**Revue indépendante de 61b0a21d contre 3bf6bcb5**, même rust_reviewer via `/root/autonomous_tests_review` : **FINDINGS**, aucun droit de correction ou de relance exercé.
+
+| Constat | Exigence / preuve | Correction ciblée proposée, non appliquée |
+| --- | --- | --- |
+| R8-P1, BLOQUANT | AC-R8-content/count : `#[path]` résout les sous-modules tests sous src/tests.rs ou src/session/tests.rs ; six E0583 CPU. Même composition GPU à corriger ; control est à la racine, perd session::control::tests et les imports parents JobId/Generation. | Dans les deux seuls autonomous_harness.rs, composer des modules inline avec répertoire enfant explicite et include du véritable fichier source ; remettre control sous session::control avec ses imports parents. Aucun algorithme copié et aucune déclaration mod de production modifiée. |
+| R8-P2, BLOQUANT | AC-R8-port : native_boundary.rs importe io::Write, mais appelle io::stderr sans importer io ; E0433 ligne 4. | Dans le seul native_boundary.rs, compléter l’import ou qualifier std::io::stderr ; conserver diagnostic direct et sortie 78. |
+
+Le reviewer confirme que les sept éléments purs GPU ont leurs corps conservés, que les trois tests déplacés conservent données/assertions et que l’ignore R9 ne change pas le corps. Le Word-diff physique montre des déplacements ; il ne faut pas les présenter comme zéro ligne d’assertion déplacée. La preuve des 2 862 assertions sur les 47 anciens fichiers reste celle du candidat précédent ; la comparaison des corps déplacés fournit la preuve pertinente du delta. Les deux blocages empêchent toute conclusion de faisabilité de liaison et ne ferment ni R8 ni R9 sur le candidat principal.
+
+**Arbitrage préparé :** autoriser une reprise bornée à R8-P1/R8-P2 dans les trois fichiers de support cités, puis reprendre la séquence N1 déjà décrite, toujours avec NoRun et inspection PE avant le moindre harness. Aucun chemin supplémentaire, aucune nouvelle extraction de production ni assertion modifiée ne sont proposés. Sans cet accord, la tentative demeure arrêtée ; la limite initiale d’une tentative ne permet aucune reprise implicite.
+
+Petites preuves : archive `target/parakeet-tests/tests-autonomes/archive/spike-r8-first-attempt-failed-20261101.zip`, **10 journaux**, arborescence conservée et SHA-256 de chaque entrée comparé à l’original. SHA-256 de l’archive : `de7dc80b9726532383dd8c897fd3820522f67324cbe465a96d3407f4ca620c20`. Aucun nettoyage. Espace libre après archivage : **173,81 Gio**. Logs de compilation sous `scratch/20261101T104956264-7b435ce7a76f4a93b7d90e43811ef4a2/NoRun.stdout.log` et `NoRun.stderr.log` ; les auto-tests de capture de ce lancement et du SelfTest précédent sont archivés séparément dans leur arborescence.
 
 Code commité localement : **fb2171e8**, branche **refacto/tests-autonomes**, worktree C:/dev/whisper/target/agent-worktrees/tests-autonomes. Aucun push. Ce commit conserve le candidat vérifié ; il ne signifie pas que l’objectif de machine sans DLL est atteint. R1–R7 sont fermés par le même reviewer ; R8 et le nouveau constat R9 restent ouverts. Les 687 réussites ci-dessous sont les résultats observés de Cargo, pas la preuve que chaque corps impose un verdict : R9 invalide cette dernière affirmation.
 

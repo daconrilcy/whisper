@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "SPIKE_R8_01_AUTHORIZED_IMPLEMENTING_GLOBAL_OBJECTIVE_NOT_QUALIFIED",
+  "status": "SPIKE_R8_01_STOPPED_COMPILE_101_PENDING_USER_R8_P1_P2",
   "source_commit": "248f86794c3a1e2d2b1ba6d5a7afafc84972535d",
   "branch": "refacto/tests-autonomes",
   "worktree": "C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes",
@@ -54237,8 +54237,8 @@
     "proposed_spike": {
       "id": "SPIKE-R8-01",
       "authorized": true,
-      "executed": false,
-      "current_phase": "WORKTREE_CREATED_IMPLEMENTATION_DELEGATED_NO_CARGO_RESULT_YET",
+      "executed": true,
+      "current_phase": "STOPPED_AFTER_NORUN_COMPILE_101_NO_HARNESS_EXECUTED",
       "authority": "oui je t'autorise, réponse utilisateur de cette session à la demande précise de SPIKE-R8-01 après cadrage3bf6bcb5",
       "budget_start_utc": "2026-11-01T09:41:06Z",
       "budget_end_utc": "2026-11-01T11:41:06Z",
@@ -54341,5 +54341,71 @@
     "body_prerequisite_category_is_not_verdict_proof": true,
     "review_actor": "même rust_reviewer via autonomous_tests_review, lecture seule après 86bf900d",
     "global_every_passed_has_verdict_proven": false
+  },
+  "spike_R8_first_attempt": {
+    "code_commit": "61b0a21d",
+    "baseline_commit": "3bf6bcb5",
+    "scope_source_files": 11,
+    "selftest": {
+      "status": "PASS_IMPLEMENTER_HANDOFF",
+      "exit_code": 0,
+      "checks": "arguments, racines, jonctions, stdout/stderr et codes0/23 ; aucune surveillance",
+      "duration": "non retenue : estimations intermédiaires du worker corrigées dans sa remise finale"
+    },
+    "no_run": {
+      "command": "cargo test --offline --locked --workspace --no-run",
+      "guard_command": "pwsh -NoProfile -File ci/guard-level1.ps1 -Mode NoRun",
+      "status": "FAIL",
+      "exit_code": 101,
+      "duration_seconds": 39.448,
+      "logs_root": "target/parakeet-tests/tests-autonomes/scratch/20261101T104956264-7b435ce7a76f4a93b7d90e43811ef4a2",
+      "errors": "CPU six E0583 sous-modules tests et un E0433 io non importé ; GPU et workspace complet non établis",
+      "processes_terminated_after_failure": "selon relevé implémenteur : aucun cargo/rustc/nvcc/cl/link actif"
+    },
+    "review": {
+      "actor": "même rust_reviewer via /root/autonomous_tests_review",
+      "candidate": "61b0a21d",
+      "verdict": "FINDINGS",
+      "review_passes": 1,
+      "correction_passes": 0,
+      "open_findings": [
+        {
+          "id": "R8-P1",
+          "severity": "BLOQUANT",
+          "requirement": "AC-R8-content/count",
+          "locations": ["CPU tests/support/autonomous_harness.rs", "GPU tests/support/autonomous_harness.rs"],
+          "problem": "path perd les répertoires enfants des tests ; control placé à racine au lieu de session::control et imports JobId/Generation manquants",
+          "proposed_correction": "composer modules inline avec répertoire enfant explicite et include du vrai fichier ; remettre control sous session::control ; deux harness seulement"
+        },
+        {
+          "id": "R8-P2",
+          "severity": "BLOQUANT",
+          "requirement": "AC-R8-port",
+          "location": "crates/whisper-worker-common/tests/support/native_boundary.rs:1-4",
+          "problem": "io::stderr utilisé sans import du module io",
+          "proposed_correction": "importer io ou qualifier std::io::stderr, conserver exit78"
+        }
+      ],
+      "static_confirmations": "sept éléments purs GPU et trois corps de tests/données/assertions conservés ; ignore R9 conforme sur prototype seulement ; dépendances et args NoRun conservés",
+      "verification_gaps": ["compilation GPU et complète", "imports PE et fermeture native", "28 identités et total834", "port sortie78", "listes/tests/Structure/Clippy/fmt"],
+      "no_correction_or_execution_by_reviewer": true
+    },
+    "no_post_failure_source_correction": true,
+    "harness_executions": 0,
+    "native_tests_executed": 0,
+    "pe_inspection_executed": false,
+    "runtime_test_counts_measured": false,
+    "negative_variant_created": false,
+    "R9_ignore_applied_in_spike_only": true,
+    "main_candidate_worktree_unchanged": true,
+    "resumption_authorized": false,
+    "proposed_resumption": "corriger uniquement R8-P1/P2 dans les deux harness et le rejet partagé, puis reprendre N1 NoRun/PE avant tout lancement ; aucun nouveau chemin ou assertion modifiée",
+    "archive": {
+      "path": "target/parakeet-tests/tests-autonomes/archive/spike-r8-first-attempt-failed-20261101.zip",
+      "files": 10,
+      "entries_sha256_verified": true,
+      "archive_sha256": "de7dc80b9726532383dd8c897fd3820522f67324cbe465a96d3407f4ca620c20"
+    },
+    "free_gib_after_archive": 173.81
   }
 }
