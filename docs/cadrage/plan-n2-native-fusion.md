@@ -1,6 +1,6 @@
-Avancée : reprise autorisée exécutée ; import Parakeet CPU français et publication réussis, quatre corps ciblés réussis au total.
-Blocage : inventaire GPU interrompu avant réponse ; campagne arrêtée, 27 cas de cette reprise non exécutés.
-Décision : cycle CUDA supplémentaire et reprise explicitement autorisés ; correctif ciblé relu CLEAN, aucune fusion.
+Avancée : CPU de nouveau réussi ; inventaire réel CUDA/GGML désormais réussi sur la GTX 1080 Ti.
+Blocage : contrôle suivant nvidia-smi en échec 255 avant audio ; campagne arrêtée, 27 cas non exécutés.
+Décision : LIVRÉ AVEC RÉSERVES après le cycle supplémentaire autorisé ; diagnostic précis à arbitrer, aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -110,3 +110,15 @@ Après les deux revues du complément : **LIVRÉ AVEC RÉSERVES**, aucune troisi
 Accord reçu : **« Oui, corriger ce paramètre et reprendre »**, limité au descripteur CUDA_PATH du profil PersonalUnified et à sa requête, puis vérification, revue ciblée et reprise. L'implémenteur ajoute ce seul descripteur obligatoire, identique à GpuCudaProbe, borné au toolkit CUDA 12.9. Le parent renseigne la valeur existante `C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9`. Aucun autre paramètre, source Rust, script de garde, SDK ou chemin d'écriture ne change.
 
 JSON, comparaison des descripteurs, auto-tests PowerShell synthétiques et diff : PASS. Préflight exact PersonalUnified : code 0. Revue indépendante ciblée **CLEAN**, base `905064ad`, registre SHA `2c2cd8f73d1d622a8aff5dbc533795b0dbed7315af30c6f52d885f3050b279da`. La garde reste au SHA déjà relu `6c531fab8d1ebb4c1a35d902fd8a9ca92d545fdce1c34541d8cf5a5d5c33286d`. La relance doit confirmer ou infirmer le diagnostic du chargement GPU ; aucun succès matériel n'est déduit du correctif de configuration.
+
+## Résultat du cycle CUDA autorisé
+
+Au candidat commité `a06ac377`, même import Parakeet CPU : **1 réussi / 0 échec**, 25,31 s de corps, 26,374 s d'appel Cargo. L'inventaire réel GPU répond désormais : GTX 1080 Ti, identité unique, PCI `0000:01:00.0`, ordinals CUDA et GGML **0**, `Available`, `ConfirmedSupported`, aucune erreur de qualification. Cela ferme le précédent arrêt sans réponse du worker dans cet environnement ; la disponibilité réelle est ici établie, au-delà du simple contrat de probe tolérant un refus.
+
+L'import GPU échoue ensuite sur un contrôle distinct : **`GpuInventory: nvidia-smi exited with exit code: 255`**, corps 24,41 s, appel Cargo 24,902 s, code Cargo 101. L'application reste Recoverable avec zéro audio capturé/admis/confirmé. La requête invoquée par `parakeet_import.rs:800–812` est exactement `nvidia-smi --query-gpu=count,pci.bus_id,uuid --format=csv,noheader,nounits`. Le code produit ne conserve pas stdout/stderr lorsque cet outil échoue ; la cause de son code 255 reste donc **inconnue**. Les fichiers System32 nvidia-smi et nvml ont tous deux la version `8.17.15.8129` ; aucun pilote modifié ni commande NVIDIA relancée hors garde.
+
+Arrêt immédiat sur ce nouvel échec, sans essai Auto, D2 ou autre profil. Le cycle supplémentaire autorisé est consommé : **LIVRÉ AVEC RÉSERVES**, aucune nouvelle correction engagée. Le bilan distinct reste quatre corps ciblés réussis ; le CPU répété ne compte pas comme une identité supplémentaire. Aucune transcription GPU complète ni campagne entière qualifiée ; pas de fusion.
+
+Les 21 ressources runtime et leurs sources restent conformes aux SHA après cet essai. Les preuves consolidées sont actualisées en **révision 2**, sans nouveau fichier de rapport : **79 entrées relues et vérifiées**, dont les **42 entrées précédentes conservées à l'identique**, SHA archive `7043d38c87425c4c01aed3703363d42530bf3aa21ea41b2f8478ad1d9b8c8181`. La révision 1 demeure dans Git au commit `905064ad`. Les archives de découverte, préparation et premier staging restent inchangées. Espace libre après conservation : **136 459 796 480 octets**.
+
+Prochaine étape proposée à arbitrer : un diagnostic borné de la requête NVIDIA exacte sous la garde N2 et le même environnement isolé, avec capture de stdout, stderr et statut (résultat diagnostique, sans verdict de qualification), puis poursuite des **26 cas indépendants** déjà préparés (D2, TurboGpu, politique L2a2, diagnostic encodeur). Le profil d'import GPU reste bloqué ; Auto, placé derrière lui dans ce profil, n'est pas annoncé exécuté. Le complément de diagnostic serait limité aux deux fichiers N2 sous `ci/`, aux requêtes/sorties du lot et aux présents bilan/preuves, sans nouveau rapport, Rust, pilote, SDK, installation, racine d'écriture ou modification des tests/assertions. Il exige un accord précis pour cette étape supplémentaire et la reprise après échec ; aucune préparation de code ni exécution de ce diagnostic n'est engagée sans cet accord.

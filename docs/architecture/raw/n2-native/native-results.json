@@ -1,54 +1,104 @@
 {
   "schemaVersion": 1,
-  "revision": 1,
-  "candidate": "de9003dc",
-  "authorization": "Oui, reprendre les 29 cas prêts",
-  "runId": "PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56",
-  "profileStatus": "FAIL",
+  "revision": 2,
+  "candidate": "a06ac377",
+  "authorization": "Oui, corriger ce paramètre et reprendre",
+  "previousAttempt": {
+    "candidate": "de9003dc",
+    "runId": "PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56",
+    "cpu": {
+      "test": "native_personal_cpu_imports_french_mp3_through_the_unified_application",
+      "engine": "Parakeet CPU",
+      "status": "PASS",
+      "cargoExitCode": 0,
+      "cargoSeconds": 38.644,
+      "bodySeconds": 25.93,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "transcriptBytes": 51,
+      "srtBytes": 148,
+      "wavBytes": 129068
+    },
+    "gpu": {
+      "test": "native_personal_gpu_imports_english_mp3_with_attested_candidate",
+      "status": "FAIL",
+      "cargoExitCode": 101,
+      "cargoSeconds": 1.065,
+      "bodySeconds": 0.56,
+      "passed": 0,
+      "failed": 1,
+      "reason": "GPU inventory worker exited without End",
+      "exitStatusOfWorkerAvailable": false,
+      "inferenceQualified": false
+    },
+    "archiveSha256": "5a69d25ab199dda05952b49db77f503559de2768b70c2a3193acae078e823408",
+    "archiveEntryCount": 42,
+    "gitSnapshot": "905064ad"
+  },
+  "runId": "PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1",
   "cpu": {
     "test": "native_personal_cpu_imports_french_mp3_through_the_unified_application",
     "engine": "Parakeet CPU",
     "status": "PASS",
     "cargoExitCode": 0,
-    "cargoSeconds": 38.644,
-    "bodySeconds": 25.93,
-    "passed": 1,
-    "failed": 0,
-    "ignored": 0,
-    "transcriptBytes": 51,
-    "srtBytes": 148,
-    "wavBytes": 129068
+    "bodySeconds": 25.31,
+    "cargoSeconds": 26.374
   },
   "gpu": {
     "test": "native_personal_gpu_imports_english_mp3_with_attested_candidate",
     "status": "FAIL",
     "cargoExitCode": 101,
-    "cargoSeconds": 1.065,
-    "bodySeconds": 0.56,
-    "passed": 0,
-    "failed": 1,
-    "reason": "GPU inventory worker exited without End",
-    "exitStatusOfWorkerAvailable": false,
+    "bodySeconds": 24.41,
+    "cargoSeconds": 24.902,
+    "runtimeInventoryStatus": "PASS",
+    "qualifiedDevices": [
+      {
+        "availability": "NotVerified",
+        "cause": null,
+        "cuda_ordinal": null,
+        "ggml_ordinal": null,
+        "identity": "ROOT\\DISPLAY\\0000",
+        "identity_match": "Missing",
+        "luid": 147890,
+        "pci_id": null,
+        "support": "Undetermined",
+        "windows_rank": 2
+      },
+      {
+        "availability": "Available",
+        "cause": null,
+        "cuda_ordinal": 0,
+        "ggml_ordinal": 0,
+        "identity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
+        "identity_match": "Unique",
+        "luid": 93831,
+        "pci_id": "0000:01:00.0",
+        "support": "ConfirmedSupported",
+        "windows_rank": 0
+      },
+      {
+        "availability": "NotVerified",
+        "cause": "Intel adapter excluded: the confirmed worker backend is CUDA-only",
+        "cuda_ordinal": null,
+        "ggml_ordinal": null,
+        "identity": "PCI\\VEN_8086&DEV_A780&SUBSYS_D0001458&REV_04\\3&11583659&0&10",
+        "identity_match": "Missing",
+        "luid": 98031,
+        "pci_id": null,
+        "support": "ConfirmedUnsupported",
+        "windows_rank": 1
+      }
+    ],
+    "error": "GpuInventory: nvidia-smi exited with exit code: 255",
+    "source": "crates/whisper-adapters/src/parakeet_import.rs:800-812",
+    "stderrOfNvidiaSmiAvailable": false,
     "inferenceQualified": false
   },
   "runtimeIntegrity": {
     "filesVerified": 21,
     "allMatched": true,
     "sourcesUnmodified": true
-  },
-  "diagnosis": {
-    "status": "probable environment defect; not confirmed by retry",
-    "personalUnifiedDeclaresCudaPath": false,
-    "guardAddsCudaBinOnlyWhenCudaPathDeclared": true,
-    "guardSource": "ci/guard-native.ps1:888-891",
-    "staticCudaImports": [
-      "cublas64_12.dll",
-      "cudart64_12.dll",
-      "nvcuda.dll"
-    ],
-    "cublasAndCudartBesideWorkerOrInSystem32": false,
-    "cuda12_9BinDllsExist": true,
-    "nextProposal": "Add bounded CUDA_PATH descriptor to PersonalUnified and matching request, one additional review/correction cycle, then restart only after user authorization"
   },
   "thisResumption": {
     "plannedCases": 29,
@@ -57,20 +107,18 @@
     "notRun": 27
   },
   "cumulativeDistinctNativeBodiesPassed": 4,
-  "fullCampaignQualified": false,
   "campaignStopped": true,
+  "fullCampaignQualified": false,
   "mergePerformed": false,
   "additionalCorrectionApplied": false,
-  "remainingBlockers": [
-    "fr87.wav/fr27.wav missing; user has no backup",
-    "historical fault/test output roots outside authorized lot"
-  ],
-  "freeBytes": 139681226752,
+  "nextDecision": "Bounded diagnosis of exact nvidia-smi query under the same isolated environment, capturing stdout/stderr/status, requires explicit authorization",
+  "freeBytes": 136459808768,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 42,
+    "entryCount": 79,
+    "priorEntriesPreserved": 42,
     "entriesVerified": true,
-    "sha256": "5a69d25ab199dda05952b49db77f503559de2768b70c2a3193acae078e823408",
+    "sha256": "7043d38c87425c4c01aed3703363d42530bf3aa21ea41b2f8478ad1d9b8c8181",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -281,6 +329,191 @@
         "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/transcript.txt",
         "bytes": 51,
         "sha256": "360747af17b1d107010e215a2e1cee13db612e73a283f037dbdcb1e1982294f1"
+      },
+      {
+        "path": "target/n2-native/logs/personal-unified-cuda-path-preflight.txt",
+        "bytes": 480,
+        "sha256": "dcbb8871f4e7d05e709b52aba4a9a5bb1eab9e1835a466bfbe93bd31454887b3"
+      },
+      {
+        "path": "target/n2-native/logs/personal-unified-cuda-path-selftest.txt",
+        "bytes": 465,
+        "sha256": "8653262c11bb9d7f7344318de77881ecc3633175a613316cec6a117bdf3e4236"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
+        "bytes": 1367,
+        "sha256": "4b490f11a94c9f9780d18e180a41c72fc3528d8e5b81506166e40db4f3025257"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/native_personal_cpu_imports_french_mp3_through_the_unified_application.process.json",
+        "bytes": 153,
+        "sha256": "a3f6d2da5462afa247d1057aebecd36fc990101c7ff368a72326bb7fa04caaab"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/native_personal_cpu_imports_french_mp3_through_the_unified_application.stderr.log",
+        "bytes": 229,
+        "sha256": "c4e76ef0ecfde690dcde4ba75b3ff2f132a0e6d2dfcdb82b61b8ec74245c8e6f"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/native_personal_cpu_imports_french_mp3_through_the_unified_application.stdout.log",
+        "bytes": 203,
+        "sha256": "bf7b86712de5123c0ca8523932c294338c0526de0d64ec09afe790d9d985dc5f"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/native_personal_gpu_imports_english_mp3_with_attested_candidate.invocation.json",
+        "bytes": 1354,
+        "sha256": "142254a970a2fca5247571fda4ca9ffbdc0a66736a341aa089da34c0fb99e9f3"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/native_personal_gpu_imports_english_mp3_with_attested_candidate.process.json",
+        "bytes": 147,
+        "sha256": "2c90c37ab227196b779a020f742ded28235b94ccc600eb3a865e7c7546b3f5c2"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/native_personal_gpu_imports_english_mp3_with_attested_candidate.stderr.log",
+        "bytes": 3081,
+        "sha256": "ad4aabf03c9cf0c0731e8618ab7815583b1c8409f566314b2a98977c40dc0927"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/native_personal_gpu_imports_english_mp3_with_attested_candidate.stdout.log",
+        "bytes": 299,
+        "sha256": "9ce31b9f42114db48c4e23d345ccf21773067d62c1a975cd081edbe9b90a50c9"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/result.json",
+        "bytes": 5998,
+        "sha256": "a22da96f80355b12edf60cac4cafdfc9f0a5780e638c197941ce23e4974809c9"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/unattributed-temp.jsonl",
+        "bytes": 5909,
+        "sha256": "449523718669da0f960579d4b2fdbde61b5799103e643c24127f38c8876c2943"
+      },
+      {
+        "path": "target/n2-native/resources/cuda-path-retry-runtime-checks.json",
+        "bytes": 5308,
+        "sha256": "9629ad0fe2e64485d3e22558ee715dc42eaa1c85c8f0a1c163fce406f9a04256"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "3edcd8e897250c178861588cd507af8d9f1c7cabddfc74b12db1f1003a73298e"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/.whisper-publications.lock",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/.whisper-publications/index.json",
+        "bytes": 223,
+        "sha256": "9a3c3eac0955ccf88fbd0022d8833c725bfee36ecbcbe6512cd6140747eaee04"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/exports/fr-short.srt",
+        "bytes": 148,
+        "sha256": "fe2fb75f9c0aa82f53119cd485844f0346d458b5e92bab04e5cd0bd2060751d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/exports/fr-short.txt",
+        "bytes": 51,
+        "sha256": "360747af17b1d107010e215a2e1cee13db612e73a283f037dbdcb1e1982294f1"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/CURRENT",
+        "bytes": 14,
+        "sha256": "ca8648fb7fb08b2dff1e9841e2f9551efc4c14ac6cb42b59c132d680b77de4d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/export.srt.install.pending",
+        "bytes": 148,
+        "sha256": "fe2fb75f9c0aa82f53119cd485844f0346d458b5e92bab04e5cd0bd2060751d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/export.srt.pending",
+        "bytes": 148,
+        "sha256": "fe2fb75f9c0aa82f53119cd485844f0346d458b5e92bab04e5cd0bd2060751d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/export.txt.install.pending",
+        "bytes": 51,
+        "sha256": "360747af17b1d107010e215a2e1cee13db612e73a283f037dbdcb1e1982294f1"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/export.txt.pending",
+        "bytes": 51,
+        "sha256": "360747af17b1d107010e215a2e1cee13db612e73a283f037dbdcb1e1982294f1"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/installed-exports.json",
+        "bytes": 696,
+        "sha256": "c31ebc082c3a5aa264237da4c25a5d84a370656a36a3414b96c5f02bd147c955"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/manifest.json",
+        "bytes": 399,
+        "sha256": "ea652272603512f3a43ac78f993dffe70332dbdf81eabd556a8f3155870776fd"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 110,
+        "sha256": "c3c65ad7cb9e9cb44e490f216d99abdec1a8281eb1e6f3ec77468258aa49b4c6"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/parakeet-unified/document/document.final.json",
+        "bytes": 85,
+        "sha256": "2866d34db6b6d1917a38dd1f8bde403285c0400e6135fc63b9cb9a4828fdbceb"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/parakeet-unified/document/document.idx",
+        "bytes": 56,
+        "sha256": "fe84e7e79eb4c9992ba1768236294963d9545613119ce56af5a740d7fa2d0206"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/parakeet-unified/document/document.jsonl",
+        "bytes": 636,
+        "sha256": "85c60fa0c6a52f59f114c507677689679ec94a0fdd417d3f04399f4a8ab66347"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/parakeet-unified/source.parts.idx",
+        "bytes": 32,
+        "sha256": "2b51eddafeaae65a5304dcb29032b37237349c42ddaf668ba458fd2fab5cc447"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/parakeet-unified/source.wav",
+        "bytes": 129068,
+        "sha256": "ee62f03daaeb44ce6c7a412a3491ac15701a418962ec7f25603edf6a9b5938d6"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/pending.json",
+        "bytes": 674,
+        "sha256": "3d6b3caf5fdc6c9da0b9d1ef40a91d151c6173c8b39bd544d2dfcefa0b09accd"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/r11-publication.json",
+        "bytes": 322,
+        "sha256": "01a426c7a872ad6f9fd7aec0f14bbb8e7a913e09e6ebbddaa0de75945ddca3f5"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/segments.jsonl",
+        "bytes": 342,
+        "sha256": "3326f5e27edee184d06c576d208a7680d76e04d788862a1893d93711915c6453"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/transcript.srt",
+        "bytes": 148,
+        "sha256": "fe2fb75f9c0aa82f53119cd485844f0346d458b5e92bab04e5cd0bd2060751d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-bf3cd6ff87dc4d5495ddfb2bcc7db7a1/writes/l04/archive/transcriptions/000000000001433818e3ff86c54fbdc8/1/transcript.txt",
+        "bytes": 51,
+        "sha256": "360747af17b1d107010e215a2e1cee13db612e73a283f037dbdcb1e1982294f1"
+      },
+      {
+        "path": "snapshots/cuda-path-retry/PersonalUnified.json",
+        "bytes": 4916,
+        "sha256": "f1ddaefcd6b3c4e8ee43e60a95df0520ab7ae1b209744b2d983182b2f7fa88d5"
       }
     ]
   }
