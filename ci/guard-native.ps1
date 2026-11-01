@@ -183,6 +183,20 @@ function Assert-ExactTestSelector([string]$Name) {
     }
 }
 
+function Assert-ProfileFeatureScope([object]$Profile) {
+    $personalFeature = 'whisper-worker-parakeet-cpu/parakeet-personal'
+    $features = @($Profile.features | ForEach-Object { [string]$_ })
+    if ($features -ccontains $personalFeature -and ($Profile.id -cne 'ParakeetCpuContracts' -or $Profile.package -cne 'whisper-worker-parakeet-cpu')) {
+        throw "Feature $personalFeature is restricted to ParakeetCpuContracts on whisper-worker-parakeet-cpu."
+    }
+    if ($Profile.id -ceq 'ParakeetCpuContracts') {
+        $expected = @('whisper-worker-parakeet-cpu/native-tests',$personalFeature)
+        if ($Profile.package -cne 'whisper-worker-parakeet-cpu' -or $Profile.status -cne 'READY' -or $Profile.operation -cne 'Run' -or $features.Count -ne $expected.Count -or [string]::Join('|',$features) -cne [string]::Join('|',$expected)) {
+            throw 'ParakeetCpuContracts must be READY/Run on its package and use only native-tests and parakeet-personal.'
+        }
+    }
+}
+
 function Get-ProfileRegistry {
     if (-not (Test-Path -LiteralPath $script:ProfilesPath -PathType Leaf)) { throw "Profile registry is missing: $script:ProfilesPath" }
     Assert-NoReparseChain $script:ProfilesPath 'profile registry'
@@ -198,7 +212,7 @@ function Get-ProfileRegistry {
     }
     $featureSet = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($feature in @($registry.allowedFeatures)) {
-        if ($feature -notmatch '^(?:native-tests|whisper-[a-z0-9-]+/(?:native-tests|recette-hooks))$' -or -not $featureSet.Add([string]$feature)) {
+        if ($feature -notmatch '^(?:native-tests|whisper-[a-z0-9-]+/(?:native-tests|recette-hooks)|whisper-worker-parakeet-cpu/parakeet-personal)$' -or -not $featureSet.Add([string]$feature)) {
             throw "Invalid or duplicate Cargo feature in profile registry: $feature"
         }
     }
@@ -209,6 +223,7 @@ function Get-ProfileRegistry {
         if ($profile.status -notin @('READY','DISCOVERY_PENDING')) { throw "Unsupported status for profile $($profile.id)." }
         if ($profile.package -cne 'workspace' -and -not $packageSet.Contains([string]$profile.package)) { throw "Unapproved package for profile $($profile.id): $($profile.package)" }
         foreach ($feature in @($profile.features)) { if (-not $featureSet.Contains([string]$feature)) { throw "Unapproved feature '$feature' in profile $($profile.id)." } }
+        Assert-ProfileFeatureScope $profile
         foreach ($entry in @($profile.compileEnvironment)) {
             $name = [string]$entry.name
             if (-not $script:AllowedCompileEnvironment.ContainsKey($name) -or [string]$entry.value -cne $script:AllowedCompileEnvironment[$name]) {
@@ -323,7 +338,7 @@ function Resolve-LotRoot([string]$Path) {
 function Assert-LotRootForProfile([string]$ProfileId, [string]$Lot) {
     $n2Root = Get-FullPath (Join-Path $script:Repo 'target\n2-native')
     $mainFacadesRoot = Get-FullPath (Join-Path $script:Repo 'target\parakeet-tests\main-facades')
-    if ($ProfileId -in @('TurboCpuReusableImports','TurboGpuReusableImports')) {
+    if ($ProfileId -in @('TurboCpuReusableImports','TurboGpuReusableImports','ParakeetCpuContracts')) {
         if ($Lot -ine $mainFacadesRoot) { throw "Profile $ProfileId requires the exact candidate-local main-facades root: $mainFacadesRoot" }
         return
     }
@@ -1518,8 +1533,9 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         if ((Resolve-LotRoot 'target\n2-native') -ine $syntheticN2Root -or (Resolve-LotRoot 'target\parakeet-tests\main-facades') -ine $syntheticMainFacadesRoot) { throw 'Exact candidate lot roots did not resolve canonically.' }
         Assert-LotRootForProfile 'TurboCpuReusableImports' $syntheticMainFacadesRoot
         Assert-LotRootForProfile 'TurboGpuReusableImports' $syntheticMainFacadesRoot
+        Assert-LotRootForProfile 'ParakeetCpuContracts' $syntheticMainFacadesRoot
         Assert-LotRootForProfile 'PreparationNoRun' $syntheticN2Root
-        foreach ($profileId in @('TurboCpuReusableImports','TurboGpuReusableImports')) {
+        foreach ($profileId in @('TurboCpuReusableImports','TurboGpuReusableImports','ParakeetCpuContracts')) {
             Test-Rejects "$profileId with N2 root" { Assert-LotRootForProfile $profileId $syntheticN2Root }
         }
         Test-Rejects 'non-reusable profile with main-facades root' { Assert-LotRootForProfile 'TurboCpuLive' $syntheticMainFacadesRoot }
@@ -1530,7 +1546,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         $junctionPath = Join-Path $junctionParent 'main-facades'
         New-Item -ItemType Junction -Path $junctionPath -Target $junctionTarget -ErrorAction Stop | Out-Null
         Test-Rejects 'reparse main-facades lot root' { Resolve-LotRoot 'target\parakeet-tests\main-facades' }
-        $lotRootEvidence = [pscustomobject]@{ mainFacadesProfiles=@('TurboCpuReusableImports','TurboGpuReusableImports'); n2Profiles='all other registered profiles'; rejected=@('reusable profile with N2 root','non-reusable profile with main-facades root','unapproved candidate root','reparse main-facades root') }
+        $lotRootEvidence = [pscustomobject]@{ mainFacadesProfiles=@('TurboCpuReusableImports','TurboGpuReusableImports','ParakeetCpuContracts'); n2Profiles='all other registered profiles'; rejected=@('main-facades profile with N2 root','non-main-facades profile with main-facades root','unapproved candidate root','reparse main-facades root') }
     } finally {
         $script:Repo = $savedRepo
         $junctionPath = Join-Path (Join-Path $rootFixture 'target\parakeet-tests') 'main-facades'
@@ -1559,6 +1575,28 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
             if ($args -notcontains [string]$case.exactTest -or $args -contains '--ignored') { throw "Reusable profile selector command is malformed: $profileId / $($case.exactTest)" }
         }
     }
+    $parakeetProfile = Get-Profile $Registry 'ParakeetCpuContracts'
+    Assert-ProfileFeatureScope $parakeetProfile
+    $expectedParakeetCases = @('parakeet_refusal_order_contract','parakeet_errors_and_shutdown_contract','parakeet_native_transcription_contract')
+    if ($parakeetProfile.package -cne 'whisper-worker-parakeet-cpu' -or @($parakeetProfile.inputs).Count -ne 4 -or @($parakeetProfile.values).Count -ne 0 -or @($parakeetProfile.outputs).Count -ne 1 -or @($parakeetProfile.staging).Count -ne 2 -or @($parakeetProfile.cases).Count -ne $expectedParakeetCases.Count -or @($parakeetProfile.compileEnvironment).Count -ne 0) { throw 'ParakeetCpuContracts profile fields differ from the bounded three-case contract.' }
+    $expectedInputs = @('personalRuntime|WHISPER_N2_PERSONAL_RUNTIME_ROOT|directory','referenceExe|WHISPER_TEST_REFERENCE_EXE|file','candidateExe|WHISPER_TEST_WORKER_EXE|file','referenceShort|WHISPER_TEST_REFERENCE_SHORT_AUDIO|file')
+    for ($inputIndex = 0; $inputIndex -lt $expectedInputs.Count; $inputIndex++) {
+        $input = @($parakeetProfile.inputs)[$inputIndex]
+        if (($input.key + '|' + $input.environmentVariable + '|' + $input.kind) -cne $expectedInputs[$inputIndex]) { throw "ParakeetCpuContracts input differs from its approved manifest contract: $($input.key)" }
+    }
+    $output = @($parakeetProfile.outputs)[0]
+    if (($output.key + '|' + $output.environmentVariable + '|' + $output.path) -cne 'workRoot|WHISPER_TEST_WORK_ROOT|writes/main-facades-work') { throw 'ParakeetCpuContracts work root differs from its approved candidate-local path.' }
+    $runtimeStage = @($parakeetProfile.staging | Where-Object inputKey -CEQ 'personalRuntime')[0]
+    $shortStage = @($parakeetProfile.staging | Where-Object inputKey -CEQ 'referenceShort')[0]
+    if ($runtimeStage.destinationBase -cne 'localappdata' -or $runtimeStage.destination -cne 'Whisper' -or [int]$runtimeStage.requiredFileCount -ne 21 -or [long]$runtimeStage.requiredBytes -ne 3196008875 -or $shortStage.destinationBase -cne 'run' -or $shortStage.destination -cne 'writes/main-facades-work/reference-short.wav' -or [int]$shortStage.requiredFileCount -ne 1 -or [long]$shortStage.requiredBytes -ne 484910) { throw 'ParakeetCpuContracts staging destinations or byte/file pins differ from the approved contract.' }
+    for ($caseIndex = 0; $caseIndex -lt $expectedParakeetCases.Count; $caseIndex++) {
+        $case = @($parakeetProfile.cases)[$caseIndex]
+        if ($case.targetKind -cne 'integration' -or $case.targetName -cne 'worker_contract' -or $case.exactTest -cne $expectedParakeetCases[$caseIndex] -or $case.ignored -or $case.verdict -cne 'QUALIFICATION') { throw "ParakeetCpuContracts selector differs from the authorized case set: $($case.exactTest)" }
+        $args = New-CargoArguments $parakeetProfile $case
+        if ($args -notcontains [string]$case.exactTest -or $args -contains '--ignored') { throw "ParakeetCpuContracts command is malformed: $($case.exactTest)" }
+    }
+    Test-Rejects 'parakeet-personal feature on another profile' { Assert-ProfileFeatureScope ([pscustomobject]@{id='TurboCpuLive';package='whisper-worker-parakeet-cpu';features=@('whisper-worker-parakeet-cpu/native-tests','whisper-worker-parakeet-cpu/parakeet-personal')}) }
+    Test-Rejects 'parakeet-personal feature with another package' { Assert-ProfileFeatureScope ([pscustomobject]@{id='ParakeetCpuContracts';package='whisper-worker-cpu';features=@('whisper-worker-parakeet-cpu/native-tests','whisper-worker-parakeet-cpu/parakeet-personal')}) }
     $positive = Convert-StringArrayToJson @('cargo','test')
     $roundTrip = Convert-JsonStringArray $positive 'self-test argv'
     if ($roundTrip.Count -ne 2 -or $roundTrip[0] -cne 'cargo' -or $roundTrip[1] -cne 'test') { throw 'ARGV JSON multi-value roundtrip failed.' }

@@ -19,7 +19,8 @@
     "whisper-worker-common/native-tests",
     "whisper-worker-cpu/native-tests",
     "whisper-worker-gpu/native-tests",
-    "whisper-worker-parakeet-cpu/native-tests"
+    "whisper-worker-parakeet-cpu/native-tests",
+    "whisper-worker-parakeet-cpu/parakeet-personal"
   ],
   "profiles": [
     {
@@ -337,6 +338,33 @@
       ],
       "cases": [
         {"targetKind":"integration","targetName":"worker_contract","exactTest":"turbo_reusable_import_contract","ignored":false,"verdict":"QUALIFICATION"}
+      ]
+    },
+    {
+      "id": "ParakeetCpuContracts",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-worker-parakeet-cpu",
+      "features": ["whisper-worker-parakeet-cpu/native-tests", "whisper-worker-parakeet-cpu/parakeet-personal"],
+      "compileEnvironment": [],
+      "inputs": [
+        {"key":"personalRuntime","environmentVariable":"WHISPER_N2_PERSONAL_RUNTIME_ROOT","kind":"directory"},
+        {"key":"referenceExe","environmentVariable":"WHISPER_TEST_REFERENCE_EXE","kind":"file"},
+        {"key":"candidateExe","environmentVariable":"WHISPER_TEST_WORKER_EXE","kind":"file"},
+        {"key":"referenceShort","environmentVariable":"WHISPER_TEST_REFERENCE_SHORT_AUDIO","kind":"file"}
+      ],
+      "values": [],
+      "outputs": [
+        {"key":"workRoot","environmentVariable":"WHISPER_TEST_WORK_ROOT","kind":"directory","path":"writes/main-facades-work"}
+      ],
+      "staging": [
+        {"inputKey":"personalRuntime","destination":"Whisper","destinationBase":"localappdata","requiredFileCount":21,"requiredBytes":3196008875},
+        {"inputKey":"referenceShort","destination":"writes/main-facades-work/reference-short.wav","destinationBase":"run","requiredFileCount":1,"requiredBytes":484910}
+      ],
+      "cases": [
+        {"targetKind":"integration","targetName":"worker_contract","exactTest":"parakeet_refusal_order_contract","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"worker_contract","exactTest":"parakeet_errors_and_shutdown_contract","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"worker_contract","exactTest":"parakeet_native_transcription_contract","ignored":false,"verdict":"QUALIFICATION"}
       ]
     },
     {
