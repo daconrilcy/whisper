@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "revision": 5,
-  "candidate": "5a53d776",
-  "authorization": "Oui, compléter CPU et Auto puis les exécuter",
+  "revision": 6,
+  "candidate": "1d30690e",
+  "authorization": "Oui, préparer et exécuter les deux imports longs",
   "history": [
     {
       "candidate": "de9003dc",
@@ -103,10 +103,10 @@
       "gitSnapshot": "c6833c6b"
     }
   ],
-  "priorRevision4": {
-    "gitSnapshot": "e1ac7770",
-    "archiveEntryCount": 322,
-    "archiveSha256": "009c6751b68e7bf04d61649c94e4cdd7737983327e5bf4e7d292871bc12eff19"
+  "priorRevision5": {
+    "gitSnapshot": "1ac87ae8",
+    "archiveEntryCount": 366,
+    "archiveSha256": "9520af400baba9d354a0d42f6c7b76948f1cc9fdc516187b62e3504eee1c11dd"
   },
   "diagnostic": {
     "profile": "NvidiaSmiInventoryDiagnostic",
@@ -355,42 +355,71 @@
       "wavBytes": 129068
     }
   },
-  "runtimeIntegrity": {
-    "filesVerified": 21,
-    "allMatched": true,
-    "sourcesUnmodified": true
+  "longCpuCases": {
+    "runId": "PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615",
+    "status": "PASS",
+    "cases": [
+      {
+        "case": "native_personal_cpu_imports_annotated_french_long_audio",
+        "status": "PASS",
+        "elapsedSeconds": 176.862
+      },
+      {
+        "case": "native_personal_cpu_imports_annotated_english_long_audio",
+        "status": "PASS",
+        "elapsedSeconds": 196.354
+      }
+    ],
+    "bodySecondsFrench": 175.79,
+    "bodySecondsEnglish": 195.44,
+    "outputWavChecks": [
+      {
+        "path": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\runs\\PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615\\writes\\l04\\archive\\transcriptions\\00000000000077ac18e40561bb338d34\\1\\parakeet-unified\\source.wav",
+        "bytes": 67487660,
+        "sha256": "ff3a0fa789764a49f1ee49929e79fde7aeb47b4005f0497ad9f303a4f9a08f14",
+        "language": "fr",
+        "sourceSamples": 33743808,
+        "frameCountMatched": true,
+        "sourceSha256": "1fb5bff102ba873ea151bddcef16e142055abadce9a97c08d8c8b6160f0f894b",
+        "sourceByteIdentical": false,
+        "sampleIdentityRequiredByTest": false
+      },
+      {
+        "path": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\runs\\PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615\\writes\\l04\\archive\\transcriptions\\000000000001539818e4058b46ecd884\\1\\parakeet-unified\\source.wav",
+        "bytes": 77099948,
+        "sha256": "3d4b7e29fe1d48d3b63808db38713f80eeccb6cb51a44a68a2013a72ad3e9fcb",
+        "language": "en",
+        "sourceSamples": 38549952,
+        "frameCountMatched": true,
+        "sourceSha256": "cb2ffbb61691daa42924fe7cc486f9e928629795437a847120accb130e39d47e",
+        "sourceByteIdentical": false,
+        "sampleIdentityRequiredByTest": false
+      }
+    ],
+    "lexicalScope": "nonempty transcription and verified source/annotation provenance, no WER threshold",
+    "provenanceAndFixturesCopied": 303,
+    "copiedBytes": 173390994,
+    "postRunShaVerified": 303,
+    "runtimeShaVerified": 21
   },
-  "cumulativeDistinctQualifiedTargetedBodies": 31,
+  "cumulativeDistinctQualifiedTargetedBodies": 33,
   "encoderDiagnosticDistinctBodies": 1,
   "fullCampaignQualified": false,
   "mergePerformed": false,
   "remainingBlockers": [
-    "Parakeet GPU import fails NVML initialization",
+    "Parakeet GPU/NVML failure",
     "fr87.wav/fr27.wav missing without backup",
     "historical write roots outside authorized lot",
-    "CPU long fixtures available but worktree provenance corpus requires explicitly authorized copies"
+    "Other native profiles still lack complete prerequisites"
   ],
-  "nextPreparedScope": {
-    "cases": [
-      "native_personal_cpu_imports_annotated_french_long_audio",
-      "native_personal_cpu_imports_annotated_english_long_audio"
-    ],
-    "worktreeProvenanceClipFiles": 297,
-    "worktreeTsvFiles": 2,
-    "worktreeProvenanceBytes": 28685398,
-    "wavAndAnnotationFiles": 4,
-    "wavAndAnnotationBytes": 144705596,
-    "guardScriptChangeNeeded": false,
-    "rustChangeNeeded": false,
-    "copyOrProfilesApplied": false
-  },
-  "freeBytes": 126171475968,
+  "largeAudioAndModelsPreservedUnderLot": true,
+  "freeBytes": 122206580736,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 366,
-    "priorEntriesPreserved": 322,
+    "entryCount": 426,
+    "priorEntriesPreserved": 366,
     "entriesVerified": true,
-    "sha256": "9520af400baba9d354a0d42f6c7b76948f1cc9fdc516187b62e3504eee1c11dd",
+    "sha256": "380687f70d1e322958288e56ca96d198f55affa0b51d2ea077ceadd1cad1b829",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -2221,6 +2250,306 @@
         "path": "snapshots/cpu-auto-v5/PersonalAutoFallback.json",
         "bytes": 4659,
         "sha256": "52d5398babaa3e30e9c27a25cb918d5e83e801c04702b23917483e25c1eda870"
+      },
+      {
+        "path": "target/n2-native/logs/personal-long-cpu-preflight.txt",
+        "bytes": 480,
+        "sha256": "db3575d63b471ae0684703ccec171536dddda5f194ac1553963d5474ad081cc4"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/native_personal_cpu_imports_annotated_english_long_audio.invocation.json",
+        "bytes": 1312,
+        "sha256": "27a46a0accb8a6a3d6d263e3f7832da18e8cc7f67a90fdbfba35fad2ec49aca3"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/native_personal_cpu_imports_annotated_english_long_audio.process.json",
+        "bytes": 140,
+        "sha256": "5a4044650df1b0e5493acd2ad5efd097039582e32f717a944d3aa53c4ba0ca5b"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/native_personal_cpu_imports_annotated_english_long_audio.stderr.log",
+        "bytes": 229,
+        "sha256": "f0cb75fd106b05366a982461658b8506a09f50ab49169230c5f24625ea9ff2f5"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/native_personal_cpu_imports_annotated_english_long_audio.stdout.log",
+        "bytes": 190,
+        "sha256": "d772c52fd55c8e4209cf2a79a55dfda6d72c6904463148f1a9454dd0515401c6"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/native_personal_cpu_imports_annotated_french_long_audio.invocation.json",
+        "bytes": 1308,
+        "sha256": "f666f1a9f9a469a17d4ffcd700bdc26c2390799ab56471456771131654b6e608"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/native_personal_cpu_imports_annotated_french_long_audio.process.json",
+        "bytes": 139,
+        "sha256": "bd485fe7a8f153d8eb64dfdd0e16331dc4943a6c3a53d64542eda1674505fc0b"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/native_personal_cpu_imports_annotated_french_long_audio.stderr.log",
+        "bytes": 229,
+        "sha256": "c9b3171345b589a5285276cdf8fef0a86092aba84f04a11b33b82cf78c52f6b5"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/native_personal_cpu_imports_annotated_french_long_audio.stdout.log",
+        "bytes": 189,
+        "sha256": "36e61690f450948a7b1993391a2254708c47264b51b7c8e181eba644272c1706"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/result.json",
+        "bytes": 3629,
+        "sha256": "151e7ef2f5a11804e6f7f04edf9f98eb90d16aa25a05f3241ce6055b14750cf0"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/unattributed-temp.jsonl",
+        "bytes": 74497,
+        "sha256": "436bf97520ea7de611bd1d76c42d541d52cdc41c995c29dffac1f3802d18b303"
+      },
+      {
+        "path": "target/n2-native/resources/long-cpu-copy-checks.json",
+        "bytes": 151881,
+        "sha256": "205b1ce1317fd3ef0b7dda17b484de30659cfde7bef5e06da0d3bec2302ce3cb"
+      },
+      {
+        "path": "target/n2-native/resources/long-cpu-final-checks.json",
+        "bytes": 82780,
+        "sha256": "51297c3a06416788496caebf3d79892f8bf24d5efcc0659eaeb2d741d081f312"
+      },
+      {
+        "path": "target/n2-native/resources/long-cpu-wav-sample-observations.json",
+        "bytes": 507,
+        "sha256": "5425cd4986682ef05e2aa135ecb8b199d7170800f92e7023de2aa676f5356616"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/.whisper-publications.lock",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/.whisper-publications/index.json",
+        "bytes": 426,
+        "sha256": "eb155897c603783ffbd3bb8886dafdb7a2c4f13a5d7b0b19149d83db507a3818"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/exports/en-long-40m.srt",
+        "bytes": 30991,
+        "sha256": "c06271a61e6069c926db58fa5aa422176bd33a36b12901716e7e7832fc0b7875"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/exports/en-long-40m.txt",
+        "bytes": 21510,
+        "sha256": "e7b16268cddbe98196d39a03c008946a883f145ed7ab8058c671408543df6107"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/exports/fr-long-35m.srt",
+        "bytes": 33246,
+        "sha256": "be81b576648de47179b7b0de4fd2b9a7775e7b2a2f931843683c71fdbcd6b77f"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/exports/fr-long-35m.txt",
+        "bytes": 23731,
+        "sha256": "1e1e0f2f43f12fd0da9b6d14250c0aa58eb28c263eb6bdc7b7c413c19428d965"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/CURRENT",
+        "bytes": 14,
+        "sha256": "ca8648fb7fb08b2dff1e9841e2f9551efc4c14ac6cb42b59c132d680b77de4d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/export.srt.install.pending",
+        "bytes": 33246,
+        "sha256": "be81b576648de47179b7b0de4fd2b9a7775e7b2a2f931843683c71fdbcd6b77f"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/export.srt.pending",
+        "bytes": 33246,
+        "sha256": "be81b576648de47179b7b0de4fd2b9a7775e7b2a2f931843683c71fdbcd6b77f"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/export.txt.install.pending",
+        "bytes": 23731,
+        "sha256": "1e1e0f2f43f12fd0da9b6d14250c0aa58eb28c263eb6bdc7b7c413c19428d965"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/export.txt.pending",
+        "bytes": 23731,
+        "sha256": "1e1e0f2f43f12fd0da9b6d14250c0aa58eb28c263eb6bdc7b7c413c19428d965"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/installed-exports.json",
+        "bytes": 698,
+        "sha256": "7f1623de59ecdef96deeac930a996f93929c37be511cc4fceb10edc0299ffdd1"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/manifest.json",
+        "bytes": 405,
+        "sha256": "1c1190eca862eaf4de38719d70de85c7df0c8560ece640cc215e8a16fb8b06d1"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 2912,
+        "sha256": "654d08e6ff4a31489bec9392a11bb4c2f4b2d258fa894e9dd4d3068bedeb0904"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/parakeet-unified/document/document.final.json",
+        "bytes": 87,
+        "sha256": "b079147dc12ba652ba5d910974a4938ab5cb89a7fda917c56a852a5ea0afb0f6"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/parakeet-unified/document/document.idx",
+        "bytes": 4536,
+        "sha256": "1ac5203e88502c1be6a070d5bfde099f15e49e046bd3e7b76758b0f8e7eb7f15"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/parakeet-unified/document/document.jsonl",
+        "bytes": 81121,
+        "sha256": "60d20186c78b3b0c85f161c113c002a141d39111c8af1081edf2ba89a8add3cd"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/parakeet-unified/source.parts.idx",
+        "bytes": 32,
+        "sha256": "4d341c5f5127e7e78922f022db3c8751fb66d381419c37f53930061e8a537f66"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/pending.json",
+        "bytes": 679,
+        "sha256": "f271664ce7839a62a14d1dae4163cd58b493c670f818c15d647259d3e04900d9"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/r11-publication.json",
+        "bytes": 328,
+        "sha256": "7a9ecb3296b1ac9eb6ae2b282e8fc4a2fa8ba9feb80359dbed449d9982b7a7da"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/segments.jsonl",
+        "bytes": 53212,
+        "sha256": "df410dcc3bbea899af6a603d50a4769ae167b5409c3b9031d0cf6e90154f4a36"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/transcript.srt",
+        "bytes": 33246,
+        "sha256": "be81b576648de47179b7b0de4fd2b9a7775e7b2a2f931843683c71fdbcd6b77f"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/00000000000077ac18e40561bb338d34/1/transcript.txt",
+        "bytes": 23731,
+        "sha256": "1e1e0f2f43f12fd0da9b6d14250c0aa58eb28c263eb6bdc7b7c413c19428d965"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/CURRENT",
+        "bytes": 14,
+        "sha256": "ca8648fb7fb08b2dff1e9841e2f9551efc4c14ac6cb42b59c132d680b77de4d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/export.srt.install.pending",
+        "bytes": 30991,
+        "sha256": "c06271a61e6069c926db58fa5aa422176bd33a36b12901716e7e7832fc0b7875"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/export.srt.pending",
+        "bytes": 30991,
+        "sha256": "c06271a61e6069c926db58fa5aa422176bd33a36b12901716e7e7832fc0b7875"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/export.txt.install.pending",
+        "bytes": 21510,
+        "sha256": "e7b16268cddbe98196d39a03c008946a883f145ed7ab8058c671408543df6107"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/export.txt.pending",
+        "bytes": 21510,
+        "sha256": "e7b16268cddbe98196d39a03c008946a883f145ed7ab8058c671408543df6107"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/installed-exports.json",
+        "bytes": 699,
+        "sha256": "cdfc9ba1073aeb26b6bdad6500517904cce0df5013d6c2c6be6e786fb3744f5b"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/manifest.json",
+        "bytes": 406,
+        "sha256": "99a5834d32f2267b06a297f5ca0e77915a2b0a56f8ef97ff88d7fefa97183fa1"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 3285,
+        "sha256": "522ae03b6f8f941b6b9a655cf053d0be2b1614651382570d962f2dc2979ac514"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/parakeet-unified/document/document.final.json",
+        "bytes": 87,
+        "sha256": "b900ab63f18d96a0ff92b1c9550fdbd062e8fc2faa75ebc09aa3689e49fbf1c6"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/parakeet-unified/document/document.idx",
+        "bytes": 4520,
+        "sha256": "dd15a0a43bbe8a3466b65d37a00a308516021cdcca47fe0e9d9d3a1421de9196"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/parakeet-unified/document/document.jsonl",
+        "bytes": 78927,
+        "sha256": "36c59b38a85736523c98aa3ab40c5cce6cacd4ece32c00faf243f4aef9462328"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/parakeet-unified/source.parts.idx",
+        "bytes": 32,
+        "sha256": "e2da685f283df504dbb1110ae883330f7f04ef4ffabe543aa35fd174e214e7a0"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/pending.json",
+        "bytes": 680,
+        "sha256": "50b8146648d83915ea7444fa1a92304fb75426b20376f1da7e1a697d37ea0a4f"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/r11-publication.json",
+        "bytes": 328,
+        "sha256": "9a7bf994d9292ba1e62b05d6d8fce19f5d7b1d4077c7387b1a669149d9b66f51"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/segments.jsonl",
+        "bytes": 50835,
+        "sha256": "38706c4c8ada45050b66d4425d12495826815e1908e920c934954a80a58f3840"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/transcript.srt",
+        "bytes": 30991,
+        "sha256": "c06271a61e6069c926db58fa5aa422176bd33a36b12901716e7e7832fc0b7875"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/archive/transcriptions/000000000001539818e4058b46ecd884/1/transcript.txt",
+        "bytes": 21510,
+        "sha256": "e7b16268cddbe98196d39a03c008946a883f145ed7ab8058c671408543df6107"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/fixtures/en-long-40m.annotations.json",
+        "bytes": 59732,
+        "sha256": "d808092e3d0581d020b94157f2662a1135b791050437a16400d2b635c1464fd5"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/fixtures/fr-long-35m.annotations.json",
+        "bytes": 58256,
+        "sha256": "38669a28ebc27c85f5eae29791152d5308e1ff27629677e0a5d4cc958aba409d"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/settings/reprocessing-snapshots.json",
+        "bytes": 2,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/settings/reprocessing-snapshots.lock",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalLongCpu-67088a20ed6d4daeb111721e89bd3615/writes/l04/settings/source-snapshot-operation.lock",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "snapshots/long-cpu-v6/PersonalLongCpu.json",
+        "bytes": 5551,
+        "sha256": "7546d1e426280222ef736679dcf8306a96dfd288b9e0a4196243d7387ab5222e"
       }
     ]
   }

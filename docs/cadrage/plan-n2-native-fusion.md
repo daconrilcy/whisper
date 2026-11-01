@@ -1,6 +1,6 @@
-Avancée : Turbo CPU démarrage/refus et Auto sans candidat GPU réussis ; 31 corps ciblés PASS distincts et un diagnostic encodeur.
-Blocage : campagne complète incomplète : NVML, corpus historique manquant, racines hors lot et provenance des longs absente du worktree.
-Décision : copies et deux imports CPU longs explicitement autorisés, profil relu CLEAN ; aucune fusion.
+Avancée : les deux imports CPU longs FR/EN ont réussi ; 33 corps ciblés PASS distincts et un diagnostic encodeur.
+Blocage : campagne complète encore incomplète : NVML, corpus historique manquant et contraintes de racines/références des autres recettes.
+Décision : aucune fusion ; poursuivre exige un périmètre concret pour les recettes restantes et leurs références.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -195,3 +195,19 @@ Le prochain périmètre serait limité à ces copies de recette, aux données du
 Accord reçu : **« Oui, préparer et exécuter les deux imports longs »**. Le parent copie exactement les 297 clips et deux TSV de provenance aux chemins du worktree attendus, ainsi que les deux WAV et annotations sous `target/n2-native/resources/long-cpu/` : **303 fichiers, 173 390 994 octets**. Chemins canoniques bornés aux destinations autorisées, aucun reparse ni écrasement divergent ; tous SHA source/copie et source après copie conformes, originaux immuables. Aucun corpus entier ou modèle supplémentaire copié.
 
 L'implémenteur ajoute uniquement `PersonalLongCpu` au registre, deux sélecteurs CPU existants, cinq entrées (runtime et quatre fixtures), staging `writes/l04/fixtures`, feature native-tests seule, aucun hook/marqueur. Requête préparée ; préflight code 0. **Revue indépendante CLEAN**, base `1ac87ae8`, registre SHA `5e6c8419082ef4cb4671b40bf96ac78b157ea94ad952b9a9e96c1fa679794bf0` ; garde inchangée. La commande sous garde exécutera FR puis EN, arrêt sur premier échec, avec les délais existants et les ressources réelles. Aucun succès long n'est déduit de la préparation.
+
+## Résultat des imports longs
+
+Au candidat `1d30690e`, **PersonalLongCpu PASS, deux cas exacts réussis** : français, corps **175,79 s**, appel Cargo **176,862 s** ; anglais, corps **195,44 s**, appel Cargo **196,354 s**. Chaque parcours utilise Parakeet CPU, sans candidat GPU. Provenance annotée validée et publication complète : FR TXT **23 731 octets**, SRT **33 246 octets** ; EN TXT **21 510 octets**, SRT **30 991 octets**. Les assertions exigent notamment un texte non vide ; aucun seuil WER ni jugement humain de qualité n'est ajouté au verdict.
+
+Les WAV publiés sont mono PCM16/16 kHz, **33 743 808 échantillons FR** et **38 549 952 EN**, nombres identiques aux annotations, soit environ 35 et 40 minutes d'audio. Les SHA de sortie diffèrent des WAV d'entrée : aucune identité bit à bit n'est conclue ni requise par ces tests. Une vérification parent supplémentaire avait supposé à tort cette identité et a été abandonnée comme critère ; aucun nouveau test natif n'a été lancé pour cela. Formats, nombres d'échantillons, SHA réels et observation limitée aux premiers 32 768 échantillons sont conservés séparément. Les 303 sources/copies de recette et les 21 ressources runtime restent conformes aux SHA après exécution, originaux inchangés.
+
+Bilan distinct ciblé : **33 corps PASS et un diagnostic encodeur**, répétitions et diagnostic NVIDIA exclus. La campagne complète des recettes ignorées reste non qualifiée ; les Auto/GPU longs ne sont pas déduits de ces CPU. Preuves consolidées **révision 6**, **426 entrées relues, tailles et SHA vérifiés**, dont **366 précédentes conservées à l'identique**, SHA archive `380687f70d1e322958288e56ca96d198f55affa0b51d2ea077ceadd1cad1b829`. Révision 5 dans Git à `1ac87ae8`. WAV longs, modèles et copies restent sous leurs racines, sans nettoyage ni duplication de leurs gros contenus dans l'archive. Espace libre après conservation : **122 206 560 256 octets**. Neuf fichiers de bilan/preuves suivis ; aucun changement Rust/script/pilote/SDK/installation, aucune fusion ni push.
+
+## Prérequis restants précisés en lecture seule
+
+La garde refuse même `-LotRoot target/parakeet-tests/main-facades` : `Resolve-LotRoot` impose exactement `target/n2-native` (`ci/guard-native.ps1:313–319`). Les contrats réutilisables CPU/GPU imposent au contraire un WORK_ROOT sous le `target/parakeet-tests/main-facades` du worktree. Un simple changement de requête ne peut donc pas les aligner. Aucun lien, copie de contournement ou changement de garde n'est tenté.
+
+Les deux `turbo_live_stop_and_shutdown_contract` CPU/GPU ne lisent pas ce WORK_ROOT dans leur corps : ils utilisent le modèle et deux exécutables référence/candidat distincts, et génèrent deux secondes de silence en mémoire. Ils ont une limite de 600 s par enfant. Les références physiques `C:/dev/whisper/target/parakeet-tests/main-facades/reference/{cpu,gpu}/release/` et les candidats historiques existent et diffèrent. Cependant, les logs historiques cités par `plan-main-facades.md:358` n'enregistrent ni les chemins d'environnement ni les SHA des exécutables effectivement comparés ; leurs succès ne permettent pas d'attester les hashes actuels comme identités historiques. Aucun ancien fichier n'est donc présenté automatiquement comme référence qualifiée.
+
+Une prochaine comparaison live pourrait utiliser des références explicitement figées maintenant et les workers R8 déjà vérifiés comme candidats, avec inventaire des entrées avant revue/exécution. Cette décision de référence et ces profils restent à autoriser/préparer ; aucun nouveau cas n'est annoncé exécuté. Les variantes réutilisables, le corpus FR87/FR27 perdu et les variantes Parakeet GPU dépendantes de NVML restent bloqués séparément. `main` reste à `248f8679` : la condition de fusion complète verte n'est pas remplie.
