@@ -1,6 +1,6 @@
 Avancée : Turbo CPU démarrage/refus et Auto sans candidat GPU réussis ; 31 corps ciblés PASS distincts et un diagnostic encodeur.
 Blocage : campagne complète incomplète : NVML, corpus historique manquant, racines hors lot et provenance des longs absente du worktree.
-Décision : aucune fusion ; deux imports CPU longs restent préparables sous réserve de copies de recette explicitement autorisées.
+Décision : copies et deux imports CPU longs explicitement autorisés, profil relu CLEAN ; aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -189,3 +189,9 @@ Deux cas normaux restent identifiés dans `parakeet_unified_native.rs:908–926`
 Préparation concrète proposée : copier seulement les **297 clips référencés** (142 FR, 155 EN) et les **deux TSV exacts** depuis les corpus originaux du dépôt principal vers `C:/dev/whisper/.wt/r8/sound example/sps-corpus-5.0-2026-09-11-{fr,en}/`, en préservant les chemins. Coût **28 685 398 octets**, 299 fichiers. Copier les deux WAV et annotations sous les ressources du lot puis leur staging RunRoot : **144 705 596 octets**, quatre fichiers, outre le runtime déjà disponible. Tous les originaux existent ; le plan de copie est conservé sous `target/n2-native/resources/long-cpu-copy-proposal.json`. Aucun corpus entier, modèle ou installation n'est à dupliquer.
 
 Le prochain périmètre serait limité à ces copies de recette, aux données du registre `ci/native-profiles.json`, requêtes et bilan/preuves existants, revue indépendante puis deux exécutions. Chaque test a un délai maximal existant de **90 minutes** ; le coût réel des imports longs reste à mesurer. Aucun script de garde, test/assertion Rust, manifeste, SDK, pilote ou racine native de sortie ne changerait. Les copies de provenance sous deux nouveaux dossiers du worktree et ces deux profils dépassent le complément CPU/Auto court : accord précis nécessaire avant action. Les Auto longs choisissent un candidat GPU et restent dépendants du blocage NVML ; ils ne sont pas proposés comme indépendants. La campagne entière et la condition de fusion restent non satisfaites.
+
+## Imports CPU longs autorisés et préparés
+
+Accord reçu : **« Oui, préparer et exécuter les deux imports longs »**. Le parent copie exactement les 297 clips et deux TSV de provenance aux chemins du worktree attendus, ainsi que les deux WAV et annotations sous `target/n2-native/resources/long-cpu/` : **303 fichiers, 173 390 994 octets**. Chemins canoniques bornés aux destinations autorisées, aucun reparse ni écrasement divergent ; tous SHA source/copie et source après copie conformes, originaux immuables. Aucun corpus entier ou modèle supplémentaire copié.
+
+L'implémenteur ajoute uniquement `PersonalLongCpu` au registre, deux sélecteurs CPU existants, cinq entrées (runtime et quatre fixtures), staging `writes/l04/fixtures`, feature native-tests seule, aucun hook/marqueur. Requête préparée ; préflight code 0. **Revue indépendante CLEAN**, base `1ac87ae8`, registre SHA `5e6c8419082ef4cb4671b40bf96ac78b157ea94ad952b9a9e96c1fa679794bf0` ; garde inchangée. La commande sous garde exécutera FR puis EN, arrêt sur premier échec, avec les délais existants et les ressources réelles. Aucun succès long n'est déduit de la préparation.

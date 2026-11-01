@@ -236,6 +236,38 @@
       ]
     },
     {
+      "id": "PersonalLongCpu",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": ["whisper-adapters/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [
+        {"key":"personalRuntime","environmentVariable":"WHISPER_N2_PERSONAL_RUNTIME_ROOT","kind":"directory"},
+        {"key":"longFrenchAudio","environmentVariable":"WHISPER_PU_L4_LONG_FR","kind":"file"},
+        {"key":"longFrenchAnnotation","environmentVariable":"WHISPER_N2_PU_L4_FR_ANNOTATION","kind":"file"},
+        {"key":"longEnglishAudio","environmentVariable":"WHISPER_PU_L4_LONG_EN","kind":"file"},
+        {"key":"longEnglishAnnotation","environmentVariable":"WHISPER_N2_PU_L4_EN_ANNOTATION","kind":"file"}
+      ],
+      "values": [
+        {"key":"cudaToolkitPath","environmentVariable":"CUDA_PATH","required":true,"kind":"directory","allowedRoot":"cuda-12.9"}
+      ],
+      "outputs": [
+        {"key":"campaignRun","environmentVariable":"WHISPER_L04_CAMPAIGN_RUN","kind":"directory","path":"writes/l04"}
+      ],
+      "staging": [
+        {"inputKey":"personalRuntime","destination":"Whisper","destinationBase":"localappdata","requiredFileCount":21,"requiredBytes":3196008875},
+        {"inputKey":"longFrenchAudio","destination":"writes/l04/fixtures/fr-long-35m.wav","destinationBase":"run","requiredFileCount":1,"requiredBytes":67487660},
+        {"inputKey":"longFrenchAnnotation","destination":"writes/l04/fixtures/fr-long-35m.annotations.json","destinationBase":"run","requiredFileCount":1,"requiredBytes":58256},
+        {"inputKey":"longEnglishAudio","destination":"writes/l04/fixtures/en-long-40m.wav","destinationBase":"run","requiredFileCount":1,"requiredBytes":77099948},
+        {"inputKey":"longEnglishAnnotation","destination":"writes/l04/fixtures/en-long-40m.annotations.json","destinationBase":"run","requiredFileCount":1,"requiredBytes":59732}
+      ],
+      "cases": [
+        {"targetKind":"integration","targetName":"parakeet_unified_native","exactTest":"native_personal_cpu_imports_annotated_french_long_audio","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"parakeet_unified_native","exactTest":"native_personal_cpu_imports_annotated_english_long_audio","ignored":false,"verdict":"QUALIFICATION"}
+      ]
+    },
+    {
       "id": "D2",
       "status": "READY",
       "operation": "Run",
