@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 7,
+  "revision": 8,
   "candidate": "19e17019",
   "authorization": "Oui, figer ces références et comparer R8",
   "history": [
@@ -474,13 +474,13 @@
     "requiresExplicitRootAndGuardAuthorization": true,
     "applied": false
   },
-  "freeBytes": 122141245440,
+  "freeBytes": 120556056576,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 446,
-    "priorEntriesPreserved": 426,
+    "entryCount": 454,
+    "priorEntriesPreserved": 446,
     "entriesVerified": true,
-    "sha256": "dce6a3ea0d3ade639dd9beeb42f68d7085be409fcb0e6d7c4df60d74e69ddb0e",
+    "sha256": "7adb73415355cad87cf4b32a776d547159b9b75b0d79c11cb352a8a4c7b51f01",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -2711,7 +2711,90 @@
         "path": "snapshots/live-v7/TurboGpuLive.json",
         "bytes": 1281,
         "sha256": "395470492853f84f3b90e92e43d7c4d5ad571baec5a3da336d90df99c595e0f1"
+      },
+      {
+        "path": "target/n2-native/resources/reusable-root-selftest-abort/guard-events.jsonl",
+        "bytes": 838,
+        "sha256": "b839d87f03ef2c7f0f7e5eff73c0ced05f4ef9dc5bb181eb01b4f6b20e5803d1"
+      },
+      {
+        "path": "target/n2-native/resources/reusable-root-selftest-abort/nvidia-smi-query-gpu.invocation.json",
+        "bytes": 2671,
+        "sha256": "f1ebbf56111292173cc3bf77f79d8dc8adc282b5fc3d6772caee27d94bf89f3e"
+      },
+      {
+        "path": "target/n2-native/resources/reusable-root-selftest-abort/nvidia-smi-query-gpu.process.json",
+        "bytes": 182,
+        "sha256": "a6826799f4ecfc2dae8592a3ebfab8220442ee8e1cc9355fc9fc666b92e4ce72"
+      },
+      {
+        "path": "target/n2-native/resources/reusable-root-selftest-abort/nvidia-smi-query-gpu.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/resources/reusable-root-selftest-abort/nvidia-smi-query-gpu.stdout.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/resources/reusable-cache-copy.json",
+        "bytes": 399,
+        "sha256": "8264e9cfc07ade1ca93c5b4aca65c71f21feee18380a6dda9d9a4dc9cabf86fd"
+      },
+      {
+        "path": "snapshots/reusable-preparation-v8/TurboCpuReusableImports.json",
+        "bytes": 1290,
+        "sha256": "2aab8e4544d575323453c8e29052d51234218e2a575e9e90e249e561253b7809"
+      },
+      {
+        "path": "snapshots/reusable-preparation-v8/TurboGpuReusableImports.json",
+        "bytes": 1292,
+        "sha256": "63ea14ed7e4f799dfd72b233bc89fcc9648c793dd510cae43920e8732d57fc30"
       }
     ]
+  },
+  "priorRevision7": {
+    "gitSnapshot": "7d0922a3",
+    "entryCount": 446,
+    "sha256": "dce6a3ea0d3ade639dd9beeb42f68d7085be409fcb0e6d7c4df60d74e69ddb0e"
+  },
+  "reusablePreparation": {
+    "authorization": "Oui, autoriser cette racine et les quatre tests",
+    "status": "PREPARED_NOT_VALIDATED",
+    "lotRoot": "C:/dev/whisper/.wt/r8/target/parakeet-tests/main-facades",
+    "profiles": [
+      "TurboCpuReusableImports",
+      "TurboGpuReusableImports"
+    ],
+    "nativeCasesPlanned": 4,
+    "nativeCasesStarted": 0,
+    "cacheCopy": {
+      "source": "C:\\dev\\whisper\\.wt\\r8\\target\\n2-native\\cargo-home",
+      "destination": "C:\\dev\\whisper\\.wt\\r8\\target\\parakeet-tests\\main-facades\\cargo-home",
+      "files": 29662,
+      "bytes": 763831148,
+      "copied": 29662,
+      "reused": 0,
+      "shaVerified": 29662,
+      "sourceFilesUnmodified": true,
+      "credentialsCopied": false,
+      "cargoInvoked": false,
+      "freeBytes": 120758345728
+    },
+    "guardCandidateSha256": "eb05147e8842c5263ded5a69ec60f5225f40e56f75cdba35036cbaab988be332",
+    "registryCandidateSha256": "7daa0320b2f8da5ddaa314af660ebdf93ea935c1f83682907a7f2a173281d9a2",
+    "selfTestStatus": "FAIL: watcher saw concurrent authorized cache preparation outside synthetic N2 test roots",
+    "fullSelfTestPassed": false,
+    "rootPolicyAssertionsPassed": true,
+    "guardLogSha256": "b839d87e03ef2c7f0f7e5eff73c0ced05f4ef9dc5bb181eb01b4f6b20e5803d1",
+    "eventAtUtc": [
+      "2026-11-01T20:50:01.7627129Z",
+      "2026-11-01T20:50:01.7647124Z"
+    ],
+    "eventPidAttributionProven": false,
+    "furtherValidationSuspended": true,
+    "independentStaticReview": "CLEAN limited to root routes and profiles; full SelfTest validation gap unresolved; no native qualification",
+    "userArbitrationRequiredBeforeResumption": true
   }
 }

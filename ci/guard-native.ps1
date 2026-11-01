@@ -313,10 +313,21 @@ function Assert-NvidiaSmiDiagnosticProfile([object]$Profile, [switch]$VerifyInst
 function Resolve-LotRoot([string]$Path) {
     $full = if ([IO.Path]::IsPathRooted($Path)) { Get-FullPath $Path } else { Get-FullPath (Join-Path $script:Repo $Path) }
     if (-not (Test-InRoot $full $script:Repo)) { throw "Lot root must stay inside this candidate worktree: $full" }
-    $expected = Get-FullPath (Join-Path $script:Repo 'target\n2-native')
-    if ($full -ine $expected) { throw "N2 lot root must be the exact candidate-local root: $expected" }
-    Assert-NoReparseChain $full 'N2 lot root'
+    $n2Root = Get-FullPath (Join-Path $script:Repo 'target\n2-native')
+    $mainFacadesRoot = Get-FullPath (Join-Path $script:Repo 'target\parakeet-tests\main-facades')
+    if ($full -ine $n2Root -and $full -ine $mainFacadesRoot) { throw "Lot root must be the exact candidate-local N2 or main-facades root: $full" }
+    Assert-NoReparseChain $full 'candidate lot root'
     return $full
+}
+
+function Assert-LotRootForProfile([string]$ProfileId, [string]$Lot) {
+    $n2Root = Get-FullPath (Join-Path $script:Repo 'target\n2-native')
+    $mainFacadesRoot = Get-FullPath (Join-Path $script:Repo 'target\parakeet-tests\main-facades')
+    if ($ProfileId -in @('TurboCpuReusableImports','TurboGpuReusableImports')) {
+        if ($Lot -ine $mainFacadesRoot) { throw "Profile $ProfileId requires the exact candidate-local main-facades root: $mainFacadesRoot" }
+        return
+    }
+    if ($Lot -ine $n2Root) { throw "Profile $ProfileId requires the exact candidate-local N2 root: $n2Root" }
 }
 
 function Assert-FreeSpace {
@@ -327,9 +338,9 @@ function Assert-FreeSpace {
 
 function Initialize-LotDirectories([string]$Lot) {
     foreach ($path in @($Lot,(Join-Path $Lot 'runs'),(Join-Path $Lot 'logs'),(Join-Path $Lot 'cargo-home'),(Join-Path $Lot 'temp'),(Join-Path $Lot 'tmp'))) {
-        Assert-NoReparseChain $path 'N2 write root'
+        Assert-NoReparseChain $path 'candidate lot write root'
         New-Item -ItemType Directory -Path $path -Force | Out-Null
-        Assert-NoReparseChain $path 'N2 write root'
+        Assert-NoReparseChain $path 'candidate lot write root'
     }
 }
 
@@ -561,9 +572,9 @@ function Copy-ProfileStaging([object]$Profile, [object]$ValuesDoc, [string]$Loca
 
 function Assert-CampaignRoots([string]$Lot, [string]$RunRoot, [hashtable]$Environment) {
     if (-not (Test-InRoot $Lot $script:Repo)) { throw 'Lot root escaped the candidate worktree.' }
-    if (-not (Test-InRoot $RunRoot $Lot)) { throw 'Run root escaped the N2 lot.' }
+    if (-not (Test-InRoot $RunRoot $Lot)) { throw 'Run root escaped the candidate lot.' }
     Assert-NoReparseChain $script:Repo 'candidate worktree'
-    Assert-NoReparseChain $Lot 'N2 lot root'
+    Assert-NoReparseChain $Lot 'candidate lot root'
     Assert-NoReparseChain $script:CargoTarget 'shared Cargo target'
     if (-not (Test-Path -LiteralPath $script:CargoTarget -PathType Container)) { throw "Canonical shared Cargo target is missing: $script:CargoTarget" }
     foreach ($name in @('CARGO_HOME','TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME')) {
@@ -1496,6 +1507,58 @@ function Invoke-StagingSelfTests([string]$Lot) {
 }
 
 function Invoke-SelfTests([object]$Registry, [string]$Lot) {
+    $rootFixture = Join-Path $Lot ('selftest-lot-roots-' + [guid]::NewGuid().ToString('N'))
+    $savedRepo = $script:Repo
+    $lotRootEvidence = $null
+    try {
+        $script:Repo = $rootFixture
+        $syntheticN2Root = Get-FullPath (Join-Path $script:Repo 'target\n2-native')
+        $syntheticMainFacadesRoot = Get-FullPath (Join-Path $script:Repo 'target\parakeet-tests\main-facades')
+        New-Item -ItemType Directory -Path (Split-Path -Parent $syntheticN2Root),(Split-Path -Parent $syntheticMainFacadesRoot) -Force | Out-Null
+        if ((Resolve-LotRoot 'target\n2-native') -ine $syntheticN2Root -or (Resolve-LotRoot 'target\parakeet-tests\main-facades') -ine $syntheticMainFacadesRoot) { throw 'Exact candidate lot roots did not resolve canonically.' }
+        Assert-LotRootForProfile 'TurboCpuReusableImports' $syntheticMainFacadesRoot
+        Assert-LotRootForProfile 'TurboGpuReusableImports' $syntheticMainFacadesRoot
+        Assert-LotRootForProfile 'PreparationNoRun' $syntheticN2Root
+        foreach ($profileId in @('TurboCpuReusableImports','TurboGpuReusableImports')) {
+            Test-Rejects "$profileId with N2 root" { Assert-LotRootForProfile $profileId $syntheticN2Root }
+        }
+        Test-Rejects 'non-reusable profile with main-facades root' { Assert-LotRootForProfile 'TurboCpuLive' $syntheticMainFacadesRoot }
+        Test-Rejects 'unapproved candidate lot root' { Resolve-LotRoot 'target\parakeet-tests\other' }
+        $junctionTarget = Join-Path $rootFixture 'reparse-target'
+        $junctionParent = Join-Path $script:Repo 'target\parakeet-tests'
+        New-Item -ItemType Directory -Path $junctionTarget -Force | Out-Null
+        $junctionPath = Join-Path $junctionParent 'main-facades'
+        New-Item -ItemType Junction -Path $junctionPath -Target $junctionTarget -ErrorAction Stop | Out-Null
+        Test-Rejects 'reparse main-facades lot root' { Resolve-LotRoot 'target\parakeet-tests\main-facades' }
+        $lotRootEvidence = [pscustomobject]@{ mainFacadesProfiles=@('TurboCpuReusableImports','TurboGpuReusableImports'); n2Profiles='all other registered profiles'; rejected=@('reusable profile with N2 root','non-reusable profile with main-facades root','unapproved candidate root','reparse main-facades root') }
+    } finally {
+        $script:Repo = $savedRepo
+        $junctionPath = Join-Path (Join-Path $rootFixture 'target\parakeet-tests') 'main-facades'
+        if (Test-Path -LiteralPath $junctionPath) { Remove-Item -LiteralPath $junctionPath -Force -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $rootFixture) { Remove-Item -LiteralPath $rootFixture -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+    $expectedReusableCases = @{
+        TurboCpuReusableImports = @(
+            'worker_contract|turbo_reusable_import_contract',
+            'worker_contract|reusable_imports::cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache',
+            'reusable_imports|cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache'
+        )
+        TurboGpuReusableImports = @('worker_contract|turbo_reusable_import_contract')
+    }
+    foreach ($profileId in @('TurboCpuReusableImports','TurboGpuReusableImports')) {
+        $profile = Get-Profile $Registry $profileId
+        $expectedPackage = if ($profileId -ceq 'TurboCpuReusableImports') { 'whisper-worker-cpu' } else { 'whisper-worker-gpu' }
+        if ($profile.package -cne $expectedPackage -or $profile.features.Count -ne 1 -or $profile.features[0] -cne "$expectedPackage/native-tests" -or @($profile.compileEnvironment).Count -ne 0) { throw "Reusable profile package/feature contract is unexpected: $profileId" }
+        if (@($profile.cases).Count -ne $expectedReusableCases[$profileId].Count) { throw "Reusable profile case count differs: $profileId" }
+        for ($caseIndex = 0; $caseIndex -lt @($profile.cases).Count; $caseIndex++) {
+            $case = @($profile.cases)[$caseIndex]
+            $expected = [string]$expectedReusableCases[$profileId][$caseIndex]
+            $actual = [string]$case.targetName + '|' + [string]$case.exactTest
+            if ($case.targetKind -cne 'integration' -or $actual -cne $expected -or $case.ignored -or $case.verdict -cne 'QUALIFICATION') { throw "Reusable profile selector differs from the authorized case set: $profileId / $actual" }
+            $args = New-CargoArguments $profile $case
+            if ($args -notcontains [string]$case.exactTest -or $args -contains '--ignored') { throw "Reusable profile selector command is malformed: $profileId / $($case.exactTest)" }
+        }
+    }
     $positive = Convert-StringArrayToJson @('cargo','test')
     $roundTrip = Convert-JsonStringArray $positive 'self-test argv'
     if ($roundTrip.Count -ne 2 -or $roundTrip[0] -cne 'cargo' -or $roundTrip[1] -cne 'test') { throw 'ARGV JSON multi-value roundtrip failed.' }
@@ -1541,7 +1604,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     Test-Rejects 'multiple executed tests in exact output' { Get-TestBodyEvidence $fixtureCase 0 @('test capture::tests::synthetic_body ... ok','test capture::tests::extra ... ok','test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out') }
     Test-Rejects 'nonzero test process exit' { Get-TestBodyEvidence $fixtureCase 23 $validOutput }
     $receiptEvidence = Invoke-InvocationReceiptSelfTest $Lot
-    Test-Rejects 'pending profile without selectors' { Get-Profile $Registry 'TurboCpu' }
+    Test-Rejects 'pending profile without selectors' { Get-Profile $Registry 'ParakeetCpu' }
     Assert-ExactTestSelector 'capture::tests::native_wasapi_input_catalog_has_stable_parseable_ids'
     Test-Rejects 'profile with broad wildcard selector' { Assert-ExactTestSelector '*' }
     Test-Rejects 'path traversal outside lot' { Assert-PathUnder (Join-Path $Lot '..\outside') $Lot 'self-test path' }
@@ -1761,12 +1824,13 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         r3TestBodyParser = @('one-line test output PASS','multiline WASAPI inventory output PASS','multiline WASAPI capture output PASS','distinct NO_RUN_PASS/LIST_PASS','diagnostic body remains DIAGNOSTIC_ONLY','rejected ignored-only','rejected wrong test','rejected incomplete summary','rejected multiple bodies','rejected nonzero exit')
         r4InvocationReceipts = $receiptEvidence
         discoveryArgv = @('PreparationNoRun','InventoryList','WasapiInventory','WasapiCapture')
+        lotRootPolicy = $lotRootEvidence
         staging = $stagingEvidence
         watcherAndRoots = @('allowed in-lot event','disallowed external event','Temp UNATTRIBUTED','cross-boundary rename rejected','watcher error rejected','live FileSystemWatcher observed in-lot marker')
     }
-    $selfTestPath = Join-Path (Join-Path $Lot 'logs') 'guard-selftest-correction2.json'
+    $selfTestPath = Join-Path (Join-Path $Lot 'logs') 'guard-selftest-reusable-roots.json'
     $selfTestEvidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $selfTestPath -Encoding UTF8
-    "PASS native guard self-tests: exact NVIDIA DryRun argv without VsDevCmd, command pin, synthetic diagnostic success/provider-error/launch-error receipts, multiple watcher violations plus WatcherError cleanup, stdout/stderr capture, stream cleanup, and existing N2 guard fixtures; evidence=$selfTestPath; no Cargo/native diagnostic command started."
+    "PASS native guard self-tests: exact NVIDIA DryRun argv without VsDevCmd, command pin, synthetic diagnostic success/provider-error/launch-error receipts, multiple watcher violations plus WatcherError cleanup, stdout/stderr capture, stream cleanup, profile-bound N2/main-facades roots and existing guard fixtures; evidence=$selfTestPath; no Cargo/native diagnostic command started."
 }
 
 function Get-GitDiffIdentity {
@@ -1780,8 +1844,8 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
     $script:RunRoot = Join-Path (Join-Path $Lot 'runs') $runId
     $script:LogRoot = Join-Path (Join-Path $Lot 'logs') $runId
     foreach ($root in @($script:RunRoot,$script:LogRoot)) {
-        if (-not (Test-InRoot $root $Lot)) { throw "Generated output escaped N2 lot: $root" }
-        Assert-NoReparseChain $root 'generated N2 output root'
+        if (-not (Test-InRoot $root $Lot)) { throw "Generated output escaped candidate lot: $root" }
+        Assert-NoReparseChain $root 'generated campaign output root'
         if (Test-Path -LiteralPath $root) { throw "Generated N2 run path already exists: $root" }
     }
     if (-not $DryRunOnly) {
@@ -1817,11 +1881,13 @@ try {
     Assert-FreeSpace
 
     if ($Mode -eq 'SelfTest') {
+        if ($script:Lot -ine (Get-FullPath (Join-Path $script:Repo 'target\n2-native'))) { throw 'Guard self-tests must use the exact candidate-local N2 root.' }
         Initialize-LotDirectories $script:Lot
         Invoke-SelfTests $registry $script:Lot
         exit 0
     }
     $profile = Get-Profile $registry $Profile
+    Assert-LotRootForProfile $profile.id $script:Lot
     if ($Mode -eq 'List' -and $profile.operation -cne 'List') { throw "Profile $Profile does not define a List operation." }
     if ($Mode -eq 'Run' -and $profile.operation -eq 'List') { throw 'Use -Mode List for the InventoryList profile.' }
     if ($Mode -eq 'Preflight' -and $profile.operation -eq 'Run' -and @($profile.cases).Count -eq 0) { throw "Profile $Profile has no exact case selectors." }

@@ -1,6 +1,6 @@
-Avancée : comparaisons live Turbo CPU/GPU réussies ; 35 corps ciblés PASS distincts et un diagnostic encodeur.
-Blocage : campagne complète incomplète : NVML, corpus historique manquant et racines imposées par les recettes réutilisables.
-Décision : aucune fusion ; une racine native supplémentaire précise serait nécessaire pour quatre cas réutilisables.
+Avancée : racine des quatre cas réutilisables préparée ; cache de 29 662 fichiers copié et vérifié, statique relue.
+Blocage : auto-test complet arrêté pendant la copie concurrente ; quatre nouveaux tests natifs non lancés.
+Décision : reprise de validation suspendue à arbitrage ; 35 corps ciblés PASS acquis, aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -233,3 +233,19 @@ Quatre identités restent préparables si leur racine imposée est autorisée : 
 Ces corps exigent un WORK_ROOT sous **`C:/dev/whisper/.wt/r8/target/parakeet-tests/main-facades/`**, que la garde refuse actuellement comme LotRoot. Une évolution ciblée pourrait autoriser cette seule racine canonique supplémentaire pour les seuls nouveaux profils réutilisables CPU/GPU, tout en maintenant `target/n2-native` pour les autres profils. RunRoot, TEMP/TMP, USERPROFILE et LOCALAPPDATA resteraient sous ce lot ; la cible Cargo partagée et les contrôles de chemins, environnement, surveillance et arrêt resteraient identiques. Aucun lien de contournement ni modification des assertions Rust.
 
 Cette proposition exige un accord sur la **nouvelle racine native d'écriture** et sur les deux fichiers N2 `ci/guard-native.ps1`/`ci/native-profiles.json`, puis auto-tests, revue indépendante (deux cycles maximum) et quatre exécutions. Le cache hors ligne existant à recopier vers le nouveau CARGO_HOME mesure **763 831 148 octets, 29 662 fichiers** ; les références figées, candidats et modèle existants restent des entrées en lecture. Aucun de ces changements, copies ou tests n'est engagé avant accord. Les blocages NVML, FR87/FR27 et les autres recettes historiques restent séparés ; la condition de fusion complète verte n'est toujours pas satisfaite. `main` reste à `248f8679`.
+
+## Racine réutilisable autorisée, validation suspendue
+
+Accord reçu : **« Oui, autoriser cette racine et les quatre tests »**. Le parent prépare le seul nouveau lot `C:/dev/whisper/.wt/r8/target/parakeet-tests/main-facades/`, ses requêtes et son CARGO_HOME. Copie hors ligne terminée : **29 662 fichiers, 763 831 148 octets**, SHA source/copie/post-source tous conformes, source intacte, aucun Cargo exécuté. Aucun modèle ni fichier installé copié ou modifié.
+
+L'implémenteur limite la nouvelle racine aux deux profils `TurboCpuReusableImports` (trois identités CPU) et `TurboGpuReusableImports` (une GPU) ; les autres profils restent à N2. WORK_ROOT, temporaires et sorties restent sous le RunRoot du lot correspondant ; la cible Cargo partagée ne change pas. JSON, syntaxe et diff sont valides ; les assertions exact-root, mauvais profil/racine, racine arbitraire et reparse ont été franchies dans l'auto-test. Le candidat est figé : garde SHA `eb05147e8842c5263ded5a69ec60f5225f40e56f75cdba35036cbaab988be332`, registre `7daa0320b2f8da5ddaa314af660ebdf93ea935c1f83682907a7f2a173281d9a2`.
+
+**L'auto-test complet n'est pas PASS.** La première tentative a rencontré une attente ancienne à mettre à jour pendant l'implémentation ; après correction, la seconde a été lancée alors que la copie du cache par le parent était encore active. La surveillance d'un processus PowerShell synthétique du diagnostic, autorisée seulement sous N2 et cargo-shared, observe des événements Changed/Created sous le nouveau cache `main-facades` à **20:50:01 UTC** et arrête ce sous-test. Le séquencement aurait dû être copie terminée, puis validation. Les chemins coïncident avec la copie autorisée en cours ; le journal ne prouve pas une attribution PID. Aucune écriture interdite n'est déduite de ce seul rapprochement, et le refus de surveillance n'est pas neutralisé pour obtenir un succès.
+
+Journal conservé avant toute reprise : `resources/reusable-root-selftest-abort/guard-events.jsonl`, SHA `b839d87e03ef2c7f0f7e5eff73c0ced05f4ef9dc5bb181eb01b4f6b20e5803d1`. Aucun Cargo, worker, modèle ni outil NVIDIA réel n'a été lancé dans ce complément. La copie autorisée a ensuite terminé ; aucun auto-test n'a été relancé après cet arrêt.
+
+Revue indépendante en lecture seule : **CLEAN limité aux routes et profils statiques**, base `7d0922a3`, sans constat de code. Écart explicite : auto-test complet non réussi, garde globale et qualification native **non validées**. Les quatre sélecteurs et WORK_ROOT correspondent aux sources ; ce verdict ne lève pas l'arrêt de validation. Cycle de revue 1 sur 2 pour ce complément ; aucune correction de garde proposée contre l'événement concurrent.
+
+Preuves consolidées **révision 8**, **454 entrées relues et vérifiées**, dont **446 précédentes conservées à l'identique**, SHA archive `7adb73415355cad87cf4b32a776d547159b9b75b0d79c11cb352a8a4c7b51f01`. Révision 7 dans Git à `7d0922a3`. Neuf fichiers de bilan/preuves ; espace libre après conservation environ **120,56 milliards d'octets**. Les 35 corps PASS précédents et le diagnostic encodeur restent acquis ; les quatre réutilisables sont **NOT RUN**. Aucun push ni fusion.
+
+Reprise à arbitrer selon l'arrêt sur échec de garde d'AGENTS.md : cache désormais achevé, relancer une seule fois les auto-tests complets sans copie concurrente, fermer l'écart avec le même reviewer, préflights puis quatre tests sous garde si les contrôles passent. Aucun autre changement de code, de racine ou de périmètre n'est demandé ; aucun début de campagne native n'est annoncé avant ces gates.

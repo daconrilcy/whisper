@@ -290,6 +290,56 @@
       ]
     },
     {
+      "id": "TurboCpuReusableImports",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-worker-cpu",
+      "features": ["whisper-worker-cpu/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [
+        {"key":"referenceExe","environmentVariable":"WHISPER_TEST_REFERENCE_EXE","kind":"file"},
+        {"key":"candidateExe","environmentVariable":"WHISPER_TEST_WORKER_EXE","kind":"file"},
+        {"key":"model","environmentVariable":"WHISPER_TEST_REUSE_MODEL","kind":"file"}
+      ],
+      "values": [
+        {"key":"cudaToolkitPath","environmentVariable":"CUDA_PATH","required":true,"kind":"directory","allowedRoot":"cuda-12.9"},
+        {"key":"cudaToolkitVersionedPath","environmentVariable":"CUDA_PATH_V12_9","required":true,"kind":"directory","allowedRoot":"cuda-12.9"},
+        {"key":"libclangPath","environmentVariable":"LIBCLANG_PATH","required":true,"kind":"literal"}
+      ],
+      "outputs": [
+        {"key":"workRoot","environmentVariable":"WHISPER_TEST_WORK_ROOT","kind":"directory","path":"writes/main-facades-work"}
+      ],
+      "cases": [
+        {"targetKind":"integration","targetName":"worker_contract","exactTest":"turbo_reusable_import_contract","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"worker_contract","exactTest":"reusable_imports::cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache","ignored":false,"verdict":"QUALIFICATION"},
+        {"targetKind":"integration","targetName":"reusable_imports","exactTest":"cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache","ignored":false,"verdict":"QUALIFICATION"}
+      ]
+    },
+    {
+      "id": "TurboGpuReusableImports",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-worker-gpu",
+      "features": ["whisper-worker-gpu/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [
+        {"key":"referenceExe","environmentVariable":"WHISPER_TEST_REFERENCE_EXE","kind":"file"},
+        {"key":"candidateExe","environmentVariable":"WHISPER_TEST_WORKER_EXE","kind":"file"},
+        {"key":"model","environmentVariable":"WHISPER_TEST_REUSE_MODEL","kind":"file"}
+      ],
+      "values": [
+        {"key":"cudaToolkitPath","environmentVariable":"CUDA_PATH","required":true,"kind":"directory","allowedRoot":"cuda-12.9"},
+        {"key":"cudaToolkitVersionedPath","environmentVariable":"CUDA_PATH_V12_9","required":true,"kind":"directory","allowedRoot":"cuda-12.9"},
+        {"key":"libclangPath","environmentVariable":"LIBCLANG_PATH","required":true,"kind":"literal"}
+      ],
+      "outputs": [
+        {"key":"workRoot","environmentVariable":"WHISPER_TEST_WORK_ROOT","kind":"directory","path":"writes/main-facades-work"}
+      ],
+      "cases": [
+        {"targetKind":"integration","targetName":"worker_contract","exactTest":"turbo_reusable_import_contract","ignored":false,"verdict":"QUALIFICATION"}
+      ]
+    },
+    {
       "id": "TurboGpuLive",
       "status": "READY",
       "operation": "Run",
