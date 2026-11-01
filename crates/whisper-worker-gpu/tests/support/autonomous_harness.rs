@@ -98,3 +98,8 @@ mod session {
         crate::native_boundary::forbid("session::run_session")
     }
 }
+
+#[test]
+fn negative_probe_native_port_terminates_process_with_78() {
+    let _ = native_ffi::cuda_devices();
+}
