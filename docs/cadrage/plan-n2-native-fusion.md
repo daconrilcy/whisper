@@ -1,6 +1,6 @@
 Avancée : CPU de nouveau réussi ; inventaire réel CUDA/GGML désormais réussi sur la GTX 1080 Ti.
 Blocage : contrôle suivant nvidia-smi en échec 255 avant audio ; campagne arrêtée, 27 cas non exécutés.
-Décision : LIVRÉ AVEC RÉSERVES après le cycle supplémentaire autorisé ; diagnostic précis à arbitrer, aucune fusion.
+Décision : diagnostic et 26 cas indépendants explicitement autorisés ; complément relu CLEAN, aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -122,3 +122,11 @@ Arrêt immédiat sur ce nouvel échec, sans essai Auto, D2 ou autre profil. Le c
 Les 21 ressources runtime et leurs sources restent conformes aux SHA après cet essai. Les preuves consolidées sont actualisées en **révision 2**, sans nouveau fichier de rapport : **79 entrées relues et vérifiées**, dont les **42 entrées précédentes conservées à l'identique**, SHA archive `7043d38c87425c4c01aed3703363d42530bf3aa21ea41b2f8478ad1d9b8c8181`. La révision 1 demeure dans Git au commit `905064ad`. Les archives de découverte, préparation et premier staging restent inchangées. Espace libre après conservation : **136 459 796 480 octets**.
 
 Prochaine étape proposée à arbitrer : un diagnostic borné de la requête NVIDIA exacte sous la garde N2 et le même environnement isolé, avec capture de stdout, stderr et statut (résultat diagnostique, sans verdict de qualification), puis poursuite des **26 cas indépendants** déjà préparés (D2, TurboGpu, politique L2a2, diagnostic encodeur). Le profil d'import GPU reste bloqué ; Auto, placé derrière lui dans ce profil, n'est pas annoncé exécuté. Le complément de diagnostic serait limité aux deux fichiers N2 sous `ci/`, aux requêtes/sorties du lot et aux présents bilan/preuves, sans nouveau rapport, Rust, pilote, SDK, installation, racine d'écriture ou modification des tests/assertions. Il exige un accord précis pour cette étape supplémentaire et la reprise après échec ; aucune préparation de code ni exécution de ce diagnostic n'est engagée sans cet accord.
+
+## Diagnostic borné et reprise indépendante autorisés
+
+Accord reçu : **« Oui, diagnostiquer et poursuivre les cas indépendants »**. Implémentation limitée aux deux fichiers N2 : profil `NvidiaSmiInventoryDiagnostic`, exécutable System32 version `8.17.15.8129`, deux arguments exacts du produit, environnement reconstruit sous RunRoot et surveillance N2 existante. Tout statut du fournisseur est enregistré comme donnée `DIAGNOSTIC_ONLY` ; lancement, capture, délai de 30 s, surveillance et dérive Git restent des échecs de garde. Ce résultat ne vaut aucune qualification GPU.
+
+Deux cycles de revue : ND-R1 corrige le mode à blanc qui appelait le bootstrap Visual Studio ; ND-R2 garantit le nettoyage de toutes les ressources même si le dernier drain de surveillance échoue. Les fixtures PowerShell conservent FAIL et vérifient la fermeture après plusieurs violations synthétiques. **Revue finale CLEAN**, garde SHA `acc1841e6196fbeacfdb160b325ec216b935ce605f0082e16c7be5c7cddb2a51`, registre `f762d2ce2ace957dbf6f2ab7fec9a28debfd8628f0a413ed9bde40502312a742`. Auto-tests, syntaxe, JSON, préflight et mode à blanc parent : code 0, sans commande NVIDIA/Cargo native. Aucun autre profil modifié.
+
+L'environnement reconstruit suit les mêmes règles que le parent Cargo ; il ne prouve pas l'identité avec toutes les variables et chemins qu'ajoute Cargo à son processus de test. Le diagnostic conserve cette limite. Après lui, les profils indépendants autorisés sont CampaignPolicies, ManualDiagnostic, TurboGpu et D2, arrêt au premier nouvel échec. Le profil d'import GPU/Auto n'est pas relancé dans ce complément.

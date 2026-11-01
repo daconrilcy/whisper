@@ -247,6 +247,25 @@
       "cases": [
         {"targetKind":"integration","targetName":"whisper-worker-cpu","exactTest":"encoder::tests::capture_encoder_baseline","ignored":true,"verdict":"DIAGNOSTIC_ONLY"}
       ]
+    },
+    {
+      "id": "NvidiaSmiInventoryDiagnostic",
+      "status": "READY",
+      "operation": "Diagnostic",
+      "package": "whisper-adapters",
+      "features": [],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [
+        {"key":"cudaToolkitPath","environmentVariable":"CUDA_PATH","required":true,"kind":"directory","allowedRoot":"cuda-12.9"},
+        {"key":"cudaToolkitVersionedPath","environmentVariable":"CUDA_PATH_V12_9","required":true,"kind":"directory","allowedRoot":"cuda-12.9"}
+      ],
+      "outputs": [],
+      "cases": [],
+      "command": {
+        "executable": "C:/Windows/System32/nvidia-smi.exe",
+        "arguments": ["--query-gpu=count,pci.bus_id,uuid","--format=csv,noheader,nounits"]
+      }
     }
   ]
 }

@@ -205,7 +205,7 @@ function Get-ProfileRegistry {
     $profileSet = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($profile in @($registry.profiles)) {
         if ($profile.id -notmatch '^[A-Za-z][A-Za-z0-9]{0,47}$' -or -not $profileSet.Add([string]$profile.id)) { throw "Invalid or duplicate profile id: $($profile.id)" }
-        if ($profile.operation -notin @('NoRun','List','Run')) { throw "Unsupported operation for profile $($profile.id)." }
+        if ($profile.operation -notin @('NoRun','List','Run','Diagnostic')) { throw "Unsupported operation for profile $($profile.id)." }
         if ($profile.status -notin @('READY','DISCOVERY_PENDING')) { throw "Unsupported status for profile $($profile.id)." }
         if ($profile.package -cne 'workspace' -and -not $packageSet.Contains([string]$profile.package)) { throw "Unapproved package for profile $($profile.id): $($profile.package)" }
         foreach ($feature in @($profile.features)) { if (-not $featureSet.Contains([string]$feature)) { throw "Unapproved feature '$feature' in profile $($profile.id)." } }
@@ -267,6 +267,10 @@ function Get-ProfileRegistry {
             if ($profile.id -ceq 'ManualDiagnostic' -and $case.verdict -cne 'DIAGNOSTIC_ONLY') { throw 'ManualDiagnostic cannot be reported as a qualification.' }
         }
         if ($profile.status -ceq 'READY' -and $profile.operation -eq 'Run' -and @($profile.cases).Count -eq 0) { throw "Runnable profile $($profile.id) has no exact selectors." }
+        if ($profile.operation -ceq 'Diagnostic') {
+            Assert-NvidiaSmiDiagnosticProfile $profile
+            if (@($profile.cases).Count -ne 0 -or @($profile.inputs).Count -ne 0 -or @($profile.outputs).Count -ne 0) { throw 'NVIDIA diagnostic profile cannot declare Cargo selectors, inputs, or outputs.' }
+        }
         if ($profile.status -ceq 'DISCOVERY_PENDING' -and @($profile.cases).Count -gt 0) { throw "Pending profile $($profile.id) must not contain provisional selectors." }
     }
     return $registry
@@ -278,6 +282,32 @@ function Get-Profile([object]$Registry, [string]$Id) {
     if ($matches.Count -ne 1) { throw "Unknown native profile: $Id" }
     if ($matches[0].status -cne 'READY') { throw "Native profile $Id is pending exact test discovery; it cannot run yet." }
     return $matches[0]
+}
+
+function Assert-NvidiaSmiDiagnosticProfile([object]$Profile, [switch]$VerifyInstalledExecutable) {
+    $expectedExe = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
+    $configuredExe = Get-FullPath ([string]$Profile.command.executable)
+    $expectedArgs = @('--query-gpu=count,pci.bus_id,uuid','--format=csv,noheader,nounits')
+    if ($Profile.id -cne 'NvidiaSmiInventoryDiagnostic' -or $configuredExe -ine $expectedExe) { throw 'NVIDIA diagnostic executable must be the pinned System32 nvidia-smi.exe.' }
+    if ($VerifyInstalledExecutable) {
+        if (-not (Test-Path -LiteralPath $expectedExe -PathType Leaf)) { throw "Pinned System32 nvidia-smi.exe is missing: $expectedExe" }
+        $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($expectedExe).FileVersion
+        if ($version -cne '8.17.15.8129') { throw "Pinned System32 nvidia-smi.exe version differs from 8.17.15.8129: $version" }
+    }
+    $actualArgs = @($Profile.command.arguments | ForEach-Object { [string]$_ })
+    if ($actualArgs.Count -ne $expectedArgs.Count -or [string]::Join("`n",$actualArgs) -cne [string]::Join("`n",$expectedArgs)) { throw 'NVIDIA diagnostic argv differs from the exact source command.' }
+    $expectedValues = @(
+        [pscustomobject]@{key='cudaToolkitPath';environmentVariable='CUDA_PATH';kind='directory';allowedRoot='cuda-12.9'},
+        [pscustomobject]@{key='cudaToolkitVersionedPath';environmentVariable='CUDA_PATH_V12_9';kind='directory';allowedRoot='cuda-12.9'}
+    )
+    $actualValues = @($Profile.values)
+    if ($actualValues.Count -ne $expectedValues.Count) { throw 'NVIDIA diagnostic must declare only the two bounded CUDA 12.9 paths.' }
+    for ($index = 0; $index -lt $expectedValues.Count; $index++) {
+        foreach ($name in @('key','environmentVariable','kind','allowedRoot')) {
+            if ([string]$actualValues[$index].$name -cne [string]$expectedValues[$index].$name) { throw 'NVIDIA diagnostic CUDA environment descriptors differ from the bounded CUDA 12.9 contract.' }
+        }
+        if (-not [bool]$actualValues[$index].required) { throw 'NVIDIA diagnostic CUDA path descriptors must be required.' }
+    }
 }
 
 function Resolve-LotRoot([string]$Path) {
@@ -1170,6 +1200,186 @@ function Invoke-OneCargoCase([object]$Profile, [object]$Case, [object]$Environme
     }
 }
 
+function Invoke-NvidiaSmiDiagnostic([object]$Profile, [object]$Environment, [hashtable]$VsEnvironment, [object]$Toolchain, [string]$RunRoot, [string]$LogRoot, [bool]$DryRun, [switch]$SyntheticSelfTest, [string]$TestExecutable, [string[]]$TestArguments, [switch]$InjectWatcherFailure) {
+    if ($SyntheticSelfTest) {
+        $executable = Get-FullPath $TestExecutable
+        $arguments = @($TestArguments)
+        $hostPowerShell = Get-FullPath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')
+        $missingRunExe = (Test-InRoot $executable $RunRoot) -and -not (Test-Path -LiteralPath $executable)
+        if ($arguments.Count -lt 1 -or ($executable -ine $hostPowerShell -and -not $missingRunExe)) { throw 'Synthetic diagnostic process fixture is invalid.' }
+    } else {
+        Assert-NvidiaSmiDiagnosticProfile $Profile -VerifyInstalledExecutable
+        $executable = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
+        $arguments = @('--query-gpu=count,pci.bus_id,uuid','--format=csv,noheader,nounits')
+    }
+    $argvJson = Convert-StringArrayToJson $arguments
+    $stableArgs = Convert-JsonStringArray $argvJson 'pinned NVIDIA diagnostic argv'
+    if ($stableArgs.Count -ne $arguments.Count -or [string]::Join("`n",$stableArgs) -cne [string]::Join("`n",$arguments)) { throw 'NVIDIA diagnostic argv JSON round-trip changed the pinned arguments.' }
+    $caseId = 'nvidia-smi-query-gpu'
+    $stdoutPath = Join-Path $LogRoot ($caseId + '.stdout.log')
+    $stderrPath = Join-Path $LogRoot ($caseId + '.stderr.log')
+    $invocationPath = Join-Path $LogRoot ($caseId + '.invocation.json')
+    if ($DryRun) {
+        Write-Host "DRY_RUN profile=$($Profile.id) exe=$executable argv=$argvJson cwd=$script:Repo"
+        return [pscustomobject]@{ case=$caseId; executable=$executable; argvJson=$argvJson; exitCode=$null; status='DRY_RUN'; stdout=$stdoutPath; stderr=$stderrPath }
+    }
+
+    $started = [DateTimeOffset]::UtcNow
+    $executableVersion = if (Test-Path -LiteralPath $executable -PathType Leaf) { [Diagnostics.FileVersionInfo]::GetVersionInfo($executable).FileVersion } else { 'UNAVAILABLE_SYNTHETIC' }
+    $record = [ordered]@{
+        schemaVersion = 1
+        profile = [string]$Profile.id
+        operation = 'Diagnostic'
+        case = $caseId
+        executable = $executable
+        executableVersion = $executableVersion
+        argvJson = $argvJson
+        cwd = $script:Repo
+        runRoot = $RunRoot
+        result = 'PENDING'
+        exitCode = $null
+        elapsedSeconds = $null
+        classification = 'DIAGNOSTIC_ONLY'
+        syntheticSelfTest = [bool]$SyntheticSelfTest
+        syntheticWatcherFailure = [bool]$InjectWatcherFailure
+        syntheticWatcherEvents = if ($InjectWatcherFailure) { @('Created','Created','WatcherError') } else { @() }
+        stdout = $stdoutPath
+        stderr = $stderrPath
+        failure = $null
+    }
+    $record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $invocationPath -Encoding UTF8
+    $invocation = [pscustomobject]@{
+        executable=$executable; arguments=$stableArgs; environment=$Environment; vsEnvironment=$VsEnvironment
+        toolchain=$Toolchain; runRoot=$RunRoot; logRoot=$LogRoot; caseId=$caseId
+        stdoutPath=$stdoutPath; stderrPath=$stderrPath; invocationPath=$invocationPath
+        record=$record; started=$started; injectWatcherFailure=[bool]$InjectWatcherFailure
+    }
+    return Invoke-WatchedDiagnosticProcess $invocation
+}
+
+function Invoke-WatchedDiagnosticProcess([object]$Invocation) {
+    $psi = New-CargoProcessInfo $Invocation.toolchain.cargo $Invocation.toolchain.rustc $Invocation.toolchain.toolchainBin $Invocation.arguments $Invocation.environment $Invocation.vsEnvironment $Invocation.runRoot
+    $psi.FileName = $Invocation.executable
+    $psi.Arguments = [string]::Join(' ',[string[]]@($Invocation.arguments | ForEach-Object { Get-WindowsCommandLineArgument ([string]$_) }))
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $psi
+    $stdoutQueue = [Collections.Concurrent.ConcurrentQueue[object]]::new()
+    $allowedRoots = @($script:Lot,$script:CargoTarget)
+    $userTemp = Get-FullPath (Join-Path $env:LOCALAPPDATA 'Temp')
+    $protectedRoots = @((Join-Path $env:USERPROFILE '.cargo'),(Join-Path $env:LOCALAPPDATA 'Whisper'))
+    $watchState = $null; $streamCapture = $null; $stdoutWriter = $null; $stderrWriter = $null
+    $stdoutLines = [Collections.Generic.List[string]]::new(); $stderrLines = [Collections.Generic.List[string]]::new()
+    $stdoutEof = $false; $stderrEof = $false; $processStarted = $false; $exitCode = $null
+    $beforeGit = Get-GitState $script:Repo
+    try {
+        $watchState = Start-WatchState (Get-RunWatchSpecs $script:Lot)
+        if ($Invocation.injectWatcherFailure) {
+            foreach ($eventPath in @((Join-Path $script:Repo 'outside-synthetic-a'),(Join-Path $script:Repo 'outside-synthetic-b'))) {
+                $watchState.queue.Enqueue([pscustomobject]@{path=$eventPath;old_path='';type='Created';at=[DateTimeOffset]::UtcNow.ToString('o');detail='synthetic cleanup self-test'})
+            }
+            $watchState.queue.Enqueue([pscustomobject]@{path='';old_path='';type='WatcherError';at=[DateTimeOffset]::UtcNow.ToString('o');detail='synthetic cleanup self-test'})
+        }
+        $streamCapture = Register-ProcessStreamHandlers $process $stdoutQueue
+        $stdoutWriter = [IO.StreamWriter]::new($Invocation.stdoutPath,$false,$script:Utf8NoBom)
+        $stderrWriter = [IO.StreamWriter]::new($Invocation.stderrPath,$false,$script:Utf8NoBom)
+        if (-not $process.Start()) { throw 'Pinned nvidia-smi process failed to start.' }
+        $processStarted = $true
+        $process.BeginOutputReadLine(); $process.BeginErrorReadLine()
+        [ordered]@{ processId=$process.Id; startedUtc=$Invocation.started.ToString('o'); executable=$Invocation.executable; case=$Invocation.caseId } | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $Invocation.logRoot ($Invocation.caseId + '.process.json')) -Encoding UTF8
+        $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+        while (-not $process.HasExited) {
+            Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $Invocation.logRoot
+            Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $stderrLines ([ref]$stdoutEof) ([ref]$stderrEof)
+            if ([DateTimeOffset]::UtcNow -ge $deadline) { throw 'Pinned nvidia-smi command exceeded its 30 second deadline.' }
+            Start-Sleep -Milliseconds 50
+        }
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
+        $streamDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+        while (-not ($stdoutEof -and $stderrEof)) {
+            Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $Invocation.logRoot
+            Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $stderrLines ([ref]$stdoutEof) ([ref]$stderrEof)
+            if ([DateTimeOffset]::UtcNow -ge $streamDeadline) { throw 'NVIDIA diagnostic stdout/stderr capture did not reach EOF before its 10 second deadline.' }
+            Start-Sleep -Milliseconds 20
+        }
+        Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $Invocation.logRoot
+        Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $stderrLines ([ref]$stdoutEof) ([ref]$stderrEof)
+        $stdoutWriter.Flush(); $stderrWriter.Flush()
+        $afterGit = Get-GitState $script:Repo
+        if ($afterGit.head -cne $beforeGit.head -or $afterGit.status -cne $beforeGit.status) { throw 'Candidate Git HEAD/status changed during NVIDIA diagnostic; campaign stopped.' }
+        Stop-WatchState $watchState
+        Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $Invocation.logRoot
+        $watchState = $null
+        $elapsed = [Math]::Round(([DateTimeOffset]::UtcNow - $Invocation.started).TotalSeconds,3)
+        $Invocation.record.result = 'DIAGNOSTIC_ONLY'; $Invocation.record.exitCode = $exitCode; $Invocation.record.elapsedSeconds = $elapsed
+        $Invocation.record.stdoutLines = $stdoutLines.Count; $Invocation.record.stderrLines = $stderrLines.Count
+        $Invocation.record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $Invocation.invocationPath -Encoding UTF8
+        return [pscustomobject]@{ case=$Invocation.caseId; executable=$Invocation.executable; exitCode=$exitCode; status='DIAGNOSTIC_ONLY'; elapsedSeconds=$elapsed; stdout=$Invocation.stdoutPath; stderr=$Invocation.stderrPath; invocation=$Invocation.invocationPath }
+    } catch {
+        if ($processStarted -and $null -ne $process -and -not $process.HasExited) { Stop-CargoProcessTree $process }
+        $Invocation.record.result = 'FAIL'; $Invocation.record.exitCode = $exitCode
+        $Invocation.record.elapsedSeconds = [Math]::Round(([DateTimeOffset]::UtcNow - $Invocation.started).TotalSeconds,3)
+        $Invocation.record.failure = $_.Exception.Message
+        $Invocation.record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $Invocation.invocationPath -Encoding UTF8
+        throw
+    } finally {
+        $cleanupState = [pscustomobject]@{
+            watchState=$watchState; allowedRoots=$allowedRoots; protectedRoots=$protectedRoots; userTemp=$userTemp
+            process=$process; logRoot=$Invocation.logRoot; stdoutWriter=$stdoutWriter; stderrWriter=$stderrWriter
+            streamCapture=$streamCapture; record=$Invocation.record; invocationPath=$Invocation.invocationPath
+        }
+        $cleanupResult = Complete-DiagnosticProcessCleanup $cleanupState
+        if ($cleanupResult.errors.Count -gt 0) { throw ([string]::Join('; ',$cleanupResult.errors)) }
+    }
+}
+
+function Complete-DiagnosticProcessCleanup([object]$State) {
+    $errors = [Collections.Generic.List[string]]::new()
+    $evidence = [ordered]@{watchStopped=$false;watchersDisposed=$false;watcherHandlersRemoved=$false;stdoutDisposed=$false;stderrDisposed=$false;streamHandlersRemoved=$false;processStopped=$false;processDisposed=$false}
+    if ($null -ne $State.watchState) {
+        try { Stop-WatchState $State.watchState; $evidence.watchStopped=$true } catch { $errors.Add("watch stop: $($_.Exception.Message)") }
+        try { Drain-WatcherEvents $State.watchState $State.allowedRoots $State.protectedRoots $State.userTemp $State.process $Mode $State.logRoot } catch { $errors.Add("watch drain: $($_.Exception.Message)") }
+        $watchersDisposed=$true
+        foreach ($watcher in @($State.watchState.watchers)) { try { $watcher.EnableRaisingEvents=$false; $watcher.Dispose() } catch { $watchersDisposed=$false; $errors.Add("watcher dispose: $($_.Exception.Message)") } }
+        $evidence.watchersDisposed=$watchersDisposed
+        $handlersRemoved=$true
+        foreach ($sourceId in @($State.watchState.subscriptions)) {
+            try { Get-Event -SourceIdentifier ([string]$sourceId) -ErrorAction SilentlyContinue | Remove-Event -ErrorAction SilentlyContinue } catch { $handlersRemoved=$false; $errors.Add("watch event removal: $($_.Exception.Message)") }
+            try { Unregister-Event -SourceIdentifier ([string]$sourceId) -ErrorAction SilentlyContinue; Get-Job -Name ([string]$sourceId) -ErrorAction SilentlyContinue | Remove-Job -Force -ErrorAction SilentlyContinue } catch { $handlersRemoved=$false; $errors.Add("watch handler removal: $($_.Exception.Message)") }
+            if (@(Get-EventSubscriber -SourceIdentifier ([string]$sourceId) -ErrorAction SilentlyContinue).Count -gt 0 -or @(Get-Job -Name ([string]$sourceId) -ErrorAction SilentlyContinue).Count -gt 0) { $handlersRemoved=$false; $errors.Add("watch handler remains: $sourceId") }
+        }
+        $evidence.watcherHandlersRemoved=$handlersRemoved
+    }
+    if ($null -ne $State.stdoutWriter) { try { $State.stdoutWriter.Dispose(); $evidence.stdoutDisposed=$true } catch { $errors.Add("stdout dispose: $($_.Exception.Message)") } }
+    if ($null -ne $State.stderrWriter) { try { $State.stderrWriter.Dispose(); $evidence.stderrDisposed=$true } catch { $errors.Add("stderr dispose: $($_.Exception.Message)") } }
+    try {
+        Remove-ProcessStreamHandlers $State.streamCapture
+        if ($null -ne $State.streamCapture) { Assert-NoProcessStreamHandlers $State.streamCapture }
+        $evidence.streamHandlersRemoved=$true
+    } catch {
+        $errors.Add("stream cleanup: $($_.Exception.Message)")
+        if ($null -ne $State.streamCapture) {
+            foreach ($sourceId in @($State.streamCapture.sourceIds)) { try { Unregister-Event -SourceIdentifier ([string]$sourceId) -ErrorAction SilentlyContinue } catch { } }
+            foreach ($job in @($State.streamCapture.jobs)) { try { if ($null -ne $job) { Remove-Job -Job $job -Force -ErrorAction SilentlyContinue } } catch { } }
+        }
+    }
+    try {
+        if (-not $State.process.HasExited) { Stop-CargoProcessTree $State.process }
+        if (-not $State.process.HasExited) { $State.process.Kill(); $State.process.WaitForExit() }
+        $evidence.processStopped=[bool]$State.process.HasExited
+        if (-not $evidence.processStopped) { $errors.Add('process remained active during cleanup') }
+    } catch { $errors.Add("process stop: $($_.Exception.Message)") }
+    try { $State.process.Dispose(); $evidence.processDisposed=$true } catch { $errors.Add("process dispose: $($_.Exception.Message)") }
+    $State.record.cleanup=$evidence
+    if ($errors.Count -gt 0) {
+        $State.record.result='FAIL'
+        $cleanupMessage='Diagnostic cleanup failed: ' + [string]::Join('; ',$errors.ToArray())
+        $State.record.failure=if ([string]::IsNullOrWhiteSpace([string]$State.record.failure)) { $cleanupMessage } else { [string]$State.record.failure + '; ' + $cleanupMessage }
+    }
+    try { $State.record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $State.invocationPath -Encoding UTF8 } catch { $errors.Add("failure receipt write: $($_.Exception.Message)") }
+    return [pscustomobject]@{errors=@($errors.ToArray());cleanup=$evidence}
+}
+
 function Test-Rejects([string]$Name, [scriptblock]$Action) {
     $rejected = $false
     try { & $Action } catch { $rejected = $true }
@@ -1384,6 +1594,107 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     $streamNormal = Invoke-ProcessStreamProbe '0'
     $streamFailure = Invoke-ProcessStreamProbe '23'
     if (-not $streamNormal.subscriptionsAndJobsRemoved -or -not $streamFailure.subscriptionsAndJobsRemoved) { throw 'Synthetic process stream cleanup did not verify empty subscription/job state.' }
+    $nvidiaDiagnosticProfile = Get-Profile $Registry 'NvidiaSmiInventoryDiagnostic'
+    Assert-NvidiaSmiDiagnosticProfile $nvidiaDiagnosticProfile -VerifyInstalledExecutable
+    $badDiagnosticProfile = ConvertFrom-Json (ConvertTo-Json -InputObject $nvidiaDiagnosticProfile -Depth 10)
+    $badDiagnosticProfile.command.arguments[0] = '--query-gpu=everything'
+    Test-Rejects 'arbitrary NVIDIA diagnostic argv' { Assert-NvidiaSmiDiagnosticProfile $badDiagnosticProfile }
+    $badDiagnosticProfile = ConvertFrom-Json (ConvertTo-Json -InputObject $nvidiaDiagnosticProfile -Depth 10)
+    $badDiagnosticProfile.command.executable = Join-Path $env:SystemRoot 'System32\where.exe'
+    Test-Rejects 'alternate NVIDIA diagnostic executable' { Assert-NvidiaSmiDiagnosticProfile $badDiagnosticProfile }
+    $dryRunManifestPath = Join-Path (Join-Path $Lot 'logs') 'selftest-nvidia-diagnostic-dryrun-values.json'
+    $dryRunManifest = [ordered]@{schemaVersion=1;profile='NvidiaSmiInventoryDiagnostic';inputs=@();values=@{cudaToolkitPath='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9';cudaToolkitVersionedPath='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'}}
+    $dryRunManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $dryRunManifestPath -Encoding UTF8
+    try {
+        $dryRunValues = Get-ValuesDocument $dryRunManifestPath $nvidiaDiagnosticProfile
+        $dryRunResult = Get-ProfileResult $nvidiaDiagnosticProfile $dryRunValues $Lot -DryRunOnly
+        $dryRunCase = @($dryRunResult.cases)[0]
+        $expectedDiagnosticArgv = Convert-StringArrayToJson @('--query-gpu=count,pci.bus_id,uuid','--format=csv,noheader,nounits')
+        if ($dryRunResult.status -cne 'DRY_RUN' -or $dryRunCase.argvJson -cne $expectedDiagnosticArgv -or $dryRunCase.executable -ine (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')) { throw 'Diagnostic DryRun did not preserve the exact pinned argv and executable.' }
+        if ((Test-Path -LiteralPath $dryRunResult.runRoot) -or (Test-Path -LiteralPath $dryRunResult.logs)) { throw 'Diagnostic DryRun created a run or log directory.' }
+    } finally { Remove-Item -LiteralPath $dryRunManifestPath -Force -ErrorAction SilentlyContinue }
+    $diagnosticToolchain = Get-CargoExecutable
+    $diagnosticRunRoot = Join-Path $Lot 'runs\selftest-nvidia-diagnostic'
+    $diagnosticLogRoot = Join-Path $Lot 'logs\selftest-nvidia-diagnostic'
+    foreach ($path in @($diagnosticRunRoot,$diagnosticLogRoot)) { New-Item -ItemType Directory -Path $path -Force | Out-Null }
+    foreach ($name in @('temp','tmp','localappdata','appdata')) { New-Item -ItemType Directory -Path (Join-Path $diagnosticRunRoot $name) -Force | Out-Null }
+    $diagnosticEnvironment = @{
+        CARGO_HOME = Join-Path $Lot 'cargo-home'; CARGO_TARGET_DIR = $script:CargoTarget
+        CARGO_INCREMENTAL = '0'; CARGO_PROFILE_DEV_DEBUG = 'line-tables-only'
+        TEMP = Join-Path $diagnosticRunRoot 'temp'; TMP = Join-Path $diagnosticRunRoot 'tmp'
+        LOCALAPPDATA = Join-Path $diagnosticRunRoot 'localappdata'; APPDATA = Join-Path $diagnosticRunRoot 'appdata'
+        USERPROFILE = $diagnosticRunRoot; HOME = $diagnosticRunRoot
+        CUDA_PATH = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'
+        CUDA_PATH_V12_9 = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'
+    }
+    $diagnosticVsEnvironment = @{ PATH='C:\ambient-tool;C:\Program Files\CMake\bin'; INCLUDE='C:\vs\include'; LIB='C:\vs\lib' }
+    $syntheticPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    foreach ($scenario in @(
+        [pscustomobject]@{name='success';exit=0},
+        [pscustomobject]@{name='provider-error';exit=23}
+    )) {
+        $scriptText = "[Console]::Out.WriteLine('N2_DIAGNOSTIC_STDOUT'); [Console]::Error.WriteLine('N2_DIAGNOSTIC_STDERR'); exit $($scenario.exit)"
+        $encodedScript = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($scriptText))
+        $syntheticArgs = @('-NoLogo','-NoProfile','-NonInteractive','-EncodedCommand',$encodedScript)
+        $scenarioRun = Join-Path $diagnosticRunRoot $scenario.name
+        $scenarioLogs = Join-Path $diagnosticLogRoot $scenario.name
+        foreach ($path in @($scenarioRun,$scenarioLogs)) { New-Item -ItemType Directory -Path $path -Force | Out-Null }
+        foreach ($name in @('temp','tmp','localappdata','appdata')) { New-Item -ItemType Directory -Path (Join-Path $scenarioRun $name) -Force | Out-Null }
+        $scenarioEnvironment = @{} + $diagnosticEnvironment
+        foreach ($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME')) {
+            $scenarioEnvironment[$name] = Join-Path $scenarioRun $name.ToLowerInvariant()
+            if ($name -in @('TEMP','TMP','LOCALAPPDATA','APPDATA')) { New-Item -ItemType Directory -Path $scenarioEnvironment[$name] -Force | Out-Null }
+        }
+        $beforeDiagnosticSubscribers = @((Get-EventSubscriber -ErrorAction SilentlyContinue | Where-Object { $_.SourceIdentifier -like 'n2-*' } | ForEach-Object { [string]$_.SourceIdentifier }) | Sort-Object)
+        $beforeDiagnosticJobs = @((Get-Job -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'n2-*' } | ForEach-Object { [string]$_.InstanceId }) | Sort-Object)
+        $diagnosticEvidence = Invoke-NvidiaSmiDiagnostic $nvidiaDiagnosticProfile $scenarioEnvironment $diagnosticVsEnvironment $diagnosticToolchain $scenarioRun $scenarioLogs $false -SyntheticSelfTest -TestExecutable $syntheticPowerShell -TestArguments $syntheticArgs
+        if ($diagnosticEvidence.status -cne 'DIAGNOSTIC_ONLY' -or [int]$diagnosticEvidence.exitCode -ne [int]$scenario.exit) { throw "Synthetic diagnostic $($scenario.name) lost its provider exit status or data-only classification." }
+        $receipt = Get-Content -LiteralPath $diagnosticEvidence.invocation -Raw | ConvertFrom-Json -ErrorAction Stop
+        if ($receipt.result -cne 'DIAGNOSTIC_ONLY' -or $receipt.executable -ine $syntheticPowerShell -or [int]$receipt.exitCode -ne [int]$scenario.exit -or $receipt.classification -cne 'DIAGNOSTIC_ONLY') { throw "Synthetic diagnostic $($scenario.name) invocation receipt was incomplete." }
+        if ((Get-Content -LiteralPath $diagnosticEvidence.stdout -Raw) -notmatch 'N2_DIAGNOSTIC_STDOUT' -or (Get-Content -LiteralPath $diagnosticEvidence.stderr -Raw) -notmatch 'N2_DIAGNOSTIC_STDERR') { throw "Synthetic diagnostic $($scenario.name) did not retain both process streams." }
+        $afterDiagnosticSubscribers = @((Get-EventSubscriber -ErrorAction SilentlyContinue | Where-Object { $_.SourceIdentifier -like 'n2-*' } | ForEach-Object { [string]$_.SourceIdentifier }) | Sort-Object)
+        $afterDiagnosticJobs = @((Get-Job -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'n2-*' } | ForEach-Object { [string]$_.InstanceId }) | Sort-Object)
+        if ([string]::Join('|',$beforeDiagnosticSubscribers) -cne [string]::Join('|',$afterDiagnosticSubscribers) -or [string]::Join('|',$beforeDiagnosticJobs) -cne [string]::Join('|',$afterDiagnosticJobs)) { throw "Synthetic diagnostic $($scenario.name) leaked a watcher subscription or process-stream job." }
+    }
+    $launchFailureRun = Join-Path $diagnosticRunRoot 'launch-failure'
+    $launchFailureLogs = Join-Path $diagnosticLogRoot 'launch-failure'
+    foreach ($path in @($launchFailureRun,$launchFailureLogs)) { New-Item -ItemType Directory -Path $path -Force | Out-Null }
+    foreach ($name in @('temp','tmp','localappdata','appdata')) { New-Item -ItemType Directory -Path (Join-Path $launchFailureRun $name) -Force | Out-Null }
+    $launchEnvironment = @{} + $diagnosticEnvironment
+    foreach ($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME')) {
+        $launchEnvironment[$name] = Join-Path $launchFailureRun $name.ToLowerInvariant()
+        if ($name -in @('TEMP','TMP','LOCALAPPDATA','APPDATA')) { New-Item -ItemType Directory -Path $launchEnvironment[$name] -Force | Out-Null }
+    }
+    $launchFailureMessage = $null
+    try { Invoke-NvidiaSmiDiagnostic $nvidiaDiagnosticProfile $launchEnvironment $diagnosticVsEnvironment $diagnosticToolchain $launchFailureRun $launchFailureLogs $false -SyntheticSelfTest -TestExecutable (Join-Path $launchFailureRun 'missing.exe') -TestArguments @('arg') | Out-Null } catch { $launchFailureMessage = $_.Exception.Message }
+    $launchReceiptPath = Join-Path $launchFailureLogs 'nvidia-smi-query-gpu.invocation.json'
+    if (-not (Test-Path -LiteralPath $launchReceiptPath -PathType Leaf)) { throw "Synthetic diagnostic launch did not leave its failure receipt: $launchFailureMessage" }
+    $launchReceipt = Get-Content -LiteralPath $launchReceiptPath -Raw | ConvertFrom-Json -ErrorAction Stop
+    if ($launchReceipt.result -cne 'FAIL' -or [string]::IsNullOrWhiteSpace([string]$launchReceipt.failure)) { throw 'Synthetic diagnostic launch failure did not retain a failed invocation receipt.' }
+    $afterFailureSubscribers = @((Get-EventSubscriber -ErrorAction SilentlyContinue | Where-Object { $_.SourceIdentifier -like 'n2-*' } | ForEach-Object { [string]$_.SourceIdentifier }) | Sort-Object)
+    $afterFailureJobs = @((Get-Job -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'n2-*' } | ForEach-Object { [string]$_.InstanceId }) | Sort-Object)
+    if ($afterFailureSubscribers.Count -gt 0 -or $afterFailureJobs.Count -gt 0) { throw 'Synthetic diagnostic launch failure leaked a watcher subscription or process-stream job.' }
+    $watcherFailureRun = Join-Path $diagnosticRunRoot 'watcher-failure'
+    $watcherFailureLogs = Join-Path $diagnosticLogRoot 'watcher-failure'
+    foreach ($path in @($watcherFailureRun,$watcherFailureLogs)) { New-Item -ItemType Directory -Path $path -Force | Out-Null }
+    foreach ($name in @('temp','tmp','localappdata','appdata')) { New-Item -ItemType Directory -Path (Join-Path $watcherFailureRun $name) -Force | Out-Null }
+    $watcherEnvironment = @{} + $diagnosticEnvironment
+    foreach ($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME')) {
+        $watcherEnvironment[$name] = Join-Path $watcherFailureRun $name.ToLowerInvariant()
+        if ($name -in @('TEMP','TMP','LOCALAPPDATA','APPDATA')) { New-Item -ItemType Directory -Path $watcherEnvironment[$name] -Force | Out-Null }
+    }
+    $watcherFailureMessage = $null
+    try { Invoke-NvidiaSmiDiagnostic $nvidiaDiagnosticProfile $watcherEnvironment $diagnosticVsEnvironment $diagnosticToolchain $watcherFailureRun $watcherFailureLogs $false -SyntheticSelfTest -TestExecutable $syntheticPowerShell -TestArguments $syntheticArgs -InjectWatcherFailure | Out-Null } catch { $watcherFailureMessage = $_.Exception.Message }
+    $watcherFailureReceiptPath = Join-Path $watcherFailureLogs 'nvidia-smi-query-gpu.invocation.json'
+    if (-not (Test-Path -LiteralPath $watcherFailureReceiptPath -PathType Leaf)) { throw "Synthetic watcher violation did not retain a failure receipt: $watcherFailureMessage" }
+    $watcherFailureReceipt = Get-Content -LiteralPath $watcherFailureReceiptPath -Raw | ConvertFrom-Json -ErrorAction Stop
+    if ($watcherFailureReceipt.result -cne 'FAIL' -or -not $watcherFailureReceipt.syntheticWatcherFailure -or [string]::IsNullOrWhiteSpace([string]$watcherFailureReceipt.failure) -or [string]::Join('|',$watcherFailureReceipt.syntheticWatcherEvents) -cne 'Created|Created|WatcherError') { throw 'Synthetic watcher violation sequence was not retained as FAIL.' }
+    foreach ($resource in @('watchersDisposed','watcherHandlersRemoved','stdoutDisposed','stderrDisposed','streamHandlersRemoved','processStopped','processDisposed')) {
+        if (-not [bool]$watcherFailureReceipt.cleanup.$resource) { throw "Synthetic watcher violation left cleanup evidence false for $resource." }
+    }
+    $afterWatcherSubscribers = @((Get-EventSubscriber -ErrorAction SilentlyContinue | Where-Object { $_.SourceIdentifier -like 'n2-*' } | ForEach-Object { [string]$_.SourceIdentifier }) | Sort-Object)
+    $afterWatcherJobs = @((Get-Job -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'n2-*' } | ForEach-Object { [string]$_.InstanceId }) | Sort-Object)
+    if ($afterWatcherSubscribers.Count -gt 0 -or $afterWatcherJobs.Count -gt 0) { throw 'Synthetic watcher violation leaked an event subscription or job.' }
     $beforeStreamSubscribers = @((Get-EventSubscriber -ErrorAction SilentlyContinue | Where-Object { $_.SourceIdentifier -like 'n2-stream-*' } | ForEach-Object { [string]$_.SourceIdentifier }) | Sort-Object)
     $beforeStreamJobs = @((Get-Job -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'n2-stream-*' } | ForEach-Object { [string]$_.InstanceId }) | Sort-Object)
     $partialProcess = New-Object Diagnostics.Process
@@ -1455,7 +1766,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     }
     $selfTestPath = Join-Path (Join-Path $Lot 'logs') 'guard-selftest-correction2.json'
     $selfTestEvidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $selfTestPath -Encoding UTF8
-    "PASS native guard self-tests: R1 profile environment, R2 normal/error PowerShell child stdout/stderr + subscription/job cleanup, R3 one-line and multiline WASAPI test-body fixtures, R4 invocation receipt lifecycle, exact discovery argv, canonical roots, staging SHA/path/capacity fixtures, ambient environment removal, and watcher dispositions; evidence=$selfTestPath; no Cargo/native process started."
+    "PASS native guard self-tests: exact NVIDIA DryRun argv without VsDevCmd, command pin, synthetic diagnostic success/provider-error/launch-error receipts, multiple watcher violations plus WatcherError cleanup, stdout/stderr capture, stream cleanup, and existing N2 guard fixtures; evidence=$selfTestPath; no Cargo/native diagnostic command started."
 }
 
 function Get-GitDiffIdentity {
@@ -1480,6 +1791,12 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
     Assert-CampaignRoots $Lot $script:RunRoot $environment
     $stagingEvidence = if (-not $DryRunOnly) { Copy-ProfileStaging $Profile $ValuesDoc $environment.LOCALAPPDATA $script:RunRoot } else { @() }
     $toolchain = Get-CargoExecutable
+    if ($Profile.operation -ceq 'Diagnostic') {
+        $vsEnvironment = @{}
+        if (-not $DryRunOnly) { $vsEnvironment = Get-VsEnvironment (Get-VsDevCommand) $Environment.TEMP $Environment.TMP $script:RunRoot }
+        $outcome = Invoke-NvidiaSmiDiagnostic $Profile $environment $vsEnvironment $toolchain $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
+        return [pscustomobject]@{ profile=$Profile.id; status=$outcome.status; cases=@($outcome); staging=@($stagingEvidence); runRoot=$script:RunRoot; logs=$script:LogRoot }
+    }
     if ($Profile.operation -ne 'Run') {
         $outcome = Invoke-OneCargoCase $Profile $null $environment @{} $toolchain $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
         return [pscustomobject]@{ profile=$Profile.id; status=$outcome.status; cases=@($outcome); staging=@($stagingEvidence); runRoot=$script:RunRoot; logs=$script:LogRoot }
