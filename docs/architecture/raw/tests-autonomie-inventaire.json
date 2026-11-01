@@ -54619,6 +54619,21 @@
       "target_branch":"refacto/tests-autonomes",
       "proposal":"reprendre les quatre commits positifs, reporter les deux docs, puis NoRun/PE et N1 dans le worktree initial, sous accord distinct"
     },
-    "final_design_review":"PENDING_ON_VERSIONED_UPDATED_REPORT"
+    "final_design_review": {
+      "actor":"/root/r8_design_review",
+      "reviewed_document_commit":"8b1f58db0751d9038d1a254b235faf52f2fddedb",
+      "positive_code_commit":"f2186cb7",
+      "negative_witness_only_commit":"53b5f608",
+      "verdict":"CLEAN",
+      "design_readiness":"READY_WITHIN_DEC_P_R8_01_ACCEPTED_RUNTIME_SCOPE",
+      "closed_conditions":["R8.1","R8.2","R8.3"],
+      "required_findings":[],
+      "independence":"aucune participation à conception/rédaction/correction ; preuves et sources lus personnellement",
+      "personal_checks":"834 identités/73groupes avec multiplicité,686/0/148 ;69NoRun=69PE dans chaque variante,21DLLsystèmes ;7itemspurs et9assertionsconservés ;rejet+GPU78 ;93entréesarchiveSHAconformes",
+      "no_cargo_rustc_or_executable_run":true,
+      "plans_ready_declared":false,
+      "integration_authorized":false,
+      "main_mission_branch_delivered":false
+    }
   }
 }

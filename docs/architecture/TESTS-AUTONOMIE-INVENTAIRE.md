@@ -1,10 +1,14 @@
 Avancée : prototype positif f2186cb7 CLEAN, 686 réussis / 0 échec / 148 ignorés ; témoin négatif accepté, preuves archivées.
-Blocage : aucun pour la faisabilité runtime du prototype ; intégration à refacto/tests-autonomes non autorisée et revue finale du cadrage à constater.
-Décision : proposer DEC-T-R8-01 v2 avec les outils de compilation acceptés ; préserver séparément le positif et la variante négative, sans push ni intégration implicite.
+Blocage : aucun pour le design runtime ; intégration à refacto/tests-autonomes toujours non autorisée.
+Décision : DESIGN READY dans le périmètre accepté, candidat positif et témoin négatif distincts ; soumettre l’intégration des seuls quatre commits positifs.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
 
 ## Bilan du SPIKE — candidat positif et témoin séparé
+
+**Revue finale de faisabilité**, même acteur indépendant `/root/r8_design_review`, documents Git **8b1f58db0751d9038d1a254b235faf52f2fddedb**, positif **f2186cb7** et témoin seul **53b5f608** : **CLEAN — R8.1–R8.3 fermées ; DESIGN READY dans le périmètre DEC-P-R8-01**. Aucun REQUIRED ouvert. Le reviewer a personnellement recompté les listes/identités, les résultats, les correspondances 69 NoRun/69 PE dans les deux variantes, les neuf assertions déplacées et l’archive de 93 entrées. Il conserve son indépendance de conception/rédaction/correction ; aucune commande Cargo/rustc ou exécution par ce reviewer.
+
+Cette clôture ne déclare ni PLANS READY, ni GO d’intégration, ni mission livrée sur refacto/tests-autonomes. Les mentions de revue « à constater » dans l’historique sont remplacées pour le seul design par ce verdict, sans modifier les preuves ou le code. La sonde négative reste strictement hors candidat.
 
 **Candidat positif : f2186cb7.** Le même reviewer Rust déclare **CLEAN pour le candidat positif et SPIKE-POS-1**, après fermeture R8-P1/R8-P2/R8-P3. Il accepte la réutilisation des preuves de 9df93659 après les seuls changements de format/imports de f2186cb7. Le contrôle Fmt final passe, code 0, **1,075 s**, logs `scratch/20261101T113531455-49572a38d7a447eb84d15a770a1725ad/`.
 
