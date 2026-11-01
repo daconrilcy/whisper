@@ -1,0 +1,857 @@
+{
+  "schema": 1,
+  "lot": "R8-FIX",
+  "branch": "fix/r8-worker-cpu-sans-cuda",
+  "head": "5f6b119872ecd08b13c147c891b14e9be5d38172",
+  "sourceChanges": [
+    "ci/check-worker-imports.ps1",
+    "scripts/install-personal.ps1"
+  ],
+  "releaseBuilds": [
+    {
+      "command": "ci/build-workers.ps1 -Worker Cpu",
+      "cargo": "cargo build --offline --locked --release -p whisper-worker-cpu",
+      "cargoSeconds": 38.27,
+      "scriptSeconds": 40.18,
+      "target": "worker-cpu-release",
+      "result": "PASS",
+      "sha256": "eb33d96b57ee47e5dcbe3238467df4f5656d055757374dbff5d58a5f751bbfef",
+      "cudaImports": []
+    },
+    {
+      "command": "ci/build-workers.ps1 -Worker Gpu",
+      "cargo": "cargo build --offline --locked --release -p whisper-worker-gpu",
+      "cargoSeconds": 155,
+      "scriptSeconds": 159.21,
+      "target": "worker-gpu-release",
+      "result": "PASS",
+      "sha256": "5ff4c494b86754d563c5d41cc7cdcd1b2748aed9c9ffa5f929be29973cf6001b",
+      "cudaImports": [
+        "cublas64_12.dll",
+        "cudart64_12.dll",
+        "nvcuda.dll"
+      ]
+    },
+    {
+      "command": "ci/build-workers.ps1 -Worker ParakeetCpu",
+      "cargoSeconds": 8.8,
+      "target": "worker-parakeet-cpu-personal",
+      "output": "whisper-worker-parakeet-cpu.exe",
+      "result": "PASS",
+      "sha256": "c9ba3a74eae6bb987f505d22c38679bea1b2a450dc3aaa67d911946d1b940e2a",
+      "cudaImports": []
+    },
+    {
+      "command": "ci/build-workers.ps1 -Worker ParakeetCpu",
+      "cargoSeconds": 8.48,
+      "target": "worker-parakeet-gpu-personal",
+      "output": "whisper-worker-parakeet-gpu.exe",
+      "result": "PASS",
+      "sha256": "5783f06129dcbaec614ae825df44a3fdbf1002992f788a6b0e45f7756a543eba",
+      "cudaImports": []
+    }
+  ],
+  "testOnlyBuilds": [
+    {
+      "command": "cargo test --offline --locked -p whisper-worker-cpu --no-run",
+      "cargoSeconds": 32.83,
+      "target": "worker-cpu-tests",
+      "peCheckedHarnesses": 5,
+      "cudaImports": []
+    },
+    {
+      "command": "cargo test --offline --locked -p whisper-worker-parakeet-cpu --no-run",
+      "cargoSeconds": 6.93,
+      "target": "worker-parakeet-cpu-tests",
+      "peCheckedHarnesses": 6,
+      "cudaImports": []
+    },
+    {
+      "command": "cargo test --offline --locked -p whisper-worker-common --no-run",
+      "cargoSeconds": 6.8,
+      "target": "worker-common-tests",
+      "peCheckedHarnesses": 1,
+      "cudaImports": []
+    },
+    {
+      "command": "cargo test --offline --locked -p whisper-worker-gpu -- --list",
+      "cargoSeconds": 157,
+      "target": "gpu-list",
+      "peCheckedHarnesses": 4,
+      "gpuProductionExecutableCudaImports": [
+        "cublas64_12.dll",
+        "cudart64_12.dll",
+        "nvcuda.dll"
+      ],
+      "testBodiesExecuted": false
+    }
+  ],
+  "suites": [
+    {
+      "name": "default-members",
+      "command": "cargo test --offline --locked",
+      "target": "n1-default",
+      "runId": "20261101T150947819-aa6105cac70944b295572567756ad3d5",
+      "guardExitCode": 0,
+      "elapsedSeconds": 9.95,
+      "testExecutables": 59,
+      "passed": 616,
+      "failed": 0,
+      "ignored": 121
+    },
+    {
+      "name": "whisper-worker-cpu",
+      "command": "cargo test --offline --locked -p whisper-worker-cpu",
+      "target": "worker-cpu-tests",
+      "runId": "20261101T150959820-5df6c9fad0f84fa79c901b05c6f8cf3d",
+      "guardExitCode": 0,
+      "elapsedSeconds": 7.69,
+      "testExecutables": 4,
+      "passed": 12,
+      "failed": 0,
+      "ignored": 9
+    },
+    {
+      "name": "whisper-worker-parakeet-cpu",
+      "command": "cargo test --offline --locked -p whisper-worker-parakeet-cpu",
+      "target": "worker-parakeet-cpu-tests",
+      "runId": "20261101T151009017-02288fd8836d4286bd1637d5c0775642",
+      "guardExitCode": 0,
+      "elapsedSeconds": 4.53,
+      "testExecutables": 5,
+      "passed": 26,
+      "failed": 0,
+      "ignored": 11
+    },
+    {
+      "name": "whisper-worker-common",
+      "command": "cargo test --offline --locked -p whisper-worker-common",
+      "target": "worker-common-tests",
+      "runId": "20261101T151016531-3a4ba252cf5248f3adbb6f609912b366",
+      "guardExitCode": 0,
+      "elapsedSeconds": 1.78,
+      "testExecutables": 2,
+      "passed": 11,
+      "failed": 0,
+      "ignored": 1
+    }
+  ],
+  "suiteTotals": {
+    "passed": 665,
+    "failed": 0,
+    "ignored": 142,
+    "listedCoverage": 834,
+    "gpuTestBodiesExecuted": false
+  },
+  "binaries": [
+    {
+      "group": "release",
+      "name": "whisper-worker-cpu.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-cpu-release\\release\\whisper-worker-cpu.exe",
+      "kind": "Cpu",
+      "sha256": "eb33d96b57ee47e5dcbe3238467df4f5656d055757374dbff5d58a5f751bbfef",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "ADVAPI32.dll",
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "MSVCP140.dll",
+        "ntdll.dll",
+        "VCRUNTIME140_1.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "release",
+      "name": "whisper-worker-gpu.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-gpu-release\\release\\whisper-worker-gpu.exe",
+      "kind": "Gpu",
+      "sha256": "5ff4c494b86754d563c5d41cc7cdcd1b2748aed9c9ffa5f929be29973cf6001b",
+      "cudaImports": [
+        "cublas64_12.dll",
+        "cudart64_12.dll",
+        "nvcuda.dll"
+      ],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "ADVAPI32.dll",
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "cublas64_12.dll",
+        "cudart64_12.dll",
+        "dxgi.dll",
+        "kernel32.dll",
+        "MSVCP140.dll",
+        "ntdll.dll",
+        "nvcuda.dll",
+        "oleaut32.dll",
+        "setupapi.dll",
+        "user32.dll",
+        "VCRUNTIME140_1.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "release",
+      "name": "whisper-worker-parakeet-cpu.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-parakeet-cpu-personal\\release\\whisper-worker-parakeet-cpu.exe",
+      "kind": "ParakeetCpu",
+      "sha256": "c9ba3a74eae6bb987f505d22c38679bea1b2a450dc3aaa67d911946d1b940e2a",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "kernel32.dll",
+        "ntdll.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "release",
+      "name": "whisper-worker-parakeet-gpu.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-parakeet-gpu-personal\\release\\whisper-worker-parakeet-gpu.exe",
+      "kind": "ParakeetCpu",
+      "sha256": "5783f06129dcbaec614ae825df44a3fdbf1002992f788a6b0e45f7756a543eba",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "kernel32.dll",
+        "ntdll.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "desktop",
+      "name": "whisper-desktop.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\n1-default\\debug\\whisper-desktop.exe",
+      "kind": "Desktop",
+      "sha256": "cc6a7ea16ee358094a7c8b158cae4224fcdff5d6ebf592eb69ab5184ab6e050c",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "advapi32.dll",
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-core-winrt-error-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "combase.dll",
+        "dwmapi.dll",
+        "dxgi.dll",
+        "gdi32.dll",
+        "imm32.dll",
+        "kernel32.dll",
+        "mmdevapi.dll",
+        "ntdll.dll",
+        "ole32.dll",
+        "oleaut32.dll",
+        "OPENGL32.dll",
+        "setupapi.dll",
+        "shell32.dll",
+        "shlwapi.dll",
+        "uiautomationcore.dll",
+        "USER32.dll",
+        "uxtheme.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-cpu-tests",
+      "name": "live_worker-03873451a9923333.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-cpu-tests\\debug\\deps\\live_worker-03873451a9923333.exe",
+      "kind": "Cpu",
+      "sha256": "41e07b8bd00b3e9b15dad5c3b95ae8d680d53abb8fd7bef8a6dd3f98892f5af3",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-cpu-tests",
+      "name": "reusable_imports-bb372a5221bdc73e.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-cpu-tests\\debug\\deps\\reusable_imports-bb372a5221bdc73e.exe",
+      "kind": "Cpu",
+      "sha256": "39c58f4995c672487c47ef3b3b6a8ab1695a785924a1f566b27df333844ad3d4",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-cpu-tests",
+      "name": "whisper_worker_cpu-1d4e9cd3dd64e471.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-cpu-tests\\debug\\deps\\whisper_worker_cpu-1d4e9cd3dd64e471.exe",
+      "kind": "Cpu",
+      "sha256": "ec247e29bbf5c315b16255a4a414534a4ffabff521b10f577aebb2bd19a10278",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-cpu-tests",
+      "name": "whisper_worker_cpu.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-cpu-tests\\debug\\deps\\whisper_worker_cpu.exe",
+      "kind": "Cpu",
+      "sha256": "bf0c447db6631abf7a90bbc419ba96e043f688ea898d27287f53428b73ffaa10",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "ADVAPI32.dll",
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "MSVCP140.dll",
+        "ntdll.dll",
+        "VCRUNTIME140_1.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-cpu-tests",
+      "name": "worker_contract-cbf20450618bfe7c.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-cpu-tests\\debug\\deps\\worker_contract-cbf20450618bfe7c.exe",
+      "kind": "Cpu",
+      "sha256": "ffe75c77d2a86264f8060b9d1972e5c46b0bd186084fce70a20fce6eb8363690",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-parakeet-cpu-tests",
+      "name": "decoder_parity-93e6774a1af7ad59.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-parakeet-cpu-tests\\debug\\deps\\decoder_parity-93e6774a1af7ad59.exe",
+      "kind": "Cpu",
+      "sha256": "4813cdc1342a31009de7336fef1aea2ae496c5c62f4530e11f88f5d89f29c2e6",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-parakeet-cpu-tests",
+      "name": "native_diagnostics_absence-074ef730459ed19a.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-parakeet-cpu-tests\\debug\\deps\\native_diagnostics_absence-074ef730459ed19a.exe",
+      "kind": "Cpu",
+      "sha256": "42393972ed56f972cf3c0692a1942c5c6da682c04dcee99efad5028a1384ccce",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-parakeet-cpu-tests",
+      "name": "native_import-ec738a9280aab92f.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-parakeet-cpu-tests\\debug\\deps\\native_import-ec738a9280aab92f.exe",
+      "kind": "Cpu",
+      "sha256": "1bcc17999f9b96f6283ee7d7bf9858c926ee373ebe3bb0925385d2334b5718a9",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-parakeet-cpu-tests",
+      "name": "whisper_worker_parakeet_cpu-2a55caf9c08ad469.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-parakeet-cpu-tests\\debug\\deps\\whisper_worker_parakeet_cpu-2a55caf9c08ad469.exe",
+      "kind": "Cpu",
+      "sha256": "85f13bd134011f8d0bae3579ca87fc57f76fcb7e91b6db7c012967177049ce08",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "kernel32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-parakeet-cpu-tests",
+      "name": "whisper_worker_parakeet_cpu.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-parakeet-cpu-tests\\debug\\deps\\whisper_worker_parakeet_cpu.exe",
+      "kind": "Cpu",
+      "sha256": "9ca5f3b2c84f8a68c3b48dcfbcccef840a42a5876ba461b11d5f1986c64abd19",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "kernel32.dll",
+        "ntdll.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-parakeet-cpu-tests",
+      "name": "worker_contract-b71e1c9b46750c0a.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-parakeet-cpu-tests\\debug\\deps\\worker_contract-b71e1c9b46750c0a.exe",
+      "kind": "Cpu",
+      "sha256": "e6f5eeaea5b5781223f47e14ac955482225aef17deb5bbdd0b7c0ba76e598ae4",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:worker-common-tests",
+      "name": "whisper_worker_common-a93663e496726dba.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\worker-common-tests\\debug\\deps\\whisper_worker_common-a93663e496726dba.exe",
+      "kind": "Cpu",
+      "sha256": "92c9c26a5558a592084461edef87387c71476b432f5a2682abff1ef7f63b94ac",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:gpu-list",
+      "name": "gpu_selection_native-bd2236912a458334.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\gpu-list\\debug\\deps\\gpu_selection_native-bd2236912a458334.exe",
+      "kind": "Cpu",
+      "sha256": "7a5c97e72f944d79d689d3e44e7a488695f7854839c7537cdae187353b5fb3fc",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:gpu-list",
+      "name": "whisper_worker_gpu-f177614bbff44f43.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\gpu-list\\debug\\deps\\whisper_worker_gpu-f177614bbff44f43.exe",
+      "kind": "Cpu",
+      "sha256": "a4c87a496f3e9cecc05f80971d6094c7ef4d6b1948f6371cff782815e5f7c121",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:gpu-list",
+      "name": "whisper_worker_gpu.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\gpu-list\\debug\\deps\\whisper_worker_gpu.exe",
+      "kind": "Gpu",
+      "sha256": "781dadaf74e110c885d4c110cc8c32125b2531f69464294194d12fc1a141a554",
+      "cudaImports": [
+        "cublas64_12.dll",
+        "cudart64_12.dll",
+        "nvcuda.dll"
+      ],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "ADVAPI32.dll",
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "cublas64_12.dll",
+        "cudart64_12.dll",
+        "dxgi.dll",
+        "KERNEL32.dll",
+        "MSVCP140.dll",
+        "ntdll.dll",
+        "nvcuda.dll",
+        "oleaut32.dll",
+        "setupapi.dll",
+        "user32.dll",
+        "VCRUNTIME140_1.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    },
+    {
+      "group": "harness:gpu-list",
+      "name": "worker_contract-81717676d4bb0827.exe",
+      "path": "C:\\dev\\whisper\\.wt\\r8\\target\\r8-fix\\targets\\gpu-list\\debug\\deps\\worker_contract-81717676d4bb0827.exe",
+      "kind": "Cpu",
+      "sha256": "3adcde981cf1a8703d4c71471a714b308ec9c6430ce75877b0249dde8dba4619",
+      "cudaImports": [],
+      "parserResult": "PASS",
+      "policyResult": "PASS",
+      "imports": [
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "bcryptprimitives.dll",
+        "KERNEL32.dll",
+        "ntdll.dll",
+        "USERENV.dll",
+        "VCRUNTIME140.dll"
+      ],
+      "importScope": "Complete union of direct and delay-load PE import DLL names."
+    }
+  ],
+  "negativeWitness": {
+    "path": "C:\\dev\\whisper\\target\\parakeet-tests\\cargo-shared\\release\\whisper-worker-cpu.exe",
+    "sha256": "67e668ff75c0c59522c1e3cdb3529518938209d962e3c66aa5662bbad7001cf4",
+    "expected": "CPU import policy FAIL",
+    "observed": "FAIL with CUDA imports; rejected by checker and installer isolated self-test"
+  },
+  "correctionSelfTests": [
+    {
+      "command": "ci/guard-level1.ps1 -Mode SelfTest -SelfTest -LotRoot target/r8-fix -ExistingTarget n1-default",
+      "exitCode": 0,
+      "result": "PASS 30 positive, 58 negative; no Cargo"
+    },
+    {
+      "command": "ci/check-worker-imports.ps1 -SelfTest",
+      "exitCode": 0,
+      "result": "PASS direct/delay valid and truncated fixtures, non-PE, real SHA-pinned CPU witness"
+    },
+    {
+      "command": "scripts/install-personal.ps1 -SelfTest",
+      "exitCode": 0,
+      "result": "PASS witness rejected before mutation; compliant candidate accepted; injected post-worker failure and restart recovery restore exact verified prior CUDA snapshot and close transaction; existing interruption cases pass"
+    }
+  ],
+  "priorStops": [
+    {
+      "runId": "20261101T144044837-f74ca7fb35a0498db954357c99386ce8",
+      "outcome": "A build failed with CMake/MSVC FTK1011; measured long path 269 chars; no worker artifact"
+    },
+    {
+      "runId": "20261101T144147252-88648907037f4975af3247e1a4e8fea1",
+      "outcome": "authorized D retry with CUDA_PATH/GGML_* unset failed FTK1011; measured long path 271 chars; no worker artifact"
+    },
+    {
+      "outcome": "first wrapper lost -p before cargo build; metadata-only/preflight; no build"
+    },
+    {
+      "outcome": "first default test argv singleton rejected before Cargo; fixed and covered by guard SelfTest"
+    },
+    {
+      "runId": "20261101T145147266-1b71ca6bb04a4962a160b4e4c38c8437",
+      "outcome": "invalid doubled --list forwarding reported 0 tests; explicitly excluded from 834 comparison"
+    }
+  ],
+  "archive": {
+    "path": "docs/architecture/raw/r8-fix/r8-fix-campaign-logs.zip",
+    "entries": 95,
+    "verifiedEntries": 95,
+    "uncompressedBytes": 1160062,
+    "archiveBytes": 166568,
+    "sha256": "fdfa322bdef001221237cc1a08f3e57262cd37f19f65835c5655d31f8d77c6be",
+    "sourceAndEntrySha256AndSizesMatch": true,
+    "contains": [
+      "old deep-root scratch logs including A/D failures",
+      "short-root Cargo feature, build, listing and suite logs",
+      "post-correction guard/checker/installer self-test logs",
+      "preserved 834-test baseline TestList.stdout.log"
+    ]
+  },
+  "disk": {
+    "initialFreeBytes": 177082441728,
+    "finalFreeBytes": 167954022400,
+    "finalFreeGiB": 156.42,
+    "targetFiles": 12044,
+    "targetBytes": 5889515127,
+    "targetGiB": 5.485,
+    "cargoHomeFiles": 29837,
+    "cargoHomeBytes": 785090324,
+    "targetBreakdown": [
+      {
+        "name": "worker-cpu-release",
+        "files": 1734,
+        "bytes": 347836084
+      },
+      {
+        "name": "worker-gpu-release",
+        "files": 2233,
+        "bytes": 652759744
+      },
+      {
+        "name": "worker-parakeet-cpu-personal",
+        "files": 430,
+        "bytes": 123187050
+      },
+      {
+        "name": "worker-parakeet-gpu-personal",
+        "files": 431,
+        "bytes": 125005693
+      },
+      {
+        "name": "n1-default",
+        "files": 2358,
+        "bytes": 3210838146
+      },
+      {
+        "name": "worker-cpu-tests",
+        "files": 1741,
+        "bytes": 408576426
+      },
+      {
+        "name": "worker-parakeet-cpu-tests",
+        "files": 464,
+        "bytes": 172721017
+      },
+      {
+        "name": "worker-common-tests",
+        "files": 427,
+        "bytes": 140624445
+      },
+      {
+        "name": "gpu-list",
+        "files": 2226,
+        "bytes": 707966522
+      }
+    ]
+  },
+  "environment": {
+    "cargoArgs": "--offline --locked",
+    "cargoHome": "target/r8-fix/cargo-home",
+    "cargoTargetDirPerCommand": "target/r8-fix/targets/<name>",
+    "incremental": "0",
+    "devDebug": "line-tables-only",
+    "temp": "target/r8-fix/temp/temp",
+    "tmp": "target/r8-fix/temp/tmp",
+    "whisperAndParakeetVariablesClearedByGuard": true,
+    "cudaPathAndGgmlUnsetForNormalSuites": false,
+    "unassignedWindowsTempEvents": "logged per N1 rules, not interpreted as proof of no writes"
+  },
+  "notRun": [
+    "no production worker executable launched",
+    "no model inference",
+    "no native test bodies",
+    "no GPU test bodies; GPU command was --list only",
+    "no real installation or copy to installation path",
+    "no Windows GUI validation"
+  ],
+  "archiveEntriesVerified": true,
+  "fullPeVerification": {
+    "count": 21,
+    "allSha256Matched": true,
+    "allVerdicts": "PASS",
+    "command": "pwsh -NoProfile -File ci/check-worker-imports.ps1 -Kind <from results.binaries> -Path <each results.binaries.path>"
+  }
+}

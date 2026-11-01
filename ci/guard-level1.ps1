@@ -4,13 +4,24 @@ param(
     [switch]$SelfTest,
     [switch]$DryRun,
     [string]$FreshTarget,
+    [string]$ExistingTarget,
     [string[]]$UnsetEnv = @(),
     [string[]]$CargoArgs = @(),
+    [string]$CargoArgsJson,
     [string]$LotRoot = 'target/parakeet-tests/garde-n1-categories'
 )
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
+function Convert-CargoArgsJson([string]$Json) {
+    $parsed = ConvertFrom-Json -InputObject $Json
+    if ($parsed -is [string]) { return ,([string[]]@($parsed)) }
+    if ($parsed -isnot [array] -or @($parsed | Where-Object { $_ -isnot [string] }).Count -gt 0) {
+        throw '-CargoArgsJson must be a JSON array of strings.'
+    }
+    return ,([string[]]$parsed)
+}
+
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $lotRoot = Join-Path $repo $LotRoot
 $cargoRoot = 'C:\dev\whisper\target\parakeet-tests\cargo-shared'
@@ -20,6 +31,11 @@ $scratchRoot = Join-Path $lotRoot 'scratch'
 $runRoot = $null
 $utf8NoBom = [Text.UTF8Encoding]::new($false)
 $allowedUnsetPatterns = @('^CUDA_PATH$', '^CUDA_PATH_V.*$', '^GGML_.*$', '^WHISPER_.*$', '^PARAKEET_.*$')
+
+if ($CargoArgsJson) {
+    if ($CargoArgs.Count -gt 0) { throw 'Use either -CargoArgs or -CargoArgsJson, not both.' }
+    $CargoArgs = Convert-CargoArgsJson $CargoArgsJson
+}
 
 function Get-FullPath([string]$Path) { [IO.Path]::GetFullPath($Path).TrimEnd('\') }
 
@@ -60,6 +76,14 @@ function Get-FreshTargetPath([string]$Root, [string]$Name) {
     if ($Name -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') { throw '-FreshTarget accepts a simple name only.' }
     $path = Join-Path $Root (Join-Path 'targets' $Name)
     if (-not (Test-InRoot $path $Root)) { throw '-FreshTarget escaped the lot root.' }
+    return $path
+}
+
+function Get-ExistingTargetPath([string]$Root, [string]$Name) {
+    $path = Get-FreshTargetPath $Root $Name
+    if (-not (Test-Path -LiteralPath $path -PathType Container)) { throw "Existing target does not exist: $path" }
+    Assert-NoReparseChain $path 'existing target'
+    if (-not (Test-InRoot $path $Root)) { throw 'Existing target escaped its lot root.' }
     return $path
 }
 
@@ -113,9 +137,15 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
     $features = [Collections.Generic.List[string]]::new()
     $release = $false
     $noRun = $false
+    $list = $false
     for ($i = 1; $i -lt $normalizedArgs.Count; $i++) {
         $arg = $normalizedArgs[$i]
-        if ($arg -eq '--') { throw 'Arguments after -- are not allowed.' }
+        if ($arg -eq '--') {
+            if ($sub -ne 'test' -or $i -ne ($normalizedArgs.Count - 2) -or $normalizedArgs[$i + 1] -cne '--list') { throw 'Only cargo test -- --list is allowed after --.' }
+            $list = $true
+            $i++
+            continue
+        }
         if ($arg -in @('--fix','--allow-dirty','--all-features','--ignored','--include-ignored','--config','-Z','--target-dir','--workspace-dir','--all','--examples','--example','--benches','--bench','--bins','--bin','--tests','--doc','--no-default-features')) { throw "Cargo option is not allowed: $arg" }
         if ($arg -match '^--(fix|allow-dirty|all-features|ignored|include-ignored|config|target-dir)(=|$)' -or $arg -match '^-Z') { throw "Cargo option is not allowed: $arg" }
         if ($arg -eq '--manifest-path') {
@@ -190,6 +220,8 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
         throw "Unrecognized Cargo argument: $arg"
     }
     if ($sub -eq 'test') {
+        if ($list -and $noRun) { throw 'cargo test --no-run cannot be combined with --list.' }
+        if (-not $list -and $packages -contains 'whisper-worker-gpu') { throw 'Direct whisper-worker-gpu tests are level 2; only -- --list is allowed through level 1.' }
         if ($noRun -and ($hasWorkspace -or $packages.Count -gt 0)) { $category = 'Compilation' }
         elseif ($noRun) { throw 'cargo test --no-run requires --workspace or -p.' }
     } elseif ($noRun) { throw '--no-run is only allowed with cargo test.' }
@@ -197,7 +229,6 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
     if ($sub -eq 'metadata' -and ($release -or $noRun)) { throw 'cargo metadata accepts only its allowlisted options.' }
     Assert-AllowedFeatures $features.ToArray() $release
     if ($sub -in @('check','build','clippy') -and -not ($hasWorkspace -or $packages.Count -gt 0)) { throw "$sub requires --workspace or one or more -p members." }
-    if ($sub -eq 'test' -and -not ($hasWorkspace -or $packages.Count -gt 0)) { throw 'test requires --workspace or one or more -p members.' }
     if ($sub -in $readCommands -and ($hasWorkspace -or $packages.Count -gt 0)) { }
     foreach ($package in $packages) { if ($package -cnotin $Members) { throw "Unknown workspace package: $package" } }
     $result = [Collections.Generic.List[string]]::new()
@@ -294,7 +325,9 @@ function Initialize-Roots {
 }
 
 function Invoke-SelfTests {
-    $members = @('whisper-core','whisper-worker-cpu','whisper-worker-gpu')
+    $members = @('whisper-core','whisper-worker-common','whisper-worker-cpu','whisper-worker-gpu','whisper-worker-parakeet-cpu')
+    $singletonJsonArgs = @(Convert-CargoArgsJson '["test"]')
+    if ($singletonJsonArgs.Count -ne 1 -or $singletonJsonArgs[0] -cne 'test') { throw 'Self-test did not preserve a singleton JSON Cargo argv.' }
     $positive = @(
         @('tree','-p','whisper-worker-cpu','-e','features','-i','whisper-rs-sys'),
         @('metadata','--format-version','1'),
@@ -305,6 +338,9 @@ function Invoke-SelfTests {
         @('build','-p','whisper-worker-cpu'),
         @('test','--no-run','-p','whisper-worker-cpu'),
         @('test','--workspace'),
+        @('test'),
+        @('test','--','--list'),
+        @('test','-p','whisper-worker-common','--','--list'),
         @('clippy','--workspace','--all-targets'),
         @('check','--workspace','--release')
     )
@@ -325,7 +361,31 @@ function Invoke-SelfTests {
     $negative += ,@('tree','--workspace','--release')
     $negative += ,@('check','--workspace','--all-targets')
     $negative += ,@('test','--workspace','-i','features')
-    $pCount = 0
+    $negative += ,@('test','--workspace','--no-run','--','--list')
+    $negative += ,@('test','-p','whisper-worker-cpu','--','--ignored')
+    $negative += ,@('test','-p','whisper-worker-cpu','--','--list','--exact')
+    $negative += ,@('test','-p','whisper-worker-gpu')
+    $negative += ,@('test','-p','whisper-worker-gpu','--no-run')
+    $pCount = 1
+    $listCases = @(
+        @{ Args=@('test'); Expected='test --offline --locked'; Category='Tests' },
+        @{ Args=@('test','-p','whisper-worker-cpu','--','--list'); Expected='test --offline --locked -p whisper-worker-cpu -- --list'; Category='Tests' },
+        @{ Args=@('test','-p','whisper-worker-parakeet-cpu','--','--list'); Expected='test --offline --locked -p whisper-worker-parakeet-cpu -- --list'; Category='Tests' },
+        @{ Args=@('test','-p','whisper-worker-common','--','--list'); Expected='test --offline --locked -p whisper-worker-common -- --list'; Category='Tests' },
+        @{ Args=@('test','-p','whisper-worker-gpu','--','--list'); Expected='test --offline --locked -p whisper-worker-gpu -- --list'; Category='Tests' }
+    )
+    foreach ($listCase in $listCases) {
+        $parsedList = Test-CargoArguments $listCase.Args $members
+        if (([string]::Join(' ',$parsedList.Args)) -cne $listCase.Expected -or $parsedList.Category -cne $listCase.Category) {
+            throw "Self-test failed for test argv: $($listCase.Args -join ' ')"
+        }
+        $pCount++
+    }
+    $multiJsonArgs = Convert-CargoArgsJson '["test","-p","whisper-worker-cpu","--","--list"]'
+    if ($multiJsonArgs.Count -ne 5 -or ([string]::Join(' ',$multiJsonArgs)) -cne 'test -p whisper-worker-cpu -- --list') {
+        throw 'Self-test did not preserve a multi-argument JSON Cargo argv.'
+    }
+    $pCount++
     foreach ($case in $positive) { [void](Test-CargoArguments $case $members); $pCount++ }
     $nCount = 0
     foreach ($case in $negative) { $rejected=$false; try { [void](Test-CargoArguments $case $members) } catch { $rejected=$true }; if (-not $rejected) { throw "Self-test accepted: $($case -join ' ')" }; $nCount++ }
@@ -355,6 +415,11 @@ function Invoke-SelfTests {
     try { Assert-NoReparseChain (Split-Path -Parent $fixtureTarget) 'fresh target fixture parent' } catch { $rejected=$true }
     if (-not $rejected) { throw 'Self-test accepted a fresh target parent junction.' }
     $nCount++
+    Initialize-Directory (Join-Path $outsideBase 'junction-target') 'existing target junction fixture'
+    $rejected = $false
+    try { [void](Get-ExistingTargetPath $fixtureLot 'junction-target') } catch { $rejected = $true }
+    if (-not $rejected) { throw 'Self-test accepted an existing target through a junction.' }
+    $nCount++
     foreach ($withFresh in @($false,$true)) {
         $outsideLot = Get-FullPath (Join-Path $repo ('..\garde-n1-selftest-outside-' + [string]$withFresh))
         $rejected=$false
@@ -369,6 +434,18 @@ function Invoke-SelfTests {
     $freshFixturePath = Get-FreshTargetPath $runRoot 'fresh-selftest-target'
     if (-not (Test-InRoot $freshFixturePath $runRoot) -or (Get-FullPath $freshFixturePath) -ieq (Get-FullPath $cargoRoot)) { throw 'Fresh target is not distinct and under the lot root.' }
     $pCount += 2
+    $existingFixtureLot = Join-Path $runRoot 'existing-fixture'
+    Initialize-Directory $existingFixtureLot 'existing target fixture lot root'
+    $existingFixturePath = Join-Path $existingFixtureLot 'targets\existing-target'
+    Initialize-Directory $existingFixturePath 'existing target self-test fixture'
+    if ((Get-FullPath (Get-ExistingTargetPath $existingFixtureLot 'existing-target')) -ine (Get-FullPath $existingFixturePath)) { throw 'Existing target selection returned a different path.' }
+    $nCount++
+    foreach ($badExisting in @('..\outside','missing-target')) {
+        $rejected = $false
+        try { [void](Get-ExistingTargetPath $existingFixtureLot $badExisting) } catch { $rejected = $true }
+        if (-not $rejected) { throw "Self-test accepted invalid existing target: $badExisting" }
+        $nCount++
+    }
     $savedVariables = @{}
     try {
         foreach ($name in @('WHISPER_N1_REVIEW','PARAKEET_N1_REVIEW','RUSTFLAGS')) { $savedVariables[$name] = [Environment]::GetEnvironmentVariable($name) }
@@ -419,11 +496,13 @@ Assert-AllowedUnset $UnsetEnv
 $lotRoot = Resolve-LotRoot $LotRoot
 if ((Get-PSDrive -Name C).Free -lt 30GB) { throw 'C: has less than 30 GiB free; campaign setup is forbidden.' }
 if ($FreshTarget) {
+    if ($ExistingTarget) { throw 'Choose either -FreshTarget or -ExistingTarget, not both.' }
     $script:targetRoot = Get-FreshTargetPath $lotRoot $FreshTarget
     if (Test-Path -LiteralPath $script:targetRoot) { throw "Fresh target already exists: $script:targetRoot" }
     if (-not (Test-InRoot $script:targetRoot $lotRoot)) { throw 'Fresh target escaped the lot root.' }
     Assert-NoReparseChain (Split-Path -Parent $script:targetRoot) 'fresh target parent'
-} else { $script:targetRoot = $cargoRoot }
+} elseif ($ExistingTarget) { $script:targetRoot = Get-ExistingTargetPath $lotRoot $ExistingTarget }
+else { $script:targetRoot = $cargoRoot }
 if ($Mode -eq 'Structure' -and $CargoArgs.Count -gt 0) { throw 'Structure mode does not accept Cargo arguments.' }
 Initialize-Roots
 Set-CleanEnvironment

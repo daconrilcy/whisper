@@ -32,6 +32,8 @@ Le niveau 1 valide les catégories suivantes par une liste d’autorisation ; to
 | Compilation | `check`, `build`, `test --no-run`, `clippy` | `--workspace`, un ou plusieurs `-p <membre>`, `--release` autorisés |
 | Tests | `test` | sans `--ignored`, `--include-ignored`, `--features native-tests` |
 
+Suite de référence niveau 1 pour les tests CPU sans CUDA : `cargo test` (membres par défaut), `cargo test -p whisper-worker-cpu`, `cargo test -p whisper-worker-parakeet-cpu` et `cargo test -p whisper-worker-common`. Chaque sélection worker passe d’abord le contrôle PE sur ses harnais ; les inventaires utilisent le suffixe explicite `-- --list`, autorisé par la garde. Le GPU est niveau 2 : `cargo test -p whisper-worker-gpu -- --list` sert seulement à comparer les identités et son corps de tests ne s’exécute pas dans la campagne niveau 1. `cargo test --workspace` reste une commande permise, mais n’est plus la référence niveau 1.
+
 Paramètres de chaque appel :
 - Racine de lot explicitement contrôlée dans le worktree ; `CARGO_HOME`, `TEMP`, `TMP` et `LOCALAPPDATA` canoniquement isolés ; contrôle des jonctions et liens, espace libre minimal de 30 Gio.
 - `CARGO_TARGET_DIR` : cible partagée existante `C:/dev/whisper/target/parakeet-tests/cargo-shared/`, ou répertoire **neuf** sous la racine du lot via `-FreshTarget <nom>`. Pour le niveau 1, cette possibilité prévaut sur l’exigence historique de cible unique ci-dessous.

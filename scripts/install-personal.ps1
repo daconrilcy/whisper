@@ -11,6 +11,9 @@ $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $lot = Join-Path $repo 'target\parakeet-tests\l6-perso'
 $cargo = Join-Path $repo 'target\parakeet-tests\cargo-shared\release'
+$workerBuildRoot = Join-Path $repo 'target\r8-fix\targets'
+$workerChecker = Join-Path $repo 'ci\check-worker-imports.ps1'
+$powerShell = (Get-Process -Id $PID).Path
 $artifactRoot = Join-Path $lot 'artifacts'
 $modelSource = Join-Path $repo 'models'
 $logs = Join-Path $lot 'logs'
@@ -39,6 +42,20 @@ function Assert-PathInside([string]$Path, [string]$Root) {
 
 function Copy-Verified([string]$Source, [string]$Destination, [string]$ExpectedSha) {
     if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) { throw "Missing local source: $Source" }
+    $kind = switch ([IO.Path]::GetFileName($Source).ToLowerInvariant()) {
+        'whisper-desktop.exe' { 'Desktop' }
+        'whisper-worker-cpu.exe' { 'Cpu' }
+        'whisper-worker-gpu.exe' { 'Gpu' }
+        'whisper-worker-parakeet-cpu.exe' { 'ParakeetCpu' }
+        'whisper-worker-parakeet-gpu.exe' { 'ParakeetCpu' }
+        default { $null }
+    }
+    if ($kind) {
+        if (-not (Test-Path -LiteralPath $script:workerChecker -PathType Leaf)) { throw "Worker PE import checker is missing: $script:workerChecker" }
+        & $script:powerShell -NoProfile -File $script:workerChecker -Kind $kind -Path $Source
+        $checkExit = $LASTEXITCODE
+        if ($checkExit -ne 0) { throw "Worker PE import gate failed for $Source, exit $checkExit." }
+    }
     $sourceSha = Get-Sha $Source
     if ($sourceSha -ne $ExpectedSha) { throw "Source SHA mismatch: $Source ($sourceSha)" }
     $parent = Split-Path -Parent $Destination
@@ -46,6 +63,25 @@ function Copy-Verified([string]$Source, [string]$Destination, [string]$ExpectedS
     Copy-Item -LiteralPath $Source -Destination $Destination -Force
     $destinationSha = Get-Sha $Destination
     if ($destinationSha -ne $ExpectedSha) { throw "Copied SHA mismatch: $Destination ($destinationSha)" }
+}
+
+function Assert-WorkerImportsForDelivery([string]$Root) {
+    if (-not (Test-Path -LiteralPath $Root -PathType Container)) { throw "Delivery candidate is missing: $Root" }
+    if (-not (Test-Path -LiteralPath $script:workerChecker -PathType Leaf)) { throw "Worker PE import checker is missing: $script:workerChecker" }
+    $kinds = @{
+        'whisper-desktop.exe' = 'Desktop'
+        'whisper-worker-cpu.exe' = 'Cpu'
+        'whisper-worker-gpu.exe' = 'Gpu'
+        'whisper-worker-parakeet-cpu.exe' = 'ParakeetCpu'
+        'whisper-worker-parakeet-gpu.exe' = 'ParakeetCpu'
+    }
+    $executables = @(Get-ChildItem -LiteralPath $Root -File -Recurse -Force | Where-Object { $kinds.ContainsKey($_.Name.ToLowerInvariant()) })
+    foreach ($executable in $executables) {
+        $kind = $kinds[$executable.Name.ToLowerInvariant()]
+        $output = & $script:powerShell -NoProfile -File $script:workerChecker -Kind $kind -Path $executable.FullName 2>&1
+        $checkExit = $LASTEXITCODE
+        if ($checkExit -ne 0) { throw "Delivery PE import gate failed for $($executable.FullName), exit ${checkExit}: $($output -join ' ')" }
+    }
 }
 
 function Invoke-FailurePoint([string]$Point) {
@@ -159,6 +195,7 @@ function Read-VerifiedBackup([string]$BackupRoot) {
 function Assert-VerifiedBackup([string]$BackupRoot) { $null = Read-VerifiedBackup $BackupRoot }
 
 function Restore-FromBackup([string]$BackupRoot, [string]$RestoreId) {
+    # Recovery restores the exact verified prior snapshot, even when it predates the PE gate.
     $snapshot = Read-VerifiedBackup $BackupRoot
     $restoreRoot = Join-Path (Join-Path $personalRoot '.staging') ".restore-$RestoreId-$([guid]::NewGuid().ToString('N'))"
     Assert-PathInside $restoreRoot (Join-Path $personalRoot '.staging')
@@ -237,6 +274,8 @@ function Recover-InterruptedTransaction {
 }
 
 function Apply-Generation([string]$SourceRoot, $DesiredSnapshot, [string]$RecoveryBackup, [string]$Operation, [string]$Id) {
+    # Validate before creating the transaction journal or touching the active generation.
+    Assert-WorkerImportsForDelivery $SourceRoot
     $transactionPath = Join-Path $personalRoot '.staging\active-transaction.json'
     if (Test-Path -LiteralPath $transactionPath) { throw 'Une transaction active doit être récupérée avant toute nouvelle opération.' }
     $replacementRoot = Join-Path (Join-Path $personalRoot '.staging') ".replacement-$Id-$([guid]::NewGuid().ToString('N'))"
@@ -279,8 +318,23 @@ function New-TestGeneration([string]$Root, [string]$Label) {
     foreach ($path in @('app/whisper-desktop.exe', 'worker/cpu.exe', 'worker/gpu.exe', 'native/cpu.dll', 'native/gpu.dll', 'models/parakeet.gguf', 'settings/settings.json', 'settings/settings.json.bak')) {
         $file = Join-Path $Root $path
         New-Item -ItemType Directory -Path (Split-Path -Parent $file) -Force | Out-Null
-        Set-Content -LiteralPath $file -Value "${Label}:$path" -Encoding ascii
+        if ($path -eq 'app/whisper-desktop.exe') { [IO.File]::WriteAllBytes($file, (New-TestPeFixture)) }
+        else { Set-Content -LiteralPath $file -Value "${Label}:$path" -Encoding ascii }
     }
+}
+
+function New-TestPeFixture {
+    $bytes = [byte[]]::new(0x200)
+    $writer = [IO.BinaryWriter]::new([IO.MemoryStream]::new($bytes, $true))
+    try {
+        $writer.BaseStream.Position = 0; $writer.Write([uint16]0x5a4d)
+        $writer.BaseStream.Position = 0x3c; $writer.Write([uint32]0x80)
+        $writer.BaseStream.Position = 0x80; $writer.Write([uint32]0x00004550); $writer.Write([uint16]0x8664); $writer.Write([uint16]0)
+        $writer.BaseStream.Position = 0x94; $writer.Write([uint16]0xf0)
+        $writer.BaseStream.Position = 0x98; $writer.Write([uint16]0x20b)
+        $writer.BaseStream.Position = 0x98 + 108; $writer.Write([uint32]16)
+    } finally { $writer.Dispose() }
+    return ,$bytes
 }
 
 function Invoke-InstallerSelfTests {
@@ -290,6 +344,72 @@ function Invoke-InstallerSelfTests {
     New-Item -ItemType Directory -Path (Join-Path $personalRoot 'backups') -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $personalRoot '.staging') -Force | Out-Null
     $results = [System.Collections.Generic.List[string]]::new()
+
+    $safeCandidate = Join-Path $selfRoot 'candidate-safe'
+    New-TestGeneration $safeCandidate 'safe'
+    $safeCpu = Join-Path $safeCandidate 'app\whisper-worker-cpu.exe'
+    [IO.File]::WriteAllBytes($safeCpu, (New-TestPeFixture))
+    Assert-WorkerImportsForDelivery $safeCandidate
+    $results.Add('compliant synthetic PE candidate passes the delivery gate')
+
+    $gateActive = Join-Path $selfRoot 'gate-active'
+    $script:personalRoot = $gateActive
+    New-Item -ItemType Directory -Path (Join-Path $gateActive 'backups'), (Join-Path $gateActive '.staging') -Force | Out-Null
+    Copy-ComponentSet $safeCandidate $gateActive
+    $gateRecovery = Join-Path $gateActive 'backups\before-rejected-candidate'
+    $null = New-VerifiedBackup $gateActive $gateRecovery 'before-rejected-candidate'
+    $gateBefore = Get-ComponentSnapshot $gateActive
+    $unsafeCandidate = Join-Path $selfRoot 'candidate-cuda-witness'
+    Copy-ComponentSet $safeCandidate $unsafeCandidate
+    $witnessRoot = Split-Path -Parent (Split-Path -Parent $repo)
+    $negativeWitness = Join-Path $witnessRoot 'target\parakeet-tests\cargo-shared\release\whisper-worker-cpu.exe'
+    if (-not (Test-Path -LiteralPath $negativeWitness -PathType Leaf)) { throw "Installer PE-gate self-test witness is missing: $negativeWitness" }
+    if ((Get-Sha $negativeWitness) -ne '67e668ff75c0c59522c1e3cdb3529518938209d962e3c66aa5662bbad7001cf4') { throw 'Installer PE-gate self-test witness SHA mismatch.' }
+    Copy-Item -LiteralPath $negativeWitness -Destination (Join-Path $unsafeCandidate 'app\whisper-worker-cpu.exe') -Force
+    $unsafeSnapshot = Get-ComponentSnapshot $unsafeCandidate
+    $unsafeRejected = $false
+    try { Apply-Generation $unsafeCandidate $unsafeSnapshot $gateRecovery 'publish' 'reject-cuda-witness' } catch { $unsafeRejected = $true }
+    if (-not $unsafeRejected) { throw 'Installer self-test expected the CUDA-linked CPU witness to be refused.' }
+    Assert-Snapshot $gateActive $gateBefore
+    if (Test-Path -LiteralPath (Join-Path $gateActive '.staging\active-transaction.json')) { throw 'Rejected candidate created an installation transaction before PE validation.' }
+    $results.Add('real CUDA-linked CPU witness rejected before active generation mutation')
+    Apply-Generation $safeCandidate (Get-ComponentSnapshot $safeCandidate) $gateRecovery 'publish' 'accept-safe-candidate'
+    Assert-Snapshot $gateActive (Get-ComponentSnapshot $safeCandidate)
+    $results.Add('compliant candidate passes Apply-Generation through publication path')
+
+    $legacyGeneration = Join-Path $selfRoot 'legacy-cuda-generation'
+    Copy-ComponentSet $safeCandidate $legacyGeneration
+    $negativeWorker = Join-Path $legacyGeneration 'app\whisper-worker-cpu.exe'
+    Copy-Item -LiteralPath $negativeWitness -Destination $negativeWorker -Force
+    $legacySnapshot = Get-ComponentSnapshot $legacyGeneration
+    $legacyActive = Join-Path $selfRoot 'legacy-cuda-active'
+    $script:personalRoot = $legacyActive
+    New-Item -ItemType Directory -Path (Join-Path $legacyActive 'backups'), (Join-Path $legacyActive '.staging') -Force | Out-Null
+    Copy-ComponentSet $legacyGeneration $legacyActive
+    $legacyBackup = Join-Path $legacyActive 'backups\before-compliant-publish'
+    $null = New-VerifiedBackup $legacyActive $legacyBackup 'before-compliant-publish'
+    $script:FailurePoint = 'publish-after:worker'
+    $recoveredFailure = $false
+    try { Apply-Generation $safeCandidate (Get-ComponentSnapshot $safeCandidate) $legacyBackup 'publish' 'recover-legacy-cuda' } catch { $recoveredFailure = $true }
+    $script:FailurePoint = $null
+    if (-not $recoveredFailure) { throw 'Installer self-test expected the injected post-worker publication failure.' }
+    Assert-Snapshot $legacyActive $legacySnapshot
+    if (Test-Path -LiteralPath (Join-Path $legacyActive '.staging\active-transaction.json')) { throw 'Automatic recovery did not close the publication transaction.' }
+    $results.Add('failed publication restores the exact verified legacy CUDA snapshot and closes its transaction')
+
+    $restartActive = Join-Path $selfRoot 'legacy-cuda-restart-active'
+    $script:personalRoot = $restartActive
+    New-Item -ItemType Directory -Path (Join-Path $restartActive 'backups'), (Join-Path $restartActive '.staging') -Force | Out-Null
+    Copy-ComponentSet $safeCandidate $restartActive
+    $restartBackup = Join-Path $restartActive 'backups\before-interrupted-compliant-publish'
+    $null = New-VerifiedBackup $legacyGeneration $restartBackup 'before-interrupted-compliant-publish'
+    Write-AtomicJson (Join-Path $restartActive '.staging\active-transaction.json') ([pscustomobject]@{
+        schema = 1; id = 'interrupted-compliant-publish'; operation = 'publish'; recoveryBackup = $restartBackup
+    })
+    Recover-InterruptedTransaction
+    Assert-Snapshot $restartActive $legacySnapshot
+    if (Test-Path -LiteralPath (Join-Path $restartActive '.staging\active-transaction.json')) { throw 'Startup recovery did not close the interrupted publication transaction.' }
+    $results.Add('restart recovery restores the exact verified legacy CUDA snapshot and closes its transaction')
 
     $old = Join-Path $selfRoot 'old-generation'
     New-TestGeneration $old 'old'
@@ -396,6 +516,7 @@ if ($RollbackId) {
     if ($RollbackId -notmatch '^[A-Za-z0-9._-]+$') { throw 'RollbackId invalide.' }
     $backupRoot = Join-Path $personalRoot "backups\$RollbackId"
     $targetSnapshot = Read-VerifiedBackup $backupRoot
+    Assert-WorkerImportsForDelivery $backupRoot
     $currentBackup = Join-Path $personalRoot "backups\after-rollback-$RollbackId"
     $null = New-VerifiedBackup $personalRoot $currentBackup "after-rollback-$RollbackId"
     Apply-Generation $backupRoot $targetSnapshot $currentBackup 'rollback' $RollbackId
@@ -431,8 +552,8 @@ $gpuDlls = @{
 
 if ($StageOnly) {
     if (Test-Path -LiteralPath $stage) { throw "Staging already exists; refusing overwrite: $stage" }
-    $cpuWorker = Join-Path $artifactRoot 'whisper-worker-parakeet-cpu.exe'
-    $gpuWorker = Join-Path $artifactRoot 'whisper-worker-parakeet-gpu.exe'
+    $cpuWorker = Join-Path $workerBuildRoot 'worker-parakeet-cpu-personal\release\whisper-worker-parakeet-cpu.exe'
+    $gpuWorker = Join-Path $workerBuildRoot 'worker-parakeet-gpu-personal\release\whisper-worker-parakeet-gpu.exe'
     $cpuFrozen = Get-Content (Join-Path $lot 'logs\PersonalCPU-worker-frozen.json') -Raw | ConvertFrom-Json
     $gpuFrozen = Get-Content (Join-Path $lot 'logs\PersonalGPU-worker-frozen.json') -Raw | ConvertFrom-Json
     $stageNew = Join-Path $personalRoot ".staging\$CandidateId"
@@ -445,8 +566,10 @@ if ($StageOnly) {
         Copy-Verified $gpuWorker (Join-Path $stageNew 'worker\whisper-worker-parakeet-gpu.exe') $gpuFrozen.sha256
         $desktopSha = Assert-FinalDesktopBuild
         Copy-Verified (Join-Path $cargo 'whisper-desktop.exe') (Join-Path $stageNew 'app\whisper-desktop.exe') $desktopSha
-        Copy-Verified (Join-Path $cargo 'whisper-worker-cpu.exe') (Join-Path $stageNew 'app\whisper-worker-cpu.exe') (Get-Sha (Join-Path $cargo 'whisper-worker-cpu.exe'))
-        Copy-Verified (Join-Path $cargo 'whisper-worker-gpu.exe') (Join-Path $stageNew 'app\whisper-worker-gpu.exe') (Get-Sha (Join-Path $cargo 'whisper-worker-gpu.exe'))
+        $cpuTurbo = Join-Path $workerBuildRoot 'worker-cpu-release\release\whisper-worker-cpu.exe'
+        $gpuTurbo = Join-Path $workerBuildRoot 'worker-gpu-release\release\whisper-worker-gpu.exe'
+        Copy-Verified $cpuTurbo (Join-Path $stageNew 'app\whisper-worker-cpu.exe') (Get-Sha $cpuTurbo)
+        Copy-Verified $gpuTurbo (Join-Path $stageNew 'app\whisper-worker-gpu.exe') (Get-Sha $gpuTurbo)
         Copy-Verified (Join-Path $modelSource 'ggml-large-v3-turbo.bin') (Join-Path $stageNew 'models\ggml-large-v3-turbo.bin') $turboSha
         Copy-Verified (Join-Path $modelSource 'parakeet-tdt-0.6b-v3.q8_0.gguf') (Join-Path $stageNew 'models\parakeet-tdt-0.6b-v3.q8_0.gguf') $parakeetSha
         foreach ($dll in $cpuDlls.Keys) {
@@ -482,8 +605,10 @@ if ($Publish) {
     if (-not (Test-Path -LiteralPath $stage -PathType Container)) { throw "Staging absent: $stage" }
     $manifestPath = Join-Path $lot "stage-$CandidateId-manifest.json"
     $null = Read-PackageManifest $stage $manifestPath
+    Assert-WorkerImportsForDelivery $stage
     $desktopSha = Assert-FinalDesktopBuild
     Copy-Verified (Join-Path $cargo 'whisper-desktop.exe') (Join-Path $stage 'app\whisper-desktop.exe') $desktopSha
+    Assert-WorkerImportsForDelivery $stage
     Write-PackageManifest $stage $manifestPath
     $stageSnapshot = Read-PackageManifest $stage $manifestPath
     $backupId = "before-$CandidateId"
