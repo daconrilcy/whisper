@@ -1,8 +1,14 @@
-Avancée : corrections partielles autorisées conservées en Git ; aucun nouveau lancement de compilation ou de test.
-Blocage : la solution de R8-P1 proposée dans les seuls harness est retirée par le reviewer ; douze attributs de modules de tests hors périmètre sont nécessaires.
-Décision : seconde tentative suspendue avant NoRun ; demander l’extension exacte des déclarations de tests, sans toucher aux assertions ou fonctions de production.
+Avancée : extension des douze attributs de tests explicitement autorisée ; correction R8-P1 reprise dans le périmètre exact.
+Blocage : nouvelle compilation et faisabilité R8 encore à établir ; aucune réussite de tests présumée.
+Décision : poursuivre la seconde tentative N1, sans modifier les assertions ni les corps de production ; NoRun et examen PE avant tout harness.
 
 # Tests autonomes — bilan du candidat et blocage résiduel
+
+## Accord de périmètre — douze attributs de tests
+
+L’utilisateur a répondu **« oui je t'autorise »** à la demande précise des douze attributs `#[path]` de sections de tests listés ci-dessous, puis de la poursuite de la seconde tentative N1 prévue. Cet accord porte sur les douze seuls ajouts et le périmètre de reprise précédent ; aucun autre corps de production ou assertion n’est à modifier. Le coordinateur a routé la correction R8-P1 au même implémenteur ; R8-P2 reste fermé statiquement.
+
+Relevé préalable à cette reprise de périmètre : **173,93 Gio libres**, Git propre à **c749e8fa**, 1er novembre 2026 à **11 h 12 min 02 s Europe/Paris** (10:12:02 UTC). La borne du SPIKE reste 12 h 41 min 06 s Europe/Paris. Les sections de suspension suivantes décrivent l’historique antérieur à cet accord ; elles ne constituent plus une demande pendante pour les douze attributs.
 
 ## Suspension de la seconde tentative — extension des seules déclarations de tests
 

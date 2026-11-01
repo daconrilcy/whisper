@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "SPIKE_R8_SECOND_ATTEMPT_BLOCKED_SCOPE_12_TEST_MODULE_ATTRIBUTES",
+  "status": "SPIKE_R8_SECOND_ATTEMPT_SCOPE_12_TEST_ATTRIBUTES_AUTHORIZED",
   "source_commit": "248f86794c3a1e2d2b1ba6d5a7afafc84972535d",
   "branch": "refacto/tests-autonomes",
   "worktree": "C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes",
@@ -54452,7 +54452,12 @@
     "old_no_run_evidence_epoch": 0,
     "old_no_run_is_not_current_candidate_validation": true,
     "coordinator_packet_reconciliation": "son premier final disait aucun correctif ; l'implémenteur confirme les trois mutations autorisées antérieures au message de suspension, conservées en Git",
-    "proposed_scope_extension_authorized": false,
+    "proposed_scope_extension_authorized": true,
+    "scope_extension_authority": "oui je t'autorise, réponse utilisateur à la demande précise des douze attributs puis poursuite seconde tentative N1",
+    "scope_extension_baseline_document_commit": "c749e8fa",
+    "scope_extension_start_utc": "2026-11-01T10:12:02Z",
+    "free_gib_before_scope_extension": 173.93,
+    "current_phase_after_scope_authorization": "R8_P1_CORRECTION_DELEGATED_THEN_SELFTEST_NORUN_ONLY_BEFORE_PE_GATE",
     "proposed_test_module_attributes": [
       {"path":"crates/whisper-worker-cpu/src/decoder.rs","test_path":"decoder/tests.rs"},
       {"path":"crates/whisper-worker-cpu/src/encoder.rs","test_path":"encoder/tests.rs"},
