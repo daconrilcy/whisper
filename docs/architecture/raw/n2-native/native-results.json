@@ -1,0 +1,287 @@
+{
+  "schemaVersion": 1,
+  "revision": 1,
+  "candidate": "de9003dc",
+  "authorization": "Oui, reprendre les 29 cas prêts",
+  "runId": "PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56",
+  "profileStatus": "FAIL",
+  "cpu": {
+    "test": "native_personal_cpu_imports_french_mp3_through_the_unified_application",
+    "engine": "Parakeet CPU",
+    "status": "PASS",
+    "cargoExitCode": 0,
+    "cargoSeconds": 38.644,
+    "bodySeconds": 25.93,
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "transcriptBytes": 51,
+    "srtBytes": 148,
+    "wavBytes": 129068
+  },
+  "gpu": {
+    "test": "native_personal_gpu_imports_english_mp3_with_attested_candidate",
+    "status": "FAIL",
+    "cargoExitCode": 101,
+    "cargoSeconds": 1.065,
+    "bodySeconds": 0.56,
+    "passed": 0,
+    "failed": 1,
+    "reason": "GPU inventory worker exited without End",
+    "exitStatusOfWorkerAvailable": false,
+    "inferenceQualified": false
+  },
+  "runtimeIntegrity": {
+    "filesVerified": 21,
+    "allMatched": true,
+    "sourcesUnmodified": true
+  },
+  "diagnosis": {
+    "status": "probable environment defect; not confirmed by retry",
+    "personalUnifiedDeclaresCudaPath": false,
+    "guardAddsCudaBinOnlyWhenCudaPathDeclared": true,
+    "guardSource": "ci/guard-native.ps1:888-891",
+    "staticCudaImports": [
+      "cublas64_12.dll",
+      "cudart64_12.dll",
+      "nvcuda.dll"
+    ],
+    "cublasAndCudartBesideWorkerOrInSystem32": false,
+    "cuda12_9BinDllsExist": true,
+    "nextProposal": "Add bounded CUDA_PATH descriptor to PersonalUnified and matching request, one additional review/correction cycle, then restart only after user authorization"
+  },
+  "thisResumption": {
+    "plannedCases": 29,
+    "passed": 1,
+    "failed": 1,
+    "notRun": 27
+  },
+  "cumulativeDistinctNativeBodiesPassed": 4,
+  "fullCampaignQualified": false,
+  "campaignStopped": true,
+  "mergePerformed": false,
+  "additionalCorrectionApplied": false,
+  "remainingBlockers": [
+    "fr87.wav/fr27.wav missing; user has no backup",
+    "historical fault/test output roots outside authorized lot"
+  ],
+  "freeBytes": 139681226752,
+  "archive": {
+    "file": "native-runs.zip",
+    "entryCount": 42,
+    "entriesVerified": true,
+    "sha256": "5a69d25ab199dda05952b49db77f503559de2768b70c2a3193acae078e823408",
+    "entries": [
+      {
+        "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
+        "bytes": 1367,
+        "sha256": "972ebe43b617abcad8378b0c8f8f9cee7528bba44174ae2b4e5d67b632cfff5c"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.process.json",
+        "bytes": 154,
+        "sha256": "9b626b675e2c7a4c95f725ed3a6102ce88842dd049f68487a798919ef4f1f411"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.stderr.log",
+        "bytes": 316,
+        "sha256": "c6bd827638c7ecff655d9d0f61cea29c708267ab64ecd5c1daf234d2dc9946b5"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.stdout.log",
+        "bytes": 203,
+        "sha256": "044edb66de7551c66bce8b87b27299526b299056cf567f746b2ba68947cef372"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_gpu_imports_english_mp3_with_attested_candidate.invocation.json",
+        "bytes": 1353,
+        "sha256": "1b6f86b262f41920ad8a9a69c2c917e4b204f5160c2880286e53dc91543b61e2"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_gpu_imports_english_mp3_with_attested_candidate.process.json",
+        "bytes": 147,
+        "sha256": "d9b68488f426af80df0774e207fa5ed051a5d67ac3b641f8b06eac0c80952d8c"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_gpu_imports_english_mp3_with_attested_candidate.stderr.log",
+        "bytes": 704,
+        "sha256": "7a86cde5ede1dbe974efb8a6a6ca5101f35e4f80fcfcd434656a595a40e6d6d0"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_gpu_imports_english_mp3_with_attested_candidate.stdout.log",
+        "bytes": 298,
+        "sha256": "f4cb8e361630e34f87427b0bccaafca862f46b8819c93758d0867799f7146fce"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/result.json",
+        "bytes": 5591,
+        "sha256": "26219d8785dc6bf75d51005ae96395ab01ba956461fe7f9a13aa1c756e04b5ed"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/unattributed-temp.jsonl",
+        "bytes": 7175,
+        "sha256": "deda120c76af8fc5404e0dd6f1f8f1b5334334ea3c181e95455caf14705fa539"
+      },
+      {
+        "path": "target/n2-native/logs/profiles-ready-selftest.txt",
+        "bytes": 465,
+        "sha256": "8653262c11bb9d7f7344318de77881ecc3633175a613316cec6a117bdf3e4236"
+      },
+      {
+        "path": "target/n2-native/logs/ready-CampaignPolicies-preflight.txt",
+        "bytes": 481,
+        "sha256": "ac289dd34194bef34324408423edb6423a17d59ccfc902f6f9833a748015b2e5"
+      },
+      {
+        "path": "target/n2-native/logs/ready-D2-preflight.txt",
+        "bytes": 467,
+        "sha256": "43fa2669afd904b68297df80ca864673ce95f4be56aab15b9b21f882fa73a673"
+      },
+      {
+        "path": "target/n2-native/logs/ready-ManualDiagnostic-preflight.txt",
+        "bytes": 481,
+        "sha256": "4b7c2f7f65f2ace0ab7a4d3386a1924b8adbcd10c53141b5412c75973a110214"
+      },
+      {
+        "path": "target/n2-native/logs/ready-PersonalUnified-preflight.txt",
+        "bytes": 480,
+        "sha256": "4159d0102f907bc84b4554f0b328d5fbf7929bc28fc968c601a42d3504c2e084"
+      },
+      {
+        "path": "target/n2-native/logs/ready-TurboGpu-preflight.txt",
+        "bytes": 473,
+        "sha256": "9c67da5b638d8c996e8559d483a4a2deaed9152affaf4c48a1f6e89c6eba8e78"
+      },
+      {
+        "path": "target/n2-native/requests/PersonalUnified.json",
+        "bytes": 4825,
+        "sha256": "a50333c9d7e0456b7a76c098d40bbc98cc6c8dd34b41882d93cb629fc72c56a8"
+      },
+      {
+        "path": "target/n2-native/resources/resumption-gpu-pe.json",
+        "bytes": 1673,
+        "sha256": "59f2a7bbc5b624430c624d851d11407f1e9caba6387315ae75dd681a9f8352d8"
+      },
+      {
+        "path": "target/n2-native/resources/resumption-runtime-checks.json",
+        "bytes": 5413,
+        "sha256": "3faaea565e4c9717fabda6a3a67a87296ac8ad5816e535c2923fd40520f5df03"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 1576,
+        "sha256": "0bdbce73946b6fe990773d47be4f88af54b2dd1b8a99253897e253aa9915555f"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/.whisper-publications.lock",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/.whisper-publications/index.json",
+        "bytes": 223,
+        "sha256": "03ed6fba27b8ba3b1ec521be1782c79fe6914b3623d476009182fdadc698a7a4"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/exports/fr-short.srt",
+        "bytes": 148,
+        "sha256": "fe2fb75f9c0aa82f53119cd485844f0346d458b5e92bab04e5cd0bd2060751d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/exports/fr-short.txt",
+        "bytes": 51,
+        "sha256": "360747af17b1d107010e215a2e1cee13db612e73a283f037dbdcb1e1982294f1"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/CURRENT",
+        "bytes": 14,
+        "sha256": "ca8648fb7fb08b2dff1e9841e2f9551efc4c14ac6cb42b59c132d680b77de4d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/export.srt.install.pending",
+        "bytes": 148,
+        "sha256": "fe2fb75f9c0aa82f53119cd485844f0346d458b5e92bab04e5cd0bd2060751d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/export.srt.pending",
+        "bytes": 148,
+        "sha256": "fe2fb75f9c0aa82f53119cd485844f0346d458b5e92bab04e5cd0bd2060751d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/export.txt.install.pending",
+        "bytes": 51,
+        "sha256": "360747af17b1d107010e215a2e1cee13db612e73a283f037dbdcb1e1982294f1"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/export.txt.pending",
+        "bytes": 51,
+        "sha256": "360747af17b1d107010e215a2e1cee13db612e73a283f037dbdcb1e1982294f1"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/installed-exports.json",
+        "bytes": 696,
+        "sha256": "86c72fee3a84b428153375c75644330af33a4897ee327298b85de4b437e38429"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/manifest.json",
+        "bytes": 399,
+        "sha256": "8eb4fef0ebe79935cc4590073efb64a87d04adb2d29ad349e4d3e3cf9353d86c"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 110,
+        "sha256": "c3c65ad7cb9e9cb44e490f216d99abdec1a8281eb1e6f3ec77468258aa49b4c6"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/parakeet-unified/document/document.final.json",
+        "bytes": 85,
+        "sha256": "f23f16061f6ae035be8f79a5c8a0d4f0ff3b6e21f9521a660746c4fe8998ba39"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/parakeet-unified/document/document.idx",
+        "bytes": 56,
+        "sha256": "fe84e7e79eb4c9992ba1768236294963d9545613119ce56af5a740d7fa2d0206"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/parakeet-unified/document/document.jsonl",
+        "bytes": 636,
+        "sha256": "d4b5b7211be5e44651448dbe8c6c8b395632b9dbaafa13e307755aeeafcb2e14"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/parakeet-unified/source.parts.idx",
+        "bytes": 32,
+        "sha256": "2b51eddafeaae65a5304dcb29032b37237349c42ddaf668ba458fd2fab5cc447"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/parakeet-unified/source.wav",
+        "bytes": 129068,
+        "sha256": "ee62f03daaeb44ce6c7a412a3491ac15701a418962ec7f25603edf6a9b5938d6"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/pending.json",
+        "bytes": 674,
+        "sha256": "487bec2c5981e3e2d82159fabfc6e746b35f56aeb828c436a07a23015d4a0a5d"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/r11-publication.json",
+        "bytes": 322,
+        "sha256": "dde5b93d4b3ae2b917dec98fe79801a0b25bfcd131d57a91fb26816a5c627c89"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/segments.jsonl",
+        "bytes": 342,
+        "sha256": "3326f5e27edee184d06c576d208a7680d76e04d788862a1893d93711915c6453"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/transcript.srt",
+        "bytes": 148,
+        "sha256": "fe2fb75f9c0aa82f53119cd485844f0346d458b5e92bab04e5cd0bd2060751d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/writes/l04/archive/transcriptions/0000000000020b7418e3fefc63166d30/1/transcript.txt",
+        "bytes": 51,
+        "sha256": "360747af17b1d107010e215a2e1cee13db612e73a283f037dbdcb1e1982294f1"
+      }
+    ]
+  }
+}

@@ -1,6 +1,6 @@
-Avancée : staging réel vérifié ; premier import refusé, correctif de profil et 29 cas prêts relus CLEAN.
-Blocage : campagne arrêtée après cet échec ; corpus FR87/FR27 manquant et plusieurs racines historiques hors lot.
-Décision : demander l'arbitrage de reprise prévu par AGENTS.md ; aucune fusion.
+Avancée : reprise autorisée exécutée ; import Parakeet CPU français et publication réussis, quatre corps ciblés réussis au total.
+Blocage : inventaire GPU interrompu avant réponse ; campagne arrêtée, 27 cas de cette reprise non exécutés.
+Décision : LIVRÉ AVEC RÉSERVES après deux revues ; arbitrage nécessaire pour un correctif ciblé et une reprise, aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -87,3 +87,20 @@ Correction déléguée limitée au registre : PersonalUnified conserve exactemen
 Les profils disponibles représentent **29 cas** : PersonalUnified 3, D2 1 (16 parcours internes), TurboGpu 23, politique L2a2 1, diagnostic encodeur 1. TurboGpu comprend 19 tests du harness autonome, deux parents de helper privé et deux contrats GPU sans modèle ; ils ne qualifient pas une transcription GPU. Le helper privé est seulement exécuté par ses parents. Le diagnostic encodeur reste `DIAGNOSTIC_ONLY`, sans oracle attendu et sans qualification produit. Les cibles d'intégration GPU/CPU sont celles des harness autonomes déclarés, et non une cible lib supposée.
 
 Auto-tests PowerShell synthétiques, syntaxe, registre et diff : PASS. Les cinq préflights exacts terminent code 0, sans Cargo ni exécution native ; requêtes et sorties sous `target/n2-native/requests/` et `target/n2-native/logs/ready-*-preflight.txt`. Espace libre : environ 143,07 milliards d'octets. Aucun nouvel appel Cargo ni test natif après l'échec. Reprise soumise à l'arbitrage explicite exigé par `AGENTS.md:53`. Bilan natif inchangé : trois corps ciblés réussis auparavant, un corps maintenant échoué, campagne complète non verte ; ni fusion ni push.
+
+## Reprise autorisée : CPU réussi, arrêt sur l'inventaire GPU
+
+Accord reçu : **« Oui, reprendre les 29 cas prêts »**. Avant reprise au candidat `de9003dc`, état Git limité aux copies non suivies modèles/audio prévues, SHA de garde et registre conformes aux deux revues, libclang conforme au SHA épinglé, espace libre **142 854 348 800 octets**. Aucun Rust, manifeste, SDK, fichier installé ou ancienne garde modifié.
+
+| Cas exécuté | Résultat réel | Durée du corps / appel Cargo |
+| --- | --- | --- |
+| `native_personal_cpu_imports_french_mp3_through_the_unified_application` | **1 réussi, 0 échec, 0 ignoré**, moteur Parakeet CPU ; WAV publié de 129 068 octets, TXT de 51 octets, SRT de 148 octets | 25,93 s / 38,644 s |
+| `native_personal_gpu_imports_english_mp3_with_attested_candidate` | **0 réussi, 1 échec**, Cargo 101 ; inventaire runtime interrompu, `WorkerExited without End`, aucune transcription GPU qualifiée | 0,56 s / 1,065 s |
+
+La garde arrête immédiatement le profil sur ce second cas ; Auto, D2 et les autres profils restent non lancés : **1 cas réussi, 1 échoué, 27 non exécutés** parmi les 29 prévus pour cette reprise. L'échec CPU antérieur lié aux hooks L04 est donc fermé par un essai réussi. Le nouveau blocage GPU reste ouvert. Le total distinct des corps ciblés réussis est quatre, en incluant les trois succès de découverte antérieurs ; ce total n'est pas la couverture des 147 recettes demandées.
+
+Diagnostic en lecture seule : le worker GPU cloné a le SHA attendu `5ff4c494b86754d563c5d41cc7cdcd1b2748aed9c9ffa5f929be29973cf6001b` et son contrôle PE **PASS** confirme `cublas64_12.dll`, `cudart64_12.dll` et `nvcuda.dll`. Les deux premières DLL ne sont ni auprès de cet EXE ni dans System32 ; elles existent dans le toolkit CUDA 12.9 installé. `PersonalUnified.values` est vide. La garde ajoute explicitement `CUDA_PATH/bin` au PATH seulement si ce paramètre est déclaré (`ci/guard-native.ps1:888–891`). Le profil ne garantit donc pas cette résolution, contrairement aux profils GPU qui déclarent déjà le toolkit. **Cause probable de l'arrêt, pas encore confirmée par relance** : le statut de sortie précis du worker enfant n'est pas journalisé par ce contrat. Aucun worker n'est relancé hors garde pour le rechercher.
+
+Les 21 ressources clonées sont à nouveau comparées aux SHA attendus et aux sources après l'essai : toutes conformes, sources immuables. Journaux, requête, inventaire GPU, résultats PE, contrôles runtime et publication CPU sont dans [les résultats consolidés](../architecture/raw/n2-native/native-results.json) et [l'archive](../architecture/raw/n2-native/native-runs.zip) : **42 entrées relues, tailles et SHA vérifiés**, SHA archive `5a69d25ab199dda05952b49db77f503559de2768b70c2a3193acae078e823408`. Les archives antérieures restent intactes. Bilan et preuves N2 occupent neuf fichiers suivis, sans nouveau rapport proposé.
+
+Après les deux revues du complément : **LIVRÉ AVEC RÉSERVES**, aucune troisième correction ni nouvelle exécution native engagée. Proposition bornée à arbitrer : ajouter au seul profil PersonalUnified le descripteur `CUDA_PATH` déjà pris en charge et limité au toolkit 12.9, renseigner la requête correspondante, effectuer un cycle supplémentaire de vérification/revue ciblée, puis reprendre sous garde les profils disponibles. Aucun changement du script de garde, des tests/assertions Rust, des ressources installées ou des racines d'écriture. Une relance de PersonalUnified rejouerait aussi son CPU déjà réussi, sans remplacer la preuve acquise. Les cas FR87/FR27 et ceux imposant des racines historiques restent fermés ; la fusion reste conditionnée à la campagne complète verte. Espace libre après conservation : **139 681 210 368 octets**. Aucun push ni fusion.
