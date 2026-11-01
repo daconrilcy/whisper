@@ -1,6 +1,6 @@
 Avancée : racine des quatre cas réutilisables préparée ; cache de 29 662 fichiers copié et vérifié, statique relue.
 Blocage : auto-test complet arrêté pendant la copie concurrente ; quatre nouveaux tests natifs non lancés.
-Décision : reprise de validation suspendue à arbitrage ; 35 corps ciblés PASS acquis, aucune fusion.
+Décision : reprise explicitement autorisée, auto-tests PASS et écart fermé par revue CLEAN ; quatre cas à exécuter, aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -249,3 +249,9 @@ Revue indépendante en lecture seule : **CLEAN limité aux routes et profils sta
 Preuves consolidées **révision 8**, **454 entrées relues et vérifiées**, dont **446 précédentes conservées à l'identique**, SHA archive `7adb73415355cad87cf4b32a776d547159b9b75b0d79c11cb352a8a4c7b51f01`. Révision 7 dans Git à `7d0922a3`. Neuf fichiers de bilan/preuves ; espace libre après conservation environ **120,56 milliards d'octets**. Les 35 corps PASS précédents et le diagnostic encodeur restent acquis ; les quatre réutilisables sont **NOT RUN**. Aucun push ni fusion.
 
 Reprise à arbitrer selon l'arrêt sur échec de garde d'AGENTS.md : cache désormais achevé, relancer une seule fois les auto-tests complets sans copie concurrente, fermer l'écart avec le même reviewer, préflights puis quatre tests sous garde si les contrôles passent. Aucun autre changement de code, de racine ou de périmètre n'est demandé ; aucun début de campagne native n'est annoncé avant ces gates.
+
+## Reprise sans copie concurrente validée
+
+Accord reçu : **« Oui, reprendre sans copie concurrente »**. Aucun transfert ni changement source pendant la validation. Le parent lance le FullSelfTest complet Windows PowerShell : **PASS, code 0**, preuve `target/n2-native/logs/reusable-root-selftest-resume.txt` et `guard-selftest-reusable-roots.json`, sans Cargo ou diagnostic NVIDIA réel. Les deux préflights exacts des profils réutilisables avec leur nouveau LotRoot terminent code 0.
+
+Le même reviewer vérifie les journaux et le candidat inchangé `c85b0f67`, puis ferme l'écart : **CLEAN**, aucun constat ni écart de vérification restant pour ce complément. Les SHA de garde et registre restent ceux figés avant l'arrêt. Ce verdict ne qualifie pas les quatre cas natifs ; le parent lance CPU (trois cas) puis GPU (un cas), arrêt au premier échec.
