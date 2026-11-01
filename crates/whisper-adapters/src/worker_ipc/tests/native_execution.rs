@@ -725,9 +725,19 @@
         recycled.start_controlled_unified_import(&request).unwrap();
         assert!(recycled.unified_sessions.contains_key(&session));
         assert!(!recycled.native_unified_routes.contains_key(&session));
-        let ready = recycled
-            .poll_unified_sessions()
-            .expect("replacement CPU route must start after the GPU instance was reaped");
+        let ready_deadline = Instant::now() + Duration::from_secs(5);
+        let ready = loop {
+            match recycled.poll_unified_sessions() {
+                Some(event) => break event,
+                None => {
+                    assert!(
+                        Instant::now() < ready_deadline,
+                        "replacement CPU route must start after the GPU instance was reaped"
+                    );
+                    thread::sleep(Duration::from_millis(2));
+                }
+            }
+        };
         assert!(matches!(
             ready,
             Ok(ImportEvent::Ready { job_id, backend, .. })

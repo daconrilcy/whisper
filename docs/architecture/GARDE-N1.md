@@ -1,10 +1,10 @@
-Avancée : catégories implémentées ; auto-tests 20 positifs / 49 négatifs réussis ; R8 en DryRun et tree réel réussis.
+Avancée : garde livrée avec réserves ; attente bornée ajoutée au test de remplacement du worker, sans nouvelle exécution.
 Blocage : preuve 4 sur cible partagée en échec (code 101), confirmé par l'unique reprise autorisée.
 Décision : LIVRÉ AVEC RÉSERVES ; deux cycles de correction consommés, aucun push.
 
 # GARDE-N1 — catégories de commandes Cargo
 
-Branche `garde/n1-categories`, worktree `C:/dev/whisper/target/agent-worktrees/garde-n1-categories`, base `refacto/tests-autonomes` **939fbbbe**. Plan accepté versionné avant réalisation : **09520288** (historique de ce fichier). Ce lot débloque les diagnostics des workers locaux, notamment R8, sans changement Rust, manifeste, lockfile, modèle ou garde historique.
+Branche `garde/n1-categories`, worktree `C:/dev/whisper/target/agent-worktrees/garde-n1-categories`, base `refacto/tests-autonomes` **939fbbbe**. Plan accepté versionné avant réalisation : **09520288** (historique de ce fichier). Le lot initial débloque les diagnostics des workers locaux, notamment R8, sans changement Rust, manifeste, lockfile, modèle ou garde historique. Le correctif de test ultérieur, autorisé séparément, est décrit en fin de rapport.
 
 | Catégorie | Commandes | Conditions |
 | --- | --- | --- |
@@ -45,3 +45,5 @@ Autorité : après diagnostic en lecture, l'utilisateur demande « fais les corr
 3. Vérifier le diff statiquement, puis revue indépendante via le coordinateur Rust, au plus deux cycles sur ce correctif distinct. Aucun Cargo ni rustc ; principal met à jour ce bilan et commit local sans push. Ne pas supprimer les preuves historiques en échec.
 
 Critères : attente de Ready compatible avec le démarrage asynchrone ; attente bornée ; erreurs et événements incorrects toujours refusés ; delta limité au test ciblé et au présent bilan. L'exécution du test corrigé et la preuve 4 restent non vérifiées.
+
+Réalisation du correctif : remplacement effectué uniquement dans le test nommé ; boucle bornée à cinq secondes, pause de deux millisecondes sur absence d'événement. Toutes les assertions existantes sont conservées. Contrôle statique du diff réussi. Aucun Cargo, rustc, build, test ou Clippy lancé ; la réussite du test et de la preuve 4 reste à établir. Revue indépendante statique : CLEAN, aucun constat ouvert ; ceci ne valide pas une exécution du test.
