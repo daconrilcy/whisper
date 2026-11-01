@@ -54439,6 +54439,16 @@
     "R8_P1_initial_recommendation_withdrawn_by_reviewer": true,
     "scope_blocker": "include! réinitialise le répertoire au parent du fichier inclus ; la solution harness inline seule ne résout pas mod tests",
     "R8_P2_implementer_disposition": "CLAIMED_FIXED_PENDING_REVIEWER",
+    "independent_review_epoch_1": {
+      "candidate": "a7344a9e",
+      "verdict": "BLOCKED",
+      "closed_finding_ids": ["R8-P2"],
+      "closure_limit": "résolution std::io vérifiée statiquement, diagnostic et exit78 inchangés ; pas de compilation ou témoin négatif",
+      "open_findings": [{"id":"R8-P1","state":"BLOCKED_SCOPE","reason":"douze attributs de modules de tests non autorisés ; chemins relatifs et cfg(test) confirmés directement"}],
+      "three_authorized_import_mutations_confirmed": true,
+      "assertions_changed": false,
+      "new_execution": false
+    },
     "old_no_run_evidence_epoch": 0,
     "old_no_run_is_not_current_candidate_validation": true,
     "coordinator_packet_reconciliation": "son premier final disait aucun correctif ; l'implémenteur confirme les trois mutations autorisées antérieures au message de suspension, conservées en Git",
