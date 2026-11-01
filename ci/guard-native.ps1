@@ -1100,12 +1100,12 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     New-Item -ItemType Directory -Path $manifestRoot -Force | Out-Null
     try {
         $manifestPath = Join-Path $manifestRoot 'valid.json'
-        $validManifest = [ordered]@{ schemaVersion=1; profile='PreparationNoRun'; inputs=@(); values=@{ cudaToolkitPath='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9' } }
+        $validManifest = [ordered]@{ schemaVersion=1; profile='PreparationNoRun'; inputs=@(); values=@{ cudaToolkitPath='C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'; libclangPath='C:/dev/whisper/.wt/r8/target/n2-native/toolchain/libclang.dll' } }
         $validManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
         $validated = Get-ValuesDocument $manifestPath $prepareProfile
         if ($validated.values.cudaToolkitPath -ine 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9') { throw 'Approved CUDA tool path was changed while validating its manifest.' }
         $invalidPath = Join-Path $manifestRoot 'invalid.json'
-        $invalidManifest = [ordered]@{ schemaVersion=1; profile='PreparationNoRun'; inputs=@(); values=@{ cudaToolkitPath='C:\Windows' } }
+        $invalidManifest = [ordered]@{ schemaVersion=1; profile='PreparationNoRun'; inputs=@(); values=@{ cudaToolkitPath='C:\Windows'; libclangPath='C:/dev/whisper/.wt/r8/target/n2-native/toolchain/libclang.dll' } }
         $invalidManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $invalidPath -Encoding UTF8
         Test-Rejects 'unapproved tool directory in manifest' { Get-ValuesDocument $invalidPath $prepareProfile }
     } finally {
