@@ -186,7 +186,7 @@ if ($SelfTest) {
     Assert-True $nonPeRejected 'non-PE fixture refused.'
     $nonPeReport = Invoke-Check 'Cpu' 'synthetic non-PE fixture' -KnownBytes ([byte[]](1,2,3))
     Assert-True ($nonPeReport.Verdict -eq 'FAIL' -and $nonPeReport.Sha256 -eq 'synthetic') 'non-PE report contains failure verdict.'
-    $negative = '../../../target/parakeet-tests/cargo-shared/release/whisper-worker-cpu.exe'
+    $negative = '../target/parakeet-tests/cargo-shared/release/whisper-worker-cpu.exe'
     $negativePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot $negative))
     if (-not (Test-Path -LiteralPath $negativePath -PathType Leaf)) { throw "Required real negative witness is missing: $negativePath" }
     $negativeSha = (Get-FileHash -LiteralPath $negativePath -Algorithm SHA256).Hash.ToLowerInvariant()
