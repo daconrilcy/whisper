@@ -8,7 +8,7 @@ Livré : [TESTS-AUTONOMES](TESTS-AUTONOMIE-INVENTAIRE.md), tests autonomes, feat
 
 Préconditions : 93 commits linéaires (18/5/60/10), main initial exact, deux relevés sans activité avant fusion, autres agents terminés, suivis propres ; non suivis main/R8 conservés. Revue indépendante : zéro constat. **121 fichiers : 64 tests, 8 manifestes, 2 extraction GPU, 7 CI, 1 livraison, 1 AGENTS, 38 documents/preuves**. Dérogations : extraction équivalente, harnais CPU/GPU, sept ZIP avec dix WAV/une fixture MP3. Lock/dépendances inchangés.
 
-Décision documentaire du 2 novembre 2026 : la mention « deux relevés sans activité avant fusion » ci-dessus est un constat historique, pas une exigence d'absence globale de Git. Pour FUSION-PILE, les restrictions globales « Aucune activité Git » et « Toute activité inconnue est bloquante » sont remplacées par la vérification des activités concurrentes pertinentes pour l'opération, selon la politique de décision des agents d'[AGENTS.md](../../AGENTS.md). Les prochains lots appliquent cette politique ; les protections contre les conflits établis et les contrôles d'intégrité restent applicables.
+La mention « deux relevés sans activité avant fusion » ci-dessus est un constat historique. La règle applicable figure dans la [politique des activités Git concurrentes d'AGENTS.md](../../AGENTS.md#niveau-dexécution-1--catégories-de-commandes-cargo).
 
 Lors de la fusion `c830881c`, sur main via `ci/guard-level1.ps1`, offline/locked lorsque applicable, environnement isolé, CUDA/GGML retirées pour les tests :
 

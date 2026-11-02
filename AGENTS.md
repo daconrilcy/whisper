@@ -65,7 +65,16 @@ Politique de décision des agents sur les activités Git concurrentes :
 Dérogations historiques : [lot 1 Parakeet micro et FEAS-PM-01](docs/cadrage/derogations-historiques-campagnes-locales.md).
 
 - Pendant les campagnes, fixer dans l'environnement `CARGO_INCREMENTAL=0` et `CARGO_PROFILE_DEV_DEBUG=line-tables-only`, sans modifier `Cargo.toml` pour ces réglages.
-- À la clôture du lot, archiver les petites preuves en préservant leur arborescence et en vérifiant nombre et SHA-256 ; retirer uniquement les copies et WAV temporaires inscrits dans un manifeste approuvé ; relever à nouveau l'espace libre dans le bilan. Ne pas nettoyer le `cargo-shared` ni les entrées encore nécessaires à un lot actif.
+- À la clôture du lot, archiver les petites preuves en préservant leur arborescence et en vérifiant nombre et SHA-256. Après cette vérification, supprimer les cibles de compilation propres au lot (dont les cibles neuves `-FreshTarget`) et ses caches `cargo-home` isolés : ces intermédiaires ne sont pas conservés avec les preuves. Avant suppression, identifier les chemins exacts, vérifier que leurs chemins absolus résolus restent dans le dépôt et appartiennent au lot, sans lien ni jonction menant ailleurs, et qu'aucun processus ni lot actif ne les utilise. Si ces conditions ne sont pas établies, conserver les chemins concernés et signaler le blocage ; ne pas élargir la suppression à leur dossier parent.
+- Préserver le cache partagé canonique `target/parakeet-tests/cargo-shared/`, les preuves archivées, les livrables, les modèles, les audios sources et toute entrée encore nécessaire à un lot actif. Les copies et WAV temporaires restent supprimables uniquement s'ils figurent dans un manifeste approuvé. Consigner les chemins supprimés et l'espace libre après nettoyage dans le bilan avant de le figer ; tout nettoyage ultérieur fait l'objet d'un nouveau document selon la règle de clôture des bilans.
+- L'agent exécute la suppression lorsque son outil l'autorise. Si l'outil refuse la suppression, l'agent produit la liste exacte des chemins, leur taille, la vérification d'archivage des preuves et la commande à exécuter ; l'utilisateur supprime, puis l'agent vérifie l'absence des chemins. Un refus de l'outil ne doit pas être contourné par un autre mécanisme de suppression.
+
+### Diagnostic d'un blocage
+
+- Commencer par le test le moins coûteux qui permet de trancher entre les hypothèses, même s'il doit être exécuté par l'utilisateur hors de la garde. Le décrire en une commande copiable, avec le résultat attendu pour chaque hypothèse, et attendre la réponse avant de construire de l'outillage.
+- Pour un écart entre deux environnements (garde ou terminal, machine A ou B), réduire automatiquement la liste des différences par un script (retrait successif, une variable ou un paramètre à la fois) plutôt que tester des combinaisons à la main.
+- Budget par diagnostic : 3 essais ou 30 minutes. Au-delà, arrêter et présenter les hypothèses restantes, les tests possibles et leur coût.
+- Toute liste de variables ou d'options transmises par la garde à un outil natif (`nvidia-smi`, workers, DLL) a un auto-test sur la machine réelle, avec un témoin négatif qui prouve la nécessité de chaque élément ajouté.
 
 ## Remise d'une recette manuelle Windows
 
@@ -80,6 +89,7 @@ Les `AGENTS.md` des huit crates complètent ce fichier pour leur sous-arborescen
 ### Préparation et architecture
 
 - Relever l'état Git et préserver les changements des autres tâches, y compris les fichiers non suivis. Une branche ou un état Git propre ne prouve pas l'absence d'un autre agent actif ; coordonner les responsabilités avant des modifications concurrentes.
+- Les worktrees sont créés hors du dépôt principal, sous une racine courte (par exemple `C:/wt/<tâche>`), jamais sous `C:/dev/whisper/.wt/` ni `target/`. Cela évite que les outils du dépôt principal parcourent les worktrees et que les chemins dépassent la limite Windows de 260 caractères.
 - Lire la carte `docs/architecture/ARCHITECTURE.md` et la fiche de la crate dans `docs/architecture/crates/` si elles sont présentes. Ces documents sont des relevés statiques à confronter aux sources et aux manifestes actuels ; ils ne valent ni plan de refonte ni autorisation. S'ils manquent, consulter les sources sans recréer une campagne documentaire.
 - Le cœur porte le domaine, les politiques et les effets ; les adaptateurs exécutent les entrées/sorties ; le desktop compose et affiche ; les workers exécutent les commandes IPC du parent ; bootstrap reste minimal.
 - Dépendances internes actuelles : `desktop → adapters + core`, `adapters → core`, `worker-cpu/worker-gpu → worker-common + core`, `worker-common → core`, `worker-parakeet-cpu → core`, `bootstrap → adapters + core` (noms abrégés, préfixe `whisper-`). Le cœur ne dépend actuellement que de `serde`. Toute nouvelle crate ou dépendance, interne ou externe, doit appartenir au plan et être explicitement validée avant modification du manifeste.
@@ -103,6 +113,7 @@ Les `AGENTS.md` des huit crates complètent ce fichier pour leur sous-arborescen
 - Éviter les ajouts aux gros blocs de tests inline existants. Ne pas ajouter de champs ou branches de production uniquement pour les tests si un helper ou une injection simple suffit ; ne pas imposer un nouveau trait à chaque test.
 - Les hooks de recette nouveaux restent explicitement activables, inactifs par défaut et absents du produit livré. Préserver les gardes `recette-hooks` existantes et leur refus en release par `scripts/recette-build.rs`. Cette feature n'existe pas dans toutes les crates ; les features de qualification existantes restent distinctes et ne sont pas migrées implicitement.
 - Signaler les écarts concrets et leur risque dans le compte rendu ou le document du lot déjà prévu. Ne pas créer systématiquement `docs/debt.md`, des marqueurs `DEBT-*` ou un nouveau livrable hors plan.
+- La garde, les lanceurs et les scripts de recette ne créent jamais un état que le produit doit créer lui-même (dossiers `settings`, `logs`, fichiers de configuration, registre). Un échec dû à cet état absent est un constat sur le produit, à corriger dans le produit et à couvrir par un test « premier lancement » sur un `LOCALAPPDATA` vide, jamais un prérequis d'environnement à préparer.
 
 ### Sécurité et vérifications locales
 
@@ -116,3 +127,6 @@ Les `AGENTS.md` des huit crates complètent ce fichier pour leur sous-arborescen
 ### Compte rendu
 
 Commencer les rapports par trois lignes : `Avancée : ...`, `Blocage : ...`, `Décision : ...`. Préciser les fichiers changés, les vérifications réellement exécutées et les limites restantes. Regrouper les décisions de produit ou de périmètre avec options et recommandation ; aucune limite à une seule question ne dispense de demander un accord devenu nécessaire. Ne pas pousser sans accord précis.
+
+- Un bilan est figé à la clôture de son lot. Tout fait nouveau (validation, correction, remise, nettoyage ou autre complément) est consigné dans un nouveau document ; le bilan peut uniquement recevoir un lien vers ce document, sans ajout de récit ni réécriture de son état de clôture. L'accumulation de compléments ou de paragraphes denses ne doit pas contourner la limite d'une page.
+- Les règles destinées aux agents et leurs modifications figurent dans les `AGENTS.md` applicables. Un bilan peut y renvoyer, mais ne porte aucune règle nouvelle ni dérogation normative.
