@@ -1,6 +1,6 @@
-Avancée : plan révisé le 2 novembre 2026 autour des ressources et modules VoxPopuli locaux.
-Blocage : fichiers de recette à préparer/valider et tests VoxPopuli dédiés à implémenter après accord.
-Décision : préparer un corpus FR/EN renouvelé ; qualification Parakeet GPU sur Z790 sous garde N2.
+Avancée : corpus VoxPopuli préparé le 2 novembre 2026 ; 14 fichiers générés et contrôlés.
+Blocage : textes non vérifiés humainement ; recettes Rust/N2 et qualification GPU non exécutées.
+Décision : son des courts validé par l'utilisateur ; longs prêts pour essais techniques, qualité linguistique à distinguer.
 
 # Compléter la qualification GPU
 
@@ -254,3 +254,54 @@ premier texte affiché en moins de 15 secondes, interface Windows et paquet
 distribué restent explicitement hors qualification de cette campagne import.
 Une validation visuelle ultérieure par l'utilisateur et la remise d'un nouveau
 paquet incluant les correctifs récents nécessitent un lot distinct.
+
+## Préparation réalisée — 2 novembre 2026
+
+L'utilisateur a demandé l'utilisation des outils locaux pour générer les
+ressources et confirmé que les deux candidats de 60 secondes sont bons au
+niveau du son. Cet accord porte sur leur audio, pas sur l'exactitude de leurs
+textes. Aucun test Rust, worker, modèle, inférence ni campagne GPU exécuté
+pendant cette préparation ; aucun téléchargement ou outil installé.
+
+Les fonctions de `voxpopuli_60s.py` ont été utilisées via Python existant et
+FFmpeg/ffprobe installés, sans modifier les scripts d'origine ni créer de
+nouveau programme persistant. TEMP/TMP/LOCALAPPDATA de préparation sont
+placés sous le lot. Les fichiers générés sont locaux et ignorés par Git :
+
+| Base sous `target/n2-native/qualification-gpu/corpus/` | Durée WAV | Fichiers disponibles |
+| --- | --- | --- |
+| `fr-short-60s` | 60,000 s | WAV, MP3, `.reference.txt`, `.annotations.json` |
+| `en-short-60s` | 60,000 s | WAV, MP3, `.reference.txt`, `.annotations.json` |
+| `fr-long-35m` | 2 105,814 s, soit 35 min 05,814 s | WAV, `.reference.txt`, `.annotations.json` |
+| `en-long-40m` | 2 433,459 s, soit 40 min 33,459 s | WAV, `.reference.txt`, `.annotations.json` |
+
+Six audios et huit textes/annotations, **151 356 410 octets** au total.
+Les WAV courts normalisent seulement le conteneur : leurs 960 000
+échantillons PCM sont identiques à ceux des candidats approuvés. Les MP3
+se décodent chacun en 60 secondes d'audio mono 16 kHz.
+
+Les longs concatènent respectivement **77 et 102 passages annotés distincts**
+issus de l'archive locale. Les intervalles d'une même source ne se chevauchent
+pas ; aucun bouclage ni silence ajouté. Les 179 morceaux de PCM ont été
+comparés aux plages correspondantes des WAV finaux : identiques. Les
+annotations couvrent chaque WAV sans trou, référencent les originaux extraits
+conservés sous `corpus-preparation/raw/`, leurs intervalles, métadonnées,
+textes et empreintes. Les décodages complets des quatre WAV réussissent et
+leurs niveaux mesurés sont consignés. Aucun de ces contrôles ne vaut écoute
+humaine des longs ni validation linguistique.
+
+Les métadonnées utilisées ne signalent aucune ligne gold pour les passages
+disponibles de l'archive. Les quatre références restent donc
+`METADATA_TEXT_NOT_HUMAN_VERIFIED`. Audio court : `USER_CONFIRMED_SOUND` ;
+audio long : `NOT_HUMAN_LISTENED`. Ne pas qualifier la précision ASR à partir
+de ces textes sans expliquer et lever cette limite.
+
+Contrôles : 14/14 fichiers conformes à leurs SHA après création, 4/4 WAV
+décodés, 2/2 MP3 décodés, 179/179 morceaux PCM vérifiés ; **13 fichiers sources
+protégés inchangés**, dont archive, annotations, modules Python et candidats.
+Résultats, chemins, SHA, provenance et logs FFmpeg sous
+`target/n2-native/qualification-gpu/corpus-preparation/preparation-results.json`
+et le même dossier. Extraits temporaires conservés, aucune suppression.
+La prochaine phase reste l'implémentation et la revue des recettes dédiées,
+puis la campagne sous garde après accord ; le corpus généré n'est pas une
+preuve de qualification GPU.
