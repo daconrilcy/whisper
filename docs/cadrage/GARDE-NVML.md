@@ -1,10 +1,10 @@
-Avancée : garde CLEAN, auto-tests PASS ; ProgramW6432 confirme la cause NVML (0 avec, 255 sans).
-Blocage : import GPU exécuté mais échoué sur le parent de journal settings absent.
-Décision : arrêt après cet échec ; préparation du seul dossier manquant proposée, aucune fusion.
+Avancée : GARDE-NVML livré CLEAN ; témoins ProgramW6432 et reprise Parakeet GPU réussis.
+Blocage : aucun pour ce lot ; corpus FR87/FR27 et autres recettes restent non qualifiés.
+Décision : correctif conservé sur branche dédiée ; aucune fusion de la pile ni push.
 
 # GARDE-NVML
 
-Branche `codex/garde-nvml`, worktree `C:/dev/whisper/.wt/nv`, base `53eb3bce`. [Plan autorisé](plan-garde-nvml.md). Cycle initial et fermeture GN-R2 supplémentaire explicitement autorisée.
+Branche `codex/garde-nvml`, worktree `C:/dev/whisper/.wt/nv`, base `53eb3bce`. [Plan autorisé](plan-garde-nvml.md). Cycle initial et fermeture GN-R2 supplémentaire explicitement autorisée. Environ 62 minutes depuis création du worktree : cible d'une heure légèrement dépassée.
 
 | Vérification produit en lecture seule | Fichier:ligne et environnement transmis |
 | --- | --- |
@@ -21,9 +21,9 @@ Recherche exhaustive `crates/` (production et tests) : aucun `env_clear`/bloc Wi
 | Auto-tests : conformité, absent/inexistant/jonction/différent du registre | PASS, refus attendus ; registre inchangé |
 | Témoin positif : commande NVIDIA existante | PASS : code 0, une ligne UUID |
 | Témoin négatif : seule ProgramW6432 retirée | PASS : code 255, erreur NVML attendue |
-| `PersonalUnifiedGpuOnly` : seul sélecteur GPU existant | 1 test, 0 PASS, 1 échec ; Cargo 101, 62,168 s |
-| Revue indépendante et trois préflights | CLEAN, GN-R1/R2/R3 fermés ; PASS |
+| `PersonalUnifiedGpuOnly` : seul sélecteur GPU existant | PASS : 1 test, 0 échec ; Cargo 0, 42,695 s |
+| Revue indépendante, auto-test staging et préflights | CLEAN, GN-R1/R2/R3 fermés ; PASS |
 
-Les deux appels NVIDIA partagent EXE/argv/CWD/racines et toutes les autres variables, vérifié sur leurs PSI. UUID positif : `GPU-99e636f6…645e`. La reprise GPU échoue avant transcription : `WorkerLogPath: create runtime logs`, erreur Windows 3. Le code crée `Whisper/settings/logs` non récursivement ; le parent settings manque dans le staging isolé (chemin 134 caractères). Sources `parakeet_import.rs:375,703–712`, `worker_ipc/parakeet_unified/native.rs:168`. Aucun Rust corrigé ; créer ce parent sous le RunRoot puis reprendre ce seul test nécessite l'arbitrage après échec.
+Les deux appels NVIDIA partagent EXE/argv/CWD/racines et toutes les autres variables, vérifié sur leurs PSI. UUID positif : `GPU-99e636f6…645e`. Premier essai GPU : 1 échec (Cargo 101), parent `Whisper/settings` absent ; trace conservée. Après accord explicite, la garde prépare ce seul parent vide sous le RunRoot, sans variable ni Rust modifié ; le produit crée logs. Reprise unique : **1 PASS**, corps 41,21 s ; publication TXT **49 octets**, SRT **82**, WAV **129 068**. Aucun CPU/Auto ou autre profil GPU déjà PASS relancé.
 
-**Non qualifié :** import GPU ci-dessus, FR87/FR27 perdus et recettes sans prérequis/sélecteurs prêts (`ParakeetGpu` DISCOVERY_PENDING). Aucun profil déjà PASS relancé, aucune fusion/push. Candidat `34f7498f` ; seules les deux CI, plan/bilan et [preuves](../architecture/raw/garde-nvml/results.json) changent. ZIP : 29 entrées tailles/SHA vérifiés ; 23 entrées sources et 21 fichiers stagés inchangés par SHA. Espace libre : **101 618 073 600 octets**.
+**Non qualifié :** FR87/FR27 perdus et recettes sans prérequis/sélecteurs prêts (`ParakeetGpu` DISCOVERY_PENDING). La campagne complète n'est pas verte. Candidat `61447382` ; seules les deux CI, plan/bilan et [preuves](../architecture/raw/garde-nvml/results.json) changent. ZIP : **63 entrées**, tailles/SHA vérifiés ; 23 fichiers sources et 21 fichiers stagés inchangés par SHA. Espace libre : **98 018 824 192 octets**. Aucun nettoyage, installation, fusion ni push.

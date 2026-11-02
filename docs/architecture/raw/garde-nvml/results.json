@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "status": "CLEAN_GUARD_WITNESS_PASS_GPU_TEST_FAILED_STAGING",
+  "status": "PASS_GARDE_NVML_GPU_RETRY_PASS",
   "base": "53eb3bce",
   "branch": "codex/garde-nvml",
-  "candidate": "34f7498fdc88629f613686109a25684bf4974201",
+  "candidate": "614473821c8c4a3c47980e7a6f6bc1d005f1d1dd",
   "productAudit": "PASS no environment clearing or ProgramW6432 removal",
   "productPaths": [
     {
@@ -38,32 +38,37 @@
     }
   ],
   "review": {
-    "verdict": "CLEAN GARDE-NVML",
-    "candidate": "34f7498fdc88629f613686109a25684bf4974201",
+    "verdict": "CLEAN",
+    "candidate": "614473821c8c4a3c47980e7a6f6bc1d005f1d1dd",
     "closed": [
       "GN-R1",
       "GN-R2",
       "GN-R3"
     ],
     "findings": [],
-    "guardSha256": "4d62b484cdcaa6d278ee5e4b5ea2155e4349aed0f0fbaffd217a8f8545e12f6a",
+    "verificationGaps": [],
+    "guardSha256": "0647c72b712f8b529ca6b04117e26137790fe29e785666bbcfe0e143af49169f",
     "registrySha256": "d871e7724811294ee71f120ec50e50bd5843460fc4314304cc95f5b39b9e5327",
-    "extraGnR2CycleAuthorized": true
+    "settingsExtensionReviewed": "CLEAN targeted",
+    "witnessOnProgramWCodeCandidate": "34f7498f",
+    "witnessNotRerunAfterSettingsOnlyChange": true
   },
   "hostAndRegistryValue": "C:\\Program Files",
-  "cargoCalls": 1,
+  "cargoCalls": 2,
   "nativeWorkerCalls": null,
-  "qualifiedGpuProfiles": [],
+  "qualifiedGpuProfiles": [
+    "PersonalUnifiedGpuOnly"
+  ],
   "fullCampaignQualified": false,
   "mergePerformed": false,
   "programWVariableOnlyAdded": true,
-  "freeBytes": 101618073600,
+  "freeBytes": 98018824192,
   "archive": {
     "file": "results.zip",
-    "entryCount": 29,
-    "priorEntriesPreserved": 6,
+    "entryCount": 63,
+    "priorEntriesPreserved": 29,
     "allSizesAndHashesVerified": true,
-    "sha256": "e45c8be7a881c3815be6b7172a86c202d82330e2f988165f7accc9bd916750d8",
+    "sha256": "b40faf48291cc96b607769ea75bdbf7e5a096d9c5ddae6bec0b75135149f96de",
     "entries": [
       {
         "path": "target/n2-native/resources/preparation.json",
@@ -209,6 +214,176 @@
         "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-e38c6f527e234b209ef2cf8f7dfab0fd/unattributed-temp.jsonl",
         "bytes": 6049,
         "sha256": "14abb6a806bcdaaa57a0591dbd29c40275eb46b4015f50e751911d8ed8a677ed"
+      },
+      {
+        "path": "target/n2-native/logs/garde-nvml-settings-selftest.txt",
+        "bytes": 673,
+        "sha256": "84364ee435f3396d2f8a87fc737fc6b98aafb580b57176fbe5e689956c925346"
+      },
+      {
+        "path": "target/n2-native/resources/settings-parent-selftest.json",
+        "bytes": 14022,
+        "sha256": "c170de33af844b05ce65b0ea201f010c32abf1bc4646631fa17c670bb00d1794"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-retry-preflight.txt",
+        "bytes": 487,
+        "sha256": "d74c827ed59b31ddb5c947a56aaf4cb1d56792bb06c416ef2fd30cdb4d5f33d8"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-retry-run.txt",
+        "bytes": 288,
+        "sha256": "4d0ae5d97e0c4af150c84b238a129903e13bd26283502da466e751a12e8abb78"
+      },
+      {
+        "path": "target/n2-native/resources/gpu-retry-pass.json",
+        "bytes": 1538,
+        "sha256": "c79943b102cdbf01cb01688bd61298521fd4c8440cab49079618627fb00b1f0a"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/native_personal_gpu_imports_english_mp3_with_attested_candidate.invocation.json",
+        "bytes": 1346,
+        "sha256": "47f6067c762a655c3d940ddf6521c0d7c8777d6bc65644dd98ec77d9fe75e14f"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/native_personal_gpu_imports_english_mp3_with_attested_candidate.process.json",
+        "bytes": 147,
+        "sha256": "a405b7fddd31c103509341534d41f8e434b2f9ef944339b290519268c0a811eb"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/native_personal_gpu_imports_english_mp3_with_attested_candidate.stderr.log",
+        "bytes": 229,
+        "sha256": "b2ce926f7f00b6f533d1dd8a737c59afc70516e1a96082cabb12158e679953c2"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/native_personal_gpu_imports_english_mp3_with_attested_candidate.stdout.log",
+        "bytes": 196,
+        "sha256": "40995204b53e9529b2cc4e9380426fd1a62ec3fc5d8b6991cd88f36a812482f9"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/result.json",
+        "bytes": 2227,
+        "sha256": "94194bf496fc240bd2293dc2751c3c98a1e597bfdd8ab0a64eb55356afacc258"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/unattributed-temp.jsonl",
+        "bytes": 12556,
+        "sha256": "3e09dcce3239078551a15014999da94aeca6798a8eaa4e0864ac0936624d4705"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/.whisper-publications.lock",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/.whisper-publications/index.json",
+        "bytes": 223,
+        "sha256": "f3ea29e8089b5e1209ebdc3eefc3bc713fa783aa6602ecf44ba3e7a1c8ba0992"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/exports/en-short.srt",
+        "bytes": 82,
+        "sha256": "53ef0552f2d2117179ff9be4172a0e99fee0c85287e86b7dc0bf8c4e2327526c"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/exports/en-short.txt",
+        "bytes": 49,
+        "sha256": "0edf3f33e020e532102a9795f978ed2e19ee89b506688fe141e4556881b9d5f5"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/CURRENT",
+        "bytes": 14,
+        "sha256": "ca8648fb7fb08b2dff1e9841e2f9551efc4c14ac6cb42b59c132d680b77de4d2"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/export.srt.install.pending",
+        "bytes": 82,
+        "sha256": "53ef0552f2d2117179ff9be4172a0e99fee0c85287e86b7dc0bf8c4e2327526c"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/export.srt.pending",
+        "bytes": 82,
+        "sha256": "53ef0552f2d2117179ff9be4172a0e99fee0c85287e86b7dc0bf8c4e2327526c"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/export.txt.install.pending",
+        "bytes": 49,
+        "sha256": "0edf3f33e020e532102a9795f978ed2e19ee89b506688fe141e4556881b9d5f5"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/export.txt.pending",
+        "bytes": 49,
+        "sha256": "0edf3f33e020e532102a9795f978ed2e19ee89b506688fe141e4556881b9d5f5"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/installed-exports.json",
+        "bytes": 696,
+        "sha256": "818c6574f641412d85931d287f9ebe97ec29cfc84b54d0cbc902a26898f000d6"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/manifest.json",
+        "bytes": 398,
+        "sha256": "ab70c9078486049ca8633d60f127a8ce506155282b9b0b7a56834081f4be647e"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/pending.json",
+        "bytes": 688,
+        "sha256": "6f1c311e971cfb8e29f4d65d8833e91c95c3ba3a6e090d72dd5adc9067c7e9fe"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/r11-publication.json",
+        "bytes": 322,
+        "sha256": "90b2c7141a5323e31e96cc5c2102ed57aaccb9d558af1e9cd66c74f711d67431"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/segments.jsonl",
+        "bytes": 147,
+        "sha256": "cb422b2277599ff83de604c4d05df4e60b20e48a27417582a218d48234b609a7"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/transcript.srt",
+        "bytes": 82,
+        "sha256": "53ef0552f2d2117179ff9be4172a0e99fee0c85287e86b7dc0bf8c4e2327526c"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/transcript.txt",
+        "bytes": 49,
+        "sha256": "0edf3f33e020e532102a9795f978ed2e19ee89b506688fe141e4556881b9d5f5"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/parakeet-unified/source.parts.idx",
+        "bytes": 32,
+        "sha256": "2b51eddafeaae65a5304dcb29032b37237349c42ddaf668ba458fd2fab5cc447"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/parakeet-unified/source.wav",
+        "bytes": 129068,
+        "sha256": "8c72de575b6f5e93812a6d5bea73b7c0c928dcc73f769b64bc325adf79a2219a"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 110,
+        "sha256": "23945bbdc8d38a2e40e9f95c4175f86f89754347902ca82cdd262717209d52f3"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/parakeet-unified/document/document.final.json",
+        "bytes": 85,
+        "sha256": "fdf2b6a2370c5ff2a26016c4748314bcdb4d62b91250801812217fb1fcbab7b8"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/parakeet-unified/document/document.idx",
+        "bytes": 24,
+        "sha256": "737f42d2bbb44d3321ad1dfd9285c3c1240c0a1129dac7ae3606e01d47c7876a"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/writes/l04/archive/transcriptions/0000000000015ae018e42da6aa734b98/1/parakeet-unified/document/document.jsonl",
+        "bytes": 244,
+        "sha256": "dda4bdf9bef724adfdb3540da3381d3ec439ebdfe6d025dadce6235613a5c1a5"
+      },
+      {
+        "path": "target/n2-native/runs/PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8/localappdata/Whisper/settings/logs/parakeet-asr-1793608783992-88800-0.log",
+        "bytes": 124,
+        "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
       }
     ]
   },
@@ -307,6 +482,49 @@
     ]
   },
   "gpuAttempt": {
+    "candidate": "61447382",
+    "guardReview": "CLEAN targeted and prior GN findings closed",
+    "runId": "PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8",
+    "status": "PASS",
+    "cargoExitCode": 0,
+    "cargoSeconds": 42.695,
+    "bodySeconds": 41.21,
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "sourceInputsShaVerified": 23,
+    "stagedRuntimeFilesShaVerified": 21,
+    "settingsParentExists": true,
+    "productLogsDirectoryExists": true,
+    "outputs": [
+      {
+        "path": "C:\\dev\\whisper\\.wt\\nv\\target\\n2-native\\runs\\PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8\\writes\\l04\\archive\\exports\\en-short.srt",
+        "bytes": 82,
+        "sha256": "53ef0552f2d2117179ff9be4172a0e99fee0c85287e86b7dc0bf8c4e2327526c"
+      },
+      {
+        "path": "C:\\dev\\whisper\\.wt\\nv\\target\\n2-native\\runs\\PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8\\writes\\l04\\archive\\exports\\en-short.txt",
+        "bytes": 49,
+        "sha256": "0edf3f33e020e532102a9795f978ed2e19ee89b506688fe141e4556881b9d5f5"
+      },
+      {
+        "path": "C:\\dev\\whisper\\.wt\\nv\\target\\n2-native\\runs\\PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8\\writes\\l04\\archive\\transcriptions\\0000000000015ae018e42da6aa734b98\\1\\parakeet-unified\\source.wav",
+        "bytes": 129068,
+        "sha256": "8c72de575b6f5e93812a6d5bea73b7c0c928dcc73f769b64bc325adf79a2219a"
+      }
+    ],
+    "firstFailurePreserved": true,
+    "otherProfilesRerun": [],
+    "witnessNotRerun": true,
+    "installedFilesOrRustChanged": false,
+    "freeBytes": 98018824192
+  },
+  "preflights": {
+    "NvidiaProgramW6432Witness": "PASS",
+    "PersonalUnifiedGpuOnly": "PASS",
+    "NvidiaSmiInventoryDiagnostic": "PASS without tool launch"
+  },
+  "firstGpuAttempt": {
     "candidate": "34f7498f",
     "sourceInputFilesVerified": 23,
     "stagedRuntimeFilesVerified": 21,
@@ -333,9 +551,27 @@
     "executionStopped": true,
     "freeBytes": 101618073600
   },
-  "preflights": {
-    "NvidiaProgramW6432Witness": "PASS",
-    "PersonalUnifiedGpuOnly": "PASS",
-    "NvidiaSmiInventoryDiagnostic": "PASS without tool launch"
+  "additionalQualifiedNativeBodies": 1,
+  "cumulativeTargetedNativeQualifiedBodies": 43,
+  "settingsExtension": {
+    "authorization": "Oui, préparer ce dossier et reprendre le GPU",
+    "profile": "PersonalUnifiedGpuOnly",
+    "parentOnly": "localappdata/Whisper/settings",
+    "newEnvironmentVariables": [],
+    "newWriteRoots": [],
+    "fixture": {
+      "aliasOnly": "PASS",
+      "underRunRoot": "PASS",
+      "reparseRejected": "PASS",
+      "idempotent": "PASS",
+      "logsNotCreated": "PASS",
+      "environmentUnchanged": true
+    }
+  },
+  "timing": {
+    "worktreeCreatedUtc": "2026-11-02T07:42:51Z",
+    "closureObservedUtc": "2026-11-02T08:44:49Z",
+    "elapsedMinutesSinceWorktree": 62,
+    "targetUnderOneHourExceeded": true
   }
 }

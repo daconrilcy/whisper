@@ -1,6 +1,6 @@
-Avancée : vérification produit sans défaut ; garde CLEAN, auto-tests et témoins ProgramW6432 PASS.
-Blocage : le seul import GPU repris échoue sur settings absent dans le runtime isolé.
-Décision : arrêt après échec ; préparer ce parent sous le RunRoot et reprendre seulement ce cas est proposé.
+Avancée : vérification produit sans défaut ; garde CLEAN, témoins ProgramW6432 et reprise GPU PASS.
+Blocage : aucun dans le lot ; campagne complète toujours limitée par FR87/FR27 et autres prérequis.
+Décision : GARDE-NVML terminé ; pas de fusion ni push, autres profils non relancés.
 
 # GARDE-NVML — plan autorisé
 
@@ -33,3 +33,11 @@ Proposition de reprise bornée, non appliquée : pour le seul alias PersonalUnif
 Bilan d'arrêt : garde revue CLEAN et cause NVML confirmée, qualification import GPU encore en réserve ; corpus FR87/FR27 et profils sans sélecteurs prêts toujours non qualifiés. Six fichiers suivis modifiés/créés dans le lot (deux CI, plan, bilan, JSON/ZIP de preuves), aucun Rust/manifeste/installation/système, aucune fusion/push. Les preuves contiennent 29 entrées, les six précédentes conservées et 23 ajoutées, tailles/SHA vérifiés ; SHA ZIP `e45c8be7a881c3815be6b7172a86c202d82330e2f988165f7accc9bd916750d8`. Espace libre relevé : 101 618 073 600 octets.
 
 Accord de préparation et reprise reçu : **« Oui, préparer ce dossier et reprendre le GPU »**. Le périmètre s'étend au seul parent vide `Whisper/settings` sous le runtime stagé du seul alias PersonalUnifiedGpuOnly ; la garde vérifie son confinement et l'absence de reparse, sans créer le sous-dossier logs que le produit doit créer. Revue ciblée, auto-test du prérequis, puis **une seule** reprise du même test. Aucun témoin NVIDIA ni autre profil relancé ; aucune variable/racine/sélecteur/installation/Rust/système supplémentaire. Les traces du premier échec sont conservées.
+
+## Clôture obtenue
+
+Correction du seul staging `61447382`, revue ciblée CLEAN, aucune réserve ouverte. FullSelfTest final PASS (dont alias-only, confinement, refus reparse, idempotence, logs non créés et environnement inchangé), puis préflight GPU PASS ; écarts de preuve clos par le reviewer sur le même candidat. Une seule reprise du même sélecteur, run **PersonalUnifiedGpuOnly-84cf695c7f3c42cf8d4498af2361dec8** : **PASS, 1 corps, 0 échec/ignoré**, Cargo 0, 42,695 s, corps 41,21 s. Publication TXT49/SRT82/WAV129068 octets. Le produit a bien créé settings/logs. Les 23 fichiers sources et 21 fichiers stagés sont inchangés par SHA après reprise. Pas de relance des témoins ni d'un autre profil.
+
+Résultat du lot : cause NVML confirmée par le couple code0/UUID avec ProgramW6432 et code255 sans, valeur validée hôte/registre, refus des falsifications validés ; garde et extension staging revues CLEAN ; le seul cas GPU prêt restant est désormais qualifié. Le premier échec de préparation n'est pas effacé, ses sorties restent archivées. Les 42 corps ciblés auparavant PASS deviennent 43 avec ce cas supplémentaire ; aucun décompte de campagne entière verte, aucune substitution de FR87/FR27 ni exécution de ParakeetGpu DISCOVERY_PENDING.
+
+Preuves finales dans les mêmes JSON/ZIP : **63 entrées**, 29 précédentes préservées et 34 ajoutées, tailles/SHA intégralement vérifiés ; ZIP SHA **`b40faf48291cc96b607769ea75bdbf7e5a096d9c5ddae6bec0b75135149f96de`**. Espace libre final relevé **98 018 824 192 octets**. Aucun fichier Rust/manifeste/Cargo.lock/.cargo/models/install modifié selon diff de la base. Aucun nettoyage, installation, fusion ni push. Le bilan d'une page GARDE-NVML.md résume les résultats ; les autres recettes/corpus restent non qualifiés.
