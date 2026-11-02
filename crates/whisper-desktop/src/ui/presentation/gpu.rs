@@ -1,5 +1,63 @@
 use super::*;
 
+pub(in crate::ui) fn gpu_startup_notice_message(
+    worker_unavailable: bool,
+    inventory_uncertain: bool,
+) -> Option<&'static str> {
+    if worker_unavailable {
+        Some("GPU indisponible pour la transcription. Vous pouvez utiliser le CPU.")
+    } else if inventory_uncertain {
+        Some("La disponibilité du GPU n’a pas pu être confirmée. Vous pouvez utiliser le CPU.")
+    } else {
+        None
+    }
+}
+
+pub(in crate::ui) fn gpu_startup_notices_ui(
+    ui: &mut egui::Ui,
+    startup_message: Option<&str>,
+    inventory: Option<&GpuInventoryApp>,
+) -> Option<egui::Response> {
+    let worker_error = startup_message.filter(|message| message.starts_with("GPU indisponible :"));
+    let inventory_uncertain = inventory.is_some_and(|inventory| {
+        matches!(
+            inventory.state(),
+            GpuInventoryState::Partial(_) | GpuInventoryState::Failed(_)
+        ) || matches!(
+            inventory.qualified_state(),
+            GpuQualifiedInventoryState::Partial(_) | GpuQualifiedInventoryState::Failed(_)
+        )
+    });
+    let other_startup_message =
+        startup_message.filter(|message| !message.starts_with("GPU indisponible :"));
+
+    if let Some(summary) = gpu_startup_notice_message(worker_error.is_some(), inventory_uncertain) {
+        ui.colored_label(egui::Color32::YELLOW, summary);
+        if let Some(message) = other_startup_message {
+            ui.colored_label(egui::Color32::LIGHT_RED, message);
+        }
+        let details = egui::CollapsingHeader::new("Détails de la détection GPU").show(ui, |ui| {
+            if let Some(message) = worker_error {
+                ui.label(message);
+            }
+            if let Some(inventory) = inventory {
+                gpu_inventory_status(ui, inventory.state());
+                gpu_qualified_status(ui, inventory.qualified_state());
+            }
+        });
+        return Some(details.header_response);
+    }
+
+    if let Some(message) = other_startup_message {
+        ui.colored_label(egui::Color32::LIGHT_RED, message);
+    }
+    if let Some(inventory) = inventory {
+        gpu_inventory_status(ui, inventory.state());
+        gpu_qualified_status(ui, inventory.qualified_state());
+    }
+    None
+}
+
 pub(in crate::ui) fn parakeet_gpu_catalog_ready(catalog: &CatalogSnapshot) -> bool {
     catalog.entries.iter().any(|entry| {
         entry.id == ModelId::ParakeetTdt06BV3

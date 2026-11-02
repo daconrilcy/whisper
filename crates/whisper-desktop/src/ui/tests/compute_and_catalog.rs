@@ -166,6 +166,196 @@
     }
 
     #[test]
+    fn gpu_startup_notice_uses_plain_language_and_hides_raw_failure_from_summary() {
+        let technical_error =
+            "GPU indisponible : WorkerExited without End: worker exited without End";
+        assert!(technical_error.contains("WorkerExited without End"));
+        assert_eq!(
+            crate::ui::presentation::gpu_startup_notice_message(true, true),
+            Some("GPU indisponible pour la transcription. Vous pouvez utiliser le CPU.")
+        );
+        assert!(!"GPU indisponible pour la transcription. Vous pouvez utiliser le CPU."
+            .contains(technical_error));
+        assert_eq!(
+            crate::ui::presentation::gpu_startup_notice_message(false, true),
+            Some("La disponibilité du GPU n’a pas pu être confirmée. Vous pouvez utiliser le CPU.")
+        );
+        assert_eq!(
+            crate::ui::presentation::gpu_startup_notice_message(false, false),
+            None
+        );
+    }
+
+    fn gpu_inventory_response(response: Result<GpuCollection, String>) -> GpuInventoryApp {
+        let responses = Rc::new(RefCell::new(VecDeque::from([(1, response)])));
+        let mut inventory = GpuInventoryApp::new(Box::new(ControlledGpuInventory(responses)));
+        inventory.poll();
+        inventory
+    }
+
+    fn gpu_observation() -> GpuObservation {
+        GpuObservation {
+            identity: "pci:0000:00:02.0".into(),
+            name: Some("Intel Iris Xe Graphics".into()),
+            state: Some(GpuState::Ready),
+            presence: GpuPresence::Current,
+        }
+    }
+
+    fn render_gpu_notice(
+        context: &egui::Context,
+        startup_message: Option<&str>,
+        inventory: Option<&GpuInventoryApp>,
+    ) -> (String, Option<egui::Rect>) {
+        let mut header_rect = None;
+        let output = context.run_ui(Default::default(), |ui| {
+            header_rect = crate::ui::presentation::gpu_startup_notices_ui(
+                ui,
+                startup_message,
+                inventory,
+            )
+            .map(|response| response.rect);
+        });
+        fn collect(shape: &egui::Shape, text: &mut String) {
+            match shape {
+                egui::Shape::Text(shape) => {
+                    text.push_str(&shape.galley.job.text);
+                    text.push('\n');
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect(shape, text)),
+                _ => {}
+            }
+        }
+        let mut text = String::new();
+        for clipped in output.shapes {
+            collect(&clipped.shape, &mut text);
+        }
+        (text, header_rect)
+    }
+
+    fn immediate_egui_context() -> egui::Context {
+        let context = egui::Context::default();
+        context.all_styles_mut(|style| style.animation_time = 0.0);
+        context
+    }
+
+    fn click_gpu_notice_header(
+        context: &egui::Context,
+        rect: egui::Rect,
+        startup_message: Option<&str>,
+        inventory: Option<&GpuInventoryApp>,
+    ) -> String {
+        let position = rect.center();
+        let _ = context.run_ui(
+            egui::RawInput {
+                events: vec![
+                    egui::Event::PointerMoved(position),
+                    egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: Default::default(),
+                    },
+                ],
+                ..Default::default()
+            },
+            |ui| {
+                crate::ui::presentation::gpu_startup_notices_ui(ui, startup_message, inventory);
+            },
+        );
+        let output = context.run_ui(
+            egui::RawInput {
+                events: vec![
+                    egui::Event::PointerMoved(position),
+                    egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        modifiers: Default::default(),
+                    },
+                ],
+                ..Default::default()
+            },
+            |ui| {
+                crate::ui::presentation::gpu_startup_notices_ui(ui, startup_message, inventory);
+            },
+        );
+        let mut text = String::new();
+        for clipped in output.shapes {
+            match &clipped.shape {
+                egui::Shape::Text(shape) => {
+                    text.push_str(&shape.galley.job.text);
+                    text.push('\n');
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| {
+                    if let egui::Shape::Text(shape) = shape {
+                        text.push_str(&shape.galley.job.text);
+                        text.push('\n');
+                    }
+                }),
+                _ => {}
+            }
+        }
+        text
+    }
+
+    #[test]
+    fn gpu_startup_and_partial_inventory_diagnostics_are_collapsed_and_expand_on_request() {
+        let worker_error =
+            "GPU indisponible : WorkerExited without End: worker exited without End";
+        let inventory_error = "Transport GPU interrompu : collecte impossible";
+        let inventory = gpu_inventory_response(Ok(GpuCollection {
+            observations: vec![gpu_observation()],
+            error: Some(inventory_error.into()),
+        }));
+        assert!(matches!(inventory.state(), GpuInventoryState::Partial(_)));
+
+        let context = immediate_egui_context();
+        let (collapsed, header) = render_gpu_notice(&context, Some(worker_error), Some(&inventory));
+        assert!(collapsed.contains("GPU indisponible pour la transcription. Vous pouvez utiliser le CPU."));
+        assert!(collapsed.contains("Détails de la détection GPU"));
+        assert!(!collapsed.contains("WorkerExited without End"));
+        assert!(!collapsed.contains(inventory_error));
+
+        let expanded = click_gpu_notice_header(
+            &context,
+            header.expect("diagnostic details header is rendered"),
+            Some(worker_error),
+            Some(&inventory),
+        );
+        assert!(expanded.contains("WorkerExited without End"));
+        assert!(expanded.contains(inventory_error));
+    }
+
+    #[test]
+    fn failed_inventory_is_collapsed_while_available_and_loading_states_remain_distinct() {
+        let error = "nvidia-smi indisponible : code 255";
+        let failed = gpu_inventory_response(Err(error.into()));
+        let context = egui::Context::default();
+        let (collapsed, header) = render_gpu_notice(&context, None, Some(&failed));
+        assert!(collapsed.contains("La disponibilité du GPU n’a pas pu être confirmée."));
+        assert!(!collapsed.contains(error));
+        assert!(header.is_some());
+
+        let context = egui::Context::default();
+        let loading = GpuInventoryApp::new(Box::new(ControlledGpuInventory::default()));
+        let (loading_text, header) = render_gpu_notice(&context, Some("Vérification du GPU en cours…"), Some(&loading));
+        assert!(loading_text.contains("Vérification du GPU en cours"));
+        assert!(loading_text.contains("Inventaire GPU en cours"));
+        assert!(!loading_text.contains("GPU indisponible pour la transcription"));
+        assert!(header.is_none());
+
+        let complete = gpu_inventory_response(Ok(GpuCollection {
+            observations: vec![gpu_observation()],
+            error: None,
+        }));
+        let (complete_text, header) = render_gpu_notice(&context, None, Some(&complete));
+        assert!(complete_text.contains("Inventaire GPU complet selon Windows"));
+        assert!(!complete_text.contains("GPU indisponible pour la transcription"));
+        assert!(header.is_none());
+    }
+
+    #[test]
     fn microphone_uses_selected_gpu() {
         let recorder = RecordingApplication::default();
         let mut app = DesktopApp::new(recorder.clone());

@@ -22,13 +22,11 @@ impl<A: Application> DesktopApp<A> {
             };
             ui.colored_label(color, visible_message);
         }
-        if let Some(message) = &self.startup_message {
-            ui.colored_label(egui::Color32::LIGHT_RED, message);
-        }
-        if let Some(inventory) = &self.gpu_inventory {
-            gpu_inventory_status(ui, inventory.state());
-            gpu_qualified_status(ui, inventory.qualified_state());
-        }
+        gpu_startup_notices_ui(
+            ui,
+            self.startup_message.as_deref(),
+            self.gpu_inventory.as_ref(),
+        );
         if let Some(message) = &self.path_notice {
             ui.colored_label(egui::Color32::YELLOW, message);
         }

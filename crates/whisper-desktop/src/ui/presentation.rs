@@ -3,7 +3,9 @@ use eframe::egui;
 use whisper_adapters::model_catalog::CatalogSnapshot;
 use whisper_core::engine_capabilities::EngineProjection;
 use whisper_core::gpu_inventory::GpuQualifiedDevice;
-use whisper_core::gpu_inventory_app::{GpuInventoryState, GpuQualifiedInventoryState};
+use whisper_core::gpu_inventory_app::{
+    GpuInventoryApp, GpuInventoryState, GpuQualifiedInventoryState,
+};
 use whisper_core::gpu_selection::{SelectionResolution, SessionCandidate};
 use whisper_core::model_catalog::{Backend, ModelId};
 use whisper_core::model_registry::TURBO_LANGUAGE_INPUTS;
@@ -21,6 +23,9 @@ mod recovery;
 mod selection;
 mod text;
 
+#[cfg(test)]
+pub(in crate::ui) use gpu::gpu_startup_notice_message;
+pub(in crate::ui) use gpu::gpu_startup_notices_ui;
 pub use gpu::{
     gpu_inventory_status, gpu_inventory_status_message, gpu_preference_combo,
     gpu_preference_labels, gpu_preference_options, gpu_preference_selectable,
