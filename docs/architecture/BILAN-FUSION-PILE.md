@@ -1,6 +1,6 @@
-Avancée : quatre lots fusionnés ; revue CLEAN, niveau 1 PASS ; quatre worktrees/branches et dix caches cargo-home retirés.
-Blocage : aucun pour le contrôle après suppression manuelle ; intermédiaires compilés archivés conservés.
-Décision : preuves, modèles, audios et cache partagé préservés ; aucun push.
+Avancée : quatre lots fusionnés ; niveau 1 PASS ; Turbo et Parakeet validés manuellement en Auto et CPU sur un second PC sans CUDA déclaré par l'utilisateur.
+Blocage : aucun pour les essais CPU rapportés ; message de détection GPU au démarrage toujours présent.
+Décision : qualification CPU acceptée pour cette recette ; limites GPU et corpus conservées ; aucun push.
 
 Le 2 novembre 2026 : tag `avant-fusion-pile` = `248f8679` ; fusion unique `c830881c`, parents `248f8679`/`85dcd7fc`, arbre identique à la tête revue.
 
@@ -23,7 +23,9 @@ Sur main, via `ci/guard-level1.ps1`, offline/locked lorsque applicable, environn
 
 Auto-tests : 30 positifs/58 négatifs PASS. Prérequis `--no-run`/PE : neuf harnais CPU PASS, zéro import CUDA, SHA consignés. Total : **654 PASS, 141 ignorés, zéro échec** ; aucun natif/GPU exécuté. Journaux : `target/parakeet-tests/fusion-pile/scratch/` ; référence Clippy déplacée sous `target/pile-preserved/nv/target/parakeet-tests/fusion-pile-head-v2/scratch/`, SHA inchangé.
 
-Qualification existante : **43 corps ciblés PASS** (31 intermédiaire ; 23 contrats GPU, trois Parakeet hors inventaire initial), repli CPU démontré, worker CPU release sans imports CUDA (PE/SHA), `PersonalUnifiedGpuOnly` PASS. Non qualifiés : campagne native complète, FR87/FR27 perdus, `ParakeetGpu DISCOVERY_PENDING`, généralisation de l'unique inférence GPU, Windows isolé sans CUDA. `Whisper/settings` est préparé par la garde : création par le produit à traiter séparément.
+Qualification existante : **43 corps ciblés PASS** (31 intermédiaire ; 23 contrats GPU, trois Parakeet hors inventaire initial), repli CPU démontré, worker CPU release sans imports CUDA (PE/SHA), `PersonalUnifiedGpuOnly` PASS. Non qualifiés : campagne native complète, FR87/FR27 perdus, `ParakeetGpu DISCOVERY_PENDING`, généralisation de l'unique inférence GPU. Windows Sandbox non exécuté ; la recette réelle sur le second PC ci-dessous apporte la validation CPU sans CUDA rapportée par l'utilisateur. `Whisper/settings` est préparé par la garde et le lanceur portable : création par le produit à traiter séparément.
+
+Validation utilisateur du 2 novembre 2026 : le paquet portable `target/remise-cpu-sans-cuda-20261102/Whisper-CPU-Windows-x64.zip` (SHA-256 `5E65044E9FB1B1437B111162DC125AC1C5E5F63C49E7E7B46033A19BD3D18DE0`, 28 fichiers vérifiés avant remise, aucune DLL CUDA embarquée) démarre sur l'autre PC Windows déclaré sans CUDA. **Turbo CPU, Turbo Auto, Parakeet CPU et Parakeet Auto : PASS manuel**, moteur CPU sans erreur et transcriptions jugées bonnes. Le choix GPU est grisé. Le démarrage affiche néanmoins `WorkerExited without End`, un inventaire partiel et les adaptateurs Parsec Virtual Display Adapter / Intel Iris Xe indéterminés ; ce diagnostic reste une réserve d'affichage/détection GPU, sans échec CPU rapporté. Aucun inventaire matériel ou DLL supplémentaire demandé ni exécuté ; il ne s'agit pas d'une qualification GPU. Exports TXT/SRT/WAV, capture micro et mesures de performance non explicitement attestés par ce retour. Les résultats automatisés et leurs comptes restent inchangés.
 
 Nettoyage autorisé et **exécuté** le 2 novembre 2026 depuis `C:/dev/whisper`, sans force ; tailles initiales hors jonctions :
 

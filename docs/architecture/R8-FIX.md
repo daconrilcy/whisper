@@ -1,6 +1,6 @@
 Avancée : quatre releases conformes ; 665 tests N1 réussis, zéro échec, 142 ignorés ; 834 identités couvertes ; revue indépendante CLEAN.
-Blocage : aucun pour R8-FIX ; installation et validation Windows non exécutées.
-Décision : lot livré en commits locaux, sans push ni installation ; réinstallation réservée au lot suivant.
+Blocage : aucun pour R8-FIX ; réserve de diagnostic GPU au démarrage de la recette CPU ultérieure.
+Décision : lot livré en commits locaux ; qualification manuelle CPU sans CUDA ajoutée le 2 novembre 2026, sans push.
 
 # R8-FIX — CPU livré sans import CUDA
 
@@ -36,4 +36,6 @@ Revue indépendante **CLEAN** : R1 (publication), R2 (PE tronqué), R3 (restaura
 
 Preuves : [résultats, chemins et SHA individuels](raw/r8-fix/r8-fix-results.json), [834 identités comparées](raw/r8-fix/r8-fix-coverage.json), [journaux complets](raw/r8-fix/r8-fix-campaign-logs.zip). Archive : **95 entrées** relues et comparées aux sources (tailles/SHA), **166 568 octets** ; SHA-256 `fdfa322bdef001221237cc1a08f3e57262cd37f19f65835c5655d31f8d77c6be`.
 
-Non vérifié : réinstallation, démarrage des workers sans CUDA présent sur le PC, inférence, modèles, qualité/performance audio et fenêtre Windows. Le lot suivant devra vérifier les SHA des fichiers effectivement installés, refaire le contrôle PE après copie, puis qualifier le démarrage CPU et le repli Auto dans les conditions produit autorisées. Aucune installation ni copie vers une installation dans R8-FIX ; aucune preuve d'absence d'écriture hors racines par confinement.
+À la clôture initiale de R8-FIX : réinstallation, démarrage sans CUDA, inférence et fenêtre Windows restaient à qualifier dans les lots suivants. Aucune installation ni copie vers une installation dans R8-FIX ; aucune preuve d'absence d'écriture hors racines par confinement.
+
+Complément du 2 novembre 2026 : l'utilisateur confirme sur son second PC Windows déclaré sans CUDA le démarrage du paquet portable, les transcriptions Turbo et Parakeet jugées bonnes, **Auto et CPU réussis pour chacun, sur CPU sans erreur**, et GPU grisé. Cette recette valide fonctionnellement le CPU sans CUDA dans ces conditions ; elle ne modifie pas les comptes N1 ni les verdicts PE. Le message initial `GPU indisponible` / `WorkerExited without End` et l'inventaire partiel (Parsec Virtual Display Adapter, Intel Iris Xe indéterminés) restent consignés comme réserve de diagnostic GPU. Aucun contrôle matériel supplémentaire ni qualification GPU ; exports, micro et performance non explicitement attestés. Paquet et limites détaillés dans le [bilan de fusion](BILAN-FUSION-PILE.md).
