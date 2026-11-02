@@ -1098,6 +1098,55 @@ function Copy-ProfileStaging([object]$Profile, [object]$ValuesDoc, [string]$Loca
     return $receipts.ToArray()
 }
 
+function Initialize-PersonalGpuSettingsParent([string]$ProfileId, [string]$RunRoot) {
+    if ($ProfileId -cne 'PersonalUnifiedGpuOnly') { return $null }
+    $runRootFull = Assert-PathUnder $RunRoot $script:Lot 'PersonalUnifiedGpuOnly RunRoot' -MustExist -Directory
+    $localAppData = Assert-PathUnder (Join-Path $runRootFull 'localappdata') $runRootFull 'PersonalUnifiedGpuOnly LOCALAPPDATA' -MustExist -Directory
+    $settingsPath = Get-FullPath (Join-Path $localAppData 'Whisper\settings')
+    if (-not (Test-InRoot $settingsPath $runRootFull)) { throw "PersonalUnifiedGpuOnly settings parent escaped RunRoot: $settingsPath" }
+    Assert-NoReparseChain $settingsPath 'PersonalUnifiedGpuOnly settings parent before creation'
+    if (Test-Path -LiteralPath $settingsPath -PathType Leaf) { throw "PersonalUnifiedGpuOnly settings parent is not a directory: $settingsPath" }
+    if (-not (Test-Path -LiteralPath $settingsPath -PathType Container)) {
+        New-Item -ItemType Directory -Path $settingsPath -Force -ErrorAction Stop | Out-Null
+    }
+    $createdPath = Assert-PathUnder $settingsPath $runRootFull 'PersonalUnifiedGpuOnly settings parent' -MustExist -Directory
+    Assert-NoReparseChain $createdPath 'PersonalUnifiedGpuOnly settings parent after creation'
+    return $createdPath
+}
+
+function Invoke-PersonalGpuSettingsParentSelfTest([string]$Lot) {
+    $fixtureRoot = Join-Path $Lot ('selftest-personal-gpu-settings-' + [guid]::NewGuid().ToString('N'))
+    $runRoot = Join-Path $fixtureRoot 'run'
+    $outsideRoot = Join-Path $fixtureRoot 'outside'
+    $reparseRunRoot = Join-Path $fixtureRoot 'reparse-run'
+    $junction = Join-Path (Join-Path $reparseRunRoot 'localappdata') 'Whisper'
+    New-Item -ItemType Directory -Path (Join-Path $runRoot 'localappdata'),$outsideRoot -Force -ErrorAction Stop | Out-Null
+    try {
+        $localAppDataBefore = [Environment]::GetEnvironmentVariable('LOCALAPPDATA','Process')
+        $created = Initialize-PersonalGpuSettingsParent 'PersonalUnifiedGpuOnly' $runRoot
+        $settingsPath = Join-Path (Join-Path $runRoot 'localappdata') 'Whisper\settings'
+        if ($created -ine (Get-FullPath $settingsPath) -or -not (Test-Path -LiteralPath $settingsPath -PathType Container)) { throw 'GPU-only settings parent was not created under its RunRoot.' }
+        if (Test-Path -LiteralPath (Join-Path $settingsPath 'logs')) { throw 'GPU-only settings prerequisite created the product-owned logs directory.' }
+        $beforeEntries = @(Get-ChildItem -LiteralPath $settingsPath -Force | Select-Object -ExpandProperty FullName)
+        $again = Initialize-PersonalGpuSettingsParent 'PersonalUnifiedGpuOnly' $runRoot
+        $afterEntries = @(Get-ChildItem -LiteralPath $settingsPath -Force | Select-Object -ExpandProperty FullName)
+        if ($again -ine $created -or [string]::Join("`n",$beforeEntries) -cne [string]::Join("`n",$afterEntries)) { throw 'GPU-only settings parent initialization was not idempotent.' }
+        $regularRunRoot = Join-Path $fixtureRoot 'regular-run'
+        New-Item -ItemType Directory -Path (Join-Path $regularRunRoot 'localappdata') -Force -ErrorAction Stop | Out-Null
+        if ($null -ne (Initialize-PersonalGpuSettingsParent 'PersonalUnified' $regularRunRoot) -or (Test-Path -LiteralPath (Join-Path $regularRunRoot 'localappdata\Whisper'))) { throw 'Settings parent was created for the non-GPU-only PersonalUnified profile.' }
+        Test-Rejects 'GPU-only settings parent outside RunRoot' { Initialize-PersonalGpuSettingsParent 'PersonalUnifiedGpuOnly' $outsideRoot }
+        $junctionTarget = Join-Path $outsideRoot 'Whisper'
+        New-Item -ItemType Directory -Path (Join-Path $reparseRunRoot 'localappdata'),$junctionTarget -Force -ErrorAction Stop | Out-Null
+        New-Item -ItemType Junction -Path $junction -Target $junctionTarget -ErrorAction Stop | Out-Null
+        Test-Rejects 'GPU-only settings parent reparse chain' { Initialize-PersonalGpuSettingsParent 'PersonalUnifiedGpuOnly' $reparseRunRoot }
+        if ([Environment]::GetEnvironmentVariable('LOCALAPPDATA','Process') -cne $localAppDataBefore) { throw 'GPU-only settings prerequisite changed the process environment.' }
+        return [pscustomobject]@{ aliasOnly='PASS'; underRunRoot='PASS'; reparseRejected='PASS'; idempotent='PASS'; logsNotCreated='PASS'; environmentUnchanged=$true }
+    } finally {
+        if (Test-Path -LiteralPath $junction) { Remove-Item -LiteralPath $junction -Force -ErrorAction SilentlyContinue }
+        if ((Test-InRoot $fixtureRoot $Lot) -and (Test-Path -LiteralPath $fixtureRoot)) { Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
 function Assert-CampaignRoots([string]$Lot, [string]$RunRoot, [hashtable]$Environment) {
     if (-not (Test-InRoot $Lot $script:Repo)) { throw 'Lot root escaped the candidate worktree.' }
     if (-not (Test-InRoot $RunRoot $Lot)) { throw 'Run root escaped the candidate lot.' }
@@ -2668,6 +2717,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     $watcherError = [pscustomobject]@{type='WatcherError';path='';old_path='';at=[DateTimeOffset]::UtcNow.ToString('o');detail='synthetic-only'}
     if ((Get-EventDisposition $watcherError $allowed $protected $temp) -cne 'VIOLATION') { throw 'Watcher error was not rejected.' }
     $stagingEvidence = Invoke-StagingSelfTests $Lot
+    $personalGpuSettingsEvidence = Invoke-PersonalGpuSettingsParentSelfTest $Lot
     $watchDir = Join-Path $Lot ('selftest-watch-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $watchDir -Force | Out-Null
     $state = Start-WatchState @([pscustomobject]@{path=$watchDir;recursive=$true})
@@ -2705,6 +2755,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         discoveryArgv = @('PreparationNoRun','InventoryList','WasapiInventory','WasapiCapture')
         lotRootPolicy = $lotRootEvidence
         staging = $stagingEvidence
+        personalGpuSettingsParent = $personalGpuSettingsEvidence
         watcherAndRoots = @('allowed in-lot event','disallowed external event','Temp UNATTRIBUTED','cross-boundary rename rejected','watcher error rejected','live FileSystemWatcher observed in-lot marker')
     }
     $selfTestPath = Join-Path (Join-Path $Lot 'logs') 'guard-selftest-reusable-roots.json'
@@ -2733,6 +2784,7 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
     $environment = Get-ProfileEnvironment $Profile $ValuesDoc $script:RunRoot $Lot (-not $DryRunOnly)
     Assert-CampaignRoots $Lot $script:RunRoot $environment
     $stagingEvidence = if (-not $DryRunOnly) { Copy-ProfileStaging $Profile $ValuesDoc $environment.LOCALAPPDATA $script:RunRoot } else { @() }
+    if (-not $DryRunOnly) { $null = Initialize-PersonalGpuSettingsParent $Profile.id $script:RunRoot }
     $toolchain = if ($Profile.operation -ceq 'Diagnostic') { if ($Profile.id -in @('NvidiaProgramW6432Witness','NvidiaSmiInventoryDiagnostic') -and -not $DryRunOnly) { Get-CargoExecutable } else { $null } } else { Get-CargoExecutable }
     if ($Profile.operation -ceq 'Diagnostic') {
         if ($Profile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
