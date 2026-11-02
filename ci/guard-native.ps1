@@ -1841,6 +1841,8 @@ function Invoke-WatchedDiagnosticProcess([object]$Invocation) {
         Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $stderrLines ([ref]$stdoutEof) ([ref]$stderrEof)
         $stdoutWriter.Flush(); $stderrWriter.Flush()
         if ($Invocation.captureModules) {
+            if (-not $stdoutEof -or -not $stderrEof -or -not $stdoutQueue.IsEmpty) { throw 'NVIDIA diagnostic streams were not fully drained before finalization.' }
+            $stdoutWriter.Dispose(); $stderrWriter.Dispose()
             if ($moduleCapture.sampleCount -eq 0 -and $process.HasExited) { $moduleCapture.processExitedBeforeFirstSample=$true }
             $Invocation.record.moduleCapture = Complete-NvidiaModuleCapture $moduleCapture
             $Invocation.record.stdoutBytes = [long](Get-Item -LiteralPath $Invocation.stdoutPath -Force).Length
