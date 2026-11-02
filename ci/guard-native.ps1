@@ -697,7 +697,7 @@ function Invoke-NvidiaDiagnosticContextSelfTests([string]$Lot) {
         foreach ($contextId in @('clean','host-nvidia-filtered','path-only','vars-only')) {
             $context = $contextResults[$contextId]
             $psi = New-NvidiaDiagnosticProcessInfo (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') @('-NoProfile') $context.environment (Join-Path $root (Join-Path 'runs' $contextId))
-            if ($psi.EnvironmentVariables.Contains('NVIDIA_SECRET_SENTINEL') -or $psi.EnvironmentVariables.USERPROFILE -eq $hostEnvironment.USERPROFILE) { throw "NVIDIA context leaked ambient identity/secret values: $contextId" }
+            if ($psi.EnvironmentVariables.ContainsKey('NVIDIA_SECRET_SENTINEL') -or $psi.EnvironmentVariables.USERPROFILE -eq $hostEnvironment.USERPROFILE) { throw "NVIDIA context leaked ambient identity/secret values: $contextId" }
             $expectedContextRoot = Get-FullPath (Join-Path $root (Join-Path 'runs' $contextId))
             if (-not (Test-InRoot $psi.EnvironmentVariables.PROGRAMDATA $expectedContextRoot) -or $psi.EnvironmentVariables.ALLUSERSPROFILE -ne $psi.EnvironmentVariables.PROGRAMDATA -or -not (Test-InRoot $psi.EnvironmentVariables.PUBLIC $expectedContextRoot)) { throw "NVIDIA context did not reroute shared writable roots: $contextId" }
         }
@@ -2034,6 +2034,17 @@ function Invoke-StagingSelfTests([string]$Lot) {
 }
 
 function Invoke-SelfTests([object]$Registry, [string]$Lot) {
+    $processInfoFunction = Get-Command New-NvidiaDiagnosticProcessInfo -CommandType Function -ErrorAction Stop
+    $functionTokens = $null; $functionParseErrors = $null
+    $processInfoAst = [System.Management.Automation.Language.Parser]::ParseInput($processInfoFunction.Definition,[ref]$functionTokens,[ref]$functionParseErrors)
+    if ($functionParseErrors.Count -gt 0) { throw 'NVIDIA diagnostic process builder did not parse for the Cargo-root operator guard.' }
+    $ambiguousCargoRootCalls = @($processInfoAst.FindAll({
+        param($node)
+        if ($node -isnot [System.Management.Automation.Language.CommandAst] -or $node.GetCommandName() -ine 'Get-FullPath') { return $false }
+        foreach ($element in $node.CommandElements) { if ($element.Extent.Text -in @('-ine','-ieq','-ne','-eq')) { return $true } }
+        return $false
+    },$true))
+    if ($ambiguousCargoRootCalls.Count -gt 0) { throw 'NVIDIA diagnostic Cargo-root comparison must apply comparison operators to the resolved path value, not pass them as Get-FullPath command arguments.' }
     $rootFixture = Join-Path $Lot ('selftest-lot-roots-' + [guid]::NewGuid().ToString('N'))
     $savedRepo = $script:Repo
     $lotRootEvidence = $null
