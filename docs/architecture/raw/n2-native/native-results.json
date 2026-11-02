@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "revision": 11,
+  "revision": 12,
   "candidate": "233d5079",
-  "authorization": "Ok rédige le plan pour cela et mets le en œuvre jusqu a clean",
+  "authorization": "Oui, reprendre les auto-tests puis les diagnostics",
   "history": [
     {
       "candidate": "de9003dc",
@@ -474,13 +474,13 @@
     "applied": true,
     "status": "PASS; historical preparation now completed"
   },
-  "freeBytes": 111276122112,
+  "freeBytes": 110775201792,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 524,
-    "priorEntriesPreserved": 521,
+    "entryCount": 526,
+    "priorEntriesPreserved": 524,
     "entriesVerified": true,
-    "sha256": "71d1d236ca170a2b67178056f69a81c3fbb005e0aa42604dcbc213a627ef67da",
+    "sha256": "f9cf847791c56ddf2418136eca8292c769e6773f130dc95c747c81bd0afec7df",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -3101,6 +3101,16 @@
         "path": "target/n2-native/logs/nvml-environment-selftest.txt",
         "bytes": 273,
         "sha256": "c6c96a43ba43df292ac76ec1bf1642e458955849e06caaacb9a126b93d83f5d1"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-environment-selftest-resume.txt",
+        "bytes": 122,
+        "sha256": "9c4c10a2616b86ad1942d7ddd37fab5bc582c8ca911b11dbab39d4127dc2d39a"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/resume-stop.json",
+        "bytes": 668,
+        "sha256": "02233d560d0799b06f0d36fc5366b5bdb425294880daad5c1195058d4ec2aba0"
       }
     ]
   },
@@ -3465,7 +3475,7 @@
   "nvmlEnvironmentPreparation": {
     "planCommit": "83a9ba5d",
     "candidate": "233d5079",
-    "status": "WAITING_RESTART_ARBITRATION",
+    "status": "STOPPED_AFTER_SECOND_SELFTEST_FAILURE",
     "initialSelfTest": {
       "candidate": "5002c9b1",
       "status": "FAIL",
@@ -3523,7 +3533,40 @@
         "path": "target/n2-native/logs/nvml-environment-selftest.txt",
         "bytes": 273,
         "sha256": "c6c96a43ba43df292ac76ec1bf1642e458955849e06caaacb9a126b93d83f5d1"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-environment-selftest-resume.txt",
+        "bytes": 122,
+        "sha256": "9c4c10a2616b86ad1942d7ddd37fab5bc582c8ca911b11dbab39d4127dc2d39a"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/resume-stop.json",
+        "bytes": 668,
+        "sha256": "02233d560d0799b06f0d36fc5366b5bdb425294880daad5c1195058d4ec2aba0"
       }
-    ]
+    ],
+    "restartAttempt": {
+      "candidate": "233d5079",
+      "restartAuthorization": "Oui, reprendre les auto-tests puis les diagnostics",
+      "mode": "SelfTest",
+      "status": "FAIL",
+      "exitCode": 1,
+      "atUtc": "2026-11-02T06:00:32.4423877Z",
+      "message": "N2_GUARD_FAIL mode=SelfTest profile= message=NVIDIA diagnostic process Cargo roots differ from their approved locations.",
+      "trace": "target/n2-native/logs/nvml-environment-selftest-resume.txt",
+      "traceSha256": "9c4c10a2616b86ad1942d7ddd37fab5bc582c8ca911b11dbab39d4127dc2d39a",
+      "freeBytesAtStart": 110464368640,
+      "realNvidiaCalls": 0,
+      "cargoCalls": 0,
+      "reviewCyclesConsumed": 2,
+      "furtherExecutionSuspended": true
+    },
+    "overallDeliveryStatus": "LIVRE AVEC RESERVES; corrected candidate FullSelfTest FAIL",
+    "rootCause": "UNKNOWN: combined Cargo root condition does not identify the failing comparison"
+  },
+  "priorRevision11": {
+    "gitSnapshot": "3b6bb869",
+    "archiveEntryCount": 524,
+    "archiveSha256": "71d1d236ca170a2b67178056f69a81c3fbb005e0aa42604dcbc213a627ef67da"
   }
 }
