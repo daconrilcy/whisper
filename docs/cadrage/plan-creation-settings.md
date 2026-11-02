@@ -1,8 +1,13 @@
-Avancée : cause confirmée en lecture seule ; plan de correctif produit préparé le 2 novembre 2026.
-Blocage : aucune implémentation autorisée par la seule demande de rédaction du plan.
-Décision : proposer un correctif local au client Parakeet ; soumettre ce plan avant codage.
+Avancée : correctif implémenté ; 359 tests PASS, zéro échec ; revue indépendante CLEAN.
+Blocage : aucun pour le code ; recette native et nouvelle remise non exécutées.
+Décision : livrer en commit local ; garde et lanceur inchangés, aucune installation ni push.
 
 # Création du dossier settings par le produit
+
+Autorisation explicite de la session : « ok implemente jusqu'a Clean », après
+versionnement du plan dans `4eef6c09`. Les limites et arrêts prévus restent
+applicables ; deux cycles de revue/correction maximum. Espace libre relevé
+au lancement : 80,89 Gio. Aucun autre changement suivi préalable.
 
 ## Objectif et constat
 
@@ -81,7 +86,7 @@ actuels ; le correctif ne crée pas une nouvelle installation.
    `target/parakeet-tests/cargo-shared`, CARGO_HOME/TEMP/TMP/LOCALAPPDATA isolés.
    SelfTest préalable ; transmettre les arguments/variables en vrais tableaux
    PowerShell. Exécuter `cargo fmt --check`,
-   `cargo test --offline --locked -p whisper-adapters parakeet_import::`,
+   `cargo test --offline --locked -p whisper-adapters`,
    `cargo check --offline --locked -p whisper-desktop` et
    `cargo clippy --offline --locked -p whisper-adapters --all-targets`.
    Aucun `native-tests`, `--ignored`, modèle ou worker natif valide exécuté.
@@ -129,3 +134,72 @@ préférences de l'installation utilisateur ; ils ne sont pas exécutés par ce 
 Si le correctif doit être abandonné après commit, proposer un `git revert`
 ciblé à l'utilisateur. Aucune restauration destructive ni suppression de
 réglages pour revenir en arrière.
+
+## Arrêt de vérification et arbitrage
+
+SelfTest N1 : 30 positifs et 58 négatifs PASS. Formatage final et
+`git diff --check` PASS. Le filtre `parakeet_import::` prévu dans la commande
+de tests n'est pas accepté par la liste d'autorisation N1 ; refus avant
+lancement des tests, campagne arrêtée. Aucun check/Clippy exécuté ensuite.
+Proposition : remplacer la commande filtrée par
+`cargo test --offline --locked -p whisper-adapters`, autorisée par la garde,
+sans modifier celle-ci ni activer les tests natifs. Cela élargit l'exécution
+aux tests N1 de la crate et nécessite accord explicite de reprise.
+Accord explicite reçu ensuite dans la session : reprise autorisée avec toute
+la suite N1 de `whisper-adapters`, sans garde modifiée ni tests natifs activés.
+
+Cette suite a ensuite exécuté 279 tests unitaires : 278 PASS, un échec,
+48 ignorés. Le nouveau journal est créé sous `settings/logs` ; le test compare
+son chemin canonique Windows (préfixe étendu) à un attendu lexical.
+Première revue indépendante : R1 BLOQUANT, canonicaliser aussi le dossier
+attendu et conserver l'assertion de confinement. Aucun autre constat
+actionnable ; check desktop et Clippy non exécutés après cet arrêt.
+Accord de correction/reprise demandé conformément à AGENTS ; aucun CLEAN
+revendiqué pour ce candidat intermédiaire.
+Accord explicite reçu ensuite : correction de la comparaison par
+canonicalisation du chemin attendu, conservation de l'assertion de
+confinement, puis reprise tests, compilation, Clippy et même reviewer.
+
+## Bilan final — 2 novembre 2026
+
+Le client Parakeet prépare maintenant `settings` avant `logs` lorsque son
+chemin personnel de journal est actif. Il vérifie les répertoires canoniques
+et refuse un fichier à la place d'un dossier. Réglages et journaux existants
+ne sont ni remplacés ni tronqués ; le correctif ne crée pas de préférences.
+Les branches session explicite et historiques restent inchangées. Le CPU
+personnel qui ne demande pas de journal n'initialise pas ce dossier inutilement.
+
+Fichiers modifiés :
+
+- `parakeet_import.rs` : préparation du parent personnel, contrôles de dossier
+  et de racine, déclaration du module de tests ;
+- `parakeet_import/legacy_runtime_tests.rs` : retrait de la précréation du
+  parent dans le témoin personnel CPU/GPU et vérification des effets attendus ;
+- `parakeet_import/worker_log_tests.rs` : tests séparés de création, répétition,
+  préservation, refus des fichiers et variantes de routage ;
+- le présent document : accords, résultats et limites du lot.
+
+Vérifications finales sous `ci/guard-level1.ps1`, lot
+`target/parakeet-tests/creation-settings`, cible partagée canonique,
+environnement isolé, offline/locked lorsque applicable :
+
+| Commande | Résultat | Dossier final sous `scratch/` |
+| --- | --- | --- |
+| SelfTest | 30 positifs / 58 négatifs PASS, acquis avant Cargo | journaux du lot |
+| `cargo fmt --check` | PASS | `20261102T143059213-0eecb39163234cc3b0c3a2b828cdf4f0` |
+| `cargo test --offline --locked -p whisper-adapters` | 359 PASS / 0 échec / 118 ignorés, 33 résumés | `20261102T143110469-6f9c82c270af458eab2618a73b303614` |
+| `cargo check --offline --locked -p whisper-desktop` | PASS | `20261102T143150624-dc0e1068dbd3471b9262ff0ec4893869` |
+| `cargo clippy --offline --locked -p whisper-adapters --all-targets` | PASS ; avertissements hors delta, aucun sur les fichiers modifiés | `20261102T143221078-ab36766a2cb54c94abf44bf1d38ae182` |
+
+Les dossiers finaux contiennent `cargo-command.stdout.log` et
+`cargo-command.stderr.log`. `git diff --check` PASS. Revue indépendante :
+deux passes, un cycle de correction, R1 fermé, verdict **CLEAN**.
+Espace libre de clôture : environ 77,95 Gio. Modèles et audios non suivis
+préservés ; aucun manifeste, lockfile, garde ou lanceur modifié.
+
+Limites conservées : les tests utilisent des fichiers factices et les harnais,
+sans moteur natif, modèle ni transcription réelle. Le confinement des chemins
+est revu statiquement ; aucune qualification de jonction Windows réelle.
+Aucune compilation release, ouverture de fenêtre, installation ou nouvelle
+archive portable. La recette de premier démarrage sans `settings` sur le
+paquet livré reste à faire dans le lot de remise ultérieur décrit plus haut.

@@ -701,7 +701,8 @@ fn worker_stderr_log(
         }
         (canonical, false, false)
     } else if paths.is_personal_runtime() {
-        (runtime.join("settings"), false, false)
+        let settings = create_runtime_directory(&runtime.join("settings"), &runtime, "settings")?;
+        (settings, false, false)
     } else {
         historical_runtime::historical_log_root(&runtime, is_gpu_worker)?
     };
@@ -714,6 +715,12 @@ fn worker_stderr_log(
     let log_dir = log_dir
         .canonicalize()
         .map_err(|error| format!("WorkerLogPath: canonical runtime logs: {error}"))?;
+    if !log_dir.is_dir() {
+        return Err(format!(
+            "WorkerLogPath: runtime logs path is not a directory: {}",
+            log_dir.display()
+        ));
+    }
     if !log_dir.starts_with(&log_root) {
         return Err("PathOutsideRuntime: worker stderr log is outside its execution root".into());
     }
@@ -734,6 +741,37 @@ fn worker_stderr_log(
         .open(&path)
         .map_err(|error| format!("WorkerLogOpen: {}: {error}", path.display()))?;
     Ok((Stdio::from(file), is_gpu_worker.then_some(path)))
+}
+
+fn create_runtime_directory(path: &Path, runtime: &Path, label: &str) -> Result<PathBuf, String> {
+    match std::fs::create_dir(path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && path.is_dir() => {}
+        Err(error) => {
+            return Err(format!(
+                "WorkerLogPath: create runtime {label}: {}: {error}",
+                path.display()
+            ));
+        }
+    }
+    let canonical = path.canonicalize().map_err(|error| {
+        format!(
+            "WorkerLogPath: canonical runtime {label}: {}: {error}",
+            path.display()
+        )
+    })?;
+    if !canonical.is_dir() {
+        return Err(format!(
+            "WorkerLogPath: runtime {label} is not a directory: {}",
+            canonical.display()
+        ));
+    }
+    if !canonical.starts_with(runtime) {
+        return Err(format!(
+            "PathOutsideRuntime: worker log {label} is outside its execution root"
+        ));
+    }
+    Ok(canonical)
 }
 
 fn worker_log_prefix(is_gpu_worker: bool, l3c_gpu_log: bool, l3d_gpu_log: bool) -> &'static str {
@@ -767,6 +805,9 @@ mod worker_log_mode_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod worker_log_tests;
 
 #[cfg(test)]
 #[path = "parakeet_import/legacy_runtime_tests.rs"]

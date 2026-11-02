@@ -44,13 +44,22 @@ fn personal_cpu_and_gpu_do_not_require_l3b() {
                 matches!(result, Err(ref error) if error.starts_with("WorkerStart:")),
                 "the invalid fixture executable must reach the OS launch step"
             );
+            if backend == "cpu" {
+                assert!(
+                    !personal.join("settings").exists(),
+                    "the CPU worker without a diagnostic log must not initialize settings"
+                );
+            } else {
+                assert!(personal.join("settings/logs").is_dir());
+                assert!(!personal.join("settings/settings.json").exists());
+            }
         }
         return;
     }
 
     let root = fixture_root("personal-no-l3b");
     let personal = root.join("Whisper");
-    std::fs::create_dir_all(personal.join("settings")).unwrap();
+    assert!(!personal.join("settings").exists());
     for backend in ["cpu", "gpu"] {
         let paths = personal_paths(&personal, backend);
         std::fs::create_dir_all(paths.executable.parent().unwrap()).unwrap();
