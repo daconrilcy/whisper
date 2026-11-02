@@ -99,6 +99,8 @@ function Test-ProgramW6432ProfileId([string]$ProfileId) {
     return $ProfileId -cin @(
         'GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports',
         'PersonalUnified','PersonalUnifiedGpuOnly',
+        'ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong',
+        'ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong',
         'NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic','NvidiaProgramW6432Witness'
     )
 }
@@ -245,6 +247,92 @@ function Assert-ExactTestSelector([string]$Name) {
     }
 }
 
+function Get-VoxPopuliProfileContract([string]$Id) {
+    switch -CaseSensitive ($Id) {
+        'ParakeetGpu' { return [pscustomobject]@{ operation='Run'; selector='voxpopuli::english_short_mp3_gpu'; timeoutSeconds=1200 } }
+        'ParakeetGpuFrenchShort' { return [pscustomobject]@{ operation='Run'; selector='voxpopuli::french_short_wav_and_mp3_gpu'; timeoutSeconds=2100 } }
+        'ParakeetGpuFrenchLong' { return [pscustomobject]@{ operation='Run'; selector='voxpopuli::french_long_gpu'; timeoutSeconds=5700 } }
+        'ParakeetGpuEnglishLong' { return [pscustomobject]@{ operation='Run'; selector='voxpopuli::english_long_gpu'; timeoutSeconds=5700 } }
+        'ParakeetGpuFrenchAutoLong' { return [pscustomobject]@{ operation='Run'; selector='voxpopuli::french_long_auto_gpu'; timeoutSeconds=5700 } }
+        'ParakeetGpuEnglishAutoLong' { return [pscustomobject]@{ operation='Run'; selector='voxpopuli::english_long_auto_gpu'; timeoutSeconds=5700 } }
+        'ParakeetGpuPreparation' { return [pscustomobject]@{ operation='NoRun'; selector=''; timeoutSeconds=1800 } }
+        'ParakeetGpuInventory' { return [pscustomobject]@{ operation='List'; selector=''; timeoutSeconds=300 } }
+        default { return $null }
+    }
+}
+
+function Get-NativeCommandTimeoutSeconds([object]$Profile) {
+    $contract = Get-VoxPopuliProfileContract ([string]$Profile.id)
+    $hasTimeout = $Profile.PSObject.Properties.Name -contains 'commandTimeoutSeconds'
+    if ($null -eq $contract) {
+        if ($hasTimeout) { throw "Command timeout is only declared for the bounded VoxPopuli profiles: $($Profile.id)" }
+        return $null
+    }
+    if (-not $hasTimeout -or [string]$Profile.commandTimeoutSeconds -cne [string]$contract.timeoutSeconds) {
+        throw "VoxPopuli command timeout differs from its exact approved bound: $($Profile.id)"
+    }
+    return [int]$contract.timeoutSeconds
+}
+
+function Assert-VoxPopuliProfileContract([object]$Profile) {
+    $contract = Get-VoxPopuliProfileContract ([string]$Profile.id)
+    [void](Get-NativeCommandTimeoutSeconds $Profile)
+    if ($null -eq $contract) { return }
+    if ($Profile.package -cne 'whisper-adapters' -or $Profile.operation -cne $contract.operation -or @($Profile.features).Count -ne 1 -or $Profile.features[0] -cne 'whisper-adapters/native-tests' -or @($Profile.compileEnvironment).Count -ne 0) {
+        throw "VoxPopuli package, operation, features or compile environment differs from its bounded contract: $($Profile.id)"
+    }
+    if ($Profile.status -ceq 'DISCOVERY_PENDING') {
+        if ($contract.operation -cne 'Run') { throw 'VoxPopuli preparation and inventory must remain READY.' }
+        foreach ($field in @('inputs','values','outputs','cases','staging')) {
+            if (@($Profile.$field | Where-Object { $null -ne $_ }).Count -ne 0) { throw "Pending VoxPopuli profile must not contain provisional $field." }
+        }
+        return
+    }
+    if ($Profile.status -cne 'READY') { throw 'VoxPopuli profile has an unsupported readiness state.' }
+    if ($contract.operation -ne 'Run') {
+        foreach ($field in @('inputs','outputs','cases','staging')) {
+            if (@($Profile.$field | Where-Object { $null -ne $_ }).Count -ne 0) { throw "VoxPopuli discovery profile must not declare $field." }
+        }
+        $actualValues = @($Profile.values | ForEach-Object { "{0}|{1}|{2}|{3}|{4}" -f $_.key,$_.environmentVariable,$_.kind,$_.allowedRoot,[bool]$_.required })
+        $expectedValues = @('cudaToolkitPath|CUDA_PATH|directory|cuda-12.9|True','cudaToolkitVersionedPath|CUDA_PATH_V12_9|directory|cuda-12.9|True','libclangPath|LIBCLANG_PATH|literal||True')
+        if (-not (Test-ExactStringSet $actualValues $expectedValues)) { throw 'VoxPopuli discovery environment differs from the bounded CUDA/libclang values.' }
+        return
+    }
+    $actualInputs = @($Profile.inputs | ForEach-Object { "{0}|{1}|{2}" -f $_.key,$_.environmentVariable,$_.kind })
+    $expectedInputs = @('personalRuntime|WHISPER_N2_PERSONAL_RUNTIME_ROOT|directory','voxpopuliCorpus|WHISPER_VOXPOPULI_CORPUS_ROOT|directory','voxpopuliSources|WHISPER_VOXPOPULI_PROVENANCE_ROOT|directory')
+    if (-not (Test-ExactStringSet $actualInputs $expectedInputs)) { throw 'VoxPopuli inputs differ from its three explicit read-only sources.' }
+    if (@($Profile.values).Count -ne 1 -or $Profile.values[0].key -cne 'cudaToolkitPath' -or $Profile.values[0].environmentVariable -cne 'CUDA_PATH' -or $Profile.values[0].kind -cne 'directory' -or $Profile.values[0].allowedRoot -cne 'cuda-12.9' -or -not [bool]$Profile.values[0].required) { throw 'VoxPopuli Run environment must declare only the exact CUDA toolkit value.' }
+    if (@($Profile.outputs).Count -ne 1 -or $Profile.outputs[0].key -cne 'campaignRun' -or $Profile.outputs[0].environmentVariable -cne 'WHISPER_L04_CAMPAIGN_RUN' -or $Profile.outputs[0].kind -cne 'directory' -or $Profile.outputs[0].path -cne 'writes/voxpopuli-campaign') { throw 'VoxPopuli output must remain under its explicit RunRoot campaign directory.' }
+    $actualStages = @($Profile.staging | ForEach-Object { "{0}|{1}|{2}|{3}|{4}" -f $_.inputKey,$_.destinationBase,$_.destination,$_.requiredFileCount,$_.requiredBytes })
+    if (-not (Test-ExactStringSet $actualStages @('personalRuntime|localappdata|Whisper|21|3196008875','voxpopuliCorpus|run|writes/voxpopuli-corpus|14|151356410'))) { throw 'VoxPopuli staging differs from the qualified runtime and fourteen corpus file pins.' }
+    if (@($Profile.cases).Count -ne 1 -or $Profile.cases[0].targetKind -cne 'integration' -or $Profile.cases[0].targetName -cne 'parakeet_unified_native' -or $Profile.cases[0].exactTest -cne $contract.selector -or [bool]$Profile.cases[0].ignored -or $Profile.cases[0].verdict -cne 'QUALIFICATION') { throw 'VoxPopuli profile must contain exactly its approved integration selector.' }
+}
+
+function Assert-VoxPopuliValues([object]$Profile, [hashtable]$Inputs) {
+    $contract = Get-VoxPopuliProfileContract ([string]$Profile.id)
+    if ($null -eq $contract -or $contract.operation -cne 'Run') { return }
+    $runtime = $Inputs['personalRuntime']
+    if (@($runtime.files).Count -ne 21) { throw 'VoxPopuli personal runtime must contain its exact twenty-one pinned files.' }
+    foreach ($entry in @($runtime.files)) {
+        $normalized = ([string]$entry.path).Replace('\','/')
+        if ($normalized -ieq 'settings' -or $normalized.StartsWith('settings/',[StringComparison]::OrdinalIgnoreCase)) { throw 'VoxPopuli runtime staging must not precreate settings.' }
+    }
+    $expectedCorpusNames = @(
+        'fr-short-60s.wav','fr-short-60s.mp3','fr-short-60s.reference.txt','fr-short-60s.annotations.json',
+        'en-short-60s.wav','en-short-60s.mp3','en-short-60s.reference.txt','en-short-60s.annotations.json',
+        'fr-long-35m.wav','fr-long-35m.reference.txt','fr-long-35m.annotations.json',
+        'en-long-40m.wav','en-long-40m.reference.txt','en-long-40m.annotations.json'
+    )
+    if (-not (Test-ExactStringSet @($Inputs['voxpopuliCorpus'].files | ForEach-Object { [string]$_.path }) $expectedCorpusNames)) { throw 'VoxPopuli corpus files differ from the fourteen approved names.' }
+    $sources = $Inputs['voxpopuliSources']
+    $expectedSourceRoot = Get-FullPath (Join-Path $script:Lot 'qualification-gpu\corpus-preparation\raw')
+    if ([string]$sources.path -ine $expectedSourceRoot) { throw 'VoxPopuli original tracks must remain at their exact read-only provenance root.' }
+    if (@($sources.files).Count -ne 5 -or [long](@($sources.files | Measure-Object -Property bytes -Sum)[0].Sum) -ne 769120357) { throw 'VoxPopuli original tracks differ from the five pinned local archive members.' }
+    foreach ($entry in @($sources.files)) {
+        if ([string]$entry.path -cnotmatch '^202001(?:13|14|15|16|29)-0900-PLENARY_original\.ogg$') { throw 'VoxPopuli source track is outside the approved archive member set.' }
+    }
+}
+
 function Assert-ProfileFeatureScope([object]$Profile) {
     $personalFeature = 'whisper-worker-parakeet-cpu/parakeet-personal'
     $features = @($Profile.features | ForEach-Object { [string]$_ })
@@ -286,6 +374,7 @@ function Get-ProfileRegistry {
         if ($profile.package -cne 'workspace' -and -not $packageSet.Contains([string]$profile.package)) { throw "Unapproved package for profile $($profile.id): $($profile.package)" }
         foreach ($feature in @($profile.features)) { if (-not $featureSet.Contains([string]$feature)) { throw "Unapproved feature '$feature' in profile $($profile.id)." } }
         Assert-ProfileFeatureScope $profile
+        Assert-VoxPopuliProfileContract $profile
         foreach ($entry in @($profile.compileEnvironment)) {
             $name = [string]$entry.name
             if (-not $script:AllowedCompileEnvironment.ContainsKey($name) -or [string]$entry.value -cne $script:AllowedCompileEnvironment[$name]) {
@@ -939,6 +1028,7 @@ function Get-ValuesDocument([string]$Path, [object]$Profile) {
             Assert-NoReparseChain $value "tool value $($descriptor.key)"
         }
     }
+    Assert-VoxPopuliValues $Profile $assetMap
     return [pscustomobject]@{ inputs = $assetMap; values = $valuesDoc.values }
 }
 
@@ -1239,6 +1329,7 @@ function New-CargoArguments([object]$Profile, [object]$Case) {
     if ($Profile.package -ceq 'workspace') { $argsList.Add('--workspace') }
     else { $argsList.Add('-p'); $argsList.Add([string]$Profile.package) }
     if (@($Profile.features).Count -gt 0) { $argsList.Add('--features'); $argsList.Add([string]::Join(',', [string[]]$Profile.features)) }
+    if ($Profile.id -cin @('ParakeetGpuPreparation','ParakeetGpuInventory')) { $argsList.Add('--test'); $argsList.Add('parakeet_unified_native') }
     if ($Profile.operation -eq 'NoRun') { $argsList.Add('--no-run'); return ,([string[]]$argsList.ToArray()) }
     if ($Profile.operation -eq 'List') { $argsList.Add('--'); $argsList.Add('--list'); return ,([string[]]$argsList.ToArray()) }
     switch ([string]$Case.targetKind) {
@@ -1424,7 +1515,438 @@ function Stop-CargoProcessTree([Diagnostics.Process]$Process) {
     try { if (-not $Process.HasExited) { & "$env:WINDIR\System32\taskkill.exe" /PID $Process.Id /T /F 2>$null | Out-Null; $Process.WaitForExit() } } catch { }
 }
 
-function Drain-WatcherEvents([object]$State, [string[]]$AllowedRoots, [string[]]$ProtectedRoots, [string]$UserTemp, [Diagnostics.Process]$Process, [string]$Mode, [string]$LogRoot) {
+function Assert-NativeCommandDeadline([object]$Deadline, [string]$CaseId) {
+    if ($null -ne $Deadline -and [DateTimeOffset]::UtcNow -ge [DateTimeOffset]$Deadline) {
+        throw "VoxPopuli command exceeded its bounded parent deadline: $CaseId"
+    }
+}
+
+function New-VoxPopuliProcessFamily([Diagnostics.Process]$Process) {
+    $entries = @{}
+    $entries[[int]$Process.Id] = [pscustomobject]@{ process=$Process; createdUtc=$Process.StartTime.ToUniversalTime(); root=$true; scannedAfterExit=$false }
+    return [pscustomobject]@{ root=$Process; entries=$entries; lastScanUtc=[DateTimeOffset]::MinValue; streamDeadline=$null; lastQueryFilter=$null; cleanupPasses=0; cleanupClosed=$false; cleanupDeadlineUtc=$null }
+}
+
+function Assert-VoxPopuliCleanupDeadline([object]$Deadline) {
+    if ($null -ne $Deadline -and [DateTimeOffset]::UtcNow -ge [DateTimeOffset]$Deadline) { throw 'VoxPopuli descendant cleanup exhausted its global 10 second deadline.' }
+}
+
+function Update-VoxPopuliProcessFamily([object]$Family, [switch]$Force, [scriptblock]$QueryForSelfTest = $null, [object]$CleanupDeadline = $null) {
+    if ($null -eq $Family) { return }
+    $now = [DateTimeOffset]::UtcNow
+    if (-not $Force -and ($now - $Family.lastScanUtc).TotalSeconds -lt 1) { return }
+    $knownParentIds = @($Family.entries.GetEnumerator() | Where-Object { -not $_.Value.process.HasExited -or -not $_.Value.scannedAfterExit } | ForEach-Object { [int]$_.Key } | Sort-Object)
+    for ($offset = 0; $offset -lt $knownParentIds.Count; $offset += 32) {
+        Assert-VoxPopuliCleanupDeadline $CleanupDeadline
+        $parentIds = @($knownParentIds | Select-Object -Skip $offset -First 32)
+        $exitedBeforeQuery = [Collections.Generic.HashSet[int]]::new()
+        foreach ($parentId in $parentIds) {
+            $entry = $Family.entries[$parentId]
+            if ($entry.process.HasExited) { [void]$exitedBeforeQuery.Add($parentId) }
+            elseif ([Math]::Abs(($entry.process.StartTime.ToUniversalTime() - $entry.createdUtc).TotalMilliseconds) -gt 1) { throw 'Observed parent identity changed before the descendant query.' }
+        }
+        $filter = [string]::Join(' OR ',[string[]]@($parentIds | ForEach-Object { 'ParentProcessId = ' + $_ }))
+        $Family.lastQueryFilter = $filter
+        try {
+            $snapshot = if ($null -ne $QueryForSelfTest) { @(& $QueryForSelfTest $filter) } else { @(Get-CimInstance -ClassName Win32_Process -Filter $filter -Property ProcessId,ParentProcessId,CreationDate -OperationTimeoutSec 2 -ErrorAction Stop) }
+        } catch { throw "VoxPopuli descendant query failed for known parent identities [$filter]: $($_.Exception.Message)" }
+        foreach ($row in $snapshot) {
+            $processId = [int]$row.ProcessId
+            $parentId = [int]$row.ParentProcessId
+            if ($Family.entries.ContainsKey($processId) -or $parentIds -notcontains $parentId -or $null -eq $row.CreationDate) { continue }
+            $createdUtc = ([DateTime]$row.CreationDate).ToUniversalTime()
+            if ($createdUtc -lt $Family.entries[$parentId].createdUtc) { continue }
+            $observed = $null
+            try {
+                $observed = [Diagnostics.Process]::GetProcessById($processId)
+                [void]$observed.Handle
+                if ($observed.HasExited -or [Math]::Abs(($observed.StartTime.ToUniversalTime() - $createdUtc).TotalMilliseconds) -gt 1) { $observed.Dispose(); continue }
+                $Family.entries[$processId] = [pscustomobject]@{ process=$observed; createdUtc=$createdUtc; root=$false; scannedAfterExit=$false }
+            } catch [ArgumentException] {
+                if ($null -ne $observed) { $observed.Dispose() }
+            } catch [InvalidOperationException] {
+                if ($null -ne $observed) { $observed.Dispose() }
+            }
+        }
+        foreach ($parentId in $parentIds) { if ($exitedBeforeQuery.Contains($parentId)) { $Family.entries[$parentId].scannedAfterExit = $true } }
+        Assert-VoxPopuliCleanupDeadline $CleanupDeadline
+    }
+    $Family.lastScanUtc = [DateTimeOffset]::UtcNow
+}
+
+function Test-VoxPopuliCompletionPending([object]$Family, [object]$Deadline, [string]$CaseId, [bool]$StdoutEof, [bool]$StderrEof) {
+    Assert-NativeCommandDeadline $Deadline $CaseId
+    Update-VoxPopuliProcessFamily $Family
+    Assert-NativeCommandDeadline $Deadline $CaseId
+    if ($Family.root.HasExited) {
+        if ($null -eq $Family.streamDeadline) {
+            Update-VoxPopuliProcessFamily $Family -Force
+            $Family.streamDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+        }
+        Assert-NativeCommandDeadline $Deadline $CaseId
+        if ($StdoutEof -and $StderrEof) { return $false }
+        if ([DateTimeOffset]::UtcNow -ge $Family.streamDeadline) { throw 'VoxPopuli stdout/stderr capture did not reach EOF before its 10 second deadline.' }
+    }
+    return $true
+}
+
+function Stop-VoxPopuliKnownProcesses([object]$Family, [Collections.Generic.List[string]]$Errors, [DateTimeOffset]$Deadline) {
+    $entries = @($Family.entries.Values | Sort-Object -Property createdUtc -Descending)
+    foreach ($entry in $entries) {
+        try { if (-not $entry.process.HasExited) { $entry.process.Kill() } }
+        catch { $Errors.Add('Termination failed for observed process ' + $entry.process.Id + ': ' + $_.Exception.Message) }
+    }
+    foreach ($entry in $entries) {
+        try {
+            $remaining = [Math]::Max(0,[Math]::Min(5000,($Deadline - [DateTimeOffset]::UtcNow).TotalMilliseconds))
+            if (-not $entry.process.HasExited -and -not $entry.process.WaitForExit([int]$remaining)) { $Errors.Add('Observed process survived the bounded cleanup: ' + $entry.process.Id) }
+        } catch { $Errors.Add('Termination verification failed: ' + $_.Exception.Message) }
+    }
+}
+
+function Stop-VoxPopuliProcessFamily([object]$Family, [scriptblock]$QueryForSelfTest = $null) {
+    if ($null -eq $Family) { return }
+    $errors = [Collections.Generic.List[string]]::new()
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+    $Family.cleanupDeadlineUtc = $deadline
+    $Family.cleanupPasses = 0
+    $Family.cleanupClosed = $false
+    while ($true) {
+        $Family.cleanupPasses++
+        Stop-VoxPopuliKnownProcesses $Family $errors $deadline
+        try { Assert-VoxPopuliCleanupDeadline $deadline }
+        catch { $errors.Add($_.Exception.Message); break }
+        $pendingParents = @($Family.entries.Values | Where-Object { -not $_.process.HasExited -or -not $_.scannedAfterExit })
+        if ($pendingParents.Count -eq 0) { $Family.cleanupClosed = $true; break }
+        try { Update-VoxPopuliProcessFamily $Family -Force -QueryForSelfTest $QueryForSelfTest -CleanupDeadline $deadline }
+        catch {
+            $errors.Add('Final descendant observation failed after stopping known handles: ' + $_.Exception.Message)
+            Stop-VoxPopuliKnownProcesses $Family $errors $deadline
+            break
+        }
+    }
+    if (-not $Family.cleanupClosed) { $errors.Add('Descendant cleanup could not close every observed parent identity within its global bound.') }
+    if ($errors.Count -gt 0) { throw [string]::Join('; ',$errors.ToArray()) }
+}
+
+function Close-VoxPopuliProcessFamily([object]$Family) {
+    if ($null -eq $Family) { return }
+    foreach ($entry in @($Family.entries.Values)) { if (-not $entry.root) { $entry.process.Dispose() } }
+}
+
+function Invoke-VoxPopuliLateDescendantSelfTest([string]$Lot) {
+    $root = Join-Path $Lot ('selftest-voxpopuli-late-descendants-' + [guid]::NewGuid().ToString('N'))
+    foreach ($name in @('temp','tmp','localappdata','appdata')) { New-Item -ItemType Directory -Path (Join-Path $root $name) -Force | Out-Null }
+    $powershellExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $cmdExe = Join-Path $env:SystemRoot 'System32\cmd.exe'
+    $descendantReady = Join-Path $root 'descendants-ready.json'
+    $grandchildReady = Join-Path $root 'grandchild-ready.pid'
+    $escapedExe = $powershellExe.Replace("'","''")
+    $escapedRoot = $root.Replace("'","''")
+    $escapedReady = $descendantReady.Replace("'","''")
+    $escapedGrandchildReady = $grandchildReady.Replace("'","''")
+    $grandchildScript = "[IO.File]::WriteAllText('${escapedGrandchildReady}.part',[string]`$PID); [IO.File]::Move('${escapedGrandchildReady}.part','$escapedGrandchildReady'); Start-Sleep -Seconds 60"
+    $grandchildEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($grandchildScript))
+    $childScript = "`$info=New-Object Diagnostics.ProcessStartInfo; `$info.FileName='$escapedExe'; `$info.Arguments='-NoLogo -NoProfile -NonInteractive -EncodedCommand $grandchildEncoded'; `$info.WorkingDirectory='$escapedRoot'; `$info.UseShellExecute=`$false; `$info.CreateNoWindow=`$true; `$grandchild=[Diagnostics.Process]::Start(`$info); [IO.File]::WriteAllText('${escapedReady}.part',([ordered]@{childId=`$PID;grandchildId=`$grandchild.Id} | ConvertTo-Json)); [IO.File]::Move('${escapedReady}.part','$escapedReady'); Start-Sleep -Seconds 60"
+    $childEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($childScript))
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName = $cmdExe
+    $psi.Arguments = '/d /q /s /c ""{0}" -NoLogo -NoProfile -NonInteractive -EncodedCommand {1}"' -f $powershellExe,$childEncoded
+    $psi.WorkingDirectory = $root
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.EnvironmentVariables.Clear()
+    foreach ($name in @('SystemRoot','windir','COMSPEC')) { $value = [Environment]::GetEnvironmentVariable($name,'Process'); if ($value) { $psi.EnvironmentVariables[$name] = $value } }
+    foreach ($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA')) { $psi.EnvironmentVariables[$name] = Join-Path $root $name.ToLowerInvariant() }
+    foreach ($name in @('USERPROFILE','HOME')) { $psi.EnvironmentVariables[$name] = $root }
+    $psi.EnvironmentVariables['PATH'] = (Join-Path $env:SystemRoot 'System32') + ';' + (Split-Path -Parent $powershellExe)
+    $parent = New-Object Diagnostics.Process
+    $parent.StartInfo = $psi
+    $family = $null
+    $fixtureHandles = [Collections.Generic.List[Diagnostics.Process]]::new()
+    $result = $null
+    $failure = $null
+    try {
+        if (-not $parent.Start()) { throw 'Late-descendant fixture parent did not start.' }
+        $family = New-VoxPopuliProcessFamily $parent
+        $startupDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+        while (-not (Test-Path -LiteralPath $descendantReady -PathType Leaf) -or -not (Test-Path -LiteralPath $grandchildReady -PathType Leaf)) {
+            if ($parent.HasExited -or [DateTimeOffset]::UtcNow -ge $startupDeadline) { throw 'Three-generation fixture did not become ready before its startup deadline.' }
+            Start-Sleep -Milliseconds 20
+        }
+        $ready = Get-Content -LiteralPath $descendantReady -Raw | ConvertFrom-Json -ErrorAction Stop
+        if ([int][IO.File]::ReadAllText($grandchildReady) -ne [int]$ready.grandchildId) { throw 'Three-generation fixture grandchild identity handshake differs.' }
+        foreach ($processId in @([int]$ready.childId,[int]$ready.grandchildId)) {
+            $observed = [Diagnostics.Process]::GetProcessById($processId)
+            [void]$observed.Handle
+            $fixtureHandles.Add($observed)
+            if ($observed.HasExited -or $observed.StartTime.ToUniversalTime() -lt $family.entries[[int]$parent.Id].createdUtc) { throw 'Three-generation fixture descendant identity is not current.' }
+        }
+        if ($family.entries.Count -ne 1) { throw 'Late-descendant fixture must begin cleanup knowing only its root.' }
+        Stop-VoxPopuliProcessFamily $family
+        if (-not $family.cleanupClosed -or $family.cleanupPasses -lt 3 -or -not $family.entries.ContainsKey([int]$ready.childId) -or -not $family.entries.ContainsKey([int]$ready.grandchildId)) { throw 'Cleanup did not discover and close two previously unknown descendant generations.' }
+        if (@($family.entries.Values | Where-Object { -not $_.process.HasExited }).Count -ne 0 -or @($fixtureHandles | Where-Object { -not $_.HasExited }).Count -ne 0) { throw 'A three-generation fixture descendant survived cleanup.' }
+        $result = [pscustomobject]@{fixture='three-generations-two-late-levels';knownBeforeCleanup=1;lateLevelsDiscovered=2;cleanupPasses=$family.cleanupPasses;cleanupClosed=$family.cleanupClosed;allObservedProcessesExited=$true;globalCleanupBoundSeconds=10;nativeOrCargoStarted=$false}
+        return $result
+    } catch {
+        $failure = $_.Exception.Message
+        throw
+    } finally {
+        try {
+            foreach ($observed in @($fixtureHandles | Sort-Object -Property StartTime -Descending)) { if (-not $observed.HasExited) { $observed.Kill() } }
+            foreach ($observed in @($fixtureHandles)) { if (-not $observed.HasExited -and -not $observed.WaitForExit(1000)) { throw 'Controlled fixture descendant survived fallback cleanup.' } }
+            if ($null -ne $family -and -not $parent.HasExited) { Stop-VoxPopuliProcessFamily $family }
+            [ordered]@{fixture='three-generations-two-late-levels';failure=$failure;result=$result;nativeOrCargoStarted=$false} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $root 'fixture-trace.json') -Encoding UTF8
+        } finally {
+            foreach ($observed in @($fixtureHandles)) { $observed.Dispose() }
+            Close-VoxPopuliProcessFamily $family
+            $parent.Dispose()
+        }
+    }
+}
+
+function Invoke-VoxPopuliDeadlineProcessSelfTest([string]$Lot, [bool]$ParentExits, [switch]$InjectCimFailure) {
+    $kind = if ($InjectCimFailure) { 'cim-failure-known-handles' } elseif ($ParentExits) { 'exited-parent-open-streams' } else { 'live-parent' }
+    $root = Join-Path $Lot ('selftest-voxpopuli-' + $kind + '-' + [guid]::NewGuid().ToString('N'))
+    foreach ($name in @('temp','tmp','localappdata','appdata')) { New-Item -ItemType Directory -Path (Join-Path $root $name) -Force | Out-Null }
+    $powershellExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $cmdExe = Join-Path $env:SystemRoot 'System32\cmd.exe'
+    $childReadyPath = Join-Path $root 'child-ready.json'
+    $childPidPath = Join-Path $root 'child.pid'
+    $escapedReadyPath = $childReadyPath.Replace("'","''")
+    $escapedPidPath = $childPidPath.Replace("'","''")
+    $childScript = "[IO.File]::WriteAllText('${escapedPidPath}.part',[string]`$PID); [IO.File]::Move('${escapedPidPath}.part','$escapedPidPath'); `$outOk=`$false; `$errOk=`$false; `$errors=@(); try { [Console]::Out.WriteLine('N2_DEADLINE_CHILD_STDOUT'); [Console]::Out.Flush(); `$outOk=`$true } catch { `$errors += `$_.Exception.ToString() }; try { [Console]::Error.WriteLine('N2_DEADLINE_CHILD_STDERR'); [Console]::Error.Flush(); `$errOk=`$true } catch { `$errors += `$_.Exception.ToString() }; `$ready=[ordered]@{processId=`$PID;stdoutEmissionCompleted=`$outOk;stderrEmissionCompleted=`$errOk;stdoutRedirected=[Console]::IsOutputRedirected;stderrRedirected=[Console]::IsErrorRedirected;errors=`$errors}; [IO.File]::WriteAllText('${escapedReadyPath}.part',(`$ready | ConvertTo-Json -Depth 4)); [IO.File]::Move('${escapedReadyPath}.part','$escapedReadyPath'); Start-Sleep -Seconds 60"
+    $childEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($childScript))
+    $releasePath = Join-Path $root 'release-parent'
+    $escapedReleasePath = $releasePath.Replace("'","''")
+    $parentEnd = if ($ParentExits) { "while (-not [IO.File]::Exists('$escapedReleasePath')) { Start-Sleep -Milliseconds 20 }; exit 0" } else { 'Start-Sleep -Seconds 60' }
+    $gateEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($parentEnd))
+    # CMD's /b launch preserves the redirected standard handles; the diagnostic
+    # proved that an unredirected ProcessStartInfo child received console handles.
+    $parentArguments = '/d /q /s /c "start "" /b "{0}" -NoLogo -NoProfile -NonInteractive -EncodedCommand {1} & "{0}" -NoLogo -NoProfile -NonInteractive -EncodedCommand {2}"' -f $powershellExe,$childEncoded,$gateEncoded
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName = $cmdExe
+    $psi.Arguments = $parentArguments
+    $psi.WorkingDirectory = $root
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.EnvironmentVariables.Clear()
+    foreach ($name in @('SystemRoot','windir','COMSPEC')) { $value = [Environment]::GetEnvironmentVariable($name,'Process'); if ($value) { $psi.EnvironmentVariables[$name] = $value } }
+    foreach ($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA')) { $psi.EnvironmentVariables[$name] = Join-Path $root $name.ToLowerInvariant() }
+    foreach ($name in @('USERPROFILE','HOME')) { $psi.EnvironmentVariables[$name] = $root }
+    $psi.EnvironmentVariables['PATH'] = (Join-Path $env:SystemRoot 'System32') + ';' + (Split-Path -Parent $powershellExe)
+    $parent = New-Object Diagnostics.Process
+    $parent.StartInfo = $psi
+    $family = $null
+    $capture = $null
+    $queue = [Collections.Concurrent.ConcurrentQueue[object]]::new()
+    $stdoutLines = [Collections.Generic.List[string]]::new()
+    $stderrLines = [Collections.Generic.List[string]]::new()
+    $stdoutEof = $false
+    $stderrEof = $false
+    $stdoutWriter = [IO.StreamWriter]::new((Join-Path $root 'stdout.log'),$false,$script:Utf8NoBom)
+    $stderrWriter = [IO.StreamWriter]::new((Join-Path $root 'stderr.log'),$false,$script:Utf8NoBom)
+    $stage = 'initializing'
+    $failure = $null
+    $cleanupFailure = $null
+    $childReady = $null
+    $deadlineArmed = $false
+    $timedOut = $false
+    $observedExitedParentWithOpenStreams = $false
+    $familyCleanupComplete = $false
+    $simulatedObservationFailure = $null
+    [Console]::Out.WriteLine("N2_VOXPOPULI_DEADLINE_FIXTURE kind=$kind trace=$(Join-Path $root 'fixture-trace.json')")
+    try {
+        $capture = Register-ProcessStreamHandlers $parent $queue
+        if (-not $parent.Start()) { throw 'Synthetic deadline parent did not start.' }
+        $family = New-VoxPopuliProcessFamily $parent
+        $parent.BeginOutputReadLine(); $parent.BeginErrorReadLine()
+        $startupDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+        while (-not (Test-Path -LiteralPath $childPidPath -PathType Leaf)) {
+            if ($parent.HasExited -or [DateTimeOffset]::UtcNow -ge $startupDeadline) { throw 'Synthetic deadline child did not become observable.' }
+            Start-Sleep -Milliseconds 20
+        }
+        $childPid = [int][IO.File]::ReadAllText($childPidPath)
+        $stage = 'observing-child'
+        while (-not $family.entries.ContainsKey($childPid)) {
+            if ([DateTimeOffset]::UtcNow -ge $startupDeadline) { throw 'Synthetic deadline child was not tracked by process identity.' }
+            Update-VoxPopuliProcessFamily $family -Force
+        }
+        $child = $family.entries[$childPid].process
+        $stage = 'child-stream-handshake'
+        $handshakeDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+        while ($true) {
+            Receive-ProcessOutput $queue $stdoutWriter $stderrWriter $stdoutLines $stderrLines ([ref]$stdoutEof) ([ref]$stderrEof)
+            if ($null -eq $childReady -and (Test-Path -LiteralPath $childReadyPath -PathType Leaf)) { $childReady = Get-Content -LiteralPath $childReadyPath -Raw | ConvertFrom-Json -ErrorAction Stop }
+            if ($null -ne $childReady -and (-not $childReady.stdoutRedirected -or -not $childReady.stderrRedirected)) { throw 'Deadline fixture child did not inherit both redirected standard streams.' }
+            if ($null -ne $childReady -and $childReady.stdoutEmissionCompleted -and $childReady.stderrEmissionCompleted -and $stdoutLines -ccontains 'N2_DEADLINE_CHILD_STDOUT' -and $stderrLines -ccontains 'N2_DEADLINE_CHILD_STDERR') { break }
+            if ($parent.HasExited -or $child.HasExited -or [DateTimeOffset]::UtcNow -ge $handshakeDeadline) { throw 'Deadline fixture handshake did not observe both completed child emissions in the captured streams before its 10 second deadline.' }
+            Start-Sleep -Milliseconds 20
+        }
+        if ($stdoutEof -or $stderrEof) { throw 'Deadline fixture child did not retain both redirected streams after its handshake.' }
+        if ($InjectCimFailure) {
+            $stage = 'synthetic-cim-failure'
+            $observationFailureReported = $false
+            $failingObservation = { param($Filter) throw 'SYNTHETIC_CIM_OBSERVATION_FAILURE' }
+            try { Update-VoxPopuliProcessFamily $family -Force -QueryForSelfTest $failingObservation }
+            catch {
+                if ($_.Exception.Message -cnotlike '*SYNTHETIC_CIM_OBSERVATION_FAILURE*') { throw }
+                $observationFailureReported = $true
+            }
+            $probe = [pscustomobject]@{queryEntered=$false;knownHandlesStoppedBeforeQuery=$false;failureReported=$false}
+            $failingFinalObservation = {
+                param($Filter)
+                $probe.queryEntered = $true
+                $probe.knownHandlesStoppedBeforeQuery = @($family.entries.Values | Where-Object { -not $_.process.HasExited }).Count -eq 0
+                if (-not $probe.knownHandlesStoppedBeforeQuery) { throw 'Synthetic final observation ran before known handles were stopped.' }
+                throw 'SYNTHETIC_CIM_FINAL_OBSERVATION_FAILURE'
+            }.GetNewClosure()
+            try { Stop-VoxPopuliProcessFamily $family -QueryForSelfTest $failingFinalObservation }
+            catch {
+                if ($_.Exception.Message -cnotlike '*SYNTHETIC_CIM_FINAL_OBSERVATION_FAILURE*') { throw }
+                $probe.failureReported = $true
+            }
+            if (-not $observationFailureReported -or -not $probe.queryEntered -or -not $probe.knownHandlesStoppedBeforeQuery -or -not $probe.failureReported -or -not $parent.HasExited -or -not $child.HasExited) { throw 'Synthetic CIM failure did not remain visible while known process handles were terminated.' }
+            $familyCleanupComplete = $true
+            $simulatedObservationFailure = [pscustomobject]@{observationFailureReported=$observationFailureReported;cleanup=$probe;queryFilter=$family.lastQueryFilter;realCimFailureInjected=$false}
+            return [pscustomobject]@{fixture=$kind;simulatedCimFailure='PASS';observationErrorPropagated=$true;knownHandlesStoppedBeforeFinalQuery=$true;cleanupErrorPropagated=$true;nativeOrCargoStarted=$false}
+        }
+        if ($ParentExits) { [IO.File]::WriteAllText($releasePath,'release after child identity was retained') }
+        $deadline = [DateTimeOffset]::UtcNow.AddSeconds(2)
+        $deadlineArmed = $true
+        $stage = 'deadline-armed'
+        try {
+            while (Test-VoxPopuliCompletionPending $family $deadline 'synthetic parent and child' $stdoutEof $stderrEof) {
+                Receive-ProcessOutput $queue $stdoutWriter $stderrWriter $stdoutLines $stderrLines ([ref]$stdoutEof) ([ref]$stderrEof)
+                if ($parent.HasExited -and -not ($stdoutEof -and $stderrEof)) { $observedExitedParentWithOpenStreams = $true }
+                Start-Sleep -Milliseconds 20
+            }
+        } catch {
+            if ($_.Exception.Message -cnotlike 'VoxPopuli command exceeded its bounded parent deadline:*') { throw }
+            $timedOut = $true
+            Stop-VoxPopuliProcessFamily $family
+            $familyCleanupComplete = $true
+        }
+        if (-not $timedOut -or -not $parent.HasExited -or -not $child.HasExited) { throw 'Deadline cleanup did not terminate both synthetic parent and child.' }
+        if ($ParentExits -and (-not $observedExitedParentWithOpenStreams -or $parent.ExitCode -ne 0)) { throw 'Redirected-stream fixture did not observe the parent exit normally while its child held the streams.' }
+        Receive-ProcessOutput $queue $stdoutWriter $stderrWriter $stdoutLines $stderrLines ([ref]$stdoutEof) ([ref]$stderrEof)
+        if ($stdoutLines -cnotcontains 'N2_DEADLINE_CHILD_STDOUT' -or $stderrLines -cnotcontains 'N2_DEADLINE_CHILD_STDERR') { throw 'Deadline fixture did not capture both inherited child streams.' }
+        return [pscustomobject]@{fixture=$kind;parentDeadline='PASS';childTerminated=$child.HasExited;parentTerminated=$parent.HasExited;observedExitedParentWithOpenStreams=$observedExitedParentWithOpenStreams;childIdentityTracked=$true;nativeOrCargoStarted=$false}
+    } catch {
+        $failure = $_.Exception.Message
+        throw
+    } finally {
+        try { if ($null -ne $family -and -not $familyCleanupComplete) { Stop-VoxPopuliProcessFamily $family } }
+        catch { $cleanupFailure = $_.Exception.Message; throw }
+        finally {
+            try {
+                $eofDeadline = [DateTimeOffset]::UtcNow.AddSeconds(1)
+                do {
+                    Receive-ProcessOutput $queue $stdoutWriter $stderrWriter $stdoutLines $stderrLines ([ref]$stdoutEof) ([ref]$stderrEof)
+                    if ($stdoutEof -and $stderrEof) { break }
+                    Start-Sleep -Milliseconds 20
+                } while ([DateTimeOffset]::UtcNow -lt $eofDeadline)
+                $jobErrors = @()
+                if ($null -ne $capture) {
+                    foreach ($job in @($capture.jobs)) {
+                        $jobErrors += [pscustomobject]@{id=$job.Id;state=[string]$job.State;reason=[string]$job.JobStateInfo.Reason;errors=@($job.Error | ForEach-Object { [string]$_ });childJobErrors=@($job.ChildJobs | ForEach-Object { $_.Error } | ForEach-Object { [string]$_ })}
+                    }
+                }
+                [ordered]@{
+                    fixture=$kind;stage=$stage;failure=$failure;cleanupFailure=$cleanupFailure;deadlineArmed=$deadlineArmed;timedOut=$timedOut
+                    childHandshake=$childReady;stdout=@($stdoutLines.ToArray());stderr=@($stderrLines.ToArray());stdoutEof=$stdoutEof;stderrEof=$stderrEof
+                    parentRedirectsStdout=$psi.RedirectStandardOutput;parentRedirectsStderr=$psi.RedirectStandardError
+                    parentExecutable=$psi.FileName;parentArguments=$psi.Arguments
+                    simulatedObservationFailure=$simulatedObservationFailure
+                    observedExitedParentWithOpenStreams=$observedExitedParentWithOpenStreams;eventJobs=$jobErrors;nativeOrCargoStarted=$false
+                } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $root 'fixture-trace.json') -Encoding UTF8
+            } finally {
+                $stdoutWriter.Dispose(); $stderrWriter.Dispose()
+                Remove-ProcessStreamHandlers $capture
+                if ($null -ne $capture) { Assert-NoProcessStreamHandlers $capture }
+                Close-VoxPopuliProcessFamily $family
+                $parent.Dispose()
+            }
+        }
+    }
+}
+
+function Invoke-VoxPopuliContractSelfTests([object]$Registry, [string]$Lot) {
+    $ids = @('ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong','ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong','ParakeetGpuPreparation','ParakeetGpuInventory')
+    foreach ($id in $ids) {
+        $profile = @($Registry.profiles | Where-Object { $_.id -ceq $id })[0]
+        Assert-VoxPopuliProfileContract $profile
+        $wrongTimeout = ConvertFrom-Json (ConvertTo-Json -InputObject $profile -Depth 12)
+        $wrongTimeout.commandTimeoutSeconds = 0
+        Test-Rejects "VoxPopuli zero timeout $id" { Assert-VoxPopuliProfileContract $wrongTimeout }
+        $wrongTimeout.commandTimeoutSeconds = (Get-VoxPopuliProfileContract $id).timeoutSeconds + 1
+        Test-Rejects "VoxPopuli enlarged timeout $id" { Assert-VoxPopuliProfileContract $wrongTimeout }
+    }
+    Test-Rejects 'timeout added to an unrelated profile' { Get-NativeCommandTimeoutSeconds ([pscustomobject]@{id='TurboCpu';commandTimeoutSeconds=1200}) }
+    Assert-NativeCommandDeadline $null 'unbounded historical profile'
+    Assert-NativeCommandDeadline ([DateTimeOffset]::UtcNow.AddSeconds(10)) 'future deadline'
+    Test-Rejects 'expired parent deadline' { Assert-NativeCommandDeadline ([DateTimeOffset]::UtcNow.AddSeconds(-1)) 'expired fixture' }
+    Test-Rejects 'expired global descendant cleanup deadline' { Assert-VoxPopuliCleanupDeadline ([DateTimeOffset]::UtcNow.AddSeconds(-1)) }
+    foreach ($id in $ids | Where-Object { (Get-VoxPopuliProfileContract $_).operation -ceq 'Run' }) {
+        $runProfile = @($Registry.profiles | Where-Object { $_.id -ceq $id })[0]
+        if ((Get-NativeCommandTimeoutSeconds $runProfile) -lt 1) { throw 'VoxPopuli Run deadline was not finite.' }
+    }
+    foreach ($discovery in @(
+        [pscustomobject]@{id='ParakeetGpuPreparation';suffix=@('--no-run')},
+        [pscustomobject]@{id='ParakeetGpuInventory';suffix=@('--','--list')}
+    )) {
+        $profile = @($Registry.profiles | Where-Object { $_.id -ceq $discovery.id })[0]
+        $expected = @('test','--offline','--locked','-p','whisper-adapters','--features','whisper-adapters/native-tests','--test','parakeet_unified_native') + @($discovery.suffix)
+        $actual = New-CargoArguments $profile $null
+        if ([string]::Join("`n",[string[]]$actual) -cne [string]::Join("`n",[string[]]$expected)) { throw 'VoxPopuli discovery arguments must compile/list only the dedicated integration target.' }
+    }
+    $queryProbe = [pscustomobject]@{filters=[Collections.Generic.List[string]]::new()}
+    $created = [DateTime]::UtcNow
+    $syntheticFamily = [pscustomobject]@{
+        entries=@{12345=[pscustomobject]@{process=[pscustomobject]@{HasExited=$false;StartTime=$created};createdUtc=$created;root=$true;scannedAfterExit=$false}}
+        lastScanUtc=[DateTimeOffset]::MinValue;lastQueryFilter=$null
+    }
+    $emptyTargetedQuery = { param($Filter) $queryProbe.filters.Add([string]$Filter) }.GetNewClosure()
+    Update-VoxPopuliProcessFamily $syntheticFamily -Force -QueryForSelfTest $emptyTargetedQuery
+    if ($queryProbe.filters.Count -ne 1 -or $queryProbe.filters[0] -cne 'ParentProcessId = 12345') { throw 'VoxPopuli descendant query did not stay limited to known parent identities.' }
+    $readyFixture = [pscustomobject]@{
+        id='ParakeetGpu';status='READY';operation='Run';package='whisper-adapters';features=@('whisper-adapters/native-tests');compileEnvironment=@();commandTimeoutSeconds=1200
+        inputs=@(
+            [pscustomobject]@{key='personalRuntime';environmentVariable='WHISPER_N2_PERSONAL_RUNTIME_ROOT';kind='directory'},
+            [pscustomobject]@{key='voxpopuliCorpus';environmentVariable='WHISPER_VOXPOPULI_CORPUS_ROOT';kind='directory'},
+            [pscustomobject]@{key='voxpopuliSources';environmentVariable='WHISPER_VOXPOPULI_PROVENANCE_ROOT';kind='directory'}
+        )
+        values=@([pscustomobject]@{key='cudaToolkitPath';environmentVariable='CUDA_PATH';required=$true;kind='directory';allowedRoot='cuda-12.9'})
+        outputs=@([pscustomobject]@{key='campaignRun';environmentVariable='WHISPER_L04_CAMPAIGN_RUN';kind='directory';path='writes/voxpopuli-campaign'})
+        staging=@(
+            [pscustomobject]@{inputKey='personalRuntime';destinationBase='localappdata';destination='Whisper';requiredFileCount=21;requiredBytes=3196008875},
+            [pscustomobject]@{inputKey='voxpopuliCorpus';destinationBase='run';destination='writes/voxpopuli-corpus';requiredFileCount=14;requiredBytes=151356410}
+        )
+        cases=@([pscustomobject]@{targetKind='integration';targetName='parakeet_unified_native';exactTest='voxpopuli::english_short_mp3_gpu';ignored=$false;verdict='QUALIFICATION'})
+    }
+    Assert-VoxPopuliProfileContract $readyFixture
+    foreach ($mutation in @('selector','staging','environment','feature')) {
+        $invalid = ConvertFrom-Json (ConvertTo-Json -InputObject $readyFixture -Depth 12)
+        switch ($mutation) {
+            'selector' { $invalid.cases[0].exactTest = 'voxpopuli::unapproved' }
+            'staging' { $invalid.staging[0].destination = 'OtherRuntime' }
+            'environment' { $invalid.inputs[0].environmentVariable = 'WHISPER_UNDECLARED' }
+            'feature' { $invalid.features = @('whisper-adapters/recette-hooks') }
+        }
+        Test-Rejects "VoxPopuli modified $mutation contract" { Assert-VoxPopuliProfileContract $invalid }
+    }
+    $deadlineFixtures = @(
+        (Invoke-VoxPopuliDeadlineProcessSelfTest $Lot $false),
+        (Invoke-VoxPopuliDeadlineProcessSelfTest $Lot $true),
+        (Invoke-VoxPopuliDeadlineProcessSelfTest $Lot $false -InjectCimFailure),
+        (Invoke-VoxPopuliLateDescendantSelfTest $Lot)
+    )
+    return [pscustomobject]@{profiles=$ids;exactDeadlines='PASS';unknownTimeoutRejected='PASS';targetedDescendantQueries='PASS';discoveryIntegrationTargetOnly='PASS';deadlineFixtures=$deadlineFixtures;nativeOrCargoStarted=$false}
+}
+
+function Drain-WatcherEvents([object]$State, [string[]]$AllowedRoots, [string[]]$ProtectedRoots, [string]$UserTemp, [Diagnostics.Process]$Process, [string]$Mode, [string]$LogRoot, [object]$ProcessFamily = $null) {
     Receive-WatcherEvents $State
     $event = $null
     while ($State.queue.TryDequeue([ref]$event)) {
@@ -1437,7 +1959,7 @@ function Drain-WatcherEvents([object]$State, [string[]]$AllowedRoots, [string[]]
         if ($disposition -eq 'VIOLATION') {
             $record = [ordered]@{ mode=$Mode; status='FAIL'; path=$event.path; old_path=$event.old_path; event=$event.type; event_at=$event.at; detected_at=[DateTimeOffset]::UtcNow.ToString('o'); action='campaign-process-tree-terminated'; detail=$event.detail }
             Write-JsonLine (Join-Path $LogRoot 'guard-events.jsonl') $record
-            Stop-CargoProcessTree $Process
+            if ($null -ne $ProcessFamily) { Stop-VoxPopuliProcessFamily $ProcessFamily } else { Stop-CargoProcessTree $Process }
             throw "Native campaign guard stopped on $($event.type) at '$($event.path)' (event $($event.at)); see $LogRoot\guard-events.jsonl"
         }
         $event = $null
@@ -1701,6 +2223,7 @@ function Invoke-ProcessStreamProbe([string]$ExpectedExitCode) {
 }
 
 function Invoke-OneCargoCase([object]$Profile, [object]$Case, [object]$Environment, [hashtable]$VsEnvironment, [object]$Toolchain, [string]$RunRoot, [string]$LogRoot, [bool]$DryRun) {
+    $commandTimeoutSeconds = Get-NativeCommandTimeoutSeconds $Profile
     $cargoArgs = New-CargoArguments $Profile $Case
     $argvJson = Convert-StringArrayToJson $cargoArgs
     $stableArgs = Convert-JsonStringArray $argvJson 'serialized Cargo argv'
@@ -1715,6 +2238,7 @@ function Invoke-OneCargoCase([object]$Profile, [object]$Case, [object]$Environme
         return [pscustomobject]@{ case=$caseId; exitCode=$null; status='DRY_RUN'; stdout=$stdoutPath; stderr=$stderrPath }
     }
     $initialInvocation = New-InvocationRecord $Profile $caseId $Toolchain $argvJson
+    if ($null -ne $commandTimeoutSeconds) { $initialInvocation['commandTimeoutSeconds'] = $commandTimeoutSeconds }
     $initialInvocation | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $invocationPath -Encoding UTF8
 
     $cargoHome = [string]$Environment.CARGO_HOME
@@ -1736,35 +2260,58 @@ function Invoke-OneCargoCase([object]$Profile, [object]$Case, [object]$Environme
     $stdoutEof = $false
     $stderrEof = $false
     $processStarted = $false
+    $processFamily = $null
     $beforeGit = Get-GitState $script:Repo
     $started = [DateTimeOffset]::UtcNow
     $exitCode = $null
     $testEvidence = $null
     try {
         $watchSpecs = Get-RunWatchSpecs $script:Lot
+        $voxContract = Get-VoxPopuliProfileContract ([string]$Profile.id)
+        if ($null -ne $voxContract -and $voxContract.operation -ceq 'Run') {
+            $sourceWatchSpecs = [Collections.Generic.List[object]]::new()
+            foreach ($spec in @($watchSpecs)) { $sourceWatchSpecs.Add($spec) }
+            foreach ($input in @($ValuesDoc.inputs.Values)) {
+                if (Test-InRoot ([string]$input.path) $script:Lot) { Register-Watch $sourceWatchSpecs ([string]$input.path) $true }
+            }
+            $watchSpecs = @($sourceWatchSpecs.ToArray())
+        }
         $watchState = Start-WatchState $watchSpecs
         $streamCapture = Register-ProcessStreamHandlers $process $stdoutQueue
         $stdoutWriter = [IO.StreamWriter]::new($stdoutPath,$false,$script:Utf8NoBom)
         $stderrWriter = [IO.StreamWriter]::new($stderrPath,$false,$script:Utf8NoBom)
         if (-not $process.Start()) { throw 'Cargo process failed to start.' }
         $processStarted = $true
+        if ($null -ne $commandTimeoutSeconds) { $processFamily = New-VoxPopuliProcessFamily $process }
         $process.BeginOutputReadLine(); $process.BeginErrorReadLine()
+        $commandDeadline = if ($null -ne $commandTimeoutSeconds) { [DateTimeOffset]::UtcNow.AddSeconds($commandTimeoutSeconds) } else { $null }
         [ordered]@{ processId=$process.Id; startedUtc=$started.ToString('o'); case=$caseId } | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $LogRoot ($safeId + '.process.json')) -Encoding UTF8
-        while (-not $process.HasExited) {
-            Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $LogRoot
-            Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $null ([ref]$stdoutEof) ([ref]$stderrEof)
-            Start-Sleep -Milliseconds 50
+        if ($null -ne $processFamily) {
+            while (Test-VoxPopuliCompletionPending $processFamily $commandDeadline $caseId $stdoutEof $stderrEof) {
+                Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $LogRoot $processFamily
+                Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $null ([ref]$stdoutEof) ([ref]$stderrEof)
+                Start-Sleep -Milliseconds 20
+            }
+            foreach ($entry in @($processFamily.entries.Values)) {
+                if (-not $entry.process.HasExited) { throw 'VoxPopuli parent completed while an observed descendant remained alive.' }
+            }
+        } else {
+            while (-not $process.HasExited) {
+                Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $LogRoot
+                Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $null ([ref]$stdoutEof) ([ref]$stderrEof)
+                Start-Sleep -Milliseconds 50
+            }
+            $process.WaitForExit()
+            $streamDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+            while (-not ($stdoutEof -and $stderrEof)) {
+                Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $LogRoot
+                Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $null ([ref]$stdoutEof) ([ref]$stderrEof)
+                if ([DateTimeOffset]::UtcNow -ge $streamDeadline) { throw 'Cargo stdout/stderr capture did not reach EOF before its 10 second deadline.' }
+                Start-Sleep -Milliseconds 20
+            }
         }
-        $process.WaitForExit()
         $exitCode = $process.ExitCode
-        $streamDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
-        while (-not ($stdoutEof -and $stderrEof)) {
-            Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $LogRoot
-            Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $null ([ref]$stdoutEof) ([ref]$stderrEof)
-            if ([DateTimeOffset]::UtcNow -ge $streamDeadline) { throw 'Cargo stdout/stderr capture did not reach EOF before its 10 second deadline.' }
-            Start-Sleep -Milliseconds 20
-        }
-        Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $LogRoot
+        Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $LogRoot $processFamily
         Receive-ProcessOutput $stdoutQueue $stdoutWriter $stderrWriter $stdoutLines $null ([ref]$stdoutEof) ([ref]$stderrEof)
         $stdoutWriter.Flush(); $stderrWriter.Flush()
         if ($exitCode -ne 0) { throw "Cargo returned exit code $exitCode for $caseId; logs: $stdoutPath, $stderrPath" }
@@ -1772,7 +2319,7 @@ function Invoke-OneCargoCase([object]$Profile, [object]$Case, [object]$Environme
         $afterGit = Get-GitState $script:Repo
         if ($afterGit.head -cne $beforeGit.head -or $afterGit.status -cne $beforeGit.status) { throw 'Candidate Git HEAD/status changed during native Cargo command; campaign stopped.' }
         Stop-WatchState $watchState
-        Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $LogRoot
+        Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $LogRoot $processFamily
         $watchState = $null
         $verdict = Get-CompletedCommandVerdict $Profile $testEvidence
         $elapsedSeconds = [Math]::Round(([DateTimeOffset]::UtcNow - $started).TotalSeconds,3)
@@ -1780,7 +2327,10 @@ function Invoke-OneCargoCase([object]$Profile, [object]$Case, [object]$Environme
         return [pscustomobject]@{ case=$caseId; exitCode=$exitCode; status=$verdict; elapsedSeconds=$elapsedSeconds; stdout=$stdoutPath; stderr=$stderrPath }
     } catch {
         $failure = $_.Exception.Message
-        if ($processStarted -and $null -ne $process -and -not $process.HasExited) { Stop-CargoProcessTree $process }
+        if ($processStarted -and $null -ne $processFamily) {
+            try { Stop-VoxPopuliProcessFamily $processFamily }
+            catch { $failure += '; bounded process cleanup failed: ' + $_.Exception.Message }
+        } elseif ($processStarted -and $null -ne $process -and -not $process.HasExited) { Stop-CargoProcessTree $process }
         try {
             $elapsedSeconds = [Math]::Round(([DateTimeOffset]::UtcNow - $started).TotalSeconds,3)
             Update-InvocationRecord $invocationPath 'FAIL' $exitCode $elapsedSeconds $testEvidence $failure | Out-Null
@@ -1789,11 +2339,12 @@ function Invoke-OneCargoCase([object]$Profile, [object]$Case, [object]$Environme
     } finally {
         if ($null -ne $watchState) {
             Stop-WatchState $watchState
-            Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $LogRoot
+            Drain-WatcherEvents $watchState $allowedRoots $protectedRoots $userTemp $process $Mode $LogRoot $processFamily
         }
         if ($null -ne $stdoutWriter) { $stdoutWriter.Dispose() }
         if ($null -ne $stderrWriter) { $stderrWriter.Dispose() }
         Remove-ProcessStreamHandlers $streamCapture
+        Close-VoxPopuliProcessFamily $processFamily
         if ($null -ne $process) { $process.Dispose() }
     }
 }
@@ -2461,7 +3012,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         $validatedProgramW = Get-ValidatedProgramW6432Directory
         $programWEnvironment = @{} + $syntheticEnvironment
         $programWEnvironment['ProgramW6432'] = $validatedProgramW
-        foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly')) {
+        foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly','ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong','ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong')) {
             $profilePsi = New-CargoProcessInfo 'C:\toolchain\cargo.exe' 'C:\toolchain\rustc.exe' 'C:\toolchain' @('test','--offline','--locked') $programWEnvironment $syntheticVs $syntheticRunRoot $profileId
             if (-not $profilePsi.EnvironmentVariables.ContainsKey('ProgramW6432') -or [string]$profilePsi.EnvironmentVariables['ProgramW6432'] -ine $validatedProgramW) { throw "Authorized GPU profile did not pass validated ProgramW6432: $profileId" }
         }
@@ -2488,10 +3039,10 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     foreach ($name in @('package','features','inputs','values','outputs','staging')) {
         if ((ConvertTo-Json -InputObject $personalUnifiedProfile.$name -Depth 12 -Compress) -cne (ConvertTo-Json -InputObject $personalGpuOnlyProfile.$name -Depth 12 -Compress)) { throw "PersonalUnifiedGpuOnly differs from PersonalUnified $name." }
     }
-    foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly','NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic','NvidiaProgramW6432Witness')) {
+    foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly','ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong','ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong','NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic','NvidiaProgramW6432Witness')) {
         if (-not (Test-ProgramW6432ProfileId $profileId)) { throw "Approved ProgramW6432 profile is not on the exact allowlist: $profileId" }
     }
-    foreach ($profileId in @('PreparationNoRun','InventoryList','WasapiInventory','WasapiCapture','TurboCpu','PersonalAutoFallback','PersonalLongCpu','ParakeetGpu')) {
+    foreach ($profileId in @('PreparationNoRun','InventoryList','WasapiInventory','WasapiCapture','TurboCpu','PersonalAutoFallback','PersonalLongCpu','ParakeetGpuPreparation','ParakeetGpuInventory')) {
         if (Test-ProgramW6432ProfileId $profileId) { throw "Non-GPU or pending profile entered the ProgramW6432 allowlist: $profileId" }
     }
     $nvidiaDiagnosticProfile = Get-Profile $Registry 'NvidiaSmiInventoryDiagnostic'
@@ -2718,6 +3269,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     if ((Get-EventDisposition $watcherError $allowed $protected $temp) -cne 'VIOLATION') { throw 'Watcher error was not rejected.' }
     $stagingEvidence = Invoke-StagingSelfTests $Lot
     $personalGpuSettingsEvidence = Invoke-PersonalGpuSettingsParentSelfTest $Lot
+    $voxPopuliEvidence = Invoke-VoxPopuliContractSelfTests $Registry $Lot
     $watchDir = Join-Path $Lot ('selftest-watch-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $watchDir -Force | Out-Null
     $state = Start-WatchState @([pscustomobject]@{path=$watchDir;recursive=$true})
@@ -2748,7 +3300,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         programW6432WitnessCallOrder = [pscustomobject]@{validCalls=@($validSequenceCalls.ToArray());invalidPositiveFixtures=@($invalidPositiveFixtures | ForEach-Object { $_.name });invalidPositiveStoppedAtOneCall=$true}
         programW6432InventoryProcessInfo = [pscustomobject]@{builder='New-CargoProcessInfo';profileEnvironmentRoots=@('CARGO_HOME','CARGO_TARGET_DIR','TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME');extraHostRootsAdded=$false;validatedProgramW6432Present=$inventoryPsi.EnvironmentVariables.ContainsKey('ProgramW6432');childStarted=$false}
         programW6432Resolver = $programWResolverEvidence
-        programW6432ProfileAllowlist = 'PASS: only GPU/NVIDIA profiles listed; CPU, Auto fallback, pending Parakeet GPU, and discovery profiles excluded'
+        programW6432ProfileAllowlist = 'PASS: only GPU/NVIDIA profiles listed; CPU, Auto fallback, and discovery profiles excluded; pending VoxPopuli Run profiles remain non-executable'
         programW6432CargoEnvironment = 'PASS: validated host value passed only to approved GPU Cargo profiles; Visual Studio spoof ignored'
         programW6432WitnessPair = $nvidiaContextEvidence.programW6432WitnessPair
         nvidiaChildModuleCapture = $moduleCaptureSelfTestEvidence
@@ -2756,6 +3308,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         lotRootPolicy = $lotRootEvidence
         staging = $stagingEvidence
         personalGpuSettingsParent = $personalGpuSettingsEvidence
+        voxPopuliContractAndDeadline = $voxPopuliEvidence
         watcherAndRoots = @('allowed in-lot event','disallowed external event','Temp UNATTRIBUTED','cross-boundary rename rejected','watcher error rejected','live FileSystemWatcher observed in-lot marker')
     }
     $selfTestPath = Join-Path (Join-Path $Lot 'logs') 'guard-selftest-reusable-roots.json'
@@ -2784,6 +3337,11 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
     $environment = Get-ProfileEnvironment $Profile $ValuesDoc $script:RunRoot $Lot (-not $DryRunOnly)
     Assert-CampaignRoots $Lot $script:RunRoot $environment
     $stagingEvidence = if (-not $DryRunOnly) { Copy-ProfileStaging $Profile $ValuesDoc $environment.LOCALAPPDATA $script:RunRoot } else { @() }
+    $voxContract = Get-VoxPopuliProfileContract ([string]$Profile.id)
+    if (-not $DryRunOnly -and $null -ne $voxContract -and $voxContract.operation -ceq 'Run') {
+        $settingsPath = Join-Path $environment.LOCALAPPDATA 'Whisper\settings'
+        if (Test-Path -LiteralPath $settingsPath) { throw 'VoxPopuli staging unexpectedly precreated settings; the product must create it.' }
+    }
     if (-not $DryRunOnly) { $null = Initialize-PersonalGpuSettingsParent $Profile.id $script:RunRoot }
     $toolchain = if ($Profile.operation -ceq 'Diagnostic') { if ($Profile.id -in @('NvidiaProgramW6432Witness','NvidiaSmiInventoryDiagnostic') -and -not $DryRunOnly) { Get-CargoExecutable } else { $null } } else { Get-CargoExecutable }
     if ($Profile.operation -ceq 'Diagnostic') {

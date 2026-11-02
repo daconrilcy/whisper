@@ -1,6 +1,6 @@
-Avancée : corpus VoxPopuli préparé le 2 novembre 2026 ; 14 fichiers générés et contrôlés.
-Blocage : textes non vérifiés humainement ; recettes Rust/N2 et qualification GPU non exécutées.
-Décision : son des courts validé par l'utilisateur ; longs prêts pour essais techniques, qualité linguistique à distinguer.
+Avancée : huit exécutions PASS, neuf imports Parakeet CUDA réels ; code, contrat et preuves techniques CLEAN.
+Blocage : aucun pour cette matrice technique ; précision linguistique et comparaison CPU non qualifiées.
+Décision : qualifier la matrice technique sur Z790, sans généralisation matérielle, installation ou push.
 
 # Compléter la qualification GPU
 
@@ -170,8 +170,10 @@ sans supprimer ceux des recettes SPS ni mélanger leurs schémas.
    ces profils dans les listes existantes : `ProgramW6432` réel validé registre,
    `CUDA_PATH` déclaré, variables de corpus, limites et staging déjà autorisés.
    Ne pas étendre globalement les variables, les racines ou l'accès aux outils.
-   La copie stagée ne contient pas `settings` précréé pour ces nouveaux profils :
-   le produit corrigé doit en assurer la création. Ne pas retirer le
+   La copie stagée ne contient pas `settings` précréé pour ces nouveaux profils.
+   La recette vérifie le journal GPU réel de la route unifiée,
+   `runtime_root/settings/logs` (branche GPU confirmée par la chaîne complète).
+   Ne pas retirer le
    contournement historique de `PersonalUnifiedGpuOnly` dans ce lot.
 3. **Recettes, auto-tests et revue.** Déléguer les nouveaux tests Rust à
    `rust_implementer` : déclaration du sous-module et tests VoxPopuli séparés,
@@ -194,7 +196,8 @@ sans supprimer ceux des recettes SPS ni mélanger leurs schémas.
 5. **Campagne courte.** Exécuter G1 trois fois et G1-FR une fois, séquentiellement,
    sans parallélisme de copies ni mutation des entrées. Capturer statut,
    journaux worker, candidat/attestation, moteur effectif, sorties et durées.
-   Vérifier la création de `settings/logs` par le produit dans le staging neuf.
+   Vérifier la création et l'usage de `runtime_root/settings/logs` par la
+   branche GPU de la route unifiée dans le staging neuf, sans fichier simulé.
    Si les courts ne prouvent pas le GPU effectif ou échouent, ne pas lancer les longs.
 6. **Campagne longue.** Exécuter G2 à G5 séquentiellement, chacun avec son
    RunRoot et sa requête figée, sources/annotations vérifiées. Réutiliser
@@ -214,7 +217,10 @@ sans supprimer ceux des recettes SPS ni mélanger leurs schémas.
 
 ## Racines, fichiers et responsables
 
-Racine proposée : `target/n2-native/qualification-gpu/` ; chaque exécution
+Racine d'exécution acceptée après inventaire : `target/n2-native/` ; corpus,
+requêtes et synthèse dédiés restent sous `target/n2-native/qualification-gpu/`.
+Les RunRoot sont ceux produits par la garde existante sous la racine N2.
+Chaque exécution
 dispose de ses TEMP/TMP/LOCALAPPDATA propres ; CARGO_HOME reste isolé sous
 le lot selon le contrat existant de la garde, sans imposer une copie par exécution.
 Cible Cargo : `target/parakeet-tests/cargo-shared/`, conservée. Si le contrat
@@ -305,3 +311,245 @@ et le même dossier. Extraits temporaires conservés, aucune suppression.
 La prochaine phase reste l'implémentation et la revue des recettes dédiées,
 puis la campagne sous garde après accord ; le corpus généré n'est pas une
 preuve de qualification GPU.
+
+## Accord d'implémentation et inventaire de départ
+
+Après validation du corpus, l'utilisateur a autorisé explicitement
+l'implémentation dans cette session. Deux auteurs exclusifs :
+`rust_implementer` pour les deux fichiers de tests Rust ; worker CI pour
+`ci/guard-native.ps1` et `ci/native-profiles.json`. La session principale
+conserve les documents, les requêtes et les commits. Les sources sont propres
+au départ hors modèles/audio non suivis ; HEAD `b61b8b0c`.
+
+Le préflight statique a établi que la garde accepte la racine exacte
+`target/n2-native`, pas son sous-dossier `qualification-gpu`. L'utilisateur a
+autorisé explicitement l'emploi de cette racine existante pour les exécutions,
+avec corpus et bilan dans le sous-dossier. Aucune extension des racines ou
+de la surveillance n'en découle. Aucun appel Cargo ou NVIDIA effectué lors
+de cet arbitrage.
+
+Inventaire Windows en lecture seule : NVIDIA GeForce GTX 1080 Ti, pilote
+`32.0.15.8129` ; Parsec Virtual Display Adapter et Intel UHD Graphics 770
+également déclarés. L'identité CUDA/UUID courante sera prouvée sous garde.
+CUDA 12.9 et VsDevCmd existent ; libclang existant retrouvé sous
+`target/pile-preserved/r8/target/n2-native/toolchain/libclang.dll`.
+
+Les 21 ressources personnelles correspondent aux SHA du relevé
+`raw/r8-install/installed-results.json` : 3 196 008 875 octets. Copie exacte
+vérifiée dans `target/n2-native/qualification-gpu/inputs/personal-runtime`,
+sans `settings` et sans modification de l'installation. Inventaire local :
+`target/n2-native/qualification-gpu/runtime-inventory.json`. Cette copie
+contient les workers qualifiés existants ; le code adapter courant sera
+celui des nouveaux harnais, sans nouvelle release desktop.
+
+Un arbitrage de revue a demandé de vérifier le vrai journal de la route
+unifiée plutôt qu'un emplacement supposé ; l'utilisateur l'a accepté.
+La première interprétation du reviewer, qui désignait `runtime_root/logs`,
+a ensuite été rétractée après vérification de la chaîne complète :
+`native.rs:168-171` appelle `spawn_live`, mais `parakeet_import.rs:375-380`
+transmet `None` pour le GPU ; `worker_stderr_log:703-709` choisit donc
+`runtime_root/settings/logs`. Le test renforcé vérifiera ces journaux GPU
+réels, non vides et associés aux imports. Aucun routage produit modifié,
+aucun fichier créé artificiellement ; le dossier `runtime_root/logs` peut
+rester vide. La validation N1 de `92f9a2f7` reste distincte des résultats
+natifs à venir ; aucun résultat natif n'est anticipé par cette correction.
+
+Première revue CI : GCI-01 BLOQUANT sur attente des flux sans borne après
+sortie du parent. Correction dans les seuls nouveaux profils : attente
+processus/EOF bornée, suivi et arrêt des descendants observés, fixtures
+redirigées parent vivant et parent sorti. Relecture statique CLEAN ; preuve
+dynamique encore requise. Aucun contrôle d'isolation préventive n'est déduit
+du suivi périodique des descendants.
+
+SelfTest N2 exécuté une fois, sources figées et sans copie concurrente :
+**exit 1**, `Deadline fixture did not capture both inherited child streams.`
+Trace : `qualification-gpu/verification/n2-selftest-initial.log`. La fixture
+`live-parent` a confirmé expiration et arrêt parent/enfant, puis échoué sur
+au moins un marqueur de sortie ; la fixture `exited-parent` n'a pas démarré.
+Aucun flux/état de collecte conservé permettant d'en déduire la cause.
+Campagne arrêtée avant tout Cargo, NVIDIA, modèle ou inférence.
+
+L'utilisateur a ensuite autorisé un complément limité aux deux fichiers N2 :
+conserver flux/EOF/erreurs de capture, handshake enfant après ses émissions,
+une exécution diagnostique attendue, puis correction seulement si la cause
+est démontrée et reprise auto-tests/revue/préparation si tout passe. Cette
+autorisation ne lève aucun arrêt pour fuite de racine, surveillance ou
+lancement natif inattendu. Les deux cycles de correction restent suivis.
+
+Diagnostic unique exécuté comme donnée attendue :
+`EXPECTED_DIAGNOSTIC_FIXTURE_FAILURE`. Parent redirigé, mais enfant avec
+`IsOutputRedirected=false` et `IsErrorRedirected=false` malgré ses deux
+émissions signalées ; stdout capturé vide, stderr `#< CLIXML`, aucune erreur
+de job et nettoyage sans erreur. Le handshake a échoué avant armement du
+délai. Cause de fixture/héritage établie, pas de défaut de capture production
+démontré. Trace : `target/n2-native/selftest-voxpopuli-live-parent-7674fa64e49b43f89e7b55f5359eb7ef/fixture-trace.json` ;
+commande/statut dans `qualification-gpu/verification/deadline-diagnostic-20261102T144210584/`.
+Correction de la seule fixture en préparation : parent CMD caché, outil déjà
+utilisé par la garde, et héritage réel des flux avec handshake avant délai.
+FullSelfTest encore non repris ; aucune compilation ni inférence exécutée.
+
+Après correction de la fixture, le FullSelfTest a passé et ses preuves ont été
+relues : redirections effectives, deux marqueurs, délais armés puis expirés,
+parent vivant et parent sorti avec flux ouverts, nettoyage sans erreur. Trace
+`qualification-gpu/verification/n2-selftest-after-fixture-fix.log` ; les deux
+`fixture-trace.json` sont conservés sous les répertoires selftest du lot N2.
+Contrat Préparation/List revu CLEAN. Côté Rust, R1 (annotation MP3) et R2
+(journaux GPU réels) sont fermés statiquement ; seule la préparation/list
+nécessaire à la preuve de compilation reste en attente.
+
+Préflight `ParakeetGpuPreparation` PASS, puis compilation sans exécution
+démarrée. Run `ParakeetGpuPreparation-72132271b1d3483bbd21d272e882f37e` :
+**FAIL**, code Cargo non acquis, 47,88 s après lancement Cargo, limite du
+profil 1 800 s non atteinte. La requête globale `Win32_Process` de suivi des
+descendants a expiré (borne CIM deux secondes) ; l'observation finale du
+nettoyage a échoué sur la même requête. Compilation interrompue alors que les
+dépendances se construisaient ; aucun corps de test, modèle ou inférence.
+Traces complètes dans `target/n2-native/logs/ParakeetGpuPreparation-72132271b1d3483bbd21d272e882f37e/`.
+La cause interne de lenteur du fournisseur CIM n'est pas établie. Après arrêt,
+aucun Cargo/rustc actif n'a été observé ; cela ne transforme pas le run en PASS.
+
+Deux cycles CI étant consommés, l'utilisateur a autorisé explicitement un
+cycle supplémentaire limité aux deux fichiers N2 : requêtes CIM ciblées sur
+les identités suivies, arrêt des processus déjà retenus même si CIM échoue,
+fixture de panne CIM et arguments Préparation/List limités au seul harnais
+`parakeet_unified_native`. Puis revue, auto-tests et reprise si tout passe.
+Les recettes Rust, le code produit et les racines autorisées restent inchangés.
+
+Le candidat du cycle supplémentaire cible les requêtes CIM et la préparation
+du seul harnais comme demandé. Sa revue relève **GCI-02 BLOQUANT** : un seul
+passage de découverte dans le nettoyage ne parcourt pas les enfants d'un
+descendant nouvellement trouvé. Un helper peut donc rester actif sans erreur
+signalée. Correction proposée : fermeture du parcours des nouveaux parents,
+bornée globalement avec échec explicite si la borne est atteinte, et fixture
+de trois générations dont deux niveaux sont inconnus au début du nettoyage.
+Le cycle supplémentaire est consommé ; nouvel arbitrage demandé avant
+correction/reprise. Aucun SelfTest/Cargo relancé sur ce candidat.
+Accord explicite reçu ensuite : un cycle supplémentaire limité à cette boucle
+de nettoyage et à la fixture de trois générations, puis relecture, auto-tests
+et reprise si tout passe. Aucun autre périmètre n'est étendu.
+
+Au début de ce nouveau tour, C: ne dispose plus que de 19,30 Gio, puis 20,21 Gio
+au second relevé. Le seuil permanent de 30 Gio interdit tout SelfTest,
+compilation ou campagne de tests ; seules correction et revue statique
+continuent. Origine de cette baisse d'espace non attribuée à la campagne.
+Inventaire lecture seule : lot N2 4,68 Gio, cible Cargo partagée 33,29 Gio,
+archives `pile-preserved` 49,09 Gio, remise CPU 4,55 Gio. Aucune suppression.
+La matrice complète conserverait environ 25 Gio supplémentaires de copies
+isolées runtime/corpus ; objectif recommandé 60 Gio libres avant la campagne.
+L'utilisateur a choisi de libérer l'espace manuellement. Cette réponse n'est
+pas une preuve que l'espace est déjà libéré ; il sera remesuré avant reprise.
+
+Cycle ciblé GCI-02 terminé côté source : boucle arrêt/découverte jusqu'à
+fermeture des parents observés, borne globale de dix secondes, erreur
+explicite si la fermeture n'est pas acquise, et fixture de trois générations
+dont deux niveaux sont inconnus initialement. Seul `ci/guard-native.ps1`
+modifié dans ce cycle. AST sans erreur, `git diff --check` PASS.
+Même reviewer : **CLEAN statique du contrat Préparation/List**, GCI-02 fermé.
+La borne est contrôlée avant/après les appels CIM synchrones et ne préempte
+pas un fournisseur bloqué à l'intérieur d'un appel ; aucune isolation
+préventive n'est annoncée.
+
+Gaps dynamiques à fermer après rétablissement de l'espace : fixture des
+trois générations, panne CIM simulée, deux scénarios de flux et FullSelfTest,
+puis préparation du seul harnais `parakeet_unified_native` et inventaire.
+Aucun SelfTest, Cargo, processus de fixture ou GPU exécuté après ce dernier
+patch. Dernier relevé : 20,20 Gio ; six profils Run toujours en attente.
+
+L'utilisateur a ensuite confirmé la libération d'espace et demandé la reprise.
+Relevé réel : **58,96 Gio libres**. Les 21 fichiers du runtime et les 14 fichiers
+du corpus correspondent toujours à leurs SHA ; cible Cargo partagée et
+libclang présents, `settings` absent de l'entrée runtime neuve. Les suppressions
+ont été effectuées manuellement par l'utilisateur ; aucune suppression par
+l'agent. Reprise du FullSelfTest sur le dernier correctif GCI-02 autorisée,
+puis préparation/list et campagne selon les gates déjà acceptés.
+
+Reprise réelle après libération : FullSelfTest du dernier correctif **PASS**,
+trace `qualification-gpu/verification/n2-selftest-after-gci02.log`. Même
+reviewer : preuve dynamique confirmée pour trois générations (quatre passes,
+fermeture complète, aucun survivant observé), panne CIM et scénarios de flux ;
+arguments Préparation/List ciblés confirmés. GCI-01/GCI-02 fermés, contrat
+Préparation/List **CLEAN**.
+
+Préflight conforme, puis `ParakeetGpuPreparation` : **NO_RUN_PASS**, Cargo 0,
+10,756 s, commande ciblant `--test parakeet_unified_native --no-run`.
+Run `ParakeetGpuPreparation-4e8c954050ed46bdb649708a20b5aa87`.
+`ParakeetGpuInventory` : **LIST_PASS**, Cargo 0, 3,413 s ; run
+`ParakeetGpuInventory-f025ffb4fb104791aa6ca4f87ef12830`. Les six identités
+`voxpopuli::` prévues sont présentes dans l'inventaire des 17 tests.
+Ces deux opérations ne lancent aucun corps de recette native et ne constituent
+pas une inférence GPU. Journaux sous `target/n2-native/logs/<run>/`.
+Activation des six profils Run après cet inventaire, puis revue ciblée du
+contrat final avant toute inférence.
+Même reviewer Rust : **CLEAN**, R1/R2 et gap V1 fermés ; aucune qualification
+native ou linguistique déduite de ce verdict de code.
+
+Six profils Run activés READY dans le seul registre, chacun avec son sélecteur
+exact : `ParakeetGpu`, `ParakeetGpuFrenchShort`, `ParakeetGpuFrenchLong`,
+`ParakeetGpuEnglishLong`, `ParakeetGpuFrenchAutoLong`,
+`ParakeetGpuEnglishAutoLong`. Même reviewer CI : contrat d'activation **CLEAN**.
+Les six requêtes finales sous `qualification-gpu/requests/<profil>.json`
+épinglent chacune les 21 fichiers runtime, 14 fichiers corpus et cinq OGG
+originaux, soit 40 fichiers. Nouveau FullSelfTest sur le registre activé et
+préflight de chaque requête requis avant inférence. Les longs attendent
+les quatre exécutions courtes réussies et leurs preuves CUDA.
+
+## Résultats de la campagne native — 2 novembre 2026
+
+FullSelfTest sur le registre activé PASS ; six préflights finaux PASS, chacun
+avec 40 fichiers épinglés. Les huit exécutions ci-dessous sont ensuite PASS :
+un corps de test réellement exécuté par invocation, zéro ignoré/échec,
+**neuf imports** sur quatre contenus audio distincts (les répétitions et les
+deux encodages du court FR ne sont pas des contenus supplémentaires).
+
+| Cas | Audio traité | Temps commande Cargo | Ratio commande/audio | Verdict |
+| --- | ---: | ---: | ---: | --- |
+| EN court GPU, répétition 1 | 60 s | 40,283 s | 0,671 | PASS |
+| EN court GPU, répétition 2 | 60 s | 38,719 s | 0,645 | PASS |
+| EN court GPU, répétition 3 | 60 s | 38,905 s | 0,648 | PASS |
+| FR court GPU, WAV puis MP3 | 2 × 60 s | 41,913 s pour les deux | 0,349 | PASS |
+| FR long GPU manuel | 2 105,814 s | 85,716 s | 0,0407 | PASS |
+| EN long GPU manuel | 2 433,459 s | 82,807 s | 0,0340 | PASS |
+| FR long Auto avec GPU effectif | 2 105,814 s | 84,305 s | 0,0400 | PASS |
+| EN long Auto avec GPU effectif | 2 433,459 s | 83,350 s | 0,0343 | PASS |
+
+Ces temps incluent le démarrage/validation de recette et le traitement, mais
+excluent le staging des entrées ; ils ne sont pas une mesure isolée du noyau
+d'inférence, ni un délai de premier texte affiché. Tous sont inférieurs à la
+durée de l'audio. Les quatre longs sont traités dans 3,4 à 4,1 % de leur durée
+selon cette borne conservative. Le cas FR court mesure deux imports ensemble.
+
+Neuf nouveaux journaux réels contiennent `[asr] ... backend=CUDA0` ; les
+recettes Auto exigent aussi le backend CUDA effectif et ne passent pas sur
+un repli CPU. Inventaires : NVIDIA GeForce GTX 1080 Ti, PCI `0000:01:00.0`,
+PnP du périphérique hôte, CUDA/GGML ordinal 0 ; pilote relevé `32.0.15.8129`.
+L'UUID n'est pas archivé séparément ; les contrôles d'identité de la route
+native sont exercés, sans inventer de valeur absente des reçus.
+
+TXT/SRT publiés et WAV d'archive contrôlés par les recettes : fichiers non
+vides, plages/échantillons cohérents et sources intactes. Le staging neuf ne
+contenait pas `settings` ; le produit a créé `settings/logs` dans ces parcours
+GPU et chaque import a produit son propre journal. Les traces complètes sont
+conservées sous `target/n2-native/logs/<run>/` et `runs/<run>/`.
+
+Synthèse et références : [results.json](../architecture/raw/qualification-gpu/results.json).
+Archive des petites preuves : [campaign-evidence.zip](../architecture/raw/qualification-gpu/campaign-evidence.zip),
+**303 entrées**, tailles et SHA-256 comparés à chaque source ; 654 462 octets,
+SHA-256 `8b9ef34f5f280407382705be7280cedc977db6383dcd56e18e3367761b18a228`.
+Les audios et modèles ne sont pas embarqués dans cette archive. Les erreurs
+intermédiaires et le diagnostic attendu restent présents et séparés des succès.
+
+Limites : références textuelles VoxPopuli non vérifiées humainement, pas de
+WER/CER qualifié ni de comparaison linguistique CPU/GPU ; longs non écoutés
+intégralement. Aucun autre GPU/architecture, nouveau scénario Turbo, micro,
+premier texte affiché, fenêtre Windows ou paquet installé qualifié par ce lot.
+Le paquet portable existant reste inchangé ; remise et recette visuelle
+ultérieures distinctes. Aucun nouveau nettoyage par l'agent, aucune
+installation, dépendance, modification de Rust produit ou push.
+
+Revue finale indépendante du dossier : **CLEAN**, aucun constat actionnable.
+Huit stdout/invocations, neuf ASR CUDA0, identités et neuf WAV avec nombres
+d'échantillons exacts recoupés ; 317 références taille/SHA et les 303 entrées
+de l'archive vérifiées sans écart. Les quatre SHA des fichiers de code
+correspondent au candidat testé. Ce verdict porte sur le dossier technique,
+pas sur une qualification globale du produit. Espace libre de clôture :
+environ 59,7 Gio ; aucun nettoyage automatique et aucun push.

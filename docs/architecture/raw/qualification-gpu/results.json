@@ -1,0 +1,2321 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-02",
+  "status": "PASS",
+  "scope": "Parakeet GPU import matrix on Z790; technical execution/publication/speed only",
+  "baselineCommit": "b61b8b0c8f7ed99c1f4c10c8096ef6597f97fd1c",
+  "candidateSource": [
+    {
+      "path": "ci/guard-native.ps1",
+      "bytes": 281112,
+      "sha256": "409b3e0abc3cb50251b7a9de9560bc87fe076853d68e809d446af1e305438c09"
+    },
+    {
+      "path": "ci/native-profiles.json",
+      "bytes": 42894,
+      "sha256": "b7b22acd8230a8f9416f4a16a929f3f3ce3f9dbd3827fe54a8dd625c20fff205"
+    },
+    {
+      "path": "crates/whisper-adapters/tests/parakeet_unified_native.rs",
+      "bytes": 39209,
+      "sha256": "fde4548a817d258307614684f46413ca8d7f43866baba1db14b167d26ebe57cc"
+    },
+    {
+      "path": "crates/whisper-adapters/tests/parakeet_unified_native/voxpopuli.rs",
+      "bytes": 12878,
+      "sha256": "acad0d080cdb702bfaf1c727aacce688e20f9729829194da46f4c06871d27bcf"
+    }
+  ],
+  "testBodiesPassed": 8,
+  "testBodiesFailed": 0,
+  "nativeImports": 9,
+  "uniqueAudioContents": 4,
+  "requestedComputeModes": [
+    "Gpu",
+    "Auto"
+  ],
+  "effectiveBackend": "CUDA0",
+  "hardware": {
+    "name": "NVIDIA GeForce GTX 1080 Ti",
+    "driverVersion": "32.0.15.8129",
+    "pnpIdentity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
+    "pciBusId": "0000:01:00.0",
+    "cudaOrdinal": 0,
+    "ggmlOrdinal": 0,
+    "uuid": "Not archived separately; candidate identity checks exercised by native route"
+  },
+  "cases": [
+    {
+      "runId": "ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2",
+      "profile": "ParakeetGpu",
+      "selector": "voxpopuli::english_short_mp3_gpu",
+      "status": "PASS",
+      "computeRequested": "Gpu",
+      "nativeImports": 1,
+      "effectiveBackend": "CUDA0",
+      "audioSeconds": 60.0,
+      "cargoSeconds": 40.283,
+      "testBodySeconds": 36.77,
+      "cargoToAudioRatio": 0.6713833333333333,
+      "timingScope": "Cargo case elapsed, excludes staging; includes validation/startup, not isolated model inference",
+      "device": {
+        "availability": "Available",
+        "cause": null,
+        "cuda_ordinal": 0,
+        "ggml_ordinal": 0,
+        "identity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
+        "identity_match": "Unique",
+        "luid": 93831,
+        "pci_id": "0000:01:00.0",
+        "support": "ConfirmedSupported",
+        "windows_rank": 0
+      },
+      "gpuInventory": {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "43b2d06adfaaad997adcfa38a5fbd876edfd4ce9cda2cb4a97a859e428104b77"
+      },
+      "asrLogs": [
+        {
+          "artifact": {
+            "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/localappdata/Whisper/settings/logs/parakeet-asr-1793639167906-57876-0.log",
+            "bytes": 124,
+            "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+          },
+          "backend": "CUDA0",
+          "modelLine": "[asr] model=parakeet-tdt-0.6b-v3.oss-align.q8_0 head=tdt backend=CUDA0"
+        }
+      ],
+      "sourceStates": [
+        {
+          "receipt": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/pending.json",
+          "sourcePath": "\\\\?\\C:\\dev\\whisper\\target\\n2-native\\runs\\ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2\\writes\\voxpopuli-corpus\\en-short-60s.mp3",
+          "sourceSha256": "8d8980cc5388fb6a65c4b7b84c5faf8f091c1ed504c39a87bae0754b7590a46f",
+          "sourceSamples": 960000,
+          "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+          "strategy": "bounded_windows_v1"
+        }
+      ],
+      "publishedArtifacts": [
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/exports/en-short-60s.srt",
+          "bytes": 1247,
+          "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/exports/en-short-60s.txt",
+          "bytes": 1054,
+          "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/transcript.srt",
+          "bytes": 1247,
+          "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/transcript.txt",
+          "bytes": 1054,
+          "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/parakeet-unified/source.wav",
+          "bytes": 1920044,
+          "sha256": "e301a1168a6f23bfc7daf486126caa968b9ebca56118afe0b1aaf45c9b43077d"
+        }
+      ],
+      "guardResult": {
+        "path": "target/n2-native/logs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/result.json",
+        "bytes": 1235,
+        "sha256": "bd1f545cb6af4a1b345eb503c56e88ca519871aa175242c52a191b40ec8563ef"
+      }
+    },
+    {
+      "runId": "ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5",
+      "profile": "ParakeetGpu",
+      "selector": "voxpopuli::english_short_mp3_gpu",
+      "status": "PASS",
+      "computeRequested": "Gpu",
+      "nativeImports": 1,
+      "effectiveBackend": "CUDA0",
+      "audioSeconds": 60.0,
+      "cargoSeconds": 38.719,
+      "testBodySeconds": 36.37,
+      "cargoToAudioRatio": 0.6453166666666666,
+      "timingScope": "Cargo case elapsed, excludes staging; includes validation/startup, not isolated model inference",
+      "device": {
+        "availability": "Available",
+        "cause": null,
+        "cuda_ordinal": 0,
+        "ggml_ordinal": 0,
+        "identity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
+        "identity_match": "Unique",
+        "luid": 93831,
+        "pci_id": "0000:01:00.0",
+        "support": "ConfirmedSupported",
+        "windows_rank": 0
+      },
+      "gpuInventory": {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "00b24c2c01b456d497e88c0eba730c1e9fe20a5d7ba86250824b5c835f1c539a"
+      },
+      "asrLogs": [
+        {
+          "artifact": {
+            "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/localappdata/Whisper/settings/logs/parakeet-asr-1793639320156-12608-0.log",
+            "bytes": 124,
+            "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+          },
+          "backend": "CUDA0",
+          "modelLine": "[asr] model=parakeet-tdt-0.6b-v3.oss-align.q8_0 head=tdt backend=CUDA0"
+        }
+      ],
+      "sourceStates": [
+        {
+          "receipt": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/pending.json",
+          "sourcePath": "\\\\?\\C:\\dev\\whisper\\target\\n2-native\\runs\\ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5\\writes\\voxpopuli-corpus\\en-short-60s.mp3",
+          "sourceSha256": "8d8980cc5388fb6a65c4b7b84c5faf8f091c1ed504c39a87bae0754b7590a46f",
+          "sourceSamples": 960000,
+          "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+          "strategy": "bounded_windows_v1"
+        }
+      ],
+      "publishedArtifacts": [
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/exports/en-short-60s.srt",
+          "bytes": 1247,
+          "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/exports/en-short-60s.txt",
+          "bytes": 1054,
+          "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/transcript.srt",
+          "bytes": 1247,
+          "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/transcript.txt",
+          "bytes": 1054,
+          "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/parakeet-unified/source.wav",
+          "bytes": 1920044,
+          "sha256": "e301a1168a6f23bfc7daf486126caa968b9ebca56118afe0b1aaf45c9b43077d"
+        }
+      ],
+      "guardResult": {
+        "path": "target/n2-native/logs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/result.json",
+        "bytes": 1235,
+        "sha256": "2e489b94f46824c345449847105f9d99784aaa01b1880ee50fe5699915ac0ac7"
+      }
+    },
+    {
+      "runId": "ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1",
+      "profile": "ParakeetGpu",
+      "selector": "voxpopuli::english_short_mp3_gpu",
+      "status": "PASS",
+      "computeRequested": "Gpu",
+      "nativeImports": 1,
+      "effectiveBackend": "CUDA0",
+      "audioSeconds": 60.0,
+      "cargoSeconds": 38.905,
+      "testBodySeconds": 36.56,
+      "cargoToAudioRatio": 0.6484166666666666,
+      "timingScope": "Cargo case elapsed, excludes staging; includes validation/startup, not isolated model inference",
+      "device": {
+        "availability": "Available",
+        "cause": null,
+        "cuda_ordinal": 0,
+        "ggml_ordinal": 0,
+        "identity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
+        "identity_match": "Unique",
+        "luid": 93831,
+        "pci_id": "0000:01:00.0",
+        "support": "ConfirmedSupported",
+        "windows_rank": 0
+      },
+      "gpuInventory": {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "c38f67fddaf8e3170c6241369f0444565d747469794d55f5fd984d153498ff18"
+      },
+      "asrLogs": [
+        {
+          "artifact": {
+            "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/localappdata/Whisper/settings/logs/parakeet-asr-1793639376975-162848-0.log",
+            "bytes": 124,
+            "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+          },
+          "backend": "CUDA0",
+          "modelLine": "[asr] model=parakeet-tdt-0.6b-v3.oss-align.q8_0 head=tdt backend=CUDA0"
+        }
+      ],
+      "sourceStates": [
+        {
+          "receipt": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/pending.json",
+          "sourcePath": "\\\\?\\C:\\dev\\whisper\\target\\n2-native\\runs\\ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1\\writes\\voxpopuli-corpus\\en-short-60s.mp3",
+          "sourceSha256": "8d8980cc5388fb6a65c4b7b84c5faf8f091c1ed504c39a87bae0754b7590a46f",
+          "sourceSamples": 960000,
+          "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+          "strategy": "bounded_windows_v1"
+        }
+      ],
+      "publishedArtifacts": [
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/exports/en-short-60s.srt",
+          "bytes": 1247,
+          "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/exports/en-short-60s.txt",
+          "bytes": 1054,
+          "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/transcript.srt",
+          "bytes": 1247,
+          "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/transcript.txt",
+          "bytes": 1054,
+          "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/parakeet-unified/source.wav",
+          "bytes": 1920044,
+          "sha256": "e301a1168a6f23bfc7daf486126caa968b9ebca56118afe0b1aaf45c9b43077d"
+        }
+      ],
+      "guardResult": {
+        "path": "target/n2-native/logs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/result.json",
+        "bytes": 1235,
+        "sha256": "4e5d6bdbc0f29f8359e7adb391f5de8b86aecf3ce2228305f9392559320711b3"
+      }
+    },
+    {
+      "runId": "ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb",
+      "profile": "ParakeetGpuFrenchShort",
+      "selector": "voxpopuli::french_short_wav_and_mp3_gpu",
+      "status": "PASS",
+      "computeRequested": "Gpu",
+      "nativeImports": 2,
+      "effectiveBackend": "CUDA0",
+      "audioSeconds": 120.0,
+      "cargoSeconds": 41.913,
+      "testBodySeconds": 39.78,
+      "cargoToAudioRatio": 0.34927499999999995,
+      "timingScope": "Cargo case elapsed, excludes staging; includes validation/startup, not isolated model inference",
+      "device": {
+        "availability": "Available",
+        "cause": null,
+        "cuda_ordinal": 0,
+        "ggml_ordinal": 0,
+        "identity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
+        "identity_match": "Unique",
+        "luid": 93831,
+        "pci_id": "0000:01:00.0",
+        "support": "ConfirmedSupported",
+        "windows_rank": 0
+      },
+      "gpuInventory": {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 4580,
+        "sha256": "3555dfddfb6e7fa6e8f7a81de7b599d3086ed1d1222726b8ee81df9cf908e398"
+      },
+      "asrLogs": [
+        {
+          "artifact": {
+            "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/localappdata/Whisper/settings/logs/parakeet-asr-1793639489490-46932-0.log",
+            "bytes": 124,
+            "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+          },
+          "backend": "CUDA0",
+          "modelLine": "[asr] model=parakeet-tdt-0.6b-v3.oss-align.q8_0 head=tdt backend=CUDA0"
+        },
+        {
+          "artifact": {
+            "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/localappdata/Whisper/settings/logs/parakeet-asr-1793639493633-46932-1.log",
+            "bytes": 124,
+            "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+          },
+          "backend": "CUDA0",
+          "modelLine": "[asr] model=parakeet-tdt-0.6b-v3.oss-align.q8_0 head=tdt backend=CUDA0"
+        }
+      ],
+      "sourceStates": [
+        {
+          "receipt": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/pending.json",
+          "sourcePath": "\\\\?\\C:\\dev\\whisper\\target\\n2-native\\runs\\ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb\\writes\\voxpopuli-corpus\\fr-short-60s.wav",
+          "sourceSha256": "1ef94eb1a12e6e3a9ef5ccedc8da26913ac64d731a00ed46a2c35683f686e6eb",
+          "sourceSamples": 960000,
+          "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+          "strategy": "bounded_windows_v1"
+        },
+        {
+          "receipt": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/pending.json",
+          "sourcePath": "\\\\?\\C:\\dev\\whisper\\target\\n2-native\\runs\\ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb\\writes\\voxpopuli-corpus\\fr-short-60s.mp3",
+          "sourceSha256": "f933cc1db59e5936f1793e82561ae24e2c0433da8ff01cb656f27510342a6575",
+          "sourceSamples": 960000,
+          "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+          "strategy": "bounded_windows_v1"
+        }
+      ],
+      "publishedArtifacts": [
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/exports/fr-short-60s (2).srt",
+          "bytes": 1764,
+          "sha256": "2bd764784b1b82ef03e0f0c29ada1cffade160be4d046e59c0995873d4ee3911"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/exports/fr-short-60s (2).txt",
+          "bytes": 1376,
+          "sha256": "eae203ab0697b6eec56427ac19055f5885b8d5388cc42e41814b693c5be1910a"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/exports/fr-short-60s.srt",
+          "bytes": 1826,
+          "sha256": "6bff6edeb6cb77df62a481871c5e5e106bb75d9ad2265134dc014a831c487634"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/exports/fr-short-60s.txt",
+          "bytes": 1372,
+          "sha256": "7ddbd1d8847e6d6da5730b364fa68daf73c22bed5d5a91b9c2b7e6c13680148d"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/transcript.srt",
+          "bytes": 1826,
+          "sha256": "6bff6edeb6cb77df62a481871c5e5e106bb75d9ad2265134dc014a831c487634"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/transcript.txt",
+          "bytes": 1372,
+          "sha256": "7ddbd1d8847e6d6da5730b364fa68daf73c22bed5d5a91b9c2b7e6c13680148d"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/parakeet-unified/source.wav",
+          "bytes": 1920044,
+          "sha256": "86b98b00ff0eb048c2bf38ba959dc2c1604f537bd6dbf53a68f1aede7dc48352"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/transcript.srt",
+          "bytes": 1764,
+          "sha256": "2bd764784b1b82ef03e0f0c29ada1cffade160be4d046e59c0995873d4ee3911"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/transcript.txt",
+          "bytes": 1376,
+          "sha256": "eae203ab0697b6eec56427ac19055f5885b8d5388cc42e41814b693c5be1910a"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/parakeet-unified/source.wav",
+          "bytes": 1920044,
+          "sha256": "8e954f97edc178a310cb360a79ae15df7a1b81dccb0175ac3f9d62c4a5aca9b0"
+        }
+      ],
+      "guardResult": {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/result.json",
+        "bytes": 1333,
+        "sha256": "096806e52dad4a95ce1475f50d48de9aeca551330eb844a1289677fc34d84e1c"
+      }
+    },
+    {
+      "runId": "ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70",
+      "profile": "ParakeetGpuFrenchLong",
+      "selector": "voxpopuli::french_long_gpu",
+      "status": "PASS",
+      "computeRequested": "Gpu",
+      "nativeImports": 1,
+      "effectiveBackend": "CUDA0",
+      "audioSeconds": 2105.814,
+      "cargoSeconds": 85.716,
+      "testBodySeconds": 83.16,
+      "cargoToAudioRatio": 0.04070444968074104,
+      "timingScope": "Cargo case elapsed, excludes staging; includes validation/startup, not isolated model inference",
+      "device": {
+        "availability": "Available",
+        "cause": null,
+        "cuda_ordinal": 0,
+        "ggml_ordinal": 0,
+        "identity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
+        "identity_match": "Unique",
+        "luid": 93831,
+        "pci_id": "0000:01:00.0",
+        "support": "ConfirmedSupported",
+        "windows_rank": 0
+      },
+      "gpuInventory": {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "51fa8cdf96d6a66a9652821fa731382340f3229840a7e657cf205168bb34fe35"
+      },
+      "asrLogs": [
+        {
+          "artifact": {
+            "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/localappdata/Whisper/settings/logs/parakeet-asr-1793639726534-22804-0.log",
+            "bytes": 124,
+            "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+          },
+          "backend": "CUDA0",
+          "modelLine": "[asr] model=parakeet-tdt-0.6b-v3.oss-align.q8_0 head=tdt backend=CUDA0"
+        }
+      ],
+      "sourceStates": [
+        {
+          "receipt": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/pending.json",
+          "sourcePath": "\\\\?\\C:\\dev\\whisper\\target\\n2-native\\runs\\ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70\\writes\\voxpopuli-corpus\\fr-long-35m.wav",
+          "sourceSha256": "ba0418690810690743e88921c17e9efd8af65d8bc34a227a8476e194eb6d0fa8",
+          "sourceSamples": 33693024,
+          "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+          "strategy": "bounded_windows_v1"
+        }
+      ],
+      "publishedArtifacts": [
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/exports/fr-long-35m.srt",
+          "bytes": 40306,
+          "sha256": "d4014b4ef732304e6284e932ff401f9ed31f05b4686003f8b4f2d973bb8aac96"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/exports/fr-long-35m.txt",
+          "bytes": 33443,
+          "sha256": "2e80b2e26e539644b6c459d5bacaead360a292bcac95176b8c720dbba63fc773"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/transcript.srt",
+          "bytes": 40306,
+          "sha256": "d4014b4ef732304e6284e932ff401f9ed31f05b4686003f8b4f2d973bb8aac96"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/transcript.txt",
+          "bytes": 33443,
+          "sha256": "2e80b2e26e539644b6c459d5bacaead360a292bcac95176b8c720dbba63fc773"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/parakeet-unified/source.wav",
+          "bytes": 67386092,
+          "sha256": "cdb01194765efdbad0cd7d7e0ba8dd908d592e591b370ac6e98875923a9311d3"
+        }
+      ],
+      "guardResult": {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/result.json",
+        "bytes": 1287,
+        "sha256": "51f123dd13748848afaa259ac8f11554a4b9762fed7ccc1bc4a47412efcee37c"
+      }
+    },
+    {
+      "runId": "ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902",
+      "profile": "ParakeetGpuEnglishLong",
+      "selector": "voxpopuli::english_long_gpu",
+      "status": "PASS",
+      "computeRequested": "Gpu",
+      "nativeImports": 1,
+      "effectiveBackend": "CUDA0",
+      "audioSeconds": 2433.459,
+      "cargoSeconds": 82.807,
+      "testBodySeconds": 80.66,
+      "cargoToAudioRatio": 0.034028516609484694,
+      "timingScope": "Cargo case elapsed, excludes staging; includes validation/startup, not isolated model inference",
+      "device": {
+        "availability": "Available",
+        "cause": null,
+        "cuda_ordinal": 0,
+        "ggml_ordinal": 0,
+        "identity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
+        "identity_match": "Unique",
+        "luid": 93831,
+        "pci_id": "0000:01:00.0",
+        "support": "ConfirmedSupported",
+        "windows_rank": 0
+      },
+      "gpuInventory": {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "5ae0a277ce382a424ab9b48d80ce91523896172bf58ac348caec5726415670ce"
+      },
+      "asrLogs": [
+        {
+          "artifact": {
+            "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/localappdata/Whisper/settings/logs/parakeet-asr-1793639934282-84292-0.log",
+            "bytes": 124,
+            "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+          },
+          "backend": "CUDA0",
+          "modelLine": "[asr] model=parakeet-tdt-0.6b-v3.oss-align.q8_0 head=tdt backend=CUDA0"
+        }
+      ],
+      "sourceStates": [
+        {
+          "receipt": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/pending.json",
+          "sourcePath": "\\\\?\\C:\\dev\\whisper\\target\\n2-native\\runs\\ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902\\writes\\voxpopuli-corpus\\en-long-40m.wav",
+          "sourceSha256": "bf5400e59305df179552a42784b28d7bf1c87d5a40731693716a2d640f9cda29",
+          "sourceSamples": 38935344,
+          "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+          "strategy": "bounded_windows_v1"
+        }
+      ],
+      "publishedArtifacts": [
+        {
+          "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/exports/en-long-40m.srt",
+          "bytes": 38492,
+          "sha256": "37f46bcb5bddac0b743bf9ece4188179f6557aed80c1104c7605d294196f7a15"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/exports/en-long-40m.txt",
+          "bytes": 31867,
+          "sha256": "29ce2c90a516db97609622c0ccc66d0bd27584a30063d7a121843415a215a91b"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/transcript.srt",
+          "bytes": 38492,
+          "sha256": "37f46bcb5bddac0b743bf9ece4188179f6557aed80c1104c7605d294196f7a15"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/transcript.txt",
+          "bytes": 31867,
+          "sha256": "29ce2c90a516db97609622c0ccc66d0bd27584a30063d7a121843415a215a91b"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/parakeet-unified/source.wav",
+          "bytes": 77870732,
+          "sha256": "6e28c8d5a74864e1948307b9987b33f8fcd15ac1a00317fa81c9b462c1af435c"
+        }
+      ],
+      "guardResult": {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/result.json",
+        "bytes": 1297,
+        "sha256": "3e0bd67de0ac9f4cdffdb52e5c5fc9dedf0a12f94db7909cbac3cb8f03466e72"
+      }
+    },
+    {
+      "runId": "ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb",
+      "profile": "ParakeetGpuFrenchAutoLong",
+      "selector": "voxpopuli::french_long_auto_gpu",
+      "status": "PASS",
+      "computeRequested": "Auto",
+      "nativeImports": 1,
+      "effectiveBackend": "CUDA0",
+      "audioSeconds": 2105.814,
+      "cargoSeconds": 84.305,
+      "testBodySeconds": 82.19,
+      "cargoToAudioRatio": 0.0400343999992402,
+      "timingScope": "Cargo case elapsed, excludes staging; includes validation/startup, not isolated model inference",
+      "device": {
+        "availability": "Available",
+        "cause": null,
+        "cuda_ordinal": 0,
+        "ggml_ordinal": 0,
+        "identity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
+        "identity_match": "Unique",
+        "luid": 93831,
+        "pci_id": "0000:01:00.0",
+        "support": "ConfirmedSupported",
+        "windows_rank": 0
+      },
+      "gpuInventory": {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "b05de1df6714bd8cbde916fe66c636233a02998b25ef7f42c7fab3fa1edd90ad"
+      },
+      "asrLogs": [
+        {
+          "artifact": {
+            "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/localappdata/Whisper/settings/logs/parakeet-asr-1793640037830-73220-0.log",
+            "bytes": 124,
+            "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+          },
+          "backend": "CUDA0",
+          "modelLine": "[asr] model=parakeet-tdt-0.6b-v3.oss-align.q8_0 head=tdt backend=CUDA0"
+        }
+      ],
+      "sourceStates": [
+        {
+          "receipt": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/pending.json",
+          "sourcePath": "\\\\?\\C:\\dev\\whisper\\target\\n2-native\\runs\\ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb\\writes\\voxpopuli-corpus\\fr-long-35m.wav",
+          "sourceSha256": "ba0418690810690743e88921c17e9efd8af65d8bc34a227a8476e194eb6d0fa8",
+          "sourceSamples": 33693024,
+          "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+          "strategy": "bounded_windows_v1"
+        }
+      ],
+      "publishedArtifacts": [
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/exports/fr-long-35m.srt",
+          "bytes": 40306,
+          "sha256": "d4014b4ef732304e6284e932ff401f9ed31f05b4686003f8b4f2d973bb8aac96"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/exports/fr-long-35m.txt",
+          "bytes": 33443,
+          "sha256": "2e80b2e26e539644b6c459d5bacaead360a292bcac95176b8c720dbba63fc773"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/transcript.srt",
+          "bytes": 40306,
+          "sha256": "d4014b4ef732304e6284e932ff401f9ed31f05b4686003f8b4f2d973bb8aac96"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/transcript.txt",
+          "bytes": 33443,
+          "sha256": "2e80b2e26e539644b6c459d5bacaead360a292bcac95176b8c720dbba63fc773"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/parakeet-unified/source.wav",
+          "bytes": 67386092,
+          "sha256": "cdb01194765efdbad0cd7d7e0ba8dd908d592e591b370ac6e98875923a9311d3"
+        }
+      ],
+      "guardResult": {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/result.json",
+        "bytes": 1330,
+        "sha256": "244f55f7c1e4c2ce2bed0252f0d6a774f74a22d1e6ede813a2f8af36e60099bf"
+      }
+    },
+    {
+      "runId": "ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000",
+      "profile": "ParakeetGpuEnglishAutoLong",
+      "selector": "voxpopuli::english_long_auto_gpu",
+      "status": "PASS",
+      "computeRequested": "Auto",
+      "nativeImports": 1,
+      "effectiveBackend": "CUDA0",
+      "audioSeconds": 2433.459,
+      "cargoSeconds": 83.35,
+      "testBodySeconds": 81.15,
+      "cargoToAudioRatio": 0.03425165577065404,
+      "timingScope": "Cargo case elapsed, excludes staging; includes validation/startup, not isolated model inference",
+      "device": {
+        "availability": "Available",
+        "cause": null,
+        "cuda_ordinal": 0,
+        "ggml_ordinal": 0,
+        "identity": "PCI\\VEN_10DE&DEV_1B06&SUBSYS_85F11043&REV_A1\\4&8BD6E8D&0&0008",
+        "identity_match": "Unique",
+        "luid": 93831,
+        "pci_id": "0000:01:00.0",
+        "support": "ConfirmedSupported",
+        "windows_rank": 0
+      },
+      "gpuInventory": {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "eb24d15cb41b2380490b2a20b7fc0ba504cf7a323547a54352ff5cb1afeb519d"
+      },
+      "asrLogs": [
+        {
+          "artifact": {
+            "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/localappdata/Whisper/settings/logs/parakeet-asr-1793640137774-74432-0.log",
+            "bytes": 124,
+            "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+          },
+          "backend": "CUDA0",
+          "modelLine": "[asr] model=parakeet-tdt-0.6b-v3.oss-align.q8_0 head=tdt backend=CUDA0"
+        }
+      ],
+      "sourceStates": [
+        {
+          "receipt": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/pending.json",
+          "sourcePath": "\\\\?\\C:\\dev\\whisper\\target\\n2-native\\runs\\ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000\\writes\\voxpopuli-corpus\\en-long-40m.wav",
+          "sourceSha256": "bf5400e59305df179552a42784b28d7bf1c87d5a40731693716a2d640f9cda29",
+          "sourceSamples": 38935344,
+          "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+          "strategy": "bounded_windows_v1"
+        }
+      ],
+      "publishedArtifacts": [
+        {
+          "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/exports/en-long-40m.srt",
+          "bytes": 38492,
+          "sha256": "37f46bcb5bddac0b743bf9ece4188179f6557aed80c1104c7605d294196f7a15"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/exports/en-long-40m.txt",
+          "bytes": 31867,
+          "sha256": "29ce2c90a516db97609622c0ccc66d0bd27584a30063d7a121843415a215a91b"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/transcript.srt",
+          "bytes": 38492,
+          "sha256": "37f46bcb5bddac0b743bf9ece4188179f6557aed80c1104c7605d294196f7a15"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/transcript.txt",
+          "bytes": 31867,
+          "sha256": "29ce2c90a516db97609622c0ccc66d0bd27584a30063d7a121843415a215a91b"
+        },
+        {
+          "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/parakeet-unified/source.wav",
+          "bytes": 77870732,
+          "sha256": "6e28c8d5a74864e1948307b9987b33f8fcd15ac1a00317fa81c9b462c1af435c"
+        }
+      ],
+      "guardResult": {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/result.json",
+        "bytes": 1339,
+        "sha256": "4483fe835bc2793385d12208c64f747044295d4357a96f629000bb180335ca83"
+      }
+    }
+  ],
+  "review": {
+    "rust": "CLEAN",
+    "guardPreparation": "CLEAN",
+    "guardActivation": "CLEAN",
+    "qualificationEvidence": "CLEAN"
+  },
+  "guardSelfTests": "PASS on activated registry",
+  "preflights": "6/6 PASS, 40 pinned files per request",
+  "quality": {
+    "referenceStatus": "METADATA_TEXT_NOT_HUMAN_VERIFIED",
+    "shortAudio": "User confirmed sound; PCM preserved",
+    "longAudio": "Automated PCM/provenance verified, not human-listened",
+    "werCer": "Not qualified",
+    "cpuQualityComparison": "Not qualified"
+  },
+  "notQualified": [
+    "Full native suite",
+    "Other GPUs or CUDA architectures",
+    "New Turbo inference qualification",
+    "GPU microphone and first displayed text latency",
+    "Windows visual validation",
+    "New release/install/portable package",
+    "Linguistic accuracy and CPU comparison"
+  ],
+  "priorFailures": [
+    "Initial deadline fixture capture failure",
+    "One expected fixture diagnostic failure",
+    "Preparation stopped by CIM timeout: no compilation success from that run"
+  ],
+  "evidence": {
+    "archive": {
+      "path": "docs/architecture/raw/qualification-gpu/campaign-evidence.zip",
+      "bytes": 654462,
+      "sha256": "8b9ef34f5f280407382705be7280cedc977db6383dcd56e18e3367761b18a228"
+    },
+    "entryCount": 303,
+    "allEntrySizesAndSha256Verified": true,
+    "entries": [
+      {
+        "path": "target/n2-native/logs/guard-selftest-correction2-receipt.json",
+        "bytes": 455,
+        "sha256": "b14c68843bc4d041b63ab6a6536a53f5f6d74b8a8c6b4d9e64f62760d990a391"
+      },
+      {
+        "path": "target/n2-native/logs/guard-selftest-reusable-roots.json",
+        "bytes": 8330,
+        "sha256": "879db7abc44d84ba6e0d861e1cfd0271aaddda2c2bc01c08710f9bd4bf6a47c4"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/result.json",
+        "bytes": 1235,
+        "sha256": "4e5d6bdbc0f29f8359e7adb391f5de8b86aecf3ce2228305f9392559320711b3"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/unattributed-temp.jsonl",
+        "bytes": 4238,
+        "sha256": "a0c76de459c612d86b435dc4d000581010ec063fd9ca61d703ed8567e13e7668"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/voxpopuli__english_short_mp3_gpu.invocation.json",
+        "bytes": 999,
+        "sha256": "4fe0084bead9b2b279ba79e1c38ba59e66441d93304cb43996cbb709dfd9dcc4"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/voxpopuli__english_short_mp3_gpu.process.json",
+        "bytes": 113,
+        "sha256": "04485cb43620255372fccbf645982934512bf066f9e1d2725802433ab54f896c"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/voxpopuli__english_short_mp3_gpu.stderr.log",
+        "bytes": 214,
+        "sha256": "5c2489f55f36f2a920f1026ea4b751176bdf4aaae5f0546a867c0b53ec20c723"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/voxpopuli__english_short_mp3_gpu.stdout.log",
+        "bytes": 165,
+        "sha256": "82379ec0bf52a374ce1e0d947091b3a3d93b9ee30420af9ce9dff9ab3c519cad"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/result.json",
+        "bytes": 1235,
+        "sha256": "2e489b94f46824c345449847105f9d99784aaa01b1880ee50fe5699915ac0ac7"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/unattributed-temp.jsonl",
+        "bytes": 3963,
+        "sha256": "9f405b027f96269d067e5a322bdd1173d541dff6badd86d9818963418a9b9a6f"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/voxpopuli__english_short_mp3_gpu.invocation.json",
+        "bytes": 999,
+        "sha256": "416021e9ecd6c5747206c9093f825c8e8d343e91482a0a4df1ee54b4e13e2bb7"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/voxpopuli__english_short_mp3_gpu.process.json",
+        "bytes": 112,
+        "sha256": "6fef2f8cbba9f0e181d158928ef4439ac2b4803e33e398268b3eb8a7286efa3a"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/voxpopuli__english_short_mp3_gpu.stderr.log",
+        "bytes": 214,
+        "sha256": "9e0180122bba1e1c9f8f1db3854371c996d425d70b4e13acde4a4188001ea5c4"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/voxpopuli__english_short_mp3_gpu.stdout.log",
+        "bytes": 165,
+        "sha256": "86e7341b4bc221c1438dba755aa8b9a735df94fc4bea417f9b4de442682dfda7"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/result.json",
+        "bytes": 1235,
+        "sha256": "bd1f545cb6af4a1b345eb503c56e88ca519871aa175242c52a191b40ec8563ef"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/unattributed-temp.jsonl",
+        "bytes": 4017,
+        "sha256": "5eb6a38dba9ca5e05e66b6e807f2b80c0b01e7295be5a7398d205b7035923505"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/voxpopuli__english_short_mp3_gpu.invocation.json",
+        "bytes": 999,
+        "sha256": "137514121d36e69f874359c51f1a4b6e681a1dfc31e0bf98bdb38a4b172f6e7b"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/voxpopuli__english_short_mp3_gpu.process.json",
+        "bytes": 113,
+        "sha256": "7be32d81c68ad0cf52bf77c611846355cba997ae0d3bf92fcb50838309d1a0ce"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/voxpopuli__english_short_mp3_gpu.stderr.log",
+        "bytes": 214,
+        "sha256": "cb8149cbf8e8af3bba64ca72a3924572068ba422517c4de417d7d04cfecb3af4"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/voxpopuli__english_short_mp3_gpu.stdout.log",
+        "bytes": 165,
+        "sha256": "28b98859ff4c38cd005fd4a279a125f4331aba9746a5294de41556b7cdaeb528"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/result.json",
+        "bytes": 1339,
+        "sha256": "4483fe835bc2793385d12208c64f747044295d4357a96f629000bb180335ca83"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/unattributed-temp.jsonl",
+        "bytes": 9887,
+        "sha256": "e778f307ba18378e981fa2d9373026ecbac77c3f4dd8e57e34b36c5da8f8da37"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/voxpopuli__english_long_auto_gpu.invocation.json",
+        "bytes": 1013,
+        "sha256": "5d3b1587cd95f4e84ef712f1a44bbcaf1bdb849cb909689b82f3a8fe3fdcd581"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/voxpopuli__english_long_auto_gpu.process.json",
+        "bytes": 113,
+        "sha256": "7b2e137dd0a5d30f96b79c2d07048032af3a3f4b12eec24e5267c30c7181649f"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/voxpopuli__english_long_auto_gpu.stderr.log",
+        "bytes": 214,
+        "sha256": "42dcf07c3ab2f7bb2e903d3bb110706ccbdaddf00fd936502861e63b64d9b9b7"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/voxpopuli__english_long_auto_gpu.stdout.log",
+        "bytes": 165,
+        "sha256": "31142f5d3ee6f79cd40681bb7b46886772768178da59ce1ae2100983c156ed15"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/result.json",
+        "bytes": 1297,
+        "sha256": "3e0bd67de0ac9f4cdffdb52e5c5fc9dedf0a12f94db7909cbac3cb8f03466e72"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/unattributed-temp.jsonl",
+        "bytes": 6934,
+        "sha256": "f8b86b9539cd72dc339a7e5592642324f2548bba84affb408682ed040db32bc0"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/voxpopuli__english_long_gpu.invocation.json",
+        "bytes": 990,
+        "sha256": "9a9693f4d3e2eef2b7e2f4d94de6ed880578fb4aa1c58d37ec859c1939df7f44"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/voxpopuli__english_long_gpu.process.json",
+        "bytes": 108,
+        "sha256": "fe9d5ab2c840ad5e18a77179f7a37db73926e6b681d736ecadfe6b76336176a0"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/voxpopuli__english_long_gpu.stderr.log",
+        "bytes": 214,
+        "sha256": "5c2489f55f36f2a920f1026ea4b751176bdf4aaae5f0546a867c0b53ec20c723"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/voxpopuli__english_long_gpu.stdout.log",
+        "bytes": 160,
+        "sha256": "8473bbc6e82f0e51ea138162877ac1ffe513547310b1ba81dce9d5d45b003bb2"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/result.json",
+        "bytes": 1330,
+        "sha256": "244f55f7c1e4c2ce2bed0252f0d6a774f74a22d1e6ede813a2f8af36e60099bf"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/unattributed-temp.jsonl",
+        "bytes": 7705,
+        "sha256": "ed640d1eec09927ccc626f44c1b36d4d8b1e53aec30f79d0d3985308a5f1d7d1"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/voxpopuli__french_long_auto_gpu.invocation.json",
+        "bytes": 1009,
+        "sha256": "4fcee388c252fd37cea7496e7ca616edb6209bd1f92bd5aa7cea40b3c937005c"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/voxpopuli__french_long_auto_gpu.process.json",
+        "bytes": 111,
+        "sha256": "e4388e47dc06cb3b6a5bb01eb1ac8bd80220040a670884bb74693569fce41978"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/voxpopuli__french_long_auto_gpu.stderr.log",
+        "bytes": 214,
+        "sha256": "42dcf07c3ab2f7bb2e903d3bb110706ccbdaddf00fd936502861e63b64d9b9b7"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/voxpopuli__french_long_auto_gpu.stdout.log",
+        "bytes": 164,
+        "sha256": "cbebdf929738a7e9a0d4ee555fe0e29a0a7256eadc3c894be1691cab10001380"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/result.json",
+        "bytes": 1287,
+        "sha256": "51f123dd13748848afaa259ac8f11554a4b9762fed7ccc1bc4a47412efcee37c"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/unattributed-temp.jsonl",
+        "bytes": 9337,
+        "sha256": "ba7b69ab8b7e38fa0f10d734b6d9fc057c72eb1d006601422c38ee41c4d25117"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/voxpopuli__french_long_gpu.invocation.json",
+        "bytes": 985,
+        "sha256": "185d4297d5db6857155ba743ba2356fb3e7d16a8b6db7f8b1922d9a80844f69d"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/voxpopuli__french_long_gpu.process.json",
+        "bytes": 107,
+        "sha256": "63361e9a8cd28703710a8c409e7237d6806aa2149d744d5bd7ebde48e4628ce4"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/voxpopuli__french_long_gpu.stderr.log",
+        "bytes": 214,
+        "sha256": "f624b8f897dae8f35f076a66234e74324c38796a3072ee07e6006c14b18465ae"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/voxpopuli__french_long_gpu.stdout.log",
+        "bytes": 159,
+        "sha256": "344d8a5b3af2e1bc486a7012644d807d2206bbc94a5fc4f5f0113d3fbdd016c9"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/result.json",
+        "bytes": 1333,
+        "sha256": "096806e52dad4a95ce1475f50d48de9aeca551330eb844a1289677fc34d84e1c"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/unattributed-temp.jsonl",
+        "bytes": 4004,
+        "sha256": "024c6acd89d266a43e69391c9b3eb54db50d3ad8183a0ebd06c57cbb1c7750b5"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/voxpopuli__french_short_wav_and_mp3_gpu.invocation.json",
+        "bytes": 1038,
+        "sha256": "9234cb10e61f700f7c52c9f48f101c4b211d139cc130b52d1d8b182b2104c95c"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/voxpopuli__french_short_wav_and_mp3_gpu.process.json",
+        "bytes": 120,
+        "sha256": "e410363a578c364af3330ffb996f9816738598265aa25c09b483c979ac560e8d"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/voxpopuli__french_short_wav_and_mp3_gpu.stderr.log",
+        "bytes": 214,
+        "sha256": "5c2489f55f36f2a920f1026ea4b751176bdf4aaae5f0546a867c0b53ec20c723"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/voxpopuli__french_short_wav_and_mp3_gpu.stdout.log",
+        "bytes": 172,
+        "sha256": "ea7bd364a4a1882bd18f3a94c0d9c7d608b74ec75ec30d940f01901f27423475"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuInventory-f025ffb4fb104791aa6ca4f87ef12830/ParakeetGpuInventory.invocation.json",
+        "bytes": 671,
+        "sha256": "2cc58c95dc6f118d4af2083d0a18a76a7fa4c46f5ab4983f645d6f5c828ec774"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuInventory-f025ffb4fb104791aa6ca4f87ef12830/ParakeetGpuInventory.process.json",
+        "bytes": 101,
+        "sha256": "a9ea4758e61e83f2802c955be707f466c940c40b0e4d1f04f8e82819c6291844"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuInventory-f025ffb4fb104791aa6ca4f87ef12830/ParakeetGpuInventory.stderr.log",
+        "bytes": 214,
+        "sha256": "213533942520194a5c9ac2574044683833ce68492c6aa8440d0f1e740e1a2985"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuInventory-f025ffb4fb104791aa6ca4f87ef12830/ParakeetGpuInventory.stdout.log",
+        "bytes": 1001,
+        "sha256": "ebd8b078d39d9bc9c33e188baf3ded3942e19fd3d135878441bf6adc8cdbffc9"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuInventory-f025ffb4fb104791aa6ca4f87ef12830/result.json",
+        "bytes": 768,
+        "sha256": "abdaba73b4eda08953b529dbd847b5b6e4cf3f14dffcfc6ac3d663096c8dd093"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-4e8c954050ed46bdb649708a20b5aa87/ParakeetGpuPreparation.invocation.json",
+        "bytes": 675,
+        "sha256": "d85e03ed6b536877ca463c28818fb1c655e660169a4cc03de6cf0018629191ae"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-4e8c954050ed46bdb649708a20b5aa87/ParakeetGpuPreparation.process.json",
+        "bytes": 102,
+        "sha256": "b8b7b34c4f00639203e3dc9a04f0ecc1a65a53d781367d80251700f37e586a35"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-4e8c954050ed46bdb649708a20b5aa87/ParakeetGpuPreparation.stderr.log",
+        "bytes": 293,
+        "sha256": "e94307c1ed12ab92a78f1318ba2edac3bed34376ff2c46437e49bc021457f7b1"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-4e8c954050ed46bdb649708a20b5aa87/ParakeetGpuPreparation.stdout.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-4e8c954050ed46bdb649708a20b5aa87/result.json",
+        "bytes": 789,
+        "sha256": "521210f019e051a741c7729cf7433d525a8bb114e37b08ece7f3eb1134951304"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-4e8c954050ed46bdb649708a20b5aa87/unattributed-temp.jsonl",
+        "bytes": 771,
+        "sha256": "bf5fdbb20e8d71aa7bede8340bfbcc5ad860ba44f45dbfd1d473a02e0e05cc2a"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-72132271b1d3483bbd21d272e882f37e/ParakeetGpuPreparation.invocation.json",
+        "bytes": 734,
+        "sha256": "4090ede4c1cdbbbc384d9633f258456f6c23f0e3732711465670b935a6dd9591"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-72132271b1d3483bbd21d272e882f37e/ParakeetGpuPreparation.process.json",
+        "bytes": 102,
+        "sha256": "cba3e97ea51f056083a9a5f1950a2244f0046eaa387fcd31ff9e0b4815193da4"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-72132271b1d3483bbd21d272e882f37e/ParakeetGpuPreparation.stderr.log",
+        "bytes": 3385,
+        "sha256": "411cebd165f056b33359c0ce84bec26430447b2eb8ae0feda815a7031d6ee8f6"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-72132271b1d3483bbd21d272e882f37e/ParakeetGpuPreparation.stdout.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-72132271b1d3483bbd21d272e882f37e/result.json",
+        "bytes": 1257,
+        "sha256": "456274872fc38e298ef082933d107e489177bbbfc6745ad2220c20fc7816a225"
+      },
+      {
+        "path": "target/n2-native/logs/ParakeetGpuPreparation-72132271b1d3483bbd21d272e882f37e/unattributed-temp.jsonl",
+        "bytes": 2642,
+        "sha256": "766fea1aa6e217ffdea4e2b7cc4c766f2108799bc7b87df21f27cdb690adfa99"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/corpus-preparation/preparation-results.json",
+        "bytes": 6711,
+        "sha256": "98c40ed1a4ccf1f9b6a8a3de1bf672fdb3dcf838891a3a24a56d2a7e8f99097a"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/corpus/en-long-40m.annotations.json",
+        "bytes": 132967,
+        "sha256": "f9bb4c25fa6afe6cd7783eab37d9a82555873bdf7f9809a7f7101bd94233c658"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/corpus/en-long-40m.reference.txt",
+        "bytes": 34269,
+        "sha256": "e7c373bf4568d4f1125820ece36222138faf41640a085635a22cc3fea6c60216"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/corpus/en-short-60s.annotations.json",
+        "bytes": 4275,
+        "sha256": "1bedb52184bd7cc9adfb852d03a5a4b5fd7aa2699251811fd8c6df13692a7398"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/corpus/en-short-60s.reference.txt",
+        "bytes": 1141,
+        "sha256": "68b43d26dfa6e778e0ea8322e37a822d7e81ffbe7c3c32f779d2a42702389b02"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/corpus/fr-long-35m.annotations.json",
+        "bytes": 116441,
+        "sha256": "5316af4e79d237f6248eeb77a613584942209446f027c467a93059626654c2aa"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/corpus/fr-long-35m.reference.txt",
+        "bytes": 40483,
+        "sha256": "bcd60d70c92a87254b733d926527dc64ff65363d843c6d23605e31b44d84ec73"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/corpus/fr-short-60s.annotations.json",
+        "bytes": 4685,
+        "sha256": "c61cf861fae7f26f2e3f5007f5509d319337d7c49302c8bcc3696048cd0382e6"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/corpus/fr-short-60s.reference.txt",
+        "bytes": 1309,
+        "sha256": "bbe2be079d891aceff7a7a169773343bf95bf3c24128b2ad5cd8d1d8cb362e0e"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/requests/inventory.json",
+        "bytes": 369,
+        "sha256": "ee961773b73feeec83a8ea56e8975e81bc479d944acf7581ce6684e2cc87adb9"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/requests/ParakeetGpu.json",
+        "bytes": 8330,
+        "sha256": "bb7302e4600f99bb3d26f48039aa1a723084e2cec921c45b737918df7000be3f"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/requests/ParakeetGpuEnglishAutoLong.json",
+        "bytes": 8345,
+        "sha256": "544f4a258472eed15e4e7f6eb7987ca01b4036083d5bda21d4a9da11a4de330a"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/requests/ParakeetGpuEnglishLong.json",
+        "bytes": 8341,
+        "sha256": "d26c8c6b0ce5a5ec8f67d9e168d3a93ada970130ad4f9a57631a1f6bfcdbbefd"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/requests/ParakeetGpuFrenchAutoLong.json",
+        "bytes": 8344,
+        "sha256": "41294169318e65d776841d30d880637c514f1fef56e6db56c6b2d55351386b06"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/requests/ParakeetGpuFrenchLong.json",
+        "bytes": 8340,
+        "sha256": "f83865531d17596791a5126e1b6f8cebaf835c596a82fbdf77acc876db34f4f4"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/requests/ParakeetGpuFrenchShort.json",
+        "bytes": 8341,
+        "sha256": "f126c68bec8058fc7f9394c38ae97b679edc8a6da7e284b520f79d2dd22734ae"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/requests/preparation.json",
+        "bytes": 371,
+        "sha256": "5343d336464fe7fc4ad247ebe10d1b42d9f0cabd6ae44a07390a6f811c7d2cdb"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/runtime-inventory.json",
+        "bytes": 6570,
+        "sha256": "b6ae8db5a3bd4a6c397bc53df11e0a5260d82d33570106082edd4a4885330ae4"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/campaign-summary.json",
+        "bytes": 2202,
+        "sha256": "3ee0f93796174f913f7ad74f3e7c5af91df8d002d560fe236485604951dfdc05"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/deadline-diagnostic-20261102T144210584/command.txt",
+        "bytes": 462,
+        "sha256": "17bd803cb88deb04c7a8a276a57aab071bc1b6b39d9d9c53120d50894de76fc5"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/deadline-diagnostic-20261102T144210584/error.txt",
+        "bytes": 175,
+        "sha256": "22d654a2eab638d8b63e2474be0a894cf0f22bcb77d06bd102afd0352339c9b9"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/deadline-diagnostic-20261102T144210584/status.json",
+        "bytes": 475,
+        "sha256": "606d966951f40df3a074176887d425008b040b5adaf57114315ee5ea6f53b8e2"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/g1-english-gpu-1.log",
+        "bytes": 241,
+        "sha256": "5b96bdd38adf9a49b810ecf70118a672c5857a09495c60ab4675b28176998133"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/g1-english-gpu-2.log",
+        "bytes": 241,
+        "sha256": "8ab17e484ce3a91f12466e55f1c8d54c3644087ca9c455fc2baff8dddf91d989"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/g1-english-gpu-3.log",
+        "bytes": 241,
+        "sha256": "748323efa6b2da639e1f0a2c9a2a4f1bc17b666a2babc51ecb6f4ce253d67e35"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/g1-french-wav-mp3-gpu.log",
+        "bytes": 274,
+        "sha256": "65f6a2a4c45871ff453a61bfa8f8ec7f289749cdcf25f452f4d03cd941e79f7e"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/g2-french-long-gpu.log",
+        "bytes": 271,
+        "sha256": "11dba57c1a547e44b88d35e3961c1975fc0d7677b4f163c162dde306fae549c4"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/g3-english-long-gpu.log",
+        "bytes": 274,
+        "sha256": "e862c411211a063127898abfff7273c8bb9be8cc51382569ec1fe7ea54b68ed4"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/g4-french-long-auto-gpu.log",
+        "bytes": 283,
+        "sha256": "7f0fa8e463fa22504ad1c62e80d0f827035a6cebba8d78724da287c972343da1"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/g5-english-long-auto-gpu.log",
+        "bytes": 286,
+        "sha256": "4e1cfd31b5272e2701e04a7819a8d95b837c21b6e40b1e3be5c86db1dd80e454"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/n2-selftest-activated-profiles.log",
+        "bytes": 1224,
+        "sha256": "d76a4de7d86562cdb7a5b3bd6d44a71cd84d38bdb617368b697eef9b79964d2f"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/n2-selftest-after-fixture-fix.log",
+        "bytes": 1027,
+        "sha256": "5c6c3dbe480b5000c3a35457fd45291862dae38d2593e8174ac692ed8c2e498d"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/n2-selftest-after-gci02.log",
+        "bytes": 1224,
+        "sha256": "fd594ff30bd698c134e2f2e5cc24672cf1ce6270f31242f501d596158be38820"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/n2-selftest-initial.log",
+        "bytes": 288,
+        "sha256": "4689c7866ad8258c7b4748b292a60c43a486855ae147f210f132f0e156623143"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/ParakeetGpu-preflight.log",
+        "bytes": 461,
+        "sha256": "c16f703ea55d04fbf468e1d1ec2c0c3ca660b96ba3ba69623b99f61301dc627f"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/ParakeetGpuEnglishAutoLong-preflight.log",
+        "bytes": 476,
+        "sha256": "3cd854f9d5d2ab9cbb9724d131e63ed5a238c86615ad172b7237c5878617831b"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/ParakeetGpuEnglishLong-preflight.log",
+        "bytes": 472,
+        "sha256": "499d7dae9bedf04cd0ad01fd16b042011dc4a000cad61b5b946ebd6d277ee87d"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/ParakeetGpuFrenchAutoLong-preflight.log",
+        "bytes": 475,
+        "sha256": "cdb40c690be54ccef4ccd8e36ccabe3b8ce98ae7fb9288ca03e4a1377ac2d989"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/ParakeetGpuFrenchLong-preflight.log",
+        "bytes": 471,
+        "sha256": "789a6ee09e05ae00555cf2ec8a54239fe16ab2fb1598bcfd2a10824250828b2d"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/ParakeetGpuFrenchShort-preflight.log",
+        "bytes": 472,
+        "sha256": "46fe1640b457f6442f88195c2390b84409bff1da4695ffeff284c9c770ffe97a"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/preparation-no-run-after-gci02.log",
+        "bytes": 281,
+        "sha256": "a64797c43e5927179ea21d260e4458448b993de0617d7d8f799ba804f6b6f4c9"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/preparation-no-run.log",
+        "bytes": 551,
+        "sha256": "c5636d2db0c97f29bbe3b57c7dbbfc21be426b57299f805f0971cc800193d03f"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/preparation-preflight-after-gci02.log",
+        "bytes": 474,
+        "sha256": "b644187703bc3678826c641a3d61e6170aa5d34cb8db2d9aa7833359955145e9"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/preparation-preflight.log",
+        "bytes": 474,
+        "sha256": "207e6f6765b7768a1071990c007b06e62e6af1606140e9e17c2ca5f6d22892e9"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/runtime-pe.json",
+        "bytes": 4117,
+        "sha256": "76f1759962e06c11fa13910882349ec058cdfc3981664a857d0558713120947a"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/short-campaign-results.json",
+        "bytes": 654,
+        "sha256": "3fdc8c7073c5d87967e511fbf3e2a496ffbf6882b842787dc0cce3f7e0f6a1a9"
+      },
+      {
+        "path": "target/n2-native/qualification-gpu/verification/voxpopuli-inventory.log",
+        "bytes": 273,
+        "sha256": "309b488a6e3d3991827bc1d854d2b71b95f9d2eaed85a2169416ddee183276a2"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "c38f67fddaf8e3170c6241369f0444565d747469794d55f5fd984d153498ff18"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/localappdata/Whisper/settings/logs/parakeet-asr-1793639376975-162848-0.log",
+        "bytes": 124,
+        "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/.whisper-publications/index.json",
+        "bytes": 227,
+        "sha256": "a3bc3353782654295d15db81f51036c20f1638932d071f13d067b8d1723233bf"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/exports/en-short-60s.srt",
+        "bytes": 1247,
+        "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/exports/en-short-60s.txt",
+        "bytes": 1054,
+        "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/installed-exports.json",
+        "bytes": 700,
+        "sha256": "2473a1d4f2a706f991ce7472dad73c1b2d34ae473281355c93689a51f237b60d"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/manifest.json",
+        "bytes": 402,
+        "sha256": "f20bf3a683199b9da09c318f171c78b72ae92df7ffb1ae93275e4ac6644505e7"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 111,
+        "sha256": "c29b7d1d14ece5e83cbb14c1145b1c6abb6be3382fa86e1a68d03df28d18363a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/parakeet-unified/document/document.final.json",
+        "bytes": 85,
+        "sha256": "6a898bb5374922255e9de6d6b958bdefa136b13ce5a8b54090ffffec8cde9e50"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/parakeet-unified/document/document.jsonl",
+        "bytes": 2235,
+        "sha256": "a0aae4e3effd056d97742e9d5cd6f64a939b27aa531cc87d32aff0cd1bec2e83"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/pending.json",
+        "bytes": 656,
+        "sha256": "a81f6f96e83b0abc7091036656f239a50e2de961147015d9e422cd996b6b2a5a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/r11-publication.json",
+        "bytes": 327,
+        "sha256": "c3b7ae1e0da01a303edd69133739f57d264e4faabd58fbfc1c982cf0c8671f8c"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/segments.jsonl",
+        "bytes": 1647,
+        "sha256": "edea21922d5043815a2367b68aae777e3df2552b5febecf5c95e891f502df99e"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/transcript.srt",
+        "bytes": 1247,
+        "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-0beace7bb0474d4982730cc777c7ecf1/writes/voxpopuli-campaign/archive/transcriptions/0000000000027c2018e4497ae362b318/1/transcript.txt",
+        "bytes": 1054,
+        "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "00b24c2c01b456d497e88c0eba730c1e9fe20a5d7ba86250824b5c835f1c539a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/localappdata/Whisper/settings/logs/parakeet-asr-1793639320156-12608-0.log",
+        "bytes": 124,
+        "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/.whisper-publications/index.json",
+        "bytes": 226,
+        "sha256": "e7e7437ae7918ed9647a8422cd85e7cbc471527781fadccb4f6c44517d7e0ced"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/exports/en-short-60s.srt",
+        "bytes": 1247,
+        "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/exports/en-short-60s.txt",
+        "bytes": 1054,
+        "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/installed-exports.json",
+        "bytes": 699,
+        "sha256": "c6720fe522ae9a06bf3295dfeebc99064692809dd4a104cbb2535b2e4e5fbbc0"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/manifest.json",
+        "bytes": 401,
+        "sha256": "4aa4b4caa3882df0d3a5e2fc5bcf19d14777545ea6f2fd6b95b5e72f5e718105"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 111,
+        "sha256": "c29b7d1d14ece5e83cbb14c1145b1c6abb6be3382fa86e1a68d03df28d18363a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/parakeet-unified/document/document.final.json",
+        "bytes": 85,
+        "sha256": "26fa9ff335ea2356ea8a065ef50ad309aa72e3228f50aec89292bf04207be704"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/parakeet-unified/document/document.jsonl",
+        "bytes": 2223,
+        "sha256": "97c60f8702fe43056a3a6bb31db06285c7ff694f413028c5a6cbce5d498cb44d"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/pending.json",
+        "bytes": 655,
+        "sha256": "58d6351302e98728a461f00348e547498242e205acd1c62e10a4e24f2069a1ab"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/r11-publication.json",
+        "bytes": 327,
+        "sha256": "70ed3ca8feffd1c7160e15b479d1e163623b404fed93d28c2d7bde4fe1ae767b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/segments.jsonl",
+        "bytes": 1647,
+        "sha256": "edea21922d5043815a2367b68aae777e3df2552b5febecf5c95e891f502df99e"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/transcript.srt",
+        "bytes": 1247,
+        "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-a3af00c9b7014cc78e35d50c3aea63a5/writes/voxpopuli-campaign/archive/transcriptions/000000000000314018e4496db4705680/1/transcript.txt",
+        "bytes": 1054,
+        "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "43b2d06adfaaad997adcfa38a5fbd876edfd4ce9cda2cb4a97a859e428104b77"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/localappdata/Whisper/settings/logs/parakeet-asr-1793639167906-57876-0.log",
+        "bytes": 124,
+        "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/.whisper-publications/index.json",
+        "bytes": 227,
+        "sha256": "93d2bfd0905779d9d30ff3182e68364cfc4bc4578e89ac1ef21d2cef4d90d8c3"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/exports/en-short-60s.srt",
+        "bytes": 1247,
+        "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/exports/en-short-60s.txt",
+        "bytes": 1054,
+        "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/installed-exports.json",
+        "bytes": 700,
+        "sha256": "f893ccdd57c7d69bca064fe6fc0e5380670ae60b479699c05dc137d15d632128"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/manifest.json",
+        "bytes": 402,
+        "sha256": "5585b6bcded9de314de8401ed62fd076be70a0144fba9236d321e59f2530533c"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 111,
+        "sha256": "c29b7d1d14ece5e83cbb14c1145b1c6abb6be3382fa86e1a68d03df28d18363a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/parakeet-unified/document/document.final.json",
+        "bytes": 85,
+        "sha256": "9cdfd79f9913580ffa31a1fb9dab8c93ea830d470c45fbbf036aea389b4af21d"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/parakeet-unified/document/document.jsonl",
+        "bytes": 2235,
+        "sha256": "da58afe37d76902eeabc62ee9ee77fbc88c57bf053fa38d4d203bd4db0c75053"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/pending.json",
+        "bytes": 656,
+        "sha256": "3ef15e605a1ca8a8f185c05620a0163c414d015998b3469722ddced85bcc5803"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/r11-publication.json",
+        "bytes": 327,
+        "sha256": "d0c5d3987c10ebf4cfb90ebb2b756d64737e3c7efbcf6a7514f9835a2af5c224"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/segments.jsonl",
+        "bytes": 1647,
+        "sha256": "edea21922d5043815a2367b68aae777e3df2552b5febecf5c95e891f502df99e"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/transcript.srt",
+        "bytes": 1247,
+        "sha256": "6671439e31b3b1c8d5b4533f4101c64f3ffe102e18da09421a82cb20154ffb81"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpu-d1db985834ea444f91428dbd51fb5ba2/writes/voxpopuli-campaign/archive/transcriptions/000000000000e21418e4494a59a40698/1/transcript.txt",
+        "bytes": 1054,
+        "sha256": "0ce3edf883c87cb8343f4b05bbb983ee2d115d1e6e07879175fde79d1c7e148a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "eb24d15cb41b2380490b2a20b7fc0ba504cf7a323547a54352ff5cb1afeb519d"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/localappdata/Whisper/settings/logs/parakeet-asr-1793640137774-74432-0.log",
+        "bytes": 124,
+        "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/.whisper-publications/index.json",
+        "bytes": 226,
+        "sha256": "aceeacc690da4cb11f7c94fb9920fac4fc9ce4420659805d43ae07f3127857ac"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/exports/en-long-40m.srt",
+        "bytes": 38492,
+        "sha256": "37f46bcb5bddac0b743bf9ece4188179f6557aed80c1104c7605d294196f7a15"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/exports/en-long-40m.txt",
+        "bytes": 31867,
+        "sha256": "29ce2c90a516db97609622c0ccc66d0bd27584a30063d7a121843415a215a91b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/installed-exports.json",
+        "bytes": 699,
+        "sha256": "d5cbafb51ad593803b2c9f171d26948912960f9bc4eddd25e4ec84f65e6911ae"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/manifest.json",
+        "bytes": 406,
+        "sha256": "7184f62fd04093d5076c4a13582b57d99b77077f6f2bf7eef6a9bd858275b3ce"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 3277,
+        "sha256": "493749aea4e3422b214fd9b5983428c63193c4cdaf02317d26a4b46a4ee4e78e"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/parakeet-unified/document/document.final.json",
+        "bytes": 87,
+        "sha256": "c244f876bbddd878a908c6e1f27476f7198c52a74abf5d36c8e34bad6519026a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/parakeet-unified/document/document.jsonl",
+        "bytes": 72129,
+        "sha256": "a48c16b906cf6c847ffeaa9377ff9a8150ae346de55be29c33580bd5876dcba0"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/pending.json",
+        "bytes": 687,
+        "sha256": "36d18581a8e0f5eb6a06170aebf65ca7880191ad4acc6dacf13c482cdefc9981"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/r11-publication.json",
+        "bytes": 328,
+        "sha256": "9a045fabcf58a721a28021564c42cfc40e08391db8e394b4111e65a22f9fec43"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/segments.jsonl",
+        "bytes": 52437,
+        "sha256": "8c69286dcf87f05424d30123346aac6c3ebfaa9927a943ea18ec6712b83477c0"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/transcript.srt",
+        "bytes": 38492,
+        "sha256": "37f46bcb5bddac0b743bf9ece4188179f6557aed80c1104c7605d294196f7a15"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishAutoLong-715526e598bc4738b897f167a8bcb000/writes/voxpopuli-campaign/archive/transcriptions/00000000000122c018e44a29f2199494/1/transcript.txt",
+        "bytes": 31867,
+        "sha256": "29ce2c90a516db97609622c0ccc66d0bd27584a30063d7a121843415a215a91b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "5ae0a277ce382a424ab9b48d80ce91523896172bf58ac348caec5726415670ce"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/localappdata/Whisper/settings/logs/parakeet-asr-1793639934282-84292-0.log",
+        "bytes": 124,
+        "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/.whisper-publications/index.json",
+        "bytes": 226,
+        "sha256": "4d87e6d81c23e6496152cd721b63a4f44b1a6f30722d682b147e450465f37343"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/exports/en-long-40m.srt",
+        "bytes": 38492,
+        "sha256": "37f46bcb5bddac0b743bf9ece4188179f6557aed80c1104c7605d294196f7a15"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/exports/en-long-40m.txt",
+        "bytes": 31867,
+        "sha256": "29ce2c90a516db97609622c0ccc66d0bd27584a30063d7a121843415a215a91b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/installed-exports.json",
+        "bytes": 699,
+        "sha256": "12ad93d7e663c71beb0db257e71e8bf9963fe6ea57236c79ec86aaceb4b9dd5a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/manifest.json",
+        "bytes": 406,
+        "sha256": "c2c1e366c31cf30933536bbb22ea16f5e7ec4b38da233aa19cfb84bfc9096be9"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 3277,
+        "sha256": "493749aea4e3422b214fd9b5983428c63193c4cdaf02317d26a4b46a4ee4e78e"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/parakeet-unified/document/document.final.json",
+        "bytes": 87,
+        "sha256": "866b9aa12fb0a5828c936d4d4219d9bf041e3eec0cb0c81853d0559c6f94882f"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/parakeet-unified/document/document.jsonl",
+        "bytes": 72129,
+        "sha256": "b799a3c1c1ef461cef4833afd1c75eaf76d30632c7dd6067364eae1896d16a40"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/pending.json",
+        "bytes": 679,
+        "sha256": "3651995c87ec42efa2d494c41d2336280ca97f9a91b6751f5ea3230387ada918"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/r11-publication.json",
+        "bytes": 328,
+        "sha256": "a150a5d650c07da1cbebf37b18377f3da5e0ef19b8c8b5ba91370c42fcff5941"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/segments.jsonl",
+        "bytes": 52437,
+        "sha256": "8c69286dcf87f05424d30123346aac6c3ebfaa9927a943ea18ec6712b83477c0"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/transcript.srt",
+        "bytes": 38492,
+        "sha256": "37f46bcb5bddac0b743bf9ece4188179f6557aed80c1104c7605d294196f7a15"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuEnglishLong-5ad2d319845244538f898ff38ff82902/writes/voxpopuli-campaign/archive/transcriptions/000000000001494418e449faa75a0a30/1/transcript.txt",
+        "bytes": 31867,
+        "sha256": "29ce2c90a516db97609622c0ccc66d0bd27584a30063d7a121843415a215a91b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "b05de1df6714bd8cbde916fe66c636233a02998b25ef7f42c7fab3fa1edd90ad"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/localappdata/Whisper/settings/logs/parakeet-asr-1793640037830-73220-0.log",
+        "bytes": 124,
+        "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/.whisper-publications/index.json",
+        "bytes": 226,
+        "sha256": "3ca20836c33b4bef7bba56150107b3c2eda028e6223216f9fde655b35ddc83ea"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/exports/fr-long-35m.srt",
+        "bytes": 40306,
+        "sha256": "d4014b4ef732304e6284e932ff401f9ed31f05b4686003f8b4f2d973bb8aac96"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/exports/fr-long-35m.txt",
+        "bytes": 33443,
+        "sha256": "2e80b2e26e539644b6c459d5bacaead360a292bcac95176b8c720dbba63fc773"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/installed-exports.json",
+        "bytes": 699,
+        "sha256": "54d5bcca9626ccb9c8713c87e58b266f5e8929e56a95b2c06dac669b3e360ddd"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/manifest.json",
+        "bytes": 406,
+        "sha256": "d33350a46a5de1fc562e4c37edf31964dab01c0c8b84fdf2de6ba31c89e7b66a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 2665,
+        "sha256": "20ac377dc8990ad23bead3b16e603081f2bec94f491001e37c04f72ea2e2b974"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/parakeet-unified/document/document.final.json",
+        "bytes": 87,
+        "sha256": "bd5633b6ca09fee596012e591436703717e752162b5c1d5f2415b93cbfb1e3bf"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/parakeet-unified/document/document.jsonl",
+        "bytes": 74934,
+        "sha256": "eb326985b1f3439e7d6c2e90b2180dd9f465dfcb636933ec0ce652b2cc1ece11"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/pending.json",
+        "bytes": 685,
+        "sha256": "dbcbff5bdfa9ec4bb27e2547010bcf4114d94c222de38349acf3d73235589894"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/r11-publication.json",
+        "bytes": 328,
+        "sha256": "a861e23b7bff1bf78e7562b027c23d7d635123e0eccf3629aad99d2b6825c200"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/segments.jsonl",
+        "bytes": 54747,
+        "sha256": "8dffbb9da66354258dc903c2cf9770e0cc2d22031a118d42c4051bf80bcf820e"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/transcript.srt",
+        "bytes": 40306,
+        "sha256": "d4014b4ef732304e6284e932ff401f9ed31f05b4686003f8b4f2d973bb8aac96"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchAutoLong-79fa928beb4045c3bcf1aef349bf68cb/writes/voxpopuli-campaign/archive/transcriptions/0000000000011e0418e44a12fce4d404/1/transcript.txt",
+        "bytes": 33443,
+        "sha256": "2e80b2e26e539644b6c459d5bacaead360a292bcac95176b8c720dbba63fc773"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 2290,
+        "sha256": "51fa8cdf96d6a66a9652821fa731382340f3229840a7e657cf205168bb34fe35"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/localappdata/Whisper/settings/logs/parakeet-asr-1793639726534-22804-0.log",
+        "bytes": 124,
+        "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/.whisper-publications/index.json",
+        "bytes": 225,
+        "sha256": "a896495a75fb16ca8cb6e8bebeaa10d314c81538ed8da5cf02170c611ff0c750"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/exports/fr-long-35m.srt",
+        "bytes": 40306,
+        "sha256": "d4014b4ef732304e6284e932ff401f9ed31f05b4686003f8b4f2d973bb8aac96"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/exports/fr-long-35m.txt",
+        "bytes": 33443,
+        "sha256": "2e80b2e26e539644b6c459d5bacaead360a292bcac95176b8c720dbba63fc773"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/installed-exports.json",
+        "bytes": 698,
+        "sha256": "13c50c794d5ada5ce8e749a0349b67ff782d4bb4b58d7deb81614025102b0687"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/manifest.json",
+        "bytes": 405,
+        "sha256": "47aa710d8c46fa5c19fb4a3363988ad0d2f773f1691b4601f7994993326c6d1b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 2665,
+        "sha256": "20ac377dc8990ad23bead3b16e603081f2bec94f491001e37c04f72ea2e2b974"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/parakeet-unified/document/document.final.json",
+        "bytes": 87,
+        "sha256": "91d80ca361fa0c5ae37890f39bc878a7964840341b4132bc984b232f777983ea"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/parakeet-unified/document/document.jsonl",
+        "bytes": 74934,
+        "sha256": "254ce3555b12192156f17c30dc808ddc409df4aa9b0cafb4a3fe59e7bff16d79"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/pending.json",
+        "bytes": 676,
+        "sha256": "63a22817f6d8e7f7b495bcfd820e3e8b039dcf1b570be42fb42cbd8e0c84e11d"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/r11-publication.json",
+        "bytes": 328,
+        "sha256": "095086de4fd2fae90d880d61c9793e7339f69deabc057d51ba1e399a3d26be44"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/segments.jsonl",
+        "bytes": 54747,
+        "sha256": "8dffbb9da66354258dc903c2cf9770e0cc2d22031a118d42c4051bf80bcf820e"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/transcript.srt",
+        "bytes": 40306,
+        "sha256": "d4014b4ef732304e6284e932ff401f9ed31f05b4686003f8b4f2d973bb8aac96"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchLong-674842d94ada4101bf733545d578ae70/writes/voxpopuli-campaign/archive/transcriptions/000000000000591418e449ca98b55190/1/transcript.txt",
+        "bytes": 33443,
+        "sha256": "2e80b2e26e539644b6c459d5bacaead360a292bcac95176b8c720dbba63fc773"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/localappdata/Whisper/gpu-inventory.log",
+        "bytes": 4580,
+        "sha256": "3555dfddfb6e7fa6e8f7a81de7b599d3086ed1d1222726b8ee81df9cf908e398"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/localappdata/Whisper/settings/logs/parakeet-asr-1793639489490-46932-0.log",
+        "bytes": 124,
+        "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/localappdata/Whisper/settings/logs/parakeet-asr-1793639493633-46932-1.log",
+        "bytes": 124,
+        "sha256": "635fe8725e59d0d1bb392a80d8f7016d852223e2ae1226661ca29a52b6264f5b"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/.whisper-publications/index.json",
+        "bytes": 431,
+        "sha256": "153b228645b5433f25b269a3059ceed80eda08b7086462cd4e801265eef6d6a7"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/exports/fr-short-60s (2).srt",
+        "bytes": 1764,
+        "sha256": "2bd764784b1b82ef03e0f0c29ada1cffade160be4d046e59c0995873d4ee3911"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/exports/fr-short-60s (2).txt",
+        "bytes": 1376,
+        "sha256": "eae203ab0697b6eec56427ac19055f5885b8d5388cc42e41814b693c5be1910a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/exports/fr-short-60s.srt",
+        "bytes": 1826,
+        "sha256": "6bff6edeb6cb77df62a481871c5e5e106bb75d9ad2265134dc014a831c487634"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/exports/fr-short-60s.txt",
+        "bytes": 1372,
+        "sha256": "7ddbd1d8847e6d6da5730b364fa68daf73c22bed5d5a91b9c2b7e6c13680148d"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/installed-exports.json",
+        "bytes": 699,
+        "sha256": "0ad82aee70652ef08968507abde6952debbc99b79f581053ea00e068b14715dc"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/manifest.json",
+        "bytes": 402,
+        "sha256": "6b8042907e5edd50120d9c703b6ba1d96be8969932e542d967fa03eb24b62ce6"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 112,
+        "sha256": "fef2a698f6d686efc77ea7ceb817f120a0637250e4709e38b14bba1e02b4384f"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/parakeet-unified/document/document.final.json",
+        "bytes": 86,
+        "sha256": "5270ac2ac923ff81afcc981cc94e39ffbc40c8133d862ba1fdf267c4ed3825e1"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/parakeet-unified/document/document.jsonl",
+        "bytes": 4123,
+        "sha256": "9a21e817324c0c8131df23113ec20b155335561d3415985f797b2bd54f1278c5"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/pending.json",
+        "bytes": 677,
+        "sha256": "54376e28ec6bb74d8366bd3a5331d6aaa31e3f5ebd159b291b5f8faa03f619f1"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/r11-publication.json",
+        "bytes": 327,
+        "sha256": "304253da5e9cf679721dff1a827a0733fe3b34d80e0d39fcfba4cf9d01f4004a"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/segments.jsonl",
+        "bytes": 2760,
+        "sha256": "d8c67bac6455f61450df7b18993c4577dd4cf42243477dd87adf9576a945a6f6"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/transcript.srt",
+        "bytes": 1826,
+        "sha256": "6bff6edeb6cb77df62a481871c5e5e106bb75d9ad2265134dc014a831c487634"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499552373470/1/transcript.txt",
+        "bytes": 1372,
+        "sha256": "7ddbd1d8847e6d6da5730b364fa68daf73c22bed5d5a91b9c2b7e6c13680148d"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/installed-exports.json",
+        "bytes": 703,
+        "sha256": "81578ec5cfff4d0365865ef3f6012523f421aaf191e8f5342355d67aaa015785"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/manifest.json",
+        "bytes": 402,
+        "sha256": "2b101491c9b35f24cae653b0f06cb038e25d8f8dc317890aa54d59bc4b6398e7"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/parakeet-unified/document/coverage.jsonl",
+        "bytes": 112,
+        "sha256": "4027b40659a5ee0351e1a3def701c1a996be078508ae5825358ed65e82452b6f"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/parakeet-unified/document/document.final.json",
+        "bytes": 86,
+        "sha256": "0061f57e04dc3df7b65cb1eb30b4c537e38bd6b18552e519a07a0b2d866086c6"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/parakeet-unified/document/document.jsonl",
+        "bytes": 3731,
+        "sha256": "208f596853824ca322191f5b446c40130f41060bfac916694480e59bf18e48cb"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/pending.json",
+        "bytes": 677,
+        "sha256": "81cf29f600ef68b1fc60ebe6c7f39c1426b1a1bb954aabb5f44990be7f506c7d"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/r11-publication.json",
+        "bytes": 331,
+        "sha256": "837038a3d9b3c5cb0f262b2321a13c66c2db776f2759f60d327b8db96d84d8e6"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/segments.jsonl",
+        "bytes": 2564,
+        "sha256": "bfe41a67e5838393d8c7c1647b18452ee2620de241b18c4de613d6995f84e4b4"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/transcript.srt",
+        "bytes": 1764,
+        "sha256": "2bd764784b1b82ef03e0f0c29ada1cffade160be4d046e59c0995873d4ee3911"
+      },
+      {
+        "path": "target/n2-native/runs/ParakeetGpuFrenchShort-585f680bf93044419d4c216f322f02cb/writes/voxpopuli-campaign/archive/transcriptions/000000000000b75418e4499da57bd214/1/transcript.txt",
+        "bytes": 1376,
+        "sha256": "eae203ab0697b6eec56427ac19055f5885b8d5388cc42e41814b693c5be1910a"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-cim-failure-known-handles-a39dab72f19c46de8e778e8c707f500f/child-ready.json",
+        "bytes": 210,
+        "sha256": "aad28dbeccc09f9e6463dde97467dbc857af85ceb19b134938f6820dfb4d8309"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-cim-failure-known-handles-a39dab72f19c46de8e778e8c707f500f/child.pid",
+        "bytes": 5,
+        "sha256": "f24ef45a4fb2ce4ad1c95cc93ab2f4e21375153d0b78cef7c81f7482c18bac19"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-cim-failure-known-handles-a39dab72f19c46de8e778e8c707f500f/fixture-trace.json",
+        "bytes": 5741,
+        "sha256": "7b6112c075eb1c9db029e8ea3198cd1563ad2e658fd7c5d47e1c34a1aafe8c39"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-cim-failure-known-handles-a39dab72f19c46de8e778e8c707f500f/stderr.log",
+        "bytes": 48,
+        "sha256": "1ebdd83cb4d62dca602f3b3c2088bb561f5b5749561772df71fafe09951a3e40"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-cim-failure-known-handles-a39dab72f19c46de8e778e8c707f500f/stdout.log",
+        "bytes": 26,
+        "sha256": "d0fe25f10774b8ad0409e0e57007962dd24f1eb6c4c568c69606e4c0ced478ba"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-cim-failure-known-handles-d3e7422d3f2a488cbe9150d9241a3e64/child-ready.json",
+        "bytes": 211,
+        "sha256": "f166bb227d92d74b11b97e8f1476387f2d4db8a84e56a8946158c4984090e7af"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-cim-failure-known-handles-d3e7422d3f2a488cbe9150d9241a3e64/child.pid",
+        "bytes": 6,
+        "sha256": "a0d6c756f3fb7a2684259198733d6e19de28b79f5a087a12aa086a4f4568dcd3"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-cim-failure-known-handles-d3e7422d3f2a488cbe9150d9241a3e64/fixture-trace.json",
+        "bytes": 5741,
+        "sha256": "61d42dc7c34397981f92ba41c60e73845ff5b75ef4332059466b862c9be326a2"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-cim-failure-known-handles-d3e7422d3f2a488cbe9150d9241a3e64/stderr.log",
+        "bytes": 48,
+        "sha256": "1ebdd83cb4d62dca602f3b3c2088bb561f5b5749561772df71fafe09951a3e40"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-cim-failure-known-handles-d3e7422d3f2a488cbe9150d9241a3e64/stdout.log",
+        "bytes": 26,
+        "sha256": "d0fe25f10774b8ad0409e0e57007962dd24f1eb6c4c568c69606e4c0ced478ba"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-2b3ed33abe8e4400814a941553965ef2/child-ready.json",
+        "bytes": 210,
+        "sha256": "81d5a59a3412c066ac5e6772bd26b0517e0a1f0563ad45a05fd8e7eb24df49e1"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-2b3ed33abe8e4400814a941553965ef2/child.pid",
+        "bytes": 5,
+        "sha256": "f703698fc58d521191e76b1cdb8959a692c74496af7edc2b5789be3114c48971"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-2b3ed33abe8e4400814a941553965ef2/fixture-trace.json",
+        "bytes": 6264,
+        "sha256": "fec8209d40347d512ed2a6e9d252fe4d9554d7b81dac49dbcce92bf6601f1398"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-2b3ed33abe8e4400814a941553965ef2/release-parent",
+        "bytes": 41,
+        "sha256": "00e8e0b6a39f65a754cf255c3f727e36edb897c115c9ec9d41ecd4779adf43a5"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-2b3ed33abe8e4400814a941553965ef2/stderr.log",
+        "bytes": 455,
+        "sha256": "940c9861980b699abc25b3f00b417c6539eaac61dfb5c1fce09a5fc667ca4373"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-2b3ed33abe8e4400814a941553965ef2/stdout.log",
+        "bytes": 26,
+        "sha256": "d0fe25f10774b8ad0409e0e57007962dd24f1eb6c4c568c69606e4c0ced478ba"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-4aa43c1975674e3c8f461d89c2344baa/child-ready.json",
+        "bytes": 211,
+        "sha256": "c4fc432952d43ac50d6348ecb4ce0eacc6aff97bd883de985154f1a8649f18f3"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-4aa43c1975674e3c8f461d89c2344baa/child.pid",
+        "bytes": 6,
+        "sha256": "183b142d7411500e5336a11f9eeebcf039a425bc8e615a24fbcf4c9e49f9dcd5"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-4aa43c1975674e3c8f461d89c2344baa/fixture-trace.json",
+        "bytes": 6305,
+        "sha256": "8c717b41664f464dd24f44eb6eb30d14679c97e79c9c6e6bd26855c715d9243c"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-4aa43c1975674e3c8f461d89c2344baa/release-parent",
+        "bytes": 41,
+        "sha256": "00e8e0b6a39f65a754cf255c3f727e36edb897c115c9ec9d41ecd4779adf43a5"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-4aa43c1975674e3c8f461d89c2344baa/stderr.log",
+        "bytes": 455,
+        "sha256": "940c9861980b699abc25b3f00b417c6539eaac61dfb5c1fce09a5fc667ca4373"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-4aa43c1975674e3c8f461d89c2344baa/stdout.log",
+        "bytes": 26,
+        "sha256": "d0fe25f10774b8ad0409e0e57007962dd24f1eb6c4c568c69606e4c0ced478ba"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-ae3e78a21d7f4287bed86d07cd4c49c0/child-ready.json",
+        "bytes": 210,
+        "sha256": "97beb796ada14108c546542a1f8360896f7bd542043588d69953d3db3eb84afe"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-ae3e78a21d7f4287bed86d07cd4c49c0/child.pid",
+        "bytes": 5,
+        "sha256": "058757ed2ea92ba6e5683d79f30c36aae73e6720f0572c1fadeaeff97b97e369"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-ae3e78a21d7f4287bed86d07cd4c49c0/fixture-trace.json",
+        "bytes": 6304,
+        "sha256": "8eb1906d3d4dd67ca375344706c70c311886bdabc29d3dafb836cbd75e90575e"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-ae3e78a21d7f4287bed86d07cd4c49c0/release-parent",
+        "bytes": 41,
+        "sha256": "00e8e0b6a39f65a754cf255c3f727e36edb897c115c9ec9d41ecd4779adf43a5"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-ae3e78a21d7f4287bed86d07cd4c49c0/stderr.log",
+        "bytes": 455,
+        "sha256": "940c9861980b699abc25b3f00b417c6539eaac61dfb5c1fce09a5fc667ca4373"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-exited-parent-open-streams-ae3e78a21d7f4287bed86d07cd4c49c0/stdout.log",
+        "bytes": 26,
+        "sha256": "d0fe25f10774b8ad0409e0e57007962dd24f1eb6c4c568c69606e4c0ced478ba"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-late-descendants-90671bc96eb346f4afcacc193018a84a/descendants-ready.json",
+        "bytes": 56,
+        "sha256": "8e58fc518e96a36fbd6df8dc4834082d265c70d171a68801e9fecd37c86e1361"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-late-descendants-90671bc96eb346f4afcacc193018a84a/fixture-trace.json",
+        "bytes": 413,
+        "sha256": "6ddd491067a18b1d8706e2d2ae5697bbb86efeb3da2f32cd8b9a8554a8eae88f"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-late-descendants-90671bc96eb346f4afcacc193018a84a/grandchild-ready.pid",
+        "bytes": 5,
+        "sha256": "603caa40865912575a0c2514f7802f90bfb878f38479daf869981d4c8c6a9bb2"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-late-descendants-f9f87bbf8c114c0b9059dafab5d1b789/descendants-ready.json",
+        "bytes": 58,
+        "sha256": "4d132ce88e3b7385bba87476e25c413cadb699c25012f2660100e1bb79d4c195"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-late-descendants-f9f87bbf8c114c0b9059dafab5d1b789/fixture-trace.json",
+        "bytes": 413,
+        "sha256": "6ddd491067a18b1d8706e2d2ae5697bbb86efeb3da2f32cd8b9a8554a8eae88f"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-late-descendants-f9f87bbf8c114c0b9059dafab5d1b789/grandchild-ready.pid",
+        "bytes": 6,
+        "sha256": "1edb23d01aceb7c856241961df244b060a5009196f57d2788ceb6674399de81d"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-217399d2239e483eb7591e68800461cd/child-ready.json",
+        "bytes": 211,
+        "sha256": "cdb5bcf0e72efa4ca1d15ec035543f5e1031b84bbd96ac0ab70b554314d2602c"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-217399d2239e483eb7591e68800461cd/child.pid",
+        "bytes": 6,
+        "sha256": "fad1be968ddba6cea23a36c97265156a0bf7207972a77123c694b27a1722ecd4"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-217399d2239e483eb7591e68800461cd/fixture-trace.json",
+        "bytes": 5111,
+        "sha256": "f298004f228017eb700cd460313f001bd044508662eac58f7b38a7184aa9db1f"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-217399d2239e483eb7591e68800461cd/stderr.log",
+        "bytes": 48,
+        "sha256": "1ebdd83cb4d62dca602f3b3c2088bb561f5b5749561772df71fafe09951a3e40"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-217399d2239e483eb7591e68800461cd/stdout.log",
+        "bytes": 26,
+        "sha256": "d0fe25f10774b8ad0409e0e57007962dd24f1eb6c4c568c69606e4c0ced478ba"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-7674fa64e49b43f89e7b55f5359eb7ef/child-ready.json",
+        "bytes": 213,
+        "sha256": "91bea9ac5ea57f97501df8c8a52823f02eb8e48bf4ca1f66d6b7206c4b34cba7"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-7674fa64e49b43f89e7b55f5359eb7ef/child.pid",
+        "bytes": 6,
+        "sha256": "604e052a58d4cd6bd55bb46e3ea3f8cd26ebaaa1a1bf19e2074bf1ff5626fe26"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-7674fa64e49b43f89e7b55f5359eb7ef/fixture-trace.json",
+        "bytes": 1036,
+        "sha256": "9557e4004a2e4098945279e890cccc9c577f4e2826cfb006fed81ce9007b2bcb"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-7674fa64e49b43f89e7b55f5359eb7ef/Microsoft/Windows/PowerShell/ModuleAnalysisCache",
+        "bytes": 6072,
+        "sha256": "9d9a25d64d209983f058bc8e0ae5c11f83c8775502c3c8b64692726ac772633e"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-7674fa64e49b43f89e7b55f5359eb7ef/stderr.log",
+        "bytes": 11,
+        "sha256": "3e2f777239e8875796a6a61feebd144090ede865f96db1df16a9bbcefd597d90"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-7674fa64e49b43f89e7b55f5359eb7ef/stdout.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-8a010e21adcb4c11be68ed654bbec779/child.pid",
+        "bytes": 5,
+        "sha256": "a23589d0fa114d67da1f5449a207e1b47e10c7a49a5f9f755fd8007b5bfb24dc"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-8f5eab148bbf45c1a35dee562c5fd2a9/child-ready.json",
+        "bytes": 210,
+        "sha256": "f5e85cc6e623df86abb8766e29fe374661a6fc0977c420d3801aab4dfe3ca4ad"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-8f5eab148bbf45c1a35dee562c5fd2a9/child.pid",
+        "bytes": 5,
+        "sha256": "e048a34188846a70b89a66d211d0d7349c3b1ac5d90a4781dec5890c6f398d82"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-8f5eab148bbf45c1a35dee562c5fd2a9/fixture-trace.json",
+        "bytes": 5150,
+        "sha256": "66d39cb9f814f9c6cacc32b59ca3427eba722388f4d58f76a0fbf077388d7951"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-8f5eab148bbf45c1a35dee562c5fd2a9/stderr.log",
+        "bytes": 48,
+        "sha256": "1ebdd83cb4d62dca602f3b3c2088bb561f5b5749561772df71fafe09951a3e40"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-8f5eab148bbf45c1a35dee562c5fd2a9/stdout.log",
+        "bytes": 26,
+        "sha256": "d0fe25f10774b8ad0409e0e57007962dd24f1eb6c4c568c69606e4c0ced478ba"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-f1466b9bf8004a468f4c2bc8cffbae6e/child-ready.json",
+        "bytes": 211,
+        "sha256": "8b8c7ff8e0c1a36115f2a7253c10552723dbf4d1697cbc1206f9141942899c61"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-f1466b9bf8004a468f4c2bc8cffbae6e/child.pid",
+        "bytes": 6,
+        "sha256": "0360d00683e8c706077259a66223ca132bca3162c851201599ad974c1c80e15f"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-f1466b9bf8004a468f4c2bc8cffbae6e/fixture-trace.json",
+        "bytes": 5151,
+        "sha256": "053973bba75eafe1102b6a09db0ebff735898e4281c10d6acc304243625c6a44"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-f1466b9bf8004a468f4c2bc8cffbae6e/stderr.log",
+        "bytes": 48,
+        "sha256": "1ebdd83cb4d62dca602f3b3c2088bb561f5b5749561772df71fafe09951a3e40"
+      },
+      {
+        "path": "target/n2-native/selftest-voxpopuli-live-parent-f1466b9bf8004a468f4c2bc8cffbae6e/stdout.log",
+        "bytes": 26,
+        "sha256": "d0fe25f10774b8ad0409e0e57007962dd24f1eb6c4c568c69606e4c0ced478ba"
+      }
+    ]
+  },
+  "freeBytesAtReport": 64107581440,
+  "pushPerformed": false,
+  "installationChanged": false
+}

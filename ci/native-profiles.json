@@ -181,7 +181,498 @@
       ]
     },
     {"id":"ParakeetCpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-worker-parakeet-cpu","features":["whisper-worker-parakeet-cpu/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
-    {"id":"ParakeetGpu","status":"DISCOVERY_PENDING","operation":"Run","package":"whisper-adapters","features":["whisper-adapters/native-tests"],"compileEnvironment":[],"inputs":[],"values":[],"outputs":[],"cases":[]},
+    {
+      "id": "ParakeetGpu",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": [
+        "whisper-adapters/native-tests"
+      ],
+      "compileEnvironment": [],
+      "inputs": [
+        {
+          "key": "personalRuntime",
+          "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliCorpus",
+          "environmentVariable": "WHISPER_VOXPOPULI_CORPUS_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliSources",
+          "environmentVariable": "WHISPER_VOXPOPULI_PROVENANCE_ROOT",
+          "kind": "directory"
+        }
+      ],
+      "values": [
+        {
+          "key": "cudaToolkitPath",
+          "environmentVariable": "CUDA_PATH",
+          "required": true,
+          "kind": "directory",
+          "allowedRoot": "cuda-12.9"
+        }
+      ],
+      "outputs": [
+        {
+          "key": "campaignRun",
+          "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN",
+          "kind": "directory",
+          "path": "writes/voxpopuli-campaign"
+        }
+      ],
+      "staging": [
+        {
+          "inputKey": "personalRuntime",
+          "destination": "Whisper",
+          "destinationBase": "localappdata",
+          "requiredFileCount": 21,
+          "requiredBytes": 3196008875
+        },
+        {
+          "inputKey": "voxpopuliCorpus",
+          "destination": "writes/voxpopuli-corpus",
+          "destinationBase": "run",
+          "requiredFileCount": 14,
+          "requiredBytes": 151356410
+        }
+      ],
+      "cases": [
+        {
+          "targetKind": "integration",
+          "targetName": "parakeet_unified_native",
+          "exactTest": "voxpopuli::english_short_mp3_gpu",
+          "ignored": false,
+          "verdict": "QUALIFICATION"
+        }
+      ],
+      "commandTimeoutSeconds": 1200
+    },
+    {
+      "id": "ParakeetGpuFrenchShort",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": [
+        "whisper-adapters/native-tests"
+      ],
+      "compileEnvironment": [],
+      "inputs": [
+        {
+          "key": "personalRuntime",
+          "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliCorpus",
+          "environmentVariable": "WHISPER_VOXPOPULI_CORPUS_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliSources",
+          "environmentVariable": "WHISPER_VOXPOPULI_PROVENANCE_ROOT",
+          "kind": "directory"
+        }
+      ],
+      "values": [
+        {
+          "key": "cudaToolkitPath",
+          "environmentVariable": "CUDA_PATH",
+          "required": true,
+          "kind": "directory",
+          "allowedRoot": "cuda-12.9"
+        }
+      ],
+      "outputs": [
+        {
+          "key": "campaignRun",
+          "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN",
+          "kind": "directory",
+          "path": "writes/voxpopuli-campaign"
+        }
+      ],
+      "staging": [
+        {
+          "inputKey": "personalRuntime",
+          "destination": "Whisper",
+          "destinationBase": "localappdata",
+          "requiredFileCount": 21,
+          "requiredBytes": 3196008875
+        },
+        {
+          "inputKey": "voxpopuliCorpus",
+          "destination": "writes/voxpopuli-corpus",
+          "destinationBase": "run",
+          "requiredFileCount": 14,
+          "requiredBytes": 151356410
+        }
+      ],
+      "cases": [
+        {
+          "targetKind": "integration",
+          "targetName": "parakeet_unified_native",
+          "exactTest": "voxpopuli::french_short_wav_and_mp3_gpu",
+          "ignored": false,
+          "verdict": "QUALIFICATION"
+        }
+      ],
+      "commandTimeoutSeconds": 2100
+    },
+    {
+      "id": "ParakeetGpuFrenchLong",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": [
+        "whisper-adapters/native-tests"
+      ],
+      "compileEnvironment": [],
+      "inputs": [
+        {
+          "key": "personalRuntime",
+          "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliCorpus",
+          "environmentVariable": "WHISPER_VOXPOPULI_CORPUS_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliSources",
+          "environmentVariable": "WHISPER_VOXPOPULI_PROVENANCE_ROOT",
+          "kind": "directory"
+        }
+      ],
+      "values": [
+        {
+          "key": "cudaToolkitPath",
+          "environmentVariable": "CUDA_PATH",
+          "required": true,
+          "kind": "directory",
+          "allowedRoot": "cuda-12.9"
+        }
+      ],
+      "outputs": [
+        {
+          "key": "campaignRun",
+          "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN",
+          "kind": "directory",
+          "path": "writes/voxpopuli-campaign"
+        }
+      ],
+      "staging": [
+        {
+          "inputKey": "personalRuntime",
+          "destination": "Whisper",
+          "destinationBase": "localappdata",
+          "requiredFileCount": 21,
+          "requiredBytes": 3196008875
+        },
+        {
+          "inputKey": "voxpopuliCorpus",
+          "destination": "writes/voxpopuli-corpus",
+          "destinationBase": "run",
+          "requiredFileCount": 14,
+          "requiredBytes": 151356410
+        }
+      ],
+      "cases": [
+        {
+          "targetKind": "integration",
+          "targetName": "parakeet_unified_native",
+          "exactTest": "voxpopuli::french_long_gpu",
+          "ignored": false,
+          "verdict": "QUALIFICATION"
+        }
+      ],
+      "commandTimeoutSeconds": 5700
+    },
+    {
+      "id": "ParakeetGpuEnglishLong",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": [
+        "whisper-adapters/native-tests"
+      ],
+      "compileEnvironment": [],
+      "inputs": [
+        {
+          "key": "personalRuntime",
+          "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliCorpus",
+          "environmentVariable": "WHISPER_VOXPOPULI_CORPUS_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliSources",
+          "environmentVariable": "WHISPER_VOXPOPULI_PROVENANCE_ROOT",
+          "kind": "directory"
+        }
+      ],
+      "values": [
+        {
+          "key": "cudaToolkitPath",
+          "environmentVariable": "CUDA_PATH",
+          "required": true,
+          "kind": "directory",
+          "allowedRoot": "cuda-12.9"
+        }
+      ],
+      "outputs": [
+        {
+          "key": "campaignRun",
+          "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN",
+          "kind": "directory",
+          "path": "writes/voxpopuli-campaign"
+        }
+      ],
+      "staging": [
+        {
+          "inputKey": "personalRuntime",
+          "destination": "Whisper",
+          "destinationBase": "localappdata",
+          "requiredFileCount": 21,
+          "requiredBytes": 3196008875
+        },
+        {
+          "inputKey": "voxpopuliCorpus",
+          "destination": "writes/voxpopuli-corpus",
+          "destinationBase": "run",
+          "requiredFileCount": 14,
+          "requiredBytes": 151356410
+        }
+      ],
+      "cases": [
+        {
+          "targetKind": "integration",
+          "targetName": "parakeet_unified_native",
+          "exactTest": "voxpopuli::english_long_gpu",
+          "ignored": false,
+          "verdict": "QUALIFICATION"
+        }
+      ],
+      "commandTimeoutSeconds": 5700
+    },
+    {
+      "id": "ParakeetGpuFrenchAutoLong",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": [
+        "whisper-adapters/native-tests"
+      ],
+      "compileEnvironment": [],
+      "inputs": [
+        {
+          "key": "personalRuntime",
+          "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliCorpus",
+          "environmentVariable": "WHISPER_VOXPOPULI_CORPUS_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliSources",
+          "environmentVariable": "WHISPER_VOXPOPULI_PROVENANCE_ROOT",
+          "kind": "directory"
+        }
+      ],
+      "values": [
+        {
+          "key": "cudaToolkitPath",
+          "environmentVariable": "CUDA_PATH",
+          "required": true,
+          "kind": "directory",
+          "allowedRoot": "cuda-12.9"
+        }
+      ],
+      "outputs": [
+        {
+          "key": "campaignRun",
+          "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN",
+          "kind": "directory",
+          "path": "writes/voxpopuli-campaign"
+        }
+      ],
+      "staging": [
+        {
+          "inputKey": "personalRuntime",
+          "destination": "Whisper",
+          "destinationBase": "localappdata",
+          "requiredFileCount": 21,
+          "requiredBytes": 3196008875
+        },
+        {
+          "inputKey": "voxpopuliCorpus",
+          "destination": "writes/voxpopuli-corpus",
+          "destinationBase": "run",
+          "requiredFileCount": 14,
+          "requiredBytes": 151356410
+        }
+      ],
+      "cases": [
+        {
+          "targetKind": "integration",
+          "targetName": "parakeet_unified_native",
+          "exactTest": "voxpopuli::french_long_auto_gpu",
+          "ignored": false,
+          "verdict": "QUALIFICATION"
+        }
+      ],
+      "commandTimeoutSeconds": 5700
+    },
+    {
+      "id": "ParakeetGpuEnglishAutoLong",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": [
+        "whisper-adapters/native-tests"
+      ],
+      "compileEnvironment": [],
+      "inputs": [
+        {
+          "key": "personalRuntime",
+          "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliCorpus",
+          "environmentVariable": "WHISPER_VOXPOPULI_CORPUS_ROOT",
+          "kind": "directory"
+        },
+        {
+          "key": "voxpopuliSources",
+          "environmentVariable": "WHISPER_VOXPOPULI_PROVENANCE_ROOT",
+          "kind": "directory"
+        }
+      ],
+      "values": [
+        {
+          "key": "cudaToolkitPath",
+          "environmentVariable": "CUDA_PATH",
+          "required": true,
+          "kind": "directory",
+          "allowedRoot": "cuda-12.9"
+        }
+      ],
+      "outputs": [
+        {
+          "key": "campaignRun",
+          "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN",
+          "kind": "directory",
+          "path": "writes/voxpopuli-campaign"
+        }
+      ],
+      "staging": [
+        {
+          "inputKey": "personalRuntime",
+          "destination": "Whisper",
+          "destinationBase": "localappdata",
+          "requiredFileCount": 21,
+          "requiredBytes": 3196008875
+        },
+        {
+          "inputKey": "voxpopuliCorpus",
+          "destination": "writes/voxpopuli-corpus",
+          "destinationBase": "run",
+          "requiredFileCount": 14,
+          "requiredBytes": 151356410
+        }
+      ],
+      "cases": [
+        {
+          "targetKind": "integration",
+          "targetName": "parakeet_unified_native",
+          "exactTest": "voxpopuli::english_long_auto_gpu",
+          "ignored": false,
+          "verdict": "QUALIFICATION"
+        }
+      ],
+      "commandTimeoutSeconds": 5700
+    },
+    {
+      "id": "ParakeetGpuPreparation",
+      "status": "READY",
+      "operation": "NoRun",
+      "package": "whisper-adapters",
+      "features": [
+        "whisper-adapters/native-tests"
+      ],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [
+        {
+          "environmentVariable": "CUDA_PATH",
+          "key": "cudaToolkitPath",
+          "required": true,
+          "kind": "directory",
+          "allowedRoot": "cuda-12.9"
+        },
+        {
+          "environmentVariable": "CUDA_PATH_V12_9",
+          "key": "cudaToolkitVersionedPath",
+          "required": true,
+          "kind": "directory",
+          "allowedRoot": "cuda-12.9"
+        },
+        {
+          "environmentVariable": "LIBCLANG_PATH",
+          "key": "libclangPath",
+          "required": true,
+          "kind": "literal"
+        }
+      ],
+      "outputs": [],
+      "cases": [],
+      "commandTimeoutSeconds": 1800
+    },
+    {
+      "id": "ParakeetGpuInventory",
+      "status": "READY",
+      "operation": "List",
+      "package": "whisper-adapters",
+      "features": [
+        "whisper-adapters/native-tests"
+      ],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [
+        {
+          "environmentVariable": "CUDA_PATH",
+          "key": "cudaToolkitPath",
+          "required": true,
+          "kind": "directory",
+          "allowedRoot": "cuda-12.9"
+        },
+        {
+          "environmentVariable": "CUDA_PATH_V12_9",
+          "key": "cudaToolkitVersionedPath",
+          "required": true,
+          "kind": "directory",
+          "allowedRoot": "cuda-12.9"
+        },
+        {
+          "environmentVariable": "LIBCLANG_PATH",
+          "key": "libclangPath",
+          "required": true,
+          "kind": "literal"
+        }
+      ],
+      "outputs": [],
+      "cases": [],
+      "commandTimeoutSeconds": 300
+    },
     {
       "id": "PersonalUnified",
       "status": "READY",

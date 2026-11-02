@@ -1,6 +1,6 @@
-Avancée : quatre lots fusionnés ; niveau 1 PASS ; Turbo et Parakeet validés manuellement en Auto et CPU sur un second PC sans CUDA déclaré par l'utilisateur.
-Blocage : aucun pour les essais CPU rapportés ; message de détection GPU au démarrage toujours présent.
-Décision : qualification CPU acceptée pour cette recette ; limites GPU et corpus conservées ; aucun push.
+Avancée : pile fusionnée, CPU validé par l'utilisateur ; neuf nouveaux imports Parakeet CUDA PASS sur Z790.
+Blocage : aucun pour les recettes techniques réalisées ; qualification linguistique et comparaison CPU/GPU non mesurées.
+Décision : qualification limitée aux recettes et matériels testés ; aucun nouveau paquet, installation ou push.
 
 Le 2 novembre 2026 : tag `avant-fusion-pile` = `248f8679` ; fusion unique `c830881c`, parents `248f8679`/`85dcd7fc`, arbre identique à la tête revue.
 
@@ -10,7 +10,7 @@ Préconditions : 93 commits linéaires (18/5/60/10), main initial exact, deux re
 
 Décision documentaire du 2 novembre 2026 : la mention « deux relevés sans activité avant fusion » ci-dessus est un constat historique, pas une exigence d'absence globale de Git. Pour FUSION-PILE, les restrictions globales « Aucune activité Git » et « Toute activité inconnue est bloquante » sont remplacées par la vérification des activités concurrentes pertinentes pour l'opération, selon la politique de décision des agents d'[AGENTS.md](../../AGENTS.md). Les prochains lots appliquent cette politique ; les protections contre les conflits établis et les contrôles d'intégrité restent applicables.
 
-Sur main, via `ci/guard-level1.ps1`, offline/locked lorsque applicable, environnement isolé, CUDA/GGML retirées pour les tests :
+Lors de la fusion `c830881c`, sur main via `ci/guard-level1.ps1`, offline/locked lorsque applicable, environnement isolé, CUDA/GGML retirées pour les tests :
 
 | Commande | Résultat main | Comparaison tête de pile |
 |---|---|---|
@@ -23,7 +23,13 @@ Sur main, via `ci/guard-level1.ps1`, offline/locked lorsque applicable, environn
 
 Auto-tests : 30 positifs/58 négatifs PASS. Prérequis `--no-run`/PE : neuf harnais CPU PASS, zéro import CUDA, SHA consignés. Total : **654 PASS, 141 ignorés, zéro échec** ; aucun natif/GPU exécuté. Journaux : `target/parakeet-tests/fusion-pile/scratch/` ; référence Clippy déplacée sous `target/pile-preserved/nv/target/parakeet-tests/fusion-pile-head-v2/scratch/`, SHA inchangé.
 
-Qualification existante : **43 corps ciblés PASS** (31 intermédiaire ; 23 contrats GPU, trois Parakeet hors inventaire initial), repli CPU démontré, worker CPU release sans imports CUDA (PE/SHA), `PersonalUnifiedGpuOnly` PASS. Non qualifiés : campagne native complète, FR87/FR27 perdus, `ParakeetGpu DISCOVERY_PENDING`, généralisation de l'unique inférence GPU. Windows Sandbox non exécuté ; la recette réelle sur le second PC ci-dessous apporte la validation CPU sans CUDA rapportée par l'utilisateur. `Whisper/settings` est préparé par la garde et le lanceur portable : création par le produit à traiter séparément.
+Qualification historique : **43 corps ciblés PASS** (31 intermédiaire ; 23 contrats GPU, trois Parakeet hors inventaire initial), repli CPU démontré, worker CPU release sans imports CUDA (PE/SHA), `PersonalUnifiedGpuOnly` PASS. Windows Sandbox non exécuté ; la recette réelle sur le second PC ci-dessous apporte la validation CPU sans CUDA rapportée par l'utilisateur.
+
+Complément GPU VoxPopuli du 2 novembre 2026 : **huit exécutions PASS, six nouvelles recettes distinctes, neuf imports réels avec `CUDA0` attesté**, sur GTX 1080 Ti / pilote `32.0.15.8129`. Trois EN courts MP3, FR court WAV+MP3, longs FR 35 min 05 s et EN 40 min 33 s en GPU manuel puis Auto ; aucun succès Auto sur CPU compté comme GPU. Temps des quatre commandes longues : 82,807 à 85,716 s, hors staging et avec validation/démarrage inclus, soit ratios 0,0340 à 0,0407. TXT/SRT publiés, WAV archivés et contrôlés ; neuf journaux GPU nouveaux, sources intactes. Les six profils Parakeet GPU sont désormais READY et leurs sélecteurs inventoriés. Code Rust, contrat N2 et dossier de preuves revus **CLEAN** ; 317 références taille/SHA et 303 entrées ZIP recoupées. [Plan, résultats et limites](../cadrage/plan-qualification-gpu.md), [reçus et archive vérifiée](raw/qualification-gpu/results.json).
+
+Non qualifiés : campagne native complète, précision linguistique/WER/CER et comparaison CPU/GPU faute de références humaines validées, autres cartes/architectures, nouveau scénario Turbo, micro GPU/latence affichée, interface Windows et nouveau paquet distribué. Les anciens tests dépendant des fichiers disparus ne sont pas des prérequis de cette nouvelle matrice.
+
+Correctifs locaux ultérieurs : message de démarrage clarifié (`1b76a7ea`) et création de `settings` par le produit (`92f9a2f7`), tous deux revus CLEAN. Les recettes GPU sur runtime neuf confirment maintenant la création et les journaux `settings/logs` pour leur route effective. Le lanceur portable et la garde historiques conservent leur préparation redondante ; le paquet remis auparavant n'a pas été reconstruit.
 
 Validation utilisateur du 2 novembre 2026 : le paquet portable `target/remise-cpu-sans-cuda-20261102/Whisper-CPU-Windows-x64.zip` (SHA-256 `5E65044E9FB1B1437B111162DC125AC1C5E5F63C49E7E7B46033A19BD3D18DE0`, 28 fichiers vérifiés avant remise, aucune DLL CUDA embarquée) démarre sur l'autre PC Windows déclaré sans CUDA. **Turbo CPU, Turbo Auto, Parakeet CPU et Parakeet Auto : PASS manuel**, moteur CPU sans erreur et transcriptions jugées bonnes. Le choix GPU est grisé. Le démarrage affiche néanmoins `WorkerExited without End`, un inventaire partiel et les adaptateurs Parsec Virtual Display Adapter / Intel Iris Xe indéterminés ; ce diagnostic reste une réserve d'affichage/détection GPU, sans échec CPU rapporté. Aucun inventaire matériel ou DLL supplémentaire demandé ni exécuté ; il ne s'agit pas d'une qualification GPU. Exports TXT/SRT/WAV, capture micro et mesures de performance non explicitement attestés par ce retour. Les résultats automatisés et leurs comptes restent inchangés.
 

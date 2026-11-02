@@ -51,6 +51,51 @@ fn sha256_file(path: &Path) -> [u8; 32] {
     digest.finalize().into()
 }
 
+fn personal_gpu_log_files(log_root: &Path) -> Vec<PathBuf> {
+    if !log_root.is_dir() {
+        return Vec::new();
+    }
+    std::fs::read_dir(log_root)
+        .expect("read personal GPU log directory")
+        .map(|entry| {
+            entry
+                .expect("read personal GPU log entry")
+                .path()
+                .canonicalize()
+                .expect("resolve personal GPU log path")
+        })
+        .filter(|path| path.is_file())
+        .collect()
+}
+
+fn assert_gpu_log_created_for_import(log_root: &Path, previous: &[PathBuf]) {
+    let current = personal_gpu_log_files(log_root);
+    let new_logs = current
+        .into_iter()
+        .filter(|path| !previous.contains(path))
+        .collect::<Vec<_>>();
+    assert!(
+        !new_logs.is_empty(),
+        "this import must produce a new personal GPU worker log"
+    );
+    for path in new_logs {
+        let contents = std::fs::read(&path).unwrap_or_else(|error| {
+            panic!("read personal GPU worker log {}: {error}", path.display())
+        });
+        assert!(!contents.is_empty(), "worker log must not be empty");
+        let has_cuda = contents.split(|byte| *byte == b'\n').any(|line| {
+            std::str::from_utf8(line)
+                .ok()
+                .is_some_and(|line| line.starts_with("[asr]") && line.contains("backend=CUDA0"))
+        });
+        assert!(
+            has_cuda,
+            "new worker log must attest CUDA0 for its import: {}",
+            path.display()
+        );
+    }
+}
+
 fn personal_paths() -> (
     WorkerPaths,
     PathBuf,
@@ -154,11 +199,46 @@ fn run_native_import(
 ) -> u64 {
     let execution_root = required_path("WHISPER_L04_CAMPAIGN_RUN");
     let source = fixture(source_variable, &execution_root);
+    run_native_import_from_path(
+        &source,
+        case,
+        compute,
+        gpu_candidate,
+        minimum_samples,
+        require_nonempty_text,
+        false,
+        false,
+    )
+}
+
+fn run_native_import_from_path(
+    source: &Path,
+    case: &str,
+    compute: ComputeChoice,
+    gpu_candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+    minimum_samples: Option<u64>,
+    require_nonempty_text: bool,
+    require_gpu_for_auto: bool,
+    use_personal_settings: bool,
+) -> u64 {
+    let execution_root = required_path("WHISPER_L04_CAMPAIGN_RUN");
+    assert!(source.is_file(), "native import input must exist");
     let before_sha = sha256_file(&source);
     let destination = execution_root.join("archive");
     std::fs::create_dir_all(&destination).expect("create archive under guarded PU-L4 root");
     let (workers, turbo_model, cpu, gpu) = personal_paths();
     let parakeet_model = cpu.model.clone();
+    let settings_root = if use_personal_settings {
+        gpu.runtime_root.join("settings")
+    } else {
+        execution_root.join("settings")
+    };
+    let personal_gpu_logs = settings_root.join("logs");
+    let previous_personal_gpu_logs = if use_personal_settings {
+        personal_gpu_log_files(&personal_gpu_logs)
+    } else {
+        Vec::new()
+    };
     let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes_and_snapshot_registry_native_candidate(
         workers,
         turbo_model
@@ -168,7 +248,7 @@ fn run_native_import(
         turbo_model.to_string_lossy().into_owned(),
         Some(cpu),
         Some(gpu),
-        Some(execution_root.join("settings")),
+        Some(settings_root.clone()),
     );
     let mut app = ImportApplication::new(io);
     let request = request(&source, &parakeet_model, &destination, compute);
@@ -231,6 +311,10 @@ fn run_native_import(
     match compute {
         ComputeChoice::Cpu => assert!(backend.contains("CPU"), "effective backend: {backend}"),
         ComputeChoice::Gpu => assert!(backend.contains("CUDA0"), "effective backend: {backend}"),
+        ComputeChoice::Auto if has_gpu_candidate && require_gpu_for_auto => assert!(
+            backend.contains("CUDA0"),
+            "this qualification requires an actual CUDA backend for Auto: {backend}"
+        ),
         ComputeChoice::Auto if has_gpu_candidate => assert!(
             backend.contains("CUDA0") || backend.contains("CPU (Auto fallback before audio:"),
             "Auto with a current GPU candidate must report its actual backend: {backend}"
@@ -289,6 +373,13 @@ fn run_native_import(
         before_sha,
         "source fixture changed during native inference"
     );
+    if use_personal_settings {
+        assert!(
+            settings_root.is_dir(),
+            "the product must create Whisper/settings in the personal runtime"
+        );
+        assert_gpu_log_created_for_import(&personal_gpu_logs, &previous_personal_gpu_logs);
+    }
     let part_store = whisper_adapters::parakeet_audio::PcmPartStore::open(&wav_path);
     let mut part_offset = 0_u64;
     let mut expected_part_number = 1_u64;
@@ -964,3 +1055,7 @@ fn native_personal_auto_imports_annotated_french_long_audio() {
 fn native_personal_auto_imports_annotated_english_long_audio() {
     run_native_long_case("en", ComputeChoice::Auto, 40 * 60 * 16_000);
 }
+
+#[cfg(windows)]
+#[path = "parakeet_unified_native/voxpopuli.rs"]
+mod voxpopuli;
