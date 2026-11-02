@@ -1,5 +1,5 @@
-Avancée : caractérisation 1a qualifiée N1 (684 réussites, 148 ignorés) et revue CLEAN après deux corrections.
-Blocage : aucun pour 1a ; aucune extraction réalisée.
+Avancée : famille 1 caractérisée et extraite, N1 verte (684 réussites, 148 ignorés), revues 1a et 1b CLEAN.
+Blocage : aucun ; familles 2 à 4 restent à réaliser dans A.
 Décision : démarrage du sous-lot A autorisé ; arrêt obligatoire à sa clôture, B et C restent à engager séparément.
 
 # REFACTO-POLL — cartographie et plan accepté
@@ -251,7 +251,7 @@ qualification supplémentaire ni nouvel outillage de campagne.
 
 ## Exécution du sous-lot A
 
-- 1a : treize tests nouveaux, logique produit inchangée, registre augmenté de
+- 1a (`69fda611`) : treize tests nouveaux, logique produit inchangée, registre augmenté de
   treize entrées. N1 final : défaut 635/0/127 ignorés ; common 11/0/1 ; CPU
   12/0/9 ; Parakeet CPU 26/0/11, total des sélections 684/0/148. Structure
   880/880, SelfTest 33/64, PE 4/15 et harnais CPU/Parakeet PASS, témoin PE réel
@@ -263,3 +263,15 @@ qualification supplémentaire ni nouvel outillage de campagne.
   `20261102T235144993-eb5d40e6ee39438f8383b0e96f178c7d`, CPU
   `20261102T235150231-8752264e85a54ceeaff8b1c3265c215e`, Parakeet CPU
   `20261102T235201185-75c3ae4df476435caf3e0cb11a34dd22`.
+- 1b : 141 lignes déplacées vers `poll/observations.rs`, appels aux mêmes
+  emplacements et instructions conservées ; revue indépendante CLEAN sans
+  correction. Handlers `take_observation_notice` : 58 lignes physiques,
+  `observe_worker_event` : 96. Les deux lints locaux Clippy vérifient les bornes
+  <= 100 lignes et <= 25 de complexité, sans prétendre une valeur cognitive
+  exacte sous le seuil. N1 684/0/148, Structure 880/880, SelfTest et PE PASS,
+  témoin réel non exécuté, fmt/Clippy/diff-check PASS. Logs scratch : Clippy
+  `20261102T235540986-3c4112d895b54325b7f6c53f07d60c17`, défaut
+  `20261102T235720901-8b20988e96944101825952791619b86c`, common
+  `20261102T235804580-1c1a1e38ad72469a934c56d580016d69`, CPU
+  `20261102T235810766-3afd07a9b8fe4c009d8ea945f65a3078`, Parakeet CPU
+  `20261102T235822163-7a43d7303f2e4e5f9b305fe8e0f78ef2`.
