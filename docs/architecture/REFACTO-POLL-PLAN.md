@@ -1,5 +1,5 @@
-Avancée : temps 1 validé le 2 novembre 2026 ; plan ajusté pour caractériser chaque famille avant son extraction.
-Blocage : référence N1 à exécuter avant le premier commit de caractérisation ; aucun changement Rust encore réalisé.
+Avancée : caractérisation 1a qualifiée N1 (684 réussites, 148 ignorés) et revue CLEAN après deux corrections.
+Blocage : aucun pour 1a ; aucune extraction réalisée.
 Décision : démarrage du sous-lot A autorisé ; arrêt obligatoire à sa clôture, B et C restent à engager séparément.
 
 # REFACTO-POLL — cartographie et plan accepté
@@ -34,6 +34,32 @@ séparés ; les branches inatteignables sont conservées et documentées sans te
 artificiel. Toute injection exigeant du code de production est proposée
 séparément avant modification : Na n'ajoute aucun comportement de production.
 Une déclaration de module de tests sous cfg(test) est un raccordement de tests.
+
+Autorisation complémentaire dans la même session : après l'arrêt Structure
+sur 870 tests contre 867 entrées, l'utilisateur autorise les ajouts à
+`ci/tests-baseline.txt` limités aux nouveaux tests du sous-lot A et la reprise
+complète des vérifications 1a. Ni les règles de la garde ni les entrées
+existantes ne sont modifiées. Avant cet arrêt, deux échecs Cargo fmt --check
+avaient été corrigés et suivis de nouveaux contrôles, contrairement à l'arrêt
+obligatoire : cet écart d'exécution sera repris au bilan A. Aucun test candidat
+n'avait alors été compilé ou exécuté ; aucun Na/Nb commité.
+
+Reprise autorisée pour le registre : sept nouveaux tests déclarés, Structure
+PASS (874 tests/874 entrées), SelfTest PASS, PE PASS, fmt --check PASS. Première
+compilation Clippy du candidat : échec E0432, import `whisper_core::BackendKind`
+dans `poll/tests.rs:13` ; le type est dans `whisper_core::ipc::BackendKind`.
+Arrêt respecté, puis autorisation explicite de corriger cet import et de
+reprendre les vérifications complètes reçue dans la session. Les tests
+candidats ne sont pas encore qualifiés.
+
+Après correction de l'import, Clippy a passé ; le test nouveau des phases de
+progression attendait Ready avant l'avertissement Preparing déjà dû et a
+échoué. Arrêt respecté. L'utilisateur autorise ensuite explicitement, pour les
+seuls nouveaux tests du sous-lot A, la correction des erreurs de compilation
+et des attentes contraires au comportement existant, puis leur revérification
+sans arbitrage répété. Cette dérogation de session n'autorise pas un changement
+produit, de tests existants ou de garde ; les régressions existantes restent
+soumises à arrêt et arbitrage. Revue indépendante et critères inchangés.
 
 ## Carte du temps 1 — source de référence
 
@@ -222,3 +248,18 @@ correction, écarts nom/contenu des tests et limites restantes. Il est figé à
 clôture. Petites preuves archivées selon AGENTS ; caches persistants préservés,
 aucune suppression hors chemins vérifiés et autorisés. Aucun manifeste de
 qualification supplémentaire ni nouvel outillage de campagne.
+
+## Exécution du sous-lot A
+
+- 1a : treize tests nouveaux, logique produit inchangée, registre augmenté de
+  treize entrées. N1 final : défaut 635/0/127 ignorés ; common 11/0/1 ; CPU
+  12/0/9 ; Parakeet CPU 26/0/11, total des sélections 684/0/148. Structure
+  880/880, SelfTest 33/64, PE 4/15 et harnais CPU/Parakeet PASS, témoin PE réel
+  non exécuté, fmt/Clippy/diff-check PASS. Revue indépendante : R1 (phases et
+  reset) et R2 (oracle Progress) fermés ; CLEAN après deux corrections.
+  Derniers journaux sous `target/parakeet-tests/refacto-poll-a/scratch/` :
+  Clippy `20261102T235053185-766b233103e5449188902f614c613d3a`, défaut
+  `20261102T235102315-d342ec8846844352b8d3743ce6267e25`, common
+  `20261102T235144993-eb5d40e6ee39438f8383b0e96f178c7d`, CPU
+  `20261102T235150231-8752264e85a54ceeaff8b1c3265c215e`, Parakeet CPU
+  `20261102T235201185-75c3ae4df476435caf3e0cb11a34dd22`.

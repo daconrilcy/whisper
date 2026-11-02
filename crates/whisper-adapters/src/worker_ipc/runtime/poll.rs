@@ -2,6 +2,8 @@ use super::*;
 
 mod capture;
 mod parakeet;
+#[cfg(test)]
+mod tests;
 pub(in crate::worker_ipc) use parakeet::ParakeetVadRun;
 #[cfg(test)]
 pub(in crate::worker_ipc) use parakeet::{
