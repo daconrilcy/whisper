@@ -136,7 +136,8 @@ revérifiées ; leur existence passée n'est pas une preuve de disponibilité ac
 ## Racines, fichiers et responsables
 
 Racine proposée : `target/n2-native/qualification-gpu/` ; chaque exécution
-dispose de ses TEMP/TMP/LOCALAPPDATA/CARGO_HOME propres, vérifiés par la garde.
+dispose de ses TEMP/TMP/LOCALAPPDATA propres ; CARGO_HOME reste isolé sous
+le lot selon le contrat existant de la garde, sans imposer sept copies du cache.
 Cible Cargo : `target/parakeet-tests/cargo-shared/`, conservée. Si le contrat
 actuel de la garde ne permet pas ces racines ou les entrées retrouvées,
 arrêter avant exécution et soumettre les chemins canoniques nécessaires.
