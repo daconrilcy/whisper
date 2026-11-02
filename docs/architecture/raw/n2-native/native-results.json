@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "revision": 12,
-  "candidate": "233d5079",
-  "authorization": "Oui, reprendre les auto-tests puis les diagnostics",
+  "revision": 13,
+  "candidate": "d163aa4e",
+  "authorization": "Oui, diagnostiquer ce point et poursuivre",
   "history": [
     {
       "candidate": "de9003dc",
@@ -474,13 +474,13 @@
     "applied": true,
     "status": "PASS; historical preparation now completed"
   },
-  "freeBytes": 110775201792,
+  "freeBytes": 110763159552,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 526,
-    "priorEntriesPreserved": 524,
+    "entryCount": 531,
+    "priorEntriesPreserved": 526,
     "entriesVerified": true,
-    "sha256": "f9cf847791c56ddf2418136eca8292c769e6773f130dc95c747c81bd0afec7df",
+    "sha256": "768c9f209552922a1930fb06fd4fce8c4f44ba5cf0bf04fec68073d9bf617e9a",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -3111,6 +3111,31 @@
         "path": "target/n2-native/resources/nvml-environment-comparison/resume-stop.json",
         "bytes": 668,
         "sha256": "02233d560d0799b06f0d36fc5366b5bdb425294880daad5c1195058d4ec2aba0"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-cargo-roots-reproduction.txt",
+        "bytes": 182,
+        "sha256": "2a4a3137ec02a118583ab04bc3dc878ca0edc04cd773c521008ac684d983f800"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/root-cause-static.json",
+        "bytes": 1188,
+        "sha256": "d17bc98a340eb99e4a7714fa79102d197bcc41ea8d16ad52657c130d61ca65e6"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-environment-selftest-corrected.txt",
+        "bytes": 66,
+        "sha256": "ee9de7fea57eead6c19cd534a28af0e09db1febcea43ea5516a8b99c5ca0fcae"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/corrected-selftest-stop.json",
+        "bytes": 488,
+        "sha256": "9aa215a9e7fb708223e34e5fa12d6bebf696b3833dc0fb903b2b6637aca4049b"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/cargo-root-fix.json",
+        "bytes": 1054,
+        "sha256": "1cd0fe036a62db5a2fbd55dbf03ed5a6d9323bf60e88e50eae435f75cecef9a3"
       }
     ]
   },
@@ -3475,7 +3500,7 @@
   "nvmlEnvironmentPreparation": {
     "planCommit": "83a9ba5d",
     "candidate": "233d5079",
-    "status": "STOPPED_AFTER_SECOND_SELFTEST_FAILURE",
+    "status": "WAITING_RESTART_AFTER_DICTIONARY_ROOT_FIX",
     "initialSelfTest": {
       "candidate": "5002c9b1",
       "status": "FAIL",
@@ -3543,6 +3568,31 @@
         "path": "target/n2-native/resources/nvml-environment-comparison/resume-stop.json",
         "bytes": 668,
         "sha256": "02233d560d0799b06f0d36fc5366b5bdb425294880daad5c1195058d4ec2aba0"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-cargo-roots-reproduction.txt",
+        "bytes": 182,
+        "sha256": "2a4a3137ec02a118583ab04bc3dc878ca0edc04cd773c521008ac684d983f800"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/root-cause-static.json",
+        "bytes": 1188,
+        "sha256": "d17bc98a340eb99e4a7714fa79102d197bcc41ea8d16ad52657c130d61ca65e6"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-environment-selftest-corrected.txt",
+        "bytes": 66,
+        "sha256": "ee9de7fea57eead6c19cd534a28af0e09db1febcea43ea5516a8b99c5ca0fcae"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/corrected-selftest-stop.json",
+        "bytes": 488,
+        "sha256": "9aa215a9e7fb708223e34e5fa12d6bebf696b3833dc0fb903b2b6637aca4049b"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/cargo-root-fix.json",
+        "bytes": 1054,
+        "sha256": "1cd0fe036a62db5a2fbd55dbf03ed5a6d9323bf60e88e50eae435f75cecef9a3"
       }
     ],
     "restartAttempt": {
@@ -3561,12 +3611,37 @@
       "reviewCyclesConsumed": 2,
       "furtherExecutionSuspended": true
     },
-    "overallDeliveryStatus": "LIVRE AVEC RESERVES; corrected candidate FullSelfTest FAIL",
-    "rootCause": "UNKNOWN: combined Cargo root condition does not identify the failing comparison"
+    "overallDeliveryStatus": "Static findings closed; corrected FullSelfTest NOT RUN; dynamic validation incomplete",
+    "rootCause": "PROVEN: old PowerShell command swallowed -ine; follow-on self-test StringDictionary method/property errors corrected",
+    "extraCycle": {
+      "authorization": "Oui, diagnostiquer ce point et poursuivre",
+      "scope": "ci/guard-native.ps1 root comparison and associated self-test only",
+      "instrumentationCommit": "25fc4b70",
+      "instrumentationChangedConditionPrematurely": true,
+      "reproductionStatus": "DIAGNOSTIC_ONLY nonqualifying exit 1",
+      "rootCause": "AST PS5 proves -ine was command parameter inside old Get-FullPath command, not comparison",
+      "staticProof": "target/n2-native/resources/nvml-environment-comparison/root-cause-static.json",
+      "operatorCorrectionCommit": "7e514241",
+      "subsequentSelfTest": "FAIL A path is required",
+      "additionalFinding": "NVML-R3 StringDictionary keys incorrectly read as properties",
+      "correctionCommit": "d163aa4e",
+      "guardSha256": "3ca9dac69d139dd08eb69accedf63434d2e0ed7d87817f58cb08afeae1ff5d3c",
+      "registryUnmodified": true,
+      "independentReview": "CLEAN STATIC ONLY; NVML-R3 CLOSED; no new findings",
+      "newCandidateSelfTest": "NOT RUN",
+      "realNvidiaCalls": 0,
+      "cargoCalls": 0,
+      "restartRequiresArbitration": true
+    }
   },
   "priorRevision11": {
     "gitSnapshot": "3b6bb869",
     "archiveEntryCount": 524,
     "archiveSha256": "71d1d236ca170a2b67178056f69a81c3fbb005e0aa42604dcbc213a627ef67da"
+  },
+  "priorRevision12": {
+    "gitSnapshot": "f52d30a1",
+    "archiveEntryCount": 526,
+    "archiveSha256": "f9cf847791c56ddf2418136eca8292c769e6773f130dc95c747c81bd0afec7df"
   }
 }

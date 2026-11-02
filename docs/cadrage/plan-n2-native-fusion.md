@@ -1,6 +1,6 @@
-Avancée : 42 corps ciblés PASS ; reprise NVML autorisée exécutée, second auto-test arrêté.
-Blocage : contrôle des racines Cargo du processus diagnostic en échec ; cause exacte non prouvée.
-Décision : LIVRÉ AVEC RÉSERVES après les deux cycles ; nouvelle correction/reprise soumise à arbitrage, aucune fusion.
+Avancée : 42 corps ciblés PASS ; cause PowerShell démontrée, comparaisons et auto-tests associés corrigés et relus statiquement.
+Blocage : dernier auto-test arrêté sur accès StringDictionary ; candidat corrigé non exécuté.
+Décision : reprise à arbitrer selon la règle permanente ; aucune validation globale CLEAN ni fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -323,3 +323,13 @@ Proposition d'arbitrage bornée : autoriser un cycle supplémentaire limité au 
 Archive existante mise à jour, révision **12** : **526 entrées**, les 524 précédentes préservées et deux ajoutées, tailles et SHA intégralement vérifiés ; SHA **`f9cf847791c56ddf2418136eca8292c769e6773f130dc95c747c81bd0afec7df`**. Espace libre relevé après conservation : **110 775 201 792 octets**, sans attribuer les variations globales du volume à la campagne. Toujours les mêmes fichiers de rapport, aucune installation, fusion ni push.
 
 Accord supplémentaire reçu : **« Oui, diagnostiquer ce point et poursuivre »**. Il autorise précisément l'instrumentation de la seule comparaison dans la garde, une reproduction non qualifiante de l'échec attendu sans NVIDIA, puis correction de la cause démontrée, auto-tests, un cycle indépendant supplémentaire et reprise du plan si PASS. Le registre JSON, les racines et les autres interdictions restent inchangés. Espace libre initial de cette reprise : **110 047 346 688 octets**. Aucune preuve de succès n'est déduite de la reproduction attendue, même si elle termine par un code non nul.
+
+### Cause démontrée et fermeture statique du cycle supplémentaire
+
+Instrumentation `25fc4b70` : elle a involontairement réécrit la clause au lieu de seulement l'observer ; ce changement prématuré est reconnu et la reproduction n'est pas présentée comme une trace fidèle des anciennes comparaisons. L'analyse AST Windows PowerShell **5.1.26100.9711** montre que, dans l'ancienne expression `(Get-FullPath (...) -ine $script:CargoTarget)`, `-ine` est un **CommandParameterAst**, argument de commande, pas un opérateur de comparaison. La chaîne retournée rendait la clause vraie. La correction utilise des comparaisons booléennes explicites sur les chemins déclarés et ceux réellement copiés, sans élargir aucune racine. Preuve statique indépendante du résultat de la reproduction : `resources/nvml-environment-comparison/root-cause-static.json`.
+
+La reproduction autorisée, non qualifiante, a terminé exit 1 sur le montage suivant : `DictionaryEntry` sans méthode `Contains`. Réflexion .NET 5.1 : `ProcessStartInfo.EnvironmentVariables` est un **StringDictionary**, avec `ContainsKey`, sans `Contains`. Correction ciblée `7e514241`, avec assertion AST pour éviter la réintroduction du premier défaut. Le FullSelfTest qualifiant lancé ensuite a encore terminé **exit 1**, `A path is required.` ; trace conservée `logs/nvml-environment-selftest-corrected.txt`. Aucune nouvelle exécution n'a suivi cet arrêt.
+
+La revue indépendante du même périmètre a relevé **NVML-R3 IMPORTANT** : les assertions du montage lisaient USERPROFILE, PROGRAMDATA, ALLUSERSPROFILE et PUBLIC comme propriétés, ce qui ne lit pas les clés StringDictionary et rendait aussi le test de profil ambiant inefficace. Correction **`d163aa4e`** : vérification de présence par ContainsKey, indexeurs et comparaison des valeurs canoniques réellement copiées pour les quatre contextes. Parseur PS5.1 et diff-check PASS. Le même reviewer a fermé NVML-R3 sans nouveau constat, **CLEAN statique uniquement** ; FullSelfTest de ce candidat **NON EXÉCUTÉ**, validation dynamique toujours suspendue. Seule la garde a changé dans ce cycle ; JSON, racines, Rust, pilote et système inchangés.
+
+Reprise proposée : FullSelfTest sur `d163aa4e`, puis fermeture de l'écart de preuve, préflights et diagnostics du plan s'il passe. Aucun nouveau correctif prévu. L'accord de reprise après ce nouvel arrêt reste requis par `AGENTS.md:53`. Bilan réel : **zéro appel NVIDIA réel, zéro Cargo, zéro worker/modèle**, aucune qualification GPU. Archive révision **13**, **531 entrées**, les 526 précédentes préservées et cinq ajoutées, tailles/SHA vérifiés intégralement ; SHA **`768c9f209552922a1930fb06fd4fce8c4f44ba5cf0bf04fec68073d9bf617e9a`**. Espace libre relevé **110 763 159 552 octets**. Aucun nettoyage, rapport supplémentaire, installation, fusion ou push.
