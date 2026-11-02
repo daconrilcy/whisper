@@ -553,3 +553,6 @@ de l'archive vérifiées sans écart. Les quatre SHA des fichiers de code
 correspondent au candidat testé. Ce verdict porte sur le dossier technique,
 pas sur une qualification globale du produit. Espace libre de clôture :
 environ 59,7 Gio ; aucun nettoyage automatique et aucun push.
+Les 49 chemins du nettoyage manuel demandé par l'utilisateur ont aussi été
+recontrôlés : 49 absents ; cache Cargo partagé présent. Les modèles et audios
+non suivis de main restent préservés.
