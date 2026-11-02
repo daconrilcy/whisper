@@ -697,9 +697,17 @@ function Invoke-NvidiaDiagnosticContextSelfTests([string]$Lot) {
         foreach ($contextId in @('clean','host-nvidia-filtered','path-only','vars-only')) {
             $context = $contextResults[$contextId]
             $psi = New-NvidiaDiagnosticProcessInfo (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') @('-NoProfile') $context.environment (Join-Path $root (Join-Path 'runs' $contextId))
-            if ($psi.EnvironmentVariables.ContainsKey('NVIDIA_SECRET_SENTINEL') -or $psi.EnvironmentVariables.USERPROFILE -eq $hostEnvironment.USERPROFILE) { throw "NVIDIA context leaked ambient identity/secret values: $contextId" }
             $expectedContextRoot = Get-FullPath (Join-Path $root (Join-Path 'runs' $contextId))
-            if (-not (Test-InRoot $psi.EnvironmentVariables.PROGRAMDATA $expectedContextRoot) -or $psi.EnvironmentVariables.ALLUSERSPROFILE -ne $psi.EnvironmentVariables.PROGRAMDATA -or -not (Test-InRoot $psi.EnvironmentVariables.PUBLIC $expectedContextRoot)) { throw "NVIDIA context did not reroute shared writable roots: $contextId" }
+            if ($psi.EnvironmentVariables.ContainsKey('NVIDIA_SECRET_SENTINEL')) { throw "NVIDIA context leaked an ambient secret: $contextId" }
+            foreach ($name in @('USERPROFILE','PROGRAMDATA','ALLUSERSPROFILE','PUBLIC')) {
+                if (-not $psi.EnvironmentVariables.ContainsKey($name)) { throw "NVIDIA context omitted copied environment root ${name}: $contextId" }
+            }
+            $expectedProgramData = Get-FullPath (Join-Path $expectedContextRoot 'programdata')
+            $expectedPublic = Get-FullPath (Join-Path $expectedContextRoot 'public')
+            if ((Get-FullPath ([string]$psi.EnvironmentVariables['USERPROFILE'])) -cne $expectedContextRoot -or
+                (Get-FullPath ([string]$psi.EnvironmentVariables['PROGRAMDATA'])) -cne $expectedProgramData -or
+                (Get-FullPath ([string]$psi.EnvironmentVariables['ALLUSERSPROFILE'])) -cne $expectedProgramData -or
+                (Get-FullPath ([string]$psi.EnvironmentVariables['PUBLIC'])) -cne $expectedPublic) { throw "NVIDIA context did not copy the exact isolated root values: $contextId" }
         }
         $reparseTarget = Join-Path $root 'vendor-target'
         New-Item -ItemType Directory -Path $reparseTarget -Force -ErrorAction Stop | Out-Null
