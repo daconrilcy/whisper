@@ -16,7 +16,10 @@ use whisper_core::{
 };
 
 #[test]
-#[ignore = "compares the real Turbo decoder and Parakeet worker decoder on WAV and MP3"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the installed Turbo model, Parakeet CPU worker/DLLs and real WAV/MP3 fixtures"
+)]
 fn worker_decoder_matches_turbo_decoder_for_wav_and_mp3_within_one_i16_unit() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let output_dir = required_path("PARAKEET_L2_OUTPUT_DIR");

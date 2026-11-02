@@ -734,7 +734,10 @@ fn build_long_fixture(language: &str, minimum_samples: u64) {
 
 #[test]
 #[cfg(windows)]
-#[ignore = "opt-in fixture builder; requires WHISPER_PU_L4_BUILD_LONG_FIXTURES=1 and a separately authorized guarded campaign"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_PU_L4_BUILD_LONG_FIXTURES=1, WHISPER_L04_CAMPAIGN_RUN and the voted SPS source corpus"
+)]
 fn build_french_and_english_long_session_fixtures_from_voted_sps_clips() {
     let fixtures = required_path("WHISPER_L04_CAMPAIGN_RUN").join("fixtures");
     for name in [
@@ -815,7 +818,10 @@ fn build_physical_rotation_fixture() {
 
 #[test]
 #[cfg(windows)]
-#[ignore = "opt-in builder for the >1 GiB controlled storage case; requires WHISPER_PU_L4_BUILD_ROTATION_FIXTURE=1 and a separately authorized guarded campaign"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_PU_L4_BUILD_ROTATION_FIXTURE=1 and WHISPER_L04_CAMPAIGN_RUN; creates a WAV over 1 GiB"
+)]
 fn build_physical_rotation_fixture_over_one_gibibyte() {
     build_physical_rotation_fixture();
 }
@@ -850,7 +856,10 @@ fn personal_gpu_candidate() -> whisper_core::gpu_inventory::GpuRuntimeIdentity {
 
 #[test]
 #[cfg(windows)]
-#[ignore = "requires a separately authorized PU-L4 native CPU campaign and guarded copied FR fixture"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU model/worker/DLLs and guarded WHISPER_PU_L4_FR_SOURCE"
+)]
 fn native_personal_cpu_imports_french_mp3_through_the_unified_application() {
     run_native_import(
         "WHISPER_PU_L4_FR_SOURCE",
@@ -864,7 +873,10 @@ fn native_personal_cpu_imports_french_mp3_through_the_unified_application() {
 
 #[cfg(windows)]
 #[test]
-#[ignore = "requires a separately authorized PU-L4 native GPU campaign and guarded copied EN fixture"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet GPU model/worker/DLLs, real GPU identity and guarded WHISPER_PU_L4_EN_SOURCE"
+)]
 fn native_personal_gpu_imports_english_mp3_with_attested_candidate() {
     run_native_import(
         "WHISPER_PU_L4_EN_SOURCE",
@@ -878,7 +890,10 @@ fn native_personal_gpu_imports_english_mp3_with_attested_candidate() {
 
 #[test]
 #[cfg(windows)]
-#[ignore = "requires a separately authorized PU-L4 native Auto campaign and guarded copied EN fixture"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU model/worker/DLLs and guarded WHISPER_PU_L4_EN_SOURCE"
+)]
 fn native_personal_auto_without_candidate_reports_preaudio_cpu_fallback() {
     run_native_import(
         "WHISPER_PU_L4_EN_SOURCE",
@@ -892,42 +907,60 @@ fn native_personal_auto_without_candidate_reports_preaudio_cpu_fallback() {
 
 #[test]
 #[cfg(windows)]
-#[ignore = "requires the separately authorized PU-L4 campaign and paired guarded French long-session fixtures"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU model/worker/DLLs and annotated French 35-minute fixture"
+)]
 fn native_personal_cpu_imports_annotated_french_long_audio() {
     run_native_long_case("fr", ComputeChoice::Cpu, 35 * 60 * 16_000);
 }
 
 #[test]
 #[cfg(windows)]
-#[ignore = "requires the separately authorized PU-L4 campaign and paired guarded English long-session fixtures"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU model/worker/DLLs and annotated English 40-minute fixture"
+)]
 fn native_personal_cpu_imports_annotated_english_long_audio() {
     run_native_long_case("en", ComputeChoice::Cpu, 40 * 60 * 16_000);
 }
 
 #[test]
 #[cfg(windows)]
-#[ignore = "requires the separately authorized PU-L4 campaign, paired French fixtures, and selected GPU"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet GPU model/worker/DLLs, current GPU identity and annotated French 35-minute fixture"
+)]
 fn native_personal_gpu_imports_annotated_french_long_audio() {
     run_native_long_case("fr", ComputeChoice::Gpu, 35 * 60 * 16_000);
 }
 
 #[test]
 #[cfg(windows)]
-#[ignore = "requires the separately authorized PU-L4 campaign, paired English fixtures, and selected GPU"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet GPU model/worker/DLLs, current GPU identity and annotated English 40-minute fixture"
+)]
 fn native_personal_gpu_imports_annotated_english_long_audio() {
     run_native_long_case("en", ComputeChoice::Gpu, 40 * 60 * 16_000);
 }
 
 #[test]
 #[cfg(windows)]
-#[ignore = "requires the separately authorized PU-L4 campaign, paired French fixtures, and selected GPU candidate"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU/GPU model/worker/DLLs, GPU candidate and annotated French 35-minute fixture"
+)]
 fn native_personal_auto_imports_annotated_french_long_audio() {
     run_native_long_case("fr", ComputeChoice::Auto, 35 * 60 * 16_000);
 }
 
 #[test]
 #[cfg(windows)]
-#[ignore = "requires the separately authorized PU-L4 campaign, paired English fixtures, and selected GPU candidate"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU/GPU model/worker/DLLs, GPU candidate and annotated English 40-minute fixture"
+)]
 fn native_personal_auto_imports_annotated_english_long_audio() {
     run_native_long_case("en", ComputeChoice::Auto, 40 * 60 * 16_000);
 }

@@ -26,6 +26,10 @@ fn run_command(command: WorkerCommand) -> std::process::Output {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires Cargo-built whisper-worker-gpu.exe and the linked CUDA/native runtime"
+)]
 fn turbo_idle_and_refusal_contract() {
     let idle = run_command(WorkerCommand::Shutdown);
     assert!(idle.status.success());
@@ -63,6 +67,10 @@ fn turbo_idle_and_refusal_contract() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires Cargo-built whisper-worker-gpu.exe and the linked CUDA/native runtime"
+)]
 fn gpu_identity_contract() {
     use whisper_core::gpu_inventory::GpuRuntimeIdentity;
     let job_id = JobId(87);
@@ -103,7 +111,10 @@ fn gpu_identity_contract() {
 }
 
 #[test]
-#[ignore = "requires the local Turbo model and an explicit campaign work root"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_TEST_REFERENCE_EXE, WHISPER_TEST_WORKER_EXE, WHISPER_TEST_WORK_ROOT, the Turbo model and linked CUDA/native runtime"
+)]
 fn turbo_reusable_import_contract() {
     let reference =
         std::env::var_os("WHISPER_TEST_REFERENCE_EXE").expect("reference executable required");
@@ -266,7 +277,10 @@ fn live_case(
 }
 
 #[test]
-#[ignore = "requires the local Turbo model"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_TEST_REUSE_MODEL, WHISPER_TEST_WORK_ROOT, the local Turbo model and Cargo-built whisper-worker-gpu.exe with CUDA runtime"
+)]
 fn turbo_live_stop_and_shutdown_contract() {
     let model = std::env::var_os("WHISPER_TEST_REUSE_MODEL").expect("set WHISPER_TEST_REUSE_MODEL");
     let path = Path::new(&model);

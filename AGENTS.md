@@ -22,11 +22,30 @@ G1 est arrêté définitivement. Une tâche Whisper doit servir l'objectif produ
 
 ## Règle permanente des campagnes locales
 
-### Niveau d'exécution 1 — vérifications Cargo
+### Niveau d'exécution 1 — catégories de commandes Cargo
 
-Pour les commandes Cargo de format, analyse, compilation et tests sans exécution native, appliquer le niveau 1 : aucun `FileSystemWatcher`, abonnement aux événements du système de fichiers ou arrêt sur un événement `.git` d'origine inconnue. Les auto-tests de ce niveau vérifient les arguments, variables, racines et jonctions ; ils n'arment aucune surveillance et ne testent pas d'arrêt sur des événements de fichiers. Cette règle, confirmée par l'utilisateur le 31 octobre 2026, prévaut pour ce périmètre sur les obligations de surveillance et leurs auto-tests ci-dessous, y compris celles des anciennes gardes et des plans historiques.
+Le niveau 1 valide les catégories suivantes par une liste d’autorisation ; tout argument non reconnu est refusé par défaut. Il n’arme aucun `FileSystemWatcher`, abonnement aux événements du système de fichiers ou arrêt sur un événement `.git` d’origine inconnue. Les auto-tests vérifient arguments, variables, racines et jonctions sans surveillance. Cette règle prévaut pour ce périmètre sur les obligations de surveillance et leurs auto-tests historiques ci-dessous.
 
-Conserver les contrôles préalables d'espace libre, de chemins canoniques et d'environnement isolé, la cible Cargo partagée, les options hors ligne et verrouillées et l'arrêt sur échec de commande. Les contrôles Git utiles se font séparément avec `--no-optional-locks` ; une activité Git concurrente doit être identifiée par sa commande et son ascendance disponibles, sans attribuer rétroactivement un événement à ce processus ni le terminer automatiquement. Le niveau 1 ne démontre pas l'absence d'écriture hors racine. Les recettes natives restent soumises à leur périmètre autorisé.
+| Catégorie | Sous-commandes | Conditions |
+| --- | --- | --- |
+| Lecture | `tree`, `metadata`, `fmt --check` | aucune écriture hors des racines autorisées du lot et de la cible Cargo |
+| Compilation | `check`, `build`, `test --no-run`, `clippy` | `--workspace`, un ou plusieurs `-p <membre>`, `--release` autorisés |
+| Tests | `test` | sans `--ignored`, `--include-ignored`, `--features native-tests` |
+
+Suite de référence niveau 1 pour les tests CPU sans CUDA : `cargo test` (membres par défaut), `cargo test -p whisper-worker-cpu`, `cargo test -p whisper-worker-parakeet-cpu` et `cargo test -p whisper-worker-common`. Chaque sélection worker passe d’abord le contrôle PE sur ses harnais ; les inventaires utilisent le suffixe explicite `-- --list`, autorisé par la garde. Le GPU est niveau 2 : `cargo test -p whisper-worker-gpu -- --list` sert seulement à comparer les identités et son corps de tests ne s’exécute pas dans la campagne niveau 1. `cargo test --workspace` reste une commande permise, mais n’est plus la référence niveau 1.
+
+Paramètres de chaque appel :
+- Racine de lot explicitement contrôlée dans le worktree ; `CARGO_HOME`, `TEMP`, `TMP` et `LOCALAPPDATA` canoniquement isolés ; contrôle des jonctions et liens, espace libre minimal de 30 Gio.
+- `CARGO_TARGET_DIR` : cible partagée existante `C:/dev/whisper/target/parakeet-tests/cargo-shared/`, ou répertoire **neuf** sous la racine du lot via `-FreshTarget <nom>`. Pour le niveau 1, cette possibilité prévaut sur l’exigence historique de cible unique ci-dessous.
+- `-p` accepte uniquement les membres du workspace lus dans `cargo metadata` exécuté avec les mêmes contrôles. Les auto-tests de validation utilisent des fixtures de membres sans lancer Cargo pour les cas négatifs.
+- `-UnsetEnv` retire explicitement seulement `CUDA_PATH`, `CUDA_PATH_V*`, `GGML_*`, `WHISPER_*`, `PARAKEET_*` ; le nettoyage existant des variables Whisper et Parakeet reste actif.
+- Capture de stdout/stderr et des codes de sortie, arrêt sur échec ; `--offline --locked` pour les commandes qui les acceptent (`fmt --check` est validé séparément). `-DryRun` valide la commande demandée sans l’exécuter ; la lecture des membres via metadata reste soumise à la garde.
+
+Toujours refusés :
+- `run`, `install`, `uninstall`, `update`, `publish`, `clean`, `add`, `remove`, `fix`, `generate-lockfile`, `vendor` et toute commande externe `cargo-*` non listée.
+- `--fix`, `--allow-dirty`, `--all-features`, `--features native-tests`, `--features recette-hooks` avec `--release`, `--ignored`, `--include-ignored`, `--config`, `-Z`, `--target-dir`, `--manifest-path` hors du worktree et tout argument inconnu.
+
+Les contrôles Git utiles se font séparément avec `--no-optional-locks` ; une activité Git concurrente doit être identifiée par sa commande et son ascendance disponibles, sans attribuer rétroactivement un événement à ce processus ni le terminer automatiquement. Le niveau 1 ne démontre pas l’absence d’écriture hors racine. Les recettes natives restent soumises à leur périmètre autorisé.
 
 - Avant chaque lot, relever l'espace libre du volume de travail. Sous 30 Gio libres, arrêter avant toute compilation ou campagne de test.
 - Utiliser un seul `CARGO_TARGET_DIR` de compilation : `target/parakeet-tests/cargo-shared/`. Les racines de lot reçoivent uniquement sorties, temporaires et preuves. La garde à échec fermé vérifie séparément cette racine Cargo canonique et les racines d'écriture du lot ; aucune commande Cargo n'est lancée si une variable sort de sa racine autorisée.

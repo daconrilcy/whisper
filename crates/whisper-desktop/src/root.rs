@@ -847,11 +847,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires WHISPER_DESKTOP_TEST_ROOT pointing to the canonical L3b/L3c/L3d campaign root"
+    )]
     fn fixture_root_uses_canonical_l3b_campaign_root_when_configured() {
-        let Some(configured) = std::env::var_os("WHISPER_DESKTOP_TEST_ROOT") else {
-            eprintln!("NOT RUN: WHISPER_DESKTOP_TEST_ROOT is not set");
-            return;
-        };
+        let configured = std::env::var_os("WHISPER_DESKTOP_TEST_ROOT").expect(
+            "WHISPER_DESKTOP_TEST_ROOT must point to the canonical L3b/L3c/L3d campaign root",
+        );
         let configured = PathBuf::from(configured).canonicalize().unwrap();
         let fixture = fixture_root("redirect-check");
         assert!(
@@ -861,11 +864,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires WHISPER_DESKTOP_TEST_ROOT pointing to the canonical L3c/L3d campaign root"
+    )]
     fn fixture_root_accepts_only_the_canonical_l3c_campaign_root() {
-        let Some(configured) = std::env::var_os("WHISPER_DESKTOP_TEST_ROOT") else {
-            eprintln!("NOT RUN: WHISPER_DESKTOP_TEST_ROOT is not set");
-            return;
-        };
+        let configured = std::env::var_os("WHISPER_DESKTOP_TEST_ROOT")
+            .expect("WHISPER_DESKTOP_TEST_ROOT must point to the canonical L3c/L3d campaign root");
         let configured = PathBuf::from(configured).canonicalize().unwrap();
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let repo = manifest_dir.ancestors().nth(2).unwrap();
@@ -1140,7 +1145,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "mutates a worker copy inside the scoped L2a-2 runtime"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires PARAKEET_L2_RUNTIME_ROOT and the installed Parakeet worker/DLLs"
+    )]
     fn parakeet_worker_key_changes_regray_and_readmit_without_restarting() {
         use std::io::Write;
         use whisper_adapters::parakeet_import::ParakeetWorkerPaths;

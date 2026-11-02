@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "objective": "R8-FIX test identity coverage; all counts from accepted --list captures.",
+  "baseline": {
+    "path": "C:\\dev\\whisper\\target\\agent-worktrees\\tests-autonomes\\target\\parakeet-tests\\tests-autonomes\\scratch\\20261101T121435025-951d69e6ef3b446a8b1aebdf2668f273\\TestList.stdout.log",
+    "sha256": "2d885e331b6a0bdfb53424fbd32bafa54aadf75dba7dbf471385524556f12a8d",
+    "testIdentities": 834
+  },
+  "groups": [
+    {
+      "command": "cargo test -- --list",
+      "package": "default-members",
+      "target": "n1-default",
+      "testIdentities": 737,
+      "log": "logs/short-root/20261101T145317396-cdaa8c49cd654ad1815bd2718156168c/cargo-command.stdout.log"
+    },
+    {
+      "command": "cargo test -p whisper-worker-cpu -- --list",
+      "package": "whisper-worker-cpu",
+      "target": "worker-cpu-tests",
+      "testIdentities": 21,
+      "log": "logs/short-root/20261101T145332139-1dad05dc4a674fc48982c99f4f3299b1/cargo-command.stdout.log"
+    },
+    {
+      "command": "cargo test -p whisper-worker-parakeet-cpu -- --list",
+      "package": "whisper-worker-parakeet-cpu",
+      "target": "worker-parakeet-cpu-tests",
+      "testIdentities": 37,
+      "log": "logs/short-root/20261101T145336661-56dda1b80d574ac9a47d1ea4dc7a7947/cargo-command.stdout.log"
+    },
+    {
+      "command": "cargo test -p whisper-worker-common -- --list",
+      "package": "whisper-worker-common",
+      "target": "worker-common-tests",
+      "testIdentities": 12,
+      "log": "logs/short-root/20261101T145341510-93970d52ed5e48d9bab4b1bbb864485e/cargo-command.stdout.log"
+    },
+    {
+      "command": "cargo test -p whisper-worker-gpu -- --list",
+      "package": "whisper-worker-gpu",
+      "target": "gpu-list",
+      "testIdentities": 27,
+      "log": "logs/short-root/20261101T145347606-b49f129580e444769832526aabfacfe8/cargo-command.stdout.log"
+    }
+  ],
+  "currentTotal": 834,
+  "comparison": {
+    "method": "Multiset comparison of every `name: test` line across the five accepted list captures against the preserved full workspace TestList baseline; package and target group recorded per capture.",
+    "missing": [],
+    "extra": [],
+    "exactMultisetMatch": true
+  },
+  "excludedInvalidatedCapture": {
+    "runId": "20261101T145147266-1b71ca6bb04a4962a160b4e4c38c8437",
+    "reported": "0 tests, 0 benchmarks",
+    "reason": "Incorrect doubled --list forwarding; not used in coverage or totals."
+  }
+}

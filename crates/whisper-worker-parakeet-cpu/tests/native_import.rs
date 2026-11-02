@@ -63,7 +63,10 @@ fn additive_gpu_fields_default_when_reading_existing_cpu_ipc_frames() {
 }
 
 #[test]
-#[ignore = "runs real Parakeet CPU inference with locally installed native DLLs"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR and real FR/EN WAVs"
+)]
 fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let output_dir = required_path("PARAKEET_L2_OUTPUT_DIR");
@@ -355,7 +358,10 @@ fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_un
 }
 
 #[test]
-#[ignore = "R7 private diagnostic worker recipe; has a parent-enforced duration deadline"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_R7 execution inputs, installed Parakeet CPU model/worker/DLLs and parent-enforced duration deadline"
+)]
 fn r7_private_worker_timing() {
     let case = env::var("PARAKEET_R7_CASE").expect("PARAKEET_R7_CASE");
     assert!(matches!(case.as_str(), "en5" | "en30"));
@@ -405,10 +411,10 @@ fn r7_private_worker_timing() {
 }
 
 #[test]
-#[ignore = "nested child for the parent-enforced R7 private timing recipe"]
+#[ignore = "child fixture selected by r7_private_worker_timing with --ignored"]
 fn r7_private_worker_timing_child() {
-    if env::var_os("PARAKEET_R7_PRIVATE_CHILD").is_none() {
-        return;
+    if env::var_os("PARAKEET_R7_PRIVATE_CHILD").as_deref() != Some(std::ffi::OsStr::new("1")) {
+        panic!("PARAKEET_R7_PRIVATE_CHILD=1 is required for the private worker child");
     }
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let model = required_path("PARAKEET_L2_MODEL");
@@ -470,7 +476,10 @@ fn r7_private_worker_timing_child() {
 }
 
 #[test]
-#[ignore = "runs the R5 short FR/EN normalization fixtures with the locally qualified CPU DLL set"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires R5 short FR/EN WAV fixtures, PARAKEET_L2_MODEL and the qualified Parakeet CPU worker/DLL set"
+)]
 fn cpu_worker_normalizes_fr87_fr27_and_en15_short_fixtures() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let output_dir = required_path("PARAKEET_L2_OUTPUT_DIR");
@@ -583,7 +592,10 @@ fn cpu_worker_normalizes_fr87_fr27_and_en15_short_fixtures() {
 }
 
 #[test]
-#[ignore = "informative private EN60 reference recipe; not product qualification"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the private EN60 WAV corpus and installed Parakeet CPU model/worker/DLLs"
+)]
 fn r6_reference_en60() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let output_dir = required_path("PARAKEET_L2_OUTPUT_DIR");
@@ -780,7 +792,10 @@ struct GpuCall {
 }
 
 #[test]
-#[ignore = "L3a GPU single-pass recipe; requires the exact release worker and verified CUDA DLLs"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the L3a GPU fixture, exact release worker, model and verified CUDA DLLs"
+)]
 fn gpu_worker_fr_en_single_pass() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let model = required_path("PARAKEET_L2_MODEL");
@@ -983,7 +998,10 @@ fn gpu_worker_fr_en_single_pass() {
 }
 
 #[test]
-#[ignore = "L3a GPU 20-call recipe; requires the exact release worker and verified CUDA DLLs"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the L3a GPU fixture, exact release worker, model and verified CUDA DLLs"
+)]
 fn gpu_worker_twenty_calls() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let model = required_path("PARAKEET_L2_MODEL");
@@ -1076,7 +1094,10 @@ fn gpu_worker_twenty_calls() {
 }
 
 #[test]
-#[ignore = "L3a wrong-device recipe; requires the exact release worker and verified CUDA DLLs"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the L3a wrong-device fixture, exact release worker, model and verified CUDA DLLs"
+)]
 fn gpu_worker_rejects_wrong_device_before_audio() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let model = required_path("PARAKEET_L2_MODEL");

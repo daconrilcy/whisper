@@ -1,6 +1,7 @@
 use crate::{native_engine::GpuEngine, native_ffi};
 
 #[cfg(test)]
+#[path = "engine_cache/tests.rs"]
 mod tests;
 
 pub(crate) struct CachedGpuEngine {

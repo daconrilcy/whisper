@@ -108,7 +108,8 @@ Préciser au préflight les filtres complémentaires des tests unitaires de drai
 Si le profil personnel est choisi après autorisation, la commande de build envisagée est :
 
 ```text
-cargo build --release --offline --locked -p whisper-desktop -p whisper-worker-cpu -p whisper-worker-gpu --features whisper-desktop/personal-install
+cargo build --release --offline --locked -p whisper-desktop --features personal-install
+ci/build-workers.ps1
 ```
 
 Vérifier les dépendances natives déjà requises sans installer ou remplacer implicitement un runtime. Profil/commandes Test à déterminer si ce profil est retenu ; ne pas annoncer une recette complète d'un profil non choisi.
@@ -498,10 +499,11 @@ ParakeetSpectrum         cargo test --offline --locked -p whisper-adapters --lib
 DesktopLevel             cargo test --offline --locked -p whisper-desktop --test microphone_level_ui
 DesktopMicrophoneStop    cargo test --offline --locked -p whisper-desktop --lib ui::tests::microphone_ -- --test-threads=1
 Fmt                      cargo fmt --all -- --check
-PersonalRelease          cargo build --release --offline --locked -p whisper-desktop -p whisper-worker-cpu -p whisper-worker-gpu --features whisper-desktop/personal-install
+PersonalRelease          cargo build --release --offline --locked -p whisper-desktop --features personal-install
+WorkersRelease           ci/build-workers.ps1
 ```
 
-Invocation : `& .\target\parakeet-tests\micro-level\guard-micro-level.ps1 -Mode <mode>`, après fixation et vérification des variables d'environnement. Les commandes sont sérialisées, les répétitions ne répondent qu'à une correction ou un doute nouveau. Les tests natifs nécessitant une ressource ou variable non activée restent NOT RUN, même si Cargo renvoie 0. Aucun mode D2/corpus/ASR n'appartient à cette extension.
+Invocation historique : `& .\target\parakeet-tests\micro-level\guard-micro-level.ps1 -Mode <mode>`, après fixation et vérification des variables d'environnement. R8-FIX remplace la construction commune des workers par `ci/build-workers.ps1` sous la garde N1 : invocations séparées, cible neuve par worker/configuration et contrôle PE obligatoire ; employer ses sorties contrôlées pour toute livraison. Le mode historique PersonalRelease commun n'est plus une procédure de livraison autorisée. Les commandes sont sérialisées, les répétitions ne répondent qu'à une correction ou un doute nouveau. Les tests natifs nécessitant une ressource ou variable non activée restent NOT RUN, même si Cargo renvoie 0. Aucun mode D2/corpus/ASR n'appartient à cette extension.
 
 Plafonds proposés pour acceptation : chaque fixture synthétique <=1 million de frames ; durée cumulée des tests <=10 minutes hors compilation ; durée cumulée des commandes automatiques du lot **<=90 minutes, compilation comprise et corrections incluses**. Arrêt et bilan au plafond, sans relance implicite. Le défaut de formatage préexistant de `crates/whisper-core/src/model_selection_app.rs:144`, s'il persiste, est rapporté distinctement ; ce fichier reste hors édition. Un échec de commande est consigné et arrête la campagne ; aucune correction hors périmètre ni poursuite automatique fondée sur son caractère antérieur.
 

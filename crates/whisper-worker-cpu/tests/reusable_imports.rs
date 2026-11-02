@@ -110,7 +110,10 @@ fn await_end(
 }
 
 #[test]
-#[ignore = "charge le modèle large-v3-turbo ; lancer explicitement en Release avec WHISPER_TEST_REUSE_MODEL"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_TEST_REUSE_MODEL, WHISPER_TEST_WORK_ROOT, the real Turbo model and Cargo-built whisper-worker-cpu.exe"
+)]
 pub(crate) fn cpu_worker_serves_two_imports_in_one_process_and_hits_model_cache() {
     let _ = run_for_exe(Path::new(env!("CARGO_BIN_EXE_whisper-worker-cpu")));
 }

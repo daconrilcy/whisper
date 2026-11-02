@@ -1,0 +1,213 @@
+   Compiling whisper-adapters v0.1.0 (C:\dev\whisper\target\agent-worktrees\garde-n1-categories\crates\whisper-adapters)
+warning: unused import: `normalize_pci`
+ --> crates\whisper-worker-gpu\src\native_ffi.rs:9:27
+  |
+9 |     BackendRegistryEntry, normalize_pci, validate_native_gpu_log,
+  |                           ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `MAX_WINDOW_SAMPLES` and `OUTPUT_RATE`
+ --> crates\whisper-worker-cpu\tests\support\..\..\src\decoder.rs:4:42
+  |
+4 | pub use whisper_worker_common::decoder::{MAX_WINDOW_SAMPLES, OUTPUT_RATE};
+  |                                          ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `decode_requested_block` is never used
+  --> crates\whisper-worker-cpu\tests\support\..\..\src\decoder.rs:17:8
+   |
+17 | pub fn decode_requested_block(request: &DecodeRequest) -> Result<Option<Vec<i16>>, String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `cached_cpu_engine` is never used
+ --> crates\whisper-worker-cpu\tests\support\..\..\src\engine_cache.rs:3:15
+  |
+3 | pub(crate) fn cached_cpu_engine<'a>(
+  |               ^^^^^^^^^^^^^^^^^
+
+warning: associated function `load` is never used
+  --> crates\whisper-worker-cpu\tests\support\autonomous_harness.rs:23:23
+   |
+22 |     impl CpuEngine {
+   |     -------------- associated function in this implementation
+23 |         pub(crate) fn load(_model_path: &str) -> Result<Self, String> {
+   |                       ^^^^
+
+warning: unused imports: `MAX_WINDOW_SAMPLES` and `OUTPUT_RATE`
+ --> crates\whisper-worker-gpu\tests\support\..\..\src\decoder.rs:4:42
+  |
+4 | pub use whisper_worker_common::decoder::{MAX_WINDOW_SAMPLES, OUTPUT_RATE};
+  |                                          ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `normalize_pci`
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:47:31
+   |
+47 |         BackendRegistryEntry, normalize_pci, validate_native_gpu_log,
+   |                               ^^^^^^^^^^^^^
+
+warning: function `decode_requested_block` is never used
+  --> crates\whisper-worker-gpu\tests\support\..\..\src\decoder.rs:17:8
+   |
+17 | pub fn decode_requested_block(request: &DecodeRequest) -> Result<Option<Vec<i16>>, String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `model_path`, `model_sha256`, `candidate`, and `engine` are never read
+  --> crates\whisper-worker-gpu\tests\support\..\..\src\engine_cache.rs:8:5
+   |
+ 7 | pub(crate) struct CachedGpuEngine {
+   |                   --------------- fields in this struct
+ 8 |     model_path: String,
+   |     ^^^^^^^^^^
+ 9 |     model_sha256: [u8; 32],
+   |     ^^^^^^^^^^^^
+10 |     candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+   |     ^^^^^^^^^
+11 |     engine: GpuEngine,
+   |     ^^^^^^
+
+warning: function `cached_gpu_engine` is never used
+  --> crates\whisper-worker-gpu\tests\support\..\..\src\engine_cache.rs:45:15
+   |
+45 | pub(crate) fn cached_gpu_engine<'a>(
+   |               ^^^^^^^^^^^^^^^^^
+
+warning: function `qualify` is never used
+ --> crates\whisper-worker-gpu\tests\support\..\..\src\gpu_qualification.rs:5:8
+  |
+5 | pub fn qualify(targets: &[GpuQualificationTarget]) -> Vec<GpuQualificationResult> {
+  |        ^^^^^^^
+
+warning: associated items `load`, `attest`, and `matches_device` are never used
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:25:23
+   |
+24 |     impl GpuEngine {
+   |     -------------- associated items in this implementation
+25 |         pub(crate) fn load(
+   |                       ^^^^
+...
+33 |         pub(crate) fn attest(&self) -> Result<(), String> {
+   |                       ^^^^^^
+...
+37 |         pub(crate) fn matches_device(&self, _ordinal: u32, _backend: &str) -> bool {
+   |                       ^^^^^^^^^^^^^^
+
+warning: function `cuda_devices` is never used
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:56:12
+   |
+56 |     pub fn cuda_devices() -> Result<Vec<CudaDevice>, String> {
+   |            ^^^^^^^^^^^^
+
+warning: function `ggml_devices` is never used
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:60:12
+   |
+60 |     pub fn ggml_devices() -> Vec<GgmlDevice> {
+   |            ^^^^^^^^^^^^
+
+warning: function `whisper_gpu_device_index` is never used
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:64:12
+   |
+64 |     pub fn whisper_gpu_device_index(
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `verify_windows_identity` is never used
+  --> crates\whisper-worker-gpu\tests\support\autonomous_harness.rs:71:12
+   |
+71 |     pub fn verify_windows_identity(
+   |            ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `whisper-worker-gpu` (bin "whisper-worker-gpu") generated 1 warning (run `cargo fix --bin "whisper-worker-gpu" -p whisper-worker-gpu` to apply 1 suggestion)
+warning: `whisper-worker-cpu` (test "whisper-worker-cpu") generated 4 warnings (run `cargo fix --test "whisper-worker-cpu" -p whisper-worker-cpu` to apply 1 suggestion)
+warning: `whisper-worker-gpu` (test "whisper-worker-gpu") generated 11 warnings (run `cargo fix --test "whisper-worker-gpu" -p whisper-worker-gpu` to apply 2 suggestions)
+warning: unused variable: `source`
+    --> crates\whisper-adapters\src\parakeet_pipeline.rs:1002:13
+     |
+1002 |         let source = PcmPartStore::open(&audio_path);
+     |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_source`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling whisper-desktop v0.1.0 (C:\dev\whisper\target\agent-worktrees\garde-n1-categories\crates\whisper-desktop)
+   Compiling whisper-bootstrap v0.1.0 (C:\dev\whisper\target\agent-worktrees\garde-n1-categories\crates\whisper-bootstrap)
+warning: `whisper-adapters` (lib test) generated 1 warning (run `cargo fix --lib -p whisper-adapters --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.80s
+     Running unittests src\lib.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\whisper_adapters-f8dd8c332ab26866.exe)
+     Running tests\decoder_proxy.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\decoder_proxy-14ca53f93b66abcb.exe)
+     Running tests\durability.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\durability-3442d80c3cb6214e.exe)
+     Running tests\gpu_inventory.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\gpu_inventory-1512bc1ac0314df9.exe)
+     Running tests\gpu_qualification_transport.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\gpu_qualification_transport-874a35559d4b8e10.exe)
+     Running tests\gpu_selection_worker.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\gpu_selection_worker-74cb5ff4e1b20382.exe)
+     Running tests\gpu_settings.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\gpu_settings-2c133bbf401696cf.exe)
+     Running tests\import_cpu.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\import_cpu-c00317803fb7cf47.exe)
+     Running tests\import_mp3.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\import_mp3-839eb7c25f21e054.exe)
+     Running tests\legacy_model_requests.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\legacy_model_requests-1ed9b1d0644170c9.exe)
+     Running tests\live_archive.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\live_archive-af453059435892e1.exe)
+     Running tests\live_capture.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\live_capture-3450ae0862ffbd50.exe)
+     Running tests\microphone_level.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\microphone_level-c442a960b3dfa0b3.exe)
+     Running tests\microphone_probe.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\microphone_probe-87677acfcadc136e.exe)
+     Running tests\microphone_settings.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\microphone_settings-c61c47da2c94a1fa.exe)
+     Running tests\model_catalog.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\model_catalog-4403ee24e0644344.exe)
+     Running tests\model_preferences.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\model_preferences-25a8a6c803727be8.exe)
+     Running tests\parakeet_archive.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\parakeet_archive-841bb74ba5b66caf.exe)
+     Running tests\parakeet_archive_personal_history.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\parakeet_archive_personal_history-c5db828dd67e2656.exe)
+     Running tests\parakeet_command_wire.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\parakeet_command_wire-a3291a73c2534740.exe)
+     Running tests\parakeet_control.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\parakeet_control-a1efcd4eef6a147d.exe)
+     Running tests\parakeet_import.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\parakeet_import-73a84842a97cce97.exe)
+     Running tests\parakeet_long.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\parakeet_long-cf3a90aa5886a162.exe)
+     Running tests\parakeet_runtime_isolation.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\parakeet_runtime_isolation-a0ac5f1a7e320cd1.exe)
+     Running tests\parakeet_unified_native.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\parakeet_unified_native-6ffa68e252cf2de1.exe)
+     Running tests\publication_lock_contract.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\publication_lock_contract-ac44e7f012c51414.exe)
+     Running tests\reprocessing_baseline.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\reprocessing_baseline-6adfd76d6066f3a9.exe)
+     Running tests\reprocessing_cleanup.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\reprocessing_cleanup-98ba01e0346037cb.exe)
+     Running tests\reprocessing_create.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\reprocessing_create-225394a04e9ca8c2.exe)
+     Running tests\source_binding.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\source_binding-155b1af756da46e5.exe)
+     Running tests\vad_contract.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\vad_contract-df3953c33fded3d7.exe)
+     Running tests\worker_control.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\worker_control-e4951d79e86ea76a.exe)
+     Running unittests src\main.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\whisper_bootstrap-c21a6aa3a6debe2f.exe)
+     Running unittests src\lib.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\whisper_core-c823c2784b138006.exe)
+     Running tests\application_routing.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\application_routing-33a48cebbbe78a01.exe)
+     Running tests\compute_policy.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\compute_policy-164fd64821d203fd.exe)
+     Running tests\engine_capabilities.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\engine_capabilities-32597d6ae8a9a268.exe)
+     Running tests\gpu_inventory.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\gpu_inventory-adb856c28abfa8b7.exe)
+     Running tests\gpu_selection.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\gpu_selection-86658f35cd1be920.exe)
+     Running tests\import_contract.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\import_contract-ac0d61ca3ed6f24e.exe)
+     Running tests\live_contract.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\live_contract-7d72b55f35a947fb.exe)
+     Running tests\microphone_level.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\microphone_level-764fc931c5b72fea.exe)
+     Running tests\model_catalog.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\model_catalog-4d159166ba1cb855.exe)
+     Running tests\model_preferences.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\model_preferences-da7ecef8af6aa1f4.exe)
+     Running tests\model_selection_app.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\model_selection_app-226acc1a1d458969.exe)
+     Running tests\parakeet_import_contract.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\parakeet_import_contract-58264c43b81f720a.exe)
+     Running tests\parakeet_ipc.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\parakeet_ipc-7975cefb9d6a2527.exe)
+     Running tests\parakeet_windows.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\parakeet_windows-089f79abd744b793.exe)
+     Running tests\scheduler_contract.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\scheduler_contract-c6d9e7a8eec8bf61.exe)
+     Running unittests src\lib.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\whisper_desktop-c2a8898fb0bbb99c.exe)
+     Running unittests src\main.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\whisper_desktop-95b31625e01fc6d6.exe)
+     Running tests\gpu_inventory_ui.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\gpu_inventory_ui-543de5859caed292.exe)
+     Running tests\gpu_selection_ui.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\gpu_selection_ui-2928cef99a61a1f8.exe)
+     Running tests\microphone_level_ui.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\microphone_level_ui-4a29e4a7f5866156.exe)
+     Running tests\model_selection_ui.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\model_selection_ui-6cfd482aca93f8f5.exe)
+     Running tests\reprocessing_recovery_ui.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\reprocessing_recovery_ui-b4af36c6e64b1e99.exe)
+     Running unittests src\lib.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\whisper_worker_common-aaa7bc346c5bf69a.exe)
+     Running tests\live_worker.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\live_worker-ff372fb8b7957c6d.exe)
+     Running tests\reusable_imports.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\reusable_imports-b93f80f1088627dd.exe)
+     Running tests\support\autonomous_harness.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\whisper_worker_cpu-0db41ac3242780c4.exe)
+     Running tests\worker_contract.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\worker_contract-4697e637943469d6.exe)
+     Running tests\gpu_selection_native.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\gpu_selection_native-b041c700c23fba2a.exe)
+     Running tests\support\autonomous_harness.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\whisper_worker_gpu-f715b7c7c7724aab.exe)
+     Running tests\worker_contract.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\worker_contract-4c60d9f9c90dd3c1.exe)
+     Running unittests src\main.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\whisper_worker_parakeet_cpu-a30f0cec29143e2c.exe)
+     Running tests\decoder_parity.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\decoder_parity-1b840efedcefd6c9.exe)
+     Running tests\native_diagnostics_absence.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\native_diagnostics_absence-ad33c17bccde9ac3.exe)
+     Running tests\native_import.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\native_import-e1e66b9d6b449226.exe)
+     Running tests\worker_contract.rs (C:\dev\whisper\target\parakeet-tests\cargo-shared\debug\deps\worker_contract-79241480a656c064.exe)
+   Doc-tests whisper_adapters
+   Doc-tests whisper_core
+   Doc-tests whisper_desktop
+   Doc-tests whisper_worker_common

@@ -1,4 +1,9 @@
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn unified_capture_runtime_rejects_third_before_capture_factory() {
         let root = std::env::temp_dir().join(format!(
             "parakeet-unified-admission-before-open-{}",
@@ -538,6 +543,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports() {
         for (index, (seconds, compute)) in [
             (3_u64, ComputeChoice::Cpu),
@@ -713,6 +723,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio()
     {
         let event_trace = Arc::new(Mutex::new(Vec::new()));
@@ -868,6 +883,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn queued_create_only_publication_paths_reach_app_view() {
         let root = test_artifact_root("queued-create-only-app-view").join(format!(
             "{}-{}",
@@ -972,6 +992,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn resumed_create_only_publication_paths_reach_app_view() {
         let root = test_artifact_root("resumed-create-only-app-view").join(format!(
             "{}-{}",
@@ -1405,6 +1430,11 @@
 
     #[test]
     #[cfg(windows)]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result() {
         let root = test_artifact_root("reprocessing-create-only-app-view").join(format!(
             "{}-{}",
@@ -1557,6 +1587,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn import_application_resumes_a_verified_interrupted_unified_import() {
         let root = test_artifact_root("queued-unified-resume").join(format!(
             "{}-{}",
@@ -1962,6 +1997,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity() {
         let root = test_artifact_root("queued-unified-resume-refused").join(format!(
             "{}-{}",
@@ -2117,6 +2157,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity() {
         let root =
             test_artifact_root("queued-unified-resume-after-transfer-failure").join(format!(
@@ -2363,7 +2408,10 @@
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "requires a separately authorized PU-L4 storage campaign and guarded WAV fixture over 1 GiB; uses controlled inference"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires WHISPER_L04_CAMPAIGN_RUN, a guarded WAV fixture over 1 GiB, native worker and model"
+    )]
     fn controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts() {
         let execution_root = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
             .map(PathBuf::from)

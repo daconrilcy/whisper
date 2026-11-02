@@ -9,11 +9,16 @@ use whisper_core::{
 };
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L02_MP3_FIXTURE and WHISPER_L01_MODEL or models/ggml-large-v3-turbo.bin"
+)]
+// TODO(DEBT-5): extract the synthetic duplicate archive flow from the real MP3/model fixtures.
 fn r11_mp3_content_identity_is_independent_of_filename_and_destination() {
-    let Some(fixture) = std::env::var_os("WHISPER_L02_MP3_FIXTURE").map(PathBuf::from) else {
-        eprintln!("R11 MP3 duplicate identity NOT RUN: WHISPER_L02_MP3_FIXTURE is absent");
-        return;
-    };
+    let fixture = PathBuf::from(
+        std::env::var_os("WHISPER_L02_MP3_FIXTURE")
+            .expect("WHISPER_L02_MP3_FIXTURE is required for the real MP3 identity test"),
+    );
     let root = std::env::temp_dir().join(format!(
         "whisper-r11-mp3-identity-{}-{}",
         std::process::id(),
@@ -40,9 +45,7 @@ fn r11_mp3_content_identity_is_independent_of_filename_and_destination() {
         .map(PathBuf::from)
         .unwrap_or_else(|| repo.join("models/ggml-large-v3-turbo.bin"));
     if !model.is_file() {
-        eprintln!("R11 MP3 duplicate identity NOT RUN: local Turbo model is missing");
-        let _ = std::fs::remove_dir_all(root);
-        return;
+        panic!("WHISPER_L01_MODEL or models/ggml-large-v3-turbo.bin is required");
     }
     let mut published_request = r11_mp3_request(301, &first, &destination_a, &model);
     whisper_adapters::archive::ArchiveStore::identify_source(&mut published_request).unwrap();
@@ -166,11 +169,15 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the real WHISPER_L02_MP3_FIXTURE corpus"
+)]
 fn source_changed_after_queue_admission_is_refused_without_worker_launch() {
-    let Some(fixture) = std::env::var_os("WHISPER_L02_MP3_FIXTURE").map(PathBuf::from) else {
-        eprintln!("V-IMPORT-MP3 NOT RUN: set WHISPER_L02_MP3_FIXTURE to a Q-07 profile fixture");
-        return;
-    };
+    let fixture = PathBuf::from(
+        std::env::var_os("WHISPER_L02_MP3_FIXTURE")
+            .expect("WHISPER_L02_MP3_FIXTURE is required for the source identity test"),
+    );
     assert!(fixture.is_file());
     let root = std::env::temp_dir().join(format!(
         "whisper-l02-changed-mp3-{}-{}",
@@ -364,15 +371,19 @@ fn failed_preparation_keeps_durable_row_actionable() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L02_MP3_FIXTURE, WHISPER_L01_MODEL and whisper-worker-cpu.exe"
+)]
 fn real_mp3_runs_through_durable_choice_cpu_worker_and_txt_srt_archive() {
-    let Some(source) = std::env::var_os("WHISPER_L02_MP3_FIXTURE").map(PathBuf::from) else {
-        eprintln!("V-IMPORT-MP3 NOT RUN: set WHISPER_L02_MP3_FIXTURE to a Q-07 profile fixture");
-        return;
-    };
-    let Some(model) = std::env::var_os("WHISPER_L01_MODEL").map(PathBuf::from) else {
-        eprintln!("V-IMPORT-MP3 NOT RUN: set WHISPER_L01_MODEL to the approved D19 model");
-        return;
-    };
+    let source = PathBuf::from(
+        std::env::var_os("WHISPER_L02_MP3_FIXTURE")
+            .expect("WHISPER_L02_MP3_FIXTURE is required for native MP3 decoding"),
+    );
+    let model = PathBuf::from(
+        std::env::var_os("WHISPER_L01_MODEL")
+            .expect("WHISPER_L01_MODEL is required for the approved Turbo model"),
+    );
     assert!(source.is_file());
     assert!(model.is_file());
     let source_hash = sha256_file(&source).unwrap();

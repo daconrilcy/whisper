@@ -8,29 +8,16 @@ use whisper_core::{
     ports::ImportRequest,
 };
 
-fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
-    let missing = variables
-        .iter()
-        .filter(|name| std::env::var_os(name).is_none())
-        .copied()
-        .collect::<Vec<_>>();
-    if missing.is_empty() {
-        return false;
-    }
-    eprintln!(
-        "NOT RUN: missing campaign variable(s): {}",
-        missing.join(", ")
-    );
-    true
-}
-
 fn models_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../models")
 }
 
 fn runtime_root(name: &str) -> PathBuf {
-    PathBuf::from(std::env::var_os("WHISPER_L1B_RUNTIME_ROOT").expect("bounded runtime root"))
-        .join(name)
+    PathBuf::from(
+        std::env::var_os("WHISPER_L1B_RUNTIME_ROOT")
+            .unwrap_or_else(|| std::env::temp_dir().into_os_string()),
+    )
+    .join(name)
 }
 
 fn cache_test_path(name: &str) -> PathBuf {
@@ -63,6 +50,10 @@ fn turbo_request(model_path: String) -> ImportRequest {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires both pinned model files under models/"
+)]
 fn closed_catalog_reports_both_pinned_model_files_and_exact_observations() {
     let snapshot = LocalModelCatalog::new(models_root()).inspect(9);
     assert_eq!(snapshot.entries.len(), 2);
@@ -89,9 +80,6 @@ fn closed_catalog_reports_both_pinned_model_files_and_exact_observations() {
 
 #[test]
 fn missing_and_corrupt_models_are_reported_without_touching_the_catalog_root() {
-    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
-        return;
-    }
     let missing_root = runtime_root("catalog-missing");
     let missing = LocalModelCatalog::new(&missing_root).inspect(1);
     assert!(
@@ -121,6 +109,11 @@ fn missing_and_corrupt_models_are_reported_without_touching_the_catalog_root() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the pinned ggml-large-v3-turbo.bin under models/"
+)]
+// TODO(DEBT-2): separate synthetic historical-path rebinding from the native catalogue validation.
 fn known_historical_turbo_path_rebinds_to_the_verified_test_catalog_path() {
     let known =
         r"C:\Users\Cyril\AppData\Local\Programs\WhisperBuildDeps\models\ggml-large-v3-turbo.bin";
@@ -151,9 +144,6 @@ fn known_historical_turbo_path_rebinds_to_the_verified_test_catalog_path() {
 
 #[test]
 fn model_hash_cache_reuses_physical_identity_and_rehashes_changed_fingerprints() {
-    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
-        return;
-    }
     use whisper_adapters::model_catalog::{cached_model_sha256, model_sha256_full_read_count};
 
     let root = cache_test_path("identity");
@@ -196,9 +186,6 @@ fn model_hash_cache_reuses_physical_identity_and_rehashes_changed_fingerprints()
 
 #[test]
 fn model_hash_cache_serializes_concurrent_first_reads_and_fails_closed_on_missing_files() {
-    if not_run_without_campaign_variables(&["WHISPER_L1B_RUNTIME_ROOT"]) {
-        return;
-    }
     use std::sync::Arc;
     use whisper_adapters::model_catalog::{cached_model_sha256, model_sha256_full_read_count};
 

@@ -1,4 +1,9 @@
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio()
      {
         const A_ID: u128 = 9_301;
@@ -390,6 +395,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn global_close_waits_for_both_capture_publications_and_refuses_new_admission() {
         const A_ID: u128 = 9_321;
         const B_ID: u128 = 9_322;
@@ -625,6 +635,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published() {
         const A_ID: u128 = 9_311;
         const B_ID: u128 = 9_312;
@@ -835,6 +850,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail() {
         const JOB_ID: u128 = 9_321;
         const TOTAL_SAMPLES: u64 = 132 * 16_000;
@@ -1024,6 +1044,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn controlled_runtime_recycles_scheduler_slots_across_many_unified_imports() {
         let root = std::env::temp_dir().join(format!(
             "parakeet-unified-scheduler-lifecycle-{}",
@@ -1053,6 +1078,10 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires WHISPER_PU_L1_MP3_FIXTURE real MP3 corpus, the installed Turbo model and native CPU worker/runtime"
+    )]
     fn import_application_decodes_real_mp3_and_publishes_full_unified_coverage() {
         let fixture = std::env::var_os("WHISPER_PU_L1_MP3_FIXTURE")
             .map(PathBuf::from)
@@ -1215,6 +1244,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification() {
         let root = std::env::temp_dir().join(format!(
             "parakeet-unified-gpu-prepare-{}",
@@ -1564,6 +1598,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn unified_document_finalization_failure_releases_session_and_allows_replacement() {
         const JOB_ID: u128 = 9_423;
         let root = std::env::temp_dir().join(format!(
@@ -1684,6 +1723,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn capture_identity_does_not_mask_existing_import_source_binding() {
         const JOB_ID: u128 = 9_426;
         let root = std::env::temp_dir().join(format!(
@@ -1758,6 +1802,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state() {
         const JOB_ID: u128 = 9_427;
         const CAPTURE_SAMPLES: u64 = 4 * 16_000;
@@ -2020,6 +2069,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready() {
         const A_ID: u128 = 9_424;
         const B_ID: u128 = 9_425;
@@ -2777,6 +2831,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets() {
         const JOB_ID: u128 = 9_322;
         let root =

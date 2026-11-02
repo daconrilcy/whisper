@@ -26,4 +26,5 @@ pub fn decode_wav_windows(
 }
 
 #[cfg(test)]
+#[path = "decoder/tests.rs"]
 mod tests;

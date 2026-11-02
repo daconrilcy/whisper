@@ -63,31 +63,6 @@ fn required_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("{name} is required")))
 }
 
-fn not_run_without_campaign_variables(variables: &[&str]) -> bool {
-    let missing = variables
-        .iter()
-        .filter(|name| std::env::var_os(name).is_none())
-        .copied()
-        .collect::<Vec<_>>();
-    if missing.is_empty() {
-        return false;
-    }
-    eprintln!(
-        "NOT RUN: missing campaign variable(s): {}",
-        missing.join(", ")
-    );
-    true
-}
-
-fn not_run_without_l2_archive_inputs() -> bool {
-    not_run_without_campaign_variables(&[
-        "PARAKEET_L2_ARCHIVE_ROOT",
-        "PARAKEET_L2_RUNTIME_ROOT",
-        "PARAKEET_L2_MODEL",
-        "PARAKEET_L2_EN_WAV",
-    ])
-}
-
 fn archive_root() -> PathBuf {
     let root = required_path("PARAKEET_L2_ARCHIVE_ROOT");
     let canonical = root.canonicalize().expect("archive root exists");
@@ -264,10 +239,11 @@ fn personal_key(backend: whisper_core::model_catalog::Backend) -> ArchiveQualifi
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV"
+)]
 fn parakeet_model_identity_prepares_persists_and_publishes_txt_srt() {
-    if not_run_without_l2_archive_inputs() {
-        return;
-    }
     let root = archive_root().join("parakeet-archive-pass");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -330,7 +306,10 @@ fn parakeet_model_identity_prepares_persists_and_publishes_txt_srt() {
 }
 
 #[test]
-#[ignore = "copies and mutates the real qualified GGUF inside the isolated R9 runtime"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires the qualified Parakeet GGUF model, R9 runtime and native CPU worker/DLLs"
+)]
 fn modified_parakeet_model_is_refused_before_pending_after_cache_revalidation() {
     use std::io::{Read, Seek, SeekFrom};
     use whisper_adapters::model_catalog::cached_model_sha256;
@@ -404,10 +383,11 @@ fn modified_parakeet_model_is_refused_before_pending_after_cache_revalidation() 
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV"
+)]
 fn parakeet_archive_refuses_model_sha_divergence_before_pending_creation() {
-    if not_run_without_l2_archive_inputs() {
-        return;
-    }
     let root = archive_root().join("parakeet-archive-reject");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -442,10 +422,11 @@ fn parakeet_archive_refuses_model_sha_divergence_before_pending_creation() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV"
+)]
 fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
-    if not_run_without_l2_archive_inputs() {
-        return;
-    }
     let rejected_root = archive_root().join("parakeet-key-reject");
     let _ = fs::remove_dir_all(&rejected_root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -608,10 +589,11 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV and the qualified CPU/GPU runtime"
+)]
 fn registered_personal_pending_cpu_and_gpu_scan_and_resume_without_qualification_feature() {
-    if not_run_without_l2_archive_inputs() {
-        return;
-    }
     let source = required_path("PARAKEET_L2_EN_WAV");
     let model_path = required_path("PARAKEET_L2_MODEL");
     let record = model(ModelId::ParakeetTdt06BV3);
@@ -699,15 +681,11 @@ fn registered_personal_pending_cpu_and_gpu_scan_and_resume_without_qualification
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_R7_EXEC_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_LONG_WAV"
+)]
 fn r5_2_vad_recipe_is_scoped_and_desktop_test_import_is_rejected_before_pending() {
-    if not_run_without_campaign_variables(&[
-        "PARAKEET_L2_ARCHIVE_ROOT",
-        "PARAKEET_L2_RUNTIME_ROOT",
-        "PARAKEET_L2_MODEL",
-        "PARAKEET_R7_EXEC_ROOT",
-    ]) {
-        return;
-    }
     if std::env::var_os("PARAKEET_R7_VAD_CHILD").is_none() {
         let r7 = required_path("PARAKEET_R7_EXEC_ROOT")
             .canonicalize()
@@ -803,10 +781,11 @@ fn r5_2_vad_recipe_is_scoped_and_desktop_test_import_is_rejected_before_pending(
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV"
+)]
 fn retired_l2a_pending_remains_visible_but_cannot_be_resumed() {
-    if not_run_without_l2_archive_inputs() {
-        return;
-    }
     let root = archive_root().join("parakeet-retired-l2a-pending");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -869,10 +848,11 @@ fn retired_l2a_pending_remains_visible_but_cannot_be_resumed() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV"
+)]
 fn retired_r5_2_pending_is_rejected_with_retirement_cause_and_preserved() {
-    if not_run_without_l2_archive_inputs() {
-        return;
-    }
     let root = archive_root().join("parakeet-retired-r5-2-pending");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -929,10 +909,11 @@ fn retired_r5_2_pending_is_rejected_with_retirement_cause_and_preserved() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the qualified GPU worker/DLL set"
+)]
 fn gpu_pending_is_bound_to_the_qualified_physical_identity() {
-    if not_run_without_l2_archive_inputs() {
-        return;
-    }
     let root = archive_root().join("parakeet-gpu-physical-identity");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -990,10 +971,11 @@ fn gpu_pending_is_bound_to_the_qualified_physical_identity() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV"
+)]
 fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix() {
-    if not_run_without_l2_archive_inputs() {
-        return;
-    }
     let destination = archive_root().join("parakeet-queue-resume");
     let _ = fs::remove_dir_all(&destination);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -1102,10 +1084,11 @@ fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the exact qualified Parakeet runtime"
+)]
 fn archive_admission_accepts_exactly_qualified_limit_and_refuses_one_extra_sample() {
-    if not_run_without_l2_archive_inputs() {
-        return;
-    }
     let root = archive_root().join("parakeet-duration-boundary");
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).unwrap();
@@ -1148,10 +1131,11 @@ fn archive_admission_accepts_exactly_qualified_limit_and_refuses_one_extra_sampl
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV"
+)]
 fn resume_refuses_over_limit_pending_and_preserves_its_bytes() {
-    if not_run_without_l2_archive_inputs() {
-        return;
-    }
     let root = archive_root().join("parakeet-duration-resume-boundary");
     let _ = fs::remove_dir_all(&root);
     let source = required_path("PARAKEET_L2_EN_WAV");
@@ -1267,7 +1251,10 @@ fn pcm16_mono_wav(path: &std::path::Path) -> Vec<i16> {
 }
 
 #[test]
-#[ignore = "reports B9 noise-floor silence and cut counts from R5-2 fixtures"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_NOISE_MINUS40_WAV, PARAKEET_L2_NOISE_MINUS30_WAV and PARAKEET_L2_NOISE_MINUS20_WAV corpus fixtures"
+)]
 fn r5_2_b9_reports_noise_floor_silences_and_cut_plans() {
     let allowed = required_path("PARAKEET_L2_RUNTIME_ROOT")
         .join("r5-2")
@@ -1301,7 +1288,10 @@ fn r5_2_b9_reports_noise_floor_silences_and_cut_plans() {
 }
 
 #[test]
-#[ignore = "runs real Parakeet CPU import and verifies the published archive"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_RUNTIME_ROOT, MODEL, WORKER, NATIVE_DIR, FR/EN WAV corpus fixtures and CPU native DLLs"
+)]
 fn r5_2_a4_product_route_publishes_french_and_english_txt_srt() {
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT");
     let model_path = required_path("PARAKEET_L2_MODEL");
@@ -2067,7 +2057,10 @@ mod r5_2_long_tests {
     }
 
     #[test]
-    #[ignore = "runs same-candidate 60-minute reference and CPU VAD qualification"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires PARAKEET_L2_EN_LONG_WAV, PARAKEET_L2_MODEL, runtime, CPU worker and native DLLs"
+    )]
     fn en_sixty_minute_reference_and_vad_use_same_candidate_and_boundary_policy() {
         let (runtime, paths) = runtime_paths();
         let source = path_var("PARAKEET_L2_EN_LONG_WAV");
@@ -2079,7 +2072,11 @@ mod r5_2_long_tests {
     }
 
     #[test]
-    #[ignore = "runs long synthetic French reference and VAD; boundaries are artificial"]
+    // TODO(DEBT-9): separate synthetic long-audio boundary checks from native Parakeet inference.
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires PARAKEET_L2_FR_LONG_WAV, PARAKEET_L2_MODEL, runtime, CPU worker and native DLLs"
+    )]
     fn fr_synthetic_long_reference_and_vad_use_same_candidate() {
         let (runtime, paths) = runtime_paths();
         let source = path_var("PARAKEET_L2_FR_LONG_WAV");

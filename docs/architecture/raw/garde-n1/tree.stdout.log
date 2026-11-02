@@ -1,0 +1,5 @@
+whisper-rs-sys v0.15.0
+└── whisper-rs-sys feature "default"
+    └── whisper-rs v0.16.0
+        └── whisper-worker-cpu v0.1.0 (C:\dev\whisper\target\agent-worktrees\garde-n1-categories\crates\whisper-worker-cpu)
+            └── whisper-worker-cpu feature "default" (command-line)

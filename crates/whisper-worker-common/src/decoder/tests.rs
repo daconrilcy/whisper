@@ -68,11 +68,15 @@ fn long_source_is_streamed_as_bounded_contiguous_windows() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L02_GAPLESS_MP3 real MP3 corpus input"
+)]
 fn lame_gapless_delay_and_padding_are_trimmed_once() {
-    let Some(path) = std::env::var_os("WHISPER_L02_GAPLESS_MP3").map(PathBuf::from) else {
-        eprintln!("V-IMPORT-MP3 decoder proof NOT RUN: set WHISPER_L02_GAPLESS_MP3");
-        return;
-    };
+    let path = PathBuf::from(
+        std::env::var_os("WHISPER_L02_GAPLESS_MP3")
+            .expect("WHISPER_L02_GAPLESS_MP3 must name the real MP3 corpus input"),
+    );
     let file = File::open(&path).unwrap();
     let stream = MediaSourceStream::new(Box::new(file), Default::default());
     let probed = symphonia::default::get_probe()

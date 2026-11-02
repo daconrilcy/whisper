@@ -608,7 +608,10 @@ fn verify_comparison(
 }
 
 #[test]
-#[ignore = "runs same-candidate 60-minute reference and CPU VAD qualification"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_EN_LONG_WAV, PARAKEET_L2_MODEL, runtime, CPU worker and native DLLs"
+)]
 fn en_sixty_minute_reference_and_vad_use_same_candidate_and_boundary_policy() {
     let (runtime, paths) = runtime_paths();
     let source = path_var("PARAKEET_L2_EN_LONG_WAV");
@@ -620,7 +623,11 @@ fn en_sixty_minute_reference_and_vad_use_same_candidate_and_boundary_policy() {
 }
 
 #[test]
-#[ignore = "runs long synthetic French reference and VAD; boundaries are artificial"]
+// TODO(DEBT-9): separate synthetic long-audio boundary checks from native Parakeet inference.
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_FR_LONG_WAV, PARAKEET_L2_MODEL, runtime, CPU worker and native DLLs"
+)]
 fn fr_synthetic_long_reference_and_vad_use_same_candidate() {
     let (runtime, paths) = runtime_paths();
     let source = path_var("PARAKEET_L2_FR_LONG_WAV");
@@ -636,7 +643,10 @@ fn fr_synthetic_long_reference_and_vad_use_same_candidate() {
 }
 
 #[test]
-#[ignore = "requires explicit B9 noise fixtures for -40, -30, and -20 dBFS"]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires PARAKEET_L2_NOISE_MINUS40_WAV, PARAKEET_L2_NOISE_MINUS30_WAV and PARAKEET_L2_NOISE_MINUS20_WAV corpus fixtures"
+)]
 fn b9_reports_noise_floor_silence_counts_and_cut_plans() {
     let runtime = path_var("PARAKEET_L2_RUNTIME_ROOT");
     let cases = [

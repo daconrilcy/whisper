@@ -12,6 +12,7 @@ eframe = { version = "=0.35.0", default-features = false, features = ["accesskit
 
 [features]
 default = []
+native-tests = ["whisper-core/native-tests", "whisper-adapters/native-tests"]
 recette-hooks = ["whisper-adapters/recette-hooks"]
 personal-install = []
 

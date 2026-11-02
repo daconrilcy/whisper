@@ -84,6 +84,11 @@ fn install_foreign_corrupt_archive(root: &Path) -> (PathBuf, Vec<u8>, String) {
     (dir.join("transcript.txt"), damaged, source_sha)
 }
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf and target/parakeet-tests/refacto-parakeet-live/p3-workers; mixed synthetic unified capture scenario"
+)]
+// TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
 fn unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../target/parakeet-tests/refacto-parakeet-live/p3-workers")
@@ -364,6 +369,11 @@ fn unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf and target/parakeet-tests/refacto-parakeet-live/p3-workers; mixed synthetic unified capture scenario"
+)]
+// TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
 fn unified_start_and_immediate_stop_keep_the_new_session_identity() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../target/parakeet-tests/refacto-parakeet-live/p3-workers")
@@ -418,6 +428,11 @@ fn unified_start_and_immediate_stop_keep_the_new_session_identity() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf and target/parakeet-tests/refacto-parakeet-live/p3-workers; mixed synthetic unified capture scenario"
+)]
+// TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
 fn unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../target/parakeet-tests/refacto-parakeet-live/p3-workers")
@@ -540,9 +555,7 @@ fn unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events() {
 
 #[test]
 fn corrupt_archive_alias_cannot_borrow_canonical_foreign_identity() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/parakeet-tests/refacto-parakeet-live/p3-workers")
-        .join(format!("archive-alias-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("parakeet-archive-alias-{}", std::process::id()));
     fs::create_dir(&root).unwrap();
     let (canonical_file, canonical_bytes, _) = install_foreign_corrupt_archive(&root);
     let unrelated_sha = "42".repeat(32);

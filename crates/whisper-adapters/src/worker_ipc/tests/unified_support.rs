@@ -9,7 +9,10 @@
     };
 
     #[test]
-    #[ignore = "requires the CI legacy build variables"]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires PARAKEET_L2_ACCEPTANCE_TEST_BUILD=1 at compile time"
+    )]
     fn recette_policy_l2a2_requires_the_feature() {
         assert_eq!(option_env!("PARAKEET_L2_ACCEPTANCE_TEST_BUILD"), Some("1"));
         let result = acceptance_barrier("not-an-acceptance-phase", Path::new("."));

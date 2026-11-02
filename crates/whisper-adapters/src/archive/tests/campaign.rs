@@ -1,9 +1,14 @@
     #[cfg(feature = "recette-hooks")]
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires WHISPER_L04_CAMPAIGN_BUILD=1, WHISPER_L04_CAMPAIGN_RUN and the guarded L04 campaign root"
+    )]
+    // TODO(DEBT-6): extract synthetic campaign-gate assertions from guarded L04 filesystem scenarios.
     fn l04_campaign_gate_rejects_escape_and_duplicate_trigger() {
         if option_env!("WHISPER_L04_CAMPAIGN_BUILD").is_none() {
             assert!(campaign_gate("coverage.after_sync", 1, 1, 0).is_ok());
-            return;
+            panic!("requires a WHISPER_L04_CAMPAIGN_BUILD=1 test binary");
         }
         if let Ok(mode) = std::env::var("WHISPER_L04_GATE_TEST_CHILD") {
             if mode == "outside" {

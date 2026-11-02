@@ -1,4 +1,9 @@
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn controlled_worker_and_invalid_times_leave_no_complete_archive() {
         for (index, (worker, expected_failure)) in [
             (
@@ -76,6 +81,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn export_collision_keeps_existing_file_and_does_not_publish_unified_archive() {
         let root = std::env::temp_dir().join(format!(
             "parakeet-unified-export-collision-{}",
@@ -1476,6 +1486,11 @@
     }
 
     #[test]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario"
+    )]
+    // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish() {
         let root = automatic_final_test_root("r4-real-publish-isolation");
         fs::create_dir_all(&root).unwrap();

@@ -90,8 +90,8 @@ Commandes **internes** à transmettre à la garde compatible future ; jamais aut
 | V5-G | `cargo test --offline --locked -p whisper-worker-gpu --bin whisper-worker-gpu --features l01-memory-qualification` | Unitaire/raccordement instrumenté GPU séparé |
 | V6-P | `cargo check --offline --locked -p whisper-worker-cpu --features recette-hooks` | Debug hooks + sha2 ; aucune campagne historique activée |
 | V6-G | `cargo check --offline --locked -p whisper-worker-gpu --features recette-hooks` | Équivalent GPU séparé |
-| V7-P | `cargo build --offline --locked --release -p whisper-worker-cpu` | Binaire CPU défaut ; pas preuve native |
-| V7-G | `cargo build --offline --locked --release -p whisper-worker-gpu` | Binaire GPU défaut séparé ; pas preuve native |
+| V7-P | `ci/build-workers.ps1`, sortie CPU | Procédure R8-FIX : invocation séparée, cible neuve, contrôle PE sans CUDA ; pas preuve native |
+| V7-G | `ci/build-workers.ps1`, sortie GPU | Même procédure : cible distincte et contrôle PE CUDA requis ; pas preuve native |
 | V8 | `cargo fmt --all -- --check` | Format ; écart préexistant hors scope distingué |
 | V9-C | `cargo clippy --offline --locked -p whisper-worker-common --lib -- -W clippy::too_many_lines -W clippy::cognitive_complexity -W clippy::too_many_arguments -W clippy::type_complexity` | Lints common ; aucun --fix |
 | V9-P | `cargo clippy --offline --locked -p whisper-worker-cpu --bin whisper-worker-cpu -- -W clippy::too_many_lines -W clippy::cognitive_complexity -W clippy::too_many_arguments -W clippy::type_complexity` | Lints CPU |

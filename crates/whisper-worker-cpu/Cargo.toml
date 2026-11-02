@@ -8,6 +8,7 @@ build = "../../scripts/recette-build.rs"
 
 [features]
 default = []
+native-tests = ["whisper-core/native-tests", "whisper-worker-common/native-tests"]
 recette-hooks = []
 l01-memory-qualification = ["whisper-worker-common/l01-memory-qualification"]
 
@@ -21,3 +22,14 @@ whisper-rs = { version = "=0.16.0", default-features = false }
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "whisper-worker-cpu"
+path = "src/main.rs"
+test = false
+
+[[test]]
+name = "whisper-worker-cpu"
+path = "tests/support/autonomous_harness.rs"
+harness = true
+test = true

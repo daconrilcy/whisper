@@ -23,6 +23,11 @@ const MODEL_HASH: &str = "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879
 const SOURCE_HASH: &str = "716e788c790b600fe472d0ebb868094c9d9b97fdf1d581133dd3df46a30de467";
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires models/ggml-large-v3-turbo.bin and native Turbo worker artifacts"
+)]
+// TODO(DEBT-3): extract the synthetic duplicate archive flow from its real Turbo model fixture.
 fn r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives() {
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -31,10 +36,6 @@ fn r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives(
         .unwrap()
         .to_path_buf();
     let model = repo.join("models/ggml-large-v3-turbo.bin");
-    if !model.is_file() {
-        eprintln!("R11 duplicate import NOT RUN: local Turbo model missing");
-        return;
-    }
     let root = std::env::temp_dir().join(format!(
         "whisper-r11-duplicate-{}-{}",
         std::process::id(),
@@ -1287,15 +1288,19 @@ fn unix_nanos() -> u128 {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L01_FIXTURE, WHISPER_L01_MODEL and the real CPU worker runtime"
+)]
 fn real_wav_runs_through_cpu_worker_and_verified_archive() {
-    let Some(source) = std::env::var_os("WHISPER_L01_FIXTURE").map(PathBuf::from) else {
-        eprintln!("V-IMPORT NOT RUN: set WHISPER_L01_FIXTURE to the D19-manifested micro_test.wav");
-        return;
-    };
-    let Some(model) = std::env::var_os("WHISPER_L01_MODEL").map(PathBuf::from) else {
-        eprintln!("V-IMPORT NOT RUN: set WHISPER_L01_MODEL to the approved D19 model");
-        return;
-    };
+    let source = PathBuf::from(
+        std::env::var_os("WHISPER_L01_FIXTURE")
+            .expect("WHISPER_L01_FIXTURE is required for the manifested real-WAV test"),
+    );
+    let model = PathBuf::from(
+        std::env::var_os("WHISPER_L01_MODEL")
+            .expect("WHISPER_L01_MODEL is required for the approved D19 model"),
+    );
     assert_eq!(
         hex(&sha256_file(&source).unwrap()),
         SOURCE_HASH,
@@ -1410,11 +1415,16 @@ fn real_wav_runs_through_cpu_worker_and_verified_archive() {
 
 #[cfg(all(windows, feature = "l01-memory-qualification"))]
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L01_MODEL, WHISPER_L01_MEMORY_TRACE, WHISPER_L01_ADAPTER_MEMORY_TRACE and the native CPU worker"
+)]
+// TODO(DEBT-4): extract the generated long-WAV fixture from the native Turbo inference run.
 fn generated_long_wav_runs_eight_full_native_windows_with_stage_memory_samples() {
-    let Some(model) = std::env::var_os("WHISPER_L01_MODEL").map(PathBuf::from) else {
-        eprintln!("V-IMPORT LONG NOT RUN: set WHISPER_L01_MODEL to the approved D19 model");
-        return;
-    };
+    let model = PathBuf::from(
+        std::env::var_os("WHISPER_L01_MODEL")
+            .expect("WHISPER_L01_MODEL is required for the approved D19 model"),
+    );
     assert_eq!(
         hex(&sha256_file(&model).unwrap()),
         MODEL_HASH,
@@ -1537,14 +1547,19 @@ fn write_generated_silence_wav(path: &std::path::Path, sample_count: u32) {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L01_FIXTURE, WHISPER_L01_MODEL and whisper-worker-cpu.exe"
+)]
 fn stop_during_native_inference_is_prompt_and_never_publishes_complete() {
-    let (Some(source), Some(model)) = (
-        std::env::var_os("WHISPER_L01_FIXTURE").map(PathBuf::from),
-        std::env::var_os("WHISPER_L01_MODEL").map(PathBuf::from),
-    ) else {
-        eprintln!("V-IMPORT Stop-in-inference NOT RUN: fixture/model environment missing");
-        return;
-    };
+    let source = PathBuf::from(
+        std::env::var_os("WHISPER_L01_FIXTURE")
+            .expect("WHISPER_L01_FIXTURE is required for native inference"),
+    );
+    let model = PathBuf::from(
+        std::env::var_os("WHISPER_L01_MODEL")
+            .expect("WHISPER_L01_MODEL is required for the approved D19 model"),
+    );
     assert_eq!(hex(&sha256_file(&source).unwrap()), SOURCE_HASH);
     assert_eq!(hex(&sha256_file(&model).unwrap()), MODEL_HASH);
     let worker = std::env::current_exe()
@@ -1676,11 +1691,15 @@ fn worker_cpu_time(worker: &std::path::Path) -> Duration {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L01_FIXTURE and whisper-worker-cpu.exe"
+)]
 fn real_worker_serves_correlated_bounded_decode_blocks() {
-    let Some(source) = std::env::var_os("WHISPER_L01_FIXTURE").map(PathBuf::from) else {
-        eprintln!("V-IMPORT decode block NOT RUN: set WHISPER_L01_FIXTURE");
-        return;
-    };
+    let source = PathBuf::from(
+        std::env::var_os("WHISPER_L01_FIXTURE")
+            .expect("WHISPER_L01_FIXTURE is required for native worker decoding"),
+    );
     assert_eq!(hex(&sha256_file(&source).unwrap()), SOURCE_HASH);
     let worker = std::env::current_exe()
         .unwrap()

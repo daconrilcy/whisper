@@ -5,6 +5,10 @@ use std::{
 use whisper_core::ipc::{IpcEnvelope, WorkerCommand, WorkerEvent};
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires Cargo-built whisper-worker-gpu.exe, linked CUDA runtime and a compatible CUDA driver/device"
+)]
 fn linked_gpu_worker_answers_a_native_cuda_probe_without_loading_a_model() {
     let executable = env!("CARGO_BIN_EXE_whisper-worker-gpu");
     let mut child = Command::new(executable)

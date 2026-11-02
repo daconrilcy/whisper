@@ -8,6 +8,10 @@ use whisper_core::{
 };
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires Cargo-built whisper-worker-cpu.exe and the CPU native runtime/DLLs"
+)]
 fn live_worker_rejects_an_unverified_model_before_reporting_ready() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_whisper-worker-cpu"))
         .stdin(Stdio::piped())

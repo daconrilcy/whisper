@@ -2,7 +2,7 @@
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    #[ignore = "requires the CI legacy build and runtime variables"]
+    #[cfg_attr(not(feature = "native-tests"), ignore = "requires WHISPER_L04_CAMPAIGN_BUILD=1 at compile time and WHISPER_L04_CAMPAIGN_RUN at runtime")]
     fn recette_policy_l04_requires_the_feature() {
         assert_eq!(option_env!("WHISPER_L04_CAMPAIGN_BUILD"), Some("1"));
         assert!(std::env::var_os("WHISPER_L04_CAMPAIGN_RUN").is_some());

@@ -19,7 +19,10 @@ use whisper_core::{
 };
 
 fn root() -> PathBuf {
-    let base = PathBuf::from(std::env::var_os("PARAKEET_RTC02_EXEC_ROOT").expect("RTC-02 root"));
+    let base = PathBuf::from(
+        std::env::var_os("PARAKEET_RTC02_EXEC_ROOT")
+            .unwrap_or_else(|| std::env::temp_dir().into_os_string()),
+    );
     let path = base.join("archive").join(format!(
         "cleanup-test-{}-{}",
         std::process::id(),
@@ -501,6 +504,11 @@ fn create_failed_cleanup_fixture(name: &str, mutation: ContainerMutation) -> Fai
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario"
+)]
+// TODO(DEBT-11): extract the synthetic scenario from its real model/catalogue prerequisite.
 fn reparse_container_is_rejected_before_any_old_artifact_is_removed() {
     let fixture = create_failed_cleanup_fixture("reparse-container", ContainerMutation::Reparse);
     let old_text = fixture.old_generation.join("transcript.txt");
@@ -528,6 +536,11 @@ fn reparse_container_is_rejected_before_any_old_artifact_is_removed() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario"
+)]
+// TODO(DEBT-11): extract the synthetic scenario from its real model/catalogue prerequisite.
 fn replaced_container_identity_is_rejected_and_both_directories_are_preserved() {
     let fixture =
         create_failed_cleanup_fixture("replaced-container", ContainerMutation::ReplaceIdentity);
@@ -552,6 +565,11 @@ fn replaced_container_identity_is_rejected_and_both_directories_are_preserved() 
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario"
+)]
+// TODO(DEBT-11): extract the synthetic scenario from its real model/catalogue prerequisite.
 fn durable_legacy_cleanup_replay_keeps_empty_parent_without_container_proof() {
     let fixture = create_failed_cleanup_fixture("legacy-plan", ContainerMutation::ReplaceIdentity);
     let replacement_note = fixture.old_container.join("replacement-note.txt");
@@ -626,6 +644,11 @@ fn characterization_restore_cleanup_fixture(fixture: &FailedCleanupFixture) -> P
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario"
+)]
+// TODO(DEBT-11): extract the synthetic scenario from its real model/catalogue prerequisite.
 fn archive_characterization_cleanup_missing_object_before_progress_is_adopted() {
     let fixture = create_failed_cleanup_fixture(
         "missing-before-progress",
@@ -673,6 +696,11 @@ fn archive_characterization_cleanup_missing_object_before_progress_is_adopted() 
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario"
+)]
+// TODO(DEBT-11): extract the synthetic scenario from its real model/catalogue prerequisite.
 fn archive_characterization_cleanup_recorded_removed_but_present_is_preserved() {
     let fixture = create_failed_cleanup_fixture(
         "progress-before-removal",
@@ -842,6 +870,11 @@ fn replacement_reservation_still_rejects_a_changed_verified_catalog() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario"
+)]
+// TODO(DEBT-11): extract the synthetic scenario from its real model/catalogue prerequisite.
 fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request() {
     let root = root();
     let destination = root.join("destination");

@@ -140,6 +140,10 @@ fn drain_d2_events_after_playback<E>(
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_MIC_LEVEL_D2_ROOT, WHISPER_MIC_LEVEL_D2_ENGINE=parakeet-cpu, LOCALAPPDATA Whisper Turbo/Parakeet workers, models and CPU DLLs plus the D2 audio corpus"
+)]
 fn d2_corpus_real_cpu_turbo_and_parakeet() {
     let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let root =
@@ -601,8 +605,10 @@ mod tests {
 
     #[test]
     fn test_status_writer_preserves_diagnostics() {
-        let root =
-            PathBuf::from(std::env::var_os("WHISPER_MIC_LEVEL_D2_ROOT").expect("guarded D2 root"));
+        let root = PathBuf::from(
+            std::env::var_os("WHISPER_MIC_LEVEL_D2_ROOT")
+                .unwrap_or_else(|| std::env::temp_dir().into_os_string()),
+        );
         fs::create_dir_all(&root).unwrap();
         let case_root = root.join(format!("status-selftest-{}", std::process::id()));
         fs::create_dir_all(&case_root).unwrap();
