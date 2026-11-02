@@ -575,7 +575,7 @@ function New-NvidiaDiagnosticContextEnvironment([string]$ContextId, [hashtable]$
 }
 
 function New-NvidiaDiagnosticProcessInfo([string]$ProfileId, [string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$RunRoot) {
-    if ($ProfileId -notin @('NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic')) { throw "Profile $ProfileId must use its separate or Cargo-backed ProcessStartInfo builder." }
+    if ($ProfileId -cne 'NvidiaSmiEnvironmentCompareDiagnostic') { throw "Profile $ProfileId must use its Cargo-backed ProcessStartInfo builder." }
     $psi = New-Object Diagnostics.ProcessStartInfo
     $psi.FileName = $Executable
     $psi.WorkingDirectory = $script:Repo
@@ -625,6 +625,26 @@ function New-NvidiaDiagnosticProcessInfo([string]$ProfileId, [string]$Executable
         throw "NVIDIA diagnostic process Cargo root validation failed before child start: declaredCARGO_HOME='$declaredCargoHome' canonical='$canonicalCargoHome' lot='$canonicalLot' inLot=$declaredCargoHomeInLot; declaredCARGO_TARGET_DIR='$declaredCargoTarget' canonical='$canonicalCargoTarget' sharedTarget='$canonicalSharedTarget' matches=$declaredCargoTargetMatches; copiedCARGO_HOME='$copiedCargoHome' canonical='$canonicalCopiedCargoHome' inLot=$copiedCargoHomeInLot; copiedCARGO_TARGET_DIR='$copiedCargoTarget' canonical='$canonicalCopiedCargoTarget' matches=$copiedCargoTargetMatches."
     }
     return $psi
+}
+
+function New-NvidiaSmiInventoryProcessInfo([object]$Profile, [hashtable]$Environment, [string]$RunRoot) {
+    if ($Profile.id -cne 'NvidiaSmiInventoryDiagnostic') { throw 'Cargo-backed NVIDIA inventory builder requires the exact inventory profile.' }
+    Assert-NvidiaSmiDiagnosticProfile $Profile -VerifyInstalledExecutable
+    if (Test-Path -LiteralPath $RunRoot) { throw 'NVIDIA inventory preflight RunRoot unexpectedly exists.' }
+    $previousRunRoot = $script:RunRoot
+    try {
+        $script:RunRoot = $RunRoot
+        New-Item -ItemType Directory -Path $RunRoot,(Join-Path $RunRoot 'temp'),(Join-Path $RunRoot 'tmp'),(Join-Path $RunRoot 'localappdata'),(Join-Path $RunRoot 'appdata') -Force -ErrorAction Stop | Out-Null
+        $toolchain = Get-CargoExecutable
+        $vsEnvironment = Get-VsEnvironment (Get-VsDevCommand) $Environment.TEMP $Environment.TMP $RunRoot
+        $psi = New-CargoProcessInfo $toolchain.cargo $toolchain.rustc $toolchain.toolchainBin @() $Environment $vsEnvironment $RunRoot $Profile.id
+        $psi.FileName = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
+        $psi.Arguments = [string]::Join(' ',[string[]]@($Profile.command.arguments | ForEach-Object { Get-WindowsCommandLineArgument ([string]$_) }))
+        return $psi
+    } finally {
+        $script:RunRoot = $previousRunRoot
+        if (Test-InRoot $RunRoot $script:Lot -and (Test-Path -LiteralPath $RunRoot)) { Remove-Item -LiteralPath $RunRoot -Recurse -Force -ErrorAction SilentlyContinue }
+    }
 }
 
 function New-NvidiaModuleCapture([int]$ProcessId) {
@@ -1949,7 +1969,7 @@ function Invoke-NvidiaSmiEnvironmentComparison([object]$Profile, [hashtable]$Bas
 function Invoke-WatchedDiagnosticProcess([object]$Invocation) {
     if ($null -ne $Invocation.processStartInfo) {
         $psi = $Invocation.processStartInfo
-    } elseif ($Invocation.profileId -in @('NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic','NvidiaProgramW6432Witness')) {
+    } elseif ($Invocation.profileId -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
         $psi = New-NvidiaDiagnosticProcessInfo $Invocation.profileId $Invocation.executable $Invocation.arguments $Invocation.environment $Invocation.runRoot
     } else {
         $psi = New-CargoProcessInfo $Invocation.toolchain.cargo $Invocation.toolchain.rustc $Invocation.toolchain.toolchainBin $Invocation.arguments $Invocation.environment $Invocation.vsEnvironment $Invocation.runRoot $Invocation.profileId
@@ -2490,6 +2510,13 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     $witnessProcessPair.positive.EnvironmentVariables['ProgramW6432'] = 'C:\synthetic-invalid-programw'
     Test-Rejects 'ProgramW6432 witness rejects a wrong positive value' { Assert-NvidiaProgramW6432ProcessPair $witnessProcessPair.positive $witnessProcessPair.negative $witnessProcessPair.validatedProgramW6432 }
     $witnessProcessPair.positive.EnvironmentVariables['ProgramW6432'] = $positiveProgramW
+    $inventoryProfile = Get-Profile $Registry 'NvidiaSmiInventoryDiagnostic'
+    $inventoryBaseEnvironment = Get-ProfileEnvironment $inventoryProfile $witnessValues $diagnosticRunRoot $Lot $false
+    foreach ($name in @('PROGRAMDATA','ALLUSERSPROFILE','PUBLIC')) { if ($inventoryBaseEnvironment.ContainsKey($name)) { throw "NVIDIA inventory fixture unexpectedly enriched Get-ProfileEnvironment with $name." } }
+    $inventoryPsi = New-CargoProcessInfo $syntheticToolchain.cargo $syntheticToolchain.rustc $syntheticToolchain.toolchainBin @() $inventoryBaseEnvironment $diagnosticVsEnvironment $diagnosticRunRoot $inventoryProfile.id
+    $inventoryPsi.FileName = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
+    $inventoryPsi.Arguments = [string]::Join(' ',[string[]]@($inventoryProfile.command.arguments | ForEach-Object { Get-WindowsCommandLineArgument ([string]$_) }))
+    if (-not $inventoryPsi.EnvironmentVariables.ContainsKey('ProgramW6432') -or [string]$inventoryPsi.EnvironmentVariables['ProgramW6432'] -ine (Get-ValidatedProgramW6432Directory) -or [string]$inventoryPsi.EnvironmentVariables['ProgramW6432'] -ieq $diagnosticVsEnvironment.ProgramW6432) { throw 'NVIDIA inventory fixture did not construct a compatible Cargo-backed PSI with validated ProgramW6432.' }
     $validUuid = 'GPU-12345678-abcd-1234-ABCD-1234567890ab'
     $validPositiveEnvelope = [pscustomobject]@{result=[pscustomobject]@{status='DIAGNOSTIC_ONLY';exitCode=0};outputLines=@("1, 0000:01:00.0, $validUuid")}
     $validNegativeEnvelope = [pscustomobject]@{result=[pscustomobject]@{status='DIAGNOSTIC_ONLY';exitCode=255};outputLines=@('provider unavailable')}
@@ -2669,6 +2696,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         nvidiaEnvironmentContexts = $nvidiaContextEvidence
         programW6432WitnessProcessPair = $witnessProcessPair.evidence
         programW6432WitnessCallOrder = [pscustomobject]@{validCalls=@($validSequenceCalls.ToArray());invalidPositiveFixtures=@($invalidPositiveFixtures | ForEach-Object { $_.name });invalidPositiveStoppedAtOneCall=$true}
+        programW6432InventoryProcessInfo = [pscustomobject]@{builder='New-CargoProcessInfo';profileEnvironmentRoots=@('CARGO_HOME','CARGO_TARGET_DIR','TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME');extraHostRootsAdded=$false;validatedProgramW6432Present=$inventoryPsi.EnvironmentVariables.ContainsKey('ProgramW6432');childStarted=$false}
         programW6432Resolver = $programWResolverEvidence
         programW6432ProfileAllowlist = 'PASS: only GPU/NVIDIA profiles listed; CPU, Auto fallback, pending Parakeet GPU, and discovery profiles excluded'
         programW6432CargoEnvironment = 'PASS: validated host value passed only to approved GPU Cargo profiles; Visual Studio spoof ignored'
@@ -2705,7 +2733,7 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
     $environment = Get-ProfileEnvironment $Profile $ValuesDoc $script:RunRoot $Lot (-not $DryRunOnly)
     Assert-CampaignRoots $Lot $script:RunRoot $environment
     $stagingEvidence = if (-not $DryRunOnly) { Copy-ProfileStaging $Profile $ValuesDoc $environment.LOCALAPPDATA $script:RunRoot } else { @() }
-    $toolchain = if ($Profile.operation -ceq 'Diagnostic') { if ($Profile.id -ceq 'NvidiaProgramW6432Witness' -and -not $DryRunOnly) { Get-CargoExecutable } else { $null } } else { Get-CargoExecutable }
+    $toolchain = if ($Profile.operation -ceq 'Diagnostic') { if ($Profile.id -in @('NvidiaProgramW6432Witness','NvidiaSmiInventoryDiagnostic') -and -not $DryRunOnly) { Get-CargoExecutable } else { $null } } else { Get-CargoExecutable }
     if ($Profile.operation -ceq 'Diagnostic') {
         if ($Profile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
             $outcome = Invoke-NvidiaSmiEnvironmentComparison $Profile $environment $toolchain $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
@@ -2717,7 +2745,9 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
             $outcome = Invoke-NvidiaProgramW6432Witness $Profile $environment $vsEnvironment $toolchain $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
             return [pscustomobject]@{ profile=$Profile.id; status=$outcome.status; cases=@($outcome.cases); witness=$outcome.witness; staging=@($stagingEvidence); runRoot=$script:RunRoot; logs=$script:LogRoot }
         }
-        $outcome = Invoke-NvidiaSmiDiagnostic $Profile $environment @{} $null $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
+        $vsEnvironment = @{}
+        if ($Profile.id -ceq 'NvidiaSmiInventoryDiagnostic' -and -not $DryRunOnly) { $vsEnvironment = Get-VsEnvironment (Get-VsDevCommand) $Environment.TEMP $Environment.TMP $script:RunRoot }
+        $outcome = Invoke-NvidiaSmiDiagnostic $Profile $environment $vsEnvironment $toolchain $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
         return [pscustomobject]@{ profile=$Profile.id; status=$outcome.status; cases=@($outcome); staging=@($stagingEvidence); runRoot=$script:RunRoot; logs=$script:LogRoot }
     }
     if ($Profile.operation -ne 'Run') {
@@ -2784,6 +2814,9 @@ try {
                         $script:RunRoot = $previousRunRoot
                         if (Test-InRoot $runRoot $script:Lot -and (Test-Path -LiteralPath $runRoot)) { Remove-Item -LiteralPath $runRoot -Recurse -Force -ErrorAction SilentlyContinue }
                     }
+                } elseif ($profile.id -ceq 'NvidiaSmiInventoryDiagnostic') {
+                    $inventoryPsi = New-NvidiaSmiInventoryProcessInfo $profile $environment $runRoot
+                    if (-not $inventoryPsi.EnvironmentVariables.ContainsKey('ProgramW6432') -or [string]$inventoryPsi.EnvironmentVariables['ProgramW6432'] -ine (Get-ValidatedProgramW6432Directory)) { throw 'NVIDIA inventory preflight PSI did not contain the validated ProgramW6432 environment value.' }
                 } else {
                     $null = New-NvidiaDiagnosticProcessInfo $profile.id $nvidiaExe ([string[]]$profile.command.arguments) $environment $runRoot
                 }
