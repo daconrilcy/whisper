@@ -2292,11 +2292,11 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     $emptyModuleEvidence = Complete-NvidiaModuleCapture $emptyModuleCapture
     if ($emptyModuleEvidence.nvmlObservation -cne 'NO_SAMPLE' -or $emptyModuleEvidence.absenceConclusion -cne 'NOT_SUPPORTED') { throw 'No-sample module capture implied a negative DLL conclusion.' }
     $collectorErrorCapture = New-NvidiaModuleCapture 998
-    $disposedProcess = New-Object Diagnostics.Process
-    $disposedProcess.Dispose()
-    Capture-NvidiaProcessModules $disposedProcess $collectorErrorCapture
+    Capture-NvidiaProcessModules $null $collectorErrorCapture
     $collectorErrorEvidence = Complete-NvidiaModuleCapture $collectorErrorCapture
-    if ([int]$collectorErrorEvidence.errorCount -lt 1 -or @($collectorErrorEvidence.errors).Count -lt 1 -or $collectorErrorEvidence.coverage -cne 'POLLING_ONLY_NONEXHAUSTIVE' -or $collectorErrorEvidence.absenceConclusion -cne 'NOT_SUPPORTED') { throw 'Synthetic disposed-process module collection did not preserve the collector error and non-exhaustive status.' }
+    if ([int]$collectorErrorEvidence.errorCount -lt 1 -or @($collectorErrorEvidence.errors).Count -lt 1 -or $collectorErrorEvidence.coverage -cne 'POLLING_ONLY_NONEXHAUSTIVE' -or $collectorErrorEvidence.absenceConclusion -cne 'NOT_SUPPORTED') {
+        throw "Synthetic null-process module collection did not preserve collector-error evidence: errorCount=$($collectorErrorEvidence.errorCount); errors=$([string]::Join('|',@($collectorErrorEvidence.errors))); coverage=$($collectorErrorEvidence.coverage); absenceConclusion=$($collectorErrorEvidence.absenceConclusion)."
+    }
     $moduleCaptureSelfTestEvidence = [pscustomobject]@{status='PASS';sampleCount=[int]$moduleCaptureReceipt.moduleCapture.sampleCount;coverage=$moduleCaptureReceipt.moduleCapture.coverage;nvmlObservation=$moduleCaptureReceipt.moduleCapture.nvmlObservation;absenceConclusion=$moduleCaptureReceipt.moduleCapture.absenceConclusion;unionCount=@($moduleCaptureReceipt.moduleCapture.observedModuleUnion).Count;metadataCount=@($moduleCaptureReceipt.moduleCapture.nvidiaModuleMetadata).Count;stdoutSha256=$moduleCaptureReceipt.stdoutSha256;stderrSha256=$moduleCaptureReceipt.stderrSha256;zeroSampleCase=$emptyModuleEvidence.nvmlObservation;collectorError=[pscustomobject]@{status='PASS';errorCount=$collectorErrorEvidence.errorCount;errors=@($collectorErrorEvidence.errors);coverage=$collectorErrorEvidence.coverage;absenceConclusion=$collectorErrorEvidence.absenceConclusion}}
     foreach ($scenario in @(
         [pscustomobject]@{name='success';exit=0},
