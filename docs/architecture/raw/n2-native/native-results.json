@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "revision": 13,
+  "revision": 14,
   "candidate": "d163aa4e",
-  "authorization": "Oui, diagnostiquer ce point et poursuivre",
+  "authorization": "Oui, reprendre la validation puis les diagnostics",
   "history": [
     {
       "candidate": "de9003dc",
@@ -474,13 +474,13 @@
     "applied": true,
     "status": "PASS; historical preparation now completed"
   },
-  "freeBytes": 110763159552,
+  "freeBytes": 110757421056,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 531,
-    "priorEntriesPreserved": 526,
+    "entryCount": 533,
+    "priorEntriesPreserved": 531,
     "entriesVerified": true,
-    "sha256": "768c9f209552922a1930fb06fd4fce8c4f44ba5cf0bf04fec68073d9bf617e9a",
+    "sha256": "7e6e7041bc6362c98d91197aae246f03e8362d82609ac60b81d0966f9998d798",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -3136,6 +3136,16 @@
         "path": "target/n2-native/resources/nvml-environment-comparison/cargo-root-fix.json",
         "bytes": 1054,
         "sha256": "1cd0fe036a62db5a2fbd55dbf03ed5a6d9323bf60e88e50eae435f75cecef9a3"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-environment-selftest-final-resume.txt",
+        "bytes": 297,
+        "sha256": "a477ea89d92908c16de3db485b64370aa0aafd6f6f9f0c8f7a47851f1165853b"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/boolean-selftest-stop.json",
+        "bytes": 1122,
+        "sha256": "7d567f5871899375a938b2a8f17b9c1f7a65c560ba6fcc99a41daf33e1e0ce35"
       }
     ]
   },
@@ -3500,7 +3510,7 @@
   "nvmlEnvironmentPreparation": {
     "planCommit": "83a9ba5d",
     "candidate": "233d5079",
-    "status": "WAITING_RESTART_AFTER_DICTIONARY_ROOT_FIX",
+    "status": "STOPPED_BARE_BOOLEAN_COMMAND_IN_SELFTEST",
     "initialSelfTest": {
       "candidate": "5002c9b1",
       "status": "FAIL",
@@ -3593,6 +3603,16 @@
         "path": "target/n2-native/resources/nvml-environment-comparison/cargo-root-fix.json",
         "bytes": 1054,
         "sha256": "1cd0fe036a62db5a2fbd55dbf03ed5a6d9323bf60e88e50eae435f75cecef9a3"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-environment-selftest-final-resume.txt",
+        "bytes": 297,
+        "sha256": "a477ea89d92908c16de3db485b64370aa0aafd6f6f9f0c8f7a47851f1165853b"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-environment-comparison/boolean-selftest-stop.json",
+        "bytes": 1122,
+        "sha256": "7d567f5871899375a938b2a8f17b9c1f7a65c560ba6fcc99a41daf33e1e0ce35"
       }
     ],
     "restartAttempt": {
@@ -3611,7 +3631,7 @@
       "reviewCyclesConsumed": 2,
       "furtherExecutionSuspended": true
     },
-    "overallDeliveryStatus": "Static findings closed; corrected FullSelfTest NOT RUN; dynamic validation incomplete",
+    "overallDeliveryStatus": "LIVRE AVEC RESERVES; FullSelfTest FAIL, no real NVIDIA diagnostics",
     "rootCause": "PROVEN: old PowerShell command swallowed -ine; follow-on self-test StringDictionary method/property errors corrected",
     "extraCycle": {
       "authorization": "Oui, diagnostiquer ce point et poursuivre",
@@ -3632,6 +3652,35 @@
       "realNvidiaCalls": 0,
       "cargoCalls": 0,
       "restartRequiresArbitration": true
+    },
+    "booleanSelfTestStop": {
+      "candidate": "d163aa4e",
+      "restartAuthorization": "Oui, reprendre la validation puis les diagnostics",
+      "mode": "SelfTest",
+      "status": "FAIL",
+      "exitCode": 1,
+      "atUtc": "2026-11-02T06:27:55.5783464Z",
+      "message": "N2_GUARD_FAIL mode=SelfTest profile= message=Le terme « true » n'est pas reconnu comme nom d'applet de commande, fonction, fichier de script ou programme exécutable. Vérifiez l'orthographe du nom, ou si un chemin d'accès existe, vérifiez que le chemin d'accès est correct et réessayez.",
+      "trace": "target/n2-native/logs/nvml-environment-selftest-final-resume.txt",
+      "traceSha256": "a477ea89d92908c16de3db485b64370aa0aafd6f6f9f0c8f7a47851f1165853b",
+      "bareBooleanCommandAst": [
+        {
+          "line": 736,
+          "command": "true",
+          "text": "true"
+        },
+        {
+          "line": 736,
+          "command": "false",
+          "text": "false"
+        }
+      ],
+      "proposedCorrection": "PowerShell $true / $false at the two summary fields, not bare commands",
+      "correctionApplied": false,
+      "realNvidiaCalls": 0,
+      "cargoCalls": 0,
+      "furtherExecutionSuspended": true,
+      "freeBytesAtStart": 110503419904
     }
   },
   "priorRevision11": {
@@ -3643,5 +3692,10 @@
     "gitSnapshot": "f52d30a1",
     "archiveEntryCount": 526,
     "archiveSha256": "f9cf847791c56ddf2418136eca8292c769e6773f130dc95c747c81bd0afec7df"
+  },
+  "priorRevision13": {
+    "gitSnapshot": "066cc3da",
+    "archiveEntryCount": 531,
+    "archiveSha256": "768c9f209552922a1930fb06fd4fce8c4f44ba5cf0bf04fec68073d9bf617e9a"
   }
 }

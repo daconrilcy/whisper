@@ -1,6 +1,6 @@
-Avancée : 42 corps ciblés PASS ; cause PowerShell démontrée, comparaisons et auto-tests associés corrigés et relus statiquement.
-Blocage : dernier auto-test arrêté sur accès StringDictionary ; candidat corrigé non exécuté.
-Décision : reprise à arbitrer selon la règle permanente ; aucune validation globale CLEAN ni fusion.
+Avancée : 42 corps ciblés PASS ; reprise du candidat d163aa4e exécutée, nouveau défaut de montage identifié.
+Blocage : booléens sans préfixe PowerShell dans le compte rendu d'auto-test ; FullSelfTest FAIL avant NVIDIA.
+Décision : LIVRÉ AVEC RÉSERVES ; correction et reprise à arbitrer, aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -333,3 +333,11 @@ La reproduction autorisée, non qualifiante, a terminé exit 1 sur le montage su
 La revue indépendante du même périmètre a relevé **NVML-R3 IMPORTANT** : les assertions du montage lisaient USERPROFILE, PROGRAMDATA, ALLUSERSPROFILE et PUBLIC comme propriétés, ce qui ne lit pas les clés StringDictionary et rendait aussi le test de profil ambiant inefficace. Correction **`d163aa4e`** : vérification de présence par ContainsKey, indexeurs et comparaison des valeurs canoniques réellement copiées pour les quatre contextes. Parseur PS5.1 et diff-check PASS. Le même reviewer a fermé NVML-R3 sans nouveau constat, **CLEAN statique uniquement** ; FullSelfTest de ce candidat **NON EXÉCUTÉ**, validation dynamique toujours suspendue. Seule la garde a changé dans ce cycle ; JSON, racines, Rust, pilote et système inchangés.
 
 Reprise proposée : FullSelfTest sur `d163aa4e`, puis fermeture de l'écart de preuve, préflights et diagnostics du plan s'il passe. Aucun nouveau correctif prévu. L'accord de reprise après ce nouvel arrêt reste requis par `AGENTS.md:53`. Bilan réel : **zéro appel NVIDIA réel, zéro Cargo, zéro worker/modèle**, aucune qualification GPU. Archive révision **13**, **531 entrées**, les 526 précédentes préservées et cinq ajoutées, tailles/SHA vérifiés intégralement ; SHA **`768c9f209552922a1930fb06fd4fce8c4f44ba5cf0bf04fec68073d9bf617e9a`**. Espace libre relevé **110 763 159 552 octets**. Aucun nettoyage, rapport supplémentaire, installation, fusion ou push.
+
+### Arrêt de la reprise sur d163aa4e
+
+Accord reçu : **« Oui, reprendre la validation puis les diagnostics »**. Garde inchangée, SHA `3ca9dac6…1ff5d3c` ; espace libre initial **110 503 419 904 octets**. FullSelfTest exécuté une fois : **exit 1**, après environ 2,8 s, `true` non reconnu comme commande. Trace `logs/nvml-environment-selftest-final-resume.txt`. L'AST du script confirme les deux seuls appels nus `true` et `false` à la ligne 736 : champs `processStartInfoConstructed=true;processStarted=false` du compte rendu de la fixture. Ils doivent être les booléens PowerShell `$true` et `$false`. Aucun correctif appliqué après cet arrêt. Ce défaut est dans le nouveau montage d'auto-test ; la revue statique ne l'avait pas détecté. La correction fonctionnelle des racines n'est pas remise en cause par ce constat, mais le candidat n'a toujours pas passé le FullSelfTest.
+
+Proposition bornée, non appliquée : corriger ces deux littéraux dans la seule garde et auditer l'ensemble des auto-tests du nouveau profil, puis auto-tests/revue indépendante (deux cycles maximum) et diagnostics prévus si PASS. Pour éviter une succession d'arbitrages sur le montage, demander explicitement une exception limitée à ce lot : autoriser les reprises des seuls auto-tests de ce profil après correction d'un défaut de montage, dans ce budget ; toute fuite de racine, erreur de surveillance, erreur de lancement/flux ou commande Cargo/native demeure soumise à l'arrêt/arbitrage permanent. Aucun changement permanent d'AGENTS.md, aucune baisse des contrôles, aucun profil JSON, racine, Rust, pilote ou système supplémentaire. Les diagnostics réels restent interdits avant FullSelfTest PASS et revue fermée.
+
+Bilan maintenu : **zéro appel NVIDIA réel, zéro Cargo, zéro worker/modèle**, campagne GPU non qualifiée. Preuves révision **14**, **533 entrées**, 531 anciennes préservées et deux ajoutées ; tailles/SHA intégralement vérifiés, ZIP **`7e6e7041bc6362c98d91197aae246f03e8362d82609ac60b81d0966f9998d798`**. Espace libre final relevé **110 757 421 056 octets**. Aucun nouveau rapport, nettoyage, installation, fusion ou push.
