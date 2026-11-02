@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "status": "WAITING_EXTRA_CYCLE_ARBITRATION",
+  "base": "53eb3bce",
+  "branch": "codex/garde-nvml",
+  "candidate": "cad79544af4428cfb47c33283f93a8c86ad2f8e6",
+  "productAudit": "PASS no environment clearing or ProgramW6432 removal",
+  "productPaths": [
+    {
+      "path": "crates/whisper-adapters/src/worker_ipc/ipc/mod.rs",
+      "line": 57,
+      "worker": "Turbo CPU/GPU and decoder",
+      "environment": "inherits all"
+    },
+    {
+      "path": "crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs",
+      "line": 392,
+      "worker": "decoder via Turbo CPU",
+      "environment": "inherits all"
+    },
+    {
+      "path": "crates/whisper-adapters/src/parakeet_import.rs",
+      "line": 411,
+      "worker": "Parakeet CPU/GPU",
+      "environment": "inherits; add PARAKEET_L2_RUNTIME_ROOT/PARAKEET_L3_ASR_LOG; remove 7 historical PARAKEET names only"
+    },
+    {
+      "path": "crates/whisper-adapters/src/parakeet_import.rs",
+      "line": 800,
+      "worker": "nvidia-smi",
+      "environment": "inherits all"
+    },
+    {
+      "path": "crates/whisper-worker-parakeet-cpu/src/gpu_identity.rs",
+      "line": 133,
+      "worker": "nvidia-smi in GPU worker",
+      "environment": "inherits all"
+    }
+  ],
+  "review": {
+    "verdict": "LIVRE AVEC RESERVES",
+    "candidate": "cad79544af4428cfb47c33283f93a8c86ad2f8e6",
+    "baseline": "53eb3bce",
+    "authorizedCorrectionCycles": 1,
+    "correctionCyclesUsed": 1,
+    "closed": [
+      "GN-R1",
+      "GN-R3"
+    ],
+    "open": [
+      {
+        "id": "GN-R2",
+        "severity": "IMPORTANT",
+        "cause": "Historical NvidiaSmiInventoryDiagnostic still uses a builder requiring PROGRAMDATA/ALLUSERSPROFILE/PUBLIC absent from its effective Get-ProfileEnvironment",
+        "requiredFix": "Restore historical Cargo-backed builder and toolchain/preflight path; keep specialized NVIDIA builder for comparison profile only",
+        "constraints": "No other variable, inherited host root, weaker check or product code change"
+      }
+    ],
+    "selfTest": "NOT RUN",
+    "preflights": "NOT RUN",
+    "liveWitness": "NOT RUN",
+    "gpuResume": "NOT RUN"
+  },
+  "hostAndRegistryValue": "C:\\Program Files",
+  "realNvidiaCalls": 0,
+  "cargoCalls": 0,
+  "nativeWorkerCalls": 0,
+  "qualifiedGpuProfiles": [],
+  "fullCampaignQualified": false,
+  "mergePerformed": false,
+  "programWVariableOnlyAdded": true,
+  "freeBytes": 105087500288,
+  "archive": {
+    "file": "results.zip",
+    "entries": [
+      {
+        "path": "target/n2-native/resources/preparation.json",
+        "bytes": 210,
+        "sha256": "fee375cebab0653ba27f9739c28932fb956f84d45cd0bda45de1b41e2aba9c6f"
+      },
+      {
+        "path": "target/n2-native/resources/cache-copy.json",
+        "bytes": 304,
+        "sha256": "976b74aa6eb6c667cdd944824a9282f77277d003916d692aa17ede2619fd31eb"
+      },
+      {
+        "path": "target/n2-native/resources/system-value.json",
+        "bytes": 350,
+        "sha256": "b55363bad32ea847e4119c5550582e21ef723091fecce490241a9ea941d4d214"
+      },
+      {
+        "path": "target/n2-native/resources/static-review.json",
+        "bytes": 845,
+        "sha256": "baa5cbe90ae510eda351b427701eb3bb05b8a50c2fb8f6825ded9448564063a1"
+      },
+      {
+        "path": "target/n2-native/requests/NvidiaProgramW6432Witness.json",
+        "bytes": 284,
+        "sha256": "f9f3e14ecf18cbf03d231818393bc9e51abe7130170b2682d2693d7dafcd4292"
+      },
+      {
+        "path": "target/n2-native/requests/PersonalUnifiedGpuOnly.json",
+        "bytes": 4788,
+        "sha256": "2e819f3f9a9ab160778dbfcfcb05f3092793fde6bf9b88328332405553796609"
+      }
+    ],
+    "entryCount": 6,
+    "allSizesAndHashesVerified": true,
+    "sha256": "94aaa789f1947768267b2b690302a0e6e745e6354f2f7f5de5748fe700c0cb72"
+  }
+}
