@@ -1,6 +1,6 @@
-Avancée : 42 corps ciblés PASS ; reprise du candidat d163aa4e exécutée, nouveau défaut de montage identifié.
-Blocage : booléens sans préfixe PowerShell dans le compte rendu d'auto-test ; FullSelfTest FAIL avant NVIDIA.
-Décision : LIVRÉ AVEC RÉSERVES ; correction et reprise à arbitrer, aucune fusion.
+Avancée : 42 corps ciblés PASS ; lot de correction et audit des auto-tests NVML autorisé, en cours.
+Blocage : auto-tests non encore validés ; aucun diagnostic NVIDIA réel lancé.
+Décision : reprises des seuls auto-tests après défaut de montage autorisées dans ce lot borné ; contrôles de sécurité inchangés, aucune fusion.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -341,3 +341,9 @@ Accord reçu : **« Oui, reprendre la validation puis les diagnostics »**. Gard
 Proposition bornée, non appliquée : corriger ces deux littéraux dans la seule garde et auditer l'ensemble des auto-tests du nouveau profil, puis auto-tests/revue indépendante (deux cycles maximum) et diagnostics prévus si PASS. Pour éviter une succession d'arbitrages sur le montage, demander explicitement une exception limitée à ce lot : autoriser les reprises des seuls auto-tests de ce profil après correction d'un défaut de montage, dans ce budget ; toute fuite de racine, erreur de surveillance, erreur de lancement/flux ou commande Cargo/native demeure soumise à l'arrêt/arbitrage permanent. Aucun changement permanent d'AGENTS.md, aucune baisse des contrôles, aucun profil JSON, racine, Rust, pilote ou système supplémentaire. Les diagnostics réels restent interdits avant FullSelfTest PASS et revue fermée.
 
 Bilan maintenu : **zéro appel NVIDIA réel, zéro Cargo, zéro worker/modèle**, campagne GPU non qualifiée. Preuves révision **14**, **533 entrées**, 531 anciennes préservées et deux ajoutées ; tailles/SHA intégralement vérifiés, ZIP **`7e6e7041bc6362c98d91197aae246f03e8362d82609ac60b81d0966f9998d798`**. Espace libre final relevé **110 757 421 056 octets**. Aucun nouveau rapport, nettoyage, installation, fusion ou push.
+
+### Lot borné des auto-tests NVML et exception ponctuelle acceptée
+
+Accord utilisateur : **« Oui, ce lot et cette exception bornée »**. Base `46400303`, espace libre initial **109 989 318 656 octets**. Quatre tâches : correction déléguée des deux booléens et audit global du montage des nouveaux auto-tests ; FullSelfTest séquentiel et corrections des seuls défauts de montage démontrés ; revue indépendante avec deux cycles maximum ; conservation des preuves puis reprise des diagnostics déjà prévus uniquement après PASS et revue fermée. Seul `ci/guard-native.ps1`, dans ses auto-tests nouveaux, peut être modifié ; aucun changement du code de processus, du profil JSON, des racines, des contrôles, du Rust ou du système.
+
+Pour ce lot seulement, l'accord précis permet de reprendre les seuls auto-tests après correction d'une erreur de montage, sans nouvel arbitrage pour chaque telle erreur, dans le budget de revue/correction fixé. Une fuite de racine, erreur de surveillance, lancement ou flux, ou commande Cargo/native reste soumise à l'arrêt/arbitrage permanent. Les violations volontairement injectées et capturées par les fixtures prévues restent des tests synthétiques, pas des qualifications. Aucun changement permanent d'AGENTS.md ; aucun NVIDIA réel, worker ou modèle avant FullSelfTest PASS et revue fermée. Les autorisations antérieures des diagnostics et leurs limites restent applicables ensuite.
