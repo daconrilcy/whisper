@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "revision": 15,
-  "candidate": "b37d91fb",
-  "authorization": "Oui, ce lot et cette exception bornée",
+  "revision": 16,
+  "candidate": "422d3b22",
+  "authorization": "Oui, ce lot et cette exception bornée; Oui, corriger la finalisation et poursuivre",
   "history": [
     {
       "candidate": "de9003dc",
@@ -474,13 +474,13 @@
     "applied": true,
     "status": "PASS; historical preparation now completed"
   },
-  "freeBytes": 110021156864,
+  "freeBytes": 110002806784,
   "archive": {
     "file": "native-runs.zip",
-    "entryCount": 539,
-    "priorEntriesPreserved": 533,
+    "entryCount": 566,
+    "priorEntriesPreserved": 539,
     "entriesVerified": true,
-    "sha256": "4a5125eb7fb3e7f1193bcf42db717ef8cafc207190d33eb9c62e38a7e5c4dca2",
+    "sha256": "d3eb36c63d12c93ece0a42fd1554711479ae81bd131a375e626c7b75a8144dae",
     "entries": [
       {
         "path": "target/n2-native/logs/PersonalUnified-5bfb4d2aa69f4c6785bd18076264df56/native_personal_cpu_imports_french_mp3_through_the_unified_application.invocation.json",
@@ -3176,6 +3176,141 @@
         "path": "target/n2-native/logs/nvml-selftest-audited-attempt-1.txt",
         "bytes": 546,
         "sha256": "da7cc91d156a70fc4a4410f386d340ff1622486af918082a3504d0e004ec24df"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/guard-selftest.json",
+        "bytes": 9660,
+        "sha256": "000d4f5d02debcab133ed4d2be6e9b24904d97ecd812a168298457a85df7f180"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/nvidia-smi-query-gpu-clean.invocation.json",
+        "bytes": 63934,
+        "sha256": "13f28026e20eb76b3a2f1ab6764a1ee59ab1a91b2fec198ea0a1eb01df9a40f3"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/nvidia-smi-query-gpu-clean.process.json",
+        "bytes": 206,
+        "sha256": "449beac0441b3ed3bcb011acc72d5fc87b2e1656498502256a6b609980363aa7"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/nvidia-smi-query-gpu-clean.stderr.log",
+        "bytes": 444,
+        "sha256": "cb8347fca75668db6d815c75e145c4e5805cc19d2d5931e1f0542075adb8dd00"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/nvidia-smi-query-gpu-clean.stdout.log",
+        "bytes": 26,
+        "sha256": "26e505f8929e60762fd776064c2e6b42b306eb46cc0008c2f69d8ecdebfde679"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/results-summary.json",
+        "bytes": 7938,
+        "sha256": "b03ab50305e636ce2408c178066e646976ea15850a419aafe543c5e7949b05fe"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/unattributed-temp.jsonl",
+        "bytes": 280,
+        "sha256": "d1fec00e51a2c76a3279805b486e67a35def0681bf68b87a725a982c1083de91"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-d9a9cea7b26148d296536f5a273ba0bd/nvidia-smi-query-gpu.invocation.json",
+        "bytes": 1633,
+        "sha256": "4af2e36cd1b13268e9171f33930b2e78aaab6babbd88e288a3b309603a7f121a"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-d9a9cea7b26148d296536f5a273ba0bd/nvidia-smi-query-gpu.process.json",
+        "bytes": 156,
+        "sha256": "f71ab0b13b0e2466e899816de5718e2c57b472043e167aa6ee1d249cc77c386b"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-d9a9cea7b26148d296536f5a273ba0bd/nvidia-smi-query-gpu.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-d9a9cea7b26148d296536f5a273ba0bd/nvidia-smi-query-gpu.stdout.log",
+        "bytes": 42,
+        "sha256": "dc7f7417d9d99a7bf4e6a8c746ddcbb830e1471e03dbb088f05d2ec00c67cda9"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-d9a9cea7b26148d296536f5a273ba0bd/result.json",
+        "bytes": 1312,
+        "sha256": "524fe3a149b0d858a3222dfc790603ac5313ce4bf06504247633515a1d3adafe"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/result.json",
+        "bytes": 4698,
+        "sha256": "8885a0146ef068701ca4e2bc11b3f158b415da3838fdaa53aa6a303988396f60"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/clean/nvidia-smi-query-gpu-clean.invocation.json",
+        "bytes": 9834,
+        "sha256": "9b70c496e517888bced4a23e9fd80c5466be10544e355a5ac54efa76dd246a20"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/clean/nvidia-smi-query-gpu-clean.process.json",
+        "bytes": 181,
+        "sha256": "9588014a22ab8044922a010b6cec85baeb36771002865c2a4e36258e17972faa"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/clean/nvidia-smi-query-gpu-clean.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/clean/nvidia-smi-query-gpu-clean.stdout.log",
+        "bytes": 42,
+        "sha256": "dc7f7417d9d99a7bf4e6a8c746ddcbb830e1471e03dbb088f05d2ec00c67cda9"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/host-nvidia-filtered/nvidia-smi-query-gpu-host-nvidia-filtered.invocation.json",
+        "bytes": 11006,
+        "sha256": "f49c06b21a4595de1583e93dd497270a516a8405cb4668a26d273d2b6c4a3dda"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/host-nvidia-filtered/nvidia-smi-query-gpu-host-nvidia-filtered.process.json",
+        "bytes": 210,
+        "sha256": "0012aeb3c84eb93b34960216fbcf369114d4cf50ae4afa869b5c16310d75e1c9"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/host-nvidia-filtered/nvidia-smi-query-gpu-host-nvidia-filtered.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/host-nvidia-filtered/nvidia-smi-query-gpu-host-nvidia-filtered.stdout.log",
+        "bytes": 42,
+        "sha256": "dc7f7417d9d99a7bf4e6a8c746ddcbb830e1471e03dbb088f05d2ec00c67cda9"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-selftest-audited-attempt-2.txt",
+        "bytes": 341,
+        "sha256": "2781d9489ecb7907b5848f06bd332c96090bfef63397f527a087ba2f142bc26b"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-selftest-audited-attempt-3.txt",
+        "bytes": 673,
+        "sha256": "a565fcd87e2ec739b8aaaa919dfe177b646c1826d41b134d73b6fc5f421e2619"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-baseline-preflight.txt",
+        "bytes": 500,
+        "sha256": "330c0933d289070c04d18a3e8b3424a420b9e97ce8917785985f252b6d6c81ae"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-comparison-preflight.txt",
+        "bytes": 456,
+        "sha256": "d5654b2efba5c2152bb4e6b847fc0ed3e50d4e4b666ad27df4a179f1b5432d2a"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-baseline-run.txt",
+        "bytes": 317,
+        "sha256": "0c52ad53ffa52d22ed7efb495c68a32251f7c07f70c88f09b0b56c8d060210bb"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-comparison-run.txt",
+        "bytes": 344,
+        "sha256": "3abb523fc3812c56a341f59e91a3d94147a62e0351ed531701766c701d2e3839"
       }
     ]
   },
@@ -3539,8 +3674,8 @@
   },
   "nvmlEnvironmentPreparation": {
     "planCommit": "83a9ba5d",
-    "candidate": "233d5079",
-    "status": "STOPPED_STREAM_FINALIZATION_SHA_LOCK",
+    "candidate": "422d3b22",
+    "status": "COMPLETE_DIAGNOSTIC_CLEAN_TOOLING_NVML_BLOCKED",
     "initialSelfTest": {
       "candidate": "5002c9b1",
       "status": "FAIL",
@@ -3567,22 +3702,19 @@
       "vendorProcessExecuted": false
     },
     "independentReview": {
-      "verdict": "CLEAN STATIC ONLY",
-      "candidate": "233d5079",
-      "closedFindings": [
-        "NVML-R1",
-        "NVML-R2"
-      ],
-      "newFindings": [],
-      "reviewCycles": 2,
-      "verificationGap": "FullSelfTest corrected candidate NOT RUN; initial failure preserved",
-      "restartAuthorized": false
+      "verdict": "CLEAN",
+      "candidate": "422d3b22",
+      "findings": [],
+      "verificationGaps": [],
+      "guardSha256": "a9729fab616cd6d471886f22ae1f418f14ec13d2e16ce531a225d5982d55679b",
+      "registrySha256": "43c726a73ba7b6b4fb6127c49dbd07febbdadd22c0fb025cf0635ab719698590",
+      "earlierStaticOnlyVerdictsHistorical": true
     },
-    "realNvidiaCalls": 0,
+    "realNvidiaCalls": 3,
     "cargoCalls": 0,
     "gpuQualificationStarted": false,
-    "comparisonResultsAvailable": false,
-    "userArbitrationRequiredBeforeRestart": true,
+    "comparisonResultsAvailable": true,
+    "userArbitrationRequiredBeforeRestart": false,
     "proofFiles": [
       {
         "path": "target/n2-native/resources/nvml-environment-comparison/preparation.json",
@@ -3643,6 +3775,141 @@
         "path": "target/n2-native/resources/nvml-environment-comparison/boolean-selftest-stop.json",
         "bytes": 1122,
         "sha256": "7d567f5871899375a938b2a8f17b9c1f7a65c560ba6fcc99a41daf33e1e0ce35"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/guard-selftest.json",
+        "bytes": 9660,
+        "sha256": "000d4f5d02debcab133ed4d2be6e9b24904d97ecd812a168298457a85df7f180"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/nvidia-smi-query-gpu-clean.invocation.json",
+        "bytes": 63934,
+        "sha256": "13f28026e20eb76b3a2f1ab6764a1ee59ab1a91b2fec198ea0a1eb01df9a40f3"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/nvidia-smi-query-gpu-clean.process.json",
+        "bytes": 206,
+        "sha256": "449beac0441b3ed3bcb011acc72d5fc87b2e1656498502256a6b609980363aa7"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/nvidia-smi-query-gpu-clean.stderr.log",
+        "bytes": 444,
+        "sha256": "cb8347fca75668db6d815c75e145c4e5805cc19d2d5931e1f0542075adb8dd00"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/nvidia-smi-query-gpu-clean.stdout.log",
+        "bytes": 26,
+        "sha256": "26e505f8929e60762fd776064c2e6b42b306eb46cc0008c2f69d8ecdebfde679"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/results-summary.json",
+        "bytes": 7938,
+        "sha256": "b03ab50305e636ce2408c178066e646976ea15850a419aafe543c5e7949b05fe"
+      },
+      {
+        "path": "target/n2-native/resources/nvml-selftest-audited-pass/unattributed-temp.jsonl",
+        "bytes": 280,
+        "sha256": "d1fec00e51a2c76a3279805b486e67a35def0681bf68b87a725a982c1083de91"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-d9a9cea7b26148d296536f5a273ba0bd/nvidia-smi-query-gpu.invocation.json",
+        "bytes": 1633,
+        "sha256": "4af2e36cd1b13268e9171f33930b2e78aaab6babbd88e288a3b309603a7f121a"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-d9a9cea7b26148d296536f5a273ba0bd/nvidia-smi-query-gpu.process.json",
+        "bytes": 156,
+        "sha256": "f71ab0b13b0e2466e899816de5718e2c57b472043e167aa6ee1d249cc77c386b"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-d9a9cea7b26148d296536f5a273ba0bd/nvidia-smi-query-gpu.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-d9a9cea7b26148d296536f5a273ba0bd/nvidia-smi-query-gpu.stdout.log",
+        "bytes": 42,
+        "sha256": "dc7f7417d9d99a7bf4e6a8c746ddcbb830e1471e03dbb088f05d2ec00c67cda9"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-d9a9cea7b26148d296536f5a273ba0bd/result.json",
+        "bytes": 1312,
+        "sha256": "524fe3a149b0d858a3222dfc790603ac5313ce4bf06504247633515a1d3adafe"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/result.json",
+        "bytes": 4698,
+        "sha256": "8885a0146ef068701ca4e2bc11b3f158b415da3838fdaa53aa6a303988396f60"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/clean/nvidia-smi-query-gpu-clean.invocation.json",
+        "bytes": 9834,
+        "sha256": "9b70c496e517888bced4a23e9fd80c5466be10544e355a5ac54efa76dd246a20"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/clean/nvidia-smi-query-gpu-clean.process.json",
+        "bytes": 181,
+        "sha256": "9588014a22ab8044922a010b6cec85baeb36771002865c2a4e36258e17972faa"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/clean/nvidia-smi-query-gpu-clean.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/clean/nvidia-smi-query-gpu-clean.stdout.log",
+        "bytes": 42,
+        "sha256": "dc7f7417d9d99a7bf4e6a8c746ddcbb830e1471e03dbb088f05d2ec00c67cda9"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/host-nvidia-filtered/nvidia-smi-query-gpu-host-nvidia-filtered.invocation.json",
+        "bytes": 11006,
+        "sha256": "f49c06b21a4595de1583e93dd497270a516a8405cb4668a26d273d2b6c4a3dda"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/host-nvidia-filtered/nvidia-smi-query-gpu-host-nvidia-filtered.process.json",
+        "bytes": 210,
+        "sha256": "0012aeb3c84eb93b34960216fbcf369114d4cf50ae4afa869b5c16310d75e1c9"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/host-nvidia-filtered/nvidia-smi-query-gpu-host-nvidia-filtered.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiEnvironmentCompareDiagnostic-23b1388b902d4787926661a42096736a/contexts/host-nvidia-filtered/nvidia-smi-query-gpu-host-nvidia-filtered.stdout.log",
+        "bytes": 42,
+        "sha256": "dc7f7417d9d99a7bf4e6a8c746ddcbb830e1471e03dbb088f05d2ec00c67cda9"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-selftest-audited-attempt-2.txt",
+        "bytes": 341,
+        "sha256": "2781d9489ecb7907b5848f06bd332c96090bfef63397f527a087ba2f142bc26b"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-selftest-audited-attempt-3.txt",
+        "bytes": 673,
+        "sha256": "a565fcd87e2ec739b8aaaa919dfe177b646c1826d41b134d73b6fc5f421e2619"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-baseline-preflight.txt",
+        "bytes": 500,
+        "sha256": "330c0933d289070c04d18a3e8b3424a420b9e97ce8917785985f252b6d6c81ae"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-comparison-preflight.txt",
+        "bytes": 456,
+        "sha256": "d5654b2efba5c2152bb4e6b847fc0ed3e50d4e4b666ad27df4a179f1b5432d2a"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-baseline-run.txt",
+        "bytes": 317,
+        "sha256": "0c52ad53ffa52d22ed7efb495c68a32251f7c07f70c88f09b0b56c8d060210bb"
+      },
+      {
+        "path": "target/n2-native/logs/nvml-comparison-run.txt",
+        "bytes": 344,
+        "sha256": "3abb523fc3812c56a341f59e91a3d94147a62e0351ed531701766c701d2e3839"
       }
     ],
     "restartAttempt": {
@@ -3661,8 +3928,8 @@
       "reviewCyclesConsumed": 2,
       "furtherExecutionSuspended": true
     },
-    "overallDeliveryStatus": "LIVRE AVEC RESERVES; output SHA before writer close; no real NVIDIA diagnostics",
-    "rootCause": "PROVEN: old PowerShell command swallowed -ine; follow-on self-test StringDictionary method/property errors corrected",
+    "overallDeliveryStatus": "CLEAN tool implementation and FullSelfTest; real NVML diagnostic INCONCLUSIVE for cause; GPU qualification still blocked",
+    "rootCause": "NVML vendor failure cause UNKNOWN; PowerShell guard self-test defects resolved",
     "extraCycle": {
       "authorization": "Oui, diagnostiquer ce point et poursuivre",
       "scope": "ci/guard-native.ps1 root comparison and associated self-test only",
@@ -3756,7 +4023,260 @@
           "sha256": "da7cc91d156a70fc4a4410f386d340ff1622486af918082a3504d0e004ec24df"
         }
       ]
-    }
+    },
+    "finalResults": {
+      "candidate": "422d3b22",
+      "independentReview": "CLEAN",
+      "findings": [],
+      "verificationGaps": [],
+      "selfTest": "PASS",
+      "preflights": "PASS both",
+      "realNvidiaCalls": 3,
+      "cargoCalls": 0,
+      "workerOrModelCalls": 0,
+      "diagnosticStatus": "INCONCLUSIVE_CAUSE_NOT_CORRECTED",
+      "rows": [
+        {
+          "profile": "NvidiaSmiInventoryDiagnostic",
+          "case": "nvidia-smi-query-gpu",
+          "context": null,
+          "exitCode": 255,
+          "status": "DIAGNOSTIC_ONLY",
+          "elapsedSeconds": 0.96,
+          "stdout": "Failed to initialize NVML: Unknown Error\r\n",
+          "stderrBytes": 0,
+          "argvJson": "[\"--query-gpu=count,pci.bus_id,uuid\",\"--format=csv,noheader,nounits\"]",
+          "executable": "C:\\WINDOWS\\System32\\nvidia-smi.exe",
+          "executableSha256": null,
+          "environmentContext": null,
+          "modulePolling": null
+        },
+        {
+          "profile": "NvidiaSmiEnvironmentCompareDiagnostic",
+          "case": "nvidia-smi-query-gpu-clean",
+          "context": "clean",
+          "exitCode": 255,
+          "status": "DIAGNOSTIC_ONLY",
+          "elapsedSeconds": 0.906,
+          "stdout": "Failed to initialize NVML: Unknown Error\r\n",
+          "stderrBytes": 0,
+          "argvJson": "[\"--query-gpu=count,pci.bus_id,uuid\",\"--format=csv,noheader,nounits\"]",
+          "executable": "C:\\WINDOWS\\System32\\nvidia-smi.exe",
+          "executableSha256": "f874229e4df6313f39b4af658add6d2b74682f2a44b5957aa6104d19a8593ec6",
+          "environmentContext": {
+            "context": "clean",
+            "inheritedEnvironmentNames": [
+              "SystemRoot",
+              "WINDIR",
+              "SystemDrive",
+              "ComSpec",
+              "PATHEXT",
+              "OS",
+              "PROCESSOR_ARCHITECTURE",
+              "NUMBER_OF_PROCESSORS"
+            ],
+            "cudaVariables": [
+              {
+                "name": "CUDA_PATH",
+                "status": "VALIDATED_NOT_PASSED"
+              },
+              {
+                "name": "CUDA_PATH_V12_9",
+                "status": "VALIDATED_NOT_PASSED"
+              }
+            ],
+            "filteredPathDirectories": [
+              "C:\\WINDOWS\\System32",
+              "C:\\WINDOWS"
+            ],
+            "includedHostVendorDirectories": [],
+            "omittedHostPathEntryCount": 0,
+            "invalidHostPathEntryCount": 0,
+            "reparsePathEntryRejectedCount": 0,
+            "writableEnvironmentRoots": [
+              "CARGO_HOME",
+              "CARGO_TARGET_DIR",
+              "TEMP",
+              "TMP",
+              "LOCALAPPDATA",
+              "APPDATA",
+              "USERPROFILE",
+              "HOME",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "PROGRAMDATA",
+              "ALLUSERSPROFILE",
+              "PUBLIC"
+            ],
+            "environmentDumpWritten": false
+          },
+          "modulePolling": {
+            "sampleCount": 1,
+            "observedModuleCount": 4,
+            "errorCount": 0,
+            "nvmlObservation": "NOT_OBSERVED_IN_POLLED_SNAPSHOTS",
+            "coverage": "POLLING_ONLY_NONEXHAUSTIVE",
+            "absenceConclusion": "NOT_SUPPORTED",
+            "nvidiaModuleMetadata": []
+          }
+        },
+        {
+          "profile": "NvidiaSmiEnvironmentCompareDiagnostic",
+          "case": "nvidia-smi-query-gpu-host-nvidia-filtered",
+          "context": "host-nvidia-filtered",
+          "exitCode": 255,
+          "status": "DIAGNOSTIC_ONLY",
+          "elapsedSeconds": 0.721,
+          "stdout": "Failed to initialize NVML: Unknown Error\r\n",
+          "stderrBytes": 0,
+          "argvJson": "[\"--query-gpu=count,pci.bus_id,uuid\",\"--format=csv,noheader,nounits\"]",
+          "executable": "C:\\WINDOWS\\System32\\nvidia-smi.exe",
+          "executableSha256": "f874229e4df6313f39b4af658add6d2b74682f2a44b5957aa6104d19a8593ec6",
+          "environmentContext": {
+            "context": "host-nvidia-filtered",
+            "inheritedEnvironmentNames": [
+              "SystemRoot",
+              "WINDIR",
+              "SystemDrive",
+              "ComSpec",
+              "PATHEXT",
+              "OS",
+              "PROCESSOR_ARCHITECTURE",
+              "NUMBER_OF_PROCESSORS"
+            ],
+            "cudaVariables": [
+              {
+                "name": "CUDA_PATH",
+                "status": "INCLUDED_VALIDATED",
+                "path": "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.9"
+              },
+              {
+                "name": "CUDA_PATH_V12_9",
+                "status": "INCLUDED_VALIDATED",
+                "path": "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.9"
+              }
+            ],
+            "filteredPathDirectories": [
+              "C:\\WINDOWS\\System32",
+              "C:\\WINDOWS",
+              "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.9\\bin"
+            ],
+            "includedHostVendorDirectories": [
+              "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.9\\bin"
+            ],
+            "omittedHostPathEntryCount": 49,
+            "invalidHostPathEntryCount": 14,
+            "reparsePathEntryRejectedCount": 0,
+            "writableEnvironmentRoots": [
+              "CARGO_HOME",
+              "CARGO_TARGET_DIR",
+              "TEMP",
+              "TMP",
+              "LOCALAPPDATA",
+              "APPDATA",
+              "USERPROFILE",
+              "HOME",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "PROGRAMDATA",
+              "ALLUSERSPROFILE",
+              "PUBLIC"
+            ],
+            "environmentDumpWritten": false
+          },
+          "modulePolling": {
+            "sampleCount": 2,
+            "observedModuleCount": 4,
+            "errorCount": 0,
+            "nvmlObservation": "NOT_OBSERVED_IN_POLLED_SNAPSHOTS",
+            "coverage": "POLLING_ONLY_NONEXHAUSTIVE",
+            "absenceConclusion": "NOT_SUPPORTED",
+            "nvidiaModuleMetadata": []
+          }
+        }
+      ],
+      "comparison": {
+        "condition": "conditional contexts run only when primary exitCode/stdout/stderr differ",
+        "primaryOutputsEqual": true,
+        "cleanSignature": {
+          "exitCode": 255,
+          "stdoutSha256": "dc7f7417d9d99a7bf4e6a8c746ddcbb830e1471e03dbb088f05d2ec00c67cda9",
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "hostNvidiaFilteredSignature": {
+          "exitCode": 255,
+          "stdoutSha256": "dc7f7417d9d99a7bf4e6a8c746ddcbb830e1471e03dbb088f05d2ec00c67cda9",
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "conditionalContexts": [
+          "path-only",
+          "vars-only"
+        ],
+        "conditionalStatus": "NOT_RUN_PRIMARY_OUTPUTS_EQUAL",
+        "differenceCriteria": [
+          "exitCode",
+          "stdoutSha256",
+          "stderrSha256"
+        ]
+      },
+      "selfTestContextEvidence": {
+        "contexts": [
+          "clean",
+          "host-nvidia-filtered",
+          "path-only",
+          "vars-only"
+        ],
+        "hostPathExactAllowlist": "PASS",
+        "cudaVariableSplit": "PASS",
+        "writableRootsRerouted": "PASS",
+        "ambientSecretExcluded": "PASS",
+        "reparsePathRejected": "PASS",
+        "outsideRootRejected": "PASS",
+        "conditionalSignature": "exitCode/stdout/stderr only",
+        "processStartInfoConstructed": true,
+        "processStarted": false
+      },
+      "selfTestModuleEvidence": {
+        "status": "PASS",
+        "sampleCount": 14,
+        "coverage": "POLLING_ONLY_NONEXHAUSTIVE",
+        "nvmlObservation": "NOT_OBSERVED_IN_POLLED_SNAPSHOTS",
+        "absenceConclusion": "NOT_SUPPORTED",
+        "unionCount": 76,
+        "metadataCount": 0,
+        "stdoutSha256": "26e505f8929e60762fd776064c2e6b42b306eb46cc0008c2f69d8ecdebfde679",
+        "stderrSha256": "cb8347fca75668db6d815c75e145c4e5805cc19d2d5931e1f0542075adb8dd00",
+        "zeroSampleCase": "NO_SAMPLE",
+        "collectorError": {
+          "status": "PASS",
+          "errorCount": 1,
+          "errors": [
+            "module snapshot: Impossible d’appeler une méthode dans une expression Null."
+          ],
+          "coverage": "POLLING_ONLY_NONEXHAUSTIVE",
+          "absenceConclusion": "NOT_SUPPORTED"
+        }
+      },
+      "toolSha256Unchanged": true,
+      "staticSystem32NvmlSha256": "4b6dea5255f5077f2cedf111e6d4737093b842b5b6bb79b8ab6a23ae713b1136",
+      "nvmlFileMetadataDoesNotProveModuleLoaded": true,
+      "gpuTestsRestarted": false,
+      "reasonNoGpuRestart": "No successful NVML query and no proven environment correction",
+      "driverOrSystemChanged": false,
+      "fullCampaignQualified": false,
+      "mergePerformed": false
+    },
+    "finalSelfTest": {
+      "status": "PASS",
+      "exitCode": 0,
+      "log": "target/n2-native/logs/nvml-selftest-audited-attempt-3.txt",
+      "syntheticOnly": true,
+      "normalModuleSamples": 14,
+      "normalObservedModules": 76,
+      "collectorInjectedErrorCount": 1,
+      "previousVerificationGapsClosed": true
+    },
+    "furtherInvestigationRequiresNewScope": true
   },
   "priorRevision11": {
     "gitSnapshot": "3b6bb869",
@@ -3777,5 +4297,10 @@
     "gitSnapshot": "46400303",
     "archiveEntryCount": 533,
     "archiveSha256": "7e6e7041bc6362c98d91197aae246f03e8362d82609ac60b81d0966f9998d798"
+  },
+  "priorRevision15": {
+    "gitSnapshot": "e3a19538",
+    "archiveEntryCount": 539,
+    "archiveSha256": "4a5125eb7fb3e7f1193bcf42db717ef8cafc207190d33eb9c62e38a7e5c4dca2"
   }
 }

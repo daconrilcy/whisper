@@ -1,6 +1,6 @@
-Avancée : 42 corps ciblés PASS ; montage corrigé, auto-test NVML avancé jusqu'au processus synthétique de capture.
-Blocage : calcul SHA des flux avant fermeture des writers dans le code de capture ; FullSelfTest FAIL, aucun NVIDIA réel.
-Décision : arrêt hors exception de montage ; extension bornée à la finalisation des flux à arbitrer, aucune fusion.
+Avancée : outillage NVML relu CLEAN, FullSelfTest PASS ; trois diagnostics NVIDIA réels exécutés et archivés.
+Blocage : NVML échoue identiquement dans les contextes testés ; cause fournisseur indéterminée, campagne GPU incomplète.
+Décision : aucun correctif d'environnement justifié ni reprise GPU ; aucune fusion. Les 42 cas ciblés PASS restent acquis.
 
 # N2 natif puis intégration locale — sept tâches
 
@@ -357,3 +357,25 @@ Extension précise proposée, non appliquée : dans la seule garde, fermer les w
 Bilan **LIVRÉ AVEC RÉSERVES** : zéro NVIDIA réel, zéro Cargo, zéro worker/modèle. Preuves révision **15**, **539 entrées**, 533 anciennes préservées et six ajoutées, tailles/SHA intégralement vérifiés ; ZIP **`4a5125eb7fb3e7f1193bcf42db717ef8cafc207190d33eb9c62e38a7e5c4dca2`**. Espace libre relevé **110 021 156 864 octets**. Aucun nouveau rapport, nettoyage, installation, fusion ou push.
 
 Extension et reprise explicitement accordées : **« Oui, corriger la finalisation et poursuivre »**. Le lot inclut désormais la seule fermeture des deux fichiers de sortie du code de capture après fin/EOF/vidange et avant SHA, sans assouplissement de partage ni modification des autres contrôles. Les fixtures existantes, les deux cycles de revue disponibles et l'exception limitée aux erreurs de montage restent applicables ; les autres erreurs de sécurité/flux demeurent bloquantes. Correction déléguée, puis auto-tests séquentiels, revue et diagnostics prévus après PASS.
+
+### Livraison du diagnostic NVML : CLEAN de l'outillage, échec fournisseur reproduit
+
+Correction **`7d99c052`** : pour la capture des modules, le processus est terminé, les deux EOF reçus et la file vidée avant Flush/Dispose des deux writers puis lecture SHA. Le finally conserve ses références pour le nettoyage idempotent ; le parcours historique reste inchangé. Le FullSelfTest suivant a franchi ce contrôle mais échoué sur la fixture Process disposé, qui ne garantissait pas l'erreur attendue. Correction de montage dans l'exception autorisée, **`422d3b22`** : passage de `$null` au vrai collecteur, exception dans son try/catch, aucune modification du collecteur. L'assertion vérifie l'erreur enregistrée, la couverture non exhaustive et l'impossibilité de conclure à l'absence d'une DLL.
+
+**FullSelfTest final PASS, exit 0**, trace `logs/nvml-selftest-audited-attempt-3.txt`, preuve figée dans `resources/nvml-selftest-audited-pass/`. Quatre contextes et racines validés ; processus synthétique observé sur 14 échantillons/76 modules, erreur nominale zéro, exception injectée enregistrée une fois. SHA des sorties concordants, injections et nettoyage prévus passent. **Revue indépendante CLEAN au premier cycle de ce lot**, aucun constat ni écart de vérification ; les écarts FullSelfTest des candidats précédents sont clos par preuve sur le candidat final. Garde SHA **`a9729fab616cd6d471886f22ae1f418f14ec13d2e16ce531a225d5982d55679b`**, registre inchangé **`43c726a73ba7b6b4fb6127c49dbd07febbdadd22c0fb025cf0635ab719698590`**. Les deux préflights passent. Aucun Cargo, worker ou modèle exécuté dans ce diagnostic.
+
+Même EXE System32, SHA **`f874229e4df6313f39b4af658add6d2b74682f2a44b5957aa6104d19a8593ec6`**, version 8.17.15.8129 et même requête `--query-gpu=count,pci.bus_id,uuid --format=csv,noheader,nounits` pour les trois appels réels sous garde :
+
+| Contexte | Code outil | Durée relevée | Résultat stdout / stderr |
+| --- | ---: | ---: | --- |
+| Ancien diagnostic témoin (`d9a9cea7…ba0bd`) | 255 | 0,960 s | `Failed to initialize NVML: Unknown Error` / vide |
+| `clean` (`23b1388b…6736a`) | 255 | 0,906 s | même sortie / vide |
+| `host-nvidia-filtered` (même run) | 255 | 0,721 s | même sortie / vide |
+
+La garde termine **DIAGNOSTIC_ONLY**, sans erreur de racine/surveillance/flux/lancement, pour ces échecs fournisseur explicitement recueillis comme données. Le contexte clean transmet PATH Windows/System32 sans les deux variables CUDA ; le contexte hôte filtré ajoute CUDA 12.9/bin et les deux variables CUDA validées. **Les signatures code/stdout/stderr sont strictement identiques** : les deux contre-épreuves ne sont pas exécutées, conformément au plan (`NOT_RUN_PRIMARY_OUTPUTS_EQUAL`). Trois appels réels sur un maximum de cinq, aucune autre sonde réelle ni relance du profil GPU.
+
+Collecte réelle limitée : un échantillon sur le PID clean et deux sur le PID hôte filtré ; quatre modules observés dans chaque cas (EXE, ntdll, KERNEL32 et KERNELBASE), zéro erreur de collecte, **aucune observation de nvml.dll**. Cela ne prouve pas son absence : une DLL transitoire peut être manquée. Aucune SHA/version de DLL NVIDIA chargée ne peut être attribuée à ces processus à partir de ces snapshots. Le fichier System32/nvml.dll présent sur disque conserve sa SHA **`4b6dea5255f5077f2cedf111e6d4737093b842b5b6bb79b8ab6a23ae713b1136`** et sa version, mais ces métadonnées statiques ne prouvent pas son chargement. EXE et fichier DLL inchangés avant/après.
+
+**Conclusion limitée :** les variations PATH/CUDA effectivement testées ne suffisent pas à lever l'échec NVML. La cause fournisseur reste indéterminée. Le contexte hôte filtré conserve TEMP/USERPROFILE/LOCALAPPDATA/PROGRAMDATA isolés et écarte d'autres chemins hôte ; il n'est pas un lancement habituel complet. Ces résultats ne prouvent ni une panne globale de pilote ni la cause précise dans l'application. Aucun correctif d'environnement ne serait justifié, donc aucun test GPU n'est relancé. Le prochain périmètre à arbitrer, si poursuite demandée, serait la comparaison avec un lancement Windows habituel complet ou une observation plus fiable des chargements ; cela dépasse ce lot et n'est pas exécuté.
+
+Preuves finales dans les mêmes fichiers, révision **16** : **566 entrées**, les 539 précédentes conservées et 27 ajoutées, tailles/SHA de toutes les entrées vérifiés ; ZIP **`d3eb36c63d12c93ece0a42fd1554711479ae81bd131a375e626c7b75a8144dae`**. Espace libre final relevé : **110 002 806 784 octets**. Aucun nouveau rapport, nettoyage, pilote/système/install modifié, fusion ou push. La campagne complète reste non qualifiée ; les blocages NVML, corpus français perdu et autres prérequis demeurent. `main` reste à `248f8679`.
