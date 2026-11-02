@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "status": "WAITING_EXTRA_CYCLE_ARBITRATION",
+  "status": "CLEAN_GUARD_WITNESS_PASS_GPU_TEST_FAILED_STAGING",
   "base": "53eb3bce",
   "branch": "codex/garde-nvml",
-  "candidate": "cad79544af4428cfb47c33283f93a8c86ad2f8e6",
+  "candidate": "34f7498fdc88629f613686109a25684bf4974201",
   "productAudit": "PASS no environment clearing or ProgramW6432 removal",
   "productPaths": [
     {
@@ -38,40 +38,32 @@
     }
   ],
   "review": {
-    "verdict": "LIVRE AVEC RESERVES",
-    "candidate": "cad79544af4428cfb47c33283f93a8c86ad2f8e6",
-    "baseline": "53eb3bce",
-    "authorizedCorrectionCycles": 1,
-    "correctionCyclesUsed": 1,
+    "verdict": "CLEAN GARDE-NVML",
+    "candidate": "34f7498fdc88629f613686109a25684bf4974201",
     "closed": [
       "GN-R1",
+      "GN-R2",
       "GN-R3"
     ],
-    "open": [
-      {
-        "id": "GN-R2",
-        "severity": "IMPORTANT",
-        "cause": "Historical NvidiaSmiInventoryDiagnostic still uses a builder requiring PROGRAMDATA/ALLUSERSPROFILE/PUBLIC absent from its effective Get-ProfileEnvironment",
-        "requiredFix": "Restore historical Cargo-backed builder and toolchain/preflight path; keep specialized NVIDIA builder for comparison profile only",
-        "constraints": "No other variable, inherited host root, weaker check or product code change"
-      }
-    ],
-    "selfTest": "NOT RUN",
-    "preflights": "NOT RUN",
-    "liveWitness": "NOT RUN",
-    "gpuResume": "NOT RUN"
+    "findings": [],
+    "guardSha256": "4d62b484cdcaa6d278ee5e4b5ea2155e4349aed0f0fbaffd217a8f8545e12f6a",
+    "registrySha256": "d871e7724811294ee71f120ec50e50bd5843460fc4314304cc95f5b39b9e5327",
+    "extraGnR2CycleAuthorized": true
   },
   "hostAndRegistryValue": "C:\\Program Files",
-  "realNvidiaCalls": 0,
-  "cargoCalls": 0,
-  "nativeWorkerCalls": 0,
+  "cargoCalls": 1,
+  "nativeWorkerCalls": null,
   "qualifiedGpuProfiles": [],
   "fullCampaignQualified": false,
   "mergePerformed": false,
   "programWVariableOnlyAdded": true,
-  "freeBytes": 105087500288,
+  "freeBytes": 101618073600,
   "archive": {
     "file": "results.zip",
+    "entryCount": 29,
+    "priorEntriesPreserved": 6,
+    "allSizesAndHashesVerified": true,
+    "sha256": "e45c8be7a881c3815be6b7172a86c202d82330e2f988165f7accc9bd916750d8",
     "entries": [
       {
         "path": "target/n2-native/resources/preparation.json",
@@ -102,10 +94,248 @@
         "path": "target/n2-native/requests/PersonalUnifiedGpuOnly.json",
         "bytes": 4788,
         "sha256": "2e819f3f9a9ab160778dbfcfcb05f3092793fde6bf9b88328332405553796609"
+      },
+      {
+        "path": "target/n2-native/logs/garde-nvml-selftest.txt",
+        "bytes": 673,
+        "sha256": "84364ee435f3396d2f8a87fc737fc6b98aafb580b57176fbe5e689956c925346"
+      },
+      {
+        "path": "target/n2-native/logs/guard-selftest-reusable-roots.json",
+        "bytes": 13558,
+        "sha256": "f30d036973dfc51501e20e60cc0a6faf425e8a38518db7a8a144e7ab78153ec1"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaProgramW6432Witness-preflight.txt",
+        "bytes": 428,
+        "sha256": "88b1c3b607cc8d47b444a116294779a14ea3cd68a3c21adc96b6428f2d030e38"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-preflight.txt",
+        "bytes": 487,
+        "sha256": "f72ab9b9ab824adbbc342f039c47dac8a7461d76d22f66f6d2f83e4b8c1768d0"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaSmiInventoryDiagnostic-preflight.txt",
+        "bytes": 431,
+        "sha256": "6d47873becbbab1602a6bddbaa5bc7d679db7b9dd312d5a5d409f3eb2942f304"
+      },
+      {
+        "path": "target/n2-native/logs/ProgramW6432-witness-run.txt",
+        "bytes": 308,
+        "sha256": "ba683991dadc570fc47955c8bacb89044dacc715ef243d0925c991ccad31ff7b"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-run.txt",
+        "bytes": 997,
+        "sha256": "2cc89b0a0d0c29f8daa668ad5dde5d927af58b2daf18c0cae6d8a18d6a61bb01"
+      },
+      {
+        "path": "target/n2-native/resources/gpu-runtime-stop.json",
+        "bytes": 1089,
+        "sha256": "d8d276e6b28dfad285cbba570abfa9bd4d491f09ea039ce0c28e3ce885cb83af"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaProgramW6432Witness-6eded13787864cfc81aa6f412669251c/nvidia-smi-query-gpu-programw-negative.invocation.json",
+        "bytes": 2072,
+        "sha256": "80dbedfa918a7ea47c2b39f0803bf496148bb17922887d1380d7c35ca5eb75af"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaProgramW6432Witness-6eded13787864cfc81aa6f412669251c/nvidia-smi-query-gpu-programw-negative.process.json",
+        "bytes": 175,
+        "sha256": "6d2703053017818f3cae422adad68e92d5af47940c5ff66205163ae4e32ef71a"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaProgramW6432Witness-6eded13787864cfc81aa6f412669251c/nvidia-smi-query-gpu-programw-negative.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaProgramW6432Witness-6eded13787864cfc81aa6f412669251c/nvidia-smi-query-gpu-programw-negative.stdout.log",
+        "bytes": 42,
+        "sha256": "dc7f7417d9d99a7bf4e6a8c746ddcbb830e1471e03dbb088f05d2ec00c67cda9"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaProgramW6432Witness-6eded13787864cfc81aa6f412669251c/nvidia-smi-query-gpu-programw-positive.invocation.json",
+        "bytes": 2075,
+        "sha256": "ea13adac5413d67bd91668b473e5e4a8e0de51fc8cb8e4a516d97df69b52cb6f"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaProgramW6432Witness-6eded13787864cfc81aa6f412669251c/nvidia-smi-query-gpu-programw-positive.process.json",
+        "bytes": 175,
+        "sha256": "325cbfbefdc2f91b37d3db97b86161ae34fddc7a576477ad48acf1960e65190a"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaProgramW6432Witness-6eded13787864cfc81aa6f412669251c/nvidia-smi-query-gpu-programw-positive.stderr.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaProgramW6432Witness-6eded13787864cfc81aa6f412669251c/nvidia-smi-query-gpu-programw-positive.stdout.log",
+        "bytes": 63,
+        "sha256": "ff72cf953c7a2013d527a09cbb2131d07c8605a0608c559acfab0c1a3aaead37"
+      },
+      {
+        "path": "target/n2-native/logs/NvidiaProgramW6432Witness-6eded13787864cfc81aa6f412669251c/result.json",
+        "bytes": 2945,
+        "sha256": "42e3dd7f976136fa9472159375001680007a5c46b5d688bd198b479bd5089c12"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-e38c6f527e234b209ef2cf8f7dfab0fd/native_personal_gpu_imports_english_mp3_with_attested_candidate.invocation.json",
+        "bytes": 1375,
+        "sha256": "d9a1d58b8b6d3d3b67b99ceb619373a56bbc4ca840a2edf080785a96690912a1"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-e38c6f527e234b209ef2cf8f7dfab0fd/native_personal_gpu_imports_english_mp3_with_attested_candidate.process.json",
+        "bytes": 147,
+        "sha256": "c563390323e03da5fa595b98957127d3712b00aaa607e1e1af7af064dec13b74"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-e38c6f527e234b209ef2cf8f7dfab0fd/native_personal_gpu_imports_english_mp3_with_attested_candidate.stderr.log",
+        "bytes": 6454,
+        "sha256": "5366bc26b6d14223d0abc5f0393c07abf59c4740d08832af51bb97773c2dd402"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-e38c6f527e234b209ef2cf8f7dfab0fd/native_personal_gpu_imports_english_mp3_with_attested_candidate.stdout.log",
+        "bytes": 299,
+        "sha256": "945107f2b30372043f7b296a5fcfdfdc687eec1eb7798559f3019b42acfb7df4"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-e38c6f527e234b209ef2cf8f7dfab0fd/result.json",
+        "bytes": 5081,
+        "sha256": "63ac7b6f6d99dedc9e85c0b76eb47dc96419f9d79b2dbc4a8957d04c1ad310a6"
+      },
+      {
+        "path": "target/n2-native/logs/PersonalUnifiedGpuOnly-e38c6f527e234b209ef2cf8f7dfab0fd/unattributed-temp.jsonl",
+        "bytes": 6049,
+        "sha256": "14abb6a806bcdaaa57a0591dbd29c40275eb46b4015f50e751911d8ed8a677ed"
+      }
+    ]
+  },
+  "initialReview": {
+    "verdict": "LIVRE AVEC RESERVES",
+    "candidate": "cad79544af4428cfb47c33283f93a8c86ad2f8e6",
+    "baseline": "53eb3bce",
+    "authorizedCorrectionCycles": 1,
+    "correctionCyclesUsed": 1,
+    "closed": [
+      "GN-R1",
+      "GN-R3"
+    ],
+    "open": [
+      {
+        "id": "GN-R2",
+        "severity": "IMPORTANT",
+        "cause": "Historical NvidiaSmiInventoryDiagnostic still uses a builder requiring PROGRAMDATA/ALLUSERSPROFILE/PUBLIC absent from its effective Get-ProfileEnvironment",
+        "requiredFix": "Restore historical Cargo-backed builder and toolchain/preflight path; keep specialized NVIDIA builder for comparison profile only",
+        "constraints": "No other variable, inherited host root, weaker check or product code change"
       }
     ],
-    "entryCount": 6,
-    "allSizesAndHashesVerified": true,
-    "sha256": "94aaa789f1947768267b2b690302a0e6e745e6354f2f7f5de5748fe700c0cb72"
+    "selfTest": "NOT RUN",
+    "preflights": "NOT RUN",
+    "liveWitness": "NOT RUN",
+    "gpuResume": "NOT RUN"
+  },
+  "internalToolCallsByProductNotCounted": true,
+  "selfTests": {
+    "status": "PASS",
+    "exitCode": 0,
+    "resolver": {
+      "matchingCanonicalPath": "PASS",
+      "missingProcessValue": "REJECTED",
+      "missingRegistryValue": "REJECTED",
+      "registryMismatch": "REJECTED",
+      "missingDirectory": "REJECTED",
+      "junction": "REJECTED",
+      "machineRegistryModified": false
+    },
+    "processPair": {
+      "workingDirectory": "C:\\dev\\whisper\\.wt\\nv",
+      "executable": "C:\\WINDOWS\\System32\\nvidia-smi.exe",
+      "arguments": "--query-gpu=count,pci.bus_id,uuid --format=csv,noheader,nounits",
+      "runRootIsShared": true,
+      "differingEnvironmentKeys": [
+        "ProgramW6432"
+      ],
+      "positiveProgramW6432": "C:\\Program Files",
+      "negativeProgramW6432Present": false
+    },
+    "callOrder": {
+      "validCalls": [
+        "positive",
+        "negative"
+      ],
+      "invalidPositiveFixtures": [
+        "unexpected provider failure",
+        "empty output",
+        "multiple UUID lines"
+      ],
+      "invalidPositiveStoppedAtOneCall": true
+    },
+    "profileAllowlist": "PASS: only GPU/NVIDIA profiles listed; CPU, Auto fallback, pending Parakeet GPU, and discovery profiles excluded"
+  },
+  "liveWitness": {
+    "status": "PASS expected positive0 and negative255",
+    "directCalls": 2,
+    "runId": "NvidiaProgramW6432Witness-6eded13787864cfc81aa6f412669251c",
+    "pair": {
+      "workingDirectory": "C:\\dev\\whisper\\.wt\\nv",
+      "executable": "C:\\WINDOWS\\System32\\nvidia-smi.exe",
+      "arguments": "--query-gpu=count,pci.bus_id,uuid --format=csv,noheader,nounits",
+      "runRootIsShared": true,
+      "differingEnvironmentKeys": [
+        "ProgramW6432"
+      ],
+      "positiveProgramW6432": "C:\\Program Files",
+      "negativeProgramW6432Present": false
+    },
+    "cases": [
+      {
+        "case": "nvidia-smi-query-gpu-programw-positive",
+        "exitCode": 0,
+        "stdout": "1, 00000000:01:00.0, GPU-99e636f6-45ac-0068-a378-7d7a8bca645e\r\n",
+        "stderrBytes": 0,
+        "elapsedSeconds": 0.915
+      },
+      {
+        "case": "nvidia-smi-query-gpu-programw-negative",
+        "exitCode": 255,
+        "stdout": "Failed to initialize NVML: Unknown Error\r\n",
+        "stderrBytes": 0,
+        "elapsedSeconds": 0.786
+      }
+    ]
+  },
+  "gpuAttempt": {
+    "candidate": "34f7498f",
+    "sourceInputFilesVerified": 23,
+    "stagedRuntimeFilesVerified": 21,
+    "gpuRun": "PersonalUnifiedGpuOnly-e38c6f527e234b209ef2cf8f7dfab0fd",
+    "testRuns": 1,
+    "passed": 0,
+    "failed": 1,
+    "cargoExitCode": 101,
+    "cargoSeconds": 62.168,
+    "bodySeconds": 33.75,
+    "failure": "WorkerLogPath: create runtime logs: path not found (os error 3)",
+    "intendedLogRoot": "C:\\dev\\whisper\\.wt\\nv\\target\\n2-native\\runs\\PersonalUnifiedGpuOnly-e38c6f527e234b209ef2cf8f7dfab0fd\\localappdata\\Whisper\\settings\\logs",
+    "pathLength": 134,
+    "settingsParentExists": false,
+    "runtimeLogsExists": true,
+    "cause": "create_dir(settings/logs) is non-recursive and settings parent absent from file-only staging",
+    "source": [
+      "crates/whisper-adapters/src/parakeet_import.rs:703",
+      "crates/whisper-adapters/src/parakeet_import.rs:708",
+      "crates/whisper-adapters/src/parakeet_import.rs:375",
+      "crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs:168"
+    ],
+    "correctionApplied": false,
+    "executionStopped": true,
+    "freeBytes": 101618073600
+  },
+  "preflights": {
+    "NvidiaProgramW6432Witness": "PASS",
+    "PersonalUnifiedGpuOnly": "PASS",
+    "NvidiaSmiInventoryDiagnostic": "PASS without tool launch"
   }
 }
