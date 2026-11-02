@@ -1,6 +1,6 @@
-Avancée : réserves GPU et sélecteurs existants relevés en lecture seule le 2 novembre 2026.
-Blocage : aucune campagne autorisée par la seule rédaction du plan ; prérequis à vérifier.
-Décision : proposer une qualification Parakeet GPU bornée à l'hôte Z790, sous garde N2.
+Avancée : plan révisé le 2 novembre 2026 autour des ressources et modules VoxPopuli locaux.
+Blocage : fichiers de recette à préparer/valider et tests VoxPopuli dédiés à implémenter après accord.
+Décision : préparer un corpus FR/EN renouvelé ; qualification Parakeet GPU sur Z790 sous garde N2.
 
 # Compléter la qualification GPU
 
@@ -10,6 +10,11 @@ Base Git observée : `main`, `92f9a2f7`. Les correctifs du message de démarrage
 (`1b76a7ea`) et du parent `settings` (`92f9a2f7`) sont commités, vérifiés et revus
 CLEAN ; aucun nouveau paquet n'a encore été livré. Les non-suivis `models/`
 et `sound example/` sont conservés.
+Révision corpus demandée par l'utilisateur : utiliser les modules Python déjà
+présents sous `sound example/voxpopuli/` pour préparer les fichiers nécessaires.
+Les anciennes fixtures françaises disparues ne sont plus des prérequis,
+des cas à restaurer ni des blocages de ce plan. Les bilans historiques restent
+des constats de leurs campagnes respectives.
 
 Preuves de départ : `docs/cadrage/GARDE-NVML.md` et
 `docs/architecture/raw/garde-nvml/results.json` attestent un succès de
@@ -37,29 +42,92 @@ est déjà établie et sa validation système existe dans la garde.
 | --- | --- |
 | AC1 | `ParakeetGpu` ne devient READY qu'avec ressources existantes vérifiées, variables/écritures bornées, sélecteurs réellement listés et contrat de garde relu CLEAN. READY signifie exécutable ; les résultats d'exécution restent séparés. |
 | AC2 | Chaque succès GPU inclut le candidat actuel et une preuve du backend CUDA effectivement utilisé, associée à l'exécution/identité ; un simple inventaire, une DLL chargée ou un code Cargo 0 ne suffit pas. |
-| AC3 | Le cas court GPU réussit trois fois dans des RunRoot distincts, avec sorties publiées et sources intactes. La répétition reste une mesure sur un seul hôte. |
+| AC3 | Le cas court EN GPU réussit trois fois dans des RunRoot distincts ; le cas court FR réussit aussi. Sorties publiées et sources intactes. La répétition reste une mesure sur un seul hôte. |
 | AC4 | Les imports longs français et anglais réussissent en GPU manuel et en Auto avec GPU effectif. Une réussite Auto sur CPU est classée repli CPU, sans qualification du cas GPU attendu. |
 | AC5 | Vérifier les assertions existantes de publication, TXT/SRT/WAV non vides, intégrité source et cohérence temporelle ; contrôler les annotations réellement disponibles. Aucun seuil ou assertion historique n'est abaissé. |
 | AC6 | Relever durée audio, temps d'import et ratio temps traitement/durée lorsque mesurables. Le critère produit GPU plus rapide que l'audio exige un ratio inférieur à 1 ; une mesure absente ou plus lente laisse la réserve de vitesse ouverte. La qualité est rapportée selon les contrôles et références disponibles, sans déduire de WER ni de comparaison CPU non mesurées. |
 | AC7 | Aucun changement installé, pilote, SDK, service, ACL, réseau ou modèle ; sorties exclusivement sous les racines N2 autorisées et cible Cargo partagée. Garde et ses contrôles ne sont pas affaiblis. |
-| AC8 | Bilan détaillant exécuté/PASS/FAIL/BLOQUÉ, nombre d'inférences et répétitions, GPU réellement utilisé et réserves ; FR87/FR27 restent explicitement non qualifiés. |
+| AC8 | Bilan détaillant exécuté/PASS/FAIL/BLOQUÉ, nombre d'inférences et répétitions, GPU réellement utilisé et réserves ; références et limites des nouveaux corpus clairement identifiées. |
+
+## Fichiers de recette à créer ou finaliser
+
+Sources locales constatées, sans exécution ni téléchargement :
+
+- `sound example/voxpopuli/voxpopuli_60s.py` sélectionne des extraits originaux
+  et des textes candidats depuis les annotations ;
+- `sound example/voxpopuli/scan_voxpopuli_60s.py` utilise FFmpeg/ffprobe pour
+  extraire du PCM mono 16 kHz et examiner les silences ;
+- `clips/raw_audios/original_2020.tar` existe, environ 5,26 Go ; les annotations
+  `clips/annotations/asr_fr.tsv.gz` et `asr_en.tsv.gz` existent ;
+- `clips/long_examples/{fr,en}_continuous60_2020_CANDIDATE.wav`, leurs JSON/TXT
+  et les fichiers `REFERENCE.txt` existent. Les JSON indiquent encore
+  `CANDIDATE_NOT_HUMAN_VALIDATED` ; les noms REFERENCE ne prouvent pas à eux
+  seuls une validation. Les fichiers `{fr,en}_long_2020.wav` sont des extraits
+  d'environ une minute, pas les sessions de 35/40 minutes nécessaires.
+
+Destination proposée des nouvelles recettes :
+`target/n2-native/qualification-gpu/corpus/`. Préserver intégralement scripts,
+archive, annotations et candidats d'origine. Les fichiers suivants sont des
+données de test locales, pas des sources à ajouter à Git :
+
+| Base du fichier | Audio à créer/finaliser | Référence et provenance à créer | Besoin |
+| --- | --- | --- | --- |
+| `fr-short-60s` | `.wav` PCM signé 16 bits, mono 16 kHz, 60 s ; `.mp3` dérivé du même extrait | `.reference.txt` et `.annotations.json` | court FR GPU manuel, WAV et MP3 |
+| `en-short-60s` | `.wav` même format et durée ; `.mp3` dérivé | `.reference.txt` et `.annotations.json` | court EN GPU manuel, MP3 répété trois fois |
+| `fr-long-35m` | `.wav`, même PCM, au moins 35 minutes de contenu distinct | `.reference.txt` et `.annotations.json` | long FR manuel et Auto |
+| `en-long-40m` | `.wav`, même PCM, au moins 40 minutes de contenu distinct | `.reference.txt` et `.annotations.json` | long EN manuel et Auto |
+
+Soit six fichiers audio et huit fichiers de référence/provenance. Les deux
+couples courts peuvent être finalisés à partir des candidats de 60 s présents,
+après écoute/correction du texte et vérification des limites des mots. Le MP3
+est un dérivé pour tester le décodage, pas un second contenu indépendant.
+Conserver sa durée décodée réelle : l'encodage peut introduire du délai ou du
+padding ; l'égalité binaire ou exacte du nombre d'échantillons avec le WAV
+n'est pas un critère adapté au MP3.
+
+Pour les longs, sélectionner dans l'archive locale des passages français et
+anglais associés aux annotations. Utiliser une prise originale continue si
+elle fournit les annotations nécessaires ; sinon assembler des passages
+distincts en documentant chaque raccord et chaque intervalle source. Aucun
+bouclage d'un extrait court pour atteindre la durée, aucune transcription
+générée par le moteur testé utilisée comme vérité terrain. Le module actuel
+de recherche de 60 s n'est pas annoncé comme un générateur de sessions de
+35/40 minutes : préparer les sélections et commandes FFmpeg de façon explicite
+avec les fonctions existantes, sans nouveau programme persistant hors plan.
+Si l'archive locale ne couvre pas ce besoin, consigner le manque et demander
+un accord précis avant tout téléchargement ; ne pas changer silencieusement
+la durée ou la qualité exigée.
+
+Chaque `.annotations.json` utilise un schéma VoxPopuli dédié, à fixer avant
+les tests : langue, échantillonnage/durée/nombre d'échantillons, SHA du WAV et
+des dérivés, archive/session/locuteur, identifiants de lignes, intervalles
+originaux, intervalles dans le WAV, références textuelles et état de validation.
+Les intervalles couvrent la totalité du WAV, y compris silences/raccords
+explicitement déclarés ; chaque chemin de provenance est relatif au dépôt.
+Les textes des métadonnées ne sont pas déclarés vérifiés à l'écoute tant que
+cette vérification n'a pas été faite. Pour les longs non revus intégralement,
+le bilan peut qualifier exécution/endurance/exports tout en laissant la
+qualité linguistique non qualifiée. WER/CER restent indicatifs tant que la
+référence et la normalisation n'ont pas été validées.
 
 ## Matrice proposée à figer après inventaire
 
-Tous les sélecteurs ci-dessous existent dans
-`crates/whisper-adapters/tests/parakeet_unified_native.rs` ; leur présence dans
-le harnais compilé doit être vérifiée sous garde avant utilisation.
+Les sélecteurs suivants sont proposés dans un nouveau sous-module de tests
+VoxPopuli de `parakeet_unified_native` ; ils n'existent pas encore. Leur présence
+et leurs noms exacts devront être listés sous garde avant passage du profil à READY.
 
-| Cas | Sélecteur exact | Moteur attendu | Limite du corps existante |
+| Cas | Sélecteur proposé | Moteur attendu | Borne proposée |
 | --- | --- | --- | --- |
-| G1, trois RunRoot | `native_personal_gpu_imports_english_mp3_with_attested_candidate` | Parakeet CUDA, GPU manuel | 15 min par exécution |
-| G2 | `native_personal_gpu_imports_annotated_french_long_audio` | Parakeet CUDA, GPU manuel | 90 min |
-| G3 | `native_personal_gpu_imports_annotated_english_long_audio` | Parakeet CUDA, GPU manuel | 90 min |
-| G4 | `native_personal_auto_imports_annotated_french_long_audio` | Auto, Parakeet CUDA réellement attesté | 90 min |
-| G5 | `native_personal_auto_imports_annotated_english_long_audio` | Auto, Parakeet CUDA réellement attesté | 90 min |
+| G1, trois RunRoot | `voxpopuli::english_short_mp3_gpu` | Parakeet CUDA, GPU manuel | 15 min par exécution |
+| G1-FR | `voxpopuli::french_short_wav_and_mp3_gpu` | Parakeet CUDA, GPU manuel, deux imports | 15 min par import |
+| G2 | `voxpopuli::french_long_gpu` | Parakeet CUDA, GPU manuel | 90 min |
+| G3 | `voxpopuli::english_long_gpu` | Parakeet CUDA, GPU manuel | 90 min |
+| G4 | `voxpopuli::french_long_auto_gpu` | Auto, Parakeet CUDA réellement attesté | 90 min |
+| G5 | `voxpopuli::english_long_auto_gpu` | Auto, Parakeet CUDA réellement attesté | 90 min |
 
-Sept exécutions prévues, dont quatre longues. La borne théorique des seuls
-corps atteint 6 h 45 ; préparation/compilation s'ajoutent. La garde doit
+Huit exécutions de test prévues, neuf imports au total, dont quatre longs.
+La borne théorique des imports atteint 7 h 15 ; préparation, écoute et
+compilation s'ajoutent. La garde doit
 accepter explicitement ces délais sans laisser un enfant survivre au parent.
 Les expirations de la garde restent appliquées ; s'il faut en modifier le
 contrat, le préciser et faire approuver cette modification avant campagne.
@@ -68,21 +136,26 @@ Attention : `run_native_import` accepte actuellement en Auto soit CUDA, soit
 le repli CPU avant audio. Il faut donc collecter l'indication du backend et
 son attestation dans les preuves de chaque cas. Si les sorties existantes ne
 permettent pas cette attribution, arrêter les cas concernés pour arbitrage
-d'un ajout de preuve ciblé ; aucun test n'est assoupli ni code Rust modifié
-dans le présent périmètre.
+d'un ajout de preuve ciblé. Les nouveaux tests VoxPopuli exigent explicitement
+CUDA pour les cas Auto de cette matrice ; les assertions des tests existants
+ne sont pas assouplies et le code Rust de production reste inchangé.
 
-Les cas historiques `gpu_app_fr_en_single_pass`, `gpu_app_en5` et les recettes
-L3/L6 ne remplacent pas cette matrice : certains exigent FR87/FR27 ou des
-racines/features historiques. Ils restent hors de ce premier lot. Les
-ressources longues annotées déjà utilisées par `PersonalLongCpu` doivent être
-revérifiées ; leur existence passée n'est pas une preuve de disponibilité actuelle.
+Les tests longs existants `run_native_long_case` valident spécifiquement le
+corpus SPS et ses TSV à 19 colonnes. Un WAV VoxPopuli renommé ne satisfait pas
+ce contrat. Les nouvelles recettes valident leur provenance VoxPopuli dans
+un module séparé et réutilisent les contrôles communs d'import/publication
+sans supprimer ceux des recettes SPS ni mélanger leurs schémas.
 
 ## Huit tâches après acceptation du plan et GO d'exécution
 
 1. **Inventaire, session principale et contributions en lecture seule.**
    Relever état Git, espace libre (minimum 30 Gio, plus place du staging),
    GPU/pilote/outils, chemins des workers et 21 ressources personnelles,
-   modèles, MP3 anglais court, WAV longs FR/EN, annotations et clips référencés.
+   modèles, modules Python/environnement existant, FFmpeg/ffprobe et sources
+   VoxPopuli locales. Préparer les six audios et huit références/provenances
+   listés ci-dessus, puis valider leur statut et leurs chemins avant exécution.
+   Usage des modules Python et FFmpeg locaux pour la recette conformément à
+   la demande de l'utilisateur ; aucune installation de paquet ou outil.
    Retrouver les copies préservées sous le dépôt après retrait des worktrees ;
    ne pas réutiliser aveuglément les anciens chemins `.wt/r8` ou `.wt/nv`.
    Référencer les identités/hashes de livraison déjà exigés, constater toute
@@ -90,7 +163,8 @@ revérifiées ; leur existence passée n'est pas une preuve de disponibilité ac
    micro, installation, téléchargement ni activation système.
 2. **Contrat de campagne.** Définir dans `ci/native-profiles.json` le profil
    `ParakeetGpu` sur les seuls cas de la matrice dont les prérequis sont prêts.
-   Réutiliser le staging personnel et les descripteurs des corpus longs.
+   Réutiliser le staging personnel ; déclarer les entrées VoxPopuli et leurs
+   annotations dédiées, sans leur attribuer la provenance SPS existante.
    Si nécessaire, séparer en deux profils bornés court/long pour éviter les
    reprises globales. Adapter `ci/guard-native.ps1` uniquement pour reconnaître
    ces profils dans les listes existantes : `ProgramW6432` réel validé registre,
@@ -99,9 +173,14 @@ revérifiées ; leur existence passée n'est pas une preuve de disponibilité ac
    La copie stagée ne contient pas `settings` précréé pour ces nouveaux profils :
    le produit corrigé doit en assurer la création. Ne pas retirer le
    contournement historique de `PersonalUnifiedGpuOnly` dans ce lot.
-3. **Auto-tests et revue de la garde.** Déléguer l'implémentation de ces deux
-   fichiers à un worker, avec propriété exclusive ; revue indépendante en
-   lecture seule avant tout appel natif. Valider arguments exacts, variables,
+3. **Recettes, auto-tests et revue.** Déléguer les nouveaux tests Rust à
+   `rust_implementer` : déclaration du sous-module et tests VoxPopuli séparés,
+   prévalidation des annotations/échantillons/références, preuve du moteur
+   effectif et contrôles des exports. Aucun moteur en production modifié.
+   Attribuer les deux fichiers CI à un auteur exclusif, sans écriture concurrente
+   sur les mêmes fichiers. Revue indépendante via `rust_review_coordinator`
+   pour le delta Rust et revue du contrat N2 avant tout appel natif.
+   Valider arguments exacts, variables,
    `ProgramW6432`, racines, surveillance, refus, délais, staging et absence de
    préparation implicite de `settings`. Deux cycles de correction maximum.
    Les auto-tests existants sont utilisés, sans création d'environnement Windows.
@@ -112,11 +191,11 @@ revérifiées ; leur existence passée n'est pas une preuve de disponibilité ac
    Les harnais de test utilisent la cible partagée existante. Aucun binaire
    de harnais compilé en workspace ne remplace un worker de livraison : les
    workers qualifiés restent identifiés et contrôlés PE/SHA séparément.
-5. **Campagne courte.** Exécuter G1 trois fois, isolément et séquentiellement,
+5. **Campagne courte.** Exécuter G1 trois fois et G1-FR une fois, séquentiellement,
    sans parallélisme de copies ni mutation des entrées. Capturer statut,
    journaux worker, candidat/attestation, moteur effectif, sorties et durées.
    Vérifier la création de `settings/logs` par le produit dans le staging neuf.
-   Si G1 ne prouve pas le GPU effectif ou échoue, ne pas lancer les longs.
+   Si les courts ne prouvent pas le GPU effectif ou échouent, ne pas lancer les longs.
 6. **Campagne longue.** Exécuter G2 à G5 séquentiellement, chacun avec son
    RunRoot et sa requête figée, sources/annotations vérifiées. Réutiliser
    les assertions existantes. Distinguer succès CUDA, succès par repli CPU,
@@ -137,22 +216,27 @@ revérifiées ; leur existence passée n'est pas une preuve de disponibilité ac
 
 Racine proposée : `target/n2-native/qualification-gpu/` ; chaque exécution
 dispose de ses TEMP/TMP/LOCALAPPDATA propres ; CARGO_HOME reste isolé sous
-le lot selon le contrat existant de la garde, sans imposer sept copies du cache.
+le lot selon le contrat existant de la garde, sans imposer une copie par exécution.
 Cible Cargo : `target/parakeet-tests/cargo-shared/`, conservée. Si le contrat
 actuel de la garde ne permet pas ces racines ou les entrées retrouvées,
 arrêter avant exécution et soumettre les chemins canoniques nécessaires.
 
 Fichiers suivis modifiables après accord : `ci/native-profiles.json`,
-`ci/guard-native.ps1`, ce plan, `docs/architecture/BILAN-FUSION-PILE.md`,
+`ci/guard-native.ps1`, `crates/whisper-adapters/tests/parakeet_unified_native.rs`
+(seule déclaration du sous-module et adaptation minimale du support partagé
+si nécessaire), `crates/whisper-adapters/tests/parakeet_unified_native/voxpopuli.rs`
+(nouveau module de tests), ce plan, `docs/architecture/BILAN-FUSION-PILE.md`,
 `docs/architecture/raw/qualification-gpu/results.json` et une archive des
-petites preuves. Six fichiers suivis prévus, huit tâches. Requêtes et journaux
+petites preuves. Huit fichiers suivis prévus, huit tâches. Requêtes et journaux
 d'exécution restent sous la racine ignorée du lot.
 
-La session principale écrit les documents et effectue les commits. Le worker
-est seul auteur des corrections de scripts ; le reviewer reste indépendant.
-Aucun Rust, test, manifeste, lockfile, `.cargo/`, garde N1/historique, modèle,
-audio original ou ressource installée modifié dans ce lot. Un besoin de
-nouveau test, sélecteur ou trace Rust provoque un arbitrage de périmètre.
+La session principale écrit les documents et effectue les commits. Les
+implémenteurs ont chacun leur périmètre exclusif ; le reviewer reste indépendant.
+Aucun Rust de production, manifeste, lockfile, `.cargo/`, garde N1/historique,
+modèle, script VoxPopuli original, audio original ou ressource installée modifié.
+Les deux chemins Rust de tests ci-dessus constituent l'extension explicite
+proposée pour ce nouveau corpus, à accepter avant implémentation. Toute autre
+trace produit ou nouveau chemin de code nécessite un arbitrage.
 
 ## Arrêts et limites de fin
 
@@ -165,7 +249,7 @@ compte, ACL, effacement ni réparation de l'installation autorisés.
 Le lot est qualifié pour sa matrice uniquement si chaque cas GPU prévu a des
 preuves attribuables et les critères AC1-8 sont satisfaits. Sinon livrer le
 bilan partiel avec les cases non qualifiées et la décision nécessaire.
-FR87/FR27 perdus, autres GPU, Turbo hors mesures historiques, micro GPU,
+Autres GPU, Turbo hors mesures historiques, micro GPU,
 premier texte affiché en moins de 15 secondes, interface Windows et paquet
 distribué restent explicitement hors qualification de cette campagne import.
 Une validation visuelle ultérieure par l'utilisateur et la remise d'un nouveau
