@@ -574,7 +574,8 @@ function New-NvidiaDiagnosticContextEnvironment([string]$ContextId, [hashtable]$
     }
 }
 
-function New-NvidiaDiagnosticProcessInfo([string]$ProfileId, [string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$RunRoot, [switch]$OmitProgramW6432) {
+function New-NvidiaDiagnosticProcessInfo([string]$ProfileId, [string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$RunRoot) {
+    if ($ProfileId -notin @('NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic')) { throw "Profile $ProfileId must use its separate or Cargo-backed ProcessStartInfo builder." }
     $psi = New-Object Diagnostics.ProcessStartInfo
     $psi.FileName = $Executable
     $psi.WorkingDirectory = $script:Repo
@@ -587,12 +588,9 @@ function New-NvidiaDiagnosticProcessInfo([string]$ProfileId, [string]$Executable
     $vars.Clear()
     foreach ($entry in $Environment.GetEnumerator()) { $vars[[string]$entry.Key] = [string]$entry.Value }
     $programWAllowed = Test-ProgramW6432ProfileId $ProfileId
-    if ($OmitProgramW6432 -and $ProfileId -cne 'NvidiaProgramW6432Witness') { throw 'ProgramW6432 omission is allowed only for the bounded witness negative call.' }
     if ($programWAllowed) {
         $validatedProgramW = Get-ValidatedProgramW6432Directory
-        if ($OmitProgramW6432) {
-            if ($Environment.ContainsKey('ProgramW6432') -or $vars.ContainsKey('ProgramW6432')) { throw 'Negative ProgramW6432 witness environment still contains the omitted key.' }
-        } elseif (-not $Environment.ContainsKey('ProgramW6432') -or [string]$Environment['ProgramW6432'] -ine $validatedProgramW -or [string]$vars['ProgramW6432'] -ine $validatedProgramW) {
+        if (-not $Environment.ContainsKey('ProgramW6432') -or [string]$Environment['ProgramW6432'] -ine $validatedProgramW -or [string]$vars['ProgramW6432'] -ine $validatedProgramW) {
             throw 'NVIDIA/GPU profile ProgramW6432 is missing or differs from the validated host directory.'
         }
     } elseif ($Environment.ContainsKey('ProgramW6432') -or $vars.ContainsKey('ProgramW6432')) {
@@ -787,14 +785,6 @@ function Invoke-NvidiaDiagnosticContextSelfTests([string]$Lot) {
                 (Get-FullPath ([string]$psi.EnvironmentVariables['ALLUSERSPROFILE'])) -cne $expectedProgramData -or
                 (Get-FullPath ([string]$psi.EnvironmentVariables['PUBLIC'])) -cne $expectedPublic) { throw "NVIDIA context did not copy the exact isolated root values: $contextId" }
         }
-        $witnessPositiveEnvironment = @{} + $clean
-        $witnessNegativeEnvironment = @{} + $witnessPositiveEnvironment
-        $witnessNegativeEnvironment.Remove('ProgramW6432')
-        $witnessExecutable = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
-        $witnessArguments = @('--query-gpu=count,pci.bus_id,uuid','--format=csv,noheader,nounits')
-        $witnessPositivePsi = New-NvidiaDiagnosticProcessInfo 'NvidiaProgramW6432Witness' $witnessExecutable $witnessArguments $witnessPositiveEnvironment (Join-Path $root 'runs\clean')
-        $witnessNegativePsi = New-NvidiaDiagnosticProcessInfo 'NvidiaProgramW6432Witness' $witnessExecutable $witnessArguments $witnessNegativeEnvironment (Join-Path $root 'runs\clean') -OmitProgramW6432
-        $witnessPairEvidence = Assert-NvidiaProgramW6432ProcessPair $witnessPositivePsi $witnessNegativePsi $baseEnvironment.ProgramW6432
         $reparseTarget = Join-Path $root 'vendor-target'
         New-Item -ItemType Directory -Path $reparseTarget -Force -ErrorAction Stop | Out-Null
         New-Item -ItemType Junction -Path $junctionPath -Target $reparseTarget -ErrorAction Stop | Out-Null
@@ -819,7 +809,7 @@ function Invoke-NvidiaDiagnosticContextSelfTests([string]$Lot) {
             [pscustomobject]@{exitCode=255;stdoutSha256='changed';stderrSha256='b'},
             [pscustomobject]@{exitCode=255;stdoutSha256='a';stderrSha256='changed'}
         )) { if (-not (Test-NvidiaDiagnosticSignaturesDiffer $equalLeft $changed)) { throw 'NVIDIA conditional context was not triggered by an exit/stdout/stderr difference.' } }
-        return [pscustomobject]@{contexts=@('clean','host-nvidia-filtered','path-only','vars-only');hostPathExactAllowlist='PASS';cudaVariableSplit='PASS';writableRootsRerouted='PASS';ambientSecretExcluded='PASS';reparsePathRejected='PASS';outsideRootRejected='PASS';conditionalSignature='exitCode/stdout/stderr only';processStartInfoConstructed=$true;processStarted=$false;programW6432WitnessPair=$witnessPairEvidence}
+        return [pscustomobject]@{contexts=@('clean','host-nvidia-filtered','path-only','vars-only');hostPathExactAllowlist='PASS';cudaVariableSplit='PASS';writableRootsRerouted='PASS';ambientSecretExcluded='PASS';reparsePathRejected='PASS';outsideRootRejected='PASS';conditionalSignature='exitCode/stdout/stderr only';processStartInfoConstructed=$true;processStarted=$false}
     } finally {
         if (Test-Path -LiteralPath $junctionPath) { Remove-Item -LiteralPath $junctionPath -Force -ErrorAction SilentlyContinue }
         if (Test-Path -LiteralPath $rootJunctionPath) { Remove-Item -LiteralPath $rootJunctionPath -Force -ErrorAction SilentlyContinue }
@@ -1815,34 +1805,70 @@ function Assert-NvidiaProgramW6432ProcessPair([Diagnostics.ProcessStartInfo]$Pos
         $negativeHas = $negativeVars.ContainsKey($key)
         if ($positiveHas -ne $negativeHas -or ($positiveHas -and [string]$positiveVars[$key] -cne [string]$negativeVars[$key])) { $differentKeys.Add($key) }
     }
-    if ($differentKeys.Count -ne 1 -or $differentKeys[0] -cne 'ProgramW6432') { throw "ProgramW6432 witness child environments differ in unexpected keys: $([string]::Join('|',$differentKeys.ToArray()))." }
+    if ($differentKeys.Count -ne 1 -or $differentKeys[0] -ine 'ProgramW6432') { throw "ProgramW6432 witness child environments differ in unexpected keys: $([string]::Join('|',$differentKeys.ToArray()))." }
     return [pscustomobject]@{workingDirectory=$Positive.WorkingDirectory;executable=$Positive.FileName;arguments=$Positive.Arguments;runRootIsShared=$true;differingEnvironmentKeys=@($differentKeys.ToArray());positiveProgramW6432=$positiveVars['ProgramW6432'];negativeProgramW6432Present=$negativeVars.ContainsKey('ProgramW6432')}
 }
 
-function Invoke-NvidiaProgramW6432Witness([object]$Profile, [hashtable]$Environment, [string]$RunRoot, [string]$LogRoot, [bool]$DryRun) {
+function New-NvidiaProgramW6432ProcessPair([object]$Profile, [hashtable]$Environment, [hashtable]$VsEnvironment, [object]$Toolchain, [string]$RunRoot) {
+    if ($Profile.id -cne 'NvidiaProgramW6432Witness' -or $null -eq $Toolchain) { throw 'ProgramW6432 witness requires its exact diagnostic profile and resolved Cargo toolchain.' }
+    Assert-NvidiaSmiDiagnosticProfile $Profile -VerifyInstalledExecutable
+    $validatedProgramW = Get-ValidatedProgramW6432Directory
+    if (-not $Environment.ContainsKey('ProgramW6432') -or [string]$Environment['ProgramW6432'] -ine $validatedProgramW) { throw 'ProgramW6432 witness environment does not contain the validated host directory.' }
+    $executable = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
+    $arguments = @($Profile.command.arguments | ForEach-Object { [string]$_ })
+    $positiveStartInfo = New-CargoProcessInfo $Toolchain.cargo $Toolchain.rustc $Toolchain.toolchainBin @() $Environment $VsEnvironment $RunRoot $Profile.id
+    $negativeStartInfo = New-CargoProcessInfo $Toolchain.cargo $Toolchain.rustc $Toolchain.toolchainBin @() $Environment $VsEnvironment $RunRoot $Profile.id
+    foreach ($startInfo in @($positiveStartInfo,$negativeStartInfo)) {
+        $startInfo.FileName = $executable
+        $startInfo.Arguments = [string]::Join(' ',[string[]]@($arguments | ForEach-Object { Get-WindowsCommandLineArgument ([string]$_) }))
+    }
+    $negativeVariables = $negativeStartInfo.EnvironmentVariables
+    if (-not $negativeVariables.ContainsKey('ProgramW6432')) { throw 'Negative witness ProcessStartInfo did not contain the key that must be omitted.' }
+    $negativeVariables.Remove('ProgramW6432')
+    if ($negativeVariables.ContainsKey('ProgramW6432')) { throw 'Could not omit only ProgramW6432 from the negative witness ProcessStartInfo.' }
+    $pairEvidence = Assert-NvidiaProgramW6432ProcessPair $positiveStartInfo $negativeStartInfo $validatedProgramW
+    return [pscustomobject]@{positive=$positiveStartInfo;negative=$negativeStartInfo;executable=$executable;arguments=$arguments;validatedProgramW6432=$validatedProgramW;evidence=$pairEvidence}
+}
+
+function Assert-NvidiaProgramW6432PositiveResult([object]$Result, [string[]]$OutputLines) {
+    if ($Result.status -cne 'DIAGNOSTIC_ONLY' -or [int]$Result.exitCode -ne 0) { throw "ProgramW6432 positive NVIDIA witness did not return a diagnostic-only code 0 result: status=$($Result.status) exit=$($Result.exitCode)." }
+    $nonemptyLines = @($OutputLines | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    $uuidPattern = 'GPU-[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}'
+    $uuidLines = @($nonemptyLines | Where-Object { [regex]::IsMatch([string]$_,$uuidPattern) })
+    $uuidCount = if ($uuidLines.Count -eq 1) { [regex]::Matches([string]$uuidLines[0],$uuidPattern).Count } else { 0 }
+    if ($nonemptyLines.Count -ne 1 -or $uuidLines.Count -ne 1 -or $uuidCount -ne 1) { throw "ProgramW6432 positive NVIDIA witness must have exactly one nonempty output line containing one UUID: lines=$($nonemptyLines.Count) uuidLines=$($uuidLines.Count) uuids=$uuidCount." }
+    return [pscustomobject]@{nonemptyLineCount=$nonemptyLines.Count;uuidLineCount=$uuidLines.Count;uuidCount=$uuidCount;uuid=([regex]::Match([string]$uuidLines[0],$uuidPattern).Value)}
+}
+
+function Invoke-NvidiaProgramW6432CallSequence([scriptblock]$InvokeCase) {
+    $positiveEnvelope = & $InvokeCase 'positive'
+    if ($null -eq $positiveEnvelope -or $null -eq $positiveEnvelope.result) { throw 'ProgramW6432 positive NVIDIA witness produced no result envelope.' }
+    $positiveEvidence = Assert-NvidiaProgramW6432PositiveResult $positiveEnvelope.result ([string[]]@($positiveEnvelope.outputLines))
+    $negativeEnvelope = & $InvokeCase 'negative'
+    if ($null -eq $negativeEnvelope -or $null -eq $negativeEnvelope.result -or $negativeEnvelope.result.status -cne 'DIAGNOSTIC_ONLY' -or [int]$negativeEnvelope.result.exitCode -ne 255) { throw "ProgramW6432 negative NVIDIA witness did not return the expected diagnostic-only provider code 255: $($negativeEnvelope.result.exitCode)." }
+    return [pscustomobject]@{calls=2;positive=$positiveEnvelope.result;negative=$negativeEnvelope.result;positiveEvidence=$positiveEvidence}
+}
+
+function Invoke-NvidiaProgramW6432Witness([object]$Profile, [hashtable]$Environment, [hashtable]$VsEnvironment, [object]$Toolchain, [string]$RunRoot, [string]$LogRoot, [bool]$DryRun) {
     Assert-NvidiaSmiDiagnosticProfile $Profile -VerifyInstalledExecutable
     $validatedProgramW = Get-ValidatedProgramW6432Directory
     if (-not $Environment.ContainsKey('ProgramW6432') -or [string]$Environment['ProgramW6432'] -ine $validatedProgramW) { throw 'ProgramW6432 witness did not receive the validated host directory.' }
-    $executable = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
-    $arguments = @($Profile.command.arguments | ForEach-Object { [string]$_ })
-    $negativeEnvironment = @{} + $Environment
-    if (-not $negativeEnvironment.ContainsKey('ProgramW6432')) { throw 'ProgramW6432 witness negative environment did not contain its test variable before removal.' }
-    $negativeEnvironment.Remove('ProgramW6432')
-    $positiveStartInfo = New-NvidiaDiagnosticProcessInfo $Profile.id $executable $arguments $Environment $RunRoot
-    $negativeStartInfo = New-NvidiaDiagnosticProcessInfo $Profile.id $executable $arguments $negativeEnvironment $RunRoot -OmitProgramW6432
-    $pairEvidence = Assert-NvidiaProgramW6432ProcessPair $positiveStartInfo $negativeStartInfo $validatedProgramW
     if ($DryRun) {
-        return [pscustomobject]@{status='DRY_RUN';cases=@([pscustomobject]@{case='positive';executable=$executable;argvJson=(Convert-StringArrayToJson $arguments)},[pscustomobject]@{case='negative';executable=$executable;argvJson=(Convert-StringArrayToJson $arguments)});witness=$pairEvidence;callsStarted=0}
+        $executable = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
+        $arguments = @($Profile.command.arguments | ForEach-Object { [string]$_ })
+        return [pscustomobject]@{status='DRY_RUN';cases=@([pscustomobject]@{case='positive';executable=$executable;argvJson=(Convert-StringArrayToJson $arguments)},[pscustomobject]@{case='negative';executable=$executable;argvJson=(Convert-StringArrayToJson $arguments)});witness=$null;callsStarted=0}
     }
-    $positiveEvidence = [pscustomobject]@{role='positive';programW6432=$validatedProgramW;expectedExitCode=0;expectedOutput='UUID line'}
-    $negativeEvidence = [pscustomobject]@{role='negative';programW6432='OMITTED';expectedExitCode=255;expectedOutput='provider failure'}
-    $positiveResult = Invoke-NvidiaSmiDiagnostic $Profile $Environment @{} $null $RunRoot $LogRoot $false -ContextId 'programw-positive' -ContextEvidence $positiveEvidence -ProcessStartInfo $positiveStartInfo
-    $negativeResult = Invoke-NvidiaSmiDiagnostic $Profile $negativeEnvironment @{} $null $RunRoot $LogRoot $false -ContextId 'programw-negative' -ContextEvidence $negativeEvidence -ProcessStartInfo $negativeStartInfo
-    $positiveLines = @(Get-Content -LiteralPath $positiveResult.stdout -ErrorAction Stop)
-    $uuidLines = @($positiveLines | Where-Object { $_ -match 'GPU-[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}' })
-    if ($positiveResult.status -cne 'DIAGNOSTIC_ONLY' -or [int]$positiveResult.exitCode -ne 0 -or $uuidLines.Count -lt 1) { throw 'ProgramW6432 positive NVIDIA witness did not return code 0 with a GPU UUID line.' }
-    if ($negativeResult.status -cne 'DIAGNOSTIC_ONLY' -or [int]$negativeResult.exitCode -ne 255) { throw "ProgramW6432 negative NVIDIA witness did not return the expected provider code 255: $($negativeResult.exitCode)." }
-    return [pscustomobject]@{status='DIAGNOSTIC_ONLY';calls=2;cases=@($positiveResult,$negativeResult);witness=$pairEvidence;positive=$positiveResult;negative=$negativeResult;uuidLineCount=$uuidLines.Count;qualification='NONE'}
+    $pair = New-NvidiaProgramW6432ProcessPair $Profile $Environment $VsEnvironment $Toolchain $RunRoot
+    $invokeCase = {
+        param([string]$Role)
+        $startInfo = if ($Role -ceq 'positive') { $pair.positive } elseif ($Role -ceq 'negative') { $pair.negative } else { throw "Unexpected ProgramW6432 witness role: $Role" }
+        $contextEvidence = if ($Role -ceq 'positive') { [pscustomobject]@{role='positive';programW6432=$validatedProgramW;expectedExitCode=0;expectedOutput='one UUID line'} } else { [pscustomobject]@{role='negative';programW6432='OMITTED';expectedExitCode=255;expectedOutput='provider failure'} }
+        $result = Invoke-NvidiaSmiDiagnostic $Profile $Environment @{} $Toolchain $RunRoot $LogRoot $false -ContextId ('programw-' + $Role) -ContextEvidence $contextEvidence -ProcessStartInfo $startInfo
+        $outputLines = @(Get-Content -LiteralPath $result.stdout -ErrorAction Stop)
+        return [pscustomobject]@{result=$result;outputLines=$outputLines}
+    }.GetNewClosure()
+    $sequence = Invoke-NvidiaProgramW6432CallSequence $invokeCase
+    return [pscustomobject]@{status='DIAGNOSTIC_ONLY';calls=$sequence.calls;cases=@($sequence.positive,$sequence.negative);witness=$pair.evidence;positive=$sequence.positive;negative=$sequence.negative;uuidLineCount=$sequence.positiveEvidence.uuidLineCount;qualification='NONE'}
 }
 
 function Get-NvidiaDiagnosticOutputSignature([object]$Result) {
@@ -2447,7 +2473,41 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         CUDA_PATH_V12_9 = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9'
         ProgramW6432 = (Get-ValidatedProgramW6432Directory)
     }
-    $diagnosticVsEnvironment = @{ PATH='C:\ambient-tool;C:\Program Files\CMake\bin'; INCLUDE='C:\vs\include'; LIB='C:\vs\lib' }
+    $diagnosticVsEnvironment = @{ PATH='C:\ambient-tool;C:\Program Files\CMake\bin'; INCLUDE='C:\vs\include'; LIB='C:\vs\lib'; ProgramW6432='C:\ambient-programw-spoof' }
+    $witnessProfile = Get-Profile $Registry 'NvidiaProgramW6432Witness'
+    $witnessValues = [pscustomobject]@{inputs=@{};values=@{cudaToolkitPath=$diagnosticEnvironment.CUDA_PATH;cudaToolkitVersionedPath=$diagnosticEnvironment.CUDA_PATH_V12_9}}
+    $witnessBaseEnvironment = Get-ProfileEnvironment $witnessProfile $witnessValues $diagnosticRunRoot $Lot $false
+    foreach ($name in @('PROGRAMDATA','ALLUSERSPROFILE','PUBLIC')) { if ($witnessBaseEnvironment.ContainsKey($name)) { throw "ProgramW6432 witness fixture unexpectedly enriched Get-ProfileEnvironment with $name." } }
+    if ([string]$witnessBaseEnvironment.ProgramW6432 -ine (Get-ValidatedProgramW6432Directory)) { throw 'ProgramW6432 witness base environment did not come from Get-ProfileEnvironment.' }
+    $syntheticToolchain = [pscustomobject]@{cargo='C:\toolchain\cargo.exe';rustc='C:\toolchain\rustc.exe';toolchainBin='C:\toolchain'}
+    $witnessProcessPair = New-NvidiaProgramW6432ProcessPair $witnessProfile $witnessBaseEnvironment $diagnosticVsEnvironment $syntheticToolchain $diagnosticRunRoot
+    if ($witnessProcessPair.positive.EnvironmentVariables.ContainsKey('ProgramW6432') -eq $false -or $witnessProcessPair.negative.EnvironmentVariables.ContainsKey('ProgramW6432') -or [string]$witnessProcessPair.positive.EnvironmentVariables['ProgramW6432'] -ieq $diagnosticVsEnvironment.ProgramW6432) { throw 'ProgramW6432 witness ProcessStartInfo pair did not use the un-enriched profile environment and validated process value.' }
+    $negativePath = [string]$witnessProcessPair.negative.EnvironmentVariables['PATH']
+    $witnessProcessPair.negative.EnvironmentVariables['PATH'] = $negativePath + ';C:\synthetic-unlisted-path'
+    Test-Rejects 'ProgramW6432 witness rejects a second environment difference' { Assert-NvidiaProgramW6432ProcessPair $witnessProcessPair.positive $witnessProcessPair.negative $witnessProcessPair.validatedProgramW6432 }
+    $witnessProcessPair.negative.EnvironmentVariables['PATH'] = $negativePath
+    $positiveProgramW = [string]$witnessProcessPair.positive.EnvironmentVariables['ProgramW6432']
+    $witnessProcessPair.positive.EnvironmentVariables['ProgramW6432'] = 'C:\synthetic-invalid-programw'
+    Test-Rejects 'ProgramW6432 witness rejects a wrong positive value' { Assert-NvidiaProgramW6432ProcessPair $witnessProcessPair.positive $witnessProcessPair.negative $witnessProcessPair.validatedProgramW6432 }
+    $witnessProcessPair.positive.EnvironmentVariables['ProgramW6432'] = $positiveProgramW
+    $validUuid = 'GPU-12345678-abcd-1234-ABCD-1234567890ab'
+    $validPositiveEnvelope = [pscustomobject]@{result=[pscustomobject]@{status='DIAGNOSTIC_ONLY';exitCode=0};outputLines=@("1, 0000:01:00.0, $validUuid")}
+    $validNegativeEnvelope = [pscustomobject]@{result=[pscustomobject]@{status='DIAGNOSTIC_ONLY';exitCode=255};outputLines=@('provider unavailable')}
+    $validSequenceCalls = [Collections.Generic.List[string]]::new()
+    $validSequenceInvoker = { param([string]$Role); $validSequenceCalls.Add($Role); if ($Role -ceq 'positive') { $validPositiveEnvelope } else { $validNegativeEnvelope } }.GetNewClosure()
+    $validSequence = Invoke-NvidiaProgramW6432CallSequence $validSequenceInvoker
+    if ($validSequence.calls -ne 2 -or [string]::Join('|',$validSequenceCalls.ToArray()) -cne 'positive|negative' -or $validSequence.positiveEvidence.uuid -cne $validUuid) { throw 'ProgramW6432 witness valid synthetic pair did not perform exactly positive then negative.' }
+    $invalidPositiveFixtures = @(
+        [pscustomobject]@{name='unexpected provider failure';envelope=[pscustomobject]@{result=[pscustomobject]@{status='DIAGNOSTIC_ONLY';exitCode=255};outputLines=@('provider unavailable')}},
+        [pscustomobject]@{name='empty output';envelope=[pscustomobject]@{result=[pscustomobject]@{status='DIAGNOSTIC_ONLY';exitCode=0};outputLines=@('','  ')}},
+        [pscustomobject]@{name='multiple UUID lines';envelope=[pscustomobject]@{result=[pscustomobject]@{status='DIAGNOSTIC_ONLY';exitCode=0};outputLines=@("1, 0000:01:00.0, $validUuid",'1, 0000:02:00.0, GPU-87654321-abcd-1234-ABCD-1234567890ab')}}
+    )
+    foreach ($fixture in $invalidPositiveFixtures) {
+        $fixtureCalls = [Collections.Generic.List[string]]::new()
+        $fixtureInvoker = { param([string]$Role); $fixtureCalls.Add($Role); if ($Role -ceq 'positive') { $fixture.envelope } else { $validNegativeEnvelope } }.GetNewClosure()
+        Test-Rejects "ProgramW6432 witness $($fixture.name) stops before negative call" { Invoke-NvidiaProgramW6432CallSequence $fixtureInvoker }
+        if ($fixtureCalls.Count -ne 1 -or $fixtureCalls[0] -cne 'positive') { throw "ProgramW6432 witness $($fixture.name) fixture invoked a second call after invalid positive output." }
+    }
     $syntheticPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $moduleCaptureRun = Join-Path $diagnosticRunRoot 'module-capture'
     $moduleCaptureLogs = Join-Path $diagnosticLogRoot 'module-capture'
@@ -2607,6 +2667,8 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         r3TestBodyParser = @('one-line test output PASS','multiline WASAPI inventory output PASS','multiline WASAPI capture output PASS','distinct NO_RUN_PASS/LIST_PASS','diagnostic body remains DIAGNOSTIC_ONLY','rejected ignored-only','rejected wrong test','rejected incomplete summary','rejected multiple bodies','rejected nonzero exit')
         r4InvocationReceipts = $receiptEvidence
         nvidiaEnvironmentContexts = $nvidiaContextEvidence
+        programW6432WitnessProcessPair = $witnessProcessPair.evidence
+        programW6432WitnessCallOrder = [pscustomobject]@{validCalls=@($validSequenceCalls.ToArray());invalidPositiveFixtures=@($invalidPositiveFixtures | ForEach-Object { $_.name });invalidPositiveStoppedAtOneCall=$true}
         programW6432Resolver = $programWResolverEvidence
         programW6432ProfileAllowlist = 'PASS: only GPU/NVIDIA profiles listed; CPU, Auto fallback, pending Parakeet GPU, and discovery profiles excluded'
         programW6432CargoEnvironment = 'PASS: validated host value passed only to approved GPU Cargo profiles; Visual Studio spoof ignored'
@@ -2643,14 +2705,16 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
     $environment = Get-ProfileEnvironment $Profile $ValuesDoc $script:RunRoot $Lot (-not $DryRunOnly)
     Assert-CampaignRoots $Lot $script:RunRoot $environment
     $stagingEvidence = if (-not $DryRunOnly) { Copy-ProfileStaging $Profile $ValuesDoc $environment.LOCALAPPDATA $script:RunRoot } else { @() }
-    $toolchain = if ($Profile.operation -ceq 'Diagnostic') { $null } else { Get-CargoExecutable }
+    $toolchain = if ($Profile.operation -ceq 'Diagnostic') { if ($Profile.id -ceq 'NvidiaProgramW6432Witness' -and -not $DryRunOnly) { Get-CargoExecutable } else { $null } } else { Get-CargoExecutable }
     if ($Profile.operation -ceq 'Diagnostic') {
         if ($Profile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
             $outcome = Invoke-NvidiaSmiEnvironmentComparison $Profile $environment $toolchain $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
             return [pscustomobject]@{ profile=$Profile.id; status=$outcome.status; cases=@($outcome.cases); comparison=$outcome.comparison; staging=@($stagingEvidence); runRoot=$script:RunRoot; logs=$script:LogRoot }
         }
         if ($Profile.id -ceq 'NvidiaProgramW6432Witness') {
-            $outcome = Invoke-NvidiaProgramW6432Witness $Profile $environment $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
+            $vsEnvironment = @{}
+            if (-not $DryRunOnly) { $vsEnvironment = Get-VsEnvironment (Get-VsDevCommand) $Environment.TEMP $Environment.TMP $script:RunRoot }
+            $outcome = Invoke-NvidiaProgramW6432Witness $Profile $environment $vsEnvironment $toolchain $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
             return [pscustomobject]@{ profile=$Profile.id; status=$outcome.status; cases=@($outcome.cases); witness=$outcome.witness; staging=@($stagingEvidence); runRoot=$script:RunRoot; logs=$script:LogRoot }
         }
         $outcome = Invoke-NvidiaSmiDiagnostic $Profile $environment @{} $null $script:RunRoot $script:LogRoot ([bool]$DryRunOnly)
@@ -2708,7 +2772,18 @@ try {
                 $nvidiaVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($nvidiaExe).FileVersion
                 $nvidiaSha = Get-Sha256 $nvidiaExe
                 if ($profile.id -ceq 'NvidiaProgramW6432Witness') {
-                    $null = Invoke-NvidiaProgramW6432Witness $profile $environment $runRoot (Join-Path $script:Lot 'logs\preflight') $true
+                    if (Test-Path -LiteralPath $runRoot) { throw 'ProgramW6432 witness preflight RunRoot unexpectedly exists.' }
+                    $previousRunRoot = $script:RunRoot
+                    try {
+                        $script:RunRoot = $runRoot
+                        New-Item -ItemType Directory -Path $runRoot,(Join-Path $runRoot 'temp'),(Join-Path $runRoot 'tmp'),(Join-Path $runRoot 'localappdata'),(Join-Path $runRoot 'appdata') -Force -ErrorAction Stop | Out-Null
+                        $witnessToolchain = Get-CargoExecutable
+                        $witnessVsEnvironment = Get-VsEnvironment (Get-VsDevCommand) $environment.TEMP $environment.TMP $runRoot
+                        $witnessPair = New-NvidiaProgramW6432ProcessPair $profile $environment $witnessVsEnvironment $witnessToolchain $runRoot
+                    } finally {
+                        $script:RunRoot = $previousRunRoot
+                        if (Test-InRoot $runRoot $script:Lot -and (Test-Path -LiteralPath $runRoot)) { Remove-Item -LiteralPath $runRoot -Recurse -Force -ErrorAction SilentlyContinue }
+                    }
                 } else {
                     $null = New-NvidiaDiagnosticProcessInfo $profile.id $nvidiaExe ([string[]]$profile.command.arguments) $environment $runRoot
                 }
