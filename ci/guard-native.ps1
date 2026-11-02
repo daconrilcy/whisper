@@ -733,7 +733,7 @@ function Invoke-NvidiaDiagnosticContextSelfTests([string]$Lot) {
             [pscustomobject]@{exitCode=255;stdoutSha256='changed';stderrSha256='b'},
             [pscustomobject]@{exitCode=255;stdoutSha256='a';stderrSha256='changed'}
         )) { if (-not (Test-NvidiaDiagnosticSignaturesDiffer $equalLeft $changed)) { throw 'NVIDIA conditional context was not triggered by an exit/stdout/stderr difference.' } }
-        return [pscustomobject]@{contexts=@('clean','host-nvidia-filtered','path-only','vars-only');hostPathExactAllowlist='PASS';cudaVariableSplit='PASS';writableRootsRerouted='PASS';ambientSecretExcluded='PASS';reparsePathRejected='PASS';outsideRootRejected='PASS';conditionalSignature='exitCode/stdout/stderr only';processStartInfoConstructed=true;processStarted=false}
+        return [pscustomobject]@{contexts=@('clean','host-nvidia-filtered','path-only','vars-only');hostPathExactAllowlist='PASS';cudaVariableSplit='PASS';writableRootsRerouted='PASS';ambientSecretExcluded='PASS';reparsePathRejected='PASS';outsideRootRejected='PASS';conditionalSignature='exitCode/stdout/stderr only';processStartInfoConstructed=$true;processStarted=$false}
     } finally {
         if (Test-Path -LiteralPath $junctionPath) { Remove-Item -LiteralPath $junctionPath -Force -ErrorAction SilentlyContinue }
         if (Test-Path -LiteralPath $rootJunctionPath) { Remove-Item -LiteralPath $rootJunctionPath -Force -ErrorAction SilentlyContinue }
