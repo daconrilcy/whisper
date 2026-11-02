@@ -1,0 +1,15 @@
+Avancée : registre complété, correctif revu CLEAN et Structure PASS ; réserve Structure levée.
+Blocage : aucun sur ce correctif ; validation Windows non exécutée.
+Décision : nouveau commit local, limité au registre et ce complément ; aucun Rust ni push.
+
+# Complément registre — GARDE-DEPENDANCES
+
+Suite au [bilan figé](garde-dependances-20261102.md), l’utilisateur autorise la correction du registre, sa relecture, Structure via la garde et un nouveau commit local. Branche `codex/garde-dependances`, base `6135550b`, worktree `C:/wt/garde-deps`.
+
+**Isolation vérifiée.** Dans `crates/whisper-adapters/src/parakeet_import/worker_log_tests.rs`, `fixture_root` construit une racine sous le temporaire avec cas, PID et horodatage. `run_personal_log_case` crée les entrées factices et relance l’exécutable de tests avec `--exact` et le nom complet du test. `.env("LOCALAPPDATA", &root)` et `.env(PERSONAL_LOG_CASE, case)` concernent uniquement cet enfant. `run_child_case` vérifie la sentinelle et le routage personnel ; les assertions visent les fichiers de cette fixture, sans lancer le worker factice ni charger le modèle. Le parent ne modifie pas les variables globales. La garde efface WHISPER/PARAKEET, donc la sentinelle `WHISPER_PERSONAL_LOG_TEST_CASE`, et isole TEMP/TMP ainsi que LOCALAPPDATA.
+
+**Registre.** Trois exceptions `CHILD_ENV` exactes pour LOCALAPPDATA justifiées pour les tests de création/préservation, de collision settings et de collision logs. Douze fiches `TEST` ajoutées : trois settings (`92f9a2f7`) et trois UI (`1b76a7ea`) autonomes, six recettes VoxPopuli (`aa90a4ee`) natives explicitement ignorées par défaut. Quinze ajouts, aucune exception globale, modification de test ou catégorie existante changée. Revue indépendante du correctif : **CLEAN**.
+
+**Vérifications.** Auto-tests de la garde : PASS, 33 positifs / 64 négatifs, sans Cargo. `ci/guard-level1.ps1 -Mode Structure -LotRoot target/parakeet-tests/garde-dependances-registre`, variables WHISPER/PARAKEET/CUDA/GGML nettoyées, LOCALAPPDATA initialement vide : **code 0, PASS**. Auto-tests internes du contrôleur : PASS. Registre **867/867**, 165 tests sous garde native, 7 helpers synthétiques ; aucune erreur environnement/registre/helper, aucun retour silencieux. Ces nombres sont un inventaire statique. Les résultats antérieurs — 660 PASS, 147 ignorés, Clippy avec la dérogation acceptée — restent ceux du bilan initial ; ces tests ne sont pas relancés pour cette modification de registre.
+
+**Clôture.** Journaux dédiés sous `target/parakeet-tests/garde-dependances-registre/`, archivés dans `journaux.zip` : 10 fichiers, nombre et SHA-256 vérifiés aussi par la revue indépendante. Binaire temporaire `scratch/20261102T225645978-973121194fb74293bc7103d43ee9a071/check-structure.exe` supprimé après contrôle des chemins, de l’absence de jonction et de son inactivité. Aucun cache/cible Cargo propre au lot créé ; caches persistants préservés. 618,91 Gio libres après nettoyage. Bilan initial préservé ; complément figé, revue finale **CLEAN**.
