@@ -212,6 +212,33 @@
       ]
     },
     {
+      "id": "PersonalUnifiedGpuOnly",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": ["whisper-adapters/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [
+        {"key": "personalRuntime", "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT", "kind": "directory"},
+        {"key": "shortFrench", "environmentVariable": "WHISPER_PU_L4_FR_SOURCE", "kind": "file"},
+        {"key": "shortEnglish", "environmentVariable": "WHISPER_PU_L4_EN_SOURCE", "kind": "file"}
+      ],
+      "values": [
+        {"key": "cudaToolkitPath", "environmentVariable": "CUDA_PATH", "required": true, "kind": "directory", "allowedRoot": "cuda-12.9"}
+      ],
+      "outputs": [
+        {"key": "campaignRun", "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN", "kind": "directory", "path": "writes/l04"}
+      ],
+      "staging": [
+        {"inputKey": "personalRuntime", "destination": "Whisper", "destinationBase": "localappdata", "requiredFileCount": 21, "requiredBytes": 3196008875},
+        {"inputKey": "shortFrench", "destination": "writes/l04/fixtures/fr-short.mp3", "destinationBase": "run", "requiredFileCount": 1, "requiredBytes": 24237},
+        {"inputKey": "shortEnglish", "destination": "writes/l04/fixtures/en-short.mp3", "destinationBase": "run", "requiredFileCount": 1, "requiredBytes": 24237}
+      ],
+      "cases": [
+        {"targetKind": "integration", "targetName": "parakeet_unified_native", "exactTest": "native_personal_gpu_imports_english_mp3_with_attested_candidate", "ignored": false, "verdict": "QUALIFICATION"}
+      ]
+    },
+    {
       "id": "PersonalAutoFallback",
       "status": "READY",
       "operation": "Run",
@@ -481,6 +508,25 @@
         "contexts": ["clean","host-nvidia-filtered","path-only","vars-only"],
         "captureModules": true,
         "expectedSha256": "f874229e4df6313f39b4af658add6d2b74682f2a44b5957aa6104d19a8593ec6"
+      }
+    },
+    {
+      "id": "NvidiaProgramW6432Witness",
+      "status": "READY",
+      "operation": "Diagnostic",
+      "package": "whisper-adapters",
+      "features": [],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [
+        {"key":"cudaToolkitPath","environmentVariable":"CUDA_PATH","required":true,"kind":"directory","allowedRoot":"cuda-12.9"},
+        {"key":"cudaToolkitVersionedPath","environmentVariable":"CUDA_PATH_V12_9","required":true,"kind":"directory","allowedRoot":"cuda-12.9"}
+      ],
+      "outputs": [],
+      "cases": [],
+      "command": {
+        "executable": "C:/Windows/System32/nvidia-smi.exe",
+        "arguments": ["--query-gpu=count,pci.bus_id,uuid","--format=csv,noheader,nounits"]
       }
     }
   ]
