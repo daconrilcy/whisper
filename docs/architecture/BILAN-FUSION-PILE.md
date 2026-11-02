@@ -1,5 +1,5 @@
-Avancée : quatre lots fusionnés ; revue CLEAN, niveau 1 PASS ; quatre worktrees et branches retirés.
-Blocage : purge complémentaire des caches/intermédiaires refusée automatiquement ; fichiers conservés.
+Avancée : quatre lots fusionnés ; revue CLEAN, niveau 1 PASS ; quatre worktrees/branches et dix caches cargo-home retirés.
+Blocage : aucun pour le contrôle après suppression manuelle ; intermédiaires compilés archivés conservés.
 Décision : preuves, modèles, audios et cache partagé préservés ; aucun push.
 
 Le 2 novembre 2026 : tag `avant-fusion-pile` = `248f8679` ; fusion unique `c830881c`, parents `248f8679`/`85dcd7fc`, arbre identique à la tête revue.
@@ -36,8 +36,8 @@ Nettoyage autorisé et **exécuté** le 2 novembre 2026 depuis `C:/dev/whisper`,
 
 Branches fusionnées supprimées par `git branch -d` : `refacto/tests-autonomes`, `garde/n1-categories`, `fix/r8-worker-cpu-sans-cuda`, `codex/garde-nvml`. Code de main, tag de sécurité et trois autres worktrees inchangés.
 
-Les dossiers `target` complets ont été déplacés sous `target/pile-preserved/<lot>/target/` (`r8`, `nv`, `tests-autonomes`, `garde-n1-categories`). Modèles/audio R8 : `target/pile-preserved/r8/models/` et `sound example/` ; **deux modèles et 303 fichiers, empreintes intégrales identiques**. Les originaux non suivis de main restent en place.
+Les dossiers `target` ont été déplacés sous `target/pile-preserved/<lot>/target/` (`r8`, `nv`, `tests-autonomes`, `garde-n1-categories`). Modèles/audio R8 : `target/pile-preserved/r8/models/` et `sound example/` ; **deux modèles et 303 fichiers, empreintes intégrales identiques à la référence avant nettoyage**, revérifiées après suppression manuelle. Les 305 fichiers correspondent aussi, par SHA-256 individuel, aux originaux non suivis de main.
 
-Cibles conservées sous l'archive R8 : `target/r8-fix/targets` 5,485 Gio, `target/r8-install/targets/desktop-personal` 0,928. Résultats N2 complets conservés. Cache canonique `target/parakeet-tests/cargo-shared` inchangé : **34 114 fichiers, 31,974 Gio** ; racine Fusion main (0,737 Gio) conservée.
+Cibles conservées sous l'archive R8 : `target/r8-fix/targets` 5,485 Gio, `target/r8-install/targets/desktop-personal` 0,928. Cache canonique `target/parakeet-tests/cargo-shared` : inventaire inchangé (**34 114 fichiers, 34 331 489 142 octets, soit 31,974 Gio**), neuf harnais SHA-256 identiques. Les deux `cargo-shared` archivés conservent également leurs inventaires/tailles (4 174 fichiers/3 926 136 114 octets et un fichier/15 178 752 octets). Résultats N2 et racine Fusion main conservés.
 
-[raw/](raw/) et bilans conservés : **12 ZIP recontrôlés, SHA inchangés**, dont sept couples ZIP/JSON de la pile. La purge supplémentaire des caches/intermédiaires archivés a été refusée avant exécution (« blocked by policy », sans motif détaillé) ; aucun de ces fichiers supprimé. Gain au premier relevé **0,57 Gio**, inférieur aux 56,726 Gio bruts puisque les données ont été conservées ; dernier espace libre **77,1 Gio**. Aucune opération distante.
+[raw/](raw/) et bilans conservés : **12 ZIP recontrôlés, SHA inchangés**, dont sept couples ZIP/JSON de la pile ; journal Clippy de référence inchangé par SHA-256. La purge automatique avait été refusée avant exécution (« blocked by policy »). L'utilisateur a ensuite supprimé manuellement les **dix seuls `cargo-home` listés**, sous `target/pile-preserved/` : **10/10 absents**, vérifié le 2 novembre 2026 à 10:21 UTC. Leur volume antérieur était **6,862 Gio** ; les intermédiaires compilés restent archivés. Espace libre observé **84,24 Gio**. Aucune exécution Cargo/native ni opération distante pour ce contrôle.
