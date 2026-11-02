@@ -524,7 +524,31 @@ function New-NvidiaDiagnosticProcessInfo([string]$Executable, [string[]]$Argumen
     foreach ($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME','PROGRAMDATA','ALLUSERSPROFILE','PUBLIC')) {
         if (-not (Test-InRoot ([string]$Environment[$name]) $RunRoot)) { throw "NVIDIA diagnostic process root $name escaped its context RunRoot." }
     }
-    if (-not (Test-InRoot ([string]$Environment.CARGO_HOME) $script:Lot) -or (Get-FullPath ([string]$Environment.CARGO_TARGET_DIR) -ine $script:CargoTarget)) { throw 'NVIDIA diagnostic process Cargo roots differ from their approved locations.' }
+    $declaredCargoHome = [string]$Environment['CARGO_HOME']
+    $declaredCargoTarget = [string]$Environment['CARGO_TARGET_DIR']
+    $canonicalCargoHome = $null
+    $canonicalCargoTarget = $null
+    $canonicalLot = Get-FullPath $script:Lot
+    $canonicalSharedTarget = Get-FullPath $script:CargoTarget
+    try { $canonicalCargoHome = Get-FullPath $declaredCargoHome } catch { }
+    try { $canonicalCargoTarget = Get-FullPath $declaredCargoTarget } catch { }
+    $declaredCargoHomeInLot = $false
+    $declaredCargoTargetMatches = $false
+    if ($null -ne $canonicalCargoHome) { $declaredCargoHomeInLot = Test-InRoot $canonicalCargoHome $canonicalLot }
+    if ($null -ne $canonicalCargoTarget) { $declaredCargoTargetMatches = $canonicalCargoTarget -ieq $canonicalSharedTarget }
+    $copiedCargoHome = [string]$vars['CARGO_HOME']
+    $copiedCargoTarget = [string]$vars['CARGO_TARGET_DIR']
+    $canonicalCopiedCargoHome = $null
+    $canonicalCopiedCargoTarget = $null
+    try { $canonicalCopiedCargoHome = Get-FullPath $copiedCargoHome } catch { }
+    try { $canonicalCopiedCargoTarget = Get-FullPath $copiedCargoTarget } catch { }
+    $copiedCargoHomeInLot = $false
+    $copiedCargoTargetMatches = $false
+    if ($null -ne $canonicalCopiedCargoHome) { $copiedCargoHomeInLot = Test-InRoot $canonicalCopiedCargoHome $canonicalLot }
+    if ($null -ne $canonicalCopiedCargoTarget) { $copiedCargoTargetMatches = $canonicalCopiedCargoTarget -ieq $canonicalSharedTarget }
+    if (-not $declaredCargoHomeInLot -or -not $declaredCargoTargetMatches -or -not $copiedCargoHomeInLot -or -not $copiedCargoTargetMatches) {
+        throw "NVIDIA diagnostic process Cargo root validation failed before child start: declaredCARGO_HOME='$declaredCargoHome' canonical='$canonicalCargoHome' lot='$canonicalLot' inLot=$declaredCargoHomeInLot; declaredCARGO_TARGET_DIR='$declaredCargoTarget' canonical='$canonicalCargoTarget' sharedTarget='$canonicalSharedTarget' matches=$declaredCargoTargetMatches; copiedCARGO_HOME='$copiedCargoHome' canonical='$canonicalCopiedCargoHome' inLot=$copiedCargoHomeInLot; copiedCARGO_TARGET_DIR='$copiedCargoTarget' canonical='$canonicalCopiedCargoTarget' matches=$copiedCargoTargetMatches."
+    }
     return $psi
 }
 
