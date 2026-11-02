@@ -2,7 +2,9 @@ param(
     [ValidateSet('Cpu','ParakeetCpu','Gpu','Desktop')]
     [string]$Kind,
     [string]$Path,
-    [switch]$SelfTest
+    [switch]$SelfTest,
+    [string]$WitnessPath,
+    [string]$WitnessSha256
 )
 
 $ErrorActionPreference = 'Stop'
@@ -139,61 +141,51 @@ function Invoke-Check([string]$ArtifactKind, [string]$ArtifactPath, [string[]]$K
 
 function Assert-True([bool]$Condition, [string]$Message) { if (-not $Condition) { throw "Self-test failed: $Message" } }
 
-function New-FixturePe([bool]$Delay, [string]$DllName, [string]$SecondDllName = $null, [bool]$Truncated = $false) {
-    $bytes = [byte[]]::new(0x600)
-    $writer = [IO.BinaryWriter]::new([IO.MemoryStream]::new($bytes, $true))
-    try {
-        $writer.BaseStream.Position = 0; $writer.Write([uint16]0x5a4d)
-        $writer.BaseStream.Position = 0x3c; $writer.Write([uint32]0x80)
-        $writer.BaseStream.Position = 0x80; $writer.Write([uint32]0x00004550); $writer.Write([uint16]0x8664); $writer.Write([uint16]1)
-        $writer.BaseStream.Position = 0x94; $writer.Write([uint16]0xf0)
-        $writer.BaseStream.Position = 0x98; $writer.Write([uint16]0x20b)
-        $writer.BaseStream.Position = 0x98 + 108; $writer.Write([uint32]16)
-        $directoryIndex = if ($Delay) { 13 } else { 1 }
-        $descriptorSize = if ($Delay) { 32 } else { 20 }
-        $importCount = if ($SecondDllName) { 2 } else { 1 }
-        $tableSize = if ($Truncated) { $descriptorSize } else { ($importCount + 1) * $descriptorSize }
-        $writer.BaseStream.Position = 0x98 + 112 + $directoryIndex * 8
-        $writer.Write([uint32]0x1000); $writer.Write([uint32]$tableSize)
-        $writer.BaseStream.Position = 0x190; $writer.Write([uint32]0x200); $writer.Write([uint32]0x1000); $writer.Write([uint32]0x200); $writer.Write([uint32]0x400)
-        for ($descriptorIndex = 0; $descriptorIndex -lt $importCount; $descriptorIndex++) {
-            $writer.BaseStream.Position = 0x400 + ($descriptorIndex * $descriptorSize)
-            $nameRva = [uint32](0x1040 + ($descriptorIndex * 0x20))
-            if ($Delay) { $writer.Write([uint32]1); $writer.Write($nameRva); $writer.Write([uint32]0); $writer.Write([uint32]0); $writer.Write([uint32]0); $writer.Write([uint32]0); $writer.Write([uint32]0); $writer.Write([uint32]0) }
-            else { $writer.Write([uint32]0); $writer.Write([uint32]0); $writer.Write([uint32]0); $writer.Write($nameRva); $writer.Write([uint32](0x1050 + ($descriptorIndex * 0x20))) }
-            $dll = if ($descriptorIndex -eq 0) { $DllName } else { $SecondDllName }
-            $writer.BaseStream.Position = 0x440 + ($descriptorIndex * 0x20)
-            $writer.Write([Text.Encoding]::ASCII.GetBytes($dll + "`0"))
-        }
-    } finally { $writer.Dispose() }
-    return ,$bytes
-}
+
+
+if ([bool]$WitnessPath -ne [bool]$WitnessSha256) { throw 'Supply both -WitnessPath and -WitnessSha256.' }
+if (($WitnessPath -or $WitnessSha256) -and -not $SelfTest) { throw 'Witness options require -SelfTest.' }
+if ($WitnessSha256 -and $WitnessSha256 -notmatch '^[0-9a-fA-F]{64}$') { throw '-WitnessSha256 must contain exactly 64 hexadecimal digits.' }
 
 if ($SelfTest) {
-    $direct = @(Get-PeImports (New-FixturePe $false 'cudart64_12.dll'))
-    $delayed = @(Get-PeImports (New-FixturePe $true 'nvcuda.dll'))
-    Assert-True ($direct.Count -eq 1 -and $direct[0] -eq 'cudart64_12.dll') 'direct import fixture parsed.'
-    Assert-True ($delayed.Count -eq 1 -and $delayed[0] -eq 'nvcuda.dll') 'delay import fixture parsed.'
-    $truncatedDirect = Invoke-Check 'Cpu' 'synthetic truncated direct table' -KnownBytes (New-FixturePe $false 'KERNEL32.dll' 'cudart64_12.dll' $true)
-    $truncatedDelay = Invoke-Check 'Cpu' 'synthetic truncated delay table' -KnownBytes (New-FixturePe $true 'KERNEL32.dll' 'cudart64_12.dll' $true)
-    Assert-True ($truncatedDirect.Verdict -eq 'FAIL' -and $truncatedDirect.Reason -match 'Unterminated direct') 'truncated direct table must fail closed even when CUDA lies beyond its declared size.'
-    Assert-True ($truncatedDelay.Verdict -eq 'FAIL' -and $truncatedDelay.Reason -match 'Unterminated delay') 'truncated delay table must fail closed.'
-    Assert-True ((Test-Imports 'Gpu' @('cudart64_12.dll','nvcuda.dll')).Passed) 'GPU must require both CUDA imports.'
-    Assert-True (-not (Test-Imports 'Gpu' @('cudart64_12.dll')).Passed) 'GPU must fail when nvcuda is missing.'
-    Assert-True (-not (Test-Imports 'Cpu' $delayed).Passed) 'delay import must fail CPU.'
-    $nonPeRejected = $false
-    try { [void](Get-PeImports ([byte[]](1,2,3))) } catch { $nonPeRejected = $true }
-    Assert-True $nonPeRejected 'non-PE fixture refused.'
-    $nonPeReport = Invoke-Check 'Cpu' 'synthetic non-PE fixture' -KnownBytes ([byte[]](1,2,3))
-    Assert-True ($nonPeReport.Verdict -eq 'FAIL' -and $nonPeReport.Sha256 -eq 'synthetic') 'non-PE report contains failure verdict.'
-    $negative = '../target/parakeet-tests/cargo-shared/release/whisper-worker-cpu.exe'
-    $negativePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot $negative))
-    if (-not (Test-Path -LiteralPath $negativePath -PathType Leaf)) { throw "Required real negative witness is missing: $negativePath" }
-    $negativeSha = (Get-FileHash -LiteralPath $negativePath -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($negativeSha -ne '67e668ff75c0c59522c1e3cdb3529518938209d962e3c66aa5662bbad7001cf4') { throw "Negative witness SHA mismatch: $negativeSha" }
-    $witness = Invoke-Check 'Cpu' $negativePath
-    Assert-True ($witness.Verdict -eq 'FAIL' -and $witness.CudaImports.Count -gt 0) 'real CPU release witness must be rejected.'
-    'PASS: direct/delay import fixtures, non-PE rejection, and SHA-pinned CPU negative witness.'
+    $fixtures = Join-Path $PSScriptRoot 'fixtures/pe'
+    $positiveCount = 0
+    $negativeCount = 0
+    foreach ($kind in @('Cpu','ParakeetCpu','Desktop')) {
+        $clean = Invoke-Check $kind (Join-Path $fixtures 'no-cuda.bin')
+        Assert-True ($clean.Verdict -eq 'PASS' -and $clean.CudaImports.Count -eq 0) "$kind accepts no-CUDA fixture."
+        $positiveCount++
+        foreach ($name in @('cublas.bin','delay-cuda.bin','gpu.bin')) {
+            $report = Invoke-Check $kind (Join-Path $fixtures $name)
+            Assert-True ($report.Verdict -eq 'FAIL' -and $report.CudaImports.Count -gt 0) "$kind rejects $name."
+            $negativeCount++
+        }
+    }
+    $gpu = Invoke-Check 'Gpu' (Join-Path $fixtures 'gpu.bin')
+    Assert-True ($gpu.Verdict -eq 'PASS' -and $gpu.Imports.Count -eq 2) 'GPU accepts cudart and nvcuda.'
+    $positiveCount++
+    foreach ($name in @('cudart-only.bin','nvcuda-only.bin','no-cuda.bin')) {
+        $report = Invoke-Check 'Gpu' (Join-Path $fixtures $name)
+        Assert-True ($report.Verdict -eq 'FAIL' -and $report.Reason -match 'Missing required CUDA imports') "GPU rejects $name."
+        $negativeCount++
+    }
+    foreach ($table in @('direct','delay')) {
+        $report = Invoke-Check 'Cpu' (Join-Path $fixtures "truncated-$table.bin")
+        Assert-True ($report.Verdict -eq 'FAIL' -and $report.Reason -match "Unterminated $table") "truncated $table table fails closed."
+        $negativeCount++
+    }
+    $nonPe = Invoke-Check 'Cpu' (Join-Path $fixtures 'non-pe.bin')
+    Assert-True ($nonPe.Verdict -eq 'FAIL' -and $nonPe.Reason -match 'PE parse failed:') 'non-PE rejected.'
+    $negativeCount++
+    if ($WitnessPath) {
+        $negativePath = (Resolve-Path -LiteralPath $WitnessPath -ErrorAction Stop).Path
+        $negativeSha = (Get-FileHash -LiteralPath $negativePath -Algorithm SHA256).Hash
+        Assert-True ($negativeSha -ieq $WitnessSha256) 'real witness SHA-256 matches.'
+        $witness = Invoke-Check 'Cpu' $negativePath
+        Assert-True ($witness.Verdict -eq 'FAIL' -and $witness.CudaImports.Count -gt 0) 'real witness rejected for CUDA imports.'
+        'témoin réel : REFUS CONFIRMÉ'
+    } else { 'témoin réel : NON EXÉCUTÉ' }
+    "PASS versioned PE fixtures: positives=$positiveCount, negatives=$negativeCount."
     exit 0
 }
 

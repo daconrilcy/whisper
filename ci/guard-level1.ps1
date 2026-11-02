@@ -25,7 +25,7 @@ function Convert-CargoArgsJson([string]$Json) {
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $lotRoot = Join-Path $repo $LotRoot
 $cargoRoot = 'C:\dev\whisper\target\parakeet-tests\cargo-shared'
-$cargoHome = Join-Path $lotRoot 'cargo-home'
+$cargoHome = Join-Path $repo 'target/cargo-home-shared'
 $tempRoot = Join-Path $lotRoot 'temp'
 $scratchRoot = Join-Path $lotRoot 'scratch'
 $runRoot = $null
@@ -117,6 +117,12 @@ function Get-WorkspaceMembers([string[]]$Members) { return @($Members) }
 
 function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
     if ($CommandTokens.Count -lt 1) { throw 'A Cargo command is required.' }
+    if ($CommandTokens[0] -ceq 'fetch') {
+        if ($CommandTokens.Count -ne 2 -or $CommandTokens[1] -cne '--locked') {
+            throw 'Only cargo fetch --locked is allowed for network access.'
+        }
+        return [pscustomobject]@{ Args = @('fetch','--locked'); Category = 'Fetch' }
+    }
     $normalizedArgs = [Collections.Generic.List[string]]::new()
     foreach ($arg in $CommandTokens) {
         if ($arg -in @('--offline', '--locked')) { continue }
@@ -242,14 +248,16 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
 function Assert-WriteRoots {
     if (-not (Test-InRoot $lotRoot $repo)) { throw "Lot root must be inside the worktree: $lotRoot" }
     foreach ($path in @($lotRoot, $cargoRoot, $cargoHome, $tempRoot, $scratchRoot, $runRoot, $script:targetRoot)) { Assert-NoReparseChain $path 'write root' }
-    if (-not (Test-InRoot $cargoHome $lotRoot) -or -not (Test-InRoot $tempRoot $lotRoot) -or -not (Test-InRoot $scratchRoot $lotRoot)) { throw 'Campaign roots escaped the lot root.' }
+    if ((Get-FullPath $cargoHome) -ine (Get-FullPath (Join-Path $repo 'target/cargo-home-shared'))) { throw 'CARGO_HOME shared root differs from its declared persistent location.' }
+    if (-not (Test-InRoot $tempRoot $lotRoot) -or -not (Test-InRoot $scratchRoot $lotRoot)) { throw 'Campaign roots escaped the lot root.' }
     if ((Get-FullPath $env:CARGO_TARGET_DIR) -ine (Get-FullPath $script:targetRoot)) { throw 'CARGO_TARGET_DIR differs from the selected target.' }
-    foreach ($name in @('CARGO_HOME','TEMP','TMP','LOCALAPPDATA')) {
+    foreach ($name in @('TEMP','TMP','LOCALAPPDATA')) {
         $value = [Environment]::GetEnvironmentVariable($name)
         if ([string]::IsNullOrWhiteSpace($value) -or -not (Test-InRoot $value $lotRoot)) { throw "$name is missing or outside the lot root." }
         Assert-NoReparseChain $value $name
     }
-    if ((Get-FullPath $env:CARGO_HOME) -ine (Get-FullPath $cargoHome)) { throw 'CARGO_HOME is not isolated.' }
+    if ([string]::IsNullOrWhiteSpace($env:CARGO_HOME) -or (Get-FullPath $env:CARGO_HOME) -ine (Get-FullPath $cargoHome)) { throw 'CARGO_HOME differs from its declared persistent location.' }
+    Assert-NoReparseChain $env:CARGO_HOME 'CARGO_HOME'
     if (-not (Test-InRoot $env:TEMP $tempRoot) -or -not (Test-InRoot $env:TMP $tempRoot)) { throw 'TEMP/TMP are not isolated below the lot root.' }
     if (-not (Test-InRoot $env:LOCALAPPDATA $runRoot)) { throw 'LOCALAPPDATA is not isolated under this run root.' }
     if ($env:CARGO_INCREMENTAL -cne '0' -or $env:CARGO_PROFILE_DEV_DEBUG -cne 'line-tables-only') { throw 'Cargo profile environment differs from level-1 settings.' }
@@ -314,13 +322,13 @@ function Set-CargoCommandEnvironment([string]$Subcommand) {
 function Initialize-Roots {
     if ((Get-PSDrive -Name C).Free -lt 30GB) { throw 'C: has less than 30 GiB free; campaign setup is forbidden.' }
     foreach ($path in @($lotRoot,$cargoRoot,$cargoHome,$tempRoot,$scratchRoot)) { Assert-NoReparseChain $path 'lot root preflight' }
-    foreach ($path in @($lotRoot,$cargoHome,$tempRoot,$scratchRoot)) { Initialize-Directory $path 'lot root' }
-    if (-not (Test-Path (Join-Path $cargoHome 'registry/src'))) {
-        $cacheSource = 'C:\dev\whisper\target\parakeet-tests\refacto-parakeet-live\cargo-home'
-        Assert-NoReparseChain $cacheSource 'offline Cargo cache source'
-        if (-not (Test-Path (Join-Path $cacheSource 'registry/src'))) { throw "Offline Cargo cache is missing at the approved source: $cacheSource" }
-        Get-ChildItem -LiteralPath $cacheSource -Force | Copy-Item -Destination $cargoHome -Recurse -Force
-        Assert-NoReparseChain $cargoHome 'isolated CARGO_HOME after cache copy'
+    foreach ($path in @($lotRoot,$tempRoot,$scratchRoot)) { Initialize-Directory $path 'lot root' }
+}
+
+function Assert-OfflineCache([string]$CacheRoot) {
+    Assert-NoReparseChain $CacheRoot 'persistent Cargo cache'
+    if (-not (Test-Path -LiteralPath (Join-Path $CacheRoot 'registry/src') -PathType Container)) {
+        throw "Offline Cargo cache is absent or empty at $CacheRoot. Initialize it through ci/guard-level1.ps1 -CargoArgsJson '[`"fetch`",`"--locked`"]' before an offline command."
     }
 }
 
@@ -329,6 +337,7 @@ function Invoke-SelfTests {
     $singletonJsonArgs = @(Convert-CargoArgsJson '["test"]')
     if ($singletonJsonArgs.Count -ne 1 -or $singletonJsonArgs[0] -cne 'test') { throw 'Self-test did not preserve a singleton JSON Cargo argv.' }
     $positive = @(
+        @('fetch','--locked'),
         @('tree','-p','whisper-worker-cpu','-e','features','-i','whisper-rs-sys'),
         @('metadata','--format-version','1'),
         @('fmt','--check'),
@@ -345,6 +354,7 @@ function Invoke-SelfTests {
         @('check','--workspace','--release')
     )
     $negative = @(
+        @('fetch'),@('fetch','--offline'),@('fetch','--locked','--offline'),@('fetch','--locked','--config','x'),
         @('run','--workspace'),@('install','whisper-core'),@('uninstall','whisper-core'),@('update'),@('publish'),@('clean'),@('add','serde'),@('remove','serde'),@('fix'),@('generate-lockfile'),@('vendor'),@('cargo-unknown'),
         @('build','--fix','--workspace'),@('build','--allow-dirty','--workspace'),@('build','--all-features','--workspace'),@('test','--ignored','--workspace'),@('test','--include-ignored','--workspace'),@('test','--features','native-tests','--workspace'),@('test','--features','recette-hooks','--release','--workspace'),@('build','--config','x','--workspace'),@('build','-Z','foo','--workspace'),@('build','--target-dir','x','--workspace'),@('build','--manifest-path','..\Cargo.toml','--workspace'),@('build','--unknown','--workspace'),@('build','-p','not-a-member')
     )
@@ -367,6 +377,19 @@ function Invoke-SelfTests {
     $negative += ,@('test','-p','whisper-worker-gpu')
     $negative += ,@('test','-p','whisper-worker-gpu','--no-run')
     $pCount = 1
+    $fetch = Test-CargoArguments @('fetch','--locked') $members
+    if ($fetch.Category -cne 'Fetch' -or ($fetch.Args -join ' ') -cne 'fetch --locked') { throw 'Self-test did not preserve locked fetch without offline.' }
+    $pCount++
+    $missingCache = Join-Path $runRoot 'absent-cache'
+    [void](Test-CargoArguments @('build','--offline','--workspace') $members)
+    $cacheRejected = $false
+    try { Assert-OfflineCache $missingCache } catch { $cacheRejected = $_.Exception.Message -match 'cache is absent.*fetch' }
+    if (-not $cacheRejected -or (Test-Path -LiteralPath $missingCache)) { throw 'Missing offline cache must be rejected with fetch guidance before Cargo.' }
+    $nCount = 1
+    $presentCache = Join-Path $runRoot 'populated-cache-fixture'
+    Initialize-Directory (Join-Path $presentCache 'registry/src') 'offline cache fixture'
+    Assert-OfflineCache $presentCache
+    $pCount++
     $listCases = @(
         @{ Args=@('test'); Expected='test --offline --locked'; Category='Tests' },
         @{ Args=@('test','-p','whisper-worker-cpu','--','--list'); Expected='test --offline --locked -p whisper-worker-cpu -- --list'; Category='Tests' },
@@ -387,7 +410,6 @@ function Invoke-SelfTests {
     }
     $pCount++
     foreach ($case in $positive) { [void](Test-CargoArguments $case $members); $pCount++ }
-    $nCount = 0
     foreach ($case in $negative) { $rejected=$false; try { [void](Test-CargoArguments $case $members) } catch { $rejected=$true }; if (-not $rejected) { throw "Self-test accepted: $($case -join ' ')" }; $nCount++ }
     foreach ($bad in @('OTHER_VAR','CMAKE_PREFIX_PATH','CUDA_VISIBLE_DEVICES')) { $rejected=$false; try { Assert-AllowedUnset @($bad) } catch { $rejected=$true }; if (-not $rejected) { throw "Self-test accepted -UnsetEnv $bad" }; $nCount++ }
     foreach ($good in @('CUDA_PATH','CUDA_PATH_V12_8','GGML_CUDA','WHISPER_ENGINE','PARAKEET_MODEL')) { Assert-AllowedUnset @($good); $pCount++ }
@@ -449,6 +471,14 @@ function Invoke-SelfTests {
     $savedVariables = @{}
     try {
         foreach ($name in @('WHISPER_N1_REVIEW','PARAKEET_N1_REVIEW','RUSTFLAGS')) { $savedVariables[$name] = [Environment]::GetEnvironmentVariable($name) }
+        $savedCargoHome = $env:CARGO_HOME
+        try {
+            $env:CARGO_HOME = Join-Path $runRoot 'unapproved-cargo-home'
+            $rejected=$false
+            try { Assert-WriteRoots } catch { $rejected=$true }
+            if (-not $rejected) { throw 'Self-test accepted a noncanonical CARGO_HOME.' }
+            $nCount++
+        } finally { $env:CARGO_HOME = $savedCargoHome }
         foreach ($name in @('WHISPER_N1_REVIEW','PARAKEET_N1_REVIEW')) {
             [Environment]::SetEnvironmentVariable($name,'not-cleared','Process')
             $rejected=$false
@@ -511,11 +541,20 @@ if ($SelfTest) { Invoke-SelfTests; exit 0 }
 if ($Mode -eq 'Structure') { Invoke-Structure; exit 0 }
 
 $members = @()
-$metadataRun = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source @('metadata','--offline','--locked','--no-deps','--format-version','1') 'workspace-metadata'
-if ($metadataRun.ExitCode -ne 0) { throw "Guarded cargo metadata failed: $($metadataRun.ExitCode)" }
-$metadata = $metadataRun.Stdout | ConvertFrom-Json
-$members = @($metadata.packages | ForEach-Object name)
-$checked = Test-CargoArguments $CargoArgs $members
+if ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fetch') {
+    $checked = Test-CargoArguments $CargoArgs $members
+    if ($FreshTarget -or $ExistingTarget) { throw 'Fetch does not accept a compilation target selection.' }
+    if (-not $DryRun) { Initialize-Directory $cargoHome 'persistent Cargo cache' }
+} elseif ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fmt') {
+    $checked = Test-CargoArguments $CargoArgs $members
+} else {
+    Assert-OfflineCache $cargoHome
+    $metadataRun = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source @('metadata','--offline','--locked','--no-deps','--format-version','1') 'workspace-metadata'
+    if ($metadataRun.ExitCode -ne 0) { throw "Guarded cargo metadata failed: $($metadataRun.ExitCode). If dependencies are missing, run guarded cargo fetch --locked." }
+    $metadata = $metadataRun.Stdout | ConvertFrom-Json
+    $members = @($metadata.packages | ForEach-Object name)
+    $checked = Test-CargoArguments $CargoArgs $members
+}
 Set-CargoCommandEnvironment $checked.Args[0]
 Assert-WriteRoots
 if ($FreshTarget) {
