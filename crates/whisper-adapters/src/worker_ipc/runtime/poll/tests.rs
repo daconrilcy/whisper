@@ -16,6 +16,7 @@ use whisper_core::{
 
 mod active_live_stop;
 mod manual_gpu_choice;
+mod native_direct_cpu;
 mod readiness_admission;
 mod resume_and_segments;
 mod stop_recovery;
