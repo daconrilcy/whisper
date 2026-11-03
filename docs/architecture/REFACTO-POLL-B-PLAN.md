@@ -1,6 +1,6 @@
 Avancée : familles 5 et 6 caractérisées et extraites CLEAN ; quatre mutations obligatoires détectées ; N1 734/148.
-Blocage : N2 ciblée reste à préparer précisément et autoriser ; aucune validation native déduite de N1.
-Décision : commiter 6b puis proposer N2 ; ne pas commencer C, ne pas pousser, bilan B à figer après décision N2.
+Blocage : aucun pour préparer le complément N2 comparatif autorisé ; tests/profils et ressources restent à mettre en place.
+Décision : réaliser uniquement le complément N2 approuvé, puis figer B et arrêter ; C et push non autorisés.
 
 # REFACTO-POLL — sous-lot B
 
@@ -604,6 +604,97 @@ présentation ; aucun constat ouvert, V-6B-N1 satisfait. Les handlers
 préservent les contrôles, priorités, nettoyages et retours immédiats. Le
 reliquat de poll reste pour C ; il n'est pas présenté comme conforme aux
 seuils finaux. N2 non exécutée, B pas encore clos.
+
+## Proposition N2 précise, non exécutée et soumise à autorisation
+
+Production B livrée dans `7e30d667c92138516ce721cc5c559869b03b697c`.
+Le critère original exige des parcours traversant ImportRuntime::poll.
+Le nom d'un profil worker ou d'un test DirectLive seul ne suffit pas.
+
+| Parcours | Cas retenu / profil | Référence comparable |
+| --- | --- | --- |
+| Import CPU long | PersonalLongCpu : `native_personal_cpu_imports_annotated_french_long_audio`, puis version english ; Parakeet CPU réel, application/AsyncImportIo/poll. | `1d30690e` : corps FR 175,79 s, EN 195,44 s ; publications validées, sans WER. |
+| Reprise après interruption | Nouveau profil PollInterruptedResume pour `worker_ipc::tests::import_application_resumes_a_verified_interrupted_unified_import`, existant. Passe RuntimeImportPort/poll ; modèle Parakeet réel vérifié mais transcripteur contrôlé, aucune inférence native dans ce cas. | Aucun résultat équivalent retrouvé ; établir une référence pré-B avec le même cas. |
+| Repli Auto | PersonalAutoFallback : `native_personal_auto_without_candidate_reports_preaudio_cpu_fallback`, Parakeet CPU réel via application/poll. | `5a53d776` : corps 26,14 s, Cargo 27,203 s. Absence de candidat GPU, pas échec d'initialisation GPU. |
+| Direct Turbo CPU | Nouveau profil PollTurboCpuDirect et nouveau test unitaire natif `native_direct_turbo_cpu_finishes_through_poll` dans `poll/tests/native_direct_cpu.rs`. Moteur et worker CPU réels, capture simulée ; appels par ImportRuntime::poll. | Aucun résultat équivalent retrouvé ; établir une référence pré-B avec ce même test. Le contrat worker TurboCpuLive à `19e17019` (24,36 s) ne remplace pas ce parcours parent. |
+
+Le support existant `DirectLive::from_test_capture_with_cpu_worker` est
+pub(crate) sous cfg(test), prend LiveRequest/capture/worker/instance, et
+démarre le vrai worker. `runtime.direct_live` est accessible aux tests frères.
+Aucun nouveau point d'injection, champ ou changement de production requis.
+Le nouveau test sera ignoré en N1 sans native-tests ; pas de retour silencieux
+en cas de ressource absente. Vérifier les événements corrélés, le moteur CPU,
+Stop et les sorties TXT/SRT/WAV cohérentes d'un flux simulé déterministe.
+Ne pas présenter ce cas comme une validation du microphone Windows ou de l'UI.
+
+**Chemins supplémentaires proposés pour ce complément N2 uniquement :**
+nouveau `crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/native_direct_cpu.rs`,
+sa déclaration dans poll/tests.rs, son entrée dans ci/tests-baseline.txt,
+et deux profils dans `ci/native-profiles.json`. Features native-tests existantes
+seulement ; aucun manifeste Cargo, lock, script de garde, dépendance, ancien
+test ou code de production modifié. Revue indépendante et N1 avant commit
+de qualification ; vérifications SelfTest/Preflight de la garde native avant Run.
+
+**Préparation de ressources, proposée sans écriture déjà réalisée :**
+
+- Reconstituer sous `C:/wt/poll/target/n2-native/resources/personal-runtime/Whisper`
+  les 21 fichiers / 3 196 008 875 octets attendus par les profils existants.
+  Source préservée `C:/dev/whisper/target/pile-preserved/r8/target/n2-native/resources/personal-runtime/Whisper`
+  : 19 fichiers / 857 478 144 octets présents ; ajouter ses deux modèles depuis
+  `C:/dev/whisper/models/`, sans modifier ces originaux.
+- Copier les deux modèles également sous `C:/wt/poll/models/` pour le cas
+  de reprise existant qui impose le modèle catalogue à cet emplacement.
+  Identités relues : Turbo `1fc70f77…e8e2bc69`, Parakeet `e3880d0a…b7f4d32e`.
+  Worker CPU du seed présent, SHA `eb33d96b…751bbfef`, commun aux deux versions
+  du parent ; ne pas confondre comparaison du parent et comparaison de workers.
+- Copier les 297 clips et deux TSV de provenance nécessaires depuis
+  `C:/dev/whisper/sound example/` vers les mêmes chemins relatifs sous
+  `C:/wt/poll/sound example/`. Copier les quatre fichiers WAV/annotations longs
+  depuis le répertoire préservé `.../resources/long-cpu/` vers les resources N2
+  du worktree ; seuls les fichiers nécessaires aux deux cas, pas tout le corpus.
+- Réutiliser comme source du MP3 court la copie préservée
+  `C:/dev/whisper/target/pile-preserved/r8/target/n2-native/runs/PersonalAutoFallback-d5751e2d5e8845509332e49d37436f82/writes/l04/fixtures/en-short.mp3`
+  (24 237 octets, présence vérifiée), la recopier sous les resources N2.
+- Contrôler chemins canoniques, absence de jonction, tailles et SHA source/copie
+  avant/après. Préparer le cache Cargo isolé de N2 depuis le cache persistant
+  existant du worktree, sans téléchargement. Cible Cargo partagée inchangée ;
+  TEMP/TMP/LOCALAPPDATA restent ceux de la garde. Aucun settings/log/config produit
+  n'est précréé. Aucun original, installation Windows ou cache partagé supprimé.
+
+**Comparaison proposée :** utiliser une référence de production pré-B
+`6316a54b9681716b1d643dc8f2d60e8038d6b256`, avec le même banc de qualification
+test/données que le candidat. La session principale peut préparer une branche
+locale `codex/poll-n2-reference` depuis ce commit, y appliquer uniquement ce
+banc de tests et les profils (aucune modification du code de production),
+exécuter reprise/direct, puis revenir à `refacto/poll` pour les cinq cas B
+(deux longs, reprise, Auto et direct). Toute bascule Git se fait après fin des
+processus de garde, sur état propre et avec responsabilité d'écriture coordonnée.
+Le diff de production de la référence doit rester celui de 6316a54b ; le nouveau
+test direct et les profils doivent être identiques dans les deux versions.
+La référence ainsi construite est datée du présent essai, jamais présentée
+comme une ancienne campagne retrouvée. Comparer aussi longs et Auto à leurs
+derniers résultats historiques ci-dessus, avec leurs limites explicites.
+
+Cela représente sept corps ciblés au total : deux sur la référence et cinq
+sur B. Arrêt au premier échec ; pas de profil GPU, pas de D2 complet, pas de
+fenêtre Windows ou de capture physique. Archiver les petites preuves avec
+leur arborescence et vérification d'archivage ; conserver modèles, corpus,
+sources et caches partagés protégés. Après résultats ou décision utilisateur
+sur N2, figer le compte rendu B d'une page, puis arrêt avant C. Aucun push.
+
+L'utilisateur autorise explicitement dans la session **le complément N2
+comparatif** décrit ci-dessus : test direct parent avec support existant,
+deux profils, copies de ressources aux trois racines du worktree et sept
+exécutions CPU (deux pré-B avec le même banc, puis cinq B). L'accord inclut
+la référence de production 6316a54b ; aucun code de production, profil GPU,
+fenêtre Windows ou microphone physique n'est ajouté à ce périmètre.
+Une simple exécution des profils existants ne serait pas annoncée comme
+couverture complète des quatre parcours.
+
+Avant versionnement de cet accord et de la préparation N2, suite N1
+permanente répétée sous `n2-plan-n1-*` : Structure, défaut, common, CPU
+et Parakeet CPU réussis. Source Rust inchangée depuis 7e30d667. Aucun
+staging, test natif ou modification du banc N2 exécuté avant ce commit.
 
 ## Famille 5 — Stop avant activation et reprise d'import
 
