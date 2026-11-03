@@ -17,6 +17,7 @@ use whisper_core::{
 mod manual_gpu_choice;
 mod readiness_admission;
 mod resume_and_segments;
+mod stop_recovery;
 mod window_confirmations;
 
 static NEXT_TEST_ROOT: AtomicU64 = AtomicU64::new(0);

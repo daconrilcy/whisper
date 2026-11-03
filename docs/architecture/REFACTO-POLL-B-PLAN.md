@@ -1,6 +1,6 @@
-Avancée : prérequis de cent passages micro ciblés réussi, zéro échec ; préparation B relue CLEAN.
-Blocage : aucun sur la série ciblée et la suite N1 complète.
-Décision : préparation B validée, commencer 5a puis 5b ; pas de C, N2 sur autorisation distincte, aucun push.
+Avancée : famille 5a CLEAN, dix tests verts, deux mutations détectées et restaurées ; N1 721/148.
+Blocage : aucun pour 5a ; extraction 5b à réaliser et relire dans le périmètre B autorisé.
+Décision : commiter 5a puis extraire séparément les deux routes Stop F5 ; pas de C ni N2 sans autorisation.
 
 # REFACTO-POLL — sous-lot B
 
@@ -270,6 +270,99 @@ réussis. Journaux `preparation-*.log`, racines fraîches `preparation-checks/`.
 Contrôles PE **non concernés** : aucun worker, manifeste, lock, `.cargo/`
 ni script de compilation modifié ; le parseur de garde est un contrôle
 d'autorisation des commandes, sans changement du mécanisme de compilation.
+
+## État d'exécution 5a
+
+Préparation commitée dans `6316a54b9681716b1d643dc8f2d60e8038d6b256` après
+cent passages micro réussis et N1 complète : défaut 662/127, common 11/1,
+CPU 12/9, Parakeet CPU 26/11, soit **711 réussites, 148 ignorés**.
+
+Neuf nouveaux tests dans `poll/tests/stop_recovery.rs`, déclaration de module
+et neuf entrées de registre. SelfTest 35/79, Structure **916 tests/916 entrées**
+et fmt --check réussis. Premier appel adapters sous garde : compilation
+arrêtée sur E0594 à la ligne 100 du nouveau fichier, assignation à
+`request.config.compute` alors que la déclaration ligne 99 n'est pas mutable.
+Un seul diagnostic de compilation ; aucun test candidat exécuté, aucune
+mutation ni extraction. Preuve :
+`5a-adapters/scratch/20261103T100940554-985f586cc6734f8b977f8840d8dbb9cd/`
+sous la racine B, stdout et stderr conservés. Aucune relance ni correction
+effectuée après cet échec.
+
+Correction proposée : ajouter uniquement `mut` à cette variable de fixture,
+puis reprendre les vérifications 5a complètes, les deux mutations prévues
+et la revue indépendante. Aucun code de production concerné ; PE non concerné.
+
+Autorisation précise reçue dans la session : ajouter `mut` à cette seule
+variable, puis reprendre toutes les vérifications 5a, mutations et revue.
+Aucune autre correction ou extension de périmètre n'est déduite de cet accord.
+
+Reprise 5a : dix tests après ajout du cas AwaitingChoice annulé destiné à M1,
+SelfTest 35/79, Structure 917/917 et fmt réussis. Compilation réussie, puis
+`cargo test -p whisper-adapters` arrêté : 327 réussites, deux échecs, 48 ignorés.
+Les deux échecs sont dans les tests nouveaux, pas dans le code produit.
+Preuves : `5a-retry-adapters/scratch/20261103T101148223-082c2ffe849646d0b63de2e849b1fae7/`.
+Pas de relance, modification ou mutation après cet arrêt.
+
+Revue indépendante initiale : **FINDINGS**, deux constats bloquant la
+caractérisation avant extraction. R-5A-1 : la recherche globale Started
+rejette à tort le GPU initial de tentative 1 ; lire les records JSONL et
+caractériser la réservation CPU de tentative 2, sans Started CPU.
+R-5A-2 : l'attente d'erreur de reprise import reçoit LiveAttemptStarting ;
+elle doit distinguer les événements de l'ancienne tentative et observer
+la vraie transition Stopped puis l'échec de démarrage CPU, avec les états
+restants. Une course Start/Stop dans le faux worker est possible, mais non
+démontrée comme cause précise. Aucun défaut de production établi.
+
+Correction proposée seulement dans les nouveaux tests : oracle JSONL par
+tentative et synchronisation de la fixture/attente d'événements corrélés
+pour la reprise import, sans ignorer d'erreur ni rendre le test vert par
+retour anticipé. Reprise N1 complète, deux mutations et seconde revue par
+le même reviewer après arbitrage ; aucun changement de production autorisé.
+
+L'utilisateur autorise précisément les corrections R-5A-1/R-5A-2 dans les
+tests nouveaux, puis N1, deux mutations et seconde revue. Le coordinateur
+fait corriger par le même implémenteur ; aucun nouveau responsable d'écriture.
+
+Corrections appliquées dans le seul fichier de tests nouveau : journal JSONL
+par tentative ; faux worker et attente du Stop corrélés. Reprise sous garde :
+SelfTest 35/79, Structure 917/917, fmt et paquet adapters réussis (harnais
+unitaire : 329 réussites, zéro échec, 48 ignorés). Racines `5a-corrected-*`.
+La suite N1 complète et les deux mutants restent à terminer avant fermeture.
+
+N1 avant mutations sur candidat final : défaut 672/127, common 11/1,
+CPU 12/9, Parakeet CPU 26/11, soit **721 réussites et 148 ignorés** ;
+SelfTest 35/79, Structure 917/917, fmt et Clippy workspace/all-targets
+réussis (38 avertissements adapters existants). Preuves `5a-final2-*`.
+
+Deux mutations locales non commitées détectées, puis restaurées :
+
+- **M1**, retrait du bloc PublicationGate pending-live de poll.rs:504–507 :
+  `poll_stopped_manual_gpu_choice_is_cancelled_by_publication_gate` échoue
+  sur l'événement ; `poll_stopped_auto_retry_cancels_pending_live_without_starting_cpu`
+  échoue sur Cancelled au lieu de Stopped. Preuve `5a-m1/scratch/20261103T102806324-879dd9f78bb44309b20c006d706efe0a/`.
+- **M2**, neutralisation du contrôle import dans poll et du contrôle redondant
+  de worker_start.rs:43 en reprise CPU forcée :
+  `poll_stopped_import_auto_retry_drops_request_when_gate_is_cancelled`
+  observe **cpu_started=true et cpu_worker_alive=true** avant l'échec de son
+  assertion Stopped. Le test existant `stop_latched_after_gpu_failure_prevents_cpu_worker_launch`
+  détecte aussi ce mutant, sans modification du test existant. Preuve
+  `5a-m2/scratch/20261103T102853240-1f882db9683547e887074fe24e742177/`.
+
+Échecs attendus dans la campagne de mutation, expressément exigée par le
+plan ; aucun échec étranger aux effets forcés signalé. Les blocs originaux
+sont restaurés exactement ; reprise N1 après restauration avant revue finale.
+Les mutants ne seront inclus dans aucun commit.
+
+Après restauration : suite `5a-post-*` entièrement réussie, SelfTest 35/79,
+Structure 917/917, fmt, adapters, Clippy et N1 défaut/common/CPU/Parakeet CPU.
+Comptes consolidés identiques : **721 réussites, 148 ignorés**. Diff de
+production vide, diff-check réussi. Seconde revue : R-5A-1/R-5A-2 et les
+deux mutations confirmés, sans nouveau constat ; verdict final attendu sur
+les preuves de validation complète. Verdict final : **CLEAN**, deux revues,
+une correction, R-5A-1/R-5A-2 clos et aucune requête ouverte. Les cent passages
+préparatoires précèdent 6316a54b ; ils ne sont pas présentés comme cent
+répétitions du candidat 5a. L'autorisation B initiale couvre la suite 5b,
+après commit Na, avec nouvelle validation et revue indépendante.
 
 ## Famille 5 — Stop avant activation et reprise d'import
 
