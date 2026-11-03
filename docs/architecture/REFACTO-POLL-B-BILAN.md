@@ -57,3 +57,5 @@ injecté ; test GPU historique au nom trompeur inchangé.
 octets ; commande utilisateur au plan. Caches partagés/persistants, modèles,
 audios et preuves préservés. Aucune suppression ; 586,41 Gio libres.
 Ce bilan est figé à son commit de clôture.
+
+[Complément de nettoyage vérifié](REFACTO-POLL-B-NETTOYAGE.md)
