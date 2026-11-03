@@ -1,8 +1,10 @@
 use super::*;
+use live_windows::{LiveMp3PacketControl, WindowFinishedControl};
 use readiness::{AdmissionAckControl, AttestationControl, GpuSessionAttestation, ReadyControl};
 use segments::ResumePrefixControl;
 
 mod capture;
+mod live_windows;
 mod observations;
 mod parakeet;
 mod readiness;
@@ -138,6 +140,7 @@ pub(in crate::worker_ipc) fn map_attempt_sequence(
 }
 
 impl ImportRuntime {
+    #[warn(clippy::too_many_lines, clippy::cognitive_complexity)]
     pub(in crate::worker_ipc) fn poll(
         &mut self,
     ) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
@@ -462,91 +465,19 @@ impl ImportRuntime {
             self.deferred_live_stopped = Some(event);
             return None;
         }
-        if let WorkerEvent::LiveMp3Packet {
-            job_id: packet_job,
-            generation: packet_generation,
-            instance_id: packet_instance,
-            bytes,
-            ..
-        } = &event
-        {
-            if (*packet_job, *packet_generation, *packet_instance)
-                != (job_id, generation, instance_id)
-            {
-                return None;
-            }
-            if let Some(archive) = self.live_archive.as_mut() {
-                if let Err(error) = archive.append_mp3_packet(bytes) {
-                    if let Some(live) = self.live.as_mut() {
-                        live.stop_capture();
-                        let _ = live.staging.drain();
-                        live.failure = Some(error.clone());
-                    }
-                    if let Some(transport) = self.transport.as_mut() {
-                        let _ = transport.try_request(WorkerCommand::Stop { job_id, generation });
-                    }
-                    return None;
-                }
-                return None;
-            }
+        match self.poll_live_mp3_packet(&event, job_id, generation, instance_id) {
+            LiveMp3PacketControl::Continue => {}
+            LiveMp3PacketControl::ReturnNone => return None,
         }
-        if let WorkerEvent::WindowFinished {
-            sequence,
-            range,
-            last_segment_sequence,
-            ..
-        } = &event
-        {
-            if self.live.is_none() {
-                return Some(Err((
-                    job_id,
-                    generation,
-                    "ProtocolMismatch: WindowFinished outside a live pass".into(),
-                )));
+        match self.poll_window_finished(&event, job_id, generation) {
+            WindowFinishedControl::Continue => {}
+            WindowFinishedControl::ReturnNone => return None,
+            WindowFinishedControl::ImmediateError(job_id, generation, message) => {
+                return Some(Err((job_id, generation, message)));
             }
-            let Some(live) = self.live.as_ref() else {
-                unreachable!()
-            };
-            // Confirmations wholly inside T were already durable before this attempt.
-            // Replay only rebuilds the MP3 encoder and must not create duplicate coverage.
-            if range.end_sample <= live.replay_until {
-                return None;
+            WindowFinishedControl::Confirm(finished) => {
+                return Some(self.confirm_live_window(finished));
             }
-            let Some(window_sequence) = map_attempt_sequence(
-                live.window_sequence_base,
-                live.replay_windows_to_skip,
-                *sequence,
-            ) else {
-                return Some(Err((
-                    job_id,
-                    generation,
-                    "ProtocolMismatch: live window sequence cannot be mapped to durable prefix"
-                        .into(),
-                )));
-            };
-            let last_segment_sequence = if *last_segment_sequence == 0 {
-                live.segment_sequence_base.checked_sub(1)
-            } else {
-                map_attempt_sequence(live.segment_sequence_base, 0, *last_segment_sequence)
-            };
-            let Some(last_segment_sequence) = last_segment_sequence else {
-                return Some(Err((
-                    job_id,
-                    generation,
-                    "ProtocolMismatch: live segment sequence cannot be mapped to durable prefix"
-                        .into(),
-                )));
-            };
-            let finished = FinishedLiveWindow {
-                sequence: window_sequence,
-                range: *range,
-                last_segment_sequence,
-            };
-            if self.live_pending_persistence > 0 {
-                self.deferred_live_window_finished = Some(finished);
-                return None;
-            }
-            return Some(self.confirm_live_window(finished));
         }
         if matches!(event, WorkerEvent::Stopped { .. })
             && self.live.is_none()

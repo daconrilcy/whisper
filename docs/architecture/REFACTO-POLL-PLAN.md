@@ -1,5 +1,5 @@
-Avancée : familles 1 à 3 extraites et caractérisation 4a CLEAN, N1 verte (710 réussites, 148 ignorés).
-Blocage : aucun ; extraction 4b reste à réaliser avant clôture de A.
+Avancée : familles 1 à 4 caractérisées et extraites, huit revues CLEAN, N1 finale verte (710 réussites, 148 ignorés).
+Blocage : aucun sur le candidat final A ; réserves historiques micro/PE consignées ci-dessous.
 Décision : démarrage du sous-lot A autorisé ; arrêt obligatoire à sa clôture, B et C restent à engager séparément.
 
 # REFACTO-POLL — cartographie et plan accepté
@@ -352,7 +352,7 @@ qualification supplémentaire ni nouvel outillage de campagne.
   `20261103T042527759-eaf8f7faa9b341daad58b9191e75c0ee`, CPU
   `20261103T042530582-29ae6e3cb7704de094fad0671afda57d`, Parakeet CPU
   `20261103T042539271-e0b022d6d10f4671b59e97f1eebc2f1e`.
-- 4a : huit nouveaux tests ; helper archive exclusivement cfg(test) autorisé
+- 4a (`69809a26`) : huit nouveaux tests ; helper archive exclusivement cfg(test) autorisé
   séparément et ajouté sans changer append_mp3_packet. Revue CLEAN après une
   correction R4A-1 (tail PCM 160, durable 0 avant poll puis 160 après erreur)
   et R4A-2 (attendre la sortie réussie du faux worker avant lecture Stop).
@@ -367,3 +367,18 @@ qualification supplémentaire ni nouvel outillage de campagne.
   `20261103T072434178-d24d09b39257420981bb97b2302401a9`, CPU
   `20261103T072446047-072a4dccdbb542ce9f825492fc0a65d1`, Parakeet CPU
   `20261103T072504838-c30adb9b06ca4df98f52d0f28e5713b2`.
+- 4b : blocs MP3/fenêtres extraits dans `poll/live_windows.rs`, 37/66 lignes
+  physiques, lints locaux <=100/25 PASS. Identité MP3 redondante et branche
+  unreachable conservées, sorties immédiates séparées du traitement final.
+  Revue indépendante CLEAN sans correction ; diff 82 suppressions/135 ajouts,
+  sous 800 lignes déplacées. Annotation de mesure ciblée sur poll :
+  700 lignes Clippy et complexité 73, 707 lignes physiques (144–850), contre
+  1085/102 et 1098 physiques sur référence versionnée. Le reliquat demeure
+  dans les sous-lots B/C, aucune extraction hors A ajoutée.
+  N1 finale 710/0/148, Structure 906/906, SelfTest/PE/fmt/Clippy/diff-check PASS ;
+  scans des quatre harnais CPU et cinq Parakeet CPU avant leurs sélections.
+  Logs scratch : Clippy `20261103T073007832-472dc7cc6283496e972e3dc673842391`,
+  défaut `20261103T073027397-565d66cf312a454caa1330b8476bfbfc`, common
+  `20261103T073102431-8d518de6f4fe47b981344ef17f37f595`, CPU
+  `20261103T073115277-a87b49c8699c4a12904abf605dd314ed`, Parakeet CPU
+  `20261103T073142298-a0312ed95b0747c8ac976c6ca65f1b04`.
