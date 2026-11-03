@@ -1,6 +1,6 @@
-Avancée : famille 5a CLEAN, dix tests verts, deux mutations détectées et restaurées ; N1 721/148.
-Blocage : aucun pour 5a ; extraction 5b à réaliser et relire dans le périmètre B autorisé.
-Décision : commiter 5a puis extraire séparément les deux routes Stop F5 ; pas de C ni N2 sans autorisation.
+Avancée : 5a et 5b CLEAN, deux mutations F5 détectées ; N1 finale 721/148.
+Blocage : aucun sur la famille 5 ; support de preuve d'ordre F6 puis 6a/6b à réaliser.
+Décision : commiter 5b puis poursuivre B autorisé ; pas de C, N2 sur autorisation distincte.
 
 # REFACTO-POLL — sous-lot B
 
@@ -363,6 +363,50 @@ une correction, R-5A-1/R-5A-2 clos et aucune requête ouverte. Les cent passages
 préparatoires précèdent 6316a54b ; ils ne sont pas présentés comme cent
 répétitions du candidat 5a. L'autorisation B initiale couvre la suite 5b,
 après commit Na, avec nouvelle validation et revue indépendante.
+
+## État d'exécution 5b
+
+5a commité dans `cfce1612eab3cd48c77450f1a86a382c531119c3`. Extraction
+limitée à poll.rs et au nouveau `poll/stop_recovery.rs`, deux handlers
+séparés et leurs contrôles ; aucune modification des tests. SelfTest 35/79,
+Structure 917/917 et fmt réussis. Un appel Clippy avec options après `--`
+a été refusé par le parseur avant Cargo. L'implémenteur a ensuite ajouté
+les annotations warn de seuils aux handlers et poursuivi avec Clippy
+ordinaire avant arbitrage : **écart à la règle d'arrêt**, consigné ici.
+Cette poursuite ne crée aucune dérogation pour les appels suivants.
+
+Clippy ordinaire a arrêté la compilation : **deux E0624**, méthodes
+`poll_stopped_pending_live_recovery` et `poll_stopped_import_auto_retry`
+privées dans le sous-module alors qu'elles sont appelées par poll.rs.
+Aucun test 5b exécuté, aucune relance ni édition après cet échec.
+Preuve : `5b-clippy/scratch/20261103T103530453-30c5ba8be4d340fe8432e37c217b1328/`.
+Revue indépendante initiale en cours, lecture seule sur ce candidat figé.
+
+Correction proposée : rendre uniquement ces deux méthodes `pub(super)`,
+visibles depuis leur module parent, sans modifier leurs corps ; reprendre
+les vérifications 5b complètes et la revue. Aucun élargissement d'API publique
+livrée, aucune extension du parseur pour des options Clippy.
+
+Autorisation précise reçue pour `pub(super)` sur les deux méthodes, sans
+changer leurs corps, puis N1 et revue indépendante. Aucun autre changement
+de code n'est inclus dans cet accord.
+
+Correction des deux visibilités appliquée sans changer les corps. Reprise
+`5b-retry-*` entièrement verte : SelfTest 35/79, Structure 917/917, fmt,
+Clippy workspace/all-targets, adapters et N1. Comptes consolidés : défaut
+672/127, common 11/1, CPU 12/9, Parakeet CPU 26/11, soit **721 réussites,
+148 ignorés**. Diff-check réussi. PE non concerné.
+
+Extraction : **69 lignes de production retirées de poll**, sous la limite
+800 ; module nouveau de 93 lignes physiques. Handlers séparés de 48 et
+37 lignes physiques, annotations Clippy actives, aucun dépassement de
+100 lignes ou de complexité 25. `poll()` : **639 lignes Clippy et complexité
+66** ; mesure transitoire, reliquat des familles 6 à 8, seuil final à atteindre
+au terme du découpage accepté. Aucune référence Clippy ajoutée ou modifiée.
+Seconde revue indépendante de 5b demandée avec ces preuves.
+
+Verdict final 5b : **CLEAN**, deux revues et une correction, R-5B-1 clos,
+V-5B-1 satisfait, aucune requête ouverte. Ce verdict ne clôt pas B.
 
 ## Famille 5 — Stop avant activation et reprise d'import
 

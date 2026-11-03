@@ -9,6 +9,7 @@ mod observations;
 mod parakeet;
 mod readiness;
 mod segments;
+mod stop_recovery;
 #[cfg(test)]
 mod tests;
 pub(in crate::worker_ipc) use parakeet::ParakeetVadRun;
@@ -479,72 +480,11 @@ impl ImportRuntime {
                 return Some(self.confirm_live_window(finished));
             }
         }
-        if matches!(event, WorkerEvent::Stopped { .. })
-            && self.live.is_none()
-            && self
-                .pending_live
-                .as_ref()
-                .is_some_and(|pending| pending.recovery != LiveRecoveryState::None)
-        {
-            let recovery = self.pending_live.as_ref().map(|pending| pending.recovery);
-            if let Some(pending) = self.pending_live.as_mut()
-                && let Err(error) = pending.live_archive.retire_attempt(
-                    self.active
-                        .as_ref()
-                        .map_or(0, |active| active.attempt_number),
-                )
-            {
-                self.pending_live = None;
-                self.active = None;
-                self.transport = None;
-                return Some(Err((job_id, generation, error)));
-            }
-            self.active = None;
-            self.transport = None;
-            if self.publication_gate.is_cancelled() {
-                self.pending_live = None;
-                return Some(Ok(ImportEvent::Stopped { job_id, generation }));
-            }
-            if recovery == Some(LiveRecoveryState::AwaitingChoicePending) {
-                if let Some(pending) = self.pending_live.as_mut() {
-                    pending.recovery = LiveRecoveryState::AwaitingChoice;
-                }
-                return Some(Ok(ImportEvent::AwaitingCpuChoice { job_id, generation }));
-            }
-            return Some(
-                match self.start_cpu_pending_live_attempt(job_id, generation) {
-                    Ok(event) => Ok(event),
-                    Err(error) => Err(error),
-                },
-            );
+        if let Some(result) = self.poll_stopped_pending_live_recovery(&event, job_id, generation) {
+            return Some(result);
         }
-        if matches!(event, WorkerEvent::Stopped { .. })
-            && self.live.is_none()
-            && self.active.as_ref().is_some_and(|active| {
-                active.recovery == LiveRecoveryState::AutoRetryPending
-                    && active.import_request.is_some()
-            })
-        {
-            let request = self
-                .active
-                .as_ref()
-                .and_then(|active| active.import_request.clone());
-            self.active = None;
-            self.transport = None;
-            if self.publication_gate.is_cancelled() {
-                return Some(Ok(ImportEvent::Stopped { job_id, generation }));
-            }
-            return Some(
-                match request.map(|request| self.start_worker_with_cpu_override(request, true)) {
-                    Some(Ok(())) => Ok(ImportEvent::LiveAttemptStarting { job_id, generation }),
-                    Some(Err(error)) => Err(error),
-                    None => Err((
-                        job_id,
-                        generation,
-                        "ProtocolMismatch: retry request unavailable".into(),
-                    )),
-                },
-            );
+        if let Some(result) = self.poll_stopped_import_auto_retry(&event, job_id, generation) {
+            return Some(result);
         }
         if matches!(event, WorkerEvent::Stopped { .. }) && self.live.is_some() {
             if let Some(reason) = self.live.as_ref().and_then(|live| live.failure.clone()) {
