@@ -1,6 +1,6 @@
-Avancée : 6a CLEAN, treize nouveaux tests verts, deux mutations détectées ; N1 734/148.
-Blocage : aucun sur la caractérisation ; extraction 6b à réaliser avec seuils et ordre préservés.
-Décision : commiter 6a puis extraire 6b ; pas de C, N2 seulement après autorisation distincte.
+Avancée : familles 5 et 6 caractérisées et extraites CLEAN ; quatre mutations obligatoires détectées ; N1 734/148.
+Blocage : N2 ciblée reste à préparer précisément et autoriser ; aucune validation native déduite de N1.
+Décision : commiter 6b puis proposer N2 ; ne pas commencer C, ne pas pousser, bilan B à figer après décision N2.
 
 # REFACTO-POLL — sous-lot B
 
@@ -573,6 +573,37 @@ Preuves finales transmises au même reviewer, sans nouveau cycle de code.
 Verdict final 6a : **CLEAN**, deux revues et une correction ; V-6A-1,
 V-6A-2 et V-6A-N1 satisfaits, aucun constat ou demande ouvert. L'avis
 ne clôt pas B et n'est pas présenté comme validation N2.
+
+## État d'exécution 6b
+
+6a commité dans `067ba74963f22e205b1c32a92db7f215489f5592`.
+Extraction limitée à poll.rs et au nouveau `poll/active_live_stop.rs` :
+152 lignes retirées de poll, quatre fonctions séparées, tests et registre
+inchangés. Arrêt initial respecté après fmt --check sur la présentation
+du nouveau module, SelfTest 35/79 et Structure 930/930 déjà réussis.
+La session principale a arbitré le formatage de ce seul nouveau fichier,
+opération d'édition déjà comprise dans le mandat 6b, à périmètre constant.
+Aucun échec de compilation ou de test ni nouvelle permission externe n'est
+en cause. Rustfmt ciblé exécuté, diff-check réussi ; mesure courante du
+module final de **190 lignes physiques**, remplaçant le comptage provisoire 183.
+
+Candidat gelé pour N1 sous racines fraîches `6b-retry-*` et revue
+indépendante en lecture seule. Les mesures des quatre fonctions et du
+reliquat poll restent à obtenir ; aucune extraction de C n'est engagée.
+
+N1 finale `6b-retry-*` entièrement verte : SelfTest 35/79, Structure 930/930,
+fmt, Clippy adapters/all-targets, défaut 685/127, common 11/1, CPU 12/9 et
+Parakeet CPU 26/11, soit **734 réussites, zéro échec et 148 ignorés**.
+Les treize tests 6a restent verts. Mesures : quatre handlers de **24, 59,
+68 et 28 lignes**, aucun diagnostic de complexité au seuil 25 avec warn
+actif. `poll()` : **489 lignes Clippy, complexité 52**. 152 lignes déplacées,
+sous la limite 800 ; aucun allow ni référence Clippy ajouté. PE non concerné.
+
+Verdict indépendant final 6b : **CLEAN**, deux revues, une correction de
+présentation ; aucun constat ouvert, V-6B-N1 satisfait. Les handlers
+préservent les contrôles, priorités, nettoyages et retours immédiats. Le
+reliquat de poll reste pour C ; il n'est pas présenté comme conforme aux
+seuils finaux. N2 non exécutée, B pas encore clos.
 
 ## Famille 5 — Stop avant activation et reprise d'import
 
