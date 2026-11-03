@@ -1,9 +1,11 @@
 use super::*;
+use readiness::{AdmissionAckControl, AttestationControl, GpuSessionAttestation, ReadyControl};
 use segments::ResumePrefixControl;
 
 mod capture;
 mod observations;
 mod parakeet;
+mod readiness;
 mod segments;
 #[cfg(test)]
 mod tests;
@@ -406,24 +408,10 @@ impl ImportRuntime {
             return None;
         }
         if let WorkerEvent::ImportStarted { .. } = &event {
-            let Some(active) = self.active.as_mut().filter(|active| {
-                active.job_id == job_id
-                    && active.generation == generation
-                    && active.instance_id == instance_id
-                    && active.backend == BackendKind::Cuda
-                    && active.import_request.as_ref().is_some_and(|request| {
-                        request.config.compute == whisper_core::ComputeChoice::Auto
-                    })
-                    && !active.startup_ready
-            }) else {
-                return Some(Err((
-                    job_id,
-                    generation,
-                    "ProtocolMismatch: unexpected Auto import admission acknowledgement".into(),
-                )));
+            return match self.poll_import_started_ack(job_id, generation, instance_id) {
+                AdmissionAckControl::Accepted => None,
+                AdmissionAckControl::Rejected(message) => Some(Err((job_id, generation, message))),
             };
-            active.startup_ready = true;
-            return None;
         }
         if matches!(
             &event,
@@ -797,28 +785,21 @@ impl ImportRuntime {
                 cuda_ordinal,
                 ggml_ordinal,
             } if (j, g, i) == (job_id, generation, instance_id) => {
-                let matches_candidate = self.active.as_ref().is_some_and(|active| {
-                    active.gpu_candidate.as_ref().is_some_and(|expected| {
-                        expected.pnp_instance_id == candidate
-                            && expected.dxgi_rank == dxgi_rank
-                            && expected.luid == luid
-                            && expected.pci_id.eq_ignore_ascii_case(&pci_id)
-                            && expected.cuda_ordinal == cuda_ordinal
-                            && expected.ggml_ordinal == ggml_ordinal
-                    })
-                });
-                if matches_candidate {
-                    if let Some(active) = self.active.as_mut() {
-                        active.gpu_attested = true;
-                    }
-                    return None;
-                } else {
-                    self.handle_worker_failure(
+                match self.poll_gpu_session_attestation(GpuSessionAttestation {
+                    candidate,
+                    dxgi_rank,
+                    luid,
+                    pci_id,
+                    cuda_ordinal,
+                    ggml_ordinal,
+                }) {
+                    AttestationControl::Accepted => return None,
+                    AttestationControl::Mismatch => self.handle_worker_failure(
                         j,
                         g,
                         whisper_core::ipc::WorkerErrorCode::BackendMismatch,
                         "BackendMismatch: worker attested a different GPU candidate".into(),
-                    )
+                    ),
                 }
             }
             WorkerEvent::Ready {
@@ -832,92 +813,9 @@ impl ImportRuntime {
                     .as_ref()
                     .is_some_and(|active| active.backend == backend) =>
             {
-                if backend == BackendKind::Cuda
-                    && self.active.as_ref().is_some_and(|active| {
-                        active.gpu_candidate.is_some() && !active.gpu_attested
-                    })
-                {
-                    return Some(self.handle_worker_failure(
-                        j,
-                        g,
-                        whisper_core::ipc::WorkerErrorCode::BackendMismatch,
-                        "BackendMismatch: GPU Ready arrived before candidate attestation".into(),
-                    ));
-                }
-                // The generic Turbo GPU worker pauses at Ready and requires a
-                // BeginImport command. Parakeet's separate IPC has no such
-                // command: poll_parakeet_worker already sent Transcribe with
-                // the correlated attempt before returning this Ready event.
-                let auto_gpu_import = backend == BackendKind::Cuda
-                    && self.parakeet.is_none()
-                    && self
-                        .active
-                        .as_ref()
-                        .and_then(|active| active.import_request.as_ref())
-                        .is_some_and(|request| {
-                            request.config.compute == whisper_core::ComputeChoice::Auto
-                        });
-                if !auto_gpu_import && let Some(active) = self.active.as_mut() {
-                    active.startup_ready = true;
-                }
-                if auto_gpu_import && !self.publication_gate.is_cancelled() {
-                    let begin = WorkerCommand::BeginImport {
-                        job_id: j,
-                        generation: g,
-                        instance_id: i,
-                    };
-                    if let Err(error) = self
-                        .transport
-                        .as_mut()
-                        .expect("ready worker")
-                        .request(begin)
-                    {
-                        return Some(self.handle_worker_failure(
-                            j,
-                            g,
-                            whisper_core::ipc::WorkerErrorCode::WorkerExited,
-                            format!("WorkerExited before BeginImport admission: {error:?}"),
-                        ));
-                    }
-                }
-                if let Some(live) = self
-                    .live
-                    .as_mut()
-                    .filter(|live| live.request.job_id == j && live.request.generation == g)
-                {
-                    live.worker_ready = true;
-                }
-                if self.pending_live.is_some()
-                    && !self.publication_gate.is_cancelled()
-                    && let Err(failure) = self.activate_live_after_ready()
-                {
-                    if let Some(transport) = self.transport.as_mut() {
-                        let _ = transport.try_request(WorkerCommand::Stop {
-                            job_id: j,
-                            generation: g,
-                        });
-                    }
-                    Err(failure)
-                } else {
-                    Ok(ImportEvent::Ready {
-                        job_id: j,
-                        generation: g,
-                        backend: match backend {
-                            BackendKind::Cpu => "CPU",
-                            BackendKind::Cuda => "CUDA",
-                        }
-                        .to_owned()
-                            + &self
-                                .auto_fallback_reason
-                                .as_ref()
-                                .filter(|_| backend == BackendKind::Cpu)
-                                .map(|reason| {
-                                    format!(
-                                        " — GPU non utilisable ({reason}) ; CPU prend le relais"
-                                    )
-                                })
-                                .unwrap_or_default(),
-                    })
+                match self.poll_ready_backend(j, g, i, backend) {
+                    ReadyControl::ReturnImmediately(result) => return Some(result),
+                    ReadyControl::Finish(result) => result,
                 }
             }
             WorkerEvent::Ready { .. } => self.handle_worker_failure(

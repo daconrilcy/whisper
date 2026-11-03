@@ -1,5 +1,5 @@
-Avancée : familles 1 et 2 extraites ; caractérisation 3a revue CLEAN, N1 verte (702 réussites, 148 ignorés).
-Blocage : aucun ; extractions 3b et famille 4 restent à réaliser dans A.
+Avancée : familles 1 à 3 caractérisées et extraites, N1 verte (702 réussites, 148 ignorés), six revues CLEAN.
+Blocage : aucun ; famille 4 reste à réaliser avant clôture de A.
 Décision : démarrage du sous-lot A autorisé ; arrêt obligatoire à sa clôture, B et C restent à engager séparément.
 
 # REFACTO-POLL — cartographie et plan accepté
@@ -313,7 +313,7 @@ qualification supplémentaire ni nouvel outillage de campagne.
   `20261103T034649829-3ff9e629749b40c591075325548b15e8`, CPU
   `20261103T034658041-ea4c3283d9f240578a9831f382cb5ef1`, Parakeet CPU
   `20261103T034712151-17419834e3e54268925cfef948a2afe7`.
-- 3a : onze nouveaux tests ; revue CLEAN après une correction R3A-1
+- 3a (`df2fefb9`) : onze nouveaux tests ; revue CLEAN après une correction R3A-1
   (Ready fait passer le live existant de worker_ready=false à true).
   L'erreur d'envoi BeginImport est atteinte par APIs existantes : arrêt du
   faux worker, commande sonde, observation du canal Disconnected, puis Ready
@@ -332,3 +332,15 @@ qualification supplémentaire ni nouvel outillage de campagne.
   Condition restaurée exactement, détecteur vert dans la N1 finale. Une
   tentative de filtre individuel avait été refusée par la garde avant le
   test ; la preuve a utilisé la sélection N1 complète autorisée, garde inchangée.
+- 3b : ACK, attestation et Ready extraits dans `poll/readiness.rs`, handlers
+  23/23/89 lignes physiques ; deux lints locaux <=100/25 PASS. Paramètres
+  d'attestation regroupés sans clone/Box/allocation supplémentaire ; contrôles
+  de sortie et appels conservés à leur emplacement. Revue indépendante CLEAN
+  sans correction, 121 suppressions/188 ajouts incluant raccordements, sous
+  800 lignes déplacées. N1 finale 702/0/148 (défaut vérifié au journal :
+  653/0/127), Structure 898/898, SelfTest/PE/fmt/Clippy/diff-check PASS.
+  Logs scratch : Clippy `20261103T042433600-06cbf04603e64318a4f7415b57fa43e1`,
+  défaut `20261103T042444234-bdaec99e29f0405da0b97dc67ecdf3d6`, common
+  `20261103T042527759-eaf8f7faa9b341daad58b9191e75c0ee`, CPU
+  `20261103T042530582-29ae6e3cb7704de094fad0671afda57d`, Parakeet CPU
+  `20261103T042539271-e0b022d6d10f4671b59e97f1eebc2f1e`.
