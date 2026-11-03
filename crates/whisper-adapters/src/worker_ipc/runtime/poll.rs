@@ -1,8 +1,10 @@
 use super::*;
+use segments::ResumePrefixControl;
 
 mod capture;
 mod observations;
 mod parakeet;
+mod segments;
 #[cfg(test)]
 mod tests;
 pub(in crate::worker_ipc) use parakeet::ParakeetVadRun;
@@ -778,33 +780,10 @@ impl ImportRuntime {
             self.active = None;
             return Some(Ok(ImportEvent::Published { job_id, generation }));
         }
-        if let WorkerEvent::Segment(dto) = &event
-            && let Some(expected) = self.resume_prefix.pop_front()
-        {
-            if dto.segment_id.0 != expected.sequence
-                || dto.range != expected.range
-                || dto.text != expected.text
-            {
-                self.transport = None;
-                self.active = None;
-                self.resume_prefix.clear();
-                return Some(Err((
-                    job_id,
-                    generation,
-                    "ResumeMismatch: recomputed segment differs from the confirmed prefix".into(),
-                )));
-            }
-            return None;
-        }
-        if matches!(event, WorkerEvent::End { .. }) && !self.resume_prefix.is_empty() {
-            self.transport = None;
-            self.active = None;
-            self.resume_prefix.clear();
-            return Some(Err((
-                job_id,
-                generation,
-                "ResumeMismatch: worker ended before reproducing the confirmed prefix".into(),
-            )));
+        match self.poll_resume_prefix(&event, job_id, generation) {
+            ResumePrefixControl::Continue => {}
+            ResumePrefixControl::Suppress => return None,
+            ResumePrefixControl::Reject(failure) => return Some(Err(failure)),
         }
         let result = match event {
             WorkerEvent::GpuSessionAttested {
@@ -963,44 +942,9 @@ impl ImportRuntime {
                 if (dto.job_id, dto.generation, dto.instance_id)
                     == (job_id, generation, instance_id) =>
             {
-                let sequence_base = self
-                    .live
-                    .as_ref()
-                    .filter(|live| {
-                        live.request.job_id == job_id && live.request.generation == generation
-                    })
-                    .map_or(1, |live| live.segment_sequence_base);
-                let Some(segment_sequence) =
-                    map_attempt_sequence(sequence_base, 0, dto.segment_id.0)
-                else {
-                    return Some(Err((
-                        job_id,
-                        generation,
-                        "ProtocolMismatch: live segment sequence exhausted".into(),
-                    )));
-                };
-                let segment = WorkerSegment {
-                    job_id: dto.job_id,
-                    generation: dto.generation,
-                    instance_id: dto.instance_id,
-                    segment_id: whisper_core::SegmentId(segment_sequence),
-                    range: dto.range,
-                    text: dto.text,
-                };
-                if let Some(live) = self.live.as_ref().filter(|live| {
-                    live.request.job_id == job_id && live.request.generation == generation
-                }) {
-                    self.live_pending_persistence = self.live_pending_persistence.saturating_add(1);
-                    let captured_at_unix_ms = live
-                        .started_at_unix_ms
-                        .saturating_add(segment.range.start_sample.saturating_mul(1_000) / 16_000);
-                    Ok(ImportEvent::LiveProvisional {
-                        segment,
-                        captured_at_unix_ms,
-                        available_at_unix_ms: unix_time_ms(),
-                    })
-                } else {
-                    Ok(ImportEvent::Segment(segment))
+                match self.poll_import_segment(dto, job_id, generation) {
+                    Ok(event) => Ok(event),
+                    Err(failure) => return Some(Err(failure)),
                 }
             }
             WorkerEvent::End {
@@ -1010,28 +954,7 @@ impl ImportRuntime {
                 last_sequence,
                 last_offset,
             } if (j, g, i) == (job_id, generation, instance_id) => {
-                if let (Some(active), Some(transport)) =
-                    (self.active.as_ref(), self.transport.take())
-                    && let Some(request) = active.import_request.as_ref()
-                {
-                    self.pending_idle_worker = Some(IdleWorker {
-                        transport,
-                        compute: match active.backend {
-                            BackendKind::Cpu => whisper_core::ComputeChoice::Cpu,
-                            BackendKind::Cuda => whisper_core::ComputeChoice::Gpu,
-                        },
-                        model_path: request.model_path.clone(),
-                        model_sha256: request.model_sha256,
-                        expires_at: Instant::now(),
-                    });
-                }
-                self.active = None;
-                Ok(ImportEvent::End {
-                    job_id: j,
-                    generation: g,
-                    last_sequence,
-                    last_offset,
-                })
+                Ok(self.poll_import_end(j, g, last_sequence, last_offset))
             }
             WorkerEvent::Stopped {
                 job_id: j,

@@ -1,5 +1,5 @@
-Avancée : famille 1 extraite ; caractérisation 2a revue CLEAN, N1 verte (691 réussites, 148 ignorés).
-Blocage : aucun pour 2a ; extraction 2b et familles 3 à 4 restent à réaliser dans A.
+Avancée : familles 1 et 2 caractérisées et extraites, N1 verte (691 réussites, 148 ignorés), quatre revues CLEAN.
+Blocage : aucun ; familles 3 et 4 restent à réaliser dans A.
 Décision : démarrage du sous-lot A autorisé ; arrêt obligatoire à sa clôture, B et C restent à engager séparément.
 
 # REFACTO-POLL — cartographie et plan accepté
@@ -275,7 +275,7 @@ qualification supplémentaire ni nouvel outillage de campagne.
   `20261102T235804580-1c1a1e38ad72469a934c56d580016d69`, CPU
   `20261102T235810766-3afd07a9b8fe4c009d8ea945f65a3078`, Parakeet CPU
   `20261102T235822163-7a43d7303f2e4e5f9b305fe8e0f78ef2`.
-- 2a : sept nouveaux tests, mutation de sortie du préfixe identique
+- 2a (`6ff324fc`) : sept nouveaux tests, mutation de sortie du préfixe identique
   détectée puis restaurée. Une première N1 post-restauration a passé à
   691/0/148. La revue a demandé de borner l'heure de disponibilité du segment
   autour de poll (R2A-1) ; après cette correction, un test existant a échoué
@@ -300,3 +300,16 @@ qualification supplémentaire ni nouvel outillage de campagne.
   vert avant (log `20261103T000540434-c39db7324b3e4ac0b9456809680105d5`),
   rouge pendant (log `20261103T000557411-f96f2fd2dbf941a59419a9ebe727ef64`),
   puis vert après restauration exacte ; aucun diff produit résiduel.
+- 2b : trois handlers distincts dans `poll/segments.rs`, 36/45/29 lignes
+  physiques ; lints locaux Clippy <= 100 lignes et <= 25 de complexité PASS.
+  Sorties explicites préfixe suivant/suppression/rejet, erreur de mapping
+  immédiate, Segment et End vers traitement final ; ordre End conservé.
+  Revue indépendante CLEAN sans correction, déplacement sous 800 lignes
+  (102 lignes source concernées selon implémenteur, diff 87 suppressions et
+  135 ajouts incluant liaisons). N1 691/0/148, Structure 887/887,
+  SelfTest/PE/fmt/Clippy/diff-check PASS, témoin réel non exécuté.
+  Logs scratch : Clippy `20261103T034552266-1fd115dcd8944c75b648a171e132d4ed`,
+  défaut `20261103T034603889-e873c3e2c7b140dab0e5a0b0eb792584`, common
+  `20261103T034649829-3ff9e629749b40c591075325548b15e8`, CPU
+  `20261103T034658041-ea4c3283d9f240578a9831f382cb5ef1`, Parakeet CPU
+  `20261103T034712151-17419834e3e54268925cfef948a2afe7`.
