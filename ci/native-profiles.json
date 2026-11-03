@@ -787,6 +787,20 @@
       ]
     },
     {
+      "id": "PollInterruptedResume",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": ["whisper-adapters/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [],
+      "values": [],
+      "outputs": [],
+      "cases": [
+        {"targetKind":"lib","targetName":"","exactTest":"worker_ipc::tests::import_application_resumes_a_verified_interrupted_unified_import","ignored":false,"verdict":"QUALIFICATION"}
+      ]
+    },
+    {
       "id": "TurboCpuLive",
       "status": "READY",
       "operation": "Run",
@@ -806,6 +820,23 @@
       "outputs": [],
       "cases": [
         {"targetKind":"integration","targetName":"worker_contract","exactTest":"turbo_live_stop_and_shutdown_contract","ignored":false,"verdict":"QUALIFICATION"}
+      ]
+    },
+    {
+      "id": "PollTurboCpuDirect",
+      "status": "READY",
+      "operation": "Run",
+      "package": "whisper-adapters",
+      "features": ["whisper-adapters/native-tests"],
+      "compileEnvironment": [],
+      "inputs": [
+        {"key":"workerExe","environmentVariable":"WHISPER_TEST_WORKER_EXE","kind":"file"},
+        {"key":"model","environmentVariable":"WHISPER_TEST_REUSE_MODEL","kind":"file"}
+      ],
+      "values": [],
+      "outputs": [],
+      "cases": [
+        {"targetKind":"lib","targetName":"","exactTest":"worker_ipc::runtime::poll::tests::native_direct_cpu::native_direct_turbo_cpu_finishes_through_poll","ignored":false,"verdict":"QUALIFICATION"}
       ]
     },
     {
